@@ -39,6 +39,8 @@ From this directory:
 uv sync
 ```
 
+`uv sync` is the only supported dependency install method for this sidecar.
+
 ## Run The Sidecar Server
 
 You can start the same server using either entrypoint:
