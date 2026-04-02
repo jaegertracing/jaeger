@@ -136,142 +136,142 @@ class JaegerSidecarAgent(Agent):
         self._next_session_id = 1
 
 
-def build_config_from_env() -> SidecarConfig:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
-        )
-    return SidecarConfig(
-        gemini_api_key=api_key,
-        mcp_url=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL),
-    )
-
-def on_connect(self, conn: Client) -> None:
-    self._conn = conn
-
-async def initialize(
-    self,
-    protocol_version: int,
-    **kwargs: Any,
-) -> InitializeResponse:
-    print(f"Agent initialized with protocol version {protocol_version}")
-    return InitializeResponse(
-        protocol_version=PROTOCOL_VERSION,
-        agent_capabilities=AgentCapabilities(),
-        agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
-    )
-
-async def new_session(self, **kwargs: Any) -> NewSessionResponse:
-    session_id = f"sess-{self._next_session_id}"
-    self._next_session_id += 1
-    return NewSessionResponse(session_id=session_id)
-
-async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
-    await self._conn.session_update(
-        session_id,
-        start_tool_call(
-            tool_call_id,
-            tool_name,
-            kind="search",
-            status="in_progress",
-        ),
-    )
-
-    tool_output = await self._mcp.call_tool(tool_name, args)
-    output_text = _to_tool_text(tool_output)
-
-    await self._conn.session_update(
-        session_id,
-        update_tool_call(
-            tool_call_id,
-            status="completed",
-            content=[tool_content(text_block(output_text))],
-            raw_output={"content": tool_output},
-        ),
-    )
-
-    return tool_output
-
-async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
-    system_instruction = (
-        "You are a Jaeger tracing assistant. "
-        "A tool named search_traces is available. "
-        "Call this tool whenever trace/span lookup data is needed before answering. "
-    )
-
-    mcp_tools = await self._mcp.get_gemini_tools()
-    print(f"Passing tools to Gemini: {[tool.function_declarations[0].name for tool in mcp_tools]}")
-
-    chat = self._gemini.chats.create(
-        model="gemini-2.5-flash",
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            tools=mcp_tools,
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-        ),
-    )
-
-    print(f"Sending user message to Gemini: {user_text}")
-    response = chat.send_message(user_text)
-
-    # Iterate model->tool->model until Gemini produces a final text response.
-    for _ in range(6):
-        function_calls = response.function_calls
-        if not function_calls:
-            print("No function calls in Gemini response, breaking loop")
-            print(f"break Gemini final response: {response.text}")
-            return response.text or ""
-
-        function_responses = []
-
-        for function_call in function_calls:
-            name = function_call.name or ""
-            args = function_call.args or {}
-            call_id = function_call.id or f"{name}-{self._next_session_id}"
-            print(f"Gemini requested tool call: {name} with args {args} and call_id {call_id}")
-            tool_output = await self._execute_tool(session_id, name, args, call_id)
-            function_responses.append(
-                types.Part.from_function_response(name=name, response={"result": tool_output})
+    def build_config_from_env() -> SidecarConfig:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
             )
+        return SidecarConfig(
+            gemini_api_key=api_key,
+            mcp_url=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL),
+        )
 
-        print(f"Sending function responses back to Gemini: {function_responses}")
-        response = chat.send_message(function_responses)
-        print(f"Gemini response after tool calls: {response.text}")
+    def on_connect(self, conn: Client) -> None:
+        self._conn = conn
 
-    print(f"Final Gemini response: {response.text}")
-    return response.text or ""
+    async def initialize(
+        self,
+        protocol_version: int,
+        **kwargs: Any,
+    ) -> InitializeResponse:
+        print(f"Agent initialized with protocol version {protocol_version}")
+        return InitializeResponse(
+            protocol_version=PROTOCOL_VERSION,
+            agent_capabilities=AgentCapabilities(),
+            agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
+        )
 
-async def prompt(self, session_id: str, prompt: list[Any], **kwargs: Any) -> PromptResponse:
-    print(f"Received prompt request for session {session_id}")
+    async def new_session(self, **kwargs: Any) -> NewSessionResponse:
+        session_id = f"sess-{self._next_session_id}"
+        self._next_session_id += 1
+        return NewSessionResponse(session_id=session_id)
 
-    # Extract text from prompt blocks
-    user_text = ""
-    for block in prompt:
-        if hasattr(block, "text"):
-            user_text += block.text
+    async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
+        await self._conn.session_update(
+            session_id,
+            start_tool_call(
+                tool_call_id,
+                tool_name,
+                kind="search",
+                status="in_progress",
+            ),
+        )
 
-    try:
-        final_answer = await self._run_agentic_gemini_loop(session_id, user_text)
-        if final_answer:
-            print(f"final answer from Gemini: {final_answer} with session_id {session_id}")
+        tool_output = await self._mcp.call_tool(tool_name, args)
+        output_text = _to_tool_text(tool_output)
+
+        await self._conn.session_update(
+            session_id,
+            update_tool_call(
+                tool_call_id,
+                status="completed",
+                content=[tool_content(text_block(output_text))],
+                raw_output={"content": tool_output},
+            ),
+        )
+
+        return tool_output
+
+    async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
+        system_instruction = (
+            "You are a Jaeger tracing assistant. "
+            "A tool named search_traces is available. "
+            "Call this tool whenever trace/span lookup data is needed before answering. "
+        )
+
+        mcp_tools = await self._mcp.get_gemini_tools()
+        print(f"Passing tools to Gemini: {[tool.function_declarations[0].name for tool in mcp_tools]}")
+
+        chat = self._gemini.chats.create(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                tools=mcp_tools,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            ),
+        )
+
+        print(f"Sending user message to Gemini: {user_text}")
+        response = chat.send_message(user_text)
+
+        # Iterate model->tool->model until Gemini produces a final text response.
+        for _ in range(6):
+            function_calls = response.function_calls
+            if not function_calls:
+                print("No function calls in Gemini response, breaking loop")
+                print(f"break Gemini final response: {response.text}")
+                return response.text or ""
+
+            function_responses = []
+
+            for function_call in function_calls:
+                name = function_call.name or ""
+                args = function_call.args or {}
+                call_id = function_call.id or f"{name}-{self._next_session_id}"
+                print(f"Gemini requested tool call: {name} with args {args} and call_id {call_id}")
+                tool_output = await self._execute_tool(session_id, name, args, call_id)
+                function_responses.append(
+                    types.Part.from_function_response(name=name, response={"result": tool_output})
+                )
+
+            print(f"Sending function responses back to Gemini: {function_responses}")
+            response = chat.send_message(function_responses)
+            print(f"Gemini response after tool calls: {response.text}")
+
+        print(f"Final Gemini response: {response.text}")
+        return response.text or ""
+
+    async def prompt(self, session_id: str, prompt: list[Any], **kwargs: Any) -> PromptResponse:
+        print(f"Received prompt request for session {session_id}")
+
+        # Extract text from prompt blocks
+        user_text = ""
+        for block in prompt:
+            if hasattr(block, "text"):
+                user_text += block.text
+
+        try:
+            final_answer = await self._run_agentic_gemini_loop(session_id, user_text)
+            if final_answer:
+                print(f"final answer from Gemini: {final_answer} with session_id {session_id}")
+                await self._conn.session_update(
+                    session_id,
+                    update_agent_message(text_block(final_answer)),
+                )
+        except Exception as e:
+            print(f"Error calling Gemini: {e}")
             await self._conn.session_update(
                 session_id,
-                update_agent_message(text_block(final_answer)),
+                update_agent_message(text_block(f"\n[Error: {str(e)}]"))
             )
-    except Exception as e:
-        print(f"Error calling Gemini: {e}")
-        await self._conn.session_update(
-            session_id,
-            update_agent_message(text_block(f"\n[Error: {str(e)}]"))
-        )
-    finally:
-        await self._conn.session_update(
-            session_id,
-            update_agent_message(text_block(END_OF_TURN_MARKER)),
-        )
+        finally:
+            await self._conn.session_update(
+                session_id,
+                update_agent_message(text_block(END_OF_TURN_MARKER)),
+            )
 
-    return PromptResponse(stop_reason="end_turn")
+        return PromptResponse(stop_reason="end_turn")
 
 
 async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None = None):
