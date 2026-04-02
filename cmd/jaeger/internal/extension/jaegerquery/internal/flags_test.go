@@ -15,4 +15,7 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, ":16686", qo.HTTP.NetAddr.Endpoint)
 	require.Equal(t, ":16685", qo.GRPC.NetAddr.Endpoint)
 	require.EqualValues(t, "tcp", qo.GRPC.NetAddr.Transport)
+	aiCfg := qo.AI.Get()
+	require.NotNil(t, aiCfg)
+	require.Equal(t, "ws://localhost:9000", aiCfg.AgentURL)
 }

@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -22,6 +23,12 @@ type UIConfig struct {
 	AssetsPath string `mapstructure:"assets_path" valid:"optional" `
 	// LogAccess tells static handler to log access to static assets, useful in debugging.
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
+}
+
+type AIConfig struct {
+	// AgentURL is the WebSocket endpoint of an agent that supports ACP.
+	// See https://agentclientprotocol.com/
+	AgentURL string `mapstructure:"agent_url" valid:"required"`
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2
@@ -45,11 +52,14 @@ type QueryOptions struct {
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
+	// AI holds configuration related to Jaeger AI gateway integration.
+	AI configoptional.Optional[AIConfig] `mapstructure:"ai"`
 }
 
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
+		AI:                 configoptional.Some(AIConfig{AgentURL: "ws://localhost:9000"}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),
