@@ -9,5 +9,6 @@ dependencies = [
     "google-adk>=1.10.0",
     "google-genai>=1.68.0",
     "pytest>=8.3.4",
+    "requests>=2.32.6",
     "websockets>=16.0",
 ]
