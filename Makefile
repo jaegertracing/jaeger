@@ -37,12 +37,22 @@ ALL_SRC = $(shell find . -name '*.go' \
 				sort)
 
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
-SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
+SCRIPTS_SRC_EXCLUDES_LICENSED = \
 						-not -path './.git/*' \
 						-not -path './vendor/*' \
 						-not -path './idl/*' \
-						-not -path './jaeger-ui/*' \
-						-not -path './python-sidecar/*' \
+						-not -path './jaeger-ui/*'
+SCRIPTS_SRC_EXCLUDES = $(SCRIPTS_SRC_EXCLUDES_LICENSED)
+SCRIPTS_SRC_EXCLUDES += -not -path './scripts/ai-sidecar/*'
+
+SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
+						$(SCRIPTS_SRC_EXCLUDES) \
+						-type f | \
+					sort)
+
+# All .sh or .py or Makefile or .mk files that should have license headers.
+LICENSED_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
+						$(SCRIPTS_SRC_EXCLUDES_LICENSED) \
 						-type f | \
 					sort)
 
@@ -143,7 +153,7 @@ fmt: $(GOFUMPT)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(LICENSED_SRC)
 
 .PHONY: lint
 lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
@@ -151,7 +161,7 @@ lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(LICENSED_SRC) > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: lint-nocommit

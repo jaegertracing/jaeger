@@ -57,6 +57,27 @@ def _to_tool_text(value: Any) -> str:
         return str(value)
 
 
+def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None:
+    """Return a Gemini function declaration from an ADK tool.
+
+    Prefer a public API when available; fall back to ADK's internal method for
+    compatibility with current tool implementations.
+    """
+    get_declaration = getattr(tool, "get_declaration", None)
+    if callable(get_declaration):
+        declaration = get_declaration()
+        if declaration is not None:
+            return declaration
+
+    # ADK BaseTool currently exposes declaration via _get_declaration().
+    # Keep this fallback isolated in one place to reduce breakage risk.
+    private_get_declaration = getattr(tool, "_get_declaration", None)
+    if callable(private_get_declaration):
+        return private_get_declaration()
+
+    return None
+
+
 class JaegerMCPBridge:
     def __init__(self, mcp_url: str):
         self._toolset = MCPToolset(
@@ -77,7 +98,7 @@ class JaegerMCPBridge:
 
         function_declarations: list[types.FunctionDeclaration] = []
         for tool in adk_tools:
-            declaration = tool._get_declaration()
+            declaration = _extract_function_declaration(tool)
             if declaration is not None:
                 function_declarations.append(declaration)
 
@@ -284,6 +305,9 @@ async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None 
 
     for task in done:
         print(f"Task finished: {task.get_name()}")
+        if task.cancelled():
+            print(f"Task was cancelled: {task.get_name()}")
+            continue
         if task.exception():
             print(f"Task exception: {task.exception()}")
 
