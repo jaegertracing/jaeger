@@ -123,6 +123,18 @@ class JaegerMCPBridge:
         return _to_jsonable(result)
 
 
+def build_config_from_env() -> SidecarConfig:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
+        )
+    return SidecarConfig(
+        gemini_api_key=api_key,
+        mcp_url=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL),
+    )
+
+
 class JaegerSidecarAgent(Agent):
     def __init__(self, config: SidecarConfig):
         super().__init__()
@@ -134,18 +146,6 @@ class JaegerSidecarAgent(Agent):
         self._gemini = genai.Client(api_key=config.gemini_api_key)
         self._mcp = JaegerMCPBridge(config.mcp_url)
         self._next_session_id = 1
-
-
-    def build_config_from_env() -> SidecarConfig:
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
-            )
-        return SidecarConfig(
-            gemini_api_key=api_key,
-            mcp_url=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL),
-        )
 
     def on_connect(self, conn: Client) -> None:
         self._conn = conn
