@@ -153,7 +153,7 @@ fmt: $(GOFUMPT)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
 	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(LICENSED_SRC)
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
 lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
