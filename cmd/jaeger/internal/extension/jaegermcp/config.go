@@ -29,6 +29,9 @@ type Config struct {
 
 // Validate checks if the configuration is valid.
 func (cfg *Config) Validate() error {
+	// if cfg.ServerVersion == "" {
+	// 	cfg.ServerVersion = version.Get().GitVersion
+	// }
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }

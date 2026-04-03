@@ -567,7 +567,7 @@ cmd/jaeger/internal/extension/jaegermcp/
 11. **Documentation**
     - ✅ Write `README.md` for the extension
     - ✅ Document MCP server instructions (system prompt) for LLM configuration
-    - Add example configurations
+    - ✅ Add example configurations (`cmd/jaeger/config.yaml`)
 
 12. **Integration Testing**
     - ✅ End-to-end tests with mock storage
