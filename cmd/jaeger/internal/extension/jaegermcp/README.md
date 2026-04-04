@@ -14,7 +14,7 @@ This approach prevents context-window exhaustion in LLMs and enables more effici
 
 **Note:** The current implementation uses Streamable HTTP transport only. MCP `stdio` transport is not supported.
 
-See [ADR-002](../../../../docs/adr/002-mcp-server.md) for full design details.
+See [ADR-002](/docs/adr/002-mcp-server.md) for full design details.
 
 ## Available Endpoints
 
