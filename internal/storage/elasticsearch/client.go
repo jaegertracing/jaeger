@@ -17,11 +17,18 @@ type Client interface {
 	CreateIndex(index string) IndicesCreateService
 	CreateTemplate(id string) TemplateCreateService
 	Index() IndexService
+	Bulk() BulkService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
 	DeleteIndex(index string) IndicesDeleteService
 	io.Closer
 	GetVersion() uint
+}
+
+// BulkService is an abstraction for elastic.BulkService
+type BulkService interface {
+	Add(index string, typ string, body any) BulkService
+	Do(ctx context.Context) (*elastic.BulkResponse, error)
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService

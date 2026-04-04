@@ -5,6 +5,8 @@
 package spanstore
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -44,6 +46,8 @@ type SpanWriter struct {
 type CoreSpanWriter interface {
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
+	// WriteSpansSync writes a batch of spans and their corresponding service:operation in ElasticSearch synchronously
+	WriteSpansSync(ctx context.Context, spans []*dbmodel.Span, spanStartTimes []time.Time) error
 	// Close closes CoreSpanWriter
 	Close() error
 }
@@ -136,6 +140,42 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	}
 	s.writeSpanToIndex(spanIndexName, span)
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+}
+
+// WriteSpansSync writes a batch of spans and their corresponding service:operation in ElasticSearch synchronously
+func (s *SpanWriter) WriteSpansSync(ctx context.Context, spans []*dbmodel.Span, spanStartTimes []time.Time) error {
+	s.writerMetrics.Attempts.Inc(int64(len(spans)))
+	
+	bulk := s.client().Bulk()
+	
+	for i, span := range spans {
+		s.convertNestedTagsToFieldTags(span)
+		spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTimes[i])
+		if serviceIndexName != "" {
+			s.writeService(serviceIndexName, span)
+		}
+		bulk.Add(spanIndexName, spanType, span)
+	}
+	
+	if len(spans) > 0 {
+		resp, err := bulk.Do(ctx)
+		if err != nil {
+			return err
+		}
+		if resp.Errors {
+			var errMsgs []string
+			for _, item := range resp.Items {
+				for _, result := range item {
+					if result.Error != nil {
+						errMsgs = append(errMsgs, fmt.Sprintf("%s: %s", result.Error.Type, result.Error.Reason))
+					}
+				}
+			}
+			return fmt.Errorf("bulk index failed with %d errors: %s", len(errMsgs), strings.Join(errMsgs, "; "))
+		}
+		s.logger.Debug("Wrote spans to ES index synchronously", zap.Int("count", len(spans)))
+	}
+	return nil
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {

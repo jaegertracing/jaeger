@@ -494,3 +494,66 @@ func (_c *CoreSpanWriter_WriteSpan_Call) RunAndReturn(run func(spanStartTime tim
 	_c.Run(run)
 	return _c
 }
+
+// WriteSpansSync provides a mock function for the type CoreSpanWriter
+func (_mock *CoreSpanWriter) WriteSpansSync(ctx context.Context, spans []*dbmodel.Span, spanStartTimes []time.Time) error {
+	ret := _mock.Called(ctx, spans, spanStartTimes)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WriteSpansSync")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []*dbmodel.Span, []time.Time) error); ok {
+		r0 = returnFunc(ctx, spans, spanStartTimes)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// CoreSpanWriter_WriteSpansSync_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpansSync'
+type CoreSpanWriter_WriteSpansSync_Call struct {
+	*mock.Call
+}
+
+// WriteSpansSync is a helper method to define mock.On call
+//   - ctx context.Context
+//   - spans []*dbmodel.Span
+//   - spanStartTimes []time.Time
+func (_e *CoreSpanWriter_Expecter) WriteSpansSync(ctx interface{}, spans interface{}, spanStartTimes interface{}) *CoreSpanWriter_WriteSpansSync_Call {
+	return &CoreSpanWriter_WriteSpansSync_Call{Call: _e.mock.On("WriteSpansSync", ctx, spans, spanStartTimes)}
+}
+
+func (_c *CoreSpanWriter_WriteSpansSync_Call) Run(run func(ctx context.Context, spans []*dbmodel.Span, spanStartTimes []time.Time)) *CoreSpanWriter_WriteSpansSync_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []*dbmodel.Span
+		if args[1] != nil {
+			arg1 = args[1].([]*dbmodel.Span)
+		}
+		var arg2 []time.Time
+		if args[2] != nil {
+			arg2 = args[2].([]time.Time)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *CoreSpanWriter_WriteSpansSync_Call) Return(err error) *CoreSpanWriter_WriteSpansSync_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *CoreSpanWriter_WriteSpansSync_Call) RunAndReturn(run func(ctx context.Context, spans []*dbmodel.Span, spanStartTimes []time.Time) error) *CoreSpanWriter_WriteSpansSync_Call {
+	_c.Call.Return(run)
+	return _c
+}

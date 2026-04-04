@@ -74,6 +74,11 @@ func (c ClientWrapper) Index() es.IndexService {
 	return WrapESIndexService(r, c.bulkService, c.esVersion)
 }
 
+// Bulk calls this function to internal client.
+func (c ClientWrapper) Bulk() es.BulkService {
+	return WrapESBulkService(c.client.Bulk(), c.esVersion)
+}
+
 // Search calls this function to internal client.
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
 	searchService := c.client.Search(indices...)
@@ -228,6 +233,34 @@ func (i IndexServiceWrapper) Type(typ string) es.IndexService {
 // Add adds the request to bulk service
 func (i IndexServiceWrapper) Add() {
 	i.bulkService.Add(i.bulkIndexReq)
+}
+
+// ---
+
+// BulkServiceWrapper is a wrapper around elastic.BulkService.
+type BulkServiceWrapper struct {
+	bulkService *elastic.BulkService
+	esVersion   uint
+}
+
+// WrapESBulkService creates an ESBulkService out of *elastic.BulkService.
+func WrapESBulkService(bulkService *elastic.BulkService, esVersion uint) BulkServiceWrapper {
+	return BulkServiceWrapper{bulkService: bulkService, esVersion: esVersion}
+}
+
+// Add adds the request to bulk service
+func (b BulkServiceWrapper) Add(index string, typ string, body any) es.BulkService {
+	req := elastic.NewBulkIndexRequest().Index(index).Doc(body)
+	if b.esVersion < 7 {
+		req = req.Type(typ)
+	}
+	b.bulkService.Add(req)
+	return b
+}
+
+// Do calls this function to internal service.
+func (b BulkServiceWrapper) Do(ctx context.Context) (*elastic.BulkResponse, error) {
+	return b.bulkService.Do(ctx)
 }
 
 // ---
