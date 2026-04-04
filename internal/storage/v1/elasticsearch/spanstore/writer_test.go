@@ -354,6 +354,17 @@ func TestWriteSpansSync_Error(t *testing.T) {
 	})
 }
 
+func TestWriteSpansSync_LengthMismatch(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		spans := []*dbmodel.Span{{}}
+		startTimes := []time.Time{} // Empty, different length
+
+		err := w.writer.WriteSpansSync(context.Background(), spans, startTimes)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "length mismatch")
+	})
+}
+
 func TestWriteSpansSync_BulkErrors(t *testing.T) {
 	date := time.Date(1995, time.April, 21, 4, 21, 19, 0, time.UTC)
 	withSpanWriter(func(w *spanWriterTest) {

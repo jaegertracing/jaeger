@@ -142,8 +142,13 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
 }
 
-// WriteSpansSync writes a batch of spans and their corresponding service:operation in ElasticSearch synchronously
+// WriteSpansSync writes a batch of spans and their corresponding service:operation in ElasticSearch synchronously.
+// The spans and spanStartTimes slices must be of the same length.
 func (s *SpanWriter) WriteSpansSync(ctx context.Context, spans []*dbmodel.Span, spanStartTimes []time.Time) error {
+	if len(spans) != len(spanStartTimes) {
+		return fmt.Errorf("length mismatch: spans length %d does not match spanStartTimes length %d", len(spans), len(spanStartTimes))
+	}
+
 	s.writerMetrics.Attempts.Inc(int64(len(spans)))
 	
 	bulk := s.client().Bulk()
