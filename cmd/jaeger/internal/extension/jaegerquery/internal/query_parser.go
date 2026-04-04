@@ -117,8 +117,8 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 //	keyValue := strValue ':' strValue
 //	tags :== 'tags=' jsonMap
 func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
-	service := r.FormValue(serviceParam)
-	operation := r.FormValue(operationParam)
+	service := r.URL.Query().Get(serviceParam)
+	operation := r.URL.Query().Get(operationParam)
 
 	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond)
 	if err != nil {
@@ -129,12 +129,12 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		return nil, err
 	}
 
-	tags, err := p.parseTags(r.Form[tagParam], r.Form[tagsParam])
+	tags, err := p.parseTags(r.URL.Query()[tagParam], r.URL.Query()[tagsParam])
 	if err != nil {
 		return nil, err
 	}
 
-	limitParam := r.FormValue(limitParam)
+	limitParam := r.URL.Query().Get(limitParam)
 	limit := defaultQueryLimit
 	if limitParam != "" {
 		limitParsed, err := strconv.ParseInt(limitParam, 10, 32)
@@ -156,7 +156,7 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	}
 
 	var traceIDs []model.TraceID
-	for _, id := range r.Form[traceIDParam] {
+	for _, id := range r.URL.Query()[traceIDParam] {
 		traceID, err := model.TraceIDFromString(id)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse traceID param: %w", err)
@@ -284,7 +284,7 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 // parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
 // If the time parameter is empty, the current time will be returned.
 func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
-	formValue := r.FormValue(paramName)
+	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
 		if paramName == startTimeParam {
 			return p.timeNow().Add(-1 * p.traceQueryLookbackDuration), nil
@@ -301,7 +301,7 @@ func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Du
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
 // If the duration parameter is empty, the given defaultDuration will be returned.
 func parseDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
-	formValue := r.FormValue(paramName)
+	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
 		return defaultDuration, nil
 	}
@@ -313,7 +313,7 @@ func parseDuration(r *http.Request, paramName string, parse durationParser, defa
 }
 
 func parseBool(r *http.Request, paramName string) (b bool, err error) {
-	formVal := r.FormValue(paramName)
+	formVal := r.URL.Query().Get(paramName)
 	if formVal == "" {
 		return false, nil
 	}

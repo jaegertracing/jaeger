@@ -22,6 +22,34 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+func TestGetV1QueryParameters(t *testing.T) {
+	now := time.Now()
+	attributes := pcommon.NewMap()
+	attributes.PutStr("tag-a", "val-a")
+
+	query := tracestore.TraceQueryParams{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Attributes:    attributes,
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Minute),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		SearchDepth:   10,
+	}
+	expected := &spanstore.TraceQueryParameters{
+		ServiceName:   "service",
+		OperationName: "operation",
+		Tags:          map[string]string{"tag-a": "val-a"},
+		StartTimeMin:  now,
+		StartTimeMax:  now.Add(time.Minute),
+		DurationMin:   time.Minute,
+		DurationMax:   time.Hour,
+		NumTraces:     10,
+	}
+	require.Equal(t, expected, GetV1QueryParameters(query))
+}
+
 func TestTraceReader_GetTracesDelegatesSuccessResponse(t *testing.T) {
 	sr := new(spanstoremocks.Reader)
 	modelTrace := &model.Trace{

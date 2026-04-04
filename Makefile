@@ -67,22 +67,22 @@ else
 	SED=sed
 endif
 
-GOTEST_QUIET=$(GO) test $(RACE)
-GOTEST=$(GOTEST_QUIET) -v
 COVEROUT=cover.out
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
-COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
+GOTESTSUM_FLAGS=--format pkgname-and-test-fails --format-icons hivis
 
- # import other Makefiles after the variables are defined
+# Import other Makefiles after the variables are defined.
+# The order is important as some Makefiles depend on variables
+# defined in this file and other includes.
 
+include scripts/makefiles/Tools.mk
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
 include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk
-include scripts/makefiles/Tools.mk
 include scripts/makefiles/Windows.mk
 
 
@@ -120,12 +120,12 @@ clean:
 	bash scripts/build/clean-binaries.sh
 
 .PHONY: test
-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... $(COLORIZE)"
+test: $(GOTESTSUM)
+	$(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) -tags=memory_storage_integration ./...
 
 .PHONY: cover
-cover: nocover
-	bash -c "set -e; set -o pipefail; STORAGE=memory $(GOTEST) -timeout 5m -coverprofile $(COVEROUT) ./... | tee test-results.json"
+cover: nocover $(GOTESTSUM)
+	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -145,7 +145,13 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring
+
+.PHONY: lint-monitoring
+lint-monitoring:
+	@cd ./monitoring/jaeger-mixin/generate && go run . | diff -q ../dashboard-for-grafana.json - > /dev/null || \
+		(echo "ERROR: dashboard-for-grafana.json is out of sync. Run 'make generate-dashboards'."; exit 1)
+	@echo "OK: dashboard-for-grafana.json is in sync."
 
 .PHONY: lint-license
 lint-license:
@@ -225,7 +231,6 @@ prepare-release:
 	bash ./scripts/release/prepare.sh $(VERSION)
 
 .PHONY: test-ci
-test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
 
 .PHONY: init-submodules
@@ -233,6 +238,10 @@ init-submodules:
 	git submodule update --init --recursive
 
 MOCKERY_FLAGS := --all --disable-version-string
+.PHONY: generate-dashboards
+generate-dashboards:
+	cd ./monitoring/jaeger-mixin/generate && go run . > ../dashboard-for-grafana.json
+
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
