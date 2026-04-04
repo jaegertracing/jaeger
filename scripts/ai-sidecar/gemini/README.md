@@ -10,7 +10,7 @@ The sidecar:
 ## Prerequisites
 
 - Python 3.14+
-- `uv` installed
+- [`uv`](https://docs.astral.sh/uv/) installed
 - A Gemini API key
 
 ## Required Environment Variable
@@ -58,20 +58,51 @@ Jaeger ACP Sidecar listening on ws://localhost:9000
 ## Architecture
 
 ```mermaid
+graph LR
+    subgraph Jaeger Process
+        GW[Jaeger AI Gateway]
+        MCP[MCP Server<br/>:16687/mcp]
+    end
+
+    subgraph Agent Sidecar
+        WS[WebSocket Server<br/>:9000]
+        ACP[ACP Handler]
+        Loop[Gemini Loop]
+        Bridge[MCP Client]
+    end
+
+    subgraph External
+        Gemini[Gemini API<br/>gemini-2.5-flash]
+    end
+
+    GW -- "WebSocket<br/>(ACP protocol)" --> WS
+    WS --> ACP --> Loop
+    Loop --> Bridge
+    Bridge -- "HTTP<br/>(MCP tools)" --> MCP
+    Loop -- "HTTPS<br/>(prompts + function calls)" --> Gemini
+```
+
+### Sequence Diagram
+
+```mermaid
 sequenceDiagram
-    participant GW as Gateway
-    participant HW as handle_websocket
-    participant ACP as ACP run_agent
-    participant AG as JaegerSidecarAgent
-    participant GL as gemini_loop
-    participant MCP as JaegerMCPBridge
-    participant JMCP as Jaeger MCP
-    participant GEM as Gemini
+    box Jaeger Process
+        participant GW as Jaeger AI Gateway
+        participant JMCP as MCP Server
+    end
+    box Agent Sidecar
+        participant HW as WebSocket Server
+        participant ACP as ACP Handler
+        participant GL as Gemini Loop
+        participant MCP as MCP Client
+    end
+    box Gemini API
+        participant GEM as Gemini
+    end
 
     GW->>HW: WebSocket connect
     HW->>ACP: forward incoming ACP messages
-    ACP->>AG: initialize/new_session/prompt
-    AG->>GL: run loop
+    ACP->>GL: initialize/new_session/prompt
 
     GL->>MCP: get_gemini_tools()
     MCP->>JMCP: discover tools
@@ -90,8 +121,7 @@ sequenceDiagram
         GEM-->>GL: next function_calls or final text
     end
 
-    GL-->>AG: final text
-    AG-->>ACP: session_update + end_turn
+    GL-->>ACP: final text + session_update + end_turn
     ACP-->>GW: streamed updates + response
 
     GW->>HW: close
