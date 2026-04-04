@@ -274,7 +274,6 @@ class JaegerSidecarAgent(Agent):
                 tool_names.extend(fd.name for fd in tool.function_declarations if fd.name)
         print(f"Passing tools to Gemini: {tool_names}")
 
-        
         chat = self._gemini.chats.create(
             model="gemini-2.5-flash",
             config=types.GenerateContentConfig(
