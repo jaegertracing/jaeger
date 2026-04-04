@@ -55,6 +55,50 @@ Expected startup log:
 Jaeger ACP Sidecar listening on ws://localhost:9000
 ```
 
+## Architecture
+
+```mermaid
+sequenceDiagram
+    participant GW as Gateway
+    participant HW as handle_websocket
+    participant ACP as ACP run_agent
+    participant AG as JaegerSidecarAgent
+    participant GL as gemini_loop
+    participant MCP as JaegerMCPBridge
+    participant JMCP as Jaeger MCP
+    participant GEM as Gemini
+
+    GW->>HW: WebSocket connect
+    HW->>ACP: forward incoming ACP messages
+    ACP->>AG: initialize/new_session/prompt
+    AG->>GL: run loop
+
+    GL->>MCP: get_gemini_tools()
+    MCP->>JMCP: discover tools
+    JMCP-->>MCP: tool metadata
+    MCP-->>GL: declarations
+
+    GL->>GEM: send user prompt
+    GEM-->>GL: function_calls or final text
+
+    loop For each function call
+        GL->>MCP: call_tool(name,args)
+        MCP->>JMCP: execute tool
+        JMCP-->>MCP: tool output
+        MCP-->>GL: tool result
+        GL->>GEM: send function response
+        GEM-->>GL: next function_calls or final text
+    end
+
+    GL-->>AG: final text
+    AG-->>ACP: session_update + end_turn
+    ACP-->>GW: streamed updates + response
+
+    GW->>HW: close
+    HW->>HW: cancel tasks + close streams/sockets
+```
+
+
 ## End-to-End Test
 
 1. Start Jaeger CMD in another terminal.

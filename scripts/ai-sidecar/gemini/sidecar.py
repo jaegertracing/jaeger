@@ -281,37 +281,73 @@ async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None 
     # Socketpair avoids reimplementing ACP framing logic in this process.
 
     asock, csock = socket.socketpair()
+    agent_writer = None
+    client_writer = None
+    tasks: list[asyncio.Task[Any]] = []
 
-    agent_reader, agent_writer = await asyncio.open_connection(sock=asock)
-    client_reader, client_writer = await asyncio.open_connection(sock=csock)
+    try:
+        agent_reader, agent_writer = await asyncio.open_connection(sock=asock)
+        client_reader, client_writer = await asyncio.open_connection(sock=csock)
 
-    # Start the ACP local agent linked to the agent ends of the socket pair
-    if agent_factory is None:
-        config = build_config_from_env()
-        agent_factory = lambda: JaegerSidecarAgent(config)
+        # Start the ACP local agent linked to the agent ends of the socket pair
+        if agent_factory is None:
+            config = build_config_from_env()
+            agent_factory = lambda: JaegerSidecarAgent(config)
 
-    agent = agent_factory()
-    agent_task = asyncio.create_task(run_agent(agent, agent_writer, agent_reader), name="agent_task")
+        agent = agent_factory()
+        agent_task = asyncio.create_task(run_agent(agent, agent_writer, agent_reader), name="agent_task")
 
-    # Bridge the client ends of the socket pair up to the WebSocket
-    ws_read_task = asyncio.create_task(ws_to_client_writer(websocket, client_writer), name="ws_read_task")
-    ws_write_task = asyncio.create_task(client_reader_to_ws(websocket, client_reader), name="ws_write_task")
+        # Bridge the client ends of the socket pair up to the WebSocket
+        ws_read_task = asyncio.create_task(ws_to_client_writer(websocket, client_writer), name="ws_read_task")
+        ws_write_task = asyncio.create_task(client_reader_to_ws(websocket, client_reader), name="ws_write_task")
+        tasks = [agent_task, ws_read_task, ws_write_task]
 
-    # Wait for the connection to end
-    done, pending = await asyncio.wait(
-        [agent_task, ws_read_task, ws_write_task],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
+        # Wait for the connection to end
+        done, pending = await asyncio.wait(
+            tasks,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
 
-    for task in done:
-        print(f"Task finished: {task.get_name()}")
-        if task.cancelled():
-            print(f"Task was cancelled: {task.get_name()}")
-            continue
-        if task.exception():
-            print(f"Task exception: {task.exception()}")
+        for task in done:
+            print(f"Task finished: {task.get_name()}")
+            if task.cancelled():
+                print(f"Task was cancelled: {task.get_name()}")
+                continue
+            if task.exception():
+                print(f"Task exception: {task.exception()}")
 
-    for task in pending:
-        task.cancel()
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+    finally:
+        # Close stream writers first so transports can flush and release fds.
+        for writer in (client_writer, agent_writer):
+            if writer is None:
+                continue
+            writer.close()
 
-    print("Websocket connection closed")
+        for writer in (client_writer, agent_writer):
+            if writer is None:
+                continue
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+
+        # socketpair fds are handed to asyncio transports above; explicit close is
+        # a safe fallback if they remain open due to early failures.
+        for sock in (asock, csock):
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+        # If any task survived above due to unexpected failure, cancel+drain here.
+        lingering = [task for task in tasks if not task.done()]
+        for task in lingering:
+            task.cancel()
+        if lingering:
+            await asyncio.gather(*lingering, return_exceptions=True)
+
+        print("Websocket connection closed")
