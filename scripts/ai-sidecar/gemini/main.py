@@ -34,7 +34,11 @@ def parse_config() -> tuple[str, int, SidecarConfig]:
 
 async def main():
     host, port, config = parse_config()
-    async with websockets.serve(partial(handle_websocket, agent_factory=lambda: JaegerSidecarAgent(config)), host, port):
+    async with websockets.serve(
+        partial(handle_websocket, agent_factory=lambda: JaegerSidecarAgent(config)),  # pyright: ignore[reportAbstractUsage]
+        host,
+        port,
+    ):
         print(f"Jaeger ACP Sidecar listening on ws://{host}:{port}")
         await asyncio.Future()
 

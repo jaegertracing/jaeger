@@ -12,8 +12,8 @@ from functools import partial
 import pytest
 import websockets
 
-from acp import PROTOCOL_VERSION
-from acp.schema import AgentCapabilities, Implementation, NewSessionResponse, PromptResponse
+from acp import Agent, PROTOCOL_VERSION
+from acp.schema import AgentCapabilities, Implementation, ListSessionsResponse, LoadSessionResponse, NewSessionResponse, PromptResponse
 from acp.helpers import text_block, update_agent_message
 
 import sidecar
@@ -44,10 +44,11 @@ class PendingRequests:
             future.set_result(payload)
 
 
-class FakeAgent:
+class FakeAgent(Agent):
     last_instance: "FakeAgent | None" = None
 
     def __init__(self) -> None:
+        super().__init__()
         FakeAgent.last_instance = self
         self._conn = None
         self.received_prompts: list[tuple[str, str]] = []
@@ -58,6 +59,8 @@ class FakeAgent:
     async def initialize(
         self,
         protocol_version: int,
+        client_capabilities: Any = None,
+        client_info: Any = None,
         **kwargs: Any,
     ) -> sidecar.InitializeResponse:
         assert protocol_version == PROTOCOL_VERSION
@@ -67,10 +70,22 @@ class FakeAgent:
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="test"),
         )
 
-    async def new_session(self, **kwargs: Any) -> NewSessionResponse:
+    async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
         return NewSessionResponse(session_id="sess-test")
 
-    async def prompt(self, session_id: str, prompt: list[Any], **kwargs: Any) -> PromptResponse:
+    async def load_session(
+        self,
+        cwd: str,
+        session_id: str,
+        mcp_servers: Any = None,
+        **kwargs: Any,
+    ) -> LoadSessionResponse | None:
+        return LoadSessionResponse()
+
+    async def list_sessions(self, cursor: str | None = None, cwd: str | None = None, **kwargs: Any) -> ListSessionsResponse:
+        return ListSessionsResponse(sessions=[])
+
+    async def prompt(self, prompt: list[Any], session_id: str, **kwargs: Any) -> PromptResponse:
         user_text = "".join(block.text for block in prompt if hasattr(block, "text"))
         self.received_prompts.append((session_id, user_text))
 
@@ -81,7 +96,7 @@ class FakeAgent:
 
 
 async def recv_loop(
-    websocket: websockets.WebSocketClientProtocol,
+    websocket: Any,
     pending: PendingRequests,
     messages: list[dict[str, Any]],
     stop_event: asyncio.Event,
@@ -108,7 +123,7 @@ async def recv_loop(
 
 
 async def send_request(
-    websocket: websockets.WebSocketClientProtocol,
+    websocket: Any,
     pending: PendingRequests,
     method: str,
     params: dict[str, Any],
