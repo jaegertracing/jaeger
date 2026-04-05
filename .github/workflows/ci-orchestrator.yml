@@ -51,16 +51,14 @@ jobs:
             # Parallel for org members.
             # Use a live API call because author_association from the event payload is
             # unreliable — it reports CONTRIBUTOR for org members who don't have direct
-            # repo access via a team, and COLLABORATOR for org members added as direct
-            # repo collaborators instead of via a team.  Fall back to author_association
-            # (MEMBER/OWNER only) when the API call fails (e.g. private membership or
-            # insufficient token permissions for fork PRs).
+            # repo access via a team.  Fall back to author_association when the API call
+            # fails (e.g. insufficient token permissions for fork PRs).
             PR_AUTHOR="${{ github.event.pull_request.user.login }}"
             AUTHOR_ASSOC="${{ github.event.pull_request.author_association }}"
             if gh api --silent "orgs/jaegertracing/members/$PR_AUTHOR" 2>/dev/null; then
               echo "Parallel: org member ($PR_AUTHOR, verified via API)"
               PARALLEL=true
-            elif [[ "$AUTHOR_ASSOC" == "MEMBER" || "$AUTHOR_ASSOC" == "OWNER" ]]; then
+            elif [[ "$AUTHOR_ASSOC" == "MEMBER" || "$AUTHOR_ASSOC" == "OWNER" || "$AUTHOR_ASSOC" == "COLLABORATOR" ]]; then
               echo "Parallel: trusted author ($PR_AUTHOR, author_association=$AUTHOR_ASSOC)"
               PARALLEL=true
             else
