@@ -47,7 +47,7 @@ type Configuration struct {
 	// Default is 1h.
 	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
-	// Default is 10000.
+	// Default is 1000.
 	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
 }
 
