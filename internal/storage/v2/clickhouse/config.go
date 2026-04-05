@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	defaultProtocol                  = "native"
-	defaultDatabase                  = "jaeger"
-	defaultSearchDepth               = 1000
-	defaultMaxSearchDepth            = 10000
-	defaultAttributeMetadataCacheTTL = 5 * time.Minute
+	defaultProtocol                      = "native"
+	defaultDatabase                      = "jaeger"
+	defaultSearchDepth                   = 1000
+	defaultMaxSearchDepth                = 10000
+	defaultAttributeMetadataCacheTTL     = time.Hour
+	defaultAttributeMetadataCacheMaxSize = 1000
 )
 
 type Configuration struct {
@@ -43,8 +44,11 @@ type Configuration struct {
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	// Attribute metadata maps attribute keys to their stored types and levels,
 	// which is needed to build type-correct queries for querying attributes.
-	// Default is 5m.
+	// Default is 1h.
 	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
+	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
+	// Default is 10000.
+	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
 }
 
 type Authentication struct {
@@ -72,5 +76,8 @@ func (cfg *Configuration) applyDefaults() {
 	}
 	if cfg.AttributeMetadataCacheTTL <= 0 {
 		cfg.AttributeMetadataCacheTTL = defaultAttributeMetadataCacheTTL
+	}
+	if cfg.AttributeMetadataCacheMaxSize <= 0 {
+		cfg.AttributeMetadataCacheMaxSize = defaultAttributeMetadataCacheMaxSize
 	}
 }

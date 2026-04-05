@@ -31,6 +31,8 @@ type ReaderConfig struct {
 	MaxSearchDepth int
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	AttributeMetadataCacheTTL time.Duration
+	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
+	AttributeMetadataCacheMaxSize int
 }
 
 type Reader struct {
@@ -45,7 +47,7 @@ type Reader struct {
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
-	attrMetaCache := cache.NewLRUWithOptions(1000, &cache.Options{
+	attrMetaCache := cache.NewLRUWithOptions(cfg.AttributeMetadataCacheMaxSize, &cache.Options{
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
 	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
