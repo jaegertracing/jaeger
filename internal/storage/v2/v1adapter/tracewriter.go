@@ -38,25 +38,34 @@ func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
 // WriteTraces implements tracestore.Writer.
 func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	batches := V1BatchesFromTraces(td)
-	g, ctx := errgroup.WithContext(ctx)
+	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(50)
 
 	for _, batch := range batches {
+		if gCtx.Err() != nil {
+			break
+		}
 		for _, span := range batch.Spans {
+			if gCtx.Err() != nil {
+				break
+			}
 			if span.Process == nil {
 				span.Process = batch.Process
 			}
 
 			s := span
 			g.Go(func() error {
-				if ctx.Err() != nil {
-					return ctx.Err()
+				if gCtx.Err() != nil {
+					return gCtx.Err()
 				}
-				return t.spanWriter.WriteSpan(ctx, s)
+				return t.spanWriter.WriteSpan(gCtx, s)
 			})
 		}
 	}
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	return ctx.Err()
 }
 
 type DependencyWriter struct {
