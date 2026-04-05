@@ -10,6 +10,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
+func spanID(id byte) pcommon.SpanID {
+	return pcommon.SpanID{id}
+}
+
 func TestFindLastFinishingChildSpan(t *testing.T) {
 	tests := []struct {
 		name                    string
@@ -22,7 +26,7 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 			name:    "no children",
 			spanMap: map[pcommon.SpanID]CPSpan{},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				ChildSpanIDs: nil,
 			},
 			expectedSpanID: nil,
@@ -30,113 +34,113 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 		{
 			name: "single child without returningChildStartTime",
 			spanMap: map[pcommon.SpanID]CPSpan{
-				[8]byte{2}: {
-					SpanID:    [8]byte{2},
+				spanID(2): {
+					SpanID:    spanID(2),
 					StartTime: 120,
 					Duration:  30,
 				},
 			},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				StartTime:    100,
 				Duration:     100,
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
+				ChildSpanIDs: []pcommon.SpanID{spanID(2)},
 			},
 			expectedSpanID: &pcommon.SpanID{2},
 		},
 		{
 			name: "multiple children returns last finishing",
 			spanMap: map[pcommon.SpanID]CPSpan{
-				[8]byte{2}: {
-					SpanID:    [8]byte{2},
+				spanID(2): {
+					SpanID:    spanID(2),
 					StartTime: 110,
 					Duration:  20, // ends at 130
 				},
-				[8]byte{3}: {
-					SpanID:    [8]byte{3},
+				spanID(3): {
+					SpanID:    spanID(3),
 					StartTime: 140,
 					Duration:  40, // ends at 180
 				},
-				[8]byte{4}: {
-					SpanID:    [8]byte{4},
+				spanID(4): {
+					SpanID:    spanID(4),
 					StartTime: 120,
 					Duration:  30, // ends at 150
 				},
 			},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				StartTime:    100,
 				Duration:     100,
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}, [8]byte{4}},
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3), spanID(4)},
 			},
 			expectedSpanID: &pcommon.SpanID{3}, // ends at 180, latest
 		},
 		{
 			name: "with returningChildStartTime finds child finishing just before",
 			spanMap: map[pcommon.SpanID]CPSpan{
-				[8]byte{2}: {
-					SpanID:    [8]byte{2},
+				spanID(2): {
+					SpanID:    spanID(2),
 					StartTime: 110,
 					Duration:  20, // ends at 130
 				},
-				[8]byte{3}: {
-					SpanID:    [8]byte{3},
+				spanID(3): {
+					SpanID:    spanID(3),
 					StartTime: 140,
 					Duration:  40, // ends at 180
 				},
-				[8]byte{4}: {
-					SpanID:    [8]byte{4},
+				spanID(4): {
+					SpanID:    spanID(4),
 					StartTime: 120,
 					Duration:  30, // ends at 150
 				},
 			},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				StartTime:    100,
 				Duration:     100,
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}, [8]byte{4}},
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3), spanID(4)},
 			},
-			returningChildStartTime: ptr(uint64(160)),
+			returningChildStartTime: new(uint64(160)),
 			expectedSpanID:          &pcommon.SpanID{4}, // ends at 150 < 160, latest before returningChildStartTime
 		},
 		{
 			name: "with returningChildStartTime no child finishes before",
 			spanMap: map[pcommon.SpanID]CPSpan{
-				[8]byte{2}: {
-					SpanID:    [8]byte{2},
+				spanID(2): {
+					SpanID:    spanID(2),
 					StartTime: 110,
 					Duration:  50, // ends at 160
 				},
-				[8]byte{3}: {
-					SpanID:    [8]byte{3},
+				spanID(3): {
+					SpanID:    spanID(3),
 					StartTime: 140,
 					Duration:  40, // ends at 180
 				},
 			},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				StartTime:    100,
 				Duration:     100,
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}},
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3)},
 			},
-			returningChildStartTime: ptr(uint64(150)),
+			returningChildStartTime: new(uint64(150)),
 			expectedSpanID:          nil, // no child ends before 150
 		},
 		{
 			name: "child missing from spanMap is skipped",
 			spanMap: map[pcommon.SpanID]CPSpan{
-				[8]byte{2}: {
-					SpanID:    [8]byte{2},
+				spanID(2): {
+					SpanID:    spanID(2),
 					StartTime: 120,
 					Duration:  30,
 				},
-				// [8]byte{3} is missing from the map
+				// spanID(3) is missing from the map
 			},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				StartTime:    100,
 				Duration:     100,
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}},
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3)},
 			},
 			expectedSpanID: &pcommon.SpanID{2},
 		},
@@ -144,37 +148,37 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 			name:    "all children missing from spanMap",
 			spanMap: map[pcommon.SpanID]CPSpan{},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}},
+				SpanID:       spanID(1),
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3)},
 			},
 			expectedSpanID: nil,
 		},
 		{
 			name: "with returningChildStartTime selects best among multiple valid children",
 			spanMap: map[pcommon.SpanID]CPSpan{
-				[8]byte{2}: {
-					SpanID:    [8]byte{2},
+				spanID(2): {
+					SpanID:    spanID(2),
 					StartTime: 100,
 					Duration:  20, // ends at 120
 				},
-				[8]byte{3}: {
-					SpanID:    [8]byte{3},
+				spanID(3): {
+					SpanID:    spanID(3),
 					StartTime: 110,
 					Duration:  25, // ends at 135
 				},
-				[8]byte{4}: {
-					SpanID:    [8]byte{4},
+				spanID(4): {
+					SpanID:    spanID(4),
 					StartTime: 130,
 					Duration:  20, // ends at 150
 				},
 			},
 			currentSpan: CPSpan{
-				SpanID:       [8]byte{1},
+				SpanID:       spanID(1),
 				StartTime:    100,
 				Duration:     100,
-				ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}, [8]byte{4}},
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3), spanID(4)},
 			},
-			returningChildStartTime: ptr(uint64(155)),
+			returningChildStartTime: new(uint64(155)),
 			expectedSpanID:          &pcommon.SpanID{4}, // ends at 150 < 155, closest to returningChildStartTime
 		},
 	}
@@ -193,8 +197,4 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 			}
 		})
 	}
-}
-
-func ptr(v uint64) *uint64 {
-	return &v
 }
