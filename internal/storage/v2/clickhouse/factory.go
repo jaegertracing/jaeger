@@ -47,11 +47,11 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 	if !clickhouseStorageGate.IsEnabled() {
 		return nil, errors.New(
 			"ClickHouse storage is experimental and must be explicitly enabled. " +
-				"The data schema is subject to breaking changes. " +
+				"The schema is subject to breaking changes. " +
 				"Enable it with --feature-gates=storage.clickhouse",
 		)
 	}
-	telset.Logger.Warn("ClickHouse storage is experimental. The data schema is subject to breaking changes.")
+	telset.Logger.Warn("ClickHouse storage is experimental. The schema is subject to breaking changes.")
 	cfg.applyDefaults()
 	f := &Factory{
 		config: cfg,
