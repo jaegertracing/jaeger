@@ -11,6 +11,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -19,6 +20,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+)
+
+var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
+	"storage.clickhouse",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.18.0"),
+	featuregate.WithRegisterDescription(
+		"Enables ClickHouse as a storage backend."),
 )
 
 var (
@@ -35,6 +44,14 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	if !clickhouseStorageGate.IsEnabled() {
+		return nil, errors.New(
+			"ClickHouse storage is experimental and must be explicitly enabled. " +
+				"The data schema is subject to breaking changes. " +
+				"Enable it with --feature-gates=storage.clickhouse",
+		)
+	}
+	telset.Logger.Warn("ClickHouse storage is experimental. The data schema is subject to breaking changes.")
 	cfg.applyDefaults()
 	f := &Factory{
 		config: cfg,
