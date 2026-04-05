@@ -41,12 +41,15 @@ func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	g, gCtx := errgroup.WithContext(ctx)
 	g.SetLimit(50)
 
+	var canceled bool
 	for _, batch := range batches {
 		if gCtx.Err() != nil {
+			canceled = true
 			break
 		}
 		for _, span := range batch.Spans {
 			if gCtx.Err() != nil {
+				canceled = true
 				break
 			}
 			if span.Process == nil {
@@ -65,7 +68,10 @@ func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	if err := g.Wait(); err != nil {
 		return err
 	}
-	return ctx.Err()
+	if canceled {
+		return gCtx.Err()
+	}
+	return nil
 }
 
 type DependencyWriter struct {
