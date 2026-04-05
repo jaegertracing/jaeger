@@ -61,17 +61,16 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 
 	// Check cache for each attribute key and collect cache misses
 	uncachedAttrs := pcommon.NewMap()
-	attributes.Range(func(key string, val pcommon.Value) bool {
+	for key, val := range attributes.All() {
 		if val.Type() != pcommon.ValueTypeStr {
-			return true
+			continue
 		}
 		if cached := r.attrMetaCache.Get(key); cached != nil {
 			metadata[key] = cached.(attrTypes)
 		} else {
 			val.CopyTo(uncachedAttrs.PutEmpty(key))
 		}
-		return true
-	})
+	}
 
 	query, args := buildSelectAttributeMetadataQuery(uncachedAttrs)
 	if len(args) == 0 {
@@ -111,12 +110,11 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 		return nil, fmt.Errorf("error iterating attribute metadata rows: %w", err)
 	}
 
-	uncachedAttrs.Range(func(key string, _ pcommon.Value) bool {
+	for key := range uncachedAttrs.All() {
 		if types, ok := metadata[key]; ok {
 			r.attrMetaCache.Put(key, types)
 		}
-		return true
-	})
+	}
 
 	return metadata, nil
 }
