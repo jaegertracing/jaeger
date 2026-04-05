@@ -45,12 +45,9 @@ type Reader struct {
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
-	var attrMetaCache cache.Cache
-	if cfg.AttributeMetadataCacheTTL > 0 {
-		attrMetaCache = cache.NewLRUWithOptions(1000, &cache.Options{
-			TTL: cfg.AttributeMetadataCacheTTL,
-		})
-	}
+	attrMetaCache := cache.NewLRUWithOptions(1000, &cache.Options{
+		TTL: cfg.AttributeMetadataCacheTTL,
+	})
 	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
 }
 

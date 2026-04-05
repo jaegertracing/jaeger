@@ -43,7 +43,7 @@ type Configuration struct {
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	// Attribute metadata maps attribute keys to their stored types and levels,
 	// which is needed to build type-correct queries for querying attributes.
-	// Set to 0 to disable caching.
+	// Default is 5m.
 	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
 }
 
@@ -70,7 +70,7 @@ func (cfg *Configuration) applyDefaults() {
 	if cfg.MaxSearchDepth == 0 {
 		cfg.MaxSearchDepth = defaultMaxSearchDepth
 	}
-	if cfg.AttributeMetadataCacheTTL == 0 {
+	if cfg.AttributeMetadataCacheTTL <= 0 {
 		cfg.AttributeMetadataCacheTTL = defaultAttributeMetadataCacheTTL
 	}
 }
