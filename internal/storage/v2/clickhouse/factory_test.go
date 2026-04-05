@@ -20,15 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-func enableClickHouseGate(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), true))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
-	})
-}
-
 func TestFactory(t *testing.T) {
-	enableClickHouseGate(t)
 	tests := []struct {
 		name         string
 		createSchema bool
@@ -87,7 +79,6 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
-	enableClickHouseGate(t)
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -201,7 +192,6 @@ func TestNewFactory_Errors(t *testing.T) {
 }
 
 func TestPurge(t *testing.T) {
-	enableClickHouseGate(t)
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -302,6 +292,10 @@ func TestGetProtocol(t *testing.T) {
 }
 
 func TestNewFactory_FeatureGateDisabled(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), true))
+	})
 	f, err := NewFactory(context.Background(), Configuration{}, telemetry.NoopSettings())
 	require.ErrorContains(t, err, "must be explicitly enabled")
 	require.Nil(t, f)
