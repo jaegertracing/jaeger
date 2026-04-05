@@ -142,27 +142,6 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 	assert.Empty(t, driver.recordedQueries)
 }
 
-func TestGetAttributeMetadata_NonStringAttributesSkipped(t *testing.T) {
-	d := makeTestDriverWithMetadata(t)
-	reader := NewReader(d, ReaderConfig{
-		AttributeMetadataCacheTTL: time.Minute,
-	})
-
-	attrs := pcommon.NewMap()
-	attrs.PutStr("http.method", "GET")
-	attrs.PutBool("some.bool", true)
-	attrs.PutInt("some.int", 42)
-	attrs.PutDouble("some.double", 3.14)
-
-	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
-	require.NoError(t, err)
-	assert.Len(t, metadata, 1, "only the string attribute should be in metadata")
-	assert.Contains(t, metadata, "http.method")
-	assert.NotContains(t, metadata, "some.bool")
-	assert.NotContains(t, metadata, "some.int")
-	assert.NotContains(t, metadata, "some.double")
-}
-
 func makeTestDriverWithMetadata(t *testing.T) *testDriver {
 	return &testDriver{
 		t: t,
@@ -264,7 +243,7 @@ func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 	})
 }
 
-func TestGetAttributeMetadata_CacheEmptyResult(t *testing.T) {
+func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 	// When metadata returns no rows for a key, the empty result should NOT be cached.
 	d := &testDriver{
 		t: t,
@@ -294,4 +273,25 @@ func TestGetAttributeMetadata_CacheEmptyResult(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, metadata["nonexistent.key"].span)
 	assert.Len(t, d.recordedQueries, 2, "expected another query since empty results are not cached")
+}
+
+func TestGetAttributeMetadata_NonStringAttributesSkipped(t *testing.T) {
+	d := makeTestDriverWithMetadata(t)
+	reader := NewReader(d, ReaderConfig{
+		AttributeMetadataCacheTTL: time.Minute,
+	})
+
+	attrs := pcommon.NewMap()
+	attrs.PutStr("http.method", "GET")
+	attrs.PutBool("some.bool", true)
+	attrs.PutInt("some.int", 42)
+	attrs.PutDouble("some.double", 3.14)
+
+	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
+	require.NoError(t, err)
+	assert.Len(t, metadata, 1, "only the string attribute should be in metadata")
+	assert.Contains(t, metadata, "http.method")
+	assert.NotContains(t, metadata, "some.bool")
+	assert.NotContains(t, metadata, "some.int")
+	assert.NotContains(t, metadata, "some.double")
 }
