@@ -53,15 +53,15 @@ Following the pattern established by `jaegerquery`, the MCP server will be imple
 - Separate HTTP/SSE endpoint for MCP protocol
 
 > [!NOTE]
-> **Phase 2 Requirement**: The MCP extension will need to retrieve the `QueryService` instance from the `jaegerquery` extension. This will require `jaegerquery` to expose `QueryService` through an Extension interface, similar to how `jaegerstorage` exposes storage factories via the `jaegerstorage.Extension` interface and `GetTraceStoreFactory()` helper function. See `cmd/jaeger/internal/exporters/storageexporter/exporter.go:35` for reference implementation pattern.
+> The MCP extension retrieves the `QueryService` instance from the `jaegerquery` extension via the `jaegerquery.Extension` interface and `GetExtension()` helper (see `cmd/jaeger/internal/extension/jaegerquery/extension.go`).
 
 ## Decision
 
-Implement an MCP server as a new extension under `cmd/jaeger/internal/extension/mcpserver/` that:
+Implement an MCP server as a new extension under `cmd/jaeger/internal/extension/jaegermcp/` that:
 
 1. **Exposes MCP tools** for trace search, topology viewing, critical path analysis, and span inspection
-2. **Runs on a separate HTTP port** (default: 4320) with Streamable HTTP transport
-3. **Depends on `jaegerstorage`** for trace data access, similar to `jaegerquery`
+2. **Runs on a separate HTTP port** (default: 16687) with Streamable HTTP transport
+3. **Depends on `jaegerquery`** for trace data access via the QueryService interface
 4. **Implements critical path algorithm** in Go, ported from the UI's TypeScript implementation
 5. **Uses progressive disclosure** to minimize token consumption in LLM contexts
 
@@ -414,11 +414,7 @@ extensions:
   jaeger_mcp:
     # HTTP endpoint for MCP protocol (Streamable HTTP transport)
     http:
-      endpoint: "0.0.0.0:4320"
-    
-    # Storage configuration (references jaegerstorage extension)
-    storage:
-      traces: "some_storage"
+      endpoint: "0.0.0.0:16687"
     
     # Server identification for MCP protocol
     server_name: "jaeger"
@@ -565,17 +561,17 @@ cmd/jaeger/internal/extension/jaegermcp/
 
 10. **Configuration and Observability**
     - Add OpenTelemetry metrics for MCP tool invocations
-    - Add structured logging for debugging
+    - ✅ Add structured logging for debugging
     - Implement rate limiting if needed
 
 11. **Documentation**
-    - Write `README.md` for the extension
-    - Document MCP server instructions (system prompt) for LLM configuration
-    - Add example configurations
+    - ✅ Write `README.md` for the extension
+    - ✅ Document MCP server instructions (system prompt) for LLM configuration
+    - ✅ Add example configurations (`cmd/jaeger/config.yaml`)
 
 12. **Integration Testing**
-    - End-to-end tests with mock storage
-    - Test MCP protocol compliance
+    - ✅ End-to-end tests with mock storage
+    - ✅ Test MCP protocol compliance
     - Performance testing with large traces
 
 ---
@@ -597,7 +593,7 @@ cmd/jaeger/internal/extension/jaegermcp/
 1. **Extension Lifecycle**
    - Test extension starts with valid configuration
    - Test graceful shutdown
-   - Test dependency resolution with `jaegerstorage`
+   - Test dependency resolution with `jaegerquery`
 
 2. **MCP Protocol Compliance**
    - Use MCP SDK client to connect to server

@@ -7,6 +7,7 @@ package frontend
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"expvar"
 	"net/http"
 	"path"
@@ -20,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+	"github.com/jaegertracing/jaeger/examples/hotrod/services/customer"
 	"github.com/jaegertracing/jaeger/internal/httpfs"
 )
 
@@ -94,19 +96,23 @@ func (s *Server) config(w http.ResponseWriter, r *http.Request) {
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	customer := r.URL.Query().Get("customer")
-	if customer == "" {
+	customerVal := r.URL.Query().Get("customer")
+	if customerVal == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
 		return
 	}
-	customerID, err := strconv.Atoi(customer)
+	customerID, err := strconv.Atoi(customerVal)
 	if err != nil {
 		http.Error(w, "Parameter 'customer' is not an integer", http.StatusBadRequest)
 		return
 	}
 
-	// TODO distinguish between user errors (such as invalid customer ID) and server failures
+	// Distinguish between user errors (such as invalid customer ID) and server failures
 	response, err := s.bestETA.Get(ctx, customerID)
+	if errors.Is(err, customer.ErrCustomerNotFound) {
+		err = httperr.StatusError{Code: http.StatusNotFound, Err: err}
+	}
+
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return

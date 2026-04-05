@@ -41,10 +41,7 @@ services:
   grafana:
     networks:
       - backend
-    # NOTE: This demo intentionally uses a tag-only Grafana image for simplicity.
-    # For stricter reproducibility/supply-chain guarantees, replace this with a
-    # fully pinned image reference such as grafana/grafana:12.0.0@sha256:<digest>.
-    image: grafana/grafana:12.0.0
+    image: grafana/grafana:12.0.0@sha256:263cbefd5d9b179893c47c415daab4da5c1f3d6770154741eca4f45c81119884
     volumes:
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "../../monitoring/jaeger-mixin/dashboard-for-grafana.json:/etc/grafana/provisioning/dashboards/jaeger.json:ro"
