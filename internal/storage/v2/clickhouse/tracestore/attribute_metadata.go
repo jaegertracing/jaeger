@@ -57,10 +57,29 @@ type attributeMetadata map[string]attrTypes
 // Only string-typed attributes from pcommon.Map are looked up since those are the ones
 // that originated from the query API's string-only input format.
 func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Map) (attributeMetadata, error) {
-	query, args := buildSelectAttributeMetadataQuery(attributes)
 	metadata := make(attributeMetadata)
+
+	// Check cache for each attribute key and collect cache misses
+	var uncachedAttrs pcommon.Map
+	if r.attrMetaCache != nil {
+		uncachedAttrs = pcommon.NewMap()
+		attributes.Range(func(key string, val pcommon.Value) bool {
+			if val.Type() != pcommon.ValueTypeStr {
+				return true
+			}
+			if cached := r.attrMetaCache.Get(key); cached != nil {
+				metadata[key] = cached.(attrTypes)
+			} else {
+				val.CopyTo(uncachedAttrs.PutEmpty(key))
+			}
+			return true
+		})
+	} else {
+		uncachedAttrs = attributes
+	}
+
+	query, args := buildSelectAttributeMetadataQuery(uncachedAttrs)
 	if len(args) == 0 {
-		// No string attributes to look up
 		return metadata, nil
 	}
 
@@ -96,5 +115,13 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating attribute metadata rows: %w", err)
 	}
+
+	if r.attrMetaCache != nil {
+		uncachedAttrs.Range(func(key string, _ pcommon.Value) bool {
+			r.attrMetaCache.Put(key, metadata[key])
+			return true
+		})
+	}
+
 	return metadata, nil
 }
