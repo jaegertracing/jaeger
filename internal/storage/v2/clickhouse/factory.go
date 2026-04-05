@@ -94,8 +94,9 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	return chtracestore.NewReader(f.conn, chtracestore.ReaderConfig{
-		DefaultSearchDepth: f.config.DefaultSearchDepth,
-		MaxSearchDepth:     f.config.MaxSearchDepth,
+		DefaultSearchDepth:        f.config.DefaultSearchDepth,
+		MaxSearchDepth:            f.config.MaxSearchDepth,
+		AttributeMetadataCacheTTL: f.config.AttributeMetadataCacheTTL,
 	}), nil
 }
 
