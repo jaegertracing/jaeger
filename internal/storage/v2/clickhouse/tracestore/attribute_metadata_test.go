@@ -265,8 +265,7 @@ func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 }
 
 func TestGetAttributeMetadata_CacheEmptyResult(t *testing.T) {
-	// When metadata returns no rows for a key, the empty result should be cached
-	// so subsequent queries for the same key don't hit ClickHouse.
+	// When metadata returns no rows for a key, the empty result should NOT be cached.
 	d := &testDriver{
 		t: t,
 		queryResponses: map[string]*testQueryResponse{
@@ -290,9 +289,9 @@ func TestGetAttributeMetadata_CacheEmptyResult(t *testing.T) {
 	assert.Empty(t, metadata["nonexistent.key"].span)
 	assert.Len(t, d.recordedQueries, 1)
 
-	// Second call should use cached empty result
+	// Second call should query ClickHouse again since empty results are not cached
 	metadata, err = reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Empty(t, metadata["nonexistent.key"].span)
-	assert.Len(t, d.recordedQueries, 1, "expected no additional query for cached empty result")
+	assert.Len(t, d.recordedQueries, 2, "expected another query since empty results are not cached")
 }

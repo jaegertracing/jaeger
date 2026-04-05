@@ -112,7 +112,9 @@ func (r *Reader) getAttributeMetadata(ctx context.Context, attributes pcommon.Ma
 	}
 
 	uncachedAttrs.Range(func(key string, _ pcommon.Value) bool {
-		r.attrMetaCache.Put(key, metadata[key])
+		if types, ok := metadata[key]; ok {
+			r.attrMetaCache.Put(key, types)
+		}
 		return true
 	})
 
