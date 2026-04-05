@@ -3,7 +3,7 @@
 This folder contains the Python ACP sidecar used by the Jaeger AI gateway.
 
 The sidecar:
-- Listens on `ws://localhost:9000`
+- Listens on `ws://localhost:16688` by default
 - Runs a Gemini-backed ACP agent
 - Uses Jaeger MCP tools from `http://127.0.0.1:16687/mcp`
 
@@ -31,6 +31,14 @@ export JAEGER_MCP_URL="http://127.0.0.1:16687/mcp"
 
 If unset, the sidecar defaults to `http://127.0.0.1:16687/mcp`.
 
+Optional MCP discovery timeout override:
+
+```bash
+export JAEGER_MCP_DISCOVERY_TIMEOUT_SEC="15"
+```
+
+This controls the timeout for a single MCP tool discovery attempt.
+
 ## Install Dependencies
 
 From this directory:
@@ -52,8 +60,22 @@ uv run python main.py
 Expected startup log:
 
 ```text
-Jaeger ACP Sidecar listening on ws://localhost:9000
+Jaeger ACP Sidecar listening on ws://localhost:16688
 ```
+
+Useful runtime flags:
+
+```bash
+uv run python main.py --host localhost --port 16688 --mcp-url http://127.0.0.1:16687/mcp --mcp-discovery-timeout-sec 15
+```
+
+## Code Layout
+
+- `main.py`: entrypoint, CLI/env parsing, WebSocket server bootstrap.
+- `sidecar.py`: ACP agent handlers and WebSocket transport bridge.
+- `mcp_bridge.py`: MCP discovery/call bridge used by the agent.
+- `sidecar_config.py`: validated runtime configuration model.
+- `sidecar_helpers.py`: tool serialization/declaration helper functions.
 
 ## Architecture
 
@@ -65,7 +87,7 @@ graph LR
     end
 
     subgraph Agent Sidecar
-        WS[WebSocket Server<br/>:9000]
+        WS[WebSocket Server<br/>:16688]
         ACP[ACP Handler]
         Loop[Gemini Loop]
         Bridge[MCP Client]

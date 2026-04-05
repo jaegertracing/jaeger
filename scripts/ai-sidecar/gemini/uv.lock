@@ -1262,10 +1262,8 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "agent-client-protocol" },
-    { name = "cryptography" },
     { name = "google-adk" },
     { name = "google-genai" },
-    { name = "pytest" },
     { name = "requests" },
     { name = "websockets" },
 ]
@@ -1273,21 +1271,23 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "pyright" },
+    { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "agent-client-protocol", specifier = ">=0.8.1" },
-    { name = "cryptography", specifier = ">=46.0.6" },
     { name = "google-adk", specifier = ">=1.10.0" },
     { name = "google-genai", specifier = ">=1.68.0" },
-    { name = "pytest", specifier = ">=8.3.4" },
     { name = "requests", specifier = ">=2.32.6" },
     { name = "websockets", specifier = ">=16.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pyright", specifier = ">=1.1.408" }]
+dev = [
+    { name = "pyright", specifier = ">=1.1.408" },
+    { name = "pytest", specifier = ">=8.3.4" },
+]
 
 [[package]]
 name = "pywin32"

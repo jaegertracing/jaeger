@@ -9,7 +9,8 @@ from functools import partial
 
 import websockets
 
-from sidecar import JaegerSidecarAgent, SidecarConfig, handle_websocket
+from sidecar import JaegerSidecarAgent, handle_websocket
+from sidecar_config import SidecarConfig
 
 
 logger = logging.getLogger(__name__)

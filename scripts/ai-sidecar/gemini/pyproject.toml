@@ -6,10 +6,8 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "agent-client-protocol>=0.8.1",
-    "cryptography>=46.0.6",
     "google-adk>=1.10.0",
     "google-genai>=1.68.0",
-    "pytest>=8.3.4",
     "requests>=2.32.6",
     "websockets>=16.0",
 ]
@@ -17,4 +15,5 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pyright>=1.1.408",
+    "pytest>=8.3.4",
 ]

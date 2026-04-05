@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
-import json
 import logging
 import socket
-from dataclasses import dataclass
 from typing import Any, Callable, cast
 
-from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google import genai
 from google.genai import types
 from ws_commands import ws_to_client_writer, client_reader_to_ws
+from mcp_bridge import JaegerMCPBridge
+from sidecar_config import SidecarConfig
+from sidecar_helpers import _to_tool_text
 
 from acp import (
     PROTOCOL_VERSION,
@@ -35,135 +35,6 @@ from acp.schema import (
 END_OF_TURN_MARKER = "__END_OF_TURN__"
 logger = logging.getLogger(__name__)
 
-
-@dataclass(frozen=True)
-class SidecarConfig:
-    gemini_api_key: str
-    mcp_url: str
-    mcp_discovery_timeout_sec: float
-
-    def validate(self) -> None:
-        if not self.gemini_api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY must be provided via --gemini-api-key or environment variable"
-            )
-        if not self.mcp_url:
-            raise RuntimeError("JAEGER_MCP_URL must be provided via --mcp-url or environment variable")
-        if self.mcp_discovery_timeout_sec <= 0:
-            raise RuntimeError("MCP discovery timeout must be > 0 seconds")
-
-
-def _to_jsonable(value: Any) -> Any:
-    if hasattr(value, "model_dump"):
-        return value.model_dump()
-    if hasattr(value, "dict"):
-        return value.dict()
-    return value
-
-
-def _to_tool_text(value: Any) -> str:
-    if isinstance(value, str):
-        return value
-    try:
-        return json.dumps(_to_jsonable(value), ensure_ascii=False)
-    except Exception:
-        return str(value)
-
-
-def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None:
-    """Return a Gemini function declaration from an ADK tool.
-
-    Prefer a public API when available; fall back to ADK's internal method for
-    compatibility with current tool implementations.
-    """
-    get_declaration = getattr(tool, "get_declaration", None)
-    if callable(get_declaration):
-        declaration = get_declaration()
-        if declaration is not None:
-            return cast(types.FunctionDeclaration, declaration)
-
-    # ADK BaseTool currently exposes declaration via _get_declaration().
-    # Keep this fallback isolated in one place to reduce breakage risk.
-    private_get_declaration = getattr(tool, "_get_declaration", None)
-    if callable(private_get_declaration):
-        return cast(types.FunctionDeclaration, private_get_declaration())
-
-    return None
-
-
-class JaegerMCPBridge:
-    """Loads MCP tools once and exposes them for Gemini tool-calling."""
-
-    def __init__(self, mcp_url: str, timeout_sec: float):
-        self._mcp_url = mcp_url
-        self._timeout_sec = timeout_sec
-        self._toolset = MCPToolset(
-            connection_params=StreamableHTTPConnectionParams(url=mcp_url),
-        )
-        self._tools_by_name: dict[str, Any] = {}
-        self._gemini_tools: list[types.Tool] = []
-        self._initialized = False
-
-    async def initialize(self) -> None:
-        if self._initialized:
-            return
-
-        # Discover available MCP tools once, then expose them to Gemini as function declarations.
-        logger.info(
-            f"Initializing MCP tool discovery from {self._mcp_url} "
-            f"(single attempt timeout={self._timeout_sec}s)"
-        )
-
-        try:
-            logger.info(
-                f"MCP connection trying {self._mcp_url} "
-                f"(timeout {self._timeout_sec:.1f}s)"
-            )
-            adk_tools = await asyncio.wait_for(self._toolset.get_tools(), timeout=self._timeout_sec)
-        except asyncio.CancelledError:
-            logger.warning(
-                "MCP tool discovery cancelled before completion "
-                "(client likely disconnected before MCP became available)."
-            )
-            logger.warning("MCP was not connected for %s; request aborted.", self._mcp_url)
-            raise
-        except Exception as exc:
-            message = (
-                f"Unable to connect to MCP at {self._mcp_url} on first attempt. "
-                "Stopping request."
-            )
-            logger.error("%s Error: %s", message, exc)
-            raise RuntimeError(message) from exc
-
-        self._tools_by_name = {tool.name: tool for tool in adk_tools}
-        logger.info("Retrieved tools from MCP: %s", list(self._tools_by_name.keys()))
-
-        function_declarations: list[types.FunctionDeclaration] = []
-        for tool in adk_tools:
-            declaration = _extract_function_declaration(tool)
-            if declaration is not None:
-                function_declarations.append(declaration)
-
-        if function_declarations:
-            self._gemini_tools = [types.Tool(function_declarations=function_declarations)]
-        else:
-            self._gemini_tools = []
-
-        self._initialized = True
-
-    async def get_gemini_tools(self) -> list[types.Tool]:
-        await self.initialize()
-        return self._gemini_tools
-
-    async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
-        await self.initialize()
-
-        tool = self._tools_by_name.get(name)
-        if tool is None:
-            return {"error": f"unsupported tool: {name}"}
-
-        result = await tool.run_async(args=args or {}, tool_context=None)
-        return _to_jsonable(result)
 
 class JaegerSidecarAgent(Agent):
     """ACP agent implementation that proxies trace-analysis requests to Gemini + MCP tools."""
@@ -429,8 +300,9 @@ async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | 
             if task.cancelled():
                 logger.info("Task was cancelled: %s", task.get_name())
                 continue
-            if task.exception():
-                logger.error("Task exception (%s): %s", task.get_name(), task.exception())
+            task_exc = task.exception()
+            if task_exc:
+                logger.error("Task exception (%s): %s", task.get_name(), task_exc)
             else:
                 logger.info("Task completed normally: %s", task.get_name())
 
