@@ -49,6 +49,10 @@ CREATE TABLE
         scope_complex_attributes Nested (key String, value String),
         INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1,
+        INDEX idx_attributes_keys str_attributes.key TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_attributes_values str_attributes.value TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_resource_attributes_keys resource_str_attributes.key TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_resource_attributes_values resource_str_attributes.value TYPE bloom_filter GRANULARITY 1,
     ) ENGINE = MergeTree
 PARTITION BY toDate(start_time)
 ORDER BY (service_name, name, toDateTime(start_time))
