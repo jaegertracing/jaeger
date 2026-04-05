@@ -117,7 +117,7 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := NewReader(tt.driver, ReaderConfig{})
+			reader := NewReader(tt.driver, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
 			_, err := reader.getAttributeMetadata(t.Context(), attrs)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tt.expectedErr)
@@ -135,7 +135,7 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 		t: t,
 	}
 
-	reader := NewReader(driver, ReaderConfig{})
+	reader := NewReader(driver, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Empty(t, metadata)
@@ -168,7 +168,8 @@ func makeTestDriverWithMetadata(t *testing.T) *testDriver {
 func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
 	d := makeTestDriverWithMetadata(t)
 	reader := NewReader(d, ReaderConfig{
-		AttributeMetadataCacheTTL: time.Minute,
+		AttributeMetadataCacheTTL:     time.Minute,
+		AttributeMetadataCacheMaxSize: 1000,
 	})
 
 	attrs := pcommon.NewMap()
@@ -185,7 +186,8 @@ func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
 func TestGetAttributeMetadata_CacheHit(t *testing.T) {
 	d := makeTestDriverWithMetadata(t)
 	reader := NewReader(d, ReaderConfig{
-		AttributeMetadataCacheTTL: time.Minute,
+		AttributeMetadataCacheTTL:     time.Minute,
+		AttributeMetadataCacheMaxSize: 1000,
 	})
 
 	attrs := pcommon.NewMap()
@@ -209,7 +211,8 @@ func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 		d := makeTestDriverWithMetadata(t)
 		cacheTTL := 5 * time.Minute
 		reader := NewReader(d, ReaderConfig{
-			AttributeMetadataCacheTTL: cacheTTL,
+			AttributeMetadataCacheTTL:     cacheTTL,
+			AttributeMetadataCacheMaxSize: 1000,
 		})
 
 		attrs := pcommon.NewMap()
@@ -256,7 +259,8 @@ func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 		},
 	}
 	reader := NewReader(d, ReaderConfig{
-		AttributeMetadataCacheTTL: time.Minute,
+		AttributeMetadataCacheTTL:     time.Minute,
+		AttributeMetadataCacheMaxSize: 1000,
 	})
 
 	attrs := pcommon.NewMap()
@@ -278,7 +282,8 @@ func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 func TestGetAttributeMetadata_NonStringAttributesSkipped(t *testing.T) {
 	d := makeTestDriverWithMetadata(t)
 	reader := NewReader(d, ReaderConfig{
-		AttributeMetadataCacheTTL: time.Minute,
+		AttributeMetadataCacheTTL:     time.Minute,
+		AttributeMetadataCacheMaxSize: 1000,
 	})
 
 	attrs := pcommon.NewMap()
