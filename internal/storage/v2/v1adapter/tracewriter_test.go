@@ -57,7 +57,7 @@ func TestWriteTracesError(t *testing.T) {
 	mockstore := spanstoremocks.NewWriter(t)
 	mockstore.On(
 		"WriteSpan",
-		mock.AnythingOfType("context.backgroundCtx"),
+		mock.Anything,
 		mock.AnythingOfType("*model.Span"),
 	).Return(errors.New("mocked error"))
 
@@ -67,6 +67,22 @@ func TestWriteTracesError(t *testing.T) {
 
 	err := traceWriter.WriteTraces(context.Background(), makeTraces())
 	require.ErrorContains(t, err, "mocked error")
+}
+
+func TestWriteTraces_ContextCancellation(t *testing.T) {
+	// Use an empty mock; if WriteSpan is called, it will panic/fail the test,
+	// which is what we want since the context is pre-canceled.
+	mockstore := new(spanstoremocks.Writer)
+
+	traceWriter := &TraceWriter{
+		spanWriter: mockstore,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // pre-cancel context
+
+	err := traceWriter.WriteTraces(ctx, makeTraces())
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 func TestGetV1Writer(t *testing.T) {
