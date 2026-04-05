@@ -52,7 +52,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 				"Enable it with --feature-gates=storage.clickhouse",
 		)
 	}
-	fmt.Fprintln(os.Stderr, `
+	fmt.Fprint(os.Stderr, `
 *******************************************************************************
 
 ⚠️  WARNING: ClickHouse Storage is Experimental
