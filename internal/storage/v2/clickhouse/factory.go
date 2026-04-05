@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -51,7 +52,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 				"Enable it with --feature-gates=storage.clickhouse",
 		)
 	}
-	println(`
+	fmt.Fprintln(os.Stderr, `
 *******************************************************************************
 
 ⚠️  WARNING: ClickHouse Storage is Experimental
