@@ -51,6 +51,7 @@ class FakeAgent(Agent):
         super().__init__()
         FakeAgent.last_instance = self
         self._conn = None
+        self._next_session_id = 1
         self.received_prompts: list[tuple[str, str]] = []
 
     def on_connect(self, conn: Any) -> None:
@@ -71,7 +72,9 @@ class FakeAgent(Agent):
         )
 
     async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
-        return NewSessionResponse(session_id="sess-test")
+        session_id = f"sess-test-{self._next_session_id}"
+        self._next_session_id += 1
+        return NewSessionResponse(session_id=session_id)
 
     async def load_session(
         self,
@@ -192,7 +195,8 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                 )
                 session_result = session_response.get("result", session_response)
                 session_id = session_result.get("sessionId") or session_result.get("session_id")
-                assert session_id == "sess-test"
+                assert session_id is not None
+                assert session_id.startswith("sess-test-")
 
                 prompt_response = await send_request(
                     websocket,
@@ -219,10 +223,10 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
 
     fake_agent = FakeAgent.last_instance
     assert fake_agent is not None
-    assert fake_agent.received_prompts == [("sess-test", prompt)]
+    assert fake_agent.received_prompts == [(session_id, prompt)]
     assert any(END_OF_TURN_MARKER in json.dumps(message) for message in received_messages)
     assert any("echo: " in json.dumps(message) for message in received_messages)
 
-
 def test_complete_acp_workflow_with_fake_agent() -> None:
     asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
+

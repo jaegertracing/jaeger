@@ -3,7 +3,7 @@
 
 import asyncio
 import json
-import os
+import logging
 import socket
 from dataclasses import dataclass
 from typing import Any, Callable, cast
@@ -33,13 +33,24 @@ from acp.schema import (
 )
 
 END_OF_TURN_MARKER = "__END_OF_TURN__"
-DEFAULT_MCP_URL = "http://127.0.0.1:16687/mcp"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class SidecarConfig:
     gemini_api_key: str
-    mcp_url: str = DEFAULT_MCP_URL
+    mcp_url: str
+    mcp_discovery_timeout_sec: float
+
+    def validate(self) -> None:
+        if not self.gemini_api_key:
+            raise RuntimeError(
+                "GEMINI_API_KEY must be provided via --gemini-api-key or environment variable"
+            )
+        if not self.mcp_url:
+            raise RuntimeError("JAEGER_MCP_URL must be provided via --mcp-url or environment variable")
+        if self.mcp_discovery_timeout_sec <= 0:
+            raise RuntimeError("MCP discovery timeout must be > 0 seconds")
 
 
 def _to_jsonable(value: Any) -> Any:
@@ -81,8 +92,11 @@ def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None
 
 
 class JaegerMCPBridge:
-    def __init__(self, mcp_url: str):
+    """Loads MCP tools once and exposes them for Gemini tool-calling."""
+
+    def __init__(self, mcp_url: str, timeout_sec: float):
         self._mcp_url = mcp_url
+        self._timeout_sec = timeout_sec
         self._toolset = MCPToolset(
             connection_params=StreamableHTTPConnectionParams(url=mcp_url),
         )
@@ -94,37 +108,35 @@ class JaegerMCPBridge:
         if self._initialized:
             return
 
-        timeout_sec = 15.0
-
         # Discover available MCP tools once, then expose them to Gemini as function declarations.
-        print(
+        logger.info(
             f"Initializing MCP tool discovery from {self._mcp_url} "
-            f"(single attempt timeout={timeout_sec}s)"
+            f"(single attempt timeout={self._timeout_sec}s)"
         )
 
         try:
-            print(
-                f"MCP connection attempt 1: trying {self._mcp_url} "
-                f"(timeout {timeout_sec:.1f}s)"
+            logger.info(
+                f"MCP connection trying {self._mcp_url} "
+                f"(timeout {self._timeout_sec:.1f}s)"
             )
-            adk_tools = await asyncio.wait_for(self._toolset.get_tools(), timeout=timeout_sec)
+            adk_tools = await asyncio.wait_for(self._toolset.get_tools(), timeout=self._timeout_sec)
         except asyncio.CancelledError:
-            print(
+            logger.warning(
                 "MCP tool discovery cancelled before completion "
                 "(client likely disconnected before MCP became available)."
             )
-            print(f"MCP was not connected for {self._mcp_url}; request aborted.")
+            logger.warning("MCP was not connected for %s; request aborted.", self._mcp_url)
             raise
         except Exception as exc:
             message = (
                 f"Unable to connect to MCP at {self._mcp_url} on first attempt. "
                 "Stopping request."
             )
-            print(f"{message} Error: {exc}")
+            logger.error("%s Error: %s", message, exc)
             raise RuntimeError(message) from exc
 
         self._tools_by_name = {tool.name: tool for tool in adk_tools}
-        print(f"Retrieved tools from MCP: {list(self._tools_by_name.keys())}")
+        logger.info("Retrieved tools from MCP: %s", list(self._tools_by_name.keys()))
 
         function_declarations: list[types.FunctionDeclaration] = []
         for tool in adk_tools:
@@ -153,29 +165,15 @@ class JaegerMCPBridge:
         result = await tool.run_async(args=args or {}, tool_context=None)
         return _to_jsonable(result)
 
-
-def build_config_from_env() -> SidecarConfig:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
-        )
-    return SidecarConfig(
-        gemini_api_key=api_key,
-        mcp_url=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL),
-    )
-
-
 class JaegerSidecarAgent(Agent):
+    """ACP agent implementation that proxies trace-analysis requests to Gemini + MCP tools."""
+
     def __init__(self, config: SidecarConfig):
         super().__init__()
+        config.validate()
         self._conn: Client | None = None
-        if not config.gemini_api_key:
-            raise RuntimeError(
-                "GEMINI_API_KEY environment variable is not set; cannot initialize Gemini client."
-            )
         self._gemini = genai.Client(api_key=config.gemini_api_key)
-        self._mcp = JaegerMCPBridge(config.mcp_url)
+        self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
         self._next_session_id = 1
         self._next_tool_call_id = 1
 
@@ -185,6 +183,11 @@ class JaegerSidecarAgent(Agent):
         return call_id
 
     def on_connect(self, conn: Client) -> None:
+        """Receive ACP connection object from runtime.
+
+        Called by the ACP runtime when the agent is attached to an active
+        transport so session updates can be sent back to the client.
+        """
         self._conn = conn
 
     def _require_conn(self) -> Client:
@@ -199,12 +202,19 @@ class JaegerSidecarAgent(Agent):
         client_info: Any = None,
         **kwargs: Any,
     ) -> InitializeResponse:
+        """Handle ACP initialize handshake.
+
+        This method is invoked by the ACP runtime (via the `initialize` RPC),
+        not called directly by our application code. It is required by the ACP
+        protocol so the agent and client can negotiate protocol version and
+        advertise capabilities before any session/new or session/prompt calls.
+        """
         if protocol_version != PROTOCOL_VERSION:
             raise ValueError(
                 f"Unsupported ACP protocol version: {protocol_version}. "
                 f"Supported version: {PROTOCOL_VERSION}."
             )
-        print(f"Agent initialized with protocol version {protocol_version}")
+        logger.info("Agent initialized with protocol version %s", protocol_version)
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
             agent_capabilities=AgentCapabilities(),
@@ -212,6 +222,11 @@ class JaegerSidecarAgent(Agent):
         )
 
     async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
+        """Handle ACP `session/new` RPC.
+
+        Invoked by ACP runtime dispatch (not direct app code) to allocate a new
+        session id that the client will use for subsequent prompt calls.
+        """
         session_id = f"sess-{self._next_session_id}"
         self._next_session_id += 1
         return NewSessionResponse(session_id=session_id)
@@ -223,9 +238,22 @@ class JaegerSidecarAgent(Agent):
         mcp_servers: Any = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
+        """Handle ACP `session/load` RPC.
+
+        Called by the ACP runtime during session restoration flows.
+        """
         return LoadSessionResponse()
 
-    async def list_sessions(self, cursor: str | None = None, cwd: str | None = None, **kwargs: Any) -> ListSessionsResponse:
+    async def list_sessions(
+        self,
+        cursor: str | None = None,
+        cwd: str | None = None,
+        **kwargs: Any,
+    ) -> ListSessionsResponse:
+        """Handle ACP `session/list` RPC.
+
+        Called by ACP runtime to enumerate available sessions for the client.
+        """
         return ListSessionsResponse(sessions=[])
 
     async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
@@ -256,7 +284,7 @@ class JaegerSidecarAgent(Agent):
         return tool_output
 
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
-        print(f"Starting agentic Gemini loop for session {session_id} with user text: {user_text!r}")
+        logger.info("Starting agentic Gemini loop for session %s", session_id)
         system_instruction = (
             "You are Jaeger AI, an assistant for distributed tracing investigations. "
             "You will be given telemetry information from MCP tool results; treat that data as your source of truth. "
@@ -272,7 +300,7 @@ class JaegerSidecarAgent(Agent):
         for tool in mcp_tools:
             if tool.function_declarations:
                 tool_names.extend(fd.name for fd in tool.function_declarations if fd.name)
-        print(f"Passing tools to Gemini: {tool_names}")
+        logger.info("Passing tools to Gemini: %s", tool_names)
 
         chat = self._gemini.chats.create(
             model="gemini-2.5-flash",
@@ -283,15 +311,14 @@ class JaegerSidecarAgent(Agent):
             ),
         )
 
-        print(f"Sending user message to Gemini: {user_text}")
+        logger.info("Sending user message to Gemini")
         response = await asyncio.to_thread(chat.send_message, user_text)
 
         # Iterate model->tool->model until Gemini produces a final text response.
         for _ in range(6):
             function_calls = response.function_calls
             if not function_calls:
-                print("No function calls in Gemini response, breaking loop")
-                print(f"break Gemini final response: {response.text}")
+                logger.info("No function calls in Gemini response, returning final text")
                 return response.text or ""
 
             function_responses = []
@@ -300,21 +327,31 @@ class JaegerSidecarAgent(Agent):
                 name = function_call.name or ""
                 args = function_call.args or {}
                 call_id = function_call.id or self._new_tool_call_id(name)
-                print(f"Gemini requested tool call: {name} with args {args} and call_id {call_id}")
+                logger.info("Gemini requested tool call: %s (call_id=%s)", name, call_id)
                 tool_output = await self._execute_tool(session_id, name, args, call_id)
                 function_responses.append(
                     types.Part.from_function_response(name=name, response={"result": tool_output})
                 )
 
-            print(f"Sending function responses back to Gemini: {function_responses}")
+            logger.debug("Sending function responses back to Gemini")
             response = await asyncio.to_thread(chat.send_message, function_responses)
-            print(f"Gemini response after tool calls: {response.text}")
+            logger.info("Received Gemini response after tool calls")
 
-        print(f"Final Gemini response: {response.text}")
+        logger.info("Reached max tool loop iterations, returning last Gemini response")
         return response.text or ""
 
-    async def prompt(self, prompt: list[Any], session_id: str, **kwargs: Any) -> PromptResponse:
-        print(f"Received prompt request for session {session_id}")
+    async def prompt(
+        self,
+        prompt: list[Any],
+        session_id: str,
+        **kwargs: Any,
+    ) -> PromptResponse:
+        """Handle ACP `session/prompt` RPC.
+
+        Invoked by ACP runtime dispatch after initialize/session handshake; this
+        is the protocol entrypoint for prompt execution.
+        """
+        logger.info("Received prompt request for session %s", session_id)
 
         # Extract text from prompt blocks
         user_text = ""
@@ -326,19 +363,19 @@ class JaegerSidecarAgent(Agent):
             conn = self._require_conn()
             final_answer = await self._run_agentic_gemini_loop(session_id, user_text)
             if final_answer:
-                print(f"final answer from Gemini: {final_answer} with session_id {session_id}")
+                logger.info("Sending final answer for session %s", session_id)
                 await conn.session_update(
                     session_id,
                     update_agent_message(text_block(final_answer)),
                 )
         except asyncio.CancelledError:
-            print(
+            logger.warning(
                 f"Prompt handling cancelled for session {session_id} "
                 "(connection/task terminated before response completed)."
             )
             raise
         except Exception as e:
-            print(f"Error calling Gemini: {e}")
+            logger.exception("Error calling Gemini: %s", e)
             conn = self._require_conn()
             await conn.session_update(
                 session_id,
@@ -354,8 +391,8 @@ class JaegerSidecarAgent(Agent):
         return PromptResponse(stop_reason="end_turn")
 
 
-async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None = None):
-    print("New websocket connection from Jaeger AI Gateway")
+async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | None = None) -> None:
+    logger.info("New websocket connection from Jaeger AI Gateway")
 
     # Bridge ACP stdio-style streams to WebSocket transport used by the Go gateway.
     # Socketpair avoids reimplementing ACP framing logic in this process.
@@ -371,8 +408,7 @@ async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None 
 
         # Start the ACP local agent linked to the agent ends of the socket pair
         if agent_factory is None:
-            config = build_config_from_env()
-            agent_factory = lambda: JaegerSidecarAgent(config)  # pyright: ignore[reportAbstractUsage]
+            raise RuntimeError("agent_factory must be provided by the application entrypoint")
 
         agent = agent_factory()
         agent_task = asyncio.create_task(run_agent(agent, agent_writer, agent_reader), name="agent_task")
@@ -389,14 +425,14 @@ async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None 
         )
 
         for task in done:
-            print(f"Task finished: {task.get_name()}")
+            logger.info("Task finished: %s", task.get_name())
             if task.cancelled():
-                print(f"Task was cancelled: {task.get_name()}")
+                logger.info("Task was cancelled: %s", task.get_name())
                 continue
             if task.exception():
-                print(f"Task exception: {task.exception()}")
+                logger.error("Task exception (%s): %s", task.get_name(), task.exception())
             else:
-                print(f"Task completed normally: {task.get_name()}")
+                logger.info("Task completed normally: %s", task.get_name())
 
         for task in pending:
             task.cancel()
@@ -427,9 +463,14 @@ async def handle_websocket(websocket, agent_factory: Callable[[], Agent] | None 
 
         # If any task survived above due to unexpected failure, cancel+drain here.
         lingering = [task for task in tasks if not task.done()]
+        if lingering:
+            logger.info(
+                "Cancelling lingering tasks during websocket shutdown: %s",
+                [task.get_name() for task in lingering],
+            )
         for task in lingering:
             task.cancel()
         if lingering:
             await asyncio.gather(*lingering, return_exceptions=True)
 
-        print("Websocket connection closed")
+        logger.info("Websocket connection closed")

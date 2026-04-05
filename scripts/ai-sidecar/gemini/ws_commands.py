@@ -1,10 +1,17 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
+import asyncio
+import logging
+from typing import Any
+
 import websockets
 
 
-async def ws_to_client_writer(websocket, client_writer):
+logger = logging.getLogger(__name__)
+
+
+async def ws_to_client_writer(websocket: Any, client_writer: asyncio.StreamWriter) -> None:
     try:
         async for message in websocket:
             if isinstance(message, str):
@@ -16,20 +23,20 @@ async def ws_to_client_writer(websocket, client_writer):
     except websockets.exceptions.ConnectionClosed:
         pass
     except Exception as e:
-        print(f"Error in ws_to_client reads: {e}")
+        logger.exception("Error in ws_to_client reads: %s", e)
     finally:
         client_writer.close()
         await client_writer.wait_closed()
 
 
-async def client_reader_to_ws(websocket, client_reader):
+async def client_reader_to_ws(websocket: Any, client_reader: asyncio.StreamReader) -> None:
     try:
         while True:
             line = await client_reader.readline()
             if not line:
                 break
-            await websocket.send(line.decode("utf-8"))
+            await websocket.send(line.decode("utf-8", errors="replace"))
     except websockets.exceptions.ConnectionClosed:
         pass
     except Exception as e:
-        print(f"Error in client_to_ws writes: {e}")
+        logger.exception("Error in client_to_ws writes: %s", e)
