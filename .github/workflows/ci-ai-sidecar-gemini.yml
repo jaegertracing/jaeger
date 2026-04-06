@@ -1,0 +1,42 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: AI Sidecar Gemini Tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gemini-sidecar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.14'
+
+      - name: Install uv
+        run: python3 -m pip install --upgrade pip uv
+
+      - name: Sync sidecar dependencies
+        working-directory: scripts/ai-sidecar/gemini
+        run: uv sync --frozen
+
+      - name: Run Pyright
+        working-directory: scripts/ai-sidecar/gemini
+        run: uv run pyright ./
+
+      - name: Run Gemini sidecar workflow test
+        working-directory: scripts/ai-sidecar/gemini
+        run: uv run pytest -q test_sidecar_workflow.py

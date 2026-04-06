@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -86,7 +87,7 @@ func (tr *TraceReader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traces, err := tr.spanReader.FindTraces(ctx, query.ToSpanStoreQueryParameters())
+		traces, err := tr.spanReader.FindTraces(ctx, GetV1QueryParameters(query))
 		if err != nil {
 			yield(nil, err)
 			return
@@ -106,7 +107,7 @@ func (tr *TraceReader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, query.ToSpanStoreQueryParameters())
+		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, GetV1QueryParameters(query))
 		if err != nil {
 			yield(nil, err)
 			return
@@ -118,5 +119,19 @@ func (tr *TraceReader) FindTraceIDs(
 			})
 		}
 		yield(otelIDs, nil)
+	}
+}
+
+// GetV1QueryParameters converts a tracestore.TraceQueryParams to a spanstore.TraceQueryParameters.
+func GetV1QueryParameters(query tracestore.TraceQueryParams) *spanstore.TraceQueryParameters {
+	return &spanstore.TraceQueryParameters{
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Tags:          jptrace.PcommonMapToPlainMap(query.Attributes),
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		NumTraces:     query.SearchDepth,
 	}
 }

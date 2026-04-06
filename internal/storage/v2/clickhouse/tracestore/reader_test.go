@@ -24,8 +24,9 @@ import (
 
 var (
 	testReaderConfig = ReaderConfig{
-		DefaultSearchDepth: 100,
-		MaxSearchDepth:     1000,
+		DefaultSearchDepth:            100,
+		MaxSearchDepth:                1000,
+		AttributeMetadataCacheMaxSize: 1000,
 	}
 	testTraceIDsData = [][]any{
 		{

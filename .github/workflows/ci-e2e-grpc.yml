@@ -1,3 +1,10 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Integration tests for the gRPC remote storage plugin interface.
+# direct: classic tests at the storage API layer, directly instantiating the storage implementation.
+# e2e: multi-process E2E tests via the trace ingestion and query APIs.
+
 name: CIT gRPC
 
 on:
@@ -13,38 +20,38 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [v1, v2]
+        storage_test: [direct, e2e]
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+    - uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
 
     - name: Run gRPC storage integration tests
       run: |
-        case ${{ matrix.version }} in
-          v1)
+        case ${{ matrix.storage_test }} in
+          direct)
             SPAN_STORAGE_TYPE=memory make grpc-storage-integration-test
             ;;
-          v2)
+          e2e)
             STORAGE=grpc make jaeger-v2-storage-integration-test
             ;;
         esac
 
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: matrix.version == 'v2'
+      if: matrix.storage_test == 'e2e'
       with:
         snapshot: metrics_snapshot_grpc
-        artifact_key: metrics_snapshot_grpc_${{ matrix.version }}
+        artifact_key: metrics_snapshot_grpc_${{ matrix.storage_test }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flag: grpc_${{ matrix.version }}
+        flag: grpc_${{ matrix.storage_test }}

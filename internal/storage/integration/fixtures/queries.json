@@ -376,5 +376,24 @@
       "NumTraces": 1000
     },
     "ExpectedFixtures": ["multiple1_trace", "multiple2_trace", "multiple3_trace"]
+  },
+  {
+    "Caption": "Scope Name and Version",
+    "Query": {
+      "ServiceName": "query23-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":123,
+        "sameplacetag3":72.5,
+        "sameplacetag4":true
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["scope_name_version_trace"]
   }
 ]

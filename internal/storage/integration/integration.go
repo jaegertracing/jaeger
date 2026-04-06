@@ -5,6 +5,7 @@
 package integration
 
 import (
+	"cmp"
 	"context"
 	"embed"
 	"encoding/binary"
@@ -13,7 +14,6 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -184,7 +184,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 			t.Log(err)
 			return false
 		}
-		sort.Strings(actual)
+		slices.Sort(actual)
 		t.Logf("Retrieved services: %v", actual)
 		if len(actual) > len(expected) {
 			// If the storage backend returns more services than expected, let's log traces for those
@@ -307,8 +307,8 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 			t.Log(err)
 			return false
 		}
-		sort.Slice(actual, func(i, j int) bool {
-			return actual[i].Name < actual[j].Name
+		slices.SortFunc(actual, func(a, b tracestore.Operation) int {
+			return cmp.Compare(a.Name, b.Name)
 		})
 		t.Logf("Retrieved operations: %v", actual)
 		return assert.ObjectsAreEqualValues(expected, actual)
@@ -571,8 +571,8 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 			t.Log(err)
 			return false
 		}
-		sort.Slice(actual, func(i, j int) bool {
-			return actual[i].Parent < actual[j].Parent
+		slices.SortFunc(actual, func(a, b model.DependencyLink) int {
+			return cmp.Compare(a.Parent, b.Parent)
 		})
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})

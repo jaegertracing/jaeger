@@ -59,7 +59,7 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 
 	mock := newMockYieldingTraces(testTrace)
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -115,7 +115,7 @@ func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
 
 	mock := newMockYieldingTraces(testTrace)
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -143,7 +143,7 @@ func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
 
 	mock := newMockYieldingTraces(testTrace)
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -166,7 +166,7 @@ func TestGetSpanDetailsHandler_Handle_FiltersBySpanIDs(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_MissingTraceID(t *testing.T) {
-	handler := NewGetSpanDetailsHandler(nil)
+	handler := NewGetSpanDetailsHandler(nil, 50)
 
 	input := types.GetSpanDetailsInput{
 		SpanIDs: []string{spanIDToHex("span001")},
@@ -179,7 +179,7 @@ func TestGetSpanDetailsHandler_Handle_MissingTraceID(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_MissingSpanIDs(t *testing.T) {
-	handler := NewGetSpanDetailsHandler(nil)
+	handler := NewGetSpanDetailsHandler(nil, 50)
 
 	input := types.GetSpanDetailsInput{
 		TraceID: testTraceID,
@@ -193,7 +193,7 @@ func TestGetSpanDetailsHandler_Handle_MissingSpanIDs(t *testing.T) {
 }
 
 func TestGetSpanDetailsHandler_Handle_InvalidTraceID(t *testing.T) {
-	handler := NewGetSpanDetailsHandler(nil)
+	handler := NewGetSpanDetailsHandler(nil, 50)
 
 	input := types.GetSpanDetailsInput{
 		TraceID: "invalid-trace-id",
@@ -209,7 +209,7 @@ func TestGetSpanDetailsHandler_Handle_InvalidTraceID(t *testing.T) {
 func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 	mock := newMockYieldingEmpty()
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: testTraceID,
@@ -225,7 +225,7 @@ func TestGetSpanDetailsHandler_Handle_TraceNotFound(t *testing.T) {
 func TestGetSpanDetailsHandler_Handle_QueryError(t *testing.T) {
 	mock := newMockYieldingError(errors.New("database connection failed"))
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: testTraceID,
@@ -262,7 +262,7 @@ func TestGetSpanDetailsHandler_Handle_PartialResults(t *testing.T) {
 		},
 	}
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -300,7 +300,7 @@ func TestGetSpanDetailsHandler_Handle_MultipleIterations(t *testing.T) {
 		},
 	}
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -335,7 +335,7 @@ func TestGetSpanDetailsHandler_Handle_WithParentSpanID(t *testing.T) {
 
 	mock := newMockYieldingTraces(testTrace)
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -360,7 +360,7 @@ func TestGetSpanDetailsHandler_Handle_NoMatchingSpans(t *testing.T) {
 
 	mock := newMockYieldingTraces(testTrace)
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -389,7 +389,7 @@ func TestGetSpanDetailsHandler_Handle_PartialMissingSpans(t *testing.T) {
 
 	mock := newMockYieldingTraces(testTrace)
 
-	handler := &getSpanDetailsHandler{queryService: mock}
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
 
 	input := types.GetSpanDetailsInput{
 		TraceID: traceID,
@@ -495,6 +495,24 @@ func TestConvertAttributeValue(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestGetSpanDetailsHandler_ExceedsLimit(t *testing.T) {
+	// Create handler with a limit of 2 spans per request
+	handler := NewGetSpanDetailsHandler(nil, 2)
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		// Request 3 spans but limit is 2 - should fail before querying
+		SpanIDs: []string{spanIDToHex("span001"), spanIDToHex("span002"), spanIDToHex("span003")},
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum limit")
+	assert.Contains(t, err.Error(), "requested 3")
+	assert.Contains(t, err.Error(), "max allowed 2")
 }
 
 func TestParseTraceID(t *testing.T) {

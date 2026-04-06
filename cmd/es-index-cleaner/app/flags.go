@@ -33,7 +33,7 @@ type Config struct {
 	MasterNodeTimeoutSeconds int
 	IndexDateSeparator       string
 	Username                 string
-	Password                 string //nolint:gosec // G117
+	Password                 string
 	TLSEnabled               bool
 	TLSConfig                configtls.ClientConfig
 }

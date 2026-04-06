@@ -1,0 +1,12 @@
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    url: http://prometheus:9090
+    isDefault: true
+    access: proxy
+    editable: true
+# Intentionally no Jaeger datasource. Grafana is included here solely as a
+# metrics dashboard tool. Jaeger UI (port 16686) is the trace visualization
+# interface for this demo. Without a trace datasource configured, Grafana's
+# trace viewer is inert. Users who want to add one can do so manually.

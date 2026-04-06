@@ -149,6 +149,9 @@ linters:
         # this rule conflicts with nolintlint which does insist on no-space in //nolint
         - name: comment-spacings
           disabled: true
+        # existing packages conflict with stdlib names or use underscores; cannot rename
+        - name: package-naming
+          disabled: true
     staticcheck:
       checks:
         - all

@@ -68,7 +68,7 @@ func defaultBuilders() builders {
 func (b builders) build() (otelcol.Factories, error) {
 	var err error
 	factories := otelcol.Factories{
-		Telemetry: otelconftelemetry.NewFactory(),
+		Telemetry: WrapFactory(otelconftelemetry.NewFactory()),
 	}
 
 	factories.Extensions, err = b.extension(

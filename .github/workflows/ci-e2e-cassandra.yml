@@ -1,3 +1,11 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Integration tests for Cassandra storage backend, covering multiple Cassandra
+# major versions, schema versions, and both manual and auto schema creation.
+# direct: classic tests at the storage API layer, directly instantiating the storage implementation.
+# e2e: multi-process E2E tests via the trace ingestion and query APIs.
+
 name: CIT Cassandra
 
 on:
@@ -13,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jaeger-version: [v1, v2]
+        storage_test: [direct, e2e]
         create-schema: [manual, auto]
         version:
         - distribution: cassandra
@@ -23,38 +31,38 @@ jobs:
           major: 5.x
           schema: v004
         exclude:
-        # Exclude v1 as create schema on fly is available for v2 only
-        - jaeger-version: v1
+        # Exclude direct as creating schema on startup is only available in e2e mode
+        - storage_test: direct
           create-schema: auto
-    name: ${{ matrix.version.distribution }}-${{ matrix.version.major }} ${{ matrix.jaeger-version }} schema=${{ matrix.create-schema }}
+    name: ${{ matrix.version.distribution }}-${{ matrix.version.major }} ${{ matrix.storage_test }} schema=${{ matrix.create-schema }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@a90bcbc6539c36a85cdfeb73f7e2f433735f215b # v2.15.0
+      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+    - uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
 
     - name: Run cassandra integration tests
       id: test-execution
-      run: bash scripts/e2e/cassandra.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.jaeger-version }}
+      run: bash scripts/e2e/cassandra.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.storage_test }}
       env:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
      
     - uses: ./.github/actions/verify-metrics-snapshot
-      if: matrix.jaeger-version == 'v2'
+      if: matrix.storage_test == 'e2e'
       with:
         snapshot: metrics_snapshot_cassandra
-        artifact_key: metrics_snapshot_cassandras_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.jaeger-version }}_${{ matrix.create-schema }}
+        artifact_key: metrics_snapshot_cassandras_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.storage_test }}_${{ matrix.create-schema }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flag: cassandra-${{ matrix.version.major }}-${{ matrix.jaeger-version }}-${{ matrix.create-schema }}
+        flag: cassandra-${{ matrix.version.major }}-${{ matrix.storage_test }}-${{ matrix.create-schema }}
     
     

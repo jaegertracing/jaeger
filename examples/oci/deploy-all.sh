@@ -7,6 +7,8 @@ set -euo pipefail
 
 MODE="${1:-upgrade}"
 IMAGE_TAG="${2:-latest}"
+PROMETHEUS_STACK_CHART="prometheus-community/kube-prometheus-stack"
+PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.10.4}"
 
 case "$MODE" in
   upgrade|clean|local)
@@ -99,7 +101,11 @@ fi
 
 echo "🟢 Deploying Prometheus..."
 kubectl apply -f prometheus-svc.yaml
-helm $HELM_PROM_CMD prometheus -f monitoring-values.yaml prometheus-community/kube-prometheus-stack
+helm $HELM_PROM_CMD prometheus "$PROMETHEUS_STACK_CHART" \
+  --version "$PROMETHEUS_STACK_CHART_VERSION" \
+  --set crds.upgradeJob.enabled=true \
+  --set crds.upgradeJob.forceConflicts=true \
+  -f monitoring-values.yaml
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
