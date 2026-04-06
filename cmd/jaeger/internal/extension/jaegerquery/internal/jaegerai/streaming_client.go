@@ -14,6 +14,8 @@ import (
 	"github.com/coder/acp-go-sdk"
 )
 
+var _ acp.Client = (*streamingClient)(nil)
+
 // streamingClient implements acp.Client to handle callbacks and streaming text.
 type streamingClient struct {
 	requestCtx context.Context

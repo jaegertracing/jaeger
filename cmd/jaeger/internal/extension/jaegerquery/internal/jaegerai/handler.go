@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	endOfTurnMarker        = "__END_OF_TURN__"
-	maxChatRequestBodySize = 1 << 20 // 1 MiB
+	endOfTurnMarker           = "__END_OF_TURN__"
+	maxChatRequestBodySize    = 1 << 20 // 1 MiB
+	defaultWaitForTurnTimeout = 180 * time.Second
 )
 
 // ChatRequest is the incoming payload
@@ -30,13 +31,23 @@ type ChatRequest struct {
 
 // ChatHandler manages the AI gateway requests
 type ChatHandler struct {
-	Logger       *zap.Logger
-	QueryService *querysvc.QueryService
-	sidecarWSURL string
+	Logger             *zap.Logger
+	QueryService       *querysvc.QueryService
+	sidecarWSURL       string
+	waitForTurnTimeout time.Duration
 }
 
-func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sidecarWSURL string) *ChatHandler {
-	return &ChatHandler{Logger: logger, QueryService: queryService, sidecarWSURL: sidecarWSURL}
+func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sidecarWSURL string, waitForTurnTimeout time.Duration) *ChatHandler {
+	if waitForTurnTimeout <= 0 {
+		waitForTurnTimeout = defaultWaitForTurnTimeout
+	}
+
+	return &ChatHandler{
+		Logger:             logger,
+		QueryService:       queryService,
+		sidecarWSURL:       sidecarWSURL,
+		waitForTurnTimeout: waitForTurnTimeout,
+	}
 }
 
 func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +151,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Wait for explicit end-of-turn marker from the sidecar, with a 3 mins timeout fallback.
-	clientImpl.waitForTurnCompletion(acpCtx, 180*time.Second)
+	// Wait for explicit end-of-turn marker from the sidecar, with configured timeout fallback.
+	clientImpl.waitForTurnCompletion(acpCtx, h.waitForTurnTimeout)
 }

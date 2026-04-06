@@ -29,6 +29,8 @@ type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an agent that supports ACP.
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
+	// WaitForTurnTimeout is the max wait time for receiving turn completion after prompt succeeds.
+	WaitForTurnTimeout time.Duration `mapstructure:"wait_for_turn_timeout" valid:"optional"`
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2
@@ -59,7 +61,10 @@ type QueryOptions struct {
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
-		AI:                 configoptional.Some(AIConfig{AgentURL: "ws://localhost:9000"}),
+		AI: configoptional.Default(AIConfig{
+			AgentURL:           "ws://localhost:9000",
+			WaitForTurnTimeout: 180 * time.Second,
+		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),

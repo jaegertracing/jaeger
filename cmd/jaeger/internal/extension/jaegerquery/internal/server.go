@@ -192,12 +192,14 @@ func initRouter(
 	}
 
 	// AI Gateway Endpoints
-	aiHandlerPath := "/api/ai/chat"
-	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-		aiHandlerPath = queryOpts.BasePath + aiHandlerPath
-	}
-	if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
-		r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, querySvc, aiCfg.AgentURL).ServeHTTP)
+	if queryOpts.AI.HasValue() {
+		aiHandlerPath := "/api/ai/chat"
+		if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
+			aiHandlerPath = queryOpts.BasePath + aiHandlerPath
+		}
+		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
+			r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, querySvc, aiCfg.AgentURL, aiCfg.WaitForTurnTimeout).ServeHTTP)
+		}
 	}
 
 	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
