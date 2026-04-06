@@ -6,6 +6,7 @@ package tracestore
 import (
 	"encoding/hex"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -14,31 +15,33 @@ import (
 
 func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
 	var traceId [16]byte
-	traceBytes, err := hex.DecodeString(string(dbTraceId))
+	traceIdHex := string(dbTraceId)
+	if len(traceIdHex) > 32 {
+		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is too long: %d chars", len(traceIdHex))
+	}
+	// Left-pad with zeros to 32 hex chars to handle shorter (e.g. 64-bit) trace IDs.
+	traceIdHex = strings.Repeat("0", 32-len(traceIdHex)) + traceIdHex
+	traceBytes, err := hex.DecodeString(traceIdHex)
 	if err != nil {
 		return pcommon.TraceID{}, err
 	}
-	if len(traceBytes) > 16 {
-		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is too long: %d bytes", len(traceBytes))
-	}
-	// Right-align the bytes so that shorter (e.g. 64-bit) trace IDs
-	// are placed in the lower bytes of the 128-bit array.
-	copy(traceId[16-len(traceBytes):], traceBytes)
+	copy(traceId[:], traceBytes)
 	return traceId, nil
 }
 
 func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 	var spanId [8]byte
-	spanIdBytes, err := hex.DecodeString(string(dbSpanId))
+	spanIdHex := string(dbSpanId)
+	if len(spanIdHex) > 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is too long: %d chars", len(spanIdHex))
+	}
+	// Left-pad with zeros to 16 hex chars to handle shorter span IDs.
+	spanIdHex = strings.Repeat("0", 16-len(spanIdHex)) + spanIdHex
+	spanIdBytes, err := hex.DecodeString(spanIdHex)
 	if err != nil {
 		return pcommon.SpanID{}, err
 	}
-	if len(spanIdBytes) > 8 {
-		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is too long: %d bytes", len(spanIdBytes))
-	}
-	// Right-align the bytes so that shorter span IDs
-	// are placed in the lower bytes of the array.
-	copy(spanId[8-len(spanIdBytes):], spanIdBytes)
+	copy(spanId[:], spanIdBytes)
 	return spanId, nil
 }
 
