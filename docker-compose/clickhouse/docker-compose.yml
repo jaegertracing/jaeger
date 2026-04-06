@@ -38,5 +38,6 @@ services:
     image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:${JAEGER_VERSION:-latest}
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    command: ["-duration", "10s", "-workers", "3", "-pause", "250ms"]
     depends_on:
       - jaeger
