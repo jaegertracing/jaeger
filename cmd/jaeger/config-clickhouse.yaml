@@ -29,14 +29,12 @@ extensions:
   jaeger_query:
     storage:
       traces: some-storage
-    ui:
-      config_file: ./cmd/jaeger/config-ui.json
   jaeger_storage:
     backends:
       some-storage:
         clickhouse:
           addresses:
-            - localhost:9000
+            - ${env:CLICKHOUSE_ADDRESS:-localhost:9000}
           database: jaeger
           auth:
             basic:

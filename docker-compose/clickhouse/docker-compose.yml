@@ -14,3 +14,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  jaeger:
+    profiles: [quickstart]
+    image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    volumes:
+      - ../../cmd/jaeger/config-clickhouse.yaml:/etc/jaeger/config.yaml
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+      - "--feature-gates=storage.clickhouse"
+    environment:
+      - CLICKHOUSE_ADDRESS=clickhouse:9000
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  tracegen:
+    profiles: [quickstart]
+    image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:${JAEGER_VERSION:-latest}
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    depends_on:
+      - jaeger
