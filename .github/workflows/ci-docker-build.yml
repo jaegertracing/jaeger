@@ -35,13 +35,13 @@ jobs:
 
     - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
-    - name: Build only linux/amd64 container images for a Pull Request
-      if: github.ref_name != 'main'
+    - name: Build only linux/amd64 container images (PR and merge queue)
+      if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
       # -D disables images with debugger
       run: bash scripts/build/build-upload-docker-images.sh -D -p linux/amd64
 
     - name: Build and upload all container images
-      if: github.ref_name == 'main'
+      if: github.event_name == 'push' && github.ref_name == 'main'
       run: bash scripts/build/build-upload-docker-images.sh
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}

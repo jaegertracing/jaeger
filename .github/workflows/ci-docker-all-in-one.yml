@@ -55,8 +55,14 @@ jobs:
         esac
 
     - name: Build, test, and publish all-in-one image
+      if: github.event_name == 'push' && github.ref_name == 'main'
       run: |
         bash scripts/build/build-all-in-one-image.sh ${{ env.BUILD_FLAGS }} v2
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build and test all-in-one image (no publish)
+      if: github.event_name != 'push' || github.ref_name != 'main'
+      run: |
+        bash scripts/build/build-all-in-one-image.sh ${{ env.BUILD_FLAGS }} v2
