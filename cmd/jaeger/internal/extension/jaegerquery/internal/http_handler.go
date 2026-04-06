@@ -200,13 +200,13 @@ func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
-	service := r.FormValue(serviceParam)
+	service := r.URL.Query().Get(serviceParam)
 	if service == "" {
 		if aH.handleError(w, errServiceParameterRequired, http.StatusBadRequest) {
 			return
 		}
 	}
-	spanKind := r.FormValue(spanKindParam)
+	spanKind := r.URL.Query().Get(spanKindParam)
 	operations, err := aH.queryService.GetOperations(
 		r.Context(),
 		tracestore.OperationQueryParams{ServiceName: service, SpanKind: spanKind},
@@ -329,7 +329,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
-	service := r.FormValue(serviceParam)
+	service := r.URL.Query().Get(serviceParam)
 
 	dependencies, err := aH.queryService.GetDependencies(r.Context(), dqp.endTs, dqp.lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -350,7 +350,7 @@ func (aH *APIHandler) deepDependencies(w http.ResponseWriter, r *http.Request) {
 }
 
 func (aH *APIHandler) latencies(w http.ResponseWriter, r *http.Request) {
-	q, err := strconv.ParseFloat(r.FormValue(quantileParam), 64)
+	q, err := strconv.ParseFloat(r.URL.Query().Get(quantileParam), 64)
 	if err != nil {
 		aH.handleError(w, newParseError(err, quantileParam), http.StatusBadRequest)
 		return
@@ -450,7 +450,7 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 }
 
 func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, timeKey string) (time.Time, bool) {
-	if timeString := r.FormValue(timeKey); timeString != "" {
+	if timeString := r.URL.Query().Get(timeKey); timeString != "" {
 		t, err := aH.queryParser.parseTime(r, timeKey, time.Microsecond)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return time.Time{}, false
@@ -462,7 +462,7 @@ func (aH *APIHandler) parseMicroseconds(w http.ResponseWriter, r *http.Request, 
 }
 
 func (aH *APIHandler) parseBool(w http.ResponseWriter, r *http.Request, boolKey string) (value bool, isValid bool) {
-	if boolString := r.FormValue(boolKey); boolString != "" {
+	if boolString := r.URL.Query().Get(boolKey); boolString != "" {
 		b, err := parseBool(r, boolKey)
 		if aH.handleError(w, err, http.StatusBadRequest) {
 			return false, false
@@ -573,7 +573,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 }
 
 func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response any) {
-	prettyPrintValue := r.FormValue(prettyPrintParam)
+	prettyPrintValue := r.URL.Query().Get(prettyPrintParam)
 	prettyPrint := prettyPrintValue != "" && prettyPrintValue != "false"
 
 	var marshal jsonMarshaler

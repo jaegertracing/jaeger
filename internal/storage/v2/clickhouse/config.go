@@ -12,10 +12,12 @@ import (
 )
 
 const (
-	defaultProtocol       = "native"
-	defaultDatabase       = "jaeger"
-	defaultSearchDepth    = 1000
-	defaultMaxSearchDepth = 10000
+	defaultProtocol                      = "native"
+	defaultDatabase                      = "jaeger"
+	defaultSearchDepth                   = 1000
+	defaultMaxSearchDepth                = 10000
+	defaultAttributeMetadataCacheTTL     = time.Hour
+	defaultAttributeMetadataCacheMaxSize = 1000
 )
 
 type Configuration struct {
@@ -39,7 +41,14 @@ type Configuration struct {
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
 	MaxSearchDepth int `mapstructure:"max_search_depth"`
-	// TODO: add more settings
+	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
+	// Attribute metadata maps attribute keys to their stored types and levels,
+	// which is needed to build type-correct queries for querying attributes.
+	// Default is 1h.
+	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
+	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
+	// Default is 1000.
+	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
 }
 
 type Authentication struct {
@@ -64,5 +73,11 @@ func (cfg *Configuration) applyDefaults() {
 	}
 	if cfg.MaxSearchDepth == 0 {
 		cfg.MaxSearchDepth = defaultMaxSearchDepth
+	}
+	if cfg.AttributeMetadataCacheTTL <= 0 {
+		cfg.AttributeMetadataCacheTTL = defaultAttributeMetadataCacheTTL
+	}
+	if cfg.AttributeMetadataCacheMaxSize <= 0 {
+		cfg.AttributeMetadataCacheMaxSize = defaultAttributeMetadataCacheMaxSize
 	}
 }

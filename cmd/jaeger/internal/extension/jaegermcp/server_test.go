@@ -31,23 +31,29 @@ import (
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 // mockQueryExtension implements jaegerquery.Extension for testing
 type mockQueryExtension struct {
 	extension.Extension
 	svc *querysvc.QueryService
+	tm  *tenancy.Manager
 }
 
 func newMockQueryExtension(svc *querysvc.QueryService) *mockQueryExtension {
 	if svc == nil {
 		svc = querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	}
-	return &mockQueryExtension{svc: svc}
+	return &mockQueryExtension{svc: svc, tm: tenancy.NewManager(&tenancy.Options{})}
 }
 
 func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
 	return m.svc
+}
+
+func (m *mockQueryExtension) TenancyManager() *tenancy.Manager {
+	return m.tm
 }
 
 // mockHost implements component.Host with a jaegerquery extension
@@ -67,6 +73,16 @@ func newMockHostWithQueryService(svc *querysvc.QueryService) *mockHost {
 	return &mockHost{
 		Host:     componenttest.NewNopHost(),
 		queryExt: newMockQueryExtension(svc),
+	}
+}
+
+func newMockHostWithQueryServiceAndTenancy(svc *querysvc.QueryService, tm *tenancy.Manager) *mockHost {
+	return &mockHost{
+		Host: componenttest.NewNopHost(),
+		queryExt: &mockQueryExtension{
+			svc: svc,
+			tm:  tm,
+		},
 	}
 }
 
@@ -631,4 +647,30 @@ func createTestTraceForIntegration() ptrace.Traces {
 	span.Status().SetCode(ptrace.StatusCodeOk)
 
 	return traces
+}
+
+func TestServerMCPEndpointEnforcesTenancy(t *testing.T) {
+	tm := tenancy.NewManager(&tenancy.Options{Enabled: true, Header: "x-tenant", Tenants: []string{"tenant-a"}})
+	host := newMockHostWithQueryServiceAndTenancy(nil, tm)
+	telset := componenttest.NewNopTelemetrySettings()
+	config := &Config{
+		HTTP:                     confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP}},
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	server := newServer(config, telset)
+	require.NoError(t, server.Start(context.Background(), host))
+	t.Cleanup(func() { _ = server.Shutdown(context.Background()) })
+	addr := server.listener.Addr().String()
+
+	resp, err := http.Get(fmt.Sprintf("http://%s/mcp", addr))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "missing tenant header")
 }

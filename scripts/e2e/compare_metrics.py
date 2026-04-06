@@ -112,6 +112,32 @@ def parse_metrics(content):
 
 
 def generate_diff(file1_content, file2_content):
+    """Compare two Prometheus metrics snapshots and return a unified diff of metric names.
+
+    The input files are raw Prometheus text exposition format, scraped directly from
+    the Jaeger /metrics endpoint by e2e_integration.go (scrapeMetrics), e.g.:
+        # HELP http_requests_total The total number of HTTP requests.
+        # TYPE http_requests_total counter
+        http_requests_total{method="post",code="200"} 1027 1395066363000
+        http_requests_total{method="post",code="400"}    3 1395066363000
+
+    parse_metrics() is where metric values and timestamps are dropped, retaining only
+    the metric name and its normalised label set as a string like:
+        http_requests_total{code="200",method="post"}
+    Certain labels (e.g. service_instance_id) are dropped and entire samples
+    (e.g. HTTP 5xx responses) are excluded to reduce run-to-run noise.
+    This exclusion happens here at analysis time, not at snapshot capture time;
+    the snapshot files always contain the full raw scrape output.
+
+    The diff is performed on these sorted, value-free metric strings.  If the two
+    snapshots produce the same set of strings the diff is empty and this function
+    returns ''.  When there are differences, the return value is a unified diff
+    followed by optional comment lines reporting how many metrics were excluded, e.g.:
+        # Metrics excluded from A: 3
+        # Metrics excluded from B: 5
+    These comment lines (prefixed with `# `) are appended only when the diff is
+    non-empty; they are informational context, not metric differences themselves.
+    """
     if isinstance(file1_content, list):
         file1_content = ''.join(file1_content)
     if isinstance(file2_content, list):
@@ -120,12 +146,20 @@ def generate_diff(file1_content, file2_content):
     metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
     metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
-    diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
+    diff = list(unified_diff(metrics1, metrics2, lineterm='', n=0))
+
+    # Exclusion counts are informational context appended to the diff output.
+    # They must not be written when the diff itself is empty: two snapshots with
+    # identical non-excluded metrics but different numbers of excluded samples
+    # would otherwise produce a non-empty output with no actionable differences.
+    if len(diff) == 0:
+        return ''
+
     total_excluded = excluded_metrics_count1 + excluded_metrics_count2
     
     exclusion_lines = ''
     if total_excluded > 0:
-        exclusion_lines = f'\nMetrics excluded from A: {excluded_metrics_count1}\nMetrics excluded from B: {excluded_metrics_count2}'
+        exclusion_lines = f'\n# Metrics excluded from A: {excluded_metrics_count1}\n# Metrics excluded from B: {excluded_metrics_count2}'
     
     return '\n'.join(diff) + exclusion_lines
 
