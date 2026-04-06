@@ -53,7 +53,11 @@ func (h *Handler) GetTraces(
 	traceIDs := make([]tracestore.GetTraceParams, len(req.Query))
 	for i, query := range req.Query {
 		var sizedTraceID [16]byte
-		copy(sizedTraceID[:], query.TraceId)
+		if len(query.TraceId) == 8 {
+			copy(sizedTraceID[8:], query.TraceId)
+		} else {
+			copy(sizedTraceID[:], query.TraceId)
+		}
 
 		traceIDs[i] = tracestore.GetTraceParams{
 			TraceID: pcommon.TraceID(sizedTraceID),

@@ -47,56 +47,86 @@ func (f *testStream) Send(td *jptrace.TracesData) error {
 func TestHandler_GetTraces(t *testing.T) {
 	start := time.Now()
 	end := start.Add(time.Minute)
-	query := []tracestore.GetTraceParams{
-		{
-			TraceID: pcommon.TraceID([16]byte{1}),
-			Start:   start,
-			End:     end,
-		},
-	}
 	trace := makeTestTrace()
 	td := jptrace.TracesData(trace)
 
 	tests := []struct {
-		name         string
-		traces       [][]ptrace.Traces
-		expectedSent []*jptrace.TracesData
-		sendErr      error
-		getTraceErr  error
-		expectedErr  error
+		name                 string
+		traces               [][]ptrace.Traces
+		expectedSent         []*jptrace.TracesData
+		sendErr              error
+		getTraceErr          error
+		expectedErr          error
+		inputTraceID         []byte
+		expectedParamTraceID [16]byte
 	}{
 		{
-			name:   "single trace",
-			traces: [][]ptrace.Traces{{trace}},
+			name:                 "single trace (1-byte trace ID)",
+			traces:               [][]ptrace.Traces{{trace}},
+			inputTraceID:         []byte{1},
+			expectedParamTraceID: [16]byte{1},
 			expectedSent: []*jptrace.TracesData{
 				&td,
 			},
 		},
 		{
-			name:         "multiple traces",
-			traces:       [][]ptrace.Traces{{trace, trace}},
-			expectedSent: []*jptrace.TracesData{&td, &td},
+			name:                 "single trace (8-byte trace ID)",
+			traces:               [][]ptrace.Traces{{trace}},
+			inputTraceID:         []byte{1, 2, 3, 4, 5, 6, 7, 8},
+			expectedParamTraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8},
+			expectedSent: []*jptrace.TracesData{
+				&td,
+			},
 		},
 		{
-			name:         "multiple chunks",
-			traces:       [][]ptrace.Traces{{trace, trace}, {trace, trace}},
-			expectedSent: []*jptrace.TracesData{&td, &td, &td, &td},
+			name:                 "single trace (16-byte trace ID)",
+			traces:               [][]ptrace.Traces{{trace}},
+			inputTraceID:         []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			expectedParamTraceID: [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+			expectedSent: []*jptrace.TracesData{
+				&td,
+			},
 		},
 		{
-			name:        "storage error",
-			getTraceErr: assert.AnError,
-			expectedErr: assert.AnError,
+			name:                 "multiple traces",
+			traces:               [][]ptrace.Traces{{trace, trace}},
+			inputTraceID:         []byte{1},
+			expectedParamTraceID: [16]byte{1},
+			expectedSent:         []*jptrace.TracesData{&td, &td},
 		},
 		{
-			name:        "send error",
-			traces:      [][]ptrace.Traces{{trace, trace}},
-			sendErr:     assert.AnError,
-			expectedErr: assert.AnError,
+			name:                 "multiple chunks",
+			traces:               [][]ptrace.Traces{{trace, trace}, {trace, trace}},
+			inputTraceID:         []byte{1},
+			expectedParamTraceID: [16]byte{1},
+			expectedSent:         []*jptrace.TracesData{&td, &td, &td, &td},
+		},
+		{
+			name:                 "storage error",
+			getTraceErr:          assert.AnError,
+			expectedErr:          assert.AnError,
+			inputTraceID:         []byte{1},
+			expectedParamTraceID: [16]byte{1},
+		},
+		{
+			name:                 "send error",
+			traces:               [][]ptrace.Traces{{trace, trace}},
+			sendErr:              assert.AnError,
+			expectedErr:          assert.AnError,
+			inputTraceID:         []byte{1},
+			expectedParamTraceID: [16]byte{1},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			query := []tracestore.GetTraceParams{
+				{
+					TraceID: pcommon.TraceID(test.expectedParamTraceID),
+					Start:   start,
+					End:     end,
+				},
+			}
 			reader := new(tracestoremocks.Reader)
 			writer := new(tracestoremocks.Writer)
 			depReader := new(depstoremocks.Reader)
@@ -120,7 +150,7 @@ func TestHandler_GetTraces(t *testing.T) {
 			err := server.GetTraces(&storage.GetTracesRequest{
 				Query: []*storage.GetTraceParams{
 					{
-						TraceId:   []byte{1},
+						TraceId:   test.inputTraceID,
 						StartTime: start,
 						EndTime:   end,
 					},
