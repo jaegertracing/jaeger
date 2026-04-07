@@ -7,6 +7,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -17,7 +18,8 @@ func TestReader_GetDependencies(t *testing.T) {
 	ctx := context.Background()
 	query := depstore.QueryParameters{}
 
-	require.Panics(t, func() {
-		reader.GetDependencies(ctx, query)
-	})
+	dependencies, err := reader.GetDependencies(ctx, query)
+
+	require.Nil(t, dependencies)
+	assert.EqualError(t, err, "clickhouse dependency reader is not implemented")
 }
