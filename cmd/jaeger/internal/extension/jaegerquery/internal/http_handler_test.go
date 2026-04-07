@@ -490,6 +490,27 @@ func TestSearchSuccess(t *testing.T) {
 	assert.Empty(t, response.Errors)
 }
 
+func TestSearchResponseTotalAndLimit(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.traceReader.On("FindTraces", mock.Anything, mock.MatchedBy(func(query tracestore.TraceQueryParams) bool {
+		if query.ResultCount != nil {
+			*query.ResultCount = 500
+		}
+		return true
+	})).Return(tracesIter(makeMockPTrace())).Once()
+
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=20&minDuration=20ms`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+
+	assert.Equal(t, 500, response.Total, "total should reflect the true count from storage")
+	assert.Equal(t, 20, response.Limit, "limit should reflect the user's requested search depth")
+	tr, ok := response.Data.([]any)
+	assert.True(t, ok)
+	assert.Equal(t, 1, len(tr), "only the limited traces should be returned")
+}
+
 func TestSearchByTraceIDSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
 	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
