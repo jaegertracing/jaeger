@@ -124,8 +124,8 @@ func investigateLatencyPrompt(_ context.Context, req *mcp.GetPromptRequest) (*mc
 2. Pick the slowest trace.
 3. Call get_trace_topology with that trace_id to see the service call graph.
 4. Call get_critical_path with that trace_id to find the blocking execution path.
-5. The critical path shows which spans contributed most to total latency (highest self_time).
-6. Call get_span_details for the top self_time spans on the critical path.
+5. The critical path shows which spans contributed most to total latency (highest self_time_us).
+6. Call get_span_details for the top self_time_us spans on the critical path.
 7. Summarize where time is spent and which service/operation is the bottleneck.`,
 						service, service, durationFilter),
 				},
