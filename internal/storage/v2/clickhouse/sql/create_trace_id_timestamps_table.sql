@@ -8,4 +8,4 @@ ENGINE = AggregatingMergeTree()
 ORDER BY (trace_id)
 {{- if gt .TTLSeconds 0 }}
 TTL end + INTERVAL {{ .TTLSeconds }} SECOND DELETE
-{{- end }};
+{{- end }}
