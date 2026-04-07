@@ -126,7 +126,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 
 	s.logger.Info("Starting admin HTTP server")
 	var wg sync.WaitGroup
-	//nolint:revive // not the same as wg.Go() which would call Done() on exit, not on start
+	//nolint:revive // wg.Go waits for function exit; here we only need to wait until the goroutine starts.
 	wg.Add(1)
 	s.stopped.Add(1)
 	go func() {

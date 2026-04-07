@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -53,7 +54,7 @@ func TestFactory(t *testing.T) {
 				},
 			}
 
-			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
 			require.NotNil(t, f)
 
@@ -183,7 +184,7 @@ func TestNewFactory_Errors(t *testing.T) {
 				CreateSchema: true,
 			}
 
-			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
 			require.Nil(t, f)
 		})
@@ -247,7 +248,7 @@ func TestPurge(t *testing.T) {
 				CreateSchema: true,
 			}
 
-			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, f.Close())
@@ -288,4 +289,14 @@ func TestGetProtocol(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestNewFactory_FeatureGateDisabled(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), true))
+	})
+	f, err := NewFactory(context.Background(), Configuration{}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "must be explicitly enabled")
+	require.Nil(t, f)
 }
