@@ -406,6 +406,74 @@ func TestMCPClientSearchTracesEmptyResults(t *testing.T) {
 	assert.NotContains(t, text, `"traces": null`)
 }
 
+// --- Prompt discovery and retrieval tests ---
+
+func TestMCPClientPromptsListDiscovery(t *testing.T) {
+	s := connectMCPSession(t, nil)
+
+	result, err := s.ListPrompts(s.ctx, nil)
+	require.NoError(t, err)
+
+	expected := []string{
+		"investigate_service",
+		"investigate_errors",
+		"investigate_latency",
+	}
+	got := make(map[string]bool, len(result.Prompts))
+	for _, p := range result.Prompts {
+		got[p.Name] = true
+	}
+	for _, name := range expected {
+		assert.True(t, got[name], "prompt %q should be discovered via prompts/list", name)
+	}
+	assert.Len(t, result.Prompts, len(expected))
+}
+
+func TestMCPClientGetPromptWithArguments(t *testing.T) {
+	s := connectMCPSession(t, nil)
+
+	result, err := s.GetPrompt(s.ctx, &mcp.GetPromptParams{
+		Name:      "investigate_service",
+		Arguments: map[string]string{"service_name": "frontend"},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Messages)
+	assert.Equal(t, mcp.Role("user"), result.Messages[0].Role)
+
+	tc, ok := result.Messages[0].Content.(*mcp.TextContent)
+	require.True(t, ok, "prompt message content should be TextContent")
+	assert.Contains(t, tc.Text, "frontend")
+	assert.Contains(t, tc.Text, "search_traces")
+	assert.Contains(t, tc.Text, "get_trace_topology")
+}
+
+func TestMCPClientGetPromptMissingRequired(t *testing.T) {
+	s := connectMCPSession(t, nil)
+
+	_, err := s.GetPrompt(s.ctx, &mcp.GetPromptParams{
+		Name:      "investigate_service",
+		Arguments: map[string]string{},
+	})
+	require.Error(t, err)
+}
+
+func TestMCPClientGetPromptLatencyWithDuration(t *testing.T) {
+	s := connectMCPSession(t, nil)
+
+	result, err := s.GetPrompt(s.ctx, &mcp.GetPromptParams{
+		Name:      "investigate_latency",
+		Arguments: map[string]string{"service_name": "backend", "duration_min": "500ms"},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, result.Messages)
+
+	tc, ok := result.Messages[0].Content.(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Contains(t, tc.Text, "backend")
+	assert.Contains(t, tc.Text, "500ms")
+	assert.Contains(t, tc.Text, "get_critical_path")
+}
+
 // --- Session isolation test ---
 
 func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
