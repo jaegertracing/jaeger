@@ -237,6 +237,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 
 	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
+	var resultCount int
 	if len(tQuery.TraceIDs) > 0 {
 		tracesFromStorage, uiErrors, err = aH.tracesByIDs(
 			r.Context(),
@@ -251,6 +252,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 			TraceQueryParams: tQuery.TraceQueryParams,
 			RawTraces:        tQuery.RawTraces,
 		}
+		queryParams.ResultCount = &resultCount
 		findTracesIter := aH.queryService.FindTraces(r.Context(), queryParams)
 		tracesFromStorage, err = v1adapter.V1TracesFromSeq2(findTracesIter)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -259,6 +261,12 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	structuredRes := aH.tracesToResponse(tracesFromStorage, uiErrors)
+	if resultCount > len(tracesFromStorage) {
+		structuredRes.Total = resultCount
+	} else {
+		structuredRes.Total = len(tracesFromStorage)
+	}
+	structuredRes.Limit = tQuery.SearchDepth
 	aH.writeJSON(w, r, structuredRes)
 }
 

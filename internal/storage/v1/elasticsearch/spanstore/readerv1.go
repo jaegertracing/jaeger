@@ -121,6 +121,7 @@ func toDbQueryParams(p *spanstore.TraceQueryParameters) dbmodel.TraceQueryParame
 		DurationMin:   p.DurationMin,
 		DurationMax:   p.DurationMax,
 		NumTraces:     p.NumTraces,
+		ResultCount:   p.ResultCount,
 	}
 }
 

@@ -128,5 +128,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		NumTraces:     query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
+		ResultCount:   query.ResultCount,
 	}
 }

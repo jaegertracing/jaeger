@@ -597,6 +597,10 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	}
 
 	traceIDBuckets := bucket.Buckets
+	if traceQuery.ResultCount != nil {
+		otherCount := int(bucket.SumOfOtherDocCount)
+		*traceQuery.ResultCount = len(traceIDBuckets) + otherCount
+	}
 	return bucketToStringArray[dbmodel.TraceID](traceIDBuckets)
 }
 

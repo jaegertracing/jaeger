@@ -72,6 +72,8 @@ type executionPlan struct {
 
 	// hashOuter is the hashmap for hash-join of outer resultset
 	hashOuter map[model.TraceID]struct{}
+
+	resultCount *int
 }
 
 // NewTraceReader returns a TraceReader with cache
@@ -214,6 +216,9 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 	})
 
 	sizeCount := len(traceKeys)
+	if plan.resultCount != nil {
+		*plan.resultCount = sizeCount
+	}
 	if plan.limit > 0 && plan.limit < sizeCount {
 		sizeCount = plan.limit
 	}
@@ -338,18 +343,22 @@ func filterIDs(plan *executionPlan, innerIDs [][]byte) []model.TraceID {
 	traces := make([]model.TraceID, 0, plan.limit)
 
 	items := 0
+	total := 0
 	for i := range innerIDs {
 		trID := bytesToTraceID(innerIDs[i])
 
 		if _, found := plan.hashOuter[trID]; found {
-			traces = append(traces, trID)
+			if items < plan.limit || plan.limit <= 0 {
+				traces = append(traces, trID)
+				items++
+			}
+			total++
 			delete(plan.hashOuter, trID) // Prevent duplicate add
-			items++
 		}
+	}
 
-		if items == plan.limit {
-			return traces
-		}
+	if plan.resultCount != nil {
+		*plan.resultCount = total
 	}
 
 	return traces
@@ -479,6 +488,7 @@ func (r *TraceReader) FindTraceIDs(_ context.Context, query *spanstore.TraceQuer
 		startTimeMin: startStampBytes,
 		startTimeMax: endStampBytes,
 		limit:        query.NumTraces,
+		resultCount:  query.ResultCount,
 	}
 
 	if query.DurationMax != 0 || query.DurationMin != 0 {

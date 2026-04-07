@@ -87,6 +87,7 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+	ResultCount  *int
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
