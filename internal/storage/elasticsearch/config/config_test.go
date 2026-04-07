@@ -4,8 +4,10 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1885,6 +1887,79 @@ func TestNewClientWithCustomHeaders(t *testing.T) {
 
 	err = client.Close()
 	require.NoError(t, err)
+}
+
+type recordingRoundTripper struct {
+	req *http.Request
+}
+
+func (r *recordingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.req = req
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+func TestGetBodyFixRoundTripper_SetsGetBody(t *testing.T) {
+	payload := []byte(`{"action":"index","data":"test"}`)
+	req, err := http.NewRequest(http.MethodPost, "http://localhost", http.NoBody)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(bytes.NewReader(payload))
+	req.GetBody = nil
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	require.NotNil(t, recorder.req.GetBody)
+	body, err := recorder.req.GetBody()
+	require.NoError(t, err)
+	got, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, payload, got)
+
+	sentBody, err := io.ReadAll(recorder.req.Body)
+	require.NoError(t, err)
+	assert.Equal(t, payload, sentBody)
+}
+
+func TestGetBodyFixRoundTripper_PreservesExistingGetBody(t *testing.T) {
+	original := []byte("original")
+	customGetBody := func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(original)), nil
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader([]byte("different")))
+	require.NoError(t, err)
+	req.GetBody = customGetBody
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	_, err = rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	body, err := recorder.req.GetBody()
+	require.NoError(t, err)
+	got, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, original, got)
+}
+
+func TestGetBodyFixRoundTripper_NilBody(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "http://localhost", http.NoBody)
+	require.NoError(t, err)
+	req.Body = nil
+	req.GetBody = nil
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Nil(t, recorder.req.GetBody)
 }
 
 func TestMain(m *testing.M) {
