@@ -185,6 +185,15 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+
+	// UseTraceSummary enables the use of a summary index to optimize large trace lookups.
+	UseTraceSummary bool `mapstructure:"use_trace_summary"`
+	// TraceSummaryIndex specifies a custom index name for storing trace summaries.
+	TraceSummaryIndex string `mapstructure:"trace_summary_index"`
+	// TraceSummaryVersion controls the transform schema version.
+	// Changing this will cause the existing transform job to be deleted
+	// and recreated on next startup. Defaults to "v1".
+	TraceSummaryVersion string `mapstructure:"trace_summary_version"`
 }
 
 // TagsAsFields holds configuration for tag schema.
