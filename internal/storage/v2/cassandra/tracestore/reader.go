@@ -84,8 +84,6 @@ func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 				TraceID: pcommon.TraceID(id),
 			})
 		}
-		if !yield(otelIDs, nil) {
-			return
-		}
+		yield(otelIDs, nil)
 	}
 }
