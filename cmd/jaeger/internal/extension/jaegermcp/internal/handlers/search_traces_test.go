@@ -386,6 +386,21 @@ func TestSearchTracesHandler_Handle_InvalidStartTimeMax(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid start_time_max")
 }
 
+func TestSearchTracesHandler_Handle_StartTimeMaxBeforeMin(t *testing.T) {
+	handler := NewSearchTracesHandler(nil, 100)
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		StartTimeMax: "-2h",
+		ServiceName:  "test",
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start_time_max must be after start_time_min")
+}
+
 func TestSearchTracesHandler_Handle_InvalidDurationMin(t *testing.T) {
 	handler := NewSearchTracesHandler(nil, 100)
 
