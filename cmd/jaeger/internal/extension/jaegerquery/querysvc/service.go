@@ -11,6 +11,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
@@ -33,6 +34,8 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
+	// Logger is used for diagnostic logging. If nil, a no-op logger is used.
+	Logger *zap.Logger
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -50,6 +53,7 @@ type QueryService struct {
 	dependencyReader depstore.Reader
 	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
+	logger           *zap.Logger
 }
 
 // GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
@@ -74,6 +78,10 @@ func NewQueryService(
 	dependencyReader depstore.Reader,
 	options QueryServiceOptions,
 ) *QueryService {
+	logger := options.Logger
+	if logger == nil {
+		logger = zap.NewNop()
+	}
 	qsvc := &QueryService{
 		traceReader:      traceReader,
 		dependencyReader: dependencyReader,
@@ -81,6 +89,7 @@ func NewQueryService(
 			adjuster.StandardAdjusters(options.MaxClockSkewAdjust)...,
 		),
 		options: options,
+		logger:  logger,
 	}
 
 	return qsvc
@@ -165,6 +174,9 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	if qs.options.ArchiveTraceWriter == nil {
 		return errNoArchiveSpanStorage
 	}
+	qs.logger.Debug("archive trace request received",
+		zap.String("trace_id", query.TraceID.String()),
+	)
 	getTracesIter := qs.GetTraces(
 		ctx, GetTraceParams{TraceIDs: []tracestore.GetTraceParams{query}},
 	)
@@ -188,6 +200,16 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, query tracestore.GetTra
 	})
 	if archiveErr == nil && !found {
 		return spanstore.ErrTraceNotFound
+	}
+	if archiveErr != nil {
+		qs.logger.Warn("archive trace write failed",
+			zap.String("trace_id", query.TraceID.String()),
+			zap.Error(archiveErr),
+		)
+	} else {
+		qs.logger.Debug("archive trace completed",
+			zap.String("trace_id", query.TraceID.String()),
+		)
 	}
 	return archiveErr
 }
