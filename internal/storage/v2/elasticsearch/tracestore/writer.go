@@ -5,10 +5,12 @@ package tracestore
 
 import (
 	"context"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
 
@@ -24,15 +26,21 @@ func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
 }
 
 // WriteTraces convert the traces to ES Span model and write into the database
-func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
+func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	dbSpans := ToDBModel(td)
-	for i := range dbSpans {
-		span := &dbSpans[i]
-		t.spanWriter.WriteSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
+	if len(dbSpans) == 0 {
+		return nil
 	}
-	return nil
-}
 
+	spans := make([]*dbmodel.Span, len(dbSpans))
+	startTimes := make([]time.Time, len(dbSpans))
+	for i := range dbSpans {
+		spans[i] = &dbSpans[i]
+		startTimes[i] = model.EpochMicrosecondsAsTime(dbSpans[i].StartTime)
+	}
+
+	return t.spanWriter.WriteSpansSync(ctx, spans, startTimes)
+}
 func (t *TraceWriter) Close() error {
 	return t.spanWriter.Close()
 }

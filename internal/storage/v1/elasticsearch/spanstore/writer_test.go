@@ -5,10 +5,13 @@
 package spanstore
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -294,6 +297,113 @@ func TestWriteSpanInternalError(t *testing.T) {
 
 		w.writer.writeSpanToIndex(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
+	})
+}
+
+func TestWriteSpansSync(t *testing.T) {
+	date := time.Date(1995, time.April, 21, 4, 21, 19, 0, time.UTC)
+	withSpanWriter(func(w *spanWriterTest) {
+		bulkService := &mocks.BulkService{}
+		w.client.On("Bulk").Return(bulkService)
+
+		indexService := &mocks.IndexService{}
+		indexService.On("Index", mock.Anything).Return(indexService)
+		indexService.On("Type", mock.Anything).Return(indexService)
+		indexService.On("Id", mock.Anything).Return(indexService)
+		indexService.On("BodyJson", mock.Anything).Return(indexService)
+		indexService.On("Add")
+		w.client.On("Index").Return(indexService)
+
+		indexName := "jaeger-span-1995-04-21"
+		bulkService.On("Add", indexName, spanType, mock.AnythingOfType("*dbmodel.Span")).Return(bulkService)
+		bulkService.On("Do", mock.Anything).Return(&elastic.BulkResponse{Errors: false}, nil)
+
+		spans := []*dbmodel.Span{{}}
+		startTimes := []time.Time{date}
+
+		err := w.writer.WriteSpansSync(context.Background(), spans, startTimes)
+		require.NoError(t, err)
+		bulkService.AssertExpectations(t)
+	})
+}
+
+func TestWriteSpansSync_Error(t *testing.T) {
+	date := time.Date(1995, time.April, 21, 4, 21, 19, 0, time.UTC)
+	withSpanWriter(func(w *spanWriterTest) {
+		bulkService := &mocks.BulkService{}
+		w.client.On("Bulk").Return(bulkService)
+
+		indexService := &mocks.IndexService{}
+		indexService.On("Index", mock.Anything).Return(indexService)
+		indexService.On("Type", mock.Anything).Return(indexService)
+		indexService.On("Id", mock.Anything).Return(indexService)
+		indexService.On("BodyJson", mock.Anything).Return(indexService)
+		indexService.On("Add")
+		w.client.On("Index").Return(indexService)
+
+		indexName := "jaeger-span-1995-04-21"
+		bulkService.On("Add", indexName, spanType, mock.AnythingOfType("*dbmodel.Span")).Return(bulkService)
+		bulkService.On("Do", mock.Anything).Return(nil, errors.New("bulk failure"))
+
+		spans := []*dbmodel.Span{{}}
+		startTimes := []time.Time{date}
+
+		err := w.writer.WriteSpansSync(context.Background(), spans, startTimes)
+		require.Error(t, err)
+		assert.Equal(t, "bulk failure", err.Error())
+	})
+}
+
+func TestWriteSpansSync_LengthMismatch(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		spans := []*dbmodel.Span{{}}
+		startTimes := []time.Time{} // Empty, different length
+
+		err := w.writer.WriteSpansSync(context.Background(), spans, startTimes)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "length mismatch")
+	})
+}
+
+func TestWriteSpansSync_BulkErrors(t *testing.T) {
+	date := time.Date(1995, time.April, 21, 4, 21, 19, 0, time.UTC)
+	withSpanWriter(func(w *spanWriterTest) {
+		bulkService := &mocks.BulkService{}
+		w.client.On("Bulk").Return(bulkService)
+
+		indexService := &mocks.IndexService{}
+		indexService.On("Index", mock.Anything).Return(indexService)
+		indexService.On("Type", mock.Anything).Return(indexService)
+		indexService.On("Id", mock.Anything).Return(indexService)
+		indexService.On("BodyJson", mock.Anything).Return(indexService)
+		indexService.On("Add")
+		w.client.On("Index").Return(indexService)
+
+		indexName := "jaeger-span-1995-04-21"
+		bulkService.On("Add", indexName, spanType, mock.AnythingOfType("*dbmodel.Span")).Return(bulkService)
+		
+		resp := &elastic.BulkResponse{
+			Errors: true,
+			Items: []map[string]*elastic.BulkResponseItem{
+				{
+					"index": {
+						Error: &elastic.ErrorDetails{
+							Type:   "mapping_exception",
+							Reason: "limit exceeded",
+						},
+					},
+				},
+			},
+		}
+		bulkService.On("Do", mock.Anything).Return(resp, nil)
+
+		spans := []*dbmodel.Span{{}}
+		startTimes := []time.Time{date}
+
+		err := w.writer.WriteSpansSync(context.Background(), spans, startTimes)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "bulk index failed with 1 errors")
+		assert.Contains(t, err.Error(), "mapping_exception: limit exceeded")
 	})
 }
 
