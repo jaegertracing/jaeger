@@ -52,3 +52,8 @@ jobs:
     - name: Run SPM Test
       run:  bash scripts/e2e/spm.sh -m ${{ matrix.mode.metricstore }}
 
+    - uses: ./.github/actions/verify-metrics-snapshot
+      with:
+        snapshot: metrics_snapshot_spm_${{ matrix.mode.metricstore }}
+        artifact_key: metrics_snapshot_spm_${{ matrix.mode.metricstore }}
+

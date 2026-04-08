@@ -370,6 +370,31 @@ dump_logs() {
   log "::endgroup::"
 }
 
+scrape_metrics() {
+  local metrics_url="http://localhost:8888/metrics"
+  local output_dir=".metrics"
+  mkdir -p "${output_dir}"
+  local snapshot_file="${output_dir}/metrics_snapshot_spm_${METRICSTORE}.txt"
+  local max_retries=3
+  local retry_delay_seconds=5
+
+  log "Scraping Jaeger metrics from ${metrics_url} into ${snapshot_file}"
+  for attempt in $(seq 1 "${max_retries}"); do
+    if curl -sf "${metrics_url}" -o "${snapshot_file}"; then
+      log "✅ Metrics snapshot saved to ${snapshot_file} (attempt ${attempt}/${max_retries})"
+      return 0
+    fi
+
+    if [ "${attempt}" -lt "${max_retries}" ]; then
+      log "⚠️  Could not scrape metrics from ${metrics_url} (attempt ${attempt}/${max_retries}). Retrying in ${retry_delay_seconds}s..."
+      sleep "${retry_delay_seconds}"
+    fi
+  done
+
+  log "❌ ERROR: Failed to scrape metrics from ${metrics_url} after ${max_retries} attempts"
+  return 1
+}
+
 teardown_services() {
   if [[ "$success" == "false" ]]; then
     dump_logs
@@ -382,6 +407,7 @@ main() {
 
   wait_for_services_to_be_healthy
   check_spm
+  scrape_metrics || log "⚠️  Metrics scraping failed; snapshot will be skipped but test result is unaffected"
   success="true"
 }
 
