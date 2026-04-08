@@ -4,43 +4,67 @@
 package jaegerai
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
 
 // WsReadWriteCloser wraps a gorilla websocket to implement io.ReadWriteCloser.
 type WsReadWriteCloser struct {
-	conn *websocket.Conn
-	r    io.Reader
+	conn     *websocket.Conn
+	r        io.Reader
+	respBody io.Closer // HTTP response body from the dial handshake, if any
 }
 
+// NewWsAdapter wraps an existing websocket connection.
 func NewWsAdapter(conn *websocket.Conn) *WsReadWriteCloser {
 	return &WsReadWriteCloser{conn: conn}
 }
 
-func (w *WsReadWriteCloser) Read(p []byte) (int, error) {
-	if w.r == nil {
-		messageType, r, err := w.conn.NextReader()
-		if err != nil {
-			return 0, err
-		}
-		if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
-			return 0, fmt.Errorf("unexpected message type: %d", messageType)
-		}
-		w.r = r
+// DialWsAdapter dials a websocket endpoint and returns the adapter.
+// The caller must call Close() to release the connection and any dial response resources.
+func DialWsAdapter(ctx context.Context, url string) (*WsReadWriteCloser, error) {
+	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
+	conn, resp, err := dialer.DialContext(ctx, url, nil)
+	var respBody io.Closer
+	if resp != nil && resp.Body != nil {
+		respBody = resp.Body
 	}
+	if err != nil {
+		if respBody != nil {
+			respBody.Close()
+		}
+		return nil, err
+	}
+	return &WsReadWriteCloser{conn: conn, respBody: respBody}, nil
+}
 
-	n, err := w.r.Read(p)
-	if err == io.EOF {
-		w.r = nil
-		if n > 0 {
-			return n, nil
+func (w *WsReadWriteCloser) Read(p []byte) (int, error) {
+	for {
+		if w.r == nil {
+			messageType, r, err := w.conn.NextReader()
+			if err != nil {
+				return 0, err
+			}
+			if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+				return 0, fmt.Errorf("unexpected message type: %d", messageType)
+			}
+			w.r = r
 		}
-		return w.Read(p)
+
+		n, err := w.r.Read(p)
+		if err == io.EOF {
+			w.r = nil
+			if n > 0 {
+				return n, nil
+			}
+			continue
+		}
+		return n, err
 	}
-	return n, err
 }
 
 func (w *WsReadWriteCloser) Write(p []byte) (int, error) {
@@ -52,5 +76,11 @@ func (w *WsReadWriteCloser) Write(p []byte) (int, error) {
 }
 
 func (w *WsReadWriteCloser) Close() error {
-	return w.conn.Close()
+	connErr := w.conn.Close()
+	if w.respBody != nil {
+		if err := w.respBody.Close(); err != nil && connErr == nil {
+			connErr = err
+		}
+	}
+	return connErr
 }

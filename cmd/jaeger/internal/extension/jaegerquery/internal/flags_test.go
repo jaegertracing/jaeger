@@ -19,6 +19,6 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.False(t, qo.AI.HasValue())
 	aiCfg := qo.AI.GetOrInsertDefault()
 	require.NotNil(t, aiCfg)
-	require.Equal(t, "ws://localhost:9000", aiCfg.AgentURL)
+	require.Equal(t, "ws://localhost:16688", aiCfg.AgentURL)
 	require.Equal(t, 180*time.Second, aiCfg.WaitForTurnTimeout)
 }

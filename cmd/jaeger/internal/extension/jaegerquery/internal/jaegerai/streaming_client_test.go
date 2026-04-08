@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coder/acp-go-sdk"
+	"github.com/stretchr/testify/require"
 )
 
 type countingFlusher struct {
@@ -282,8 +283,6 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 }
 
 func TestStreamingClientUtilityMethods(t *testing.T) {
-	c := &streamingClient{}
-
 	if got := valueOrUnknown(nil); got != "unknown" {
 		t.Fatalf("valueOrUnknown nil mismatch: got %q", got)
 	}
@@ -291,42 +290,29 @@ func TestStreamingClientUtilityMethods(t *testing.T) {
 	if got := valueOrUnknown(&status); got != "in_progress" {
 		t.Fatalf("valueOrUnknown status mismatch: got %q", got)
 	}
+}
 
-	if _, err := c.WriteTextFile(context.Background(), acp.WriteTextFileRequest{}); err != nil {
-		t.Fatalf("write text file error: %v", err)
-	}
-	readResp, err := c.ReadTextFile(context.Background(), acp.ReadTextFileRequest{Path: "/tmp/nope"})
-	if err != nil {
-		t.Fatalf("read text file error: %v", err)
-	}
-	if !strings.Contains(readResp.Content, "unsupported path: /tmp/nope") {
-		t.Fatalf("unexpected read text file response: %q", readResp.Content)
-	}
+func TestStreamingClientUnsupportedOperationsReturnError(t *testing.T) {
+	c := &streamingClient{}
 
-	createResp, err := c.CreateTerminal(context.Background(), acp.CreateTerminalRequest{})
-	if err != nil {
-		t.Fatalf("create terminal error: %v", err)
-	}
-	if createResp.TerminalId != "t-1" {
-		t.Fatalf("unexpected terminal id: %q", createResp.TerminalId)
-	}
+	_, err := c.WriteTextFile(context.Background(), acp.WriteTextFileRequest{})
+	require.ErrorIs(t, err, errNotSupported)
 
-	if _, err := c.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{}); err != nil {
-		t.Fatalf("kill terminal command error: %v", err)
-	}
-	if _, err := c.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{}); err != nil {
-		t.Fatalf("release terminal error: %v", err)
-	}
+	_, err = c.ReadTextFile(context.Background(), acp.ReadTextFileRequest{Path: "/tmp/nope"})
+	require.ErrorIs(t, err, errNotSupported)
 
-	terminalOutputResp, err := c.TerminalOutput(context.Background(), acp.TerminalOutputRequest{})
-	if err != nil {
-		t.Fatalf("terminal output error: %v", err)
-	}
-	if terminalOutputResp.Output != "ok" || terminalOutputResp.Truncated {
-		t.Fatalf("unexpected terminal output response: %+v", terminalOutputResp)
-	}
+	_, err = c.CreateTerminal(context.Background(), acp.CreateTerminalRequest{})
+	require.ErrorIs(t, err, errNotSupported)
 
-	if _, err := c.WaitForTerminalExit(context.Background(), acp.WaitForTerminalExitRequest{}); err != nil {
-		t.Fatalf("wait for terminal exit error: %v", err)
-	}
+	_, err = c.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{})
+	require.ErrorIs(t, err, errNotSupported)
+
+	_, err = c.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{})
+	require.ErrorIs(t, err, errNotSupported)
+
+	_, err = c.TerminalOutput(context.Background(), acp.TerminalOutputRequest{})
+	require.ErrorIs(t, err, errNotSupported)
+
+	_, err = c.WaitForTerminalExit(context.Background(), acp.WaitForTerminalExitRequest{})
+	require.ErrorIs(t, err, errNotSupported)
 }

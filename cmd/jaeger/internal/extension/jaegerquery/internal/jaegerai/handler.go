@@ -11,14 +11,17 @@ import (
 	"time"
 
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
 const (
+	// endOfTurnMarker works around a race in acp-go-sdk where SessionUpdate
+	// callbacks may still be running when Prompt() returns, because notifications
+	// are dispatched via goroutines (go c.handleInbound in connection.go).
+	// Without this marker, the HTTP response could close before the final text
+	// chunk is flushed. The sidecar sends this as the last SessionUpdate.
 	endOfTurnMarker           = "__END_OF_TURN__"
 	maxChatRequestBodySize    = 1 << 20 // 1 MiB
 	defaultWaitForTurnTimeout = 180 * time.Second
@@ -32,19 +35,17 @@ type ChatRequest struct {
 // ChatHandler manages the AI gateway requests
 type ChatHandler struct {
 	Logger             *zap.Logger
-	QueryService       *querysvc.QueryService
 	sidecarWSURL       string
 	waitForTurnTimeout time.Duration
 }
 
-func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sidecarWSURL string, waitForTurnTimeout time.Duration) *ChatHandler {
+func NewChatHandler(logger *zap.Logger, sidecarWSURL string, waitForTurnTimeout time.Duration) *ChatHandler {
 	if waitForTurnTimeout <= 0 {
 		waitForTurnTimeout = defaultWaitForTurnTimeout
 	}
 
 	return &ChatHandler{
 		Logger:             logger,
-		QueryService:       queryService,
 		sidecarWSURL:       sidecarWSURL,
 		waitForTurnTimeout: waitForTurnTimeout,
 	}
@@ -52,7 +53,7 @@ func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sid
 
 func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(w, "Only POST method is supported", http.StatusMethodNotAllowed)
 		return
 	}
 
@@ -77,19 +78,16 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	ctx := r.Context()
-	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, resp, err := dialer.DialContext(ctx, h.sidecarWSURL, nil)
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	}
+	acpCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL)
 	if err != nil {
 		h.Logger.Error("Failed to dial ACP sidecar", zap.Error(err))
 		http.Error(w, "Failed to connect to agent backend", http.StatusBadGateway)
 		return
 	}
-	defer conn.Close()
-
-	adapter := NewWsAdapter(conn)
+	defer adapter.Close()
 
 	clientImpl := &streamingClient{
 		requestCtx: ctx,
@@ -100,13 +98,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Build an ACP client-side connection over the websocket adapter.
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
 
-	acpCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	clientVersion := version.Get().GitVersion
-	if clientVersion == "" {
-		clientVersion = "dev"
-	}
 	_, err = acpConn.Initialize(acpCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
@@ -138,7 +130,8 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This blocks until the sidecar completes the ACP prompt turn.
+	// Prompt blocks until the sidecar completes the ACP turn. During processing,
+	// SessionUpdate callbacks may stream text to the HTTP response via clientImpl.
 	_, err = acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},

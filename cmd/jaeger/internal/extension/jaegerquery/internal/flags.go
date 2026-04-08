@@ -26,7 +26,8 @@ type UIConfig struct {
 }
 
 type AIConfig struct {
-	// AgentURL is the WebSocket endpoint of an agent that supports ACP.
+	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
+	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
 	// WaitForTurnTimeout is the max wait time for receiving turn completion after prompt succeeds.
@@ -62,7 +63,7 @@ func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
 		AI: configoptional.Default(AIConfig{
-			AgentURL:           "ws://localhost:9000",
+			AgentURL:           "ws://localhost:16688",
 			WaitForTurnTimeout: 180 * time.Second,
 		}),
 		HTTP: confighttp.ServerConfig{
