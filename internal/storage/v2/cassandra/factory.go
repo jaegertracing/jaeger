@@ -65,6 +65,9 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	if err != nil {
 		return nil, err
 	}
+	if spanWriter, ok := writer.(*cspanstore.SpanWriter); ok {
+		return ctracestore.NewTraceWriter(spanWriter), nil
+	}
 	return v1adapter.NewTraceWriter(writer), nil
 }
 

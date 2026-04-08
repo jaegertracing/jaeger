@@ -8,16 +8,6 @@
   "Duration": 5,
   "Tags": [
     {
-      "Key": "otel.scope.name",
-      "ValueType": "string",
-      "value_string": "testing-library"
-    },
-    {
-      "Key": "otel.scope.version",
-      "ValueType": "string",
-      "value_string": "1.1.1"
-    },
-    {
       "Key": "peer.service",
       "ValueType": "string",
       "value_string": "service-y"
@@ -84,17 +74,32 @@
     {
       "RefType": "child-of",
       "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
-      "SpanID": 3
+      "SpanID": 3,
+      "Attributes": null
     },
     {
       "RefType": "follows-from",
       "TraceID": "AAAAAAAAAAEAAAAAAAAAAA==",
-      "SpanID": 4
+      "SpanID": 4,
+      "Attributes": [
+        {
+          "Key": "opentracing.ref_type",
+          "ValueType": "string",
+          "value_string": "follows_from"
+        }
+      ]
     },
     {
       "RefType": "child-of",
       "TraceID": "AAAAAAAAAP8AAAAAAAAAAA==",
-      "SpanID": 255
+      "SpanID": 255,
+      "Attributes": [
+        {
+          "Key": "opentracing.ref_type",
+          "ValueType": "string",
+          "value_string": "child_of"
+        }
+      ]
     }
   ],
   "Process": {
@@ -108,5 +113,7 @@
     ]
   },
   "ServiceName": "service-x",
-  "SpanHash": 0
+  "SpanHash": 0,
+  "ScopeName": "testing-library",
+  "ScopeVersion": "1.1.1"
 }

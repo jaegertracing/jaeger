@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
@@ -35,11 +36,51 @@ func (r *TraceReader) GetOperations(ctx context.Context, query tracestore.Operat
 }
 
 func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
-	return r.fallback.GetTraces(ctx, traceIDs...)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, param := range traceIDs {
+			// Convert param.TraceID to dbmodel.TraceID
+			var dbTraceID dbmodel.TraceID
+			copy(dbTraceID[:], param.TraceID[:])
+			dbSpans, err := r.reader.ReadTraceDB(ctx, dbTraceID)
+			if err != nil {
+				if !yield(nil, err) {
+					return
+				}
+				continue
+			}
+			traces := FromDBModel(dbSpans)
+			if !yield([]ptrace.Traces{traces}, nil) {
+				return
+			}
+		}
+	}
 }
 
 func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-	return r.fallback.FindTraces(ctx, query)
+	return func(yield func([]ptrace.Traces, error) bool) {
+		// Use spanstore parameters map logic roughly but rely on the actual wrapper API
+		// traceIDs iterator
+		for tids, err := range r.FindTraceIDs(ctx, query) {
+			if err != nil {
+				if !yield(nil, err) {
+					return
+				}
+				continue
+			}
+			for _, tid := range tids {
+				var dbTraceID dbmodel.TraceID
+				copy(dbTraceID[:], tid.TraceID[:])
+				dbSpans, err := r.reader.ReadTraceDB(ctx, dbTraceID)
+				if err != nil {
+					continue // usually silently skip or log in FindTraces
+				}
+				traces := FromDBModel(dbSpans)
+				if !yield([]ptrace.Traces{traces}, nil) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {

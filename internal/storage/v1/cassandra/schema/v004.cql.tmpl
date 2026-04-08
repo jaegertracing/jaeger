@@ -40,7 +40,8 @@ CREATE TYPE IF NOT EXISTS ${keyspace}.log (
 CREATE TYPE IF NOT EXISTS ${keyspace}.span_ref (
     ref_type        text,
     trace_id        blob,
-    span_id         bigint
+    span_id         bigint,
+    attributes      frozen<list<frozen<${keyspace}.keyvalue>>>
 );
 
 CREATE TYPE IF NOT EXISTS ${keyspace}.process (
@@ -64,6 +65,8 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.traces (
     logs            list<frozen<log>>,
     refs            list<frozen<span_ref>>,
     process         frozen<process>,
+    scope_name      text,
+    scope_version   text,
     PRIMARY KEY (trace_id, span_id, span_hash)
 )
     WITH compaction = {

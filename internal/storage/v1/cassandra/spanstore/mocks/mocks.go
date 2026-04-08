@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -443,6 +444,74 @@ func (_c *CoreSpanReader_GetTrace_Call) Return(trace *model.Trace, err error) *C
 }
 
 func (_c *CoreSpanReader_GetTrace_Call) RunAndReturn(run func(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error)) *CoreSpanReader_GetTrace_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ReadTraceDB provides a mock function for the type CoreSpanReader
+func (_mock *CoreSpanReader) ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
+	ret := _mock.Called(ctx, traceID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ReadTraceDB")
+	}
+
+	var r0 []dbmodel.Span
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceID) ([]dbmodel.Span, error)); ok {
+		return returnFunc(ctx, traceID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceID) []dbmodel.Span); ok {
+		r0 = returnFunc(ctx, traceID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dbmodel.Span)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, dbmodel.TraceID) error); ok {
+		r1 = returnFunc(ctx, traceID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// CoreSpanReader_ReadTraceDB_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReadTraceDB'
+type CoreSpanReader_ReadTraceDB_Call struct {
+	*mock.Call
+}
+
+// ReadTraceDB is a helper method to define mock.On call
+//   - ctx context.Context
+//   - traceID dbmodel.TraceID
+func (_e *CoreSpanReader_Expecter) ReadTraceDB(ctx interface{}, traceID interface{}) *CoreSpanReader_ReadTraceDB_Call {
+	return &CoreSpanReader_ReadTraceDB_Call{Call: _e.mock.On("ReadTraceDB", ctx, traceID)}
+}
+
+func (_c *CoreSpanReader_ReadTraceDB_Call) Run(run func(ctx context.Context, traceID dbmodel.TraceID)) *CoreSpanReader_ReadTraceDB_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dbmodel.TraceID
+		if args[1] != nil {
+			arg1 = args[1].(dbmodel.TraceID)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *CoreSpanReader_ReadTraceDB_Call) Return(spans []dbmodel.Span, err error) *CoreSpanReader_ReadTraceDB_Call {
+	_c.Call.Return(spans, err)
+	return _c
+}
+
+func (_c *CoreSpanReader_ReadTraceDB_Call) RunAndReturn(run func(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)) *CoreSpanReader_ReadTraceDB_Call {
 	_c.Call.Return(run)
 	return _c
 }

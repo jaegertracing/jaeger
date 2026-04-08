@@ -25,8 +25,8 @@ const (
 	insertSpan = `
 		INSERT
 		INTO traces(trace_id, span_id, span_hash, parent_id, operation_name, flags,
-				    start_time, duration, tags, logs, refs, process)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				    start_time, duration, tags, logs, refs, process, scope_name, scope_version)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	serviceNameIndex = `
 		INSERT
@@ -130,22 +130,27 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
+func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
+	return s.WriteDBSpan(ctx, ds)
+}
+
+// WriteDBSpan saves a DB model span into Cassandra, bypassing the model.Trace domain layer.
+func (s *SpanWriter) WriteDBSpan(_ context.Context, ds *dbmodel.Span) error {
 	if s.storageMode&storeFlag == storeFlag {
-		if err := s.writeSpanToDB(span, ds); err != nil {
+		if err := s.writeSpanToDB(ds); err != nil {
 			return err
 		}
 	}
 	if s.storageMode&indexFlag == indexFlag {
-		if err := s.writeIndexes(span, ds); err != nil {
+		if err := s.writeIndexesDB(ds); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeSpanToDB(ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,
@@ -160,6 +165,8 @@ func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
 		ds.Logs,
 		ds.Refs,
 		ds.Process,
+		ds.ScopeName,
+		ds.ScopeVersion,
 	)
 	if err := s.writerMetrics.traces.Exec(mainQuery, s.logger); err != nil {
 		return s.logError(ds, err, "Failed to insert span", s.logger)
@@ -167,11 +174,17 @@ func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	spanKind, _ := span.GetSpanKind() // if not found it returns ""
+func (s *SpanWriter) writeIndexesDB(ds *dbmodel.Span) error {
+	spanKind := ""
+	for _, tag := range ds.Tags {
+		if tag.Key == model.SpanKindKey {
+			spanKind = tag.ValueString
+			break
+		}
+	}
 	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
-		SpanKind:      string(spanKind),
+		SpanKind:      spanKind,
 		OperationName: ds.OperationName,
 	}); err != nil {
 		// should this be a soft failure?
@@ -190,7 +203,8 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		}
 	}
 
-	if span.Flags.IsFirehoseEnabled() {
+	//nolint:gosec // G115
+	if model.Flags(uint32(ds.Flags)).IsFirehoseEnabled() {
 		return nil // skipping expensive indexing
 	}
 
@@ -199,7 +213,9 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 	}
 
 	if s.indexFilter(ds, dbmodel.DurationIndex) {
-		if err := s.indexByDuration(ds, span.StartTime); err != nil {
+		//nolint:gosec // G115 // StartTime is semantically positive (microseconds since epoch)
+		startTime := model.EpochMicrosecondsAsTime(uint64(ds.StartTime))
+		if err := s.indexByDuration(ds, startTime); err != nil {
 			return s.logError(ds, err, "Failed to index duration", s.logger)
 		}
 	}

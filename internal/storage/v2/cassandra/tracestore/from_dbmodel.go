@@ -308,6 +308,10 @@ func dbReferencesToSpanLinks(refs []dbmodel.SpanRef, excludeParentID int64, span
 		//nolint:gosec // G115 // bit-preserving uint64<->int64 conversion for opaque IDs
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
 		link.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
+
+		if len(ref.Attributes) > 0 {
+			dbTagsToAttributes(ref.Attributes, link.Attributes())
+		}
 	}
 }
 
@@ -322,23 +326,12 @@ func getTraceStateFromAttrs(attrs pcommon.Map) string {
 }
 
 func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
-	if libraryName, ok := getAndDeleteTag(span, otelsemconv.AttributeOtelScopeName); ok {
-		scopeSpan.Scope().SetName(libraryName)
-		if libraryVersion, ok := getAndDeleteTag(span, otelsemconv.AttributeOtelScopeVersion); ok {
-			scopeSpan.Scope().SetVersion(libraryVersion)
-		}
+	if span.ScopeName != "" {
+		scopeSpan.Scope().SetName(span.ScopeName)
 	}
-}
-
-func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
-	for i, tag := range span.Tags {
-		if tag.Key == key {
-			val := tag.ValueString
-			span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
-			return val, true
-		}
+	if span.ScopeVersion != "" {
+		scopeSpan.Scope().SetVersion(span.ScopeVersion)
 	}
-	return "", false
 }
 
 func dbRefTypeToAttribute(ref string) string {
