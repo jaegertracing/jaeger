@@ -128,27 +128,12 @@ func TestSpanReaderGetOperations(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace(t *testing.T) {
-	badScan := func() any {
-		return matchOnceWithSideEffect(func(args []any) {
-			for _, arg := range args {
-				if v, ok := arg.(*[]dbmodel.KeyValue); ok {
-					*v = []dbmodel.KeyValue{
-						{
-							ValueType: "bad",
-						},
-					}
-				}
-			}
-		})
-	}
-
 	testCases := []struct {
 		scanner     any
 		closeErr    error
 		expectedErr string
 	}{
 		{scanner: matchOnce()},
-		{scanner: badScan(), expectedErr: "invalid ValueType in"},
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
@@ -170,14 +155,14 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-				trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+				spans, err := r.reader.GetTrace(context.Background(), dbmodel.TraceID{})
 				if testCase.expectedErr == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					require.NoError(t, err)
-					assert.NotNil(t, trace)
+					assert.NotNil(t, spans)
 				} else {
 					require.ErrorContains(t, err, testCase.expectedErr)
-					assert.Nil(t, trace)
+					assert.Nil(t, spans)
 				}
 			})
 		})
@@ -196,10 +181,10 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-		trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+		spans, err := r.reader.GetTrace(context.Background(), dbmodel.TraceID{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		assert.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
+		assert.Nil(t, spans)
+		require.NoError(t, err)
 	})
 }
 
@@ -470,4 +455,70 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
+}
+
+func TestSpanReaderV1GetTrace(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		iter := &mocks.Iterator{}
+		iter.On("Scan", matchOnce()).Return(true)
+		iter.On("Scan", mock.Anything).Return(false)
+		iter.On("Close").Return(nil)
+
+		query := &mocks.Query{}
+		query.On("Consistency", cassandra.One).Return(query)
+		query.On("Iter").Return(iter)
+		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+
+		v1reader := NewSpanReaderV1(r.reader)
+		trace, err := v1reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+		require.NoError(t, err)
+		assert.NotNil(t, trace)
+	})
+}
+
+func TestSpanReaderV1GetTrace_BadSpan(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		iter := &mocks.Iterator{}
+		iter.On("Scan", matchOnceWithSideEffect(func(args []any) {
+			for _, arg := range args {
+				if v, ok := arg.(*[]dbmodel.KeyValue); ok {
+					*v = []dbmodel.KeyValue{
+						{
+							ValueType: "bad",
+						},
+					}
+				}
+			}
+		})).Return(true)
+		iter.On("Scan", mock.Anything).Return(false)
+		iter.On("Close").Return(nil)
+
+		query := &mocks.Query{}
+		query.On("Consistency", cassandra.One).Return(query)
+		query.On("Iter").Return(iter)
+		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+
+		v1reader := NewSpanReaderV1(r.reader)
+		trace, err := v1reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+		require.ErrorContains(t, err, "invalid ValueType in")
+		assert.Nil(t, trace)
+	})
+}
+
+func TestSpanReaderV1GetTrace_TraceNotFound(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		iter := &mocks.Iterator{}
+		iter.On("Scan", mock.Anything).Return(false)
+		iter.On("Close").Return(nil)
+
+		query := &mocks.Query{}
+		query.On("Consistency", cassandra.One).Return(query)
+		query.On("Iter").Return(iter)
+		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+
+		v1reader := NewSpanReaderV1(r.reader)
+		trace, err := v1reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+		assert.Nil(t, trace)
+		require.ErrorIs(t, err, spanstore.ErrTraceNotFound)
+	})
 }

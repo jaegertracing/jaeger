@@ -7,25 +7,18 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	cassdbmodel "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
-
-func TestNewTraceReader(t *testing.T) {
-	reader := NewTraceReader(&mocks.CoreSpanReader{})
-	assert.NotNil(t, reader)
-	traceids := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{})
-	assert.NotNil(t, traceids)
-	trace := reader.GetTraces(context.Background(), tracestore.GetTraceParams{})
-	assert.NotNil(t, trace)
-	traces := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{})
-	assert.NotNil(t, traces)
-}
 
 func TestGetServices(t *testing.T) {
 	services := []string{"service-1", "service-2"}
@@ -69,4 +62,106 @@ func TestGetOperations(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, expected, got)
+}
+
+func TestGetTraces(t *testing.T) {
+	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	spans := []cassdbmodel.Span{{TraceID: traceID, OperationName: "op"}}
+	reader := mocks.CoreSpanReader{}
+	reader.On("GetTrace", mock.Anything, traceID).Return(spans, nil)
+	tracereader := &TraceReader{reader: &reader}
+	var results []ptrace.Traces
+	for batch, err := range tracereader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID(traceID),
+	}) {
+		require.NoError(t, err)
+		results = append(results, batch...)
+	}
+	require.Len(t, results, 1)
+}
+
+func TestGetTraces_NotFound(t *testing.T) {
+	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	reader := mocks.CoreSpanReader{}
+	reader.On("GetTrace", mock.Anything, traceID).Return([]cassdbmodel.Span(nil), nil)
+	tracereader := &TraceReader{reader: &reader}
+	var count int
+	for _, err := range tracereader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID(traceID),
+	}) {
+		require.NoError(t, err)
+		count++
+	}
+	require.Equal(t, 0, count)
+}
+
+func TestGetTraces_Error(t *testing.T) {
+	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	reader := mocks.CoreSpanReader{}
+	reader.On("GetTrace", mock.Anything, traceID).Return([]cassdbmodel.Span(nil), errors.New("storage error"))
+	tracereader := &TraceReader{reader: &reader}
+	for _, err := range tracereader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: pcommon.TraceID(traceID),
+	}) {
+		require.ErrorContains(t, err, "storage error")
+	}
+}
+
+func newTraceQueryParams(t *testing.T) tracestore.TraceQueryParams {
+	t.Helper()
+	attrs := pcommon.NewMap()
+	return tracestore.TraceQueryParams{
+		ServiceName:  "service-1",
+		StartTimeMin: time.Now().Add(-time.Hour),
+		StartTimeMax: time.Now(),
+		Attributes:   attrs,
+	}
+}
+
+func TestFindTraces(t *testing.T) {
+	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	dbTraces := []cassdbmodel.Trace{
+		{Spans: []cassdbmodel.Span{{TraceID: traceID, OperationName: "op"}}},
+	}
+	reader := mocks.CoreSpanReader{}
+	reader.On("FindTraces", mock.Anything, mock.Anything).Return(dbTraces, nil)
+	tracereader := &TraceReader{reader: &reader}
+	var results []ptrace.Traces
+	for batch, err := range tracereader.FindTraces(context.Background(), newTraceQueryParams(t)) {
+		require.NoError(t, err)
+		results = append(results, batch...)
+	}
+	require.Len(t, results, 1)
+}
+
+func TestFindTraces_Error(t *testing.T) {
+	reader := mocks.CoreSpanReader{}
+	reader.On("FindTraces", mock.Anything, mock.Anything).Return([]cassdbmodel.Trace(nil), errors.New("find error"))
+	tracereader := &TraceReader{reader: &reader}
+	for _, err := range tracereader.FindTraces(context.Background(), newTraceQueryParams(t)) {
+		require.ErrorContains(t, err, "find error")
+	}
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	reader := mocks.CoreSpanReader{}
+	reader.On("FindTraceIDs", mock.Anything, mock.Anything).Return([]cassdbmodel.TraceID{traceID}, nil)
+	tracereader := &TraceReader{reader: &reader}
+	var results []tracestore.FoundTraceID
+	for batch, err := range tracereader.FindTraceIDs(context.Background(), newTraceQueryParams(t)) {
+		require.NoError(t, err)
+		results = append(results, batch...)
+	}
+	require.Len(t, results, 1)
+	assert.Equal(t, pcommon.TraceID(traceID), results[0].TraceID)
+}
+
+func TestFindTraceIDs_Error(t *testing.T) {
+	reader := mocks.CoreSpanReader{}
+	reader.On("FindTraceIDs", mock.Anything, mock.Anything).Return([]cassdbmodel.TraceID(nil), errors.New("find error"))
+	tracereader := &TraceReader{reader: &reader}
+	for _, err := range tracereader.FindTraceIDs(context.Background(), newTraceQueryParams(t)) {
+		require.ErrorContains(t, err, "find error")
+	}
 }

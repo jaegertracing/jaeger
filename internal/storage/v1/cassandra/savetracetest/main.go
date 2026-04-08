@@ -50,10 +50,11 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to create span writer", zap.Error(err))
 	}
-	spanReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracerProvider.Tracer("cspanstore.SpanReader"))
+	coreReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracerProvider.Tracer("cspanstore.SpanReader"))
 	if err != nil {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
+	spanReader := cspanstore.NewSpanReaderV1(coreReader)
 	ctx := context.Background()
 	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
@@ -93,7 +94,7 @@ func main() {
 	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
+func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReaderV1, tqp *spanstore.TraceQueryParameters) {
 	traces, err := spanReader.FindTraces(ctx, tqp)
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))
