@@ -172,14 +172,14 @@ func (s *server) registerTools() {
 		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
 			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
 			"(e.g. 'rootID/parentID/spanID'). " +
-			"Does NOT include attributes, events, or logs.",
+			"Does NOT include attributes, events, or links.",
 	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_critical_path",
 		Description: "Identify the critical latency path through a trace: the chain of spans " +
 			"that determined end-to-end duration. " +
-			"The segment with the highest self_time_us is the primary bottleneck.",
+			"Higher self_time_us values indicate where time is concentrated on the critical path.",
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
 }
 
