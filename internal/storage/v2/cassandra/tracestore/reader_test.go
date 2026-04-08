@@ -157,6 +157,18 @@ func TestFindTraceIDs(t *testing.T) {
 	assert.Equal(t, pcommon.TraceID(traceID), results[0].TraceID)
 }
 
+func TestFindTraceIDs_Empty(t *testing.T) {
+	reader := mocks.CoreSpanReader{}
+	reader.On("FindTraceIDs", mock.Anything, mock.Anything).Return([]cassdbmodel.TraceID{}, nil)
+	tracereader := &TraceReader{reader: &reader}
+	iterations := 0
+	for _, err := range tracereader.FindTraceIDs(context.Background(), newTraceQueryParams(t)) {
+		require.NoError(t, err)
+		iterations++
+	}
+	require.Zero(t, iterations)
+}
+
 func TestFindTraceIDs_Error(t *testing.T) {
 	reader := mocks.CoreSpanReader{}
 	reader.On("FindTraceIDs", mock.Anything, mock.Anything).Return([]cassdbmodel.TraceID(nil), errors.New("find error"))
