@@ -20,7 +20,9 @@ func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
 		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is too long: %d chars", len(traceIdHex))
 	}
 	// Left-pad with zeros to 32 hex chars to handle shorter (e.g. 64-bit) trace IDs.
-	traceIdHex = strings.Repeat("0", 32-len(traceIdHex)) + traceIdHex
+	if len(traceIdHex) < 32 {
+		traceIdHex = strings.Repeat("0", 32-len(traceIdHex)) + traceIdHex
+	}
 	traceBytes, err := hex.DecodeString(traceIdHex)
 	if err != nil {
 		return pcommon.TraceID{}, err
@@ -36,7 +38,9 @@ func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is too long: %d chars", len(spanIdHex))
 	}
 	// Left-pad with zeros to 16 hex chars to handle shorter span IDs.
-	spanIdHex = strings.Repeat("0", 16-len(spanIdHex)) + spanIdHex
+	if len(spanIdHex) < 16 {
+		spanIdHex = strings.Repeat("0", 16-len(spanIdHex)) + spanIdHex
+	}
 	spanIdBytes, err := hex.DecodeString(spanIdHex)
 	if err != nil {
 		return pcommon.SpanID{}, err
