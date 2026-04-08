@@ -10,6 +10,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var _ spanstore.Reader = (*SpanReaderV1)(nil) // check API conformance
@@ -59,8 +60,8 @@ func (s *SpanReaderV1) collectSpans(dbSpans []dbmodel.Span) ([]*model.Span, erro
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReaderV1) GetOperations(
 	ctx context.Context,
-	query spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
 	dbmodelQuery := dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
@@ -69,10 +70,10 @@ func (s *SpanReaderV1) GetOperations(
 	if err != nil {
 		return nil, err
 	}
-	var result []spanstore.Operation
+	var result []tracestore.Operation
 
 	for _, operation := range operations {
-		result = append(result, spanstore.Operation{
+		result = append(result, tracestore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
 		})

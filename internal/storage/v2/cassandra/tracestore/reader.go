@@ -31,7 +31,7 @@ func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 func (r *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	return r.reader.GetOperationsV2(ctx, query)
+	return r.reader.GetOperations(ctx, query)
 }
 
 func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {

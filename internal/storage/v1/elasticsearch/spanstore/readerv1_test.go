@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func withSpanReaderV1(fn func(r *SpanReaderV1, m *mocks.CoreSpanReader)) {
@@ -126,7 +127,7 @@ func TestSpanReaderV1_GetOperations(t *testing.T) {
 		operation := []dbmodel.Operation{{Name: "operation-1", SpanKind: "kind-1"}}
 		input := dbmodel.OperationQueryParameters{ServiceName: "service", SpanKind: "kind-1"}
 		m.On("GetOperations", mock.Anything, input).Return(operation, nil)
-		actual, err := r.GetOperations(context.Background(), spanstore.OperationQueryParameters{ServiceName: "service", SpanKind: "kind-1"})
+		actual, err := r.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "service", SpanKind: "kind-1"})
 		require.NoError(t, err)
 		assert.Len(t, actual, 1)
 		assert.Equal(t, operation[0].Name, actual[0].Name)
@@ -138,7 +139,7 @@ func TestSpanReaderV1_GetOperations_Error(t *testing.T) {
 	withSpanReaderV1(func(r *SpanReaderV1, m *mocks.CoreSpanReader) {
 		input := dbmodel.OperationQueryParameters{ServiceName: "service", SpanKind: "kind-1"}
 		m.On("GetOperations", mock.Anything, input).Return(nil, errors.New("error"))
-		actual, err := r.GetOperations(context.Background(), spanstore.OperationQueryParameters{ServiceName: "service", SpanKind: "kind-1"})
+		actual, err := r.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "service", SpanKind: "kind-1"})
 		require.Error(t, err, "error")
 		assert.Nil(t, actual)
 	})
