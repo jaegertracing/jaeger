@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -50,11 +51,10 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to create span writer", zap.Error(err))
 	}
-	coreReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracerProvider.Tracer("cspanstore.SpanReader"))
+	spanReader, err := cspanstore.NewSpanReader(cqlSession, noScope, logger, tracerProvider.Tracer("cspanstore.SpanReader"))
 	if err != nil {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
-	spanReader := cspanstore.NewSpanReaderV1(coreReader)
 	ctx := context.Background()
 	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
@@ -62,11 +62,11 @@ func main() {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	trace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: s.TraceID})
+	spans, err := spanReader.GetTrace(ctx, dbmodel.TraceIDFromDomain(s.TraceID))
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
-		logger.Info("Loaded trace", zap.Any("trace", trace))
+		logger.Info("Loaded trace", zap.Any("spans", spans))
 	}
 
 	tqp := &spanstore.TraceQueryParameters{
@@ -94,7 +94,7 @@ func main() {
 	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReaderV1, tqp *spanstore.TraceQueryParameters) {
+func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
 	traces, err := spanReader.FindTraces(ctx, tqp)
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))
