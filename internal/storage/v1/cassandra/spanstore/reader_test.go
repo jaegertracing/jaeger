@@ -120,7 +120,7 @@ func TestSpanReaderGetOperations(t *testing.T) {
 		r.reader.operationNamesReader = func(_ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 			return expectedOperations, nil
 		}
-		s, err := r.reader.GetOperationsV2(context.Background(),
+		s, err := r.reader.GetOperations(context.Background(),
 			tracestore.OperationQueryParams{ServiceName: "service-x", SpanKind: "server"})
 		require.NoError(t, err)
 		assert.Equal(t, expectedOperations, s)
@@ -470,10 +470,4 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
-}
-
-func TestGetOperations(t *testing.T) {
-	reader := SpanReader{}
-	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
-	require.ErrorContains(t, err, "not implemented")
 }

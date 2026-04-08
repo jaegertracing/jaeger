@@ -173,19 +173,15 @@ func TestSpanReader_GetServices(t *testing.T) {
 func TestSpanReader_GetOperations(t *testing.T) {
 	tests := []struct {
 		name               string
-		query              spanstore.OperationQueryParameters
-		expectedQuery      tracestore.OperationQueryParams
+		query              tracestore.OperationQueryParams
 		operations         []tracestore.Operation
-		expectedOperations []spanstore.Operation
+		expectedOperations []tracestore.Operation
 		err                error
 		expectedErr        error
 	}{
 		{
 			name: "error getting operations",
-			query: spanstore.OperationQueryParameters{
-				ServiceName: "service1",
-			},
-			expectedQuery: tracestore.OperationQueryParams{
+			query: tracestore.OperationQueryParams{
 				ServiceName: "service1",
 			},
 			err:         assert.AnError,
@@ -193,28 +189,22 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		},
 		{
 			name: "no operations",
-			query: spanstore.OperationQueryParameters{
-				ServiceName: "service1",
-			},
-			expectedQuery: tracestore.OperationQueryParams{
+			query: tracestore.OperationQueryParams{
 				ServiceName: "service1",
 			},
 			operations:         []tracestore.Operation{},
-			expectedOperations: []spanstore.Operation{},
+			expectedOperations: []tracestore.Operation{},
 		},
 		{
 			name: "multiple operations",
-			query: spanstore.OperationQueryParameters{
-				ServiceName: "service1",
-			},
-			expectedQuery: tracestore.OperationQueryParams{
+			query: tracestore.OperationQueryParams{
 				ServiceName: "service1",
 			},
 			operations: []tracestore.Operation{
 				{Name: "operation1", SpanKind: "kind1"},
 				{Name: "operation2", SpanKind: "kind2"},
 			},
-			expectedOperations: []spanstore.Operation{
+			expectedOperations: []tracestore.Operation{
 				{Name: "operation1", SpanKind: "kind1"},
 				{Name: "operation2", SpanKind: "kind2"},
 			},
@@ -223,7 +213,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 
 	for _, test := range tests {
 		tr := tracestoremocks.Reader{}
-		tr.On("GetOperations", mock.Anything, test.expectedQuery).
+		tr.On("GetOperations", mock.Anything, test.query).
 			Return(test.operations, test.err).Once()
 
 		sr := SpanReader{
