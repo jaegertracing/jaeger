@@ -128,27 +128,12 @@ func TestSpanReaderGetOperations(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace(t *testing.T) {
-	badScan := func() any {
-		return matchOnceWithSideEffect(func(args []any) {
-			for _, arg := range args {
-				if v, ok := arg.(*[]dbmodel.KeyValue); ok {
-					*v = []dbmodel.KeyValue{
-						{
-							ValueType: "bad",
-						},
-					}
-				}
-			}
-		})
-	}
-
 	testCases := []struct {
 		scanner     any
 		closeErr    error
 		expectedErr string
 	}{
 		{scanner: matchOnce()},
-		{scanner: badScan(), expectedErr: "invalid ValueType in"},
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
@@ -170,14 +155,14 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-				trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+				spans, err := r.reader.GetTrace(context.Background(), dbmodel.TraceID{})
 				if testCase.expectedErr == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					require.NoError(t, err)
-					assert.NotNil(t, trace)
+					assert.NotNil(t, spans)
 				} else {
 					require.ErrorContains(t, err, testCase.expectedErr)
-					assert.Nil(t, trace)
+					assert.Nil(t, spans)
 				}
 			})
 		})
@@ -196,10 +181,10 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-		trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+		spans, err := r.reader.GetTrace(context.Background(), dbmodel.TraceID{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		assert.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
+		assert.Nil(t, spans)
+		require.NoError(t, err)
 	})
 }
 
@@ -218,6 +203,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		queryTags                         bool
 		queryOperation                    bool
 		queryDuration                     bool
+		emptyTrace                        bool
 		mainQueryError                    error
 		tagsQueryError                    error
 		serviceNameAndOperationQueryError error
@@ -311,6 +297,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			},
 		},
 		{
+			caption:       "empty trace skipped",
+			emptyTrace:    true,
+			expectedCount: 0,
+		},
+		{
 			caption:        "load trace error",
 			loadQueryError: errors.New("load query error"),
 			expectedCount:  0,
@@ -371,7 +362,9 @@ func TestSpanReaderFindTraces(t *testing.T) {
 
 				makeLoadQuery := func() *mocks.Query {
 					loadQueryIter := &mocks.Iterator{}
-					loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					if !testCase.emptyTrace {
+						loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					}
 					loadQueryIter.On("Scan", mock.Anything).Return(false)
 					loadQueryIter.On("Close").Return(testCase.loadQueryError)
 
