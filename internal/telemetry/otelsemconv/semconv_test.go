@@ -186,3 +186,65 @@ func TestAttributeTypes(t *testing.T) {
 		t.Errorf("HTTPStatusCodeAttribute should return INT64 type, got %v", httpAttr.Value.Type())
 	}
 }
+
+func TestMCPGenAIAttributes(t *testing.T) {
+	tests := []struct {
+		name     string
+		attr     attribute.KeyValue
+		wantKey  string
+		wantType attribute.Type
+		wantVal  string
+	}{
+		{
+			name:     "mcp method",
+			attr:     McpMethodName("tools/call"),
+			wantKey:  string(semconv.McpMethodNameKey),
+			wantType: attribute.STRING,
+			wantVal:  "tools/call",
+		},
+		{
+			name:     "mcp session id",
+			attr:     McpSessionID("session-123"),
+			wantKey:  string(semconv.McpSessionIDKey),
+			wantType: attribute.STRING,
+			wantVal:  "session-123",
+		},
+		{
+			name:     "gen ai tool",
+			attr:     GenAIToolName("search_traces"),
+			wantKey:  string(semconv.GenAIToolNameKey),
+			wantType: attribute.STRING,
+			wantVal:  "search_traces",
+		},
+		{
+			name:     "error type",
+			attr:     ErrorType("tool_error"),
+			wantKey:  string(semconv.ErrorTypeKey),
+			wantType: attribute.STRING,
+			wantVal:  "tool_error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if string(tt.attr.Key) != tt.wantKey {
+				t.Fatalf("expected key %s, got %s", tt.wantKey, tt.attr.Key)
+			}
+			if tt.attr.Value.Type() != tt.wantType {
+				t.Fatalf("expected type %v, got %v", tt.wantType, tt.attr.Value.Type())
+			}
+			if tt.attr.Value.AsString() != tt.wantVal {
+				t.Fatalf("expected value %q, got %q", tt.wantVal, tt.attr.Value.AsString())
+			}
+		})
+	}
+}
+
+func TestGenAIOperationNameExecuteTool(t *testing.T) {
+	if string(GenAIOperationNameExecuteTool.Key) != string(semconv.GenAIOperationNameKey) {
+		t.Fatalf("expected key %s, got %s", semconv.GenAIOperationNameKey, GenAIOperationNameExecuteTool.Key)
+	}
+	if GenAIOperationNameExecuteTool.Value.AsString() != "execute_tool" {
+		t.Fatalf("expected value execute_tool, got %s", GenAIOperationNameExecuteTool.Value.AsString())
+	}
+}
