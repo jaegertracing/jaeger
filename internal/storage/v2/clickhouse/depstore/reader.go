@@ -5,6 +5,7 @@ package depstore
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -19,5 +20,5 @@ func NewDependencyReader() *Reader {
 }
 
 func (*Reader) GetDependencies(context.Context, depstore.QueryParameters) ([]model.DependencyLink, error) {
-	panic("not implemented")
+	return nil, errors.New("clickhouse dependency reader is not implemented")
 }

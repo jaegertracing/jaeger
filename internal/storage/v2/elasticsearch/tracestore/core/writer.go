@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package spanstore
+package core
 
 import (
 	"strings"
@@ -14,8 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 const (
@@ -40,11 +41,11 @@ type SpanWriter struct {
 	tagKeysAsFields   map[string]bool
 }
 
-// CoreSpanWriter is a DB-Level abstraction which directly deals with database level operations
-type CoreSpanWriter interface {
+// Writer is a DB-Level abstraction which directly deals with database level operations
+type Writer interface {
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
-	// Close closes CoreSpanWriter
+	// Close closes Writer
 	Close() error
 }
 
@@ -122,7 +123,7 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 	}
 
 	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
+		return indices.IndexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indices.IndexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}
 }
 

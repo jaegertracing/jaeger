@@ -189,13 +189,13 @@ func TestTraceReader_GetServicesDelegatesToSpanReader(t *testing.T) {
 func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 	tests := []struct {
 		name               string
-		operations         []spanstore.Operation
+		operations         []tracestore.Operation
 		expectedOperations []tracestore.Operation
 		err                error
 	}{
 		{
 			name: "successful response",
-			operations: []spanstore.Operation{
+			operations: []tracestore.Operation{
 				{
 					Name:     "operation-a",
 					SpanKind: "server",
@@ -223,7 +223,7 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 		},
 		{
 			name:               "empty response",
-			operations:         []spanstore.Operation{},
+			operations:         []tracestore.Operation{},
 			expectedOperations: []tracestore.Operation{},
 		},
 		{
@@ -239,7 +239,7 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 			sr := new(spanstoremocks.Reader)
 			sr.On("GetOperations",
 				mock.Anything,
-				spanstore.OperationQueryParameters{
+				tracestore.OperationQueryParams{
 					ServiceName: "service-a",
 					SpanKind:    "server",
 				}).Return(test.operations, test.err)
