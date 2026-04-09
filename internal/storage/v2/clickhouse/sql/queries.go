@@ -280,6 +280,11 @@ const TruncateTraceIDTimestamps = `TRUNCATE TABLE trace_id_timestamps`
 
 const TruncateAttributeMetadata = `TRUNCATE TABLE attribute_metadata`
 
+const TruncateDependencies = `TRUNCATE TABLE dependencies`
+
+//go:embed create_dependencies_table.sql
+var CreateDependenciesTable string
+
 //go:embed create_spans_table.sql
 var CreateSpansTable string
 
