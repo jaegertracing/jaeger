@@ -276,6 +276,51 @@ func TestWsAdapterReadMultipleMessagesSmallBuffer(t *testing.T) {
 	assert.Equal(t, "bb", string(buf[:n]))
 }
 
+// bytesEOFReader returns all data and io.EOF in a single Read call,
+// exercising the "n > 0 on EOF" branch in WsReadWriteCloser.Read.
+type bytesEOFReader struct{ data []byte }
+
+func (r *bytesEOFReader) Read(p []byte) (int, error) {
+	if len(r.data) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, r.data)
+	r.data = r.data[n:]
+	if len(r.data) == 0 {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func TestWsAdapterReadReturnsPartialBytesOnEOF(t *testing.T) {
+	t.Parallel()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _, _ = conn.ReadMessage()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	adapter := NewWsAdapter(conn)
+	// Inject a reader that returns n > 0 and io.EOF simultaneously.
+	adapter.r = &bytesEOFReader{data: []byte("hello")}
+
+	buf := make([]byte, 16)
+	n, err := adapter.Read(buf)
+	require.NoError(t, err, "should swallow EOF when bytes are returned")
+	assert.Equal(t, "hello", string(buf[:n]))
+}
+
 type errCloser struct{ err error }
 
 func (e *errCloser) Close() error { return e.err }

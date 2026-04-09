@@ -70,6 +70,12 @@ func (c *streamingClient) writeAndFlush(text string) {
 	c.flusher.Flush()
 }
 
+// waitForTurnCompletion is a short grace period after Prompt() returns,
+// allowing in-flight SessionUpdate callbacks to finish flushing to the HTTP
+// response. acp-go-sdk dispatches these callbacks in goroutines, so Prompt()
+// may return before the last streamed chunk is written. On success this acts
+// as a brief sleep (maxWait); on error or context cancellation doneCh fires
+// and the wait exits early.
 func (c *streamingClient) waitForTurnCompletion(ctx context.Context, maxWait time.Duration) {
 	if maxWait <= 0 {
 		return

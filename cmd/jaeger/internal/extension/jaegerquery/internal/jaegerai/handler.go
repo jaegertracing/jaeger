@@ -16,20 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
-const (
-	// defaultMaxRequestBodySize caps the chat request body at 1 MiB.
-	// This prevents a single oversized prompt from consuming excessive memory or CPU
-	// during JSON decoding. The limit is configurable via AIConfig.MaxRequestBodySize.
-	defaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
-
-	// defaultWaitForTurnTimeout is a short grace period after Prompt() returns,
-	// allowing any in-flight SessionUpdate callbacks to finish writing to the
-	// HTTP response. ACP notifications are dispatched in goroutines by acp-go-sdk,
-	// so Prompt() may return before the last streamed chunk is flushed.
-	// Configurable via AIConfig.WaitForTurnTimeout.
-	defaultWaitForTurnTimeout = 50 * time.Millisecond
-)
-
 // ChatRequest is the incoming payload
 type ChatRequest struct {
 	Prompt string `json:"prompt"`
@@ -44,13 +30,6 @@ type ChatHandler struct {
 }
 
 func NewChatHandler(logger *zap.Logger, sidecarWSURL string, waitForTurnTimeout time.Duration, maxRequestBodySize int64) *ChatHandler {
-	if waitForTurnTimeout <= 0 {
-		waitForTurnTimeout = defaultWaitForTurnTimeout
-	}
-	if maxRequestBodySize <= 0 {
-		maxRequestBodySize = defaultMaxRequestBodySize
-	}
-
 	return &ChatHandler{
 		Logger:             logger,
 		sidecarWSURL:       sidecarWSURL,
@@ -83,7 +62,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
 
 	ctx := r.Context()
 	acpCtx, cancel := context.WithCancel(ctx)

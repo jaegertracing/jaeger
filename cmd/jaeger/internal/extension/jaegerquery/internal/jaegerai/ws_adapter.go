@@ -5,7 +5,6 @@ package jaegerai
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -45,12 +44,9 @@ func DialWsAdapter(ctx context.Context, url string) (*WsReadWriteCloser, error) 
 func (w *WsReadWriteCloser) Read(p []byte) (int, error) {
 	for {
 		if w.r == nil {
-			messageType, r, err := w.conn.NextReader()
+			_, r, err := w.conn.NextReader()
 			if err != nil {
 				return 0, err
-			}
-			if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
-				return 0, fmt.Errorf("unexpected message type: %d", messageType)
 			}
 			w.r = r
 		}
