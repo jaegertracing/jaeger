@@ -21,7 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -49,8 +48,6 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 	}
 	fn(w)
 }
-
-var _ spanstore.Writer = &SpanWriterV1{} // check API conformance
 
 func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
