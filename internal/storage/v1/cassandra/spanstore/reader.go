@@ -94,6 +94,12 @@ type spanReaderMetrics struct {
 	queryServiceNameIndex      *casmetrics.Table
 }
 
+// CoreSpanReader is the primary Cassandra span reader that returns raw database
+// model types (dbmodel.*) without any conversion to external API types. It serves
+// as the foundation for the v2 tracestore.TraceReader, which wraps CoreSpanReader
+// and converts dbmodel types directly to OTLP (ptrace.*) via FromDBModel.
+//
+// This mirrors the pattern used by the Elasticsearch storage backend.
 type CoreSpanReader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
