@@ -7,7 +7,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -165,6 +164,6 @@ func TestExecute(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	// Assert the span index date layout (daily) was used, not the service layout (hourly).
-	assert.True(t, strings.Contains(requestPath, "1970-01-01"), "expected daily span index in path, got: %s", requestPath)
-	assert.False(t, strings.Contains(requestPath, "1970-01-01-00"), "got hourly service index in path, should use span index: %s", requestPath)
+	assert.Contains(t, requestPath, "1970-01-01", "expected daily span index in path")
+	assert.NotContains(t, requestPath, "1970-01-01-00", "got hourly service index in path, should use span index")
 }
