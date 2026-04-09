@@ -270,17 +270,26 @@ SELECT
 FROM
     attribute_metadata`
 
-const TruncateSpans = `TRUNCATE TABLE spans`
+const TruncateSpans = `TRUNCATE TABLE IF EXISTS spans`
 
-const TruncateServices = `TRUNCATE TABLE services`
+const TruncateServices = `TRUNCATE TABLE IF EXISTS services`
 
-const TruncateOperations = `TRUNCATE TABLE operations`
+const TruncateOperations = `TRUNCATE TABLE IF EXISTS operations`
 
-const TruncateTraceIDTimestamps = `TRUNCATE TABLE trace_id_timestamps`
+const TruncateTraceIDTimestamps = `TRUNCATE TABLE IF EXISTS trace_id_timestamps`
 
-const TruncateAttributeMetadata = `TRUNCATE TABLE attribute_metadata`
+const TruncateAttributeMetadata = `TRUNCATE TABLE IF EXISTS attribute_metadata`
 
-const TruncateDependencies = `TRUNCATE TABLE dependencies`
+const TruncateDependencies = `TRUNCATE TABLE IF EXISTS dependencies`
+
+const SelectDependencies = `
+SELECT
+    dependencies
+FROM
+    dependencies
+WHERE
+    timestamp >= ?
+    AND timestamp < ?`
 
 //go:embed create_dependencies_table.sql
 var CreateDependenciesTable string
