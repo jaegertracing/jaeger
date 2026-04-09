@@ -191,9 +191,9 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, err := range r.reader.FindTraces(context.Background(), nil) {
-			require.Empty(t, r.traceBuffer.GetSpans(), "Spans Not recorded")
 			require.Error(t, err)
 		}
+		require.Empty(t, r.traceBuffer.GetSpans(), "Spans Not recorded")
 	})
 }
 
