@@ -50,3 +50,4 @@ test-results.json
 .mockery.log
 build.log
 sidecar.py.orig
+jaeger

@@ -14,12 +14,12 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/mocks"
 )
 
 func TestTraceWriter_WriteTraces(t *testing.T) {
-	coreWriter := &mocks.CoreSpanWriter{}
+	coreWriter := &mocks.Writer{}
 	td := ptrace.NewTraces()
 	resourceSpans := td.ResourceSpans().AppendEmpty()
 	resourceSpans.Resource().Attributes().PutStr("service.name", "testing-service")
@@ -33,7 +33,7 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 }
 
 func TestTraceWriter_Close(t *testing.T) {
-	coreWriter := &mocks.CoreSpanWriter{}
+	coreWriter := &mocks.Writer{}
 	coreWriter.On("Close").Return(nil)
 	writer := TraceWriter{spanWriter: coreWriter}
 	err := writer.Close()
@@ -41,7 +41,7 @@ func TestTraceWriter_Close(t *testing.T) {
 }
 
 func Test_NewTraceWriter(t *testing.T) {
-	params := spanstore.SpanWriterParams{
+	params := core.SpanWriterParams{
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,
 	}
