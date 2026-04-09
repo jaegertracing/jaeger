@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {

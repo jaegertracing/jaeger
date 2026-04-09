@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
@@ -33,7 +34,7 @@ type Reader interface {
 
 	// GetOperations returns all operation names for a given service
 	// known to the backend from spans within its retention period.
-	GetOperations(ctx context.Context, query OperationQueryParameters) ([]Operation, error)
+	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 
 	// FindTraces returns all traces matching query parameters. There's currently
 	// an implementation-dependent abiguity whether all query filters (such as
@@ -67,16 +68,4 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	NumTraces     int
-}
-
-// OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
-type OperationQueryParameters struct {
-	ServiceName string
-	SpanKind    string
-}
-
-// Operation contains operation name and span kind
-type Operation struct {
-	Name     string
-	SpanKind string
 }
