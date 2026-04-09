@@ -127,7 +127,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 0)
 
 	reqBody, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
 	require.NoError(t, err, "failed to marshal request")
@@ -148,11 +148,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.False(t, initReq.ClientCapabilities.Fs.ReadTextFile || initReq.ClientCapabilities.Fs.WriteTextFile || initReq.ClientCapabilities.Terminal, "unexpected client capabilities in initialize: %+v", initReq.ClientCapabilities)
 	require.NotNil(t, initReq.ClientInfo, "client info should not be nil")
 	require.Equal(t, "jaeger-ai-gateway", initReq.ClientInfo.Name, "client name mismatch")
-	expectedVersion := version.Get().GitVersion
-	if expectedVersion == "" {
-		expectedVersion = "dev"
-	}
-	require.Equal(t, expectedVersion, initReq.ClientInfo.Version, "client version mismatch")
+	require.Equal(t, version.Get().GitVersion, initReq.ClientInfo.Version, "client version mismatch")
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
 	require.Empty(t, sessionReq.McpServers, "expected no MCP servers in session/new")
@@ -216,8 +212,18 @@ func (w *failingFlusherResponseWriter) WriteHeader(statusCode int) {
 
 func (*failingFlusherResponseWriter) Flush() {}
 
+func TestNewChatHandlerAppliesDefaults(t *testing.T) {
+	h := NewChatHandler(zap.NewNop(), "ws://localhost:1", 0, 0)
+	require.Equal(t, defaultWaitForTurnTimeout, h.waitForTurnTimeout, "expected default waitForTurnTimeout")
+	require.Equal(t, defaultMaxRequestBodySize, h.maxRequestBodySize, "expected default maxRequestBodySize")
+
+	h2 := NewChatHandler(zap.NewNop(), "ws://localhost:1", 5*time.Millisecond, 512)
+	require.Equal(t, 5*time.Millisecond, h2.waitForTurnTimeout, "expected custom waitForTurnTimeout")
+	require.Equal(t, int64(512), h2.maxRequestBodySize, "expected custom maxRequestBodySize")
+}
+
 func TestChatHandlerMethodNotAllowed(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 0)
 	req := httptest.NewRequest(http.MethodGet, "/api/ai/chat", http.NoBody)
 	rr := httptest.NewRecorder()
 
@@ -227,7 +233,7 @@ func TestChatHandlerMethodNotAllowed(t *testing.T) {
 }
 
 func TestChatHandlerBadRequest(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 0)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader("{"))
 	rr := httptest.NewRecorder()
 
@@ -237,7 +243,7 @@ func TestChatHandlerBadRequest(t *testing.T) {
 }
 
 func TestChatHandlerStreamingUnsupported(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 0)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -249,7 +255,7 @@ func TestChatHandlerStreamingUnsupported(t *testing.T) {
 }
 
 func TestChatHandlerDialFailure(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 0)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -265,7 +271,7 @@ func TestChatHandlerInitializeError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 0)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -282,7 +288,7 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 0)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -299,7 +305,7 @@ func TestChatHandlerPromptError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout)
+	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 0)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -326,7 +332,7 @@ func TestChatHandlerErrorWriteFailurePaths(t *testing.T) {
 			wsURL, cleanup := startMockACPWebSocketServer(t, tc.agent)
 			defer cleanup()
 
-			handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout)
+			handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 0)
 			body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 			require.NoError(t, err, "failed to marshal request")
 			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))

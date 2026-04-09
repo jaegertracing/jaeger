@@ -108,11 +108,7 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content
 		if content.Text != nil {
-			if content.Text.Text == endOfTurnMarker {
-				c.signalDone()
-			} else {
-				c.writeAndFlush(content.Text.Text)
-			}
+			c.writeAndFlush(content.Text.Text)
 		}
 	}
 	// [tool_call] and [tool_result] are informational markers streamed to the

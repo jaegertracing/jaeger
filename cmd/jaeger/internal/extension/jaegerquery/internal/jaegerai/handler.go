@@ -17,14 +17,17 @@ import (
 )
 
 const (
-	// endOfTurnMarker works around a race in acp-go-sdk where SessionUpdate
-	// callbacks may still be running when Prompt() returns, because notifications
-	// are dispatched via goroutines (go c.handleInbound in connection.go).
-	// Without this marker, the HTTP response could close before the final text
-	// chunk is flushed. The sidecar sends this as the last SessionUpdate.
-	endOfTurnMarker           = "__END_OF_TURN__"
-	maxChatRequestBodySize    = 1 << 20 // 1 MiB
-	defaultWaitForTurnTimeout = 180 * time.Second
+	// defaultMaxRequestBodySize caps the chat request body at 1 MiB.
+	// This prevents a single oversized prompt from consuming excessive memory or CPU
+	// during JSON decoding. The limit is configurable via AIConfig.MaxRequestBodySize.
+	defaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
+
+	// defaultWaitForTurnTimeout is a short grace period after Prompt() returns,
+	// allowing any in-flight SessionUpdate callbacks to finish writing to the
+	// HTTP response. ACP notifications are dispatched in goroutines by acp-go-sdk,
+	// so Prompt() may return before the last streamed chunk is flushed.
+	// Configurable via AIConfig.WaitForTurnTimeout.
+	defaultWaitForTurnTimeout = 50 * time.Millisecond
 )
 
 // ChatRequest is the incoming payload
@@ -37,17 +40,22 @@ type ChatHandler struct {
 	Logger             *zap.Logger
 	sidecarWSURL       string
 	waitForTurnTimeout time.Duration
+	maxRequestBodySize int64
 }
 
-func NewChatHandler(logger *zap.Logger, sidecarWSURL string, waitForTurnTimeout time.Duration) *ChatHandler {
+func NewChatHandler(logger *zap.Logger, sidecarWSURL string, waitForTurnTimeout time.Duration, maxRequestBodySize int64) *ChatHandler {
 	if waitForTurnTimeout <= 0 {
 		waitForTurnTimeout = defaultWaitForTurnTimeout
+	}
+	if maxRequestBodySize <= 0 {
+		maxRequestBodySize = defaultMaxRequestBodySize
 	}
 
 	return &ChatHandler{
 		Logger:             logger,
 		sidecarWSURL:       sidecarWSURL,
 		waitForTurnTimeout: waitForTurnTimeout,
+		maxRequestBodySize: maxRequestBodySize,
 	}
 }
 
@@ -58,7 +66,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Limit the size of the request body to prevent memory/CPU abuse.
-	r.Body = http.MaxBytesReader(w, r.Body, maxChatRequestBodySize)
+	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
 	defer r.Body.Close()
 
 	var req ChatRequest
@@ -144,6 +152,8 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Wait for explicit end-of-turn marker from the sidecar, with configured timeout fallback.
+	// Grace period: Prompt() returned but acp-go-sdk dispatches SessionUpdate
+	// callbacks in goroutines, so some may still be writing to the HTTP response.
+	// Wait briefly for them to finish flushing.
 	clientImpl.waitForTurnCompletion(acpCtx, h.waitForTurnTimeout)
 }

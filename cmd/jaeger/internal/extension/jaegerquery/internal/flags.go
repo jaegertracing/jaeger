@@ -30,8 +30,11 @@ type AIConfig struct {
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
-	// WaitForTurnTimeout is the max wait time for receiving turn completion after prompt succeeds.
+	// WaitForTurnTimeout is a grace period after Prompt() returns, allowing in-flight
+	// SessionUpdate callbacks to finish flushing to the HTTP response.
 	WaitForTurnTimeout time.Duration `mapstructure:"wait_for_turn_timeout" valid:"optional"`
+	// MaxRequestBodySize is the maximum allowed size in bytes for the chat request body.
+	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2
@@ -64,7 +67,8 @@ func DefaultQueryOptions() QueryOptions {
 		MaxClockSkewAdjust: 0, // disabled by default
 		AI: configoptional.Default(AIConfig{
 			AgentURL:           "ws://localhost:16688",
-			WaitForTurnTimeout: 180 * time.Second,
+			WaitForTurnTimeout: 50 * time.Millisecond,
+			MaxRequestBodySize: 1 << 20, // 1 MiB
 		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{

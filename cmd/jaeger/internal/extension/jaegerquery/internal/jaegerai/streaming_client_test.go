@@ -266,20 +266,6 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 	if !strings.Contains(got, "[tool_result] id=tool-1 status=completed") {
 		t.Fatalf("expected tool result output, got %q", got)
 	}
-
-	err = c.SessionUpdate(context.Background(), acp.SessionNotification{
-		Update: acp.SessionUpdate{
-			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(endOfTurnMarker)},
-		},
-	})
-	if err != nil {
-		t.Fatalf("session update returned error: %v", err)
-	}
-	select {
-	case <-c.doneCh:
-	default:
-		t.Fatal("expected done channel to be closed when marker is received")
-	}
 }
 
 func TestStreamingClientUtilityMethods(t *testing.T) {
