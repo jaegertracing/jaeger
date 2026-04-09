@@ -27,14 +27,14 @@ func NewWsAdapter(conn *websocket.Conn) *WsReadWriteCloser {
 // The caller must call Close() to release the connection and any dial response resources.
 func DialWsAdapter(ctx context.Context, url string) (*WsReadWriteCloser, error) {
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, resp, err := dialer.DialContext(ctx, url, nil)
+	conn, resp, err := dialer.DialContext(ctx, url, nil) //nolint:bodyclose // resp.Body is captured in respBody and closed via WsReadWriteCloser.Close or on error below
 	var respBody io.Closer
 	if resp != nil && resp.Body != nil {
 		respBody = resp.Body
 	}
 	if err != nil {
 		if respBody != nil {
-			respBody.Close()
+			_ = respBody.Close()
 		}
 		return nil, err
 	}
