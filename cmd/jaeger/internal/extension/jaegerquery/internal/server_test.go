@@ -1030,7 +1030,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 	t.Run("ai handler registered without base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
-		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1"})
+		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
 		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 		t.Cleanup(func() {
@@ -1047,7 +1047,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	t.Run("ai handler registered with base path", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.BasePath = "/jaeger"
-		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1"})
+		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
 		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 		t.Cleanup(func() {
