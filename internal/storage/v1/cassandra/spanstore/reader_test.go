@@ -203,6 +203,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		queryTags                         bool
 		queryOperation                    bool
 		queryDuration                     bool
+		emptyTrace                        bool
 		mainQueryError                    error
 		tagsQueryError                    error
 		serviceNameAndOperationQueryError error
@@ -296,6 +297,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			},
 		},
 		{
+			caption:       "empty trace skipped",
+			emptyTrace:    true,
+			expectedCount: 0,
+		},
+		{
 			caption:        "load trace error",
 			loadQueryError: errors.New("load query error"),
 			expectedCount:  0,
@@ -356,7 +362,9 @@ func TestSpanReaderFindTraces(t *testing.T) {
 
 				makeLoadQuery := func() *mocks.Query {
 					loadQueryIter := &mocks.Iterator{}
-					loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					if !testCase.emptyTrace {
+						loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					}
 					loadQueryIter.On("Scan", mock.Anything).Return(false)
 					loadQueryIter.On("Close").Return(testCase.loadQueryError)
 

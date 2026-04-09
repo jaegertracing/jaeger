@@ -20,6 +20,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+func TestNewTraceReader(t *testing.T) {
+	reader := mocks.CoreSpanReader{}
+	tracereader := NewTraceReader(&reader)
+	require.NotNil(t, tracereader)
+}
+
 func TestGetServices(t *testing.T) {
 	services := []string{"service-1", "service-2"}
 	reader := mocks.CoreSpanReader{}
@@ -118,6 +124,24 @@ func newTraceQueryParams(t *testing.T) tracestore.TraceQueryParams {
 	}
 }
 
+func TestGetTraces_StopIteration(t *testing.T) {
+	traceID1 := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	traceID2 := cassdbmodel.TraceID{1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	spans := []cassdbmodel.Span{{TraceID: traceID1, OperationName: "op"}}
+	reader := mocks.CoreSpanReader{}
+	reader.On("GetTrace", mock.Anything, traceID1).Return(spans, nil)
+	tracereader := &TraceReader{reader: &reader}
+	var count int
+	for range tracereader.GetTraces(context.Background(),
+		tracestore.GetTraceParams{TraceID: pcommon.TraceID(traceID1)},
+		tracestore.GetTraceParams{TraceID: pcommon.TraceID(traceID2)},
+	) {
+		count++
+		break
+	}
+	require.Equal(t, 1, count)
+}
+
 func TestFindTraces(t *testing.T) {
 	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	dbTraces := []cassdbmodel.Trace{
@@ -132,6 +156,23 @@ func TestFindTraces(t *testing.T) {
 		results = append(results, batch...)
 	}
 	require.Len(t, results, 1)
+}
+
+func TestFindTraces_StopIteration(t *testing.T) {
+	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	dbTraces := []cassdbmodel.Trace{
+		{Spans: []cassdbmodel.Span{{TraceID: traceID, OperationName: "op1"}}},
+		{Spans: []cassdbmodel.Span{{TraceID: traceID, OperationName: "op2"}}},
+	}
+	reader := mocks.CoreSpanReader{}
+	reader.On("FindTraces", mock.Anything, mock.Anything).Return(dbTraces, nil)
+	tracereader := &TraceReader{reader: &reader}
+	var count int
+	for range tracereader.FindTraces(context.Background(), newTraceQueryParams(t)) {
+		count++
+		break
+	}
+	require.Equal(t, 1, count)
 }
 
 func TestFindTraces_Error(t *testing.T) {
