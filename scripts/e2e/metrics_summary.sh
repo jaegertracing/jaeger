@@ -58,18 +58,41 @@ echo "::endgroup::"
 # locally without a token) we write an empty map and the publish workflow
 # degrades gracefully (no download links, but the rest of the summary still works).
 echo "::group::Querying diff artifact IDs"
-if [ -n "${GITHUB_RUN_ID:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
-    if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
-        --jq '[.artifacts[] | select(.name | startswith("diff_metrics_snapshot_")) | {key: .name, value: .id}] | from_entries' \
-        > "$METRICS_DIR/artifact_ids.json" 2>/dev/null; then
-        echo "Artifact IDs written to $METRICS_DIR/artifact_ids.json"
-    else
-        echo "Could not query artifact IDs (OK for local runs without a token)"
-        echo '{}' > "$METRICS_DIR/artifact_ids.json"
-    fi
-else
+if [ -z "${GITHUB_RUN_ID:-}" ] || [ -z "${GITHUB_REPOSITORY:-}" ]; then
     echo "GITHUB_RUN_ID or GITHUB_REPOSITORY not set; skipping artifact ID query"
     echo '{}' > "$METRICS_DIR/artifact_ids.json"
+else
+    echo "Querying artifacts for run ${GITHUB_RUN_ID} in ${GITHUB_REPOSITORY}"
+    api_url="repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100"
+    echo "API URL: https://api.github.com/${api_url}"
+
+    api_output=$(gh api "$api_url" 2>&1)
+    api_exit=$?
+    if [ $api_exit -ne 0 ]; then
+        echo "::warning::gh api call failed (exit $api_exit) — no artifact download links will be rendered"
+        echo "gh api error output:"
+        echo "$api_output"
+        echo '{}' > "$METRICS_DIR/artifact_ids.json"
+    else
+        echo "API call succeeded; filtering diff_metrics_snapshot_* artifacts"
+        jq_output=$(echo "$api_output" | \
+            jq '[.artifacts[] | select(.name | startswith("diff_metrics_snapshot_")) | {key: .name, value: .id}] | from_entries' 2>&1)
+        jq_exit=$?
+        if [ $jq_exit -ne 0 ]; then
+            echo "::warning::jq processing failed (exit $jq_exit) — no artifact download links will be rendered"
+            echo "jq error output:"
+            echo "$jq_output"
+            echo '{}' > "$METRICS_DIR/artifact_ids.json"
+        else
+            echo "$jq_output" > "$METRICS_DIR/artifact_ids.json"
+            artifact_count=$(echo "$jq_output" | jq 'length')
+            echo "Artifact IDs written to $METRICS_DIR/artifact_ids.json (${artifact_count} diff artifact(s) found)"
+            if [ "${artifact_count}" -gt 0 ]; then
+                echo "Artifact ID map:"
+                echo "$jq_output" | jq '.'
+            fi
+        fi
+    fi
 fi
 echo "::endgroup::"
 

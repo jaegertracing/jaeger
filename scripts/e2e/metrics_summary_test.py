@@ -22,8 +22,8 @@ _DIFF_WITH_ALL_CATEGORIES = """\
 -http_server_duration{le="+Inf"}
 +current_only{job="b"}
 +http_server_duration{http_route="/status",le="+Inf"}
-# Metrics excluded from current: 2
 # Metrics excluded from baseline: 3
+# Metrics excluded from current: 2
 """
 
 # A diff with only added metrics (present in current, absent from baseline).

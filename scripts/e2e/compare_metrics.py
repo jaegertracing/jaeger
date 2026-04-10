@@ -111,7 +111,7 @@ def parse_metrics(content):
     return metrics,metrics_exclusion_count
 
 
-def generate_diff(current_content, baseline_content):
+def generate_diff(baseline_content, current_content):
     """Compare two Prometheus metrics snapshots and return a unified diff of metric names.
 
     The input files are raw Prometheus text exposition format, scraped directly from
@@ -136,18 +136,18 @@ def generate_diff(current_content, baseline_content):
         - lines  = present in baseline but absent from current → regression/removed
         + lines  = present in current but absent from baseline → newly added
     followed by optional comment lines reporting how many metrics were excluded, e.g.:
-        # Metrics excluded from current: 3
-        # Metrics excluded from baseline: 5
+        # Metrics excluded from baseline: 3
+        # Metrics excluded from current: 5
     These comment lines (prefixed with `# `) are appended only when the diff is
     non-empty; they are informational context, not metric differences themselves.
     """
-    if isinstance(current_content, list):
-        current_content = ''.join(current_content)
     if isinstance(baseline_content, list):
         baseline_content = ''.join(baseline_content)
+    if isinstance(current_content, list):
+        current_content = ''.join(current_content)
 
-    current_metrics, excluded_count_current = parse_metrics(current_content)
     baseline_metrics, excluded_count_baseline = parse_metrics(baseline_content)
+    current_metrics, excluded_count_current = parse_metrics(current_content)
 
     # unified_diff(baseline, current): - = in baseline but not current (removed/regression),
     #                                  + = in current but not baseline (newly added).
@@ -160,11 +160,11 @@ def generate_diff(current_content, baseline_content):
     if len(diff) == 0:
         return ''
 
-    total_excluded = excluded_count_current + excluded_count_baseline
+    total_excluded = excluded_count_baseline + excluded_count_current
 
     exclusion_lines = ''
     if total_excluded > 0:
-        exclusion_lines = f'\n# Metrics excluded from current: {excluded_count_current}\n# Metrics excluded from baseline: {excluded_count_baseline}'
+        exclusion_lines = f'\n# Metrics excluded from baseline: {excluded_count_baseline}\n# Metrics excluded from current: {excluded_count_current}'
 
     return '\n'.join(diff) + exclusion_lines
 
@@ -185,11 +185,11 @@ def main():
     args = parser.parse_args()
 
     # Read input files
-    current_lines = read_metric_file(args.current)
     baseline_lines = read_metric_file(args.baseline)
+    current_lines = read_metric_file(args.current)
 
     # Generate diff
-    diff_lines = generate_diff(current_lines, baseline_lines)
+    diff_lines = generate_diff(baseline_lines, current_lines)
 
     # Check if there are any differences
     if diff_lines:
