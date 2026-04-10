@@ -138,23 +138,24 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		StartTime: int64(model.TimeAsEpochMicroseconds(startTime)),
 		//nolint:gosec // G115 // span.EndTime - span.StartTime is guaranteed non-negative by schema constraints
 		Duration: int64(model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime))),
-		Tags:     getDbTags(span, scope),
+		Tags:     getDbTags(span),
 		Logs:     spanEventsToDbLogs(span.Events()),
 		Process:  process,
 		//nolint:gosec // G115 // span.Flags is uint32, converting to int32 for DB storage (semantically non-negative, fits in int32)
-		Flags:       int32(span.Flags()),
-		ServiceName: process.ServiceName,
-		ParentID:    spanIDToDbSpanId(span.ParentSpanID()),
+		Flags:        int32(span.Flags()),
+		ServiceName:  process.ServiceName,
+		ParentID:     spanIDToDbSpanId(span.ParentSpanID()),
+		ScopeName:    scope.Name(),
+		ScopeVersion: scope.Version(),
+		TraceState:   span.TraceState().AsRaw(),
 	}
 }
 
-func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+func getDbTags(span ptrace.Span) []dbmodel.KeyValue {
 	var spanKindTag, statusCodeTag, statusMsgTag dbmodel.KeyValue
 	var spanKindTagFound, statusCodeTagFound, statusMsgTagFound bool
 
-	libraryTags, libraryTagsFound := getTagsFromInstrumentationLibrary(scope)
-
-	tagsCount := span.Attributes().Len() + len(libraryTags)
+	tagsCount := span.Attributes().Len()
 
 	spanKindTag, spanKindTagFound = getTagFromSpanKind(span.Kind())
 	if spanKindTagFound {
@@ -171,19 +172,11 @@ func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.K
 		tagsCount++
 	}
 
-	traceStateTags, traceStateTagsFound := getTagsFromTraceState(span.TraceState().AsRaw())
-	if traceStateTagsFound {
-		tagsCount += len(traceStateTags)
-	}
-
 	if tagsCount == 0 {
 		return nil
 	}
 
 	tags := make([]dbmodel.KeyValue, 0, tagsCount)
-	if libraryTagsFound {
-		tags = append(tags, libraryTags...)
-	}
 	tags = appendTagsFromAttributes(tags, span.Attributes())
 	if spanKindTagFound {
 		tags = append(tags, spanKindTag)
@@ -193,9 +186,6 @@ func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.K
 	}
 	if statusMsgTagFound {
 		tags = append(tags, statusMsgTag)
-	}
-	if traceStateTagsFound {
-		tags = append(tags, traceStateTags...)
 	}
 	return tags
 }
@@ -240,9 +230,11 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID int64, traceID d
 			continue
 		}
 		refs = append(refs, dbmodel.SpanRef{
-			TraceID: linkTraceID,
-			SpanID:  linkSpanID,
-			RefType: linkRefType,
+			TraceID:    linkTraceID,
+			SpanID:     linkSpanID,
+			RefType:    linkRefType,
+			TraceState: link.TraceState().AsRaw(),
+			Tags:       appendTagsFromAttributes(nil, link.Attributes()),
 		})
 	}
 
@@ -330,43 +322,6 @@ func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
 		ValueString: statusMsg,
 		ValueType:   dbmodel.StringType,
 	}, true
-}
-
-func getTagsFromTraceState(traceState string) ([]dbmodel.KeyValue, bool) {
-	var keyValues []dbmodel.KeyValue
-	exists := traceState != ""
-	if exists {
-		// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
-		kv := dbmodel.KeyValue{
-			Key:         tagW3CTraceState,
-			ValueString: traceState,
-			ValueType:   dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-	return keyValues, exists
-}
-
-func getTagsFromInstrumentationLibrary(scope pcommon.InstrumentationScope) ([]dbmodel.KeyValue, bool) {
-	var keyValues []dbmodel.KeyValue
-	if ilName := scope.Name(); ilName != "" {
-		kv := dbmodel.KeyValue{
-			Key:         otelsemconv.AttributeOtelScopeName,
-			ValueString: ilName,
-			ValueType:   dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-	if ilVersion := scope.Version(); ilVersion != "" {
-		kv := dbmodel.KeyValue{
-			Key:         otelsemconv.AttributeOtelScopeVersion,
-			ValueString: ilVersion,
-			ValueType:   dbmodel.StringType,
-		}
-		keyValues = append(keyValues, kv)
-	}
-
-	return keyValues, len(keyValues) > 0
 }
 
 func dbRefTypeFromLink(link ptrace.SpanLink) string {

@@ -43,6 +43,7 @@ type Span struct {
 	SpanHash      int64
 	ScopeName     string
 	ScopeVersion  string
+	TraceState    string
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
