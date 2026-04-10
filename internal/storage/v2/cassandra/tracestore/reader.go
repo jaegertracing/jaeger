@@ -36,7 +36,7 @@ func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetT
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, id := range traceIDs {
 			// pcommon.TraceID and cassdbmodel.TraceID are both [16]byte with same byte layout
-			spans, err := r.reader.GetTrace(ctx, cassdbmodel.TraceID(id.TraceID))
+			spans, err := r.reader.ReadTraceDB(ctx, cassdbmodel.TraceID(id.TraceID))
 			if err != nil {
 				yield(nil, err)
 				return

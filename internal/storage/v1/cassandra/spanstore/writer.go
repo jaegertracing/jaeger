@@ -25,8 +25,8 @@ const (
 	insertSpan = `
 		INSERT
 		INTO traces(trace_id, span_id, span_hash, parent_id, operation_name, flags,
-				    start_time, duration, tags, logs, refs, process)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				    start_time, duration, tags, logs, refs, process, scope_name, scope_version, trace_state)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	serviceNameIndex = `
 		INSERT
@@ -130,22 +130,29 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
+func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
+	return s.WriteDBSpan(ctx, ds)
+}
+
+// WriteDBSpan saves the dbmodel.Span into Cassandra. This is a hook for V2 storage.
+func (s *SpanWriter) WriteDBSpan(_ context.Context, ds *dbmodel.Span) error {
 	if s.storageMode&storeFlag == storeFlag {
-		if err := s.writeSpanToDB(span, ds); err != nil {
+		if err := s.writeDBSpanToDB(ds); err != nil {
 			return err
 		}
 	}
 	if s.storageMode&indexFlag == indexFlag {
-		if err := s.writeIndexes(span, ds); err != nil {
+		// Attempt to index based on the DB model. Note: This assumes some fields are already populated in ds
+		// like ServiceName which is used in indexing.
+		if err := s.writeIndexesFromDB(ds); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeDBSpanToDB(ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,
@@ -160,11 +167,65 @@ func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
 		ds.Logs,
 		ds.Refs,
 		ds.Process,
+		ds.ScopeName,
+		ds.ScopeVersion,
+		ds.TraceState,
 	)
 	if err := s.writerMetrics.traces.Exec(mainQuery, s.logger); err != nil {
 		return s.logError(ds, err, "Failed to insert span", s.logger)
 	}
 	return nil
+}
+
+func (s *SpanWriter) writeIndexesFromDB(ds *dbmodel.Span) error {
+	spanKind := ""
+	for _, tag := range ds.Tags {
+		if tag.Key == model.SpanKindKey {
+			spanKind = tag.ValueString
+			break
+		}
+	}
+
+	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
+		ServiceName:   ds.ServiceName,
+		SpanKind:      spanKind,
+		OperationName: ds.OperationName,
+	}); err != nil {
+		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
+	}
+
+	if s.indexFilter(ds, dbmodel.ServiceIndex) {
+		if err := s.indexByService(ds); err != nil {
+			return s.logError(ds, err, "Failed to index service name", s.logger)
+		}
+	}
+
+	if s.indexFilter(ds, dbmodel.OperationIndex) {
+		if err := s.indexByOperation(ds); err != nil {
+			return s.logError(ds, err, "Failed to index operation name", s.logger)
+		}
+	}
+
+	if ds.Flags&int32(model.FirehoseFlag) != 0 {
+		return nil // skipping expensive indexing
+	}
+
+	if err := s.indexByTags(ds); err != nil {
+		return s.logError(ds, err, "Failed to index tags", s.logger)
+	}
+
+	if s.indexFilter(ds, dbmodel.DurationIndex) {
+		// Convert StartTime (microseconds) back to time.Time for duration indexing
+		startTime := time.Unix(0, ds.StartTime*1000)
+		if err := s.indexByDuration(ds, startTime); err != nil {
+			return s.logError(ds, err, "Failed to index duration", s.logger)
+		}
+	}
+	return nil
+}
+
+func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
+	return s.writeDBSpanToDB(ds)
 }
 
 func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {

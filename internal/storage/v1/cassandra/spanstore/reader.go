@@ -28,7 +28,7 @@ import (
 const (
 	bucketRange        = `(0,1,2,3,4,5,6,7,8,9)`
 	querySpanByTraceID = `
-		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process
+		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process, scope_name, scope_version, trace_state
 		FROM traces
 		WHERE trace_id = ?`
 	queryByTag = `
@@ -104,6 +104,7 @@ type CoreSpanReader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 	GetTrace(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)
+	ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)
 	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error)
 	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error)
 }
@@ -184,7 +185,8 @@ func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID)
 	var tags []dbmodel.KeyValue
 	var logs []dbmodel.Log
 	var spans []dbmodel.Span
-	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess) {
+	var scopeName, scopeVersion, traceState string
+	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess, &scopeName, &scopeVersion, &traceState) {
 		spans = append(spans, dbmodel.Span{
 			TraceID:       traceIDFromSpan,
 			SpanID:        spanID,
@@ -198,6 +200,9 @@ func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID)
 			Refs:          refs,
 			Process:       dbProcess,
 			ServiceName:   dbProcess.ServiceName,
+			ScopeName:     scopeName,
+			ScopeVersion:  scopeVersion,
+			TraceState:    traceState,
 		})
 	}
 
@@ -211,6 +216,12 @@ func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID)
 
 // GetTrace takes a traceID and returns the spans associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
+	return s.readTrace(ctx, traceID)
+}
+
+// ReadTraceDB takes a traceID and returns the spans associated with that traceID.
+// This is a hook for V2 storage.
+func (s *SpanReader) ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
 	return s.readTrace(ctx, traceID)
 }
 

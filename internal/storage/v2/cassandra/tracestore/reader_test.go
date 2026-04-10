@@ -74,7 +74,7 @@ func TestGetTraces(t *testing.T) {
 	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	spans := []cassdbmodel.Span{{TraceID: traceID, OperationName: "op"}}
 	reader := mocks.CoreSpanReader{}
-	reader.On("GetTrace", mock.Anything, traceID).Return(spans, nil)
+	reader.On("ReadTraceDB", mock.Anything, traceID).Return(spans, nil)
 	tracereader := &TraceReader{reader: &reader}
 	var results []ptrace.Traces
 	for batch, err := range tracereader.GetTraces(context.Background(), tracestore.GetTraceParams{
@@ -89,7 +89,7 @@ func TestGetTraces(t *testing.T) {
 func TestGetTraces_NotFound(t *testing.T) {
 	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	reader := mocks.CoreSpanReader{}
-	reader.On("GetTrace", mock.Anything, traceID).Return([]cassdbmodel.Span(nil), nil)
+	reader.On("ReadTraceDB", mock.Anything, traceID).Return([]cassdbmodel.Span(nil), nil)
 	tracereader := &TraceReader{reader: &reader}
 	var count int
 	for _, err := range tracereader.GetTraces(context.Background(), tracestore.GetTraceParams{
@@ -104,7 +104,7 @@ func TestGetTraces_NotFound(t *testing.T) {
 func TestGetTraces_Error(t *testing.T) {
 	traceID := cassdbmodel.TraceID{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	reader := mocks.CoreSpanReader{}
-	reader.On("GetTrace", mock.Anything, traceID).Return([]cassdbmodel.Span(nil), errors.New("storage error"))
+	reader.On("ReadTraceDB", mock.Anything, traceID).Return([]cassdbmodel.Span(nil), errors.New("storage error"))
 	tracereader := &TraceReader{reader: &reader}
 	for _, err := range tracereader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: pcommon.TraceID(traceID),
@@ -129,7 +129,7 @@ func TestGetTraces_StopIteration(t *testing.T) {
 	traceID2 := cassdbmodel.TraceID{1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	spans := []cassdbmodel.Span{{TraceID: traceID1, OperationName: "op"}}
 	reader := mocks.CoreSpanReader{}
-	reader.On("GetTrace", mock.Anything, traceID1).Return(spans, nil)
+	reader.On("ReadTraceDB", mock.Anything, traceID1).Return(spans, nil)
 	tracereader := &TraceReader{reader: &reader}
 	var count int
 	for range tracereader.GetTraces(context.Background(),
