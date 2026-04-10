@@ -94,6 +94,12 @@ type spanReaderMetrics struct {
 	queryServiceNameIndex      *casmetrics.Table
 }
 
+// CoreSpanReader is the primary Cassandra span reader that returns raw database
+// model types (dbmodel.*) without any conversion to external API types. It serves
+// as the foundation for the v2 tracestore.TraceReader, which wraps CoreSpanReader
+// and converts dbmodel types directly to OTLP (ptrace.*) via FromDBModel.
+//
+// This mirrors the pattern used by the Elasticsearch storage backend.
 type CoreSpanReader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
@@ -102,6 +108,10 @@ type CoreSpanReader interface {
 	ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)
 	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error)
 	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error)
+	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
+	GetTrace(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)
+	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error)
+	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error)
 }
 
 // SpanReader can query for and load traces from Cassandra.
@@ -150,28 +160,21 @@ func (s *SpanReader) GetServices(context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (*SpanReader) GetOperations(
-	_ context.Context,
-	_ spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
-	return nil, errors.New("not implemented")
-}
-
-func (s *SpanReader) GetOperationsV2(
+func (s *SpanReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
 	return s.operationNamesReader(query)
 }
 
-func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
+func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
 	ctx, span := s.startSpanForQuery(ctx, "readTrace", querySpanByTraceID)
 	defer span.End()
 	span.SetAttributes(attribute.Key("trace_id").String(traceID.String()))
 
-	trc, err := s.readTraceInSpan(ctx, traceID)
+	spans, err := s.readTraceInSpan(ctx, traceID)
 	logErrorToSpan(span, err)
-	return trc, err
+	return spans, err
 }
 
 func (s *SpanReader) ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
@@ -185,6 +188,7 @@ func (s *SpanReader) ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) (
 }
 
 func (s *SpanReader) readTraceInSpanDB(_ context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
+func (s *SpanReader) readTraceInSpan(_ context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
 	start := time.Now()
 	q := s.session.Query(querySpanByTraceID, traceID)
 	i := q.Iter()
@@ -199,6 +203,9 @@ func (s *SpanReader) readTraceInSpanDB(_ context.Context, traceID dbmodel.TraceI
 	var retMe []dbmodel.Span
 	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess, &scopeName, &scopeVersion) {
 		dbSpan := dbmodel.Span{
+	var spans []dbmodel.Span
+	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess) {
+		spans = append(spans, dbmodel.Span{
 			TraceID:       traceIDFromSpan,
 			SpanID:        spanID,
 			ParentID:      parentID,
@@ -215,6 +222,7 @@ func (s *SpanReader) readTraceInSpanDB(_ context.Context, traceID dbmodel.TraceI
 			ScopeVersion:  scopeVersion,
 		}
 		retMe = append(retMe, dbSpan)
+		})
 	}
 
 	err := i.Close()
@@ -247,6 +255,12 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, query spanstore.GetTraceParameters) (*model.Trace, error) {
 	return s.readTrace(ctx, dbmodel.TraceIDFromDomain(query.TraceID))
+	return spans, nil
+}
+
+// GetTrace takes a traceID and returns the spans associated with that traceID
+func (s *SpanReader) GetTrace(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
+	return s.readTrace(ctx, traceID)
 }
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {
@@ -272,25 +286,28 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error) {
+	dbTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
-	var retMe []*model.Trace
-	for _, traceID := range uniqueTraceIDs {
-		jTrace, err := s.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: traceID})
+	var traces []dbmodel.Trace
+	for _, traceID := range dbTraceIDs {
+		spans, err := s.GetTrace(ctx, traceID)
 		if err != nil {
 			s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
 			continue
 		}
-		retMe = append(retMe, jTrace)
+		if len(spans) == 0 {
+			continue
+		}
+		traces = append(traces, dbmodel.Trace{Spans: spans})
 	}
-	return retMe, nil
+	return traces, nil
 }
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery
-func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
 	}
@@ -303,12 +320,12 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		return nil, err
 	}
 
-	var traceIDs []model.TraceID
+	var traceIDs []dbmodel.TraceID
 	for t := range dbTraceIDs {
 		if len(traceIDs) >= traceQuery.NumTraces {
 			break
 		}
-		traceIDs = append(traceIDs, t.ToDomain())
+		traceIDs = append(traceIDs, t)
 	}
 	return traceIDs, nil
 }

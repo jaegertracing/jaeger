@@ -184,6 +184,11 @@ func (t TagInsertion) String() string {
 	return buffer.String()
 }
 
+// Trace is a collection of spans with the same trace ID.
+type Trace struct {
+	Spans []Span
+}
+
 // TraceIDFromDomain converts domain TraceID into serializable DB representation.
 func TraceIDFromDomain(traceID model.TraceID) TraceID {
 	dbTraceID := TraceID{}

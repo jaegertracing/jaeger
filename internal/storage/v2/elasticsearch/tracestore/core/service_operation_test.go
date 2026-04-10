@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package spanstore
+package core
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 func TestWriteService(t *testing.T) {

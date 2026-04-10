@@ -50,7 +50,7 @@ jobs:
         esac
     - name: Install kubectl
       if: matrix.runtime == 'k8s'
-      uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4
+      uses: azure/setup-kubectl@15650b3ad78fff148532a140b8a4c821796b2d7b # v5
       with:
         version: 'latest'
   
