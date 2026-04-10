@@ -3,22 +3,24 @@
 # Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Enable debug tracing and exit on error
-set -exo pipefail
+# Exit on error, treat unset variables as errors, fail on pipe errors.
+set -eo pipefail
 
 METRICS_DIR="${METRICS_DIR:-./.artifacts}"
 declare -a summary_files=()
 declare -a json_files=()
 total_changes=0
 
+echo "::group::Metrics diff setup"
 echo "Starting metrics diff processing in directory: $METRICS_DIR"
 echo "Directory structure:"
 ls -la "$METRICS_DIR" || echo "Metrics directory listing failed"
+echo "::endgroup::"
 
 # Verify 1-to-1: every metrics_snapshot_* artifact must have a diff_metrics_snapshot_* artifact.
 # verify-metrics-snapshot always uploads a diff artifact on PRs (empty stub if no baseline),
 # so a missing diff dir means that action never ran for that snapshot — an infra failure.
-echo "=== Checking for missing diff artifacts ==="
+echo "::group::Checking for missing diff artifacts"
 declare -a missing_diffs=()
 found_any_snapshot=false
 for snapshot_dir in "$METRICS_DIR"/metrics_snapshot_*/; do
@@ -41,12 +43,14 @@ if [ ${#missing_diffs[@]} -gt 0 ]; then
 else
     echo "INFRA_ERRORS=false" >> "$GITHUB_OUTPUT"
 fi
+echo "::endgroup::"
 
 # Debug: List all diff files found
-echo "=== Searching for diff files ==="
+echo "::group::Searching for diff files"
 find "$METRICS_DIR" -type f -name "diff_*.txt" | while read -r file; do
     echo "Found diff file: $file"
 done
+echo "::endgroup::"
 
 # Process all non-empty diff files.
 # Empty diff files are stubs uploaded by verify-metrics-snapshot when there is no
@@ -74,11 +78,12 @@ while IFS= read -r -d '' diff_file; do
     summary_file="$dir/summary_$snapshot_name.md"
     json_file="$dir/changes_$snapshot_name.json"
 
-    echo "Generating summary for $snapshot_name"
+    echo "::group::Generating summary for $snapshot_name"
     python3 ./scripts/e2e/metrics_summary.py \
         --diff "$diff_file" \
         --output "$summary_file" \
         --json-output "$json_file"
+    echo "::endgroup::"
 
     summary_files+=("$summary_file")
     json_files+=("$json_file")
@@ -152,10 +157,11 @@ if [ "$total_changes" -gt 0 ]; then
     echo ""
     for summary_file in "${summary_files[@]}"; do
         file_name=$(basename "$summary_file" .md)
-        echo "--- ${file_name} ---"
+        echo "::group::${file_name}"
         echo ""
         cat "$summary_file"
         echo ""
+        echo "::endgroup::"
     done
 elif [ ${#missing_diffs[@]} -gt 0 ]; then
     echo "No metric changes in available diffs, but some diff artifacts were missing (see above)."

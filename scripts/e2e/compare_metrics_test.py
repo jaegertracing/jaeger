@@ -54,11 +54,11 @@ class TestGenerateDiff(unittest.TestCase):
 
     def test_regression_detected(self):
         """Metric present in baseline but absent from current snapshot → diff is non-empty."""
-        # current=A only, baseline=A+B → B is missing from current (regression)
+        # current=A only, baseline=A+B → B is missing from current (regression/removed)
         result = generate_diff(_METRIC_A, _METRIC_A + _METRIC_B)
         self.assertNotEqual(result, '', 'Expected a non-empty diff for a regression')
-        # The diff must contain a '+' line for the missing metric (counter_b)
-        self.assertIn('+counter_b', result)
+        # '-' line = in baseline but not in current (regression)
+        self.assertIn('-counter_b', result)
 
     def test_new_metric_in_current_snapshot_produces_diff(self):
         """Metric present in current snapshot but absent from baseline → diff is non-empty.
@@ -68,11 +68,11 @@ class TestGenerateDiff(unittest.TestCase):
         Silently ignoring new metrics would mask intermittent behaviour where a
         metric alternates between appearing and disappearing across runs.
         """
-        # current=A+B, baseline=A only → B is new in current
+        # current=A+B, baseline=A only → B is new in current (newly added)
         result = generate_diff(_METRIC_A + _METRIC_B, _METRIC_A)
         self.assertNotEqual(result, '', 'New metrics in current snapshot should produce a diff')
-        # '-' line = in current but not in baseline
-        self.assertIn('-counter_b', result)
+        # '+' line = in current but not in baseline (newly added)
+        self.assertIn('+counter_b', result)
 
     def test_exclusion_count_difference_does_not_produce_diff(self):
         """Snapshots that differ only in excluded-metric counts produce no diff.
@@ -92,12 +92,13 @@ class TestGenerateDiff(unittest.TestCase):
 
     def test_mixed_regression_and_new_metric_returns_diff(self):
         """When there is both a regression AND a new metric, the diff is non-empty."""
-        # current=B only, baseline=A only → A is missing (regression), B is new
+        # current=B only, baseline=A only → A is missing (regression/removed), B is new (added)
         result = generate_diff(_METRIC_B, _METRIC_A)
         self.assertNotEqual(result, '')
-        self.assertIn('+counter_a', result)
-        # The new metric should still appear in the raw diff output for visibility
-        self.assertIn('-counter_b', result)
+        # '-' line = in baseline but not in current (regression)
+        self.assertIn('-counter_a', result)
+        # '+' line = in current but not in baseline (newly added)
+        self.assertIn('+counter_b', result)
 
     def test_regression_with_exclusions_includes_exclusion_summary(self):
         """When there is a regression and excluded metrics, the output includes counts."""

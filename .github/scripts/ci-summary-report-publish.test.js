@@ -285,14 +285,23 @@ describe('formatMetricsDetail', () => {
     expect(detail).toContain('3 removed');
   });
 
-  test('omits zero counts from summary line', () => {
+  test('includes link to CI run when ciRunUrl provided', () => {
     const detail = formatMetricsDetail([{
-      snapshot: 'test', added: 0, removed: 5, modified: 0,
-      metric_names: [],
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+    }], 'https://github.com/org/repo/actions/runs/123');
+    expect(detail).toContain('[CI run](https://github.com/org/repo/actions/runs/123)');
+    expect(detail).toContain('Compare metrics and generate summary');
+  });
+
+  test('omits CI run link when ciRunUrl not provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
     }]);
-    expect(detail).not.toContain('added');
-    expect(detail).toContain('5 removed');
-    expect(detail).not.toContain('modified');
+    expect(detail).not.toContain('[CI run]');
   });
 });
 
@@ -419,6 +428,18 @@ describe('buildCommentBody', () => {
     const coveragePos = body.indexOf('### Code Coverage');
     expect(metricsPos).toBeLessThan(detailsPos);
     expect(detailsPos).toBeLessThan(coveragePos);
+  });
+
+  test('includes CI run link in metrics detail when ciRunUrl provided', () => {
+    const snapshots = [{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+    }];
+    const ciRunUrl = 'https://github.com/org/repo/actions/runs/999';
+    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, ciRunUrl });
+    expect(body).toContain(`[CI run](${ciRunUrl})`);
+    expect(body).toContain('Compare metrics and generate summary');
   });
 });
 

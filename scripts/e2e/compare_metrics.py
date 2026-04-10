@@ -132,6 +132,9 @@ def generate_diff(file1_content, file2_content):
     The diff is performed on these sorted, value-free metric strings.  If the two
     snapshots produce the same set of strings the diff is empty and this function
     returns ''.  When there are differences, the return value is a unified diff
+    using the standard convention:
+        - lines  = present in file2 (baseline) but absent from file1 (current) → regression/removed
+        + lines  = present in file1 (current) but absent from file2 (baseline) → newly added
     followed by optional comment lines reporting how many metrics were excluded, e.g.:
         # Metrics excluded from A: 3
         # Metrics excluded from B: 5
@@ -146,7 +149,9 @@ def generate_diff(file1_content, file2_content):
     metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
     metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
 
-    diff = list(unified_diff(metrics1, metrics2, lineterm='', n=0))
+    # unified_diff(baseline, current): - = in baseline but not current (removed/regression),
+    #                                  + = in current but not baseline (newly added).
+    diff = list(unified_diff(metrics2, metrics1, lineterm='', n=0))
 
     # Exclusion counts are informational context appended to the diff output.
     # They must not be written when the diff itself is empty: two snapshots with

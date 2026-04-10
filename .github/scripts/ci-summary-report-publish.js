@@ -158,9 +158,10 @@ function computeCoverage(s) {
  * All text is built from trusted templates; metric names have been validated
  * through sanitizeMetricName() and are rendered in backtick-code spans.
  * @param {Array|null} snapshots - Sanitized snapshots from computeMetrics
+ * @param {string} [ciRunUrl] - URL to the CI run for linking to detailed diff logs
  * @returns {string} - Markdown detail block, or empty string if no data
  */
-function formatMetricsDetail(snapshots) {
+function formatMetricsDetail(snapshots, ciRunUrl) {
   if (!snapshots || snapshots.length === 0) return '';
 
   const lines = [
@@ -169,6 +170,11 @@ function formatMetricsDetail(snapshots) {
     '<summary>View changed metrics</summary>',
     '',
   ];
+
+  if (ciRunUrl) {
+    lines.push(`_For label-level diff details, open the [CI run](${ciRunUrl}) and expand the "Compare metrics and generate summary" step logs._`);
+    lines.push('');
+  }
 
   for (const snap of snapshots) {
     lines.push(`**${snap.snapshot}**`);
@@ -201,9 +207,10 @@ function formatMetricsDetail(snapshots) {
  * @param {string} footer - links + timestamp line
  * @param {object} [opts]
  * @param {Array|null} [opts.metricsSnapshots] - sanitized snapshot data for detail rendering
+ * @param {string} [opts.ciRunUrl] - URL to the CI run, passed through to formatMetricsDetail
  * @returns {string}
  */
-function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots } = {}) {
+function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots, ciRunUrl } = {}) {
   const parts = [
     COMMENT_TAG,
     '## CI Summary Report',
@@ -212,7 +219,7 @@ function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots 
     metricsText,
   ];
 
-  const detail = formatMetricsDetail(metricsSnapshots);
+  const detail = formatMetricsDetail(metricsSnapshots, ciRunUrl);
   if (detail) {
     parts.push(detail);
   }
@@ -349,7 +356,7 @@ async function handler({ github, core, fs, inputs }) {
     // after a green run.  Only create a new comment when there is something to report.
     const hasIssues = metrics.conclusion === 'failure' || coverage.conclusion === 'failure'
                       || metrics.totalChanges > 0;
-    const body = buildCommentBody(metrics.text, coverage.text, footer, { metricsSnapshots: metrics.snapshots });
+    const body = buildCommentBody(metrics.text, coverage.text, footer, { metricsSnapshots: metrics.snapshots, ciRunUrl });
     await postOrUpdateComment(github, owner, repo, prNumber, body, core, { createNew: hasIssues });
   } else {
     core.info('No PR number; skipping PR comment.');
