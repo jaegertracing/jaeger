@@ -16,6 +16,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+// TraceReader is a V2 storage reader for Cassandra.
+// It wraps a V1 CoreSpanReader and performs direct conversion from database models
+// to OTLP ptrace.Traces.
 type TraceReader struct {
 	reader spanstore.CoreSpanReader
 }
@@ -32,6 +35,7 @@ func (r *TraceReader) GetOperations(ctx context.Context, query tracestore.Operat
 	return r.reader.GetOperations(ctx, query)
 }
 
+// GetTraces retrieves batches of traces by their IDs.
 func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, id := range traceIDs {
@@ -52,6 +56,7 @@ func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetT
 	}
 }
 
+// FindTraces retrieves traces that match the given query parameters.
 func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces, err := r.reader.FindTraces(ctx, v1adapter.GetV1QueryParameters(query))
@@ -68,6 +73,7 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
+// FindTraceIDs retrieves trace IDs that match the given query parameters.
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
 		dbIDs, err := r.reader.FindTraceIDs(ctx, v1adapter.GetV1QueryParameters(query))

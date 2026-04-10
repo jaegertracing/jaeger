@@ -135,8 +135,9 @@ func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	return s.WriteDBSpan(ctx, ds)
 }
 
-// WriteDBSpan saves the dbmodel.Span into Cassandra. This is a hook for V2 storage.
-func (s *SpanWriter) WriteDBSpan(_ context.Context, ds *dbmodel.Span) error {
+// WriteDBSpan saves a pre-converted dbmodel.Span into Cassandra.
+// This is a high-performance hook for the V2 storage engine to bypass the model.Trace layer.
+func (s *SpanWriter) WriteDBSpan(ctx context.Context, ds *dbmodel.Span) error {
 	if s.storageMode&storeFlag == storeFlag {
 		if err := s.writeDBSpanToDB(ds); err != nil {
 			return err

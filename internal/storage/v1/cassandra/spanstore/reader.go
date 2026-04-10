@@ -219,8 +219,8 @@ func (s *SpanReader) GetTrace(ctx context.Context, traceID dbmodel.TraceID) ([]d
 	return s.readTrace(ctx, traceID)
 }
 
-// ReadTraceDB takes a traceID and returns the spans associated with that traceID.
-// This is a hook for V2 storage.
+// ReadTraceDB takes a traceID and returns the spans associated with that traceID in database model format.
+// This is a high-performance hook for the V2 storage engine to bypass the model.Trace layer.
 func (s *SpanReader) ReadTraceDB(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error) {
 	return s.readTrace(ctx, traceID)
 }
