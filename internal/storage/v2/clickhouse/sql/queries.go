@@ -270,17 +270,14 @@ SELECT
 FROM
     attribute_metadata`
 
-const TruncateSpans = `TRUNCATE TABLE IF EXISTS spans`
-
-const TruncateServices = `TRUNCATE TABLE IF EXISTS services`
-
-const TruncateOperations = `TRUNCATE TABLE IF EXISTS operations`
-
-const TruncateTraceIDTimestamps = `TRUNCATE TABLE IF EXISTS trace_id_timestamps`
-
-const TruncateAttributeMetadata = `TRUNCATE TABLE IF EXISTS attribute_metadata`
-
-const TruncateDependencies = `TRUNCATE TABLE IF EXISTS dependencies`
+const (
+	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
+	TruncateServices          = `TRUNCATE TABLE IF EXISTS services`
+	TruncateOperations        = `TRUNCATE TABLE IF EXISTS operations`
+	TruncateTraceIDTimestamps = `TRUNCATE TABLE IF EXISTS trace_id_timestamps`
+	TruncateAttributeMetadata = `TRUNCATE TABLE IF EXISTS attribute_metadata`
+	TruncateDependencies      = `TRUNCATE TABLE IF EXISTS dependencies`
+)
 
 const SelectDependencies = `
 SELECT
