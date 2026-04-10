@@ -168,6 +168,13 @@ func TestNewFactory_Errors(t *testing.T) {
 			},
 			expectedError: "failed to create link attribute metadata materialized view",
 		},
+		{
+			name: "dependencies table creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateDependenciesTable: assert.AnError,
+			},
+			expectedError: "failed to create dependencies table",
+		},
 	}
 
 	for _, tt := range tests {
@@ -231,6 +238,13 @@ func TestPurge(t *testing.T) {
 				sql.TruncateAttributeMetadata: assert.AnError,
 			},
 			expectedError: "failed to purge attribute_metadata",
+		},
+		{
+			name: "truncate dependencies table error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.TruncateDependencies: assert.AnError,
+			},
+			expectedError: "failed to purge dependencies",
 		},
 	}
 
