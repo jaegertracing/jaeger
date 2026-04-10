@@ -18,7 +18,9 @@ CREATE TYPE IF NOT EXISTS {{.Keyspace}}.log (
 CREATE TYPE IF NOT EXISTS {{.Keyspace}}.span_ref (
     ref_type        text,
     trace_id        blob,
-    span_id         bigint
+    span_id         bigint,
+    trace_state     text,
+    tags            frozen<list<frozen<{{.Keyspace}}.keyvalue>>>
 );
 
 CREATE TYPE IF NOT EXISTS {{.Keyspace}}.process (
@@ -35,6 +37,8 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.traces (
     span_hash       bigint,
     parent_id       bigint,
     operation_name  text,
+    scope_name      text,
+    scope_version   text,
     flags           int,
     start_time      bigint, -- microseconds since epoch
     duration        bigint, -- microseconds
