@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS {{.Keyspace}}.traces (
     operation_name  text,
     scope_name      text,
     scope_version   text,
+    trace_state     text,
     flags           int,
     start_time      bigint, -- microseconds since epoch
     duration        bigint, -- microseconds

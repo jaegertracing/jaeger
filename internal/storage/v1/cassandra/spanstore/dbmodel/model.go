@@ -44,6 +44,7 @@ type Span struct {
 	SpanHash      int64
 	ScopeName     string
 	ScopeVersion  string
+	TraceState    string
 }
 
 // Hash implements Hash from Hashable.
