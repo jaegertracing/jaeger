@@ -40,6 +40,8 @@ jobs:
 
       - name: Compare metrics and generate summary
         id: compare-metrics
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: bash ./scripts/e2e/metrics_summary.sh
 

@@ -52,6 +52,27 @@ find "$METRICS_DIR" -type f -name "diff_*.txt" | while read -r file; do
 done
 echo "::endgroup::"
 
+# Query artifact IDs for all diff_metrics_snapshot_* artifacts in this run.
+# These IDs are used by the publish workflow to render direct download links
+# in the PR comment. The query is optional: if it fails (e.g. when running
+# locally without a token) we write an empty map and the publish workflow
+# degrades gracefully (no download links, but the rest of the summary still works).
+echo "::group::Querying diff artifact IDs"
+if [ -n "${GITHUB_RUN_ID:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+    if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" \
+        --jq '[.artifacts[] | select(.name | startswith("diff_metrics_snapshot_")) | {key: .name, value: .id}] | from_entries' \
+        > "$METRICS_DIR/artifact_ids.json" 2>/dev/null; then
+        echo "Artifact IDs written to $METRICS_DIR/artifact_ids.json"
+    else
+        echo "Could not query artifact IDs (OK for local runs without a token)"
+        echo '{}' > "$METRICS_DIR/artifact_ids.json"
+    fi
+else
+    echo "GITHUB_RUN_ID or GITHUB_REPOSITORY not set; skipping artifact ID query"
+    echo '{}' > "$METRICS_DIR/artifact_ids.json"
+fi
+echo "::endgroup::"
+
 # Process all non-empty diff files.
 # Empty diff files are stubs uploaded by verify-metrics-snapshot when there is no
 # baseline or when compare_metrics.py found no differences (it only writes to the
@@ -115,13 +136,24 @@ else
 fi
 
 # Merge per-snapshot JSON files into a single metrics_snapshots.json.
-# Each entry gets a "snapshot" field with the snapshot name.
+# Each entry gets a "snapshot" field with the snapshot name and an optional
+# "artifact_id" field (integer) for the corresponding diff artifact download link.
 # Capped at 50 entries to match the publish workflow's MAX_SNAPSHOTS limit.
 # The trusted publish workflow validates this data before rendering.
 python3 - "$METRICS_DIR" "${json_files[@]}" <<'PYEOF'
 import json, os, sys
 metrics_dir = sys.argv[1]
 MAX_SNAPSHOTS = 50
+
+# Load artifact IDs if available (produced by the gh api query above).
+# artifact_ids maps artifact name → artifact ID (integer).
+artifact_ids = {}
+try:
+    with open(os.path.join(metrics_dir, 'artifact_ids.json')) as f:
+        artifact_ids = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
 snapshots = []
 for path in sys.argv[2:]:
     if len(snapshots) >= MAX_SNAPSHOTS:
@@ -133,6 +165,12 @@ for path in sys.argv[2:]:
         basename = os.path.basename(path)
         name = basename.removeprefix('changes_').removesuffix('.json')
         data['snapshot'] = name
+        # Look up the artifact ID for this snapshot's diff artifact so the
+        # publish workflow can render a direct download link.
+        diff_artifact_name = f"diff_{name}"
+        artifact_id = artifact_ids.get(diff_artifact_name)
+        if isinstance(artifact_id, int):
+            data['artifact_id'] = artifact_id
         snapshots.append(data)
     except Exception as e:
         print(f"Warning: could not read {path}: {e}", file=sys.stderr)
