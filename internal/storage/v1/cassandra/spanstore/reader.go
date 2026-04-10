@@ -52,7 +52,7 @@ const (
 	queryByDuration = `
 		SELECT trace_id
 		FROM duration_index
-		WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration > ? AND duration < ?
+		WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration >= ? AND duration <= ?
 		LIMIT ?`
 
 	defaultNumTraces = 100
