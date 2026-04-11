@@ -41,9 +41,18 @@ func TestDependencyLinks(t *testing.T) {
 		got := dependencyLinksFromModel(testModelDeps)
 		assert.Equal(t, testDBLinks, got)
 	})
+	t.Run("fromModel_nil", func(t *testing.T) {
+		got := dependencyLinksFromModel(nil)
+		assert.Nil(t, got)
+	})
 	t.Run("toModel", func(t *testing.T) {
 		got := testDBLinks.toModel()
 		assert.Equal(t, testModelDeps, got)
+	})
+	t.Run("toModel_nil", func(t *testing.T) {
+		var links dependencyLinks
+		got := links.toModel()
+		assert.Nil(t, got)
 	})
 	t.Run("roundTrip", func(t *testing.T) {
 		got := dependencyLinksFromModel(testModelDeps).toModel()

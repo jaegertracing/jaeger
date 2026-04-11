@@ -37,6 +37,9 @@ func (l dependencyLink) toModel() model.DependencyLink {
 type dependencyLinks []dependencyLink
 
 func dependencyLinksFromModel(deps []model.DependencyLink) dependencyLinks {
+	if deps == nil {
+		return nil
+	}
 	links := make(dependencyLinks, len(deps))
 	for i, d := range deps {
 		links[i] = dependencyLinkFromModel(d)
@@ -45,6 +48,9 @@ func dependencyLinksFromModel(deps []model.DependencyLink) dependencyLinks {
 }
 
 func (links dependencyLinks) toModel() []model.DependencyLink {
+	if links == nil {
+		return nil
+	}
 	result := make([]model.DependencyLink, len(links))
 	for i, l := range links {
 		result[i] = l.toModel()
