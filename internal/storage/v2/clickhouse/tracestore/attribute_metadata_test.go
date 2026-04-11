@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -22,17 +23,17 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		driver      *testDriver
+		driver      *clickhousetest.Driver
 		expectedErr string
 	}{
 		{
 			name: "QueryError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				T: t,
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
-						rows: nil,
-						err:  assert.AnError,
+						Rows: nil,
+						Err:  assert.AnError,
 					},
 				},
 			},
@@ -40,19 +41,19 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "ScanStructError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				T: t,
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
-						rows: &testRows[dbmodel.AttributeMetadata]{
-							data: []dbmodel.AttributeMetadata{{
+						Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+							Data: []dbmodel.AttributeMetadata{{
 								AttributeKey: "http.method",
 								Type:         "str",
 								Level:        "span",
 							}},
-							scanErr: assert.AnError,
+							ScanErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -60,17 +61,17 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "RowsIterationError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				T: t,
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
-						rows: &testRows[dbmodel.AttributeMetadata]{
-							data: []dbmodel.AttributeMetadata{{
+						Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+							Data: []dbmodel.AttributeMetadata{{
 								AttributeKey: "http.method",
 								Type:         "str",
 								Level:        "span",
 							}},
-							scanFn: func(dest any, src dbmodel.AttributeMetadata) error {
+							ScanFn: func(dest any, src dbmodel.AttributeMetadata) error {
 								ptr, ok := dest.(*dbmodel.AttributeMetadata)
 								if !ok {
 									return assert.AnError
@@ -78,9 +79,9 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 								*ptr = src
 								return nil
 							},
-							rowsErr: assert.AnError,
+							RowsErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -88,17 +89,17 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "UnknownLevelError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				T: t,
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
-						rows: &testRows[dbmodel.AttributeMetadata]{
-							data: []dbmodel.AttributeMetadata{{
+						Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+							Data: []dbmodel.AttributeMetadata{{
 								AttributeKey: "http.method",
 								Type:         "str",
 								Level:        "unknown",
 							}},
-							scanFn: func(dest any, src dbmodel.AttributeMetadata) error {
+							ScanFn: func(dest any, src dbmodel.AttributeMetadata) error {
 								ptr, ok := dest.(*dbmodel.AttributeMetadata)
 								if !ok {
 									return assert.AnError
@@ -107,7 +108,7 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 								return nil
 							},
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -131,27 +132,27 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 	attrs.PutInt("some.int", 42)
 	attrs.PutDouble("some.double", 3.14)
 
-	driver := &testDriver{
-		t: t,
+	driver := &clickhousetest.Driver{
+		T: t,
 	}
 
 	reader := NewReader(driver, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Empty(t, metadata)
-	assert.Empty(t, driver.recordedQueries)
+	assert.Empty(t, driver.RecordedQueries)
 }
 
-func makeTestDriverWithMetadata(t *testing.T) *testDriver {
-	return &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+func makeTestDriverWithMetadata(t *testing.T) *clickhousetest.Driver {
+	return &clickhousetest.Driver{
+		T: t,
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
-				rows: &testRows[dbmodel.AttributeMetadata]{
-					data: []dbmodel.AttributeMetadata{
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data: []dbmodel.AttributeMetadata{
 						{AttributeKey: "http.method", Type: "str", Level: "span"},
 					},
-					scanFn: func(dest any, src dbmodel.AttributeMetadata) error {
+					ScanFn: func(dest any, src dbmodel.AttributeMetadata) error {
 						ptr, ok := dest.(*dbmodel.AttributeMetadata)
 						if !ok {
 							return assert.AnError
@@ -179,7 +180,7 @@ func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Len(t, metadata, 1)
-	assert.Len(t, d.recordedQueries, 1, "expected query to ClickHouse on cache miss")
+	assert.Len(t, d.RecordedQueries, 1, "expected query to ClickHouse on cache miss")
 	assert.Equal(t, 1, reader.attrMetaCache.Size(), "result should be cached after miss")
 }
 
@@ -197,13 +198,13 @@ func TestGetAttributeMetadata_CacheHit(t *testing.T) {
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Len(t, metadata, 1)
-	assert.Len(t, d.recordedQueries, 1)
+	assert.Len(t, d.RecordedQueries, 1)
 
 	// Second call should use cache — no additional queries
 	metadata, err = reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Len(t, metadata, 1)
-	assert.Len(t, d.recordedQueries, 1, "expected no additional queries due to cache hit")
+	assert.Len(t, d.RecordedQueries, 1, "expected no additional queries due to cache hit")
 }
 
 func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
@@ -222,38 +223,38 @@ func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 		metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 		require.NoError(t, err)
 		assert.Len(t, metadata, 1)
-		assert.Len(t, d.recordedQueries, 1)
+		assert.Len(t, d.RecordedQueries, 1)
 
 		// Second call within TTL should use cache
 		metadata, err = reader.getAttributeMetadata(t.Context(), attrs)
 		require.NoError(t, err)
 		assert.Len(t, metadata, 1)
-		assert.Len(t, d.recordedQueries, 1)
+		assert.Len(t, d.RecordedQueries, 1)
 
 		// Advance time past TTL
 		time.Sleep(cacheTTL + time.Second)
 
 		// Reset row iterator so the re-query can scan rows again
-		resp := d.queryResponses[sql.SelectAttributeMetadata]
-		rows := resp.rows.(*testRows[dbmodel.AttributeMetadata])
-		rows.index = 0
+		resp := d.QueryResponses[sql.SelectAttributeMetadata]
+		rows := resp.Rows.(*clickhousetest.Rows[dbmodel.AttributeMetadata])
+		rows.Index = 0
 
 		// Call after TTL expiration should query ClickHouse again
 		metadata, err = reader.getAttributeMetadata(t.Context(), attrs)
 		require.NoError(t, err)
 		assert.Len(t, metadata, 1)
-		assert.Len(t, d.recordedQueries, 2, "expected re-query after cache TTL expired")
+		assert.Len(t, d.RecordedQueries, 2, "expected re-query after cache TTL expired")
 	})
 }
 
 func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 	// When metadata returns no rows for a key, the empty result should NOT be cached.
-	d := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	d := &clickhousetest.Driver{
+		T: t,
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
-				rows: &testRows[dbmodel.AttributeMetadata]{
-					data: []dbmodel.AttributeMetadata{}, // no results
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data: []dbmodel.AttributeMetadata{}, // no results
 				},
 			},
 		},
@@ -270,13 +271,13 @@ func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Empty(t, metadata["nonexistent.key"].span)
-	assert.Len(t, d.recordedQueries, 1)
+	assert.Len(t, d.RecordedQueries, 1)
 
 	// Second call should query ClickHouse again since empty results are not cached
 	metadata, err = reader.getAttributeMetadata(t.Context(), attrs)
 	require.NoError(t, err)
 	assert.Empty(t, metadata["nonexistent.key"].span)
-	assert.Len(t, d.recordedQueries, 2, "expected another query since empty results are not cached")
+	assert.Len(t, d.RecordedQueries, 2, "expected another query since empty results are not cached")
 }
 
 func TestGetAttributeMetadata_NonStringAttributesSkipped(t *testing.T) {
