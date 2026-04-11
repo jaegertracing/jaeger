@@ -127,7 +127,7 @@ func (r *Rows[T]) ScanStruct(dest any) error {
 		return errors.New("no more rows")
 	}
 	if r.ScanFn == nil {
-		return errors.New("ScanFn is not provided")
+		return errors.New("scanFn is not provided")
 	}
 	err := r.ScanFn(dest, r.Data[r.Index])
 	r.Index++
@@ -142,7 +142,7 @@ func (r *Rows[T]) Scan(dest ...any) error {
 		return errors.New("no more rows")
 	}
 	if r.ScanFn == nil {
-		return errors.New("ScanFn is not provided")
+		return errors.New("scanFn is not provided")
 	}
 	err := r.ScanFn(dest, r.Data[r.Index])
 	r.Index++
