@@ -86,6 +86,7 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
 			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
 			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
+			{"dependencies table", sql.CreateDependenciesTable},
 		},
 	}, nil
 }
@@ -211,6 +212,7 @@ func (f *Factory) Purge(ctx context.Context) error {
 		{"operations", sql.TruncateOperations},
 		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
 		{"attribute_metadata", sql.TruncateAttributeMetadata},
+		{"dependencies", sql.TruncateDependencies},
 	}
 
 	for _, table := range tables {
