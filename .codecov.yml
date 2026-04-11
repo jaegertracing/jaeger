@@ -12,6 +12,7 @@ ignore:
   - "**/main.go"
   - "examples/hotrod"
   - "internal/storage/integration"
+  - "internal/storage/v2/clickhouse/clickhousetest"
   - "cmd/jaeger/internal/integration"
   - "internal/tools"
   - "monitoring/jaeger-mixin/generate"
