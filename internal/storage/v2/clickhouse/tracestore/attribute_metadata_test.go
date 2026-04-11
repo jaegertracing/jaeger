@@ -29,7 +29,6 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
 						Rows: nil,
@@ -42,7 +41,6 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		{
 			name: "ScanStructError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
 						Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
@@ -62,7 +60,6 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		{
 			name: "RowsIterationError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
 						Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
@@ -90,7 +87,6 @@ func TestGetAttributeMetadata_ErrorCases(t *testing.T) {
 		{
 			name: "UnknownLevelError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectAttributeMetadata: {
 						Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
@@ -132,9 +128,7 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 	attrs.PutInt("some.int", 42)
 	attrs.PutDouble("some.double", 3.14)
 
-	driver := &clickhousetest.Driver{
-		T: t,
-	}
+	driver := &clickhousetest.Driver{}
 
 	reader := NewReader(driver, ReaderConfig{AttributeMetadataCacheMaxSize: 1000})
 	metadata, err := reader.getAttributeMetadata(t.Context(), attrs)
@@ -145,7 +139,6 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 
 func makeTestDriverWithMetadata(t *testing.T) *clickhousetest.Driver {
 	return &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
 				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
@@ -250,7 +243,6 @@ func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 	// When metadata returns no rows for a key, the empty result should NOT be cached.
 	d := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
 				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{

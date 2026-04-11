@@ -29,7 +29,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s := attrs.PutEmptySlice("bad_slice")
 		s.AppendEmpty()
 
-		reader := NewReader(&clickhousetest.Driver{T: t}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -41,7 +41,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m := attrs.PutEmptyMap("bad_map")
 		m.PutEmpty("key")
 
-		reader := NewReader(&clickhousetest.Driver{T: t}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -51,7 +51,6 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 
 func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
 	td := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
 				Rows: nil,

@@ -247,7 +247,6 @@ func TestGetTraces_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -280,7 +279,6 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
 						Rows: nil,
@@ -293,7 +291,6 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "ScanError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -309,7 +306,6 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		{
 			name: "CloseError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -349,7 +345,6 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansByTraceID: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -378,7 +373,6 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansByTraceID: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -416,7 +410,6 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "successfully returns services",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectServices: {
 						Rows: &clickhousetest.Rows[dbmodel.Service]{
@@ -443,7 +436,6 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "query error",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectServices: {
 						Rows: nil,
@@ -456,7 +448,6 @@ func TestGetServices(t *testing.T) {
 		{
 			name: "scan error",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectServices: {
 						Rows: &clickhousetest.Rows[dbmodel.Service]{
@@ -504,7 +495,6 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations for all kinds",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsAllKinds: {
 						Rows: &clickhousetest.Rows[dbmodel.Operation]{
@@ -544,7 +534,6 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "successfully returns operations by kind",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsByKind: {
 						Rows: &clickhousetest.Rows[dbmodel.Operation]{
@@ -588,7 +577,6 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "query error",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsAllKinds: {
 						Rows: nil,
@@ -601,7 +589,6 @@ func TestGetOperations(t *testing.T) {
 		{
 			name: "scan error",
 			conn: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsAllKinds: {
 						Rows: &clickhousetest.Rows[dbmodel.Operation]{
@@ -656,7 +643,6 @@ func TestFindTraces_Success(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conn := &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansQuery: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -684,7 +670,6 @@ func TestFindTraces_Success(t *testing.T) {
 
 func TestFindTraces_WithFilters(t *testing.T) {
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
 				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
@@ -723,9 +708,7 @@ func TestFindTraces_WithFilters(t *testing.T) {
 }
 
 func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
-	driver := &clickhousetest.Driver{
-		T: t,
-	}
+	driver := &clickhousetest.Driver{}
 	reader := NewReader(driver, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		SearchDepth: 10000,
@@ -737,7 +720,6 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansQuery: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -777,7 +759,6 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansQuery: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -813,7 +794,6 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansQuery: {
 						Rows: nil,
@@ -826,7 +806,6 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 		{
 			name: "ScanError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansQuery: {
 						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
@@ -864,7 +843,7 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutEmptySlice("bad_slice").AppendEmpty()
 
-	reader := NewReader(&clickhousetest.Driver{T: t}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  attrs,
 		SearchDepth: 1,
@@ -875,7 +854,6 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 
 func TestFindTraceIDs(t *testing.T) {
 	driver := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
 				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
@@ -923,7 +901,6 @@ func TestFindTraceIDs(t *testing.T) {
 
 func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 	driver := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
 				Rows: &clickhousetest.Rows[[]any]{
@@ -955,7 +932,6 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 
 func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
 				Rows: &clickhousetest.Rows[[]any]{
@@ -1001,7 +977,6 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
 				Rows: &clickhousetest.Rows[[]any]{
@@ -1035,7 +1010,6 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 
 func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	conn := &clickhousetest.Driver{
-		T: t,
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
 				Rows: &clickhousetest.Rows[[]any]{
@@ -1101,7 +1075,6 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "QueryError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SearchTraceIDsBase: {
 						Rows: nil,
@@ -1114,7 +1087,6 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "ScanError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SearchTraceIDsBase: {
 						Rows: &clickhousetest.Rows[[]any]{
@@ -1130,7 +1102,6 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		{
 			name: "DecodeError",
 			driver: &clickhousetest.Driver{
-				T: t,
 				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SearchTraceIDsBase: {
 						Rows: &clickhousetest.Rows[[]any]{
@@ -1174,7 +1145,7 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutEmptyMap("bad_map").PutEmpty("key")
 
-	reader := NewReader(&clickhousetest.Driver{T: t}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  attrs,
 		SearchDepth: 1,

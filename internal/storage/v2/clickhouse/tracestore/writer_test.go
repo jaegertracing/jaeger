@@ -31,9 +31,8 @@ func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 }
 
 func TestWriter_Success(t *testing.T) {
-	b := &clickhousetest.Batch{T: t}
+	b := &clickhousetest.Batch{}
 	conn := &clickhousetest.Driver{
-		T: t,
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
 				Batch: b,
@@ -148,7 +147,6 @@ func TestWriter_Success(t *testing.T) {
 
 func TestWriter_PrepareBatchError(t *testing.T) {
 	conn := &clickhousetest.Driver{
-		T: t,
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
 				Batch: nil,
@@ -163,9 +161,8 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 }
 
 func TestWriter_AppendBatchError(t *testing.T) {
-	b := &clickhousetest.Batch{T: t, AppendErr: assert.AnError}
+	b := &clickhousetest.Batch{AppendErr: assert.AnError}
 	conn := &clickhousetest.Driver{
-		T: t,
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
 				Batch: b,
@@ -180,9 +177,8 @@ func TestWriter_AppendBatchError(t *testing.T) {
 }
 
 func TestWriter_SendError(t *testing.T) {
-	b := &clickhousetest.Batch{T: t, SendErr: assert.AnError}
+	b := &clickhousetest.Batch{SendErr: assert.AnError}
 	conn := &clickhousetest.Driver{
-		T: t,
 		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
 				Batch: b,

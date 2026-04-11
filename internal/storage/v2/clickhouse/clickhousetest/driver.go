@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
@@ -27,7 +26,6 @@ type BatchResponse struct {
 type Driver struct {
 	driver.Conn
 
-	T               *testing.T
 	QueryResponses  map[string]*QueryResponse
 	BatchResponses  map[string]*BatchResponse
 	RecordedQueries []string
@@ -55,8 +53,11 @@ func (d *Driver) PrepareBatch(
 ) (driver.Batch, error) {
 	d.RecordedQueries = append(d.RecordedQueries, query)
 
+	// Normalize whitespace so substring matching works regardless of indentation.
+	normalized := strings.Join(strings.Fields(query), " ")
 	for querySubstring, response := range d.BatchResponses {
-		if strings.Contains(query, querySubstring) {
+		normalizedSubstring := strings.Join(strings.Fields(querySubstring), " ")
+		if strings.Contains(normalized, normalizedSubstring) {
 			return response.Batch, response.Err
 		}
 	}
@@ -68,7 +69,6 @@ func (d *Driver) PrepareBatch(
 // to allow inserting multiple rows in a single operation.
 type Batch struct {
 	driver.Batch
-	T          *testing.T
 	Appended   [][]any
 	AppendErr  error
 	SendCalled bool
@@ -116,35 +116,35 @@ func (r *Rows[T]) Err() error {
 }
 
 func (r *Rows[T]) Next() bool {
-	return r.Index < len(r.Data)
+	if r.Index >= len(r.Data) {
+		return false
+	}
+	r.Index++
+	return true
 }
 
 func (r *Rows[T]) ScanStruct(dest any) error {
 	if r.ScanErr != nil {
 		return r.ScanErr
 	}
-	if r.Index >= len(r.Data) {
+	if r.Index <= 0 || r.Index > len(r.Data) {
 		return errors.New("no more rows")
 	}
 	if r.ScanFn == nil {
 		return errors.New("scanFn is not provided")
 	}
-	err := r.ScanFn(dest, r.Data[r.Index])
-	r.Index++
-	return err
+	return r.ScanFn(dest, r.Data[r.Index-1])
 }
 
 func (r *Rows[T]) Scan(dest ...any) error {
 	if r.ScanErr != nil {
 		return r.ScanErr
 	}
-	if r.Index >= len(r.Data) {
+	if r.Index <= 0 || r.Index > len(r.Data) {
 		return errors.New("no more rows")
 	}
 	if r.ScanFn == nil {
 		return errors.New("scanFn is not provided")
 	}
-	err := r.ScanFn(dest, r.Data[r.Index])
-	r.Index++
-	return err
+	return r.ScanFn(dest, r.Data[r.Index-1])
 }
