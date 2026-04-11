@@ -35,7 +35,11 @@ METRIC_EXCLUSION_RULES = {
         'label': 'http_response_status_code',
         'pattern': r'^5\d{2}$',
     },
-    
+    # excluding transient Badger metrics that may or may not appear
+    'badger_pending_memtable': {
+        'condition': 'metric_name_match',
+        'pattern': r'^jaeger_storage_badger_write_pending_num_memtable',
+    },
 }
 
 def should_exclude_metric(metric_name, labels):
@@ -56,6 +60,10 @@ def should_exclude_metric(metric_name, labels):
             label = rule_config['label']
             pattern = rule_config['pattern']
             if label in labels and re.match(pattern, labels[label]):
+                return True
+        elif condition == 'metric_name_match':
+            pattern = rule_config['pattern']
+            if re.match(pattern, metric_name):
                 return True
     return False
 
