@@ -5,15 +5,25 @@ package tracestore
 
 import (
 	"encoding/hex"
+	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
 	var traceId [16]byte
-	traceBytes, err := hex.DecodeString(string(dbTraceId))
+	traceIdHex := string(dbTraceId)
+	if len(traceIdHex) > 32 {
+		return pcommon.TraceID{}, fmt.Errorf("trace ID from DB is too long: %d chars", len(traceIdHex))
+	}
+	// Left-pad with zeros to 32 hex chars to handle shorter (e.g. 64-bit) trace IDs.
+	if len(traceIdHex) < 32 {
+		traceIdHex = strings.Repeat("0", 32-len(traceIdHex)) + traceIdHex
+	}
+	traceBytes, err := hex.DecodeString(traceIdHex)
 	if err != nil {
 		return pcommon.TraceID{}, err
 	}
@@ -23,7 +33,15 @@ func convertTraceIDFromDB(dbTraceId dbmodel.TraceID) (pcommon.TraceID, error) {
 
 func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 	var spanId [8]byte
-	spanIdBytes, err := hex.DecodeString(string(dbSpanId))
+	spanIdHex := string(dbSpanId)
+	if len(spanIdHex) > 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID from DB is too long: %d chars", len(spanIdHex))
+	}
+	// Left-pad with zeros to 16 hex chars to handle shorter span IDs.
+	if len(spanIdHex) < 16 {
+		spanIdHex = strings.Repeat("0", 16-len(spanIdHex)) + spanIdHex
+	}
+	spanIdBytes, err := hex.DecodeString(spanIdHex)
 	if err != nil {
 		return pcommon.SpanID{}, err
 	}

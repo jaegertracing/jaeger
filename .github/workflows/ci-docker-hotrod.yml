@@ -16,7 +16,7 @@ jobs:
         runtime: [docker, k8s]
           
     steps:
-    - uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+    - uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -50,7 +50,7 @@ jobs:
         esac
     - name: Install kubectl
       if: matrix.runtime == 'k8s'
-      uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4
+      uses: azure/setup-kubectl@15650b3ad78fff148532a140b8a4c821796b2d7b # v5
       with:
         version: 'latest'
   
