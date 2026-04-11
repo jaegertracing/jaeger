@@ -41,6 +41,8 @@ type Span struct {
 	Process       Process
 	ServiceName   string
 	SpanHash      int64
+	ScopeName     string
+	ScopeVersion  string
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
@@ -152,9 +154,11 @@ type Log struct {
 
 // SpanRef is the UDT representation of a Jaeger Span Reference.
 type SpanRef struct {
-	RefType string  `cql:"ref_type"`
-	TraceID TraceID `cql:"trace_id"`
-	SpanID  int64   `cql:"span_id"`
+	RefType    string     `cql:"ref_type"`
+	TraceID    TraceID    `cql:"trace_id"`
+	SpanID     int64      `cql:"span_id"`
+	TraceState string     `cql:"trace_state"`
+	Tags       []KeyValue `cql:"tags"`
 }
 
 // Process is the UDT representation of a Jaeger Process.
