@@ -144,25 +144,24 @@ func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_names",
 		Description: "List span/operation names for a given service, with their span kinds " +
-			"(SERVER, CLIENT, INTERNAL, etc.).",
+			"(SERVER, CLIENT, INTERNAL, etc.)",
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "search_traces",
 		Description: "Search for traces matching filters. Returns lightweight summaries " +
-			"(trace_id, duration, span_count, error flag) without individual spans or attributes. " +
-			"Time parameters accept RFC3339 or relative values like '-1h' or '-30m'.",
+			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
 	}, handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_span_details",
-		Description: "Fetch full OTLP span data (attributes, events, links, status) for specific spans. " +
+		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
 			"Returns verbose output per span.",
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_errors",
-		Description: "Get full OTLP details for all error-status spans in a trace. " +
+		Description: "Get full details for all error-status spans in a trace. " +
 			"Results may be truncated to the server limit; " +
 			"compare total_error_count with the number of returned spans to detect truncation.",
 	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
