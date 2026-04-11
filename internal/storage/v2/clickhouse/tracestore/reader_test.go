@@ -340,7 +340,7 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	ScanFn := func(dest any, src *dbmodel.SpanRow) error {
+	scanFn := func(dest any, src *dbmodel.SpanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -354,7 +354,7 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 			sql.SelectSpansByTraceID: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:   multipleSpans,
-					ScanFn: ScanFn,
+					ScanFn: scanFn,
 				},
 				Err: nil,
 			},
@@ -768,7 +768,7 @@ func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 func TestFindTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	ScanFn := func(dest any, src *dbmodel.SpanRow) error {
+	scanFn := func(dest any, src *dbmodel.SpanRow) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -782,7 +782,7 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 			sql.SelectSpansQuery: {
 				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
 					Data:   multipleSpans,
-					ScanFn: ScanFn,
+					ScanFn: scanFn,
 				},
 				Err: nil,
 			},
@@ -992,7 +992,7 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
-	ScanFn := func(dest any, src []any) error {
+	scanFn := func(dest any, src []any) error {
 		scanCalled++
 		if scanCalled == 1 {
 			return assert.AnError // simulate scan error on the first row
@@ -1006,7 +1006,7 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 			sql.SearchTraceIDsBase: {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:   testTraceIDsData,
-					ScanFn: ScanFn,
+					ScanFn: scanFn,
 				},
 				Err: nil,
 			},
