@@ -383,12 +383,13 @@ func TestMCPClientInvalidToolCall(t *testing.T) {
 
 func TestMCPClientSearchTracesMissingRequiredField(t *testing.T) {
 	s := connectMCPSession(t, nil)
-	_, err := s.CallTool(s.ctx, &mcp.CallToolParams{
+	result, err := s.CallTool(s.ctx, &mcp.CallToolParams{
 		Name:      "search_traces",
 		Arguments: map[string]any{"start_time_min": "-1h"},
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service_name")
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, extractTextContent(t, result), "service_name")
 }
 
 func TestMCPClientSearchTracesEmptyResults(t *testing.T) {
