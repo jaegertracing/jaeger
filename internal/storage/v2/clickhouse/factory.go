@@ -45,6 +45,60 @@ type schemaParams struct {
 	TTLSeconds int64
 }
 
+type schemaStatement struct {
+	name  string
+	query string
+}
+
+type schemaBuilder struct {
+	statements []schemaStatement
+}
+
+func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
+	createSpansTableQuery, err := loadTemplate(
+		"create_spans_table",
+		sql.CreateSpansTable,
+		schemaParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	createTraceIDTsTableQuery, err := loadTemplate(
+		"create_trace_id_timestamps_table",
+		sql.CreateTraceIDTimestampsTable,
+		schemaParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &schemaBuilder{
+		statements: []schemaStatement{
+			{"spans table", createSpansTableQuery},
+			{"services table", sql.CreateServicesTable},
+			{"services materialized view", sql.CreateServicesMaterializedView},
+			{"operations table", sql.CreateOperationsTable},
+			{"operations materialized view", sql.CreateOperationsMaterializedView},
+			{"trace id timestamps table", createTraceIDTsTableQuery},
+			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
+			{"attribute metadata table", sql.CreateAttributeMetadataTable},
+			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
+			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
+			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
+		},
+	}, nil
+}
+
+func (b *schemaBuilder) build(ctx context.Context, conn driver.Conn) error {
+	for _, statement := range b.statements {
+		if err := conn.Exec(ctx, statement.query); err != nil {
+			return fmt.Errorf("failed to create %s: %w", statement.name, err)
+		}
+	}
+	return nil
+}
+
 type Factory struct {
 	config Configuration
 	telset telemetry.Settings
@@ -72,8 +126,14 @@ The schema is subject to breaking changes in future releases.
 *******************************************************************************
 `)
 	cfg.applyDefaults()
-	if err := cfg.Validate(); err != nil {
-		return nil, err
+
+	var err error
+	var builder *schemaBuilder
+	if cfg.CreateSchema {
+		builder, err = newSchemaBuilder(cfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	f := &Factory{
@@ -97,57 +157,25 @@ The schema is subject to breaking changes in future releases.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ClickHouse connection: %w", err)
 	}
-	err = conn.Ping(ctx)
-	if err != nil {
-		return nil, errors.Join(
-			fmt.Errorf("failed to ping ClickHouse: %w", err),
-			conn.Close(),
-		)
+
+	success := false
+	defer func() {
+		if !success {
+			_ = conn.Close()
+		}
+	}()
+
+	if err = conn.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping ClickHouse: %w", err)
 	}
-	if f.config.CreateSchema {
-		createSpansTableQuery, err := loadTemplate(
-			"create_spans_table",
-			sql.CreateSpansTable,
-			schemaParams{TTLSeconds: int64(f.config.TTL / time.Second)},
-		)
-		if err != nil {
-			conn.Close()
+
+	if builder != nil {
+		if err := builder.build(ctx, conn); err != nil {
 			return nil, err
 		}
-
-		createTraceIDTsTableQuery, err := loadTemplate(
-			"create_trace_id_timestamps_table",
-			sql.CreateTraceIDTimestampsTable,
-			schemaParams{TTLSeconds: int64(f.config.TTL / time.Second)},
-		)
-		if err != nil {
-			conn.Close()
-			return nil, err
-		}
-
-		schemas := []struct {
-			name  string
-			query string
-		}{
-			{"spans table", createSpansTableQuery},
-			{"services table", sql.CreateServicesTable},
-			{"services materialized view", sql.CreateServicesMaterializedView},
-			{"operations table", sql.CreateOperationsTable},
-			{"operations materialized view", sql.CreateOperationsMaterializedView},
-			{"trace id timestamps table", createTraceIDTsTableQuery},
-			{"trace id timestamps materialized view", sql.CreateTraceIDTimestampsMaterializedView},
-			{"attribute metadata table", sql.CreateAttributeMetadataTable},
-			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
-			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
-			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
-		}
-
-		for _, schema := range schemas {
-			if err = conn.Exec(ctx, schema.query); err != nil {
-				return nil, errors.Join(fmt.Errorf("failed to create %s: %w", schema.name, err), conn.Close())
-			}
-		}
 	}
+
+	success = true
 	f.conn = conn
 	return f, nil
 }
