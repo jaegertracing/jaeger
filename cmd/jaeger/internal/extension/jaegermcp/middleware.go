@@ -152,11 +152,11 @@ func mergeBaggageFromContexts(baseCtx, extractedCtx context.Context) context.Con
 
 	mergedBag := baseBag
 	for _, member := range extractedBag.Members() {
+		// Best-effort merge: if a member cannot be set, keep existing baggage and continue.
 		nextBag, err := mergedBag.SetMember(member)
-		if err != nil {
-			continue
+		if err == nil {
+			mergedBag = nextBag
 		}
-		mergedBag = nextBag
 	}
 	return baggage.ContextWithBaggage(baseCtx, mergedBag)
 }
@@ -173,10 +173,7 @@ func isNilParams(params mcp.Params) bool {
 		return true
 	}
 	value := reflect.ValueOf(params)
-	if value.Kind() == reflect.Ptr {
-		return value.IsNil()
-	}
-	return false
+	return value.Kind() == reflect.Ptr && value.IsNil()
 }
 
 func traceContextMetaCarrier(meta map[string]any) propagation.MapCarrier {
