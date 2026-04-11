@@ -137,7 +137,7 @@ func TestGetAttributeMetadata_NoStringAttributes(t *testing.T) {
 	assert.Empty(t, driver.RecordedQueries)
 }
 
-func makeTestDriverWithMetadata(t *testing.T) *clickhousetest.Driver {
+func makeTestDriverWithMetadata() *clickhousetest.Driver {
 	return &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
@@ -160,7 +160,7 @@ func makeTestDriverWithMetadata(t *testing.T) *clickhousetest.Driver {
 }
 
 func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
-	d := makeTestDriverWithMetadata(t)
+	d := makeTestDriverWithMetadata()
 	reader := NewReader(d, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
@@ -178,7 +178,7 @@ func TestGetAttributeMetadata_CacheMiss(t *testing.T) {
 }
 
 func TestGetAttributeMetadata_CacheHit(t *testing.T) {
-	d := makeTestDriverWithMetadata(t)
+	d := makeTestDriverWithMetadata()
 	reader := NewReader(d, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
@@ -202,7 +202,7 @@ func TestGetAttributeMetadata_CacheHit(t *testing.T) {
 
 func TestGetAttributeMetadata_CacheTTLExpiration(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		d := makeTestDriverWithMetadata(t)
+		d := makeTestDriverWithMetadata()
 		cacheTTL := 5 * time.Minute
 		reader := NewReader(d, ReaderConfig{
 			AttributeMetadataCacheTTL:     cacheTTL,
@@ -273,7 +273,7 @@ func TestGetAttributeMetadata_DoesNotCacheEmptyResult(t *testing.T) {
 }
 
 func TestGetAttributeMetadata_NonStringAttributesSkipped(t *testing.T) {
-	d := makeTestDriverWithMetadata(t)
+	d := makeTestDriverWithMetadata()
 	reader := NewReader(d, ReaderConfig{
 		AttributeMetadataCacheTTL:     time.Minute,
 		AttributeMetadataCacheMaxSize: 1000,
