@@ -32,7 +32,7 @@ services:
   prometheus:
     networks:
       - backend
-    image: prom/prometheus:v3.10.0@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9
+    image: prom/prometheus:v3.11.1@sha256:759ea6db49103737f2a6f420b0d1632062d8ad99dec086c76db605fd0bf23e15
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
@@ -41,7 +41,7 @@ services:
   grafana:
     networks:
       - backend
-    image: grafana/grafana:12.0.0@sha256:263cbefd5d9b179893c47c415daab4da5c1f3d6770154741eca4f45c81119884
+    image: grafana/grafana:12.4.2@sha256:83749231c3835e390a3144e5e940203e42b9589761f20ef3169c716e734ad505
     volumes:
       - "./grafana/provisioning:/etc/grafana/provisioning"
       - "../../monitoring/jaeger-mixin/dashboard-for-grafana.json:/etc/grafana/provisioning/dashboards/jaeger.json:ro"

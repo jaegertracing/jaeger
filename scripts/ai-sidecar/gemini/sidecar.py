@@ -215,6 +215,7 @@ class JaegerSidecarAgent(Agent):
         self,
         prompt: list[Any],
         session_id: str,
+        message_id: str | None = None,
         **kwargs: Any,
     ) -> PromptResponse:
         """Handle ACP `session/prompt` RPC.
