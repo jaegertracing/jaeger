@@ -6,6 +6,7 @@ package jaegermcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,9 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	baggageapi "go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	traceapi "go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
@@ -188,6 +191,34 @@ func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) 
 	assert.Equal(t, codes.Unset, spanData.Status.Code)
 }
 
+func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
+	capture := newTraceCapture(t)
+	middleware := chainMiddleware(createTracingMiddleware(capture.provider))
+
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+
+	const (
+		traceIDHex = "0af7651916cd43dd8448eb211c80319c"
+		spanIDHex  = "00f067aa0ba902b7"
+	)
+	traceID, err := traceapi.TraceIDFromHex(traceIDHex)
+	require.NoError(t, err)
+	spanID, err := traceapi.SpanIDFromHex(spanIDHex)
+	require.NoError(t, err)
+
+	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
+		traceContextMetaTraceParent: fmt.Sprintf("00-%s-%s-01", traceIDHex, spanIDHex),
+	})
+	_, err = wrapped(context.Background(), mcpMethodToolsCall, req)
+	require.NoError(t, err)
+
+	spanData := capture.singleSpan(t)
+	assert.Equal(t, traceID, spanData.SpanContext.TraceID())
+	assert.Equal(t, spanID, spanData.Parent.SpanID())
+}
+
 func TestToolNameFromRequest(t *testing.T) {
 	req := newToolCallRequest("search_traces")
 	assert.Equal(t, "search_traces", toolNameFromRequest(mcpMethodToolsCall, req))
@@ -207,9 +238,98 @@ func TestToolNameFromRequestNilParams(t *testing.T) {
 	assert.Empty(t, toolNameFromRequest(mcpMethodToolsCall, req))
 }
 
+func TestContextWithRequestMetaTraceContextNilCases(t *testing.T) {
+	assert.NotPanics(t, func() {
+		ctx := contextWithRequestMetaTraceContext(context.Background(), nil)
+		assert.NotNil(t, ctx)
+	})
+
+	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{}
+	assert.NotPanics(t, func() {
+		ctx := contextWithRequestMetaTraceContext(context.Background(), req)
+		assert.NotNil(t, ctx)
+	})
+}
+
+func TestContextWithRequestMetaTraceContextExtractsBaggage(t *testing.T) {
+	req := newToolCallRequestWithMeta("health", mcp.Meta{
+		traceContextMetaBaggage: "tenant.id=acme",
+	})
+
+	ctx := contextWithRequestMetaTraceContext(context.Background(), req)
+
+	bag := baggageapi.FromContext(ctx)
+	member := bag.Member("tenant.id")
+	assert.Equal(t, "acme", member.Value())
+	assert.False(t, traceapi.SpanContextFromContext(ctx).IsValid())
+}
+
+func TestContextWithRequestMetaTraceContextMergesBaggageWithExistingContext(t *testing.T) {
+	baseBag, err := baggageapi.Parse("tenant.id=acme,region=us-west")
+	require.NoError(t, err)
+	baseCtx := baggageapi.ContextWithBaggage(context.Background(), baseBag)
+
+	req := newToolCallRequestWithMeta("health", mcp.Meta{
+		traceContextMetaBaggage: "env=prod",
+	})
+
+	ctx := contextWithRequestMetaTraceContext(baseCtx, req)
+	bag := baggageapi.FromContext(ctx)
+
+	assert.Equal(t, "acme", bag.Member("tenant.id").Value())
+	assert.Equal(t, "us-west", bag.Member("region").Value())
+	assert.Equal(t, "prod", bag.Member("env").Value())
+}
+
+func TestContextWithRequestMetaTraceContextBaggageMetaOverridesExistingKey(t *testing.T) {
+	baseBag, err := baggageapi.Parse("tenant.id=acme")
+	require.NoError(t, err)
+	baseCtx := baggageapi.ContextWithBaggage(context.Background(), baseBag)
+
+	req := newToolCallRequestWithMeta("health", mcp.Meta{
+		traceContextMetaBaggage: "tenant.id=globex",
+	})
+
+	ctx := contextWithRequestMetaTraceContext(baseCtx, req)
+	bag := baggageapi.FromContext(ctx)
+
+	assert.Equal(t, "globex", bag.Member("tenant.id").Value())
+}
+
+func TestContextWithRequestMetaTraceContextIgnoresInvalidTraceparent(t *testing.T) {
+	traceID, err := traceapi.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
+	require.NoError(t, err)
+	spanID, err := traceapi.SpanIDFromHex("00f067aa0ba902b7")
+	require.NoError(t, err)
+
+	parentSC := traceapi.NewSpanContext(traceapi.SpanContextConfig{
+		TraceID: traceID,
+		SpanID:  spanID,
+		Remote:  true,
+	})
+	parentCtx := traceapi.ContextWithRemoteSpanContext(context.Background(), parentSC)
+
+	req := newToolCallRequestWithMeta("health", mcp.Meta{
+		traceContextMetaTraceParent: "invalid-traceparent",
+	})
+	ctx := contextWithRequestMetaTraceContext(parentCtx, req)
+
+	assert.Equal(t, parentSC.TraceID(), traceapi.SpanContextFromContext(ctx).TraceID())
+	assert.Equal(t, parentSC.SpanID(), traceapi.SpanContextFromContext(ctx).SpanID())
+}
+
 func newToolCallRequest(toolName string) *mcp.ServerRequest[*mcp.CallToolParamsRaw] {
 	return &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
 		Params: &mcp.CallToolParamsRaw{Name: toolName},
+	}
+}
+
+func newToolCallRequestWithMeta(toolName string, meta mcp.Meta) *mcp.ServerRequest[*mcp.CallToolParamsRaw] {
+	return &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
+		Params: &mcp.CallToolParamsRaw{
+			Meta: meta,
+			Name: toolName,
+		},
 	}
 }
 

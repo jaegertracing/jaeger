@@ -9,7 +9,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -18,7 +20,22 @@ import (
 const (
 	mcpMethodToolsCall = "tools/call"
 	errorTypeTool      = "tool_error"
+
+	traceContextMetaTraceParent = "traceparent"
+	traceContextMetaTraceState  = "tracestate"
+	traceContextMetaBaggage     = "baggage"
 )
+
+var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
+	propagation.TraceContext{},
+	propagation.Baggage{},
+)
+
+var traceContextMetaKeys = [...]string{
+	traceContextMetaTraceParent,
+	traceContextMetaTraceState,
+	traceContextMetaBaggage,
+}
 
 // createTracingMiddleware creates an MCP middleware that emits tool-level spans.
 func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware {
@@ -26,6 +43,8 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			ctx = contextWithRequestMetaTraceContext(ctx, req)
+
 			toolName := toolNameFromRequest(method, req)
 			sessionID := sessionIDFromRequest(req)
 			spanName := method
@@ -96,4 +115,76 @@ func isNilSession(session mcp.Session) bool {
 		return true
 	}
 	return reflect.ValueOf(session).IsNil()
+}
+
+func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {
+	params := paramsFromRequest(req)
+	if isNilParams(params) {
+		return ctx
+	}
+
+	metaCarrier := traceContextMetaCarrier(params.GetMeta())
+	if len(metaCarrier) == 0 {
+		return ctx
+	}
+
+	extractedCtx := requestMetaPropagator.Extract(ctx, metaCarrier)
+	extractedSpanContext := trace.SpanContextFromContext(extractedCtx)
+	if extractedSpanContext.IsValid() {
+		// Preserve request cancellation/deadlines while overriding span parent.
+		ctx = trace.ContextWithRemoteSpanContext(ctx, extractedSpanContext)
+	}
+
+	ctx = mergeBaggageFromContexts(ctx, extractedCtx)
+
+	return ctx
+}
+
+func mergeBaggageFromContexts(baseCtx, extractedCtx context.Context) context.Context {
+	extractedBag := baggage.FromContext(extractedCtx)
+	if extractedBag.Len() == 0 {
+		return baseCtx
+	}
+	baseBag := baggage.FromContext(baseCtx)
+	if baseBag.Len() == 0 {
+		return baggage.ContextWithBaggage(baseCtx, extractedBag)
+	}
+
+	mergedBag := baseBag
+	for _, member := range extractedBag.Members() {
+		nextBag, err := mergedBag.SetMember(member)
+		if err != nil {
+			continue
+		}
+		mergedBag = nextBag
+	}
+	return baggage.ContextWithBaggage(baseCtx, mergedBag)
+}
+
+func paramsFromRequest(req mcp.Request) mcp.Params {
+	if req == nil {
+		return nil
+	}
+	return req.GetParams()
+}
+
+func isNilParams(params mcp.Params) bool {
+	if params == nil {
+		return true
+	}
+	value := reflect.ValueOf(params)
+	if value.Kind() == reflect.Ptr {
+		return value.IsNil()
+	}
+	return false
+}
+
+func traceContextMetaCarrier(meta map[string]any) propagation.MapCarrier {
+	carrier := propagation.MapCarrier{}
+	for _, key := range traceContextMetaKeys {
+		if value, ok := meta[key].(string); ok && value != "" {
+			carrier.Set(key, value)
+		}
+	}
+	return carrier
 }
