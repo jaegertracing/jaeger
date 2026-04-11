@@ -6,8 +6,10 @@ package jaegerai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	acp "github.com/coder/acp-go-sdk"
@@ -50,7 +52,17 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(req.Prompt) == "" {
+		http.Error(w, "prompt is required", http.StatusBadRequest)
 		return
 	}
 

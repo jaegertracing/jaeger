@@ -208,16 +208,12 @@ func TestStreamingClientWaitForTurnCompletion(t *testing.T) {
 	})
 }
 
-func TestStreamingClientRequestPermission(t *testing.T) {
+func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
 	c := &streamingClient{}
 
 	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
-	if err != nil {
-		t.Fatalf("request permission unexpected error: %v", err)
-	}
-	if resp.Outcome.Cancelled == nil {
-		t.Fatal("expected cancelled outcome when options are empty")
-	}
+	require.NoError(t, err)
+	require.NotNil(t, resp.Outcome.Cancelled, "expected cancelled outcome when no options")
 
 	resp, err = c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
 		Options: []acp.PermissionOption{{
@@ -226,12 +222,9 @@ func TestStreamingClientRequestPermission(t *testing.T) {
 			Kind:     acp.PermissionOptionKindAllowOnce,
 		}},
 	})
-	if err != nil {
-		t.Fatalf("request permission unexpected error: %v", err)
-	}
-	if resp.Outcome.Selected == nil || resp.Outcome.Selected.OptionId != "opt-1" {
-		t.Fatalf("expected selected option opt-1, got %+v", resp.Outcome)
-	}
+	require.NoError(t, err)
+	require.NotNil(t, resp.Outcome.Cancelled, "expected cancelled outcome even with options")
+	require.Nil(t, resp.Outcome.Selected, "should never auto-approve permissions")
 }
 
 func TestStreamingClientSessionUpdate(t *testing.T) {

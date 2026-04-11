@@ -71,7 +71,7 @@ func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionReques
 	return acp.NewSessionResponse{SessionId: "sess-test"}, nil
 }
 
-func (a *mockACPAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.PromptResponse, error) {
+func (a *mockACPAgent) Prompt(_ context.Context, params acp.PromptRequest) (acp.PromptResponse, error) {
 	if a.promptErr != nil {
 		return acp.PromptResponse{}, a.promptErr
 	}
@@ -79,7 +79,6 @@ func (a *mockACPAgent) Prompt(ctx context.Context, params acp.PromptRequest) (ac
 	cp := params
 	a.promptReq = &cp
 	a.mu.Unlock()
-	_ = ctx
 
 	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
 }
@@ -237,6 +236,29 @@ func TestChatHandlerBadRequest(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code, "unexpected status code")
+}
+
+func TestChatHandlerEmptyPrompt(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "   "})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code, "unexpected status code")
+	require.Contains(t, rr.Body.String(), "prompt is required")
+}
+
+func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 10)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"this body exceeds the 10 byte limit"}`))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusRequestEntityTooLarge, rr.Code, "unexpected status code")
 }
 
 func TestChatHandlerStreamingUnsupported(t *testing.T) {

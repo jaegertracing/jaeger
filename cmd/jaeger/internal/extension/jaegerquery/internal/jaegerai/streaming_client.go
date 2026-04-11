@@ -94,17 +94,14 @@ func (c *streamingClient) waitForTurnCompletion(ctx context.Context, maxWait tim
 	}
 }
 
-func (*streamingClient) RequestPermission(_ context.Context, p acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
-	if len(p.Options) == 0 {
-		return acp.RequestPermissionResponse{
-			Outcome: acp.RequestPermissionOutcome{
-				Cancelled: &acp.RequestPermissionOutcomeCancelled{},
-			},
-		}, nil
-	}
+// RequestPermission always denies. The gateway advertises no filesystem or
+// terminal capabilities, so any permission request is unexpected. Tool
+// interactions (e.g. visualization) are handled via MCP tools passed by the
+// frontend, not through ACP permissions.
+func (*streamingClient) RequestPermission(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
 	return acp.RequestPermissionResponse{
 		Outcome: acp.RequestPermissionOutcome{
-			Selected: &acp.RequestPermissionOutcomeSelected{OptionId: p.Options[0].OptionId},
+			Cancelled: &acp.RequestPermissionOutcomeCancelled{},
 		},
 	}, nil
 }
