@@ -135,8 +135,8 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	return chtracestore.NewWriter(f.conn), nil
 }
 
-func (*Factory) CreateDependencyReader() (depstore.Reader, error) {
-	return chdepstore.NewDependencyReader(), nil
+func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
+	return chdepstore.NewDependencyReader(f.conn), nil
 }
 
 func (f *Factory) Close() error {
