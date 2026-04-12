@@ -11,6 +11,8 @@ import (
 
 func StringToSpanKind(sk string) ptrace.SpanKind {
 	switch strings.ToLower(sk) {
+	case "unspecified":
+		return ptrace.SpanKindUnspecified
 	case "internal":
 		return ptrace.SpanKindInternal
 	case "server":
@@ -27,14 +29,13 @@ func StringToSpanKind(sk string) ptrace.SpanKind {
 }
 
 func SpanKindToString(sk ptrace.SpanKind) string {
-	if sk == ptrace.SpanKindUnspecified {
-		return ""
-	}
 	return strings.ToLower(sk.String())
 }
 
 func ProtoSpanKindToString(s string) string {
-	switch s {
+	switch strings.ToUpper(s) {
+	case "SPAN_KIND_UNSPECIFIED":
+		return "unspecified"
 	case "SPAN_KIND_INTERNAL":
 		return "internal"
 	case "SPAN_KIND_SERVER":
@@ -51,7 +52,7 @@ func ProtoSpanKindToString(s string) string {
 }
 
 func StringToProtoSpanKind(s string) string {
-	switch s {
+	switch strings.ToLower(s) {
 	case "unspecified":
 		return "SPAN_KIND_UNSPECIFIED"
 	case "internal":

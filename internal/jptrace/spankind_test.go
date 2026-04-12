@@ -68,7 +68,7 @@ func TestSpanKindToString(t *testing.T) {
 	}{
 		{
 			kind: ptrace.SpanKindUnspecified,
-			want: "",
+			want: "unspecified",
 		},
 		{
 			kind: ptrace.SpanKindInternal,
@@ -103,12 +103,16 @@ func TestProtoSpanKindToString(t *testing.T) {
 		proto string
 		want  string
 	}{
-		{proto: metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(), want: ""},
+		{proto: metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(), want: "unspecified"},
 		{proto: metrics.SpanKind_SPAN_KIND_INTERNAL.String(), want: "internal"},
 		{proto: metrics.SpanKind_SPAN_KIND_SERVER.String(), want: "server"},
 		{proto: metrics.SpanKind_SPAN_KIND_CLIENT.String(), want: "client"},
 		{proto: metrics.SpanKind_SPAN_KIND_PRODUCER.String(), want: "producer"},
 		{proto: metrics.SpanKind_SPAN_KIND_CONSUMER.String(), want: "consumer"},
+		{proto: "span_kind_server", want: "server"},
+		{proto: "Span_Kind_Client", want: "client"},
+		{proto: "", want: ""},
+		{proto: "invalid", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.proto, func(t *testing.T) {
@@ -128,12 +132,49 @@ func TestStringToProtoSpanKind(t *testing.T) {
 		{input: "client", want: metrics.SpanKind_SPAN_KIND_CLIENT.String()},
 		{input: "producer", want: metrics.SpanKind_SPAN_KIND_PRODUCER.String()},
 		{input: "consumer", want: metrics.SpanKind_SPAN_KIND_CONSUMER.String()},
+		{input: "Server", want: metrics.SpanKind_SPAN_KIND_SERVER.String()},
+		{input: "CLIENT", want: metrics.SpanKind_SPAN_KIND_CLIENT.String()},
 		{input: "unknown", want: ""},
 		{input: "", want: ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			require.Equal(t, tt.want, StringToProtoSpanKind(tt.input))
+		})
+	}
+}
+
+func TestProtoSpanKindRoundTrip(t *testing.T) {
+	kinds := []string{
+		"unspecified",
+		"internal",
+		"server",
+		"client",
+		"producer",
+		"consumer",
+	}
+	for _, kind := range kinds {
+		t.Run(kind, func(t *testing.T) {
+			proto := StringToProtoSpanKind(kind)
+			require.NotEmpty(t, proto)
+			require.Equal(t, kind, ProtoSpanKindToString(proto))
+		})
+	}
+}
+
+func TestSpanKindRoundTrip(t *testing.T) {
+	kinds := []string{
+		"unspecified",
+		"internal",
+		"server",
+		"client",
+		"producer",
+		"consumer",
+	}
+	for _, kind := range kinds {
+		t.Run(kind, func(t *testing.T) {
+			spanKind := StringToSpanKind(kind)
+			require.Equal(t, kind, SpanKindToString(spanKind))
 		})
 	}
 }
