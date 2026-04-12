@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -42,15 +42,6 @@ var (
 
 	// errServiceParameterRequired occurs when no service name is defined.
 	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
-
-	jaegerToOtelSpanKind = map[string]string{
-		"unspecified": metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(),
-		"internal":    metrics.SpanKind_SPAN_KIND_INTERNAL.String(),
-		"server":      metrics.SpanKind_SPAN_KIND_SERVER.String(),
-		"client":      metrics.SpanKind_SPAN_KIND_CLIENT.String(),
-		"producer":    metrics.SpanKind_SPAN_KIND_PRODUCER.String(),
-		"consumer":    metrics.SpanKind_SPAN_KIND_CONSUMER.String(),
-	}
 )
 
 type (
@@ -358,8 +349,8 @@ func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string
 func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	otelSpanKinds := make([]string, len(spanKinds))
 	for i, spanKind := range spanKinds {
-		v, ok := jaegerToOtelSpanKind[spanKind]
-		if !ok {
+		v := jptrace.StringToProtoSpanKind(spanKind)
+		if v == "" {
 			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
 		}
 		otelSpanKinds[i] = v
