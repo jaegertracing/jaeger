@@ -8,6 +8,8 @@ from bisect import insort
 from prometheus_client.parser import text_string_to_metric_families
 import re
 
+EXCLUDED_LABELS = {'service_instance_id', 'otel_scope_version', 'otel_scope_schema_url'}
+
 # Configuration for transient labels that should be normalized during comparison
 TRANSIENT_LABEL_PATTERNS = {
     'kafka': {
@@ -33,7 +35,11 @@ METRIC_EXCLUSION_RULES = {
         'label': 'http_response_status_code',
         'pattern': r'^5\d{2}$',
     },
-    
+    # excluding transient Badger metrics that may or may not appear
+    'badger_pending_memtable': {
+        'condition': 'metric_name_match',
+        'pattern': r'^jaeger_storage_badger_write_pending_num_memtable',
+    },
 }
 
 def should_exclude_metric(metric_name, labels):
@@ -54,6 +60,10 @@ def should_exclude_metric(metric_name, labels):
             label = rule_config['label']
             pattern = rule_config['pattern']
             if label in labels and re.match(pattern, labels[label]):
+                return True
+        elif condition == 'metric_name_match':
+            pattern = rule_config['pattern']
+            if re.match(pattern, metric_name):
                 return True
     return False
 
@@ -96,7 +106,9 @@ def parse_metrics(content):
                 metrics_exclusion_count += 1
                 continue
 
-            labels.pop('service_instance_id', None)
+            # Remove undesirable metric labels to match the diff generation
+            for label in EXCLUDED_LABELS:
+                labels.pop(label, None)
             labels = suppress_transient_labels(sample.name, labels)
             
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
@@ -107,22 +119,61 @@ def parse_metrics(content):
     return metrics,metrics_exclusion_count
 
 
-def generate_diff(file1_content, file2_content):
-    if isinstance(file1_content, list):
-        file1_content = ''.join(file1_content)
-    if isinstance(file2_content, list):
-        file2_content = ''.join(file2_content)
+def generate_diff(baseline_content, current_content):
+    """Compare two Prometheus metrics snapshots and return a unified diff of metric names.
 
-    metrics1,excluded_metrics_count1 = parse_metrics(file1_content)
-    metrics2,excluded_metrics_count2 = parse_metrics(file2_content)
+    The input files are raw Prometheus text exposition format, scraped directly from
+    the Jaeger /metrics endpoint by e2e_integration.go (scrapeMetrics), e.g.:
+        # HELP http_requests_total The total number of HTTP requests.
+        # TYPE http_requests_total counter
+        http_requests_total{method="post",code="200"} 1027 1395066363000
+        http_requests_total{method="post",code="400"}    3 1395066363000
 
-    diff = unified_diff(metrics1, metrics2,lineterm='',n=0)
-    total_excluded = excluded_metrics_count1 + excluded_metrics_count2
-    
+    parse_metrics() is where metric values and timestamps are dropped, retaining only
+    the metric name and its normalised label set as a string like:
+        http_requests_total{code="200",method="post"}
+    Certain labels (e.g. service_instance_id) are dropped and entire samples
+    (e.g. HTTP 5xx responses) are excluded to reduce run-to-run noise.
+    This exclusion happens here at analysis time, not at snapshot capture time;
+    the snapshot files always contain the full raw scrape output.
+
+    The diff is performed on these sorted, value-free metric strings.  If the two
+    snapshots produce the same set of strings the diff is empty and this function
+    returns ''.  When there are differences, the return value is a unified diff
+    using the standard convention:
+        - lines  = present in baseline but absent from current → regression/removed
+        + lines  = present in current but absent from baseline → newly added
+    followed by optional comment lines reporting how many metrics were excluded, e.g.:
+        # Metrics excluded from baseline: 3
+        # Metrics excluded from current: 5
+    These comment lines (prefixed with `# `) are appended only when the diff is
+    non-empty; they are informational context, not metric differences themselves.
+    """
+    if isinstance(baseline_content, list):
+        baseline_content = ''.join(baseline_content)
+    if isinstance(current_content, list):
+        current_content = ''.join(current_content)
+
+    baseline_metrics, excluded_count_baseline = parse_metrics(baseline_content)
+    current_metrics, excluded_count_current = parse_metrics(current_content)
+
+    # unified_diff(baseline, current): - = in baseline but not current (removed/regression),
+    #                                  + = in current but not baseline (newly added).
+    diff = list(unified_diff(baseline_metrics, current_metrics, lineterm='', n=0))
+
+    # Exclusion counts are informational context appended to the diff output.
+    # They must not be written when the diff itself is empty: two snapshots with
+    # identical non-excluded metrics but different numbers of excluded samples
+    # would otherwise produce a non-empty output with no actionable differences.
+    if len(diff) == 0:
+        return ''
+
+    total_excluded = excluded_count_baseline + excluded_count_current
+
     exclusion_lines = ''
     if total_excluded > 0:
-        exclusion_lines = f'\nMetrics excluded from A: {excluded_metrics_count1}\nMetrics excluded from B: {excluded_metrics_count2}'
-    
+        exclusion_lines = f'\n# Metrics excluded from baseline: {excluded_count_baseline}\n# Metrics excluded from current: {excluded_count_current}'
+
     return '\n'.join(diff) + exclusion_lines
 
 def write_diff_file(diff_lines, output_path):
@@ -134,20 +185,20 @@ def write_diff_file(diff_lines, output_path):
 
 def main():
     parser = argparse.ArgumentParser(description='Generate diff between two Jaeger metric files')
-    parser.add_argument('--file1', help='Path to first metric file')
-    parser.add_argument('--file2', help='Path to second metric file')
+    parser.add_argument('--current', help='Path to the current metric file (e.g. from the PR)')
+    parser.add_argument('--baseline', help='Path to the baseline metric file (e.g. from main branch)')
     parser.add_argument('--output', '-o', default='metrics_diff.txt',
                        help='Output diff file path (default: metrics_diff.txt)')
-    
+
     args = parser.parse_args()
-    
+
     # Read input files
-    file1_lines = read_metric_file(args.file1)
-    file2_lines = read_metric_file(args.file2)
-    
+    baseline_lines = read_metric_file(args.baseline)
+    current_lines = read_metric_file(args.current)
+
     # Generate diff
-    diff_lines = generate_diff(file1_lines, file2_lines)
-    
+    diff_lines = generate_diff(baseline_lines, current_lines)
+
     # Check if there are any differences
     if diff_lines:
         print("differences found between the metric files.")

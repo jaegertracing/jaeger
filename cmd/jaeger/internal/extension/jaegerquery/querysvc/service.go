@@ -38,7 +38,8 @@ type QueryServiceOptions struct {
 // StorageCapabilities is a feature flag for query service
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
-	// TODO: Maybe add metrics Storage here
+	MetricsStorage bool `json:"metricsStorage"`
+	// Potential future extensions:
 	// SupportRegex     bool
 	// SupportTagFilter bool
 }
@@ -196,16 +197,6 @@ func (qs QueryService) GetDependencies(ctx context.Context, endTs time.Time, loo
 		StartTime: endTs.Add(-lookback),
 		EndTime:   endTs,
 	})
-}
-
-func (qs QueryService) GetCapabilities() StorageCapabilities {
-	return StorageCapabilities{
-		ArchiveStorage: qs.options.hasArchiveStorage(),
-	}
-}
-
-func (opts *QueryServiceOptions) hasArchiveStorage() bool {
-	return opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 }
 
 func (qs QueryService) receiveTraces(

@@ -23,7 +23,7 @@
     "@octokit/rest": "^22.0.0"
   },
   "devDependencies": {
-    "jest": "30.2.0"
+    "jest": "30.3.0"
   },
   "jest": {
     "testEnvironment": "node",
@@ -31,7 +31,8 @@
       "/node_modules/"
     ],
     "collectCoverageFrom": [
-      "pr-quota-manager.js"
+      "pr-quota-manager.js",
+      "ci-summary-report-publish.js"
     ]
   }
 }

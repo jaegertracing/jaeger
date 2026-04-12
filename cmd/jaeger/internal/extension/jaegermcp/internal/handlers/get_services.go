@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -67,7 +67,7 @@ func (h *getServicesHandler) handle(
 	}
 
 	// Sort services for consistent ordering
-	sort.Strings(services)
+	slices.Sort(services)
 
 	// Apply limit
 	limit := input.Limit

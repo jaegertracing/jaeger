@@ -35,8 +35,8 @@ type SearchTracesInput struct {
 	// SearchDepth defines the maximum search depth. Depending on the backend storage implementation,
 	// this may behave like an SQL LIMIT clause. However, some implementations might not support
 	// precise limits, and a larger value generally results in more traces being returned.
-	// Default: 10, max: 100.
-	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10 max: 100)"`
+	// Default: 10, maximum is controlled by server configuration (MaxSearchResults).
+	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum search depth (default: 10, max controlled by server config)"`
 }
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.
@@ -47,12 +47,13 @@ type SearchTracesOutput struct {
 
 // TraceSummary contains lightweight metadata about a single trace.
 type TraceSummary struct {
-	TraceID      string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	RootService  string `json:"root_service" jsonschema:"Service name of the root span"`
-	RootSpanName string `json:"root_span_name" jsonschema:"Span name of the root span"`
-	StartTime    string `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
-	DurationUs   int64  `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
-	SpanCount    int    `json:"span_count" jsonschema:"Total number of spans in the trace"`
-	ServiceCount int    `json:"service_count" jsonschema:"Number of unique services in the trace"`
-	HasErrors    bool   `json:"has_errors" jsonschema:"Whether the trace contains any error spans"`
+	TraceID      string   `json:"trace_id" jsonschema:"Unique identifier for the trace"`
+	RootService  string   `json:"root_service" jsonschema:"Service name of the root span"`
+	RootSpanName string   `json:"root_span_name" jsonschema:"Span name of the root span"`
+	StartTime    string   `json:"start_time" jsonschema:"Trace start time in RFC3339 format"`
+	DurationUs   int64    `json:"duration_us" jsonschema:"Total trace duration in microseconds"`
+	SpanCount    int      `json:"span_count" jsonschema:"Total number of spans in the trace"`
+	ServiceCount int      `json:"service_count" jsonschema:"Number of unique services in the trace"`
+	Services     []string `json:"services" jsonschema:"Sorted list of unique service names participating in the trace"`
+	HasErrors    bool     `json:"has_errors" jsonschema:"Whether the trace contains any error spans"`
 }

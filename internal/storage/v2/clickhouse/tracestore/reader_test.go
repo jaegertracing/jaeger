@@ -18,14 +18,16 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
 var (
 	testReaderConfig = ReaderConfig{
-		DefaultSearchDepth: 100,
-		MaxSearchDepth:     1000,
+		DefaultSearchDepth:            100,
+		MaxSearchDepth:                1000,
+		AttributeMetadataCacheMaxSize: 1000,
 	}
 	testTraceIDsData = [][]any{
 		{
@@ -213,44 +215,56 @@ func scanTraceIDFn() func(dest any, src []any) error {
 
 func TestGetTraces_Success(t *testing.T) {
 	tests := []struct {
-		name     string
-		data     []*dbmodel.SpanRow
-		expected []ptrace.Traces
+		name   string
+		params tracestore.GetTraceParams
+		data   []*dbmodel.SpanRow
 	}{
 		{
 			name: "single span",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
 			data: singleSpan,
 		},
 		{
 			name: "multiple spans",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
 			data: multipleSpans,
+		},
+		{
+			name: "with time range",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   now.Add(-1 * time.Hour),
+				End:     now,
+			},
+			data: singleSpan,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conn := &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn := &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
-						rows: &testRows[*dbmodel.SpanRow]{
-							data:   tt.data,
-							scanFn: scanSpanRowFn(),
+						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+							Data:   tt.data,
+							ScanFn: scanSpanRowFn(),
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			}
 
 			reader := NewReader(conn, testReaderConfig)
-			getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
-				TraceID: traceID,
-			})
+			getTracesIter := reader.GetTraces(context.Background(), tt.params)
 			traces, err := jiter.FlattenWithErrors(getTracesIter)
 
 			require.NoError(t, err)
-			require.Len(t, conn.recordedQueries, 1)
-			verifyQuerySnapshot(t, conn.recordedQueries...)
+			require.Len(t, conn.RecordedQueries, 1)
+			verifyQuerySnapshot(t, conn.RecordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
@@ -259,17 +273,16 @@ func TestGetTraces_Success(t *testing.T) {
 func TestGetTraces_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
-		driver      *testDriver
+		driver      *clickhousetest.Driver
 		expectedErr string
 	}{
 		{
 			name: "QueryError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
-						rows: nil,
-						err:  assert.AnError,
+						Rows: nil,
+						Err:  assert.AnError,
 					},
 				},
 			},
@@ -277,15 +290,14 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "ScanError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
-						rows: &testRows[*dbmodel.SpanRow]{
-							data:    singleSpan,
-							scanErr: assert.AnError,
+						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+							Data:    singleSpan,
+							ScanErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -293,16 +305,15 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "CloseError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansByTraceID: {
-						rows: &testRows[*dbmodel.SpanRow]{
-							data:     singleSpan,
-							scanFn:   scanSpanRowFn(),
-							closeErr: assert.AnError,
+						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+							Data:     singleSpan,
+							ScanFn:   scanSpanRowFn(),
+							CloseErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -333,15 +344,14 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 		return scanSpanRowFn()(dest, src)
 	}
 
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansByTraceID: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   multipleSpans,
-					scanFn: scanFn,
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:   multipleSpans,
+					ScanFn: scanFn,
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -362,15 +372,14 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 }
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansByTraceID: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   multipleSpans,
-					scanFn: scanSpanRowFn(),
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:   multipleSpans,
+					ScanFn: scanSpanRowFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -394,23 +403,22 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 func TestGetServices(t *testing.T) {
 	tests := []struct {
 		name        string
-		conn        *testDriver
+		conn        *clickhousetest.Driver
 		expected    []string
 		expectError string
 	}{
 		{
 			name: "successfully returns services",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectServices: {
-						rows: &testRows[dbmodel.Service]{
-							data: []dbmodel.Service{
+						Rows: &clickhousetest.Rows[dbmodel.Service]{
+							Data: []dbmodel.Service{
 								{Name: "serviceA"},
 								{Name: "serviceB"},
 								{Name: "serviceC"},
 							},
-							scanFn: func(dest any, src dbmodel.Service) error {
+							ScanFn: func(dest any, src dbmodel.Service) error {
 								svc, ok := dest.(*dbmodel.Service)
 								if !ok {
 									return errors.New("dest is not *dbmodel.Service")
@@ -419,7 +427,7 @@ func TestGetServices(t *testing.T) {
 								return nil
 							},
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -427,12 +435,11 @@ func TestGetServices(t *testing.T) {
 		},
 		{
 			name: "query error",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectServices: {
-						rows: nil,
-						err:  assert.AnError,
+						Rows: nil,
+						Err:  assert.AnError,
 					},
 				},
 			},
@@ -440,19 +447,18 @@ func TestGetServices(t *testing.T) {
 		},
 		{
 			name: "scan error",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectServices: {
-						rows: &testRows[dbmodel.Service]{
-							data: []dbmodel.Service{
+						Rows: &clickhousetest.Rows[dbmodel.Service]{
+							Data: []dbmodel.Service{
 								{Name: "serviceA"},
 								{Name: "serviceB"},
 								{Name: "serviceC"},
 							},
-							scanErr: assert.AnError,
+							ScanErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -470,8 +476,8 @@ func TestGetServices(t *testing.T) {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
-				require.Len(t, test.conn.recordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.recordedQueries...)
+				require.Len(t, test.conn.RecordedQueries, 1)
+				verifyQuerySnapshot(t, test.conn.RecordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -481,24 +487,23 @@ func TestGetServices(t *testing.T) {
 func TestGetOperations(t *testing.T) {
 	tests := []struct {
 		name        string
-		conn        *testDriver
+		conn        *clickhousetest.Driver
 		query       tracestore.OperationQueryParams
 		expected    []tracestore.Operation
 		expectError string
 	}{
 		{
 			name: "successfully returns operations for all kinds",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsAllKinds: {
-						rows: &testRows[dbmodel.Operation]{
-							data: []dbmodel.Operation{
+						Rows: &clickhousetest.Rows[dbmodel.Operation]{
+							Data: []dbmodel.Operation{
 								{Name: "operationA"},
 								{Name: "operationB"},
 								{Name: "operationC"},
 							},
-							scanFn: func(dest any, src dbmodel.Operation) error {
+							ScanFn: func(dest any, src dbmodel.Operation) error {
 								svc, ok := dest.(*dbmodel.Operation)
 								if !ok {
 									return errors.New("dest is not *dbmodel.Operation")
@@ -507,7 +512,7 @@ func TestGetOperations(t *testing.T) {
 								return nil
 							},
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -528,17 +533,16 @@ func TestGetOperations(t *testing.T) {
 		},
 		{
 			name: "successfully returns operations by kind",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsByKind: {
-						rows: &testRows[dbmodel.Operation]{
-							data: []dbmodel.Operation{
+						Rows: &clickhousetest.Rows[dbmodel.Operation]{
+							Data: []dbmodel.Operation{
 								{Name: "operationA", SpanKind: "server"},
 								{Name: "operationB", SpanKind: "server"},
 								{Name: "operationC", SpanKind: "server"},
 							},
-							scanFn: func(dest any, src dbmodel.Operation) error {
+							ScanFn: func(dest any, src dbmodel.Operation) error {
 								svc, ok := dest.(*dbmodel.Operation)
 								if !ok {
 									return errors.New("dest is not *dbmodel.Operation")
@@ -547,7 +551,7 @@ func TestGetOperations(t *testing.T) {
 								return nil
 							},
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -572,12 +576,11 @@ func TestGetOperations(t *testing.T) {
 		},
 		{
 			name: "query error",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsAllKinds: {
-						rows: nil,
-						err:  assert.AnError,
+						Rows: nil,
+						Err:  assert.AnError,
 					},
 				},
 			},
@@ -585,19 +588,18 @@ func TestGetOperations(t *testing.T) {
 		},
 		{
 			name: "scan error",
-			conn: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectOperationsAllKinds: {
-						rows: &testRows[dbmodel.Operation]{
-							data: []dbmodel.Operation{
+						Rows: &clickhousetest.Rows[dbmodel.Operation]{
+							Data: []dbmodel.Operation{
 								{Name: "operationA"},
 								{Name: "operationB"},
 								{Name: "operationC"},
 							},
-							scanErr: assert.AnError,
+							ScanErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -615,8 +617,8 @@ func TestGetOperations(t *testing.T) {
 				require.ErrorContains(t, err, test.expectError)
 			} else {
 				require.NoError(t, err)
-				require.Len(t, test.conn.recordedQueries, 1)
-				verifyQuerySnapshot(t, test.conn.recordedQueries...)
+				require.Len(t, test.conn.RecordedQueries, 1)
+				verifyQuerySnapshot(t, test.conn.RecordedQueries...)
 				require.Equal(t, test.expected, result)
 			}
 		})
@@ -640,15 +642,14 @@ func TestFindTraces_Success(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conn := &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			conn := &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansQuery: {
-						rows: &testRows[*dbmodel.SpanRow]{
-							data:   tt.data,
-							scanFn: scanSpanRowFn(),
+						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+							Data:   tt.data,
+							ScanFn: scanSpanRowFn(),
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			}
@@ -660,29 +661,28 @@ func TestFindTraces_Success(t *testing.T) {
 			traces, err := jiter.FlattenWithErrors(findTracesIter)
 
 			require.NoError(t, err)
-			require.Len(t, conn.recordedQueries, 1)
-			verifyQuerySnapshot(t, conn.recordedQueries...)
+			require.Len(t, conn.RecordedQueries, 1)
+			verifyQuerySnapshot(t, conn.RecordedQueries...)
 			requireTracesEqual(t, tt.data, traces)
 		})
 	}
 }
 
 func TestFindTraces_WithFilters(t *testing.T) {
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
-				rows: &testRows[dbmodel.AttributeMetadata]{
-					data:   testAttributeMetadata,
-					scanFn: scanAttributeMetadataFn(),
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data:   testAttributeMetadata,
+					ScanFn: scanAttributeMetadataFn(),
 				},
 			},
 			sql.SelectSpansQuery: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   multipleSpans,
-					scanFn: scanSpanRowFn(),
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:   multipleSpans,
+					ScanFn: scanSpanRowFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -702,15 +702,13 @@ func TestFindTraces_WithFilters(t *testing.T) {
 	})
 	traces, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
-	require.Len(t, conn.recordedQueries, 2)
-	verifyQuerySnapshot(t, conn.recordedQueries...)
+	require.Len(t, conn.RecordedQueries, 2)
+	verifyQuerySnapshot(t, conn.RecordedQueries...)
 	requireTracesEqual(t, multipleSpans, traces)
 }
 
 func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
-	driver := &testDriver{
-		t: t,
-	}
+	driver := &clickhousetest.Driver{}
 	reader := NewReader(driver, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		SearchDepth: 10000,
@@ -721,15 +719,14 @@ func TestFindTraces_SearchDepthExceedsMax(t *testing.T) {
 }
 
 func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansQuery: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   multipleSpans,
-					scanFn: scanSpanRowFn(),
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:   multipleSpans,
+					ScanFn: scanSpanRowFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -761,15 +758,14 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 		return scanSpanRowFn()(dest, src)
 	}
 
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectSpansQuery: {
-				rows: &testRows[*dbmodel.SpanRow]{
-					data:   multipleSpans,
-					scanFn: scanFn,
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:   multipleSpans,
+					ScanFn: scanFn,
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -792,17 +788,16 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 func TestFindTraces_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
-		driver      *testDriver
+		driver      *clickhousetest.Driver
 		expectedErr string
 	}{
 		{
 			name: "QueryError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansQuery: {
-						rows: nil,
-						err:  assert.AnError,
+						Rows: nil,
+						Err:  assert.AnError,
 					},
 				},
 			},
@@ -810,15 +805,14 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "ScanError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SelectSpansQuery: {
-						rows: &testRows[*dbmodel.SpanRow]{
-							data:    singleSpan,
-							scanErr: assert.AnError,
+						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+							Data:    singleSpan,
+							ScanErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -849,7 +843,7 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutEmptySlice("bad_slice").AppendEmpty()
 
-	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  attrs,
 		SearchDepth: 1,
@@ -859,21 +853,20 @@ func TestFindTraces_BuildQueryError(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	driver := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
-				rows: &testRows[dbmodel.AttributeMetadata]{
-					data:   testAttributeMetadata,
-					scanFn: scanAttributeMetadataFn(),
+				Rows: &clickhousetest.Rows[dbmodel.AttributeMetadata]{
+					Data:   testAttributeMetadata,
+					ScanFn: scanAttributeMetadataFn(),
 				},
 			},
 			sql.SearchTraceIDsBase: {
-				rows: &testRows[[]any]{
-					data:   testTraceIDsData,
-					scanFn: scanTraceIDFn(),
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   testTraceIDsData,
+					ScanFn: scanTraceIDFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -892,8 +885,8 @@ func TestFindTraceIDs(t *testing.T) {
 	})
 	ids, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
-	require.Len(t, driver.recordedQueries, 2)
-	verifyQuerySnapshot(t, driver.recordedQueries...)
+	require.Len(t, driver.RecordedQueries, 2)
+	verifyQuerySnapshot(t, driver.RecordedQueries...)
 	require.Equal(t, []tracestore.FoundTraceID{
 		{
 			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
@@ -907,12 +900,11 @@ func TestFindTraceIDs(t *testing.T) {
 }
 
 func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
-	driver := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
-				rows: &testRows[[]any]{
-					data: [][]any{
+				Rows: &clickhousetest.Rows[[]any]{
+					Data: [][]any{
 						{
 							"00000000000000000000000000000001",
 							time.Now().Add(-1 * time.Hour),
@@ -924,9 +916,9 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 							time.Now().Add(-2 * time.Minute),
 						},
 					},
-					scanFn: scanTraceIDFn(),
+					ScanFn: scanTraceIDFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -939,15 +931,14 @@ func TestFindTraceIDs_SearchDepthExceedsMax(t *testing.T) {
 }
 
 func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
-				rows: &testRows[[]any]{
-					data:   testTraceIDsData,
-					scanFn: scanTraceIDFn(),
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   testTraceIDsData,
+					ScanFn: scanTraceIDFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -985,15 +976,14 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 		return scanTraceIDFn()(dest, src)
 	}
 
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
-				rows: &testRows[[]any]{
-					data:   testTraceIDsData,
-					scanFn: scanFn,
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   testTraceIDsData,
+					ScanFn: scanFn,
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -1019,12 +1009,11 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 }
 
 func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
-	conn := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
-				rows: &testRows[[]any]{
-					data: [][]any{
+				Rows: &clickhousetest.Rows[[]any]{
+					Data: [][]any{
 						testTraceIDsData[0],
 						{
 							"0x",
@@ -1038,9 +1027,9 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 						},
 						testTraceIDsData[1],
 					},
-					scanFn: scanTraceIDFn(),
+					ScanFn: scanTraceIDFn(),
 				},
-				err: nil,
+				Err: nil,
 			},
 		},
 	}
@@ -1080,17 +1069,16 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
-		driver      *testDriver
+		driver      *clickhousetest.Driver
 		expectedErr string
 	}{
 		{
 			name: "QueryError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SearchTraceIDsBase: {
-						rows: nil,
-						err:  assert.AnError,
+						Rows: nil,
+						Err:  assert.AnError,
 					},
 				},
 			},
@@ -1098,15 +1086,14 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "ScanError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SearchTraceIDsBase: {
-						rows: &testRows[[]any]{
-							data:    testTraceIDsData,
-							scanErr: assert.AnError,
+						Rows: &clickhousetest.Rows[[]any]{
+							Data:    testTraceIDsData,
+							ScanErr: assert.AnError,
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -1114,21 +1101,20 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "DecodeError",
-			driver: &testDriver{
-				t: t,
-				queryResponses: map[string]*testQueryResponse{
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
 					sql.SearchTraceIDsBase: {
-						rows: &testRows[[]any]{
-							data: [][]any{
+						Rows: &clickhousetest.Rows[[]any]{
+							Data: [][]any{
 								{
 									"0x",
 									time.Now().Add(-1 * time.Hour),
 									time.Now().Add(-1 * time.Minute),
 								},
 							},
-							scanFn: scanTraceIDFn(),
+							ScanFn: scanTraceIDFn(),
 						},
-						err: nil,
+						Err: nil,
 					},
 				},
 			},
@@ -1159,7 +1145,7 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	attrs := pcommon.NewMap()
 	attrs.PutEmptyMap("bad_map").PutEmpty("key")
 
-	reader := NewReader(&testDriver{t: t}, testReaderConfig)
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes:  attrs,
 		SearchDepth: 1,

@@ -85,10 +85,10 @@ build-jaeger: build-ui _build-a-binary-jaeger$(SUFFIX)-$(GOOS)-$(GOARCH)
 	REAL_GOOS=$(shell GOOS= $(GO) env GOOS) ; \
 	REAL_GOARCH=$(shell GOARCH= $(GO) env GOARCH) ; \
 	if [ "$(GOOS)" == "$$REAL_GOOS" ] && [ "$(GOARCH)" == "$$REAL_GOARCH" ]; then \
-		./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
+		./cmd/jaeger/jaeger$(SUFFIX)-$(GOOS)-$(GOARCH) version 2>/dev/null ; \
 		echo "" ; \
 		want=$(GIT_CLOSEST_TAG) ; \
-		have=$$(./cmd/jaeger/jaeger-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
+		have=$$(./cmd/jaeger/jaeger$(SUFFIX)-$(GOOS)-$(GOARCH) version 2>/dev/null | jq -r .gitVersion) ; \
 		if [ "$$want" == "$$have" ]; then \
 			echo "☑️ versions match: want=$$want, have=$$have" ; \
 		else \
@@ -157,11 +157,11 @@ ifneq ($(SKIP_DEBUG_BINARIES),1)
 endif
 
 # build binaries that support DEBUG release, for one specific platform GOOS/GOARCH
+# Uses recursive make calls so that DEBUG_BINARY=1 is set at parse time,
+# ensuring SUFFIX=-debug is correctly evaluated in the ifeq conditional at the top.
 .PHONY: _build-platform-binaries-debug
-_build-platform-binaries-debug: DEBUG_BINARY=1
-_build-platform-binaries-debug: \
-	build-jaeger \
-	build-remote-storage
+_build-platform-binaries-debug:
+	$(MAKE) build-jaeger build-remote-storage GOOS=$(GOOS) GOARCH=$(GOARCH) DEBUG_BINARY=1
 
 .PHONY: build-all-platforms
 build-all-platforms:

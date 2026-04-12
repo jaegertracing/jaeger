@@ -2,21 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import json
 from collections import defaultdict
-from prometheus_client.parser import text_string_to_metric_families
-
-def parse_metrics(content):
-    metrics = []
-    for family in text_string_to_metric_families(content):
-        for sample in family.samples:
-            labels = dict(sample.labels)
-            # Simply pop undesirable metric labels to match the diff generation
-            labels.pop('service_instance_id', None)
-            label_pairs = sorted(labels.items(), key=lambda x: x[0])
-            label_str = ','.join(f'{k}="{v}"' for k, v in label_pairs)
-            metric = f"{family.name}{{{label_str}}}"
-            metrics.append(metric)
-    return metrics
 
 def parse_diff_file(diff_path):
     """
@@ -41,14 +28,14 @@ def parse_diff_file(diff_path):
         original_line = line.rstrip('\n')
         stripped = original_line.strip()
 
-        if stripped.startswith('Metrics excluded from A: ') or stripped.startswith('Metrics excluded from B: '):
+        if stripped.startswith('# Metrics excluded from baseline: ') or stripped.startswith('# Metrics excluded from current: '):
             count_str = stripped.split(': ')[1]
             exclusion_count += int(count_str)
             continue
         # Skip diff headers
         if stripped.startswith('+++') or stripped.startswith('---'):
             continue
-        # Check if this line contains a metric change    
+        # Check if this line contains a metric change
         if stripped.startswith('+') or stripped.startswith('-'):
             metric_name = extract_metric_name(stripped[1:].strip())
             if metric_name:
@@ -86,19 +73,38 @@ def extract_metric_name(line):
         return line.split('{')[0].strip()
     return line.strip()
 
-def get_raw_diff_sample(raw_lines, max_lines=7):
+def get_raw_diff_sample(raw_lines, max_lines=8):
     """
     Get sample raw diff lines, preserving original diff formatting.
+
+    For modified metrics that have both removed (-) and added (+) lines,
+    interleaves them so both sides are visible when the sample is truncated,
+    avoiding the problem of showing only the removed side.
     """
     if not raw_lines:
         return []
 
-    # Take up to max_lines
-    sample_lines = raw_lines[:max_lines]
-    if len(raw_lines) > max_lines:
-        sample_lines.append("...")
+    removed_lines = [l for l in raw_lines if l.startswith('-')]
+    added_lines = [l for l in raw_lines if l.startswith('+')]
 
-    return sample_lines
+    # If only one direction of change (pure add or pure remove), just truncate.
+    if not removed_lines or not added_lines:
+        sample_lines = raw_lines[:max_lines]
+        if len(raw_lines) > max_lines:
+            sample_lines.append("...")
+        return sample_lines
+
+    # Interleave pairs of (removed, added) lines so both sides are always visible.
+    max_pairs = max(1, max_lines // 2)
+    interleaved = []
+    for i in range(min(max_pairs, len(removed_lines), len(added_lines))):
+        interleaved.append(removed_lines[i])
+        interleaved.append(added_lines[i])
+
+    if len(removed_lines) > max_pairs or len(added_lines) > max_pairs:
+        interleaved.append("...")
+
+    return interleaved
 
 def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
     """
@@ -167,10 +173,50 @@ def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
 
     return "\n".join(summary)
 
+MAX_METRIC_NAMES = 200
+
+def generate_structured_json(changes):
+    """
+    Generates a structured JSON-serializable dict of metric change data.
+    Contains only metric names (strings) and counts (ints) — no raw diff
+    lines or free-form text — so it is safe to pass through ci-summary.json
+    to the trusted publish workflow.
+
+    Counts use metric-name semantics (number of unique metric names per
+    category) so that they match the displayed metric_names list.
+    Note: the TOTAL_CHANGES headline uses variant-level counts from the
+    markdown summary; the per-snapshot detail intentionally shows the
+    simpler metric-name-level view.
+    """
+    added_names = sorted(changes['added'].keys())
+    removed_names = sorted(changes['removed'].keys())
+    modified_names = sorted(changes['modified'].keys())
+
+    # Union of all changed metric names, deduplicated, sorted, and capped
+    # to avoid unbounded artifact growth. The publish workflow enforces a
+    # matching cap (MAX_METRIC_NAMES_PER_SNAPSHOT).
+    all_names = sorted(set(added_names) | set(removed_names) | set(modified_names))
+    capped = all_names[:MAX_METRIC_NAMES]
+
+    # Compute counts from the capped list so they match the displayed names.
+    added_set = set(added_names)
+    removed_set = set(removed_names)
+    modified_set = set(modified_names)
+
+    return {
+        'added': sum(1 for n in capped if n in added_set),
+        'removed': sum(1 for n in capped if n in removed_set),
+        'modified': sum(1 for n in capped if n in modified_set),
+        'metric_names': capped,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description='Generate metrics diff summary')
     parser.add_argument('--diff', required=True, help='Path to unified diff file')
     parser.add_argument('--output', required=True, help='Output summary file path')
+    parser.add_argument('--json-output', default=None,
+                       help='Optional path to write structured JSON change data')
 
     args = parser.parse_args()
 
@@ -179,6 +225,12 @@ def main():
 
     with open(args.output, 'w') as f:
         f.write(summary)
+
+    if args.json_output:
+        structured = generate_structured_json(changes)
+        with open(args.json_output, 'w') as f:
+            json.dump(structured, f, indent=2)
+        print(f"Structured JSON saved to {args.json_output}")
 
     print(f"Generated diff summary with {len(changes['added'])} additions, "
           f"{len(changes['removed'])} removals, "

@@ -5,7 +5,7 @@ package printconfig
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -18,7 +18,7 @@ func printDivider(cmd *cobra.Command, n int) {
 
 func printConfigurations(cmd *cobra.Command, v *viper.Viper, includeEmpty bool) {
 	keys := v.AllKeys()
-	sort.Strings(keys)
+	slices.Sort(keys)
 
 	maxKeyLength, maxValueLength := len("Configuration Option Name"), len("Value")
 	maxSourceLength := len("user-assigned")

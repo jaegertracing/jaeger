@@ -1,8 +1,7 @@
 # Cassandra FindTraceIDs Duration Query Behavior
 
-## Status
-
-Accepted
+* **Status**: Documented existing implementation
+* **Date**: 2026-01-03
 
 ## Context
 

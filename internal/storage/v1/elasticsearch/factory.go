@@ -27,8 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
-	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
+	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 )
 
 var _ io.Closer = (*FactoryBase)(nil)

@@ -113,14 +113,16 @@ func TestFSWatcherWithMultipleFiles(t *testing.T) {
 		},
 		"Unable to locate 'Change happens' in log. All logs: %v", logObserver)
 
-	newHash1, err := hashFile(testFile1.Name())
-	require.NoError(t, err)
-	newHash2, err := hashFile(testFile2.Name())
-	require.NoError(t, err)
-	w.mu.RLock()
-	assert.Equal(t, newHash1, w.fileHashContentMap[testFile1.Name()])
-	assert.Equal(t, newHash2, w.fileHashContentMap[testFile2.Name()])
-	w.mu.RUnlock()
+	// Wait until the watcher has processed events for BOTH files, not just one.
+	// The watcher may see the first file's event before the second write completes,
+	// storing a stale hash for the second file until a subsequent event arrives.
+	assert.Eventuallyf(t, func() bool {
+		h1, _ := hashFile(testFile1.Name())
+		h2, _ := hashFile(testFile2.Name())
+		w.mu.RLock()
+		defer w.mu.RUnlock()
+		return w.fileHashContentMap[testFile1.Name()] == h1 && w.fileHashContentMap[testFile2.Name()] == h2
+	}, 10*time.Second, 10*time.Millisecond, "watcher hashes not updated for both files")
 
 	// Test Remove event
 	os.Remove(testFile1.Name())

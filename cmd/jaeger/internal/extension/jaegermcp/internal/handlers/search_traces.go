@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,11 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-const (
-	defaultSearchLimit = 10
-	maxSearchLimit     = 100
-)
-
 // queryServiceInterface defines the interface we need from QueryService for testing
 type queryServiceInterface interface {
 	FindTraces(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
@@ -37,14 +33,17 @@ type queryServiceInterface interface {
 // browsing and filtering large result sets.
 type searchTracesHandler struct {
 	queryService queryServiceInterface
+	maxResults   int
 }
 
 // NewSearchTracesHandler creates a new search_traces handler and returns the handler function.
 func NewSearchTracesHandler(
 	queryService *querysvc.QueryService,
+	maxResults int,
 ) mcp.ToolHandlerFor[types.SearchTracesInput, types.SearchTracesOutput] {
 	h := &searchTracesHandler{
 		queryService: queryService,
+		maxResults:   maxResults,
 	}
 	return h.handle
 }
@@ -80,6 +79,9 @@ func (h *searchTracesHandler) handle(
 
 		summary := buildTraceSummary(trace)
 		summaries = append(summaries, summary)
+		if h.maxResults > 0 && len(summaries) >= h.maxResults {
+			break
+		}
 	}
 
 	output := types.SearchTracesOutput{Traces: summaries}
@@ -93,7 +95,7 @@ func (h *searchTracesHandler) handle(
 }
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
-func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
 	// Use default start time if not provided
 	startTimeMinInput := input.StartTimeMin
 	if startTimeMinInput == "" {
@@ -141,12 +143,13 @@ func (*searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.
 	}
 
 	// Set default and max search depth
+	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
 	if searchDepth <= 0 {
-		searchDepth = defaultSearchLimit
+		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > maxSearchLimit {
-		searchDepth = maxSearchLimit
+	if searchDepth > h.maxResults {
+		searchDepth = h.maxResults
 	}
 
 	// Convert attributes map to pcommon.Map
@@ -233,12 +236,19 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 		summary.RootService = rootServiceName
 	}
 
+	serviceNames := make([]string, 0, len(services))
+	for svc := range services {
+		serviceNames = append(serviceNames, svc)
+	}
+	slices.Sort(serviceNames)
+
 	// Build summary
 	summary.TraceID = traceID.String()
 	summary.StartTime = minStartTime.Format(time.RFC3339)
 	summary.DurationUs = duration.Microseconds()
 	summary.SpanCount = spanCount
 	summary.ServiceCount = len(services)
+	summary.Services = serviceNames
 	summary.HasErrors = hasErrors
 
 	return summary

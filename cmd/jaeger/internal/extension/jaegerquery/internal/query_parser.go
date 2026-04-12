@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -42,15 +42,6 @@ var (
 
 	// errServiceParameterRequired occurs when no service name is defined.
 	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
-
-	jaegerToOtelSpanKind = map[string]string{
-		"unspecified": metrics.SpanKind_SPAN_KIND_UNSPECIFIED.String(),
-		"internal":    metrics.SpanKind_SPAN_KIND_INTERNAL.String(),
-		"server":      metrics.SpanKind_SPAN_KIND_SERVER.String(),
-		"client":      metrics.SpanKind_SPAN_KIND_CLIENT.String(),
-		"producer":    metrics.SpanKind_SPAN_KIND_PRODUCER.String(),
-		"consumer":    metrics.SpanKind_SPAN_KIND_CONSUMER.String(),
-	}
 )
 
 type (
@@ -117,8 +108,8 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 //	keyValue := strValue ':' strValue
 //	tags :== 'tags=' jsonMap
 func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParameters, error) {
-	service := r.FormValue(serviceParam)
-	operation := r.FormValue(operationParam)
+	service := r.URL.Query().Get(serviceParam)
+	operation := r.URL.Query().Get(operationParam)
 
 	startTime, err := p.parseTime(r, startTimeParam, time.Microsecond)
 	if err != nil {
@@ -129,12 +120,12 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		return nil, err
 	}
 
-	tags, err := p.parseTags(r.Form[tagParam], r.Form[tagsParam])
+	tags, err := p.parseTags(r.URL.Query()[tagParam], r.URL.Query()[tagsParam])
 	if err != nil {
 		return nil, err
 	}
 
-	limitParam := r.FormValue(limitParam)
+	limitParam := r.URL.Query().Get(limitParam)
 	limit := defaultQueryLimit
 	if limitParam != "" {
 		limitParsed, err := strconv.ParseInt(limitParam, 10, 32)
@@ -156,7 +147,7 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 	}
 
 	var traceIDs []model.TraceID
-	for _, id := range r.Form[traceIDParam] {
+	for _, id := range r.URL.Query()[traceIDParam] {
 		traceID, err := model.TraceIDFromString(id)
 		if err != nil {
 			return nil, fmt.Errorf("cannot parse traceID param: %w", err)
@@ -284,7 +275,7 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 // parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.
 // If the time parameter is empty, the current time will be returned.
 func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Duration) (time.Time, error) {
-	formValue := r.FormValue(paramName)
+	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
 		if paramName == startTimeParam {
 			return p.timeNow().Add(-1 * p.traceQueryLookbackDuration), nil
@@ -301,7 +292,7 @@ func (p *queryParser) parseTime(r *http.Request, paramName string, units time.Du
 // parseDuration parses the duration parameter of an HTTP request using the provided durationParser.
 // If the duration parameter is empty, the given defaultDuration will be returned.
 func parseDuration(r *http.Request, paramName string, parse durationParser, defaultDuration time.Duration) (time.Duration, error) {
-	formValue := r.FormValue(paramName)
+	formValue := r.URL.Query().Get(paramName)
 	if formValue == "" {
 		return defaultDuration, nil
 	}
@@ -313,7 +304,7 @@ func parseDuration(r *http.Request, paramName string, parse durationParser, defa
 }
 
 func parseBool(r *http.Request, paramName string) (b bool, err error) {
-	formVal := r.FormValue(paramName)
+	formVal := r.URL.Query().Get(paramName)
 	if formVal == "" {
 		return false, nil
 	}
@@ -358,8 +349,8 @@ func parseSpanKinds(r *http.Request, paramName string, defaultSpanKinds []string
 func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	otelSpanKinds := make([]string, len(spanKinds))
 	for i, spanKind := range spanKinds {
-		v, ok := jaegerToOtelSpanKind[spanKind]
-		if !ok {
+		v := jptrace.StringToProtoSpanKind(spanKind)
+		if v == "" {
 			return otelSpanKinds, fmt.Errorf("unsupported span kind: '%s'", spanKind)
 		}
 		otelSpanKinds[i] = v
