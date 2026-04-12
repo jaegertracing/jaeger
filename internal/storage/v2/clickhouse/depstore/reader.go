@@ -25,13 +25,6 @@ func NewDependencyReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
 }
 
-// dependencyLink is the JSON representation of a single dependency link.
-type dependencyLink struct {
-	Parent    string `json:"parent"`
-	Child     string `json:"child"`
-	CallCount uint64 `json:"callCount"`
-}
-
 // dependencyKey groups dependency links by (parent, child) for merging.
 type dependencyKey struct {
 	parent string
