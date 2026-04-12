@@ -32,3 +32,44 @@ func SpanKindToString(sk ptrace.SpanKind) string {
 	}
 	return strings.ToLower(sk.String())
 }
+
+// ProtoSpanKindToString converts a proto-style span kind string
+// (e.g. "SPAN_KIND_SERVER") to the lowercase form (e.g. "server").
+func ProtoSpanKindToString(s string) string {
+	switch s {
+	case "SPAN_KIND_INTERNAL":
+		return "internal"
+	case "SPAN_KIND_SERVER":
+		return "server"
+	case "SPAN_KIND_CLIENT":
+		return "client"
+	case "SPAN_KIND_PRODUCER":
+		return "producer"
+	case "SPAN_KIND_CONSUMER":
+		return "consumer"
+	default:
+		return ""
+	}
+}
+
+// StringToProtoSpanKind converts a lowercase span kind string
+// (e.g. "server") to the proto-style form (e.g. "SPAN_KIND_SERVER").
+// Returns empty string for unknown inputs.
+func StringToProtoSpanKind(s string) string {
+	switch s {
+	case "unspecified":
+		return "SPAN_KIND_UNSPECIFIED"
+	case "internal":
+		return "SPAN_KIND_INTERNAL"
+	case "server":
+		return "SPAN_KIND_SERVER"
+	case "client":
+		return "SPAN_KIND_CLIENT"
+	case "producer":
+		return "SPAN_KIND_PRODUCER"
+	case "consumer":
+		return "SPAN_KIND_CONSUMER"
+	default:
+		return ""
+	}
+}
