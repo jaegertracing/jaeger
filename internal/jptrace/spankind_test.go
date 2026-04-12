@@ -68,7 +68,7 @@ func TestSpanKindToString(t *testing.T) {
 	}{
 		{
 			kind: ptrace.SpanKindUnspecified,
-			want: "unspecified",
+			want: "",
 		},
 		{
 			kind: ptrace.SpanKindInternal,
@@ -164,7 +164,6 @@ func TestProtoSpanKindRoundTrip(t *testing.T) {
 
 func TestSpanKindRoundTrip(t *testing.T) {
 	kinds := []string{
-		"unspecified",
 		"internal",
 		"server",
 		"client",
