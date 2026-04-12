@@ -32,6 +32,12 @@ type dependencyLink struct {
 	CallCount uint64 `json:"callCount"`
 }
 
+// dependencyKey groups dependency links by (parent, child) for merging.
+type dependencyKey struct {
+	parent string
+	child  string
+}
+
 func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
 	rows, err := r.conn.Query(ctx, sql.SelectDependencies, query.StartTime, query.EndTime)
 	if err != nil {
@@ -40,9 +46,7 @@ func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParame
 	defer rows.Close()
 
 	// Merge dependencies from all snapshots in the time range.
-	// Use a map keyed by (parent, child) to aggregate call counts.
-	type key struct{ parent, child string }
-	merged := make(map[key]uint64)
+	merged := make(map[dependencyKey]uint64)
 
 	for rows.Next() {
 		var blob string
@@ -54,7 +58,7 @@ func (r *Reader) GetDependencies(ctx context.Context, query depstore.QueryParame
 			return nil, fmt.Errorf("failed to unmarshal dependencies JSON: %w", err)
 		}
 		for _, link := range links {
-			merged[key{link.Parent, link.Child}] += link.CallCount
+			merged[dependencyKey{link.Parent, link.Child}] += link.CallCount
 		}
 	}
 
