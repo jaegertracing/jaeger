@@ -32,7 +32,7 @@ case "$MODE" in
     echo ""
     echo "Environment Variables:"
     echo "  OPENSEARCH_CHART_VERSION       - Version of OpenSearch Helm Chart (default: $DEFAULT_OPENSEARCH_CHART_VERSION)"
-    echo "  OPENSEARCH_DASHBOARDS_CHART_VERSION - Version of OpenSearch Dashboards Helm Chart ($DEFAULT_OPENSEARCH_DASHBORED_CHART_VERSION)"
+    echo "  OPENSEARCH_DASHBOARDS_CHART_VERSION - Version of OpenSearch Dashboards Helm Chart ($DEFAULT_OPENSEARCH_DASHBOARDS_CHART_VERSION)"
     echo "  JAEGER_CHART_VERSION           - Version of Jaeger Helm Chart (default: $DEFAULT_JAEGER_CHART_VERSION)"
     echo ""
     echo "Examples:"
