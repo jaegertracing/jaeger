@@ -64,7 +64,7 @@ func TestStreamingClientWriteAndFlushWritesText(t *testing.T) {
 		requestCtx: context.Background(),
 		w:          rec,
 		flusher:    flusher,
-		}
+	}
 
 	c.writeAndFlush("hello")
 
@@ -134,7 +134,7 @@ func TestStreamingClientWriteAndFlushNoopWhenClosed(t *testing.T) {
 		w:          rec,
 		flusher:    flusher,
 		closed:     true,
-		}
+	}
 
 	c.writeAndFlush("ignored")
 
@@ -172,7 +172,7 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 		requestCtx: context.Background(),
 		w:          rec,
 		flusher:    flusher,
-		}
+	}
 
 	status := acp.ToolCallStatusCompleted
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
