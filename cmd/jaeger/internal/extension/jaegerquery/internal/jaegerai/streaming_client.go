@@ -19,18 +19,15 @@ var _ acp.Client = (*streamingClient)(nil)
 // streamingClient implements acp.Client to handle callbacks and streaming text.
 type streamingClient struct {
 	requestCtx context.Context
-	w          http.ResponseWriter
-	flusher    http.Flusher
+	w          io.Writer
 	mu         sync.Mutex
 	closed     bool
 }
 
 func newStreamingClient(ctx context.Context, w http.ResponseWriter) *streamingClient {
-	flusher, _ := w.(http.Flusher)
 	return &streamingClient{
 		requestCtx: ctx,
 		w:          w,
-		flusher:    flusher,
 	}
 }
 
@@ -62,8 +59,8 @@ func (c *streamingClient) writeAndFlush(text string) {
 		return
 	}
 
-	if c.flusher != nil {
-		c.flusher.Flush()
+	if flusher, ok := c.w.(http.Flusher); ok {
+		flusher.Flush()
 	}
 }
 
@@ -90,6 +87,7 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	// [tool_call] and [tool_result] are informational markers streamed to the
 	// HTTP response for the UI to display progress. They are not part of the
 	// ACP protocol — just human-readable status lines in the text stream.
+	// TODO: upgrade to AG-UI https://docs.ag-ui.com/concepts/events
 	if u.ToolCall != nil {
 		c.writeAndFlush(fmt.Sprintf("\n[tool_call] %s\n", u.ToolCall.Title))
 	}

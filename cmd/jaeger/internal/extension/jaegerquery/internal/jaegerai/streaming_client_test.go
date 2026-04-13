@@ -8,18 +8,25 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/coder/acp-go-sdk"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type countingFlusher struct {
+type flushCountingRecorder struct {
+	httptest.ResponseRecorder
 	count int
 }
 
-func (f *countingFlusher) Flush() {
+func newFlushCountingRecorder() *flushCountingRecorder {
+	return &flushCountingRecorder{
+		ResponseRecorder: *httptest.NewRecorder(),
+	}
+}
+
+func (f *flushCountingRecorder) Flush() {
 	f.count++
 }
 
@@ -58,92 +65,68 @@ func (*panicResponseWriter) Write([]byte) (int, error) {
 func (*panicResponseWriter) WriteHeader(int) {}
 
 func TestStreamingClientWriteAndFlushWritesText(t *testing.T) {
-	rec := httptest.NewRecorder()
-	flusher := &countingFlusher{}
+	rec := newFlushCountingRecorder()
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          rec,
-		flusher:    flusher,
 	}
 
 	c.writeAndFlush("hello")
 
-	if got, want := rec.Body.String(), "hello"; got != want {
-		t.Fatalf("unexpected body: got %q want %q", got, want)
-	}
-	if flusher.count != 1 {
-		t.Fatalf("expected one flush, got %d", flusher.count)
-	}
+	assert.Equal(t, "hello", rec.Body.String(), "unexpected body content")
+	assert.Equal(t, 1, rec.count, "expected one flush")
 }
 
 func TestStreamingClientWriteAndFlushContextDoneSetsClosedFlag(t *testing.T) {
-	rec := httptest.NewRecorder()
-	flusher := &countingFlusher{}
+	rec := newFlushCountingRecorder()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	c := &streamingClient{
 		requestCtx: ctx,
 		w:          rec,
-		flusher:    flusher,
 	}
 
 	c.writeAndFlush("ignored")
 
-	if !c.closed {
-		t.Fatal("expected client to be closed")
-	}
-	if got := rec.Body.String(); got != "" {
-		t.Fatalf("expected empty body, got %q", got)
-	}
+	assert.True(t, c.closed, "expected client to be closed")
+	assert.Empty(t, rec.Body.String(), "expected empty body")
 }
 
 func TestStreamingClientWriteAndFlushWriteErrorSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &errResponseWriter{},
-		flusher:    &countingFlusher{},
 	}
 
 	c.writeAndFlush("hello")
 
-	if !c.closed {
-		t.Fatal("expected client to be closed on write error")
-	}
+	assert.True(t, c.closed, "expected client to be closed on write error")
 }
 
 func TestStreamingClientWriteAndFlushRecoverSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &panicResponseWriter{},
-		flusher:    &countingFlusher{},
 	}
 
 	c.writeAndFlush("hello")
 
-	if !c.closed {
-		t.Fatal("expected client to be closed after panic")
-	}
+	assert.True(t, c.closed, "expected client to be closed after panic")
 }
 
 func TestStreamingClientWriteAndFlushNoopWhenClosed(t *testing.T) {
-	rec := httptest.NewRecorder()
-	flusher := &countingFlusher{}
+	rec := newFlushCountingRecorder()
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          rec,
-		flusher:    flusher,
 		closed:     true,
 	}
 
 	c.writeAndFlush("ignored")
 
-	if got := rec.Body.String(); got != "" {
-		t.Fatalf("expected no writes when already closed, got %q", got)
-	}
-	if flusher.count != 0 {
-		t.Fatalf("expected no flush when already closed, got %d", flusher.count)
-	}
+	assert.Empty(t, rec.Body.String(), "expected no writes when already closed")
+	assert.Zero(t, rec.count, "expected no flush when already closed")
 }
 
 func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
@@ -166,12 +149,10 @@ func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
 }
 
 func TestStreamingClientSessionUpdate(t *testing.T) {
-	rec := httptest.NewRecorder()
-	flusher := &countingFlusher{}
+	rec := newFlushCountingRecorder()
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          rec,
-		flusher:    flusher,
 	}
 
 	status := acp.ToolCallStatusCompleted
@@ -182,30 +163,18 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 			ToolCallUpdate:    &acp.SessionToolCallUpdate{ToolCallId: "tool-1", Status: &status},
 		},
 	})
-	if err != nil {
-		t.Fatalf("session update returned error: %v", err)
-	}
+	require.NoError(t, err)
 
 	got := rec.Body.String()
-	if !strings.Contains(got, "chunk") {
-		t.Fatalf("expected chunk output, got %q", got)
-	}
-	if !strings.Contains(got, "[tool_call] search traces") {
-		t.Fatalf("expected tool call output, got %q", got)
-	}
-	if !strings.Contains(got, "[tool_result] id=tool-1 status=completed") {
-		t.Fatalf("expected tool result output, got %q", got)
-	}
+	assert.Contains(t, got, "chunk")
+	assert.Contains(t, got, "[tool_call] search traces")
+	assert.Contains(t, got, "[tool_result] id=tool-1 status=completed")
 }
 
 func TestStreamingClientUtilityMethods(t *testing.T) {
-	if got := valueOrUnknown(nil); got != "unknown" {
-		t.Fatalf("valueOrUnknown nil mismatch: got %q", got)
-	}
+	assert.Equal(t, "unknown", valueOrUnknown(nil))
 	status := acp.ToolCallStatusInProgress
-	if got := valueOrUnknown(&status); got != "in_progress" {
-		t.Fatalf("valueOrUnknown status mismatch: got %q", got)
-	}
+	assert.Equal(t, "in_progress", valueOrUnknown(&status))
 }
 
 func TestStreamingClientUnsupportedOperationsReturnError(t *testing.T) {
