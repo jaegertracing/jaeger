@@ -112,7 +112,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
 	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
-	_, err = acpConn.Prompt(acpCtx, acp.PromptRequest{
+	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
 	})
@@ -122,6 +122,11 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.Logger.Warn("Failed to write prompt error response", zap.Error(writeErr))
 		}
 		return
+	}
+
+	if promptResp.StopReason != acp.StopReasonEndTurn {
+		h.Logger.Warn("prompt ended unexpectedly", zap.String("stop_reason", string(promptResp.StopReason)))
+		clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
 	}
 
 	// Grace period: Prompt() returned but acp-go-sdk dispatches SessionUpdate

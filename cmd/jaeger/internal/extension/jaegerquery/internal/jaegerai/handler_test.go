@@ -32,6 +32,8 @@ type mockACPAgent struct {
 	newSessionReq *acp.NewSessionRequest
 	promptReq     *acp.PromptRequest
 
+	promptStopReason acp.StopReason
+
 	initializeErr error
 	newSessionErr error
 	promptErr     error
@@ -80,7 +82,11 @@ func (a *mockACPAgent) Prompt(_ context.Context, params acp.PromptRequest) (acp.
 	a.promptReq = &cp
 	a.mu.Unlock()
 
-	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
+	reason := a.promptStopReason
+	if reason == "" {
+		reason = acp.StopReasonEndTurn
+	}
+	return acp.PromptResponse{StopReason: reason}, nil
 }
 
 func (*mockACPAgent) SetSessionConfigOption(context.Context, acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
@@ -302,6 +308,23 @@ func TestChatHandlerPromptError(t *testing.T) {
 
 	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Contains(t, rr.Body.String(), "Error starting prompt", "expected prompt error message")
+}
+
+func TestChatHandlerNonEndTurnStopReason(t *testing.T) {
+	agent := &mockACPAgent{promptStopReason: acp.StopReasonMaxTokens}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err, "failed to marshal request")
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code")
+	require.Contains(t, rr.Body.String(), "[stop_reason] max_tokens", "expected stop_reason marker in response")
 }
 
 func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
