@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package spanstore
+package core
 
 import (
 	"context"
@@ -28,8 +28,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -611,24 +612,24 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
+				indices.IndexWithDate(spanIndexBaseName, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
-				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				indices.IndexWithDate(spanIndexBaseName, dateLayout, today),
+				indices.IndexWithDate(spanIndexBaseName, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndexBaseName, dateLayout, today),
-				indexWithDate(spanIndexBaseName, dateLayout, yesterday),
-				indexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
+				indices.IndexWithDate(spanIndexBaseName, dateLayout, today),
+				indices.IndexWithDate(spanIndexBaseName, dateLayout, yesterday),
+				indices.IndexWithDate(spanIndexBaseName, dateLayout, twoDaysAgo),
 			},
 		},
 	}
@@ -640,9 +641,9 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	})
 }
 
-func TestSpanReader_indexWithDate(t *testing.T) {
+func TestSpanReaderIndexWithDate(t *testing.T) {
 	withSpanReader(t, func(_ *spanReaderTest) {
-		actual := indexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indices.IndexWithDate(spanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }
