@@ -1,0 +1,40 @@
+# Copyright (c) 2025 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+#
+# CronJob that runs Spark Dependencies to compute service dependency graphs
+# stored in OpenSearch. Runs every 6 hours.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jaeger-spark-dependencies
+  namespace: jaeger
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: spark-dependencies
+              image: docker.io/jaegertracing/spark-dependencies:1.57.0
+              imagePullPolicy: Always
+              env:
+                - name: STORAGE
+                  value: opensearch
+                - name: ES_NODES
+                  value: http://opensearch-cluster-single.opensearch.svc.cluster.local:9200
+                - name: ES_INDEX_PREFIX
+                  value: jaeger-main
+                - name: ES_NODES_WAN_ONLY
+                  value: "true"
+                - name: JAVA_OPTS
+                  value: "-Xmx1g"
+              resources:
+                requests:
+                  memory: 512Mi
+                  cpu: 100m
+                limits:
+                  memory: 3Gi
+                  cpu: 500m

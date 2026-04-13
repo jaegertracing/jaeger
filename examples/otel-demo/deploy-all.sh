@@ -7,6 +7,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
 
+OPENSEARCH_CHART_VERSION="2.27.2"
+OPENSEARCH_IMAGE_TAG="3.3.2"
+OPENSEARCH_DASHBOARDS_CHART_VERSION="2.27.0"
+OPENSEARCH_DASHBOARDS_IMAGE_TAG="3.3.0"
+SPARK_DEPENDENCIES_IMAGE_TAG="1.57.0"
+
 MODE="${1:-upgrade}"
 IMAGE_TAG="${2:-latest}"
 
@@ -59,6 +65,7 @@ check_required_files() {
     "$SCRIPT_DIR/jaeger-config.yaml"
     "$SCRIPT_DIR/otel-demo-values.yaml"
     "$SCRIPT_DIR/jaeger-query-service.yaml"
+    "$SCRIPT_DIR/spark-dependencies-cronjob-opensearch.yaml"
   )
   for f in "${files[@]}"; do
     [[ -f "$f" ]] || err "Missing required file: $f"
@@ -206,35 +213,6 @@ deploy_ingress() {
   log " • https://shop.demo.jaegertracing.io"
 }
 
-# Clone Jaeger Helm chart and prepare dependencies
-clone_jaeger_v2() {
-  local dest="$SCRIPT_DIR/helm-charts"
-  if [[ ! -d "$dest" ]]; then
-    log "Cloning Jaeger Helm Charts..."
-    git clone https://github.com/jaegertracing/helm-charts.git "$dest"
-    (
-      cd "$dest"
-      log "Using v2 branch for Jaeger v2..."
-      git checkout v2
-      log "Adding required Helm repositories..."
-      helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-      helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-      helm repo add incubator https://charts.helm.sh/incubator >/dev/null 2>&1 || true
-      helm repo update >/dev/null
-      helm dependency build ./charts/jaeger
-    )
-  else
-    log "Jaeger Helm Charts already exist. Skipping clone."
-    # Ensure required repos exist even if charts folder already exists
-    helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
-    helm repo add incubator https://charts.helm.sh/incubator >/dev/null 2>&1 || true
-    helm repo update >/dev/null
-  fi
-}
-
-
-
 main() {
   log "Starting CI deploy (weekly refresh)"
   need bash
@@ -255,13 +233,12 @@ main() {
   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
   helm repo add jaegertracing https://jaegertracing.github.io/helm-charts >/dev/null 2>&1 || true
   helm repo update >/dev/null
-  clone_jaeger_v2
 
   log "Deploying OpenSearch"
   helm upgrade --install opensearch opensearch/opensearch \
     --namespace opensearch --create-namespace \
-    --version 2.19.0 \
-    --set image.tag=2.11.0 \
+    --version "${OPENSEARCH_CHART_VERSION}" \
+    --set image.tag="${OPENSEARCH_IMAGE_TAG}" \
     -f "$SCRIPT_DIR/opensearch-values.yaml" \
     --wait --timeout 10m
   wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
@@ -269,16 +246,16 @@ main() {
   log "Deploying OpenSearch Dashboards"
   helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
     --namespace opensearch \
+    --version "${OPENSEARCH_DASHBOARDS_CHART_VERSION}" \
+    --set image.tag="${OPENSEARCH_DASHBOARDS_IMAGE_TAG}" \
     -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
     --wait --timeout 10m
   wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
 
-  
-  log "Deploying Jaeger (all-in-one, no storage)"
-  helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
+  log "Deploying Jaeger (OpenSearch storage)"
+  helm $HELM_JAEGER_CMD jaeger jaegertracing/jaeger \
     --namespace jaeger --create-namespace \
     --set allInOne.enabled=true \
-    --set storage.type=none \
     --set allInOne.image.repository=jaegertracing/jaeger \
     --set allInOne.image.tag="${IMAGE_TAG}" \
     --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
@@ -286,13 +263,28 @@ main() {
     --wait --timeout 10m
   wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
 
-  
   log "Creating Jaeger query ClusterIP service..."
   kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
   log "Jaeger query ClusterIP service created"
 
-  log "Ensuring Jaeger Collector service endpoints are ready before deploying the demo"
-  wait_for_service_endpoints jaeger jaeger-collector 180
+  log "Deploying Spark Dependencies CronJob"
+  sed "s|jaegertracing/spark-dependencies:.*|jaegertracing/spark-dependencies:${SPARK_DEPENDENCIES_IMAGE_TAG}|" \
+    "$SCRIPT_DIR/spark-dependencies-cronjob-opensearch.yaml" | kubectl apply -n jaeger -f -
+
+  log "Triggering initial Spark Dependencies job"
+  JOB_NAME="jaeger-spark-dependencies-init"
+  kubectl create job "$JOB_NAME" --from=cronjob/jaeger-spark-dependencies -n jaeger >/dev/null 2>&1 || true
+  log "Waiting for initial Spark job to complete (timeout: ${ROLLOUT_TIMEOUT}s)..."
+  if kubectl wait --for=condition=complete "job/$JOB_NAME" -n jaeger --timeout="${ROLLOUT_TIMEOUT}s"; then
+    log "Initial Spark job completed successfully"
+  else
+    log "Initial Spark job did not complete in time - dependencies will be computed on next scheduled run"
+    kubectl describe job "$JOB_NAME" -n jaeger || true
+    kubectl logs "job/$JOB_NAME" -n jaeger || true
+  fi
+
+  log "Ensuring Jaeger service endpoints are ready before deploying the demo"
+  wait_for_service_endpoints jaeger jaeger 180
 
   log "Ensuring HotROD service endpoints are ready"
   wait_for_service_endpoints jaeger jaeger-hotrod 180
