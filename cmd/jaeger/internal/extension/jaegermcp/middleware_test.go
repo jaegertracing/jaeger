@@ -431,3 +431,66 @@ func TestIsNilSession(t *testing.T) {
 	assert.False(t, isNilSession(&mcp.ServerSession{}))
 	assert.False(t, isNilSession(&mcp.ClientSession{}))
 }
+
+func TestIsNil(t *testing.T) {
+	var nilMap map[string]any
+	var nilSlice []string
+	var nilFunc func()
+	var nilChan chan int
+	var nilInterface any
+	typedNilMapInInterface := any(nilMap)
+
+	assert.True(t, isNil(nil))
+	assert.True(t, isNil(nilMap))
+	assert.True(t, isNil(nilSlice))
+	assert.True(t, isNil(nilFunc))
+	assert.True(t, isNil(nilChan))
+	assert.True(t, isNil(nilInterface))
+	assert.True(t, isNil(typedNilMapInInterface))
+
+	assert.False(t, isNil(map[string]any{}))
+	assert.False(t, isNil([]string{}))
+	assert.False(t, isNil(func() {}))
+	assert.False(t, isNil(make(chan int)))
+	assert.False(t, isNil(42))
+}
+
+func TestHasTraceContextMeta(t *testing.T) {
+	assert.False(t, hasTraceContextMeta(nil))
+	assert.False(t, hasTraceContextMeta(map[string]any{
+		traceContextMetaTraceParent: 123,
+	}))
+	assert.True(t, hasTraceContextMeta(map[string]any{
+		traceContextMetaTraceParent: "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01",
+	}))
+}
+
+func TestRequestMetaCarrier(t *testing.T) {
+	meta := map[string]any{
+		traceContextMetaTraceParent: "trace-parent",
+		traceContextMetaBaggage:     "tenant.id=acme",
+		traceContextMetaTraceState:  "",
+		"other":                     "ignored",
+	}
+	carrier := requestMetaCarrier{meta: meta}
+
+	assert.Equal(t, "trace-parent", carrier.Get(traceContextMetaTraceParent))
+	assert.Equal(t, "ignored", carrier.Get("other"))
+	assert.Equal(t, "", carrier.Get("missing"))
+	assert.ElementsMatch(t,
+		[]string{traceContextMetaTraceParent, traceContextMetaBaggage},
+		carrier.Keys(),
+	)
+
+	carrier.Set(traceContextMetaTraceState, "rojo=1")
+	assert.Equal(t, "rojo=1", meta[traceContextMetaTraceState])
+	assert.ElementsMatch(t,
+		[]string{traceContextMetaTraceParent, traceContextMetaTraceState, traceContextMetaBaggage},
+		carrier.Keys(),
+	)
+
+	nilMetaCarrier := requestMetaCarrier{}
+	assert.NotPanics(t, func() {
+		nilMetaCarrier.Set(traceContextMetaTraceParent, "ignored")
+	})
+}

@@ -111,10 +111,7 @@ func sessionIDFromRequest(req mcp.Request) string {
 }
 
 func isNilSession(session mcp.Session) bool {
-	if session == nil {
-		return true
-	}
-	return reflect.ValueOf(session).IsNil()
+	return isNil(session)
 }
 
 func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {
@@ -123,12 +120,12 @@ func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) co
 		return ctx
 	}
 
-	metaCarrier := traceContextMetaCarrier(params.GetMeta())
-	if len(metaCarrier) == 0 {
+	meta := params.GetMeta()
+	if !hasTraceContextMeta(meta) {
 		return ctx
 	}
 
-	extractedCtx := requestMetaPropagator.Extract(ctx, metaCarrier)
+	extractedCtx := requestMetaPropagator.Extract(ctx, requestMetaCarrier{meta: meta})
 	extractedSpanContext := trace.SpanContextFromContext(extractedCtx)
 	if extractedSpanContext.IsValid() {
 		// Preserve request cancellation/deadlines while overriding span parent.
@@ -169,19 +166,53 @@ func paramsFromRequest(req mcp.Request) mcp.Params {
 }
 
 func isNilParams(params mcp.Params) bool {
-	if params == nil {
-		return true
-	}
-	value := reflect.ValueOf(params)
-	return value.Kind() == reflect.Ptr && value.IsNil()
+	return isNil(params)
 }
 
-func traceContextMetaCarrier(meta map[string]any) propagation.MapCarrier {
-	carrier := propagation.MapCarrier{}
+func isNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	reflectValue := reflect.ValueOf(value)
+	switch reflectValue.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return reflectValue.IsNil()
+	default:
+		return false
+	}
+}
+
+func hasTraceContextMeta(meta map[string]any) bool {
 	for _, key := range traceContextMetaKeys {
 		if value, ok := meta[key].(string); ok && value != "" {
-			carrier.Set(key, value)
+			return true
 		}
 	}
-	return carrier
+	return false
+}
+
+type requestMetaCarrier struct {
+	meta map[string]any
+}
+
+func (carrier requestMetaCarrier) Get(key string) string {
+	value, _ := carrier.meta[key].(string)
+	return value
+}
+
+func (carrier requestMetaCarrier) Set(key, value string) {
+	if carrier.meta == nil {
+		return
+	}
+	carrier.meta[key] = value
+}
+
+func (carrier requestMetaCarrier) Keys() []string {
+	keys := make([]string, 0, len(traceContextMetaKeys))
+	for _, key := range traceContextMetaKeys {
+		if value, ok := carrier.meta[key].(string); ok && value != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
