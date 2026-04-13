@@ -121,8 +121,5 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if promptResp.StopReason != acp.StopReasonEndTurn {
-		h.Logger.Warn("prompt ended unexpectedly", zap.String("stop_reason", string(promptResp.StopReason)))
-		clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
-	}
+	clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
 }
