@@ -52,8 +52,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var req ChatRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -66,15 +65,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
-
 	ctx := r.Context()
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -86,6 +76,9 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer adapter.Close()
+
+	// Flusher is optional — without it, the response buffers until the handler returns.
+	flusher, _ := w.(http.Flusher)
 
 	clientImpl := &streamingClient{
 		requestCtx: ctx,
@@ -128,8 +121,13 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set streaming headers just before Prompt(), since SessionUpdate callbacks
+	// may start writing to the response during this call.
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
-	// SessionUpdate callbacks may stream text to the HTTP response via clientImpl.
+	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
 	_, err = acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},

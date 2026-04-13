@@ -28,7 +28,7 @@ type streamingClient struct {
 	doneOnce   sync.Once
 }
 
-func (c *streamingClient) signalDone() {
+func (c *streamingClient) Close() {
 	c.doneOnce.Do(func() {
 		if c.doneCh != nil {
 			close(c.doneCh)
@@ -48,7 +48,7 @@ func (c *streamingClient) writeAndFlush(text string) {
 		select {
 		case <-c.requestCtx.Done():
 			c.closed = true
-			c.signalDone()
+			c.Close()
 			return
 		default:
 		}
@@ -57,17 +57,19 @@ func (c *streamingClient) writeAndFlush(text string) {
 	defer func() {
 		if recover() != nil {
 			c.closed = true
-			c.signalDone()
+			c.Close()
 		}
 	}()
 
 	if _, err := io.WriteString(c.w, text); err != nil {
 		c.closed = true
-		c.signalDone()
+		c.Close()
 		return
 	}
 
-	c.flusher.Flush()
+	if c.flusher != nil {
+		c.flusher.Flush()
+	}
 }
 
 // waitForTurnCompletion is a short grace period after Prompt() returns,

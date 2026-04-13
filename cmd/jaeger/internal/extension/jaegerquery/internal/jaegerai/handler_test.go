@@ -162,33 +162,9 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.Empty(t, rr.Header().Get("Connection"), "Connection is a hop-by-hop header managed by net/http")
 }
 
-type noFlusherResponseWriter struct {
-	header http.Header
-	body   bytes.Buffer
-	status int
-}
-
 type failingFlusherResponseWriter struct {
 	header http.Header
 	status int
-}
-
-func (w *noFlusherResponseWriter) Header() http.Header {
-	if w.header == nil {
-		w.header = make(http.Header)
-	}
-	return w.header
-}
-
-func (w *noFlusherResponseWriter) Write(p []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.body.Write(p)
-}
-
-func (w *noFlusherResponseWriter) WriteHeader(statusCode int) {
-	w.status = statusCode
 }
 
 func (w *failingFlusherResponseWriter) Header() http.Header {
@@ -259,18 +235,6 @@ func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusRequestEntityTooLarge, rr.Code, "unexpected status code")
-}
-
-func TestChatHandlerStreamingUnsupported(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	require.NoError(t, err, "failed to marshal request")
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
-	w := &noFlusherResponseWriter{}
-
-	handler.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusInternalServerError, w.status, "unexpected status code")
 }
 
 func TestChatHandlerDialFailure(t *testing.T) {

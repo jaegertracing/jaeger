@@ -32,7 +32,6 @@ from acp.schema import (
     NewSessionResponse,
 )
 
-END_OF_TURN_MARKER = "__END_OF_TURN__"
 logger = logging.getLogger(__name__)
 
 
@@ -251,12 +250,6 @@ class JaegerSidecarAgent(Agent):
             await conn.session_update(
                 session_id,
                 update_agent_message(text_block(f"\n[Error: {str(e)}]"))
-            )
-        finally:
-            conn = self._require_conn()
-            await conn.session_update(
-                session_id,
-                update_agent_message(text_block(END_OF_TURN_MARKER)),
             )
 
         return PromptResponse(stop_reason="end_turn")
