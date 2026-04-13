@@ -175,6 +175,44 @@ describe('sanitizeSnapshots', () => {
     expect(result).toHaveLength(1);
     expect(result[0].snapshot).toBe('valid');
   });
+
+  test('sanitizes artifact_id as a positive integer', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBe(6359406281);
+  });
+
+  test('rejects non-integer artifact_id', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 1, removed: 0, modified: 0,
+      metric_names: [],
+      artifact_id: 'evil_string',
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBeNull();
+  });
+
+  test('rejects zero and negative artifact_id', () => {
+    const input = [
+      { snapshot: 'snap_a', added: 0, removed: 0, modified: 0, metric_names: [], artifact_id: 0 },
+      { snapshot: 'snap_b', added: 0, removed: 0, modified: 0, metric_names: [], artifact_id: -1 },
+    ];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBeNull();
+    expect(result[1].artifact_id).toBeNull();
+  });
+
+  test('sets artifact_id to null when absent', () => {
+    const input = [{ snapshot: 'test_snapshot', added: 1, removed: 0, modified: 0, metric_names: [] }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBeNull();
+  });
 });
 
 // ── computeMetrics ────────────────────────────────────────────────────────────
@@ -285,14 +323,53 @@ describe('formatMetricsDetail', () => {
     expect(detail).toContain('3 removed');
   });
 
-  test('omits zero counts from summary line', () => {
+  test('includes link to CI run when ciRunUrl provided', () => {
     const detail = formatMetricsDetail([{
-      snapshot: 'test', added: 0, removed: 5, modified: 0,
-      metric_names: [],
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+    }], { ciRunUrl: 'https://github.com/org/repo/actions/runs/123' });
+    expect(detail).toContain('[CI run](https://github.com/org/repo/actions/runs/123)');
+    expect(detail).toContain('Compare metrics and generate summary');
+  });
+
+  test('omits CI run link when ciRunUrl not provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
     }]);
-    expect(detail).not.toContain('added');
-    expect(detail).toContain('5 removed');
-    expect(detail).not.toContain('modified');
+    expect(detail).not.toContain('[CI run]');
+  });
+
+  test('renders per-snapshot artifact download link when artifactUrlPrefix and artifact_id provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }], { artifactUrlPrefix: 'https://github.com/org/repo/actions/runs/123/artifacts' });
+    expect(detail).toContain('[⬇️ download diff](https://github.com/org/repo/actions/runs/123/artifacts/6359406281)');
+  });
+
+  test('omits artifact download link when artifact_id is null', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: null,
+    }], { artifactUrlPrefix: 'https://github.com/org/repo/actions/runs/123/artifacts' });
+    expect(detail).not.toContain('download diff');
+  });
+
+  test('omits artifact download link when artifactUrlPrefix not provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }]);
+    expect(detail).not.toContain('download diff');
   });
 });
 
@@ -419,6 +496,31 @@ describe('buildCommentBody', () => {
     const coveragePos = body.indexOf('### Code Coverage');
     expect(metricsPos).toBeLessThan(detailsPos);
     expect(detailsPos).toBeLessThan(coveragePos);
+  });
+
+  test('includes CI run link in metrics detail when ciRunUrl provided', () => {
+    const snapshots = [{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: null,
+    }];
+    const ciRunUrl = 'https://github.com/org/repo/actions/runs/999';
+    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, ciRunUrl });
+    expect(body).toContain(`[CI run](${ciRunUrl})`);
+    expect(body).toContain('Compare metrics and generate summary');
+  });
+
+  test('includes per-snapshot artifact download link when artifactUrlPrefix and artifact_id provided', () => {
+    const snapshots = [{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }];
+    const artifactUrlPrefix = 'https://github.com/org/repo/actions/runs/999/artifacts';
+    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, artifactUrlPrefix });
+    expect(body).toContain(`[⬇️ download diff](${artifactUrlPrefix}/6359406281)`);
   });
 });
 

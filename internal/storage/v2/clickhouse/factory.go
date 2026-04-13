@@ -109,6 +109,7 @@ The schema is subject to breaking changes in future releases.
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
 			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
 			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
+			{"dependencies table", sql.CreateDependenciesTable},
 		}
 
 		for _, schema := range schemas {
@@ -134,8 +135,8 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	return chtracestore.NewWriter(f.conn), nil
 }
 
-func (*Factory) CreateDependencyReader() (depstore.Reader, error) {
-	return chdepstore.NewDependencyReader(), nil
+func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
+	return chdepstore.NewDependencyReader(f.conn), nil
 }
 
 func (f *Factory) Close() error {
@@ -152,6 +153,7 @@ func (f *Factory) Purge(ctx context.Context) error {
 		{"operations", sql.TruncateOperations},
 		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
 		{"attribute_metadata", sql.TruncateAttributeMetadata},
+		{"dependencies", sql.TruncateDependencies},
 	}
 
 	for _, table := range tables {

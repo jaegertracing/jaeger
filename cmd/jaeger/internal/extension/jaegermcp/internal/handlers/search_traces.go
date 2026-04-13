@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -235,12 +236,19 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 		summary.RootService = rootServiceName
 	}
 
+	serviceNames := make([]string, 0, len(services))
+	for svc := range services {
+		serviceNames = append(serviceNames, svc)
+	}
+	slices.Sort(serviceNames)
+
 	// Build summary
 	summary.TraceID = traceID.String()
 	summary.StartTime = minStartTime.Format(time.RFC3339)
 	summary.DurationUs = duration.Microseconds()
 	summary.SpanCount = spanCount
 	summary.ServiceCount = len(services)
+	summary.Services = serviceNames
 	summary.HasErrors = hasErrors
 
 	return summary
