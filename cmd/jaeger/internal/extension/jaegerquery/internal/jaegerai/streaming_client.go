@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/coder/acp-go-sdk"
 )
@@ -24,8 +23,6 @@ type streamingClient struct {
 	flusher    http.Flusher
 	mu         sync.Mutex
 	closed     bool
-	doneCh     chan struct{}
-	doneOnce   sync.Once
 }
 
 func newStreamingClient(ctx context.Context, w http.ResponseWriter) *streamingClient {
@@ -34,16 +31,7 @@ func newStreamingClient(ctx context.Context, w http.ResponseWriter) *streamingCl
 		requestCtx: ctx,
 		w:          w,
 		flusher:    flusher,
-		doneCh:     make(chan struct{}),
 	}
-}
-
-func (c *streamingClient) Close() {
-	c.doneOnce.Do(func() {
-		if c.doneCh != nil {
-			close(c.doneCh)
-		}
-	})
 }
 
 func (c *streamingClient) writeAndFlush(text string) {
@@ -58,7 +46,6 @@ func (c *streamingClient) writeAndFlush(text string) {
 		select {
 		case <-c.requestCtx.Done():
 			c.closed = true
-			c.Close()
 			return
 		default:
 		}
@@ -67,42 +54,16 @@ func (c *streamingClient) writeAndFlush(text string) {
 	defer func() {
 		if recover() != nil {
 			c.closed = true
-			c.Close()
 		}
 	}()
 
 	if _, err := io.WriteString(c.w, text); err != nil {
 		c.closed = true
-		c.Close()
 		return
 	}
 
 	if c.flusher != nil {
 		c.flusher.Flush()
-	}
-}
-
-// waitForTurnCompletion is a short grace period after Prompt() returns,
-// allowing in-flight SessionUpdate callbacks to finish flushing to the HTTP
-// response. acp-go-sdk dispatches these callbacks in goroutines, so Prompt()
-// may return before the last streamed chunk is written. On success this acts
-// as a brief sleep (maxWait); on error or context cancellation doneCh fires
-// and the wait exits early.
-func (c *streamingClient) waitForTurnCompletion(ctx context.Context, maxWait time.Duration) {
-	if maxWait <= 0 {
-		return
-	}
-
-	maxTimer := time.NewTimer(maxWait)
-	defer maxTimer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return
-	case <-maxTimer.C:
-		return
-	case <-c.doneCh:
-		return
 	}
 }
 

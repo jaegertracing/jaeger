@@ -31,9 +31,6 @@ type AIConfig struct {
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
-	// WaitForTurnTimeout is a grace period after Prompt() returns, allowing in-flight
-	// SessionUpdate callbacks to finish flushing to the HTTP response.
-	WaitForTurnTimeout time.Duration `mapstructure:"wait_for_turn_timeout" valid:"optional"`
 	// MaxRequestBodySize is the maximum allowed size in bytes for the chat request body.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 }
@@ -41,9 +38,6 @@ type AIConfig struct {
 func (c AIConfig) Validate() error {
 	if c.MaxRequestBodySize < 0 {
 		return errors.New("ai.max_request_body_size must not be negative")
-	}
-	if c.WaitForTurnTimeout < 0 {
-		return errors.New("ai.wait_for_turn_timeout must not be negative")
 	}
 	return nil
 }
@@ -78,7 +72,6 @@ func DefaultQueryOptions() QueryOptions {
 		MaxClockSkewAdjust: 0, // disabled by default
 		AI: configoptional.Default(AIConfig{
 			AgentURL:           "ws://localhost:16688",
-			WaitForTurnTimeout: 50 * time.Millisecond,
 			MaxRequestBodySize: 1 << 20, // 1 MiB
 		}),
 		HTTP: confighttp.ServerConfig{

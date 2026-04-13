@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/coder/acp-go-sdk"
 	"github.com/stretchr/testify/require"
@@ -65,8 +64,7 @@ func TestStreamingClientWriteAndFlushWritesText(t *testing.T) {
 		requestCtx: context.Background(),
 		w:          rec,
 		flusher:    flusher,
-		doneCh:     make(chan struct{}),
-	}
+		}
 
 	c.writeAndFlush("hello")
 
@@ -78,7 +76,7 @@ func TestStreamingClientWriteAndFlushWritesText(t *testing.T) {
 	}
 }
 
-func TestStreamingClientWriteAndFlushContextDoneSignalsDone(t *testing.T) {
+func TestStreamingClientWriteAndFlushContextDoneSetsClosedFlag(t *testing.T) {
 	rec := httptest.NewRecorder()
 	flusher := &countingFlusher{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -88,7 +86,6 @@ func TestStreamingClientWriteAndFlushContextDoneSignalsDone(t *testing.T) {
 		requestCtx: ctx,
 		w:          rec,
 		flusher:    flusher,
-		doneCh:     make(chan struct{}),
 	}
 
 	c.writeAndFlush("ignored")
@@ -96,22 +93,16 @@ func TestStreamingClientWriteAndFlushContextDoneSignalsDone(t *testing.T) {
 	if !c.closed {
 		t.Fatal("expected client to be closed")
 	}
-	select {
-	case <-c.doneCh:
-	default:
-		t.Fatal("expected done channel to be closed")
-	}
 	if got := rec.Body.String(); got != "" {
 		t.Fatalf("expected empty body, got %q", got)
 	}
 }
 
-func TestStreamingClientWriteAndFlushWriteErrorSignalsDone(t *testing.T) {
+func TestStreamingClientWriteAndFlushWriteErrorSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &errResponseWriter{},
 		flusher:    &countingFlusher{},
-		doneCh:     make(chan struct{}),
 	}
 
 	c.writeAndFlush("hello")
@@ -119,30 +110,19 @@ func TestStreamingClientWriteAndFlushWriteErrorSignalsDone(t *testing.T) {
 	if !c.closed {
 		t.Fatal("expected client to be closed on write error")
 	}
-	select {
-	case <-c.doneCh:
-	default:
-		t.Fatal("expected done channel to be closed")
-	}
 }
 
-func TestStreamingClientWriteAndFlushRecoverSignalsDone(t *testing.T) {
+func TestStreamingClientWriteAndFlushRecoverSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &panicResponseWriter{},
 		flusher:    &countingFlusher{},
-		doneCh:     make(chan struct{}),
 	}
 
 	c.writeAndFlush("hello")
 
 	if !c.closed {
 		t.Fatal("expected client to be closed after panic")
-	}
-	select {
-	case <-c.doneCh:
-	default:
-		t.Fatal("expected done channel to be closed")
 	}
 }
 
@@ -154,8 +134,7 @@ func TestStreamingClientWriteAndFlushNoopWhenClosed(t *testing.T) {
 		w:          rec,
 		flusher:    flusher,
 		closed:     true,
-		doneCh:     make(chan struct{}),
-	}
+		}
 
 	c.writeAndFlush("ignored")
 
@@ -165,47 +144,6 @@ func TestStreamingClientWriteAndFlushNoopWhenClosed(t *testing.T) {
 	if flusher.count != 0 {
 		t.Fatalf("expected no flush when already closed, got %d", flusher.count)
 	}
-}
-
-func TestStreamingClientWaitForTurnCompletion(t *testing.T) {
-	t.Run("returns when done signaled", func(t *testing.T) {
-		c := &streamingClient{doneCh: make(chan struct{})}
-		close(c.doneCh)
-		start := time.Now()
-		c.waitForTurnCompletion(context.Background(), time.Second)
-		if time.Since(start) > 200*time.Millisecond {
-			t.Fatal("wait should return quickly when done channel is closed")
-		}
-	})
-
-	t.Run("returns on context cancel", func(t *testing.T) {
-		c := &streamingClient{doneCh: make(chan struct{})}
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-		start := time.Now()
-		c.waitForTurnCompletion(ctx, time.Second)
-		if time.Since(start) > 200*time.Millisecond {
-			t.Fatal("wait should return quickly when context is canceled")
-		}
-	})
-
-	t.Run("returns on timeout", func(t *testing.T) {
-		start := time.Now()
-		c2 := &streamingClient{doneCh: make(chan struct{})}
-		c2.waitForTurnCompletion(context.Background(), 20*time.Millisecond)
-		if time.Since(start) < 20*time.Millisecond {
-			t.Fatal("wait returned before timeout elapsed")
-		}
-	})
-
-	t.Run("returns immediately for non-positive timeout", func(t *testing.T) {
-		start := time.Now()
-		c2 := &streamingClient{doneCh: make(chan struct{})}
-		c2.waitForTurnCompletion(context.Background(), 0)
-		if time.Since(start) > 200*time.Millisecond {
-			t.Fatal("wait should return immediately for non-positive timeout")
-		}
-	})
 }
 
 func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
@@ -234,8 +172,7 @@ func TestStreamingClientSessionUpdate(t *testing.T) {
 		requestCtx: context.Background(),
 		w:          rec,
 		flusher:    flusher,
-		doneCh:     make(chan struct{}),
-	}
+		}
 
 	status := acp.ToolCallStatusCompleted
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{

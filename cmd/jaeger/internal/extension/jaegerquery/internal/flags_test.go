@@ -6,7 +6,6 @@ package app
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +19,6 @@ func TestDefaultQueryOptions(t *testing.T) {
 	aiCfg := qo.AI.GetOrInsertDefault()
 	require.NotNil(t, aiCfg)
 	require.Equal(t, "ws://localhost:16688", aiCfg.AgentURL)
-	require.Equal(t, 50*time.Millisecond, aiCfg.WaitForTurnTimeout)
 	require.Equal(t, int64(1<<20), aiCfg.MaxRequestBodySize)
 	require.NoError(t, aiCfg.Validate())
 }
@@ -35,7 +33,3 @@ func TestAIConfigValidateAcceptsZeroBodySize(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateRejectsNegativeTimeout(t *testing.T) {
-	cfg := AIConfig{WaitForTurnTimeout: -1}
-	require.Error(t, cfg.Validate())
-}

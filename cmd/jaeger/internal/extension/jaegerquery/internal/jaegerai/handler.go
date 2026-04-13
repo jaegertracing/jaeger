@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
-
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
 
@@ -27,15 +25,13 @@ type ChatRequest struct {
 type ChatHandler struct {
 	Logger             *zap.Logger
 	sidecarWSURL       string
-	waitForTurnTimeout time.Duration
 	maxRequestBodySize int64
 }
 
-func NewChatHandler(logger *zap.Logger, sidecarWSURL string, waitForTurnTimeout time.Duration, maxRequestBodySize int64) *ChatHandler {
+func NewChatHandler(logger *zap.Logger, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
 		sidecarWSURL:       sidecarWSURL,
-		waitForTurnTimeout: waitForTurnTimeout,
 		maxRequestBodySize: maxRequestBodySize,
 	}
 }
@@ -128,9 +124,4 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.Logger.Warn("prompt ended unexpectedly", zap.String("stop_reason", string(promptResp.StopReason)))
 		clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
 	}
-
-	// Grace period: Prompt() returned but acp-go-sdk dispatches SessionUpdate
-	// callbacks in goroutines, so some may still be writing to the HTTP response.
-	// Wait briefly for them to finish flushing.
-	clientImpl.waitForTurnCompletion(acpCtx, h.waitForTurnTimeout)
 }

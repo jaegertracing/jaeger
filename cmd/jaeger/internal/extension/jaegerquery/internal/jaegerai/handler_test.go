@@ -23,8 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
-const testWaitForTurnTimeout = 100 * time.Millisecond
-
 type mockACPAgent struct {
 	mu sync.Mutex
 
@@ -37,6 +35,13 @@ type mockACPAgent struct {
 	initializeErr error
 	newSessionErr error
 	promptErr     error
+
+	// promptHook is called during Prompt before returning, allowing tests to
+	// send SessionUpdate notifications via asc.
+	promptHook func(context.Context, *acp.AgentSideConnection, acp.PromptRequest)
+
+	// asc is set by startMockACPWebSocketServer so Prompt can send SessionUpdate notifications.
+	asc *acp.AgentSideConnection
 }
 
 func (*mockACPAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -73,14 +78,20 @@ func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionReques
 	return acp.NewSessionResponse{SessionId: "sess-test"}, nil
 }
 
-func (a *mockACPAgent) Prompt(_ context.Context, params acp.PromptRequest) (acp.PromptResponse, error) {
+func (a *mockACPAgent) Prompt(ctx context.Context, params acp.PromptRequest) (acp.PromptResponse, error) {
 	if a.promptErr != nil {
 		return acp.PromptResponse{}, a.promptErr
 	}
 	a.mu.Lock()
 	cp := params
 	a.promptReq = &cp
+	hook := a.promptHook
+	conn := a.asc
 	a.mu.Unlock()
+
+	if hook != nil && conn != nil {
+		hook(ctx, conn, cp)
+	}
 
 	reason := a.promptStopReason
 	if reason == "" {
@@ -116,6 +127,9 @@ func startMockACPWebSocketServer(t *testing.T, agent *mockACPAgent) (string, fun
 
 		adapter := NewWsAdapter(conn, zap.NewNop())
 		asc := acp.NewAgentSideConnection(agent, adapter, adapter)
+		agent.mu.Lock()
+		agent.asc = asc
+		agent.mu.Unlock()
 
 		<-asc.Done()
 	}))
@@ -136,7 +150,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
 
 	reqBody, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
 	require.NoError(t, err, "failed to marshal request")
@@ -198,14 +212,13 @@ func (w *failingFlusherResponseWriter) WriteHeader(statusCode int) {
 func (*failingFlusherResponseWriter) Flush() {}
 
 func TestNewChatHandlerPassesThroughConfig(t *testing.T) {
-	h := NewChatHandler(zap.NewNop(), "ws://localhost:1", 5*time.Millisecond, 512)
-	require.Equal(t, 5*time.Millisecond, h.waitForTurnTimeout, "expected configured waitForTurnTimeout")
+	h := NewChatHandler(zap.NewNop(), "ws://localhost:1", 512)
 	require.Equal(t, int64(512), h.maxRequestBodySize, "expected configured maxRequestBodySize")
 	require.Equal(t, "ws://localhost:1", h.sidecarWSURL, "expected configured sidecarWSURL")
 }
 
 func TestChatHandlerMethodNotAllowed(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", 1<<20)
 	req := httptest.NewRequest(http.MethodGet, "/api/ai/chat", http.NoBody)
 	rr := httptest.NewRecorder()
 
@@ -215,7 +228,7 @@ func TestChatHandlerMethodNotAllowed(t *testing.T) {
 }
 
 func TestChatHandlerBadRequest(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", 1<<20)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader("{"))
 	rr := httptest.NewRecorder()
 
@@ -225,7 +238,7 @@ func TestChatHandlerBadRequest(t *testing.T) {
 }
 
 func TestChatHandlerEmptyPrompt(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "   "})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -238,7 +251,7 @@ func TestChatHandlerEmptyPrompt(t *testing.T) {
 }
 
 func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 10)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", 10)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"this body exceeds the 10 byte limit"}`))
 	rr := httptest.NewRecorder()
 
@@ -248,7 +261,7 @@ func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 }
 
 func TestChatHandlerDialFailure(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), "ws://127.0.0.1:1", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -264,7 +277,7 @@ func TestChatHandlerInitializeError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -281,7 +294,7 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -298,7 +311,7 @@ func TestChatHandlerPromptError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -315,7 +328,7 @@ func TestChatHandlerNonEndTurnStopReason(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -327,12 +340,41 @@ func TestChatHandlerNonEndTurnStopReason(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "[stop_reason] max_tokens", "expected stop_reason marker in response")
 }
 
+func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
+	// The agent sends a SessionUpdate notification during Prompt, just before
+	// returning the response. acp-go-sdk guarantees all notifications are
+	// processed before Prompt() returns (via notificationWg.Wait), so the
+	// streamed text must appear in the response without any grace period.
+	agent := &mockACPAgent{
+		promptHook: func(ctx context.Context, asc *acp.AgentSideConnection, _ acp.PromptRequest) {
+			_ = asc.SessionUpdate(ctx, acp.SessionNotification{
+				SessionId: "sess-test",
+				Update:    acp.UpdateAgentMessageText("streamed-via-notification"),
+			})
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Contains(t, rr.Body.String(), "streamed-via-notification",
+		"SessionUpdate should be flushed before Prompt() returns")
+}
+
 func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
