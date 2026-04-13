@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -207,23 +208,47 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 }
 
 func (s *SpanWriter) indexByTags(ds *dbmodel.Span) error {
-	for _, v := range dbmodel.GetAllUniqueTags(ds, s.tagFilter) {
-		// we should introduce retries or just ignore failures imo, retrying each individual tag insertion might be better
-		// we should consider bucketing.
-		if s.shouldIndexTag(v) {
+	tags := dbmodel.GetAllUniqueTags(ds, s.tagFilter)
+	if len(tags) == 0 {
+		return nil
+	}
+
+	var (
+		wg      sync.WaitGroup
+		errOnce sync.Once
+		lastErr error
+	)
+
+	const maxConcurrentWrites = 8
+	sem := make(chan struct{}, maxConcurrentWrites)
+	for _, v := range tags {
+		if !s.shouldIndexTag(v) {
+			s.tagIndexSkipped.Inc(1)
+			continue
+		}
+
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
 			insertTagQuery := s.session.Query(tagIndex, ds.TraceID, ds.SpanID, v.ServiceName, ds.StartTime, v.TagKey, v.TagValue)
 			if err := s.writerMetrics.tagIndex.Exec(insertTagQuery, s.logger); err != nil {
 				withTagInfo := s.logger.
 					With(zap.String("tag_key", v.TagKey)).
 					With(zap.String("tag_value", v.TagValue)).
 					With(zap.String("service_name", v.ServiceName))
-				return s.logError(ds, err, "Failed to index tag", withTagInfo)
+
+				// Log all errors to satisfy diagnostics requirement
+				e := s.logError(ds, err, "Failed to index tag", withTagInfo)
+
+				// Still use errOnce to capture only the first error for the returned result
+				errOnce.Do(func() {
+					lastErr = e
+				})
 			}
-		} else {
-			s.tagIndexSkipped.Inc(1)
-		}
+		})
 	}
-	return nil
+	wg.Wait()
+	return lastErr
 }
 
 func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) error {

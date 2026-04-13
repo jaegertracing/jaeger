@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -242,19 +243,34 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	if err != nil {
 		return nil, err
 	}
-	var traces []dbmodel.Trace
-	for _, traceID := range dbTraceIDs {
-		spans, err := s.GetTrace(ctx, traceID)
-		if err != nil {
-			s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
-			continue
-		}
-		if len(spans) == 0 {
-			continue
-		}
-		traces = append(traces, dbmodel.Trace{Spans: spans})
+
+	traces := make([]dbmodel.Trace, len(dbTraceIDs))
+	const maxConcurrentTraceReads = 8
+	sem := make(chan struct{}, maxConcurrentTraceReads)
+	var wg sync.WaitGroup
+	for i, traceID := range dbTraceIDs {
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			spans, err := s.GetTrace(ctx, traceID)
+			if err != nil {
+				s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
+				return
+			}
+			if len(spans) > 0 {
+				traces[i] = dbmodel.Trace{Spans: spans}
+			}
+		})
 	}
-	return traces, nil
+	wg.Wait()
+
+	var result []dbmodel.Trace
+	for _, t := range traces {
+		if len(t.Spans) > 0 {
+			result = append(result, t)
+		}
+	}
+	return result, nil
 }
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery
@@ -315,28 +331,52 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 	ctx, span := s.startSpanForQuery(ctx, "queryByTagsAndLogs", queryByTag)
 	defer span.End()
 
-	results := make([]dbmodel.UniqueTraceIDs, 0, len(tq.Tags))
+	results := make([]dbmodel.UniqueTraceIDs, len(tq.Tags))
+	var (
+		wg       sync.WaitGroup
+		errOnce  sync.Once
+		firstErr error
+	)
+
+	i := 0
+	const maxConcurrentTagQueries = 8
+	sem := make(chan struct{}, maxConcurrentTagQueries)
 	for k, v := range tq.Tags {
-		_, childSpan := s.tracer.Start(ctx, "queryByTag")
-		childSpan.SetAttributes(
-			attribute.Key("tag.key").String(k),
-			attribute.Key("tag.value").String(v),
-		)
-		query := s.session.Query(
-			queryByTag,
-			tq.ServiceName,
-			k,
-			v,
-			model.TimeAsEpochMicroseconds(tq.StartTimeMin),
-			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
-			tq.NumTraces*limitMultiple,
-		).PageSize(0)
-		t, err := s.executeQuery(childSpan, query, s.metrics.queryTagIndex)
-		childSpan.End()
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, t)
+		index := i
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			_, childSpan := s.tracer.Start(ctx, "queryByTag")
+			childSpan.SetAttributes(
+				attribute.Key("tag.key").String(k),
+				attribute.Key("tag.value").String(v),
+			)
+			query := s.session.Query(
+				queryByTag,
+				tq.ServiceName,
+				k,
+				v,
+				model.TimeAsEpochMicroseconds(tq.StartTimeMin),
+				model.TimeAsEpochMicroseconds(tq.StartTimeMax),
+				tq.NumTraces*limitMultiple,
+			).PageSize(0)
+			t, err := s.executeQuery(childSpan, query, s.metrics.queryTagIndex)
+			childSpan.End()
+
+			if err != nil {
+				errOnce.Do(func() {
+					firstErr = err
+				})
+				return
+			}
+			results[index] = t
+		})
+		i++
+	}
+
+	wg.Wait()
+	if firstErr != nil {
+		return nil, firstErr
 	}
 	return dbmodel.IntersectTraceIDs(results), nil
 }
