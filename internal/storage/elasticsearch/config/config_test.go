@@ -1962,6 +1962,27 @@ func TestGetBodyFixRoundTripper_NilBody(t *testing.T) {
 	assert.Nil(t, recorder.req.GetBody)
 }
 
+type errReader struct{}
+
+func (*errReader) Read([]byte) (int, error) {
+	return 0, io.ErrUnexpectedEOF
+}
+
+func TestGetBodyFixRoundTripper_ReadAllError(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "http://localhost", http.NoBody)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(&errReader{})
+	req.GetBody = nil
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	resp, err := rt.RoundTrip(req)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.Nil(t, resp)
+	assert.Nil(t, recorder.req, "base RoundTripper should not have been called")
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
