@@ -8,9 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -19,6 +21,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
+)
+
+var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
+	"storage.clickhouse",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.18.0"),
+	featuregate.WithRegisterDescription(
+		"Enables ClickHouse as a storage backend."),
 )
 
 var (
@@ -35,6 +45,25 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
+	if !clickhouseStorageGate.IsEnabled() {
+		return nil, errors.New(
+			"ClickHouse storage is experimental and must be explicitly enabled. " +
+				"The schema is subject to breaking changes. " +
+				"Enable it with --feature-gates=storage.clickhouse",
+		)
+	}
+	fmt.Fprint(os.Stderr, `
+*******************************************************************************
+
+⚠️  WARNING: ClickHouse Storage is Experimental
+
+You are using the ClickHouse storage backend, which is currently experimental.
+The schema is subject to breaking changes in future releases.
+
+⚠️  WARNING: ClickHouse Storage is Experimental
+
+*******************************************************************************
+`)
 	cfg.applyDefaults()
 	f := &Factory{
 		config: cfg,
@@ -80,6 +109,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 			{"attribute metadata materialized view", sql.CreateAttributeMetadataMaterializedView},
 			{"event attribute metadata materialized view", sql.CreateEventAttributeMetadataMaterializedView},
 			{"link attribute metadata materialized view", sql.CreateLinkAttributeMetadataMaterializedView},
+			{"dependencies table", sql.CreateDependenciesTable},
 		}
 
 		for _, schema := range schemas {
@@ -105,8 +135,8 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	return chtracestore.NewWriter(f.conn), nil
 }
 
-func (*Factory) CreateDependencyReader() (depstore.Reader, error) {
-	return chdepstore.NewDependencyReader(), nil
+func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
+	return chdepstore.NewDependencyReader(f.conn), nil
 }
 
 func (f *Factory) Close() error {
@@ -123,6 +153,7 @@ func (f *Factory) Purge(ctx context.Context) error {
 		{"operations", sql.TruncateOperations},
 		{"trace_id_timestamps", sql.TruncateTraceIDTimestamps},
 		{"attribute_metadata", sql.TruncateAttributeMetadata},
+		{"dependencies", sql.TruncateDependencies},
 	}
 
 	for _, table := range tables {

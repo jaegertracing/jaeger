@@ -1,0 +1,89 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+import asyncio
+import logging
+from typing import Any
+
+from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
+from google.genai import types
+
+from sidecar_helpers import _extract_function_declaration, _to_jsonable
+
+
+logger = logging.getLogger(__name__)
+
+
+class JaegerMCPBridge:
+    """Loads MCP tools once and exposes them for Gemini tool-calling."""
+
+    def __init__(self, mcp_url: str, timeout_sec: float):
+        self._mcp_url = mcp_url
+        self._timeout_sec = timeout_sec
+        self._toolset = MCPToolset(
+            connection_params=StreamableHTTPConnectionParams(url=mcp_url),
+        )
+        self._tools_by_name: dict[str, Any] = {}
+        self._gemini_tools: list[types.Tool] = []
+        self._initialized = False
+
+    async def initialize(self) -> None:
+        if self._initialized:
+            return
+
+        # Discover available MCP tools once, then expose them to Gemini as function declarations.
+        logger.info(
+            f"Initializing MCP tool discovery from {self._mcp_url} "
+            f"(single attempt timeout={self._timeout_sec}s)"
+        )
+
+        try:
+            logger.info(
+                f"MCP connection trying {self._mcp_url} "
+                f"(timeout {self._timeout_sec:.1f}s)"
+            )
+            adk_tools = await asyncio.wait_for(self._toolset.get_tools(), timeout=self._timeout_sec)
+        except asyncio.CancelledError:
+            logger.warning(
+                "MCP tool discovery cancelled before completion "
+                "(client likely disconnected before MCP became available)."
+            )
+            logger.warning("MCP was not connected for %s; request aborted.", self._mcp_url)
+            raise
+        except Exception as exc:
+            message = (
+                f"Unable to connect to MCP at {self._mcp_url} on first attempt. "
+                "Stopping request."
+            )
+            logger.error("%s Error: %s", message, exc)
+            raise RuntimeError(message) from exc
+
+        self._tools_by_name = {tool.name: tool for tool in adk_tools}
+        logger.info("Retrieved tools from MCP: %s", list(self._tools_by_name.keys()))
+
+        function_declarations: list[types.FunctionDeclaration] = []
+        for tool in adk_tools:
+            declaration = _extract_function_declaration(tool)
+            if declaration is not None:
+                function_declarations.append(declaration)
+
+        if function_declarations:
+            self._gemini_tools = [types.Tool(function_declarations=function_declarations)]
+        else:
+            self._gemini_tools = []
+
+        self._initialized = True
+
+    async def get_gemini_tools(self) -> list[types.Tool]:
+        await self.initialize()
+        return self._gemini_tools
+
+    async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
+        await self.initialize()
+
+        tool = self._tools_by_name.get(name)
+        if tool is None:
+            return {"error": f"unsupported tool: {name}"}
+
+        result = await tool.run_async(args=args or {}, tool_context=None)
+        return _to_jsonable(result)
