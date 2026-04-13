@@ -28,6 +28,16 @@ type streamingClient struct {
 	doneOnce   sync.Once
 }
 
+func newStreamingClient(ctx context.Context, w http.ResponseWriter) *streamingClient {
+	flusher, _ := w.(http.Flusher)
+	return &streamingClient{
+		requestCtx: ctx,
+		w:          w,
+		flusher:    flusher,
+		doneCh:     make(chan struct{}),
+	}
+}
+
 func (c *streamingClient) Close() {
 	c.doneOnce.Do(func() {
 		if c.doneCh != nil {

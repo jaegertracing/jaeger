@@ -5,40 +5,45 @@ package jaegerai
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 // WsReadWriteCloser wraps a gorilla websocket to implement io.ReadWriteCloser.
 type WsReadWriteCloser struct {
-	conn     *websocket.Conn
-	r        io.Reader
-	respBody io.Closer // HTTP response body from the dial handshake, if any
+	conn   *websocket.Conn
+	r      io.Reader
+	logger *zap.Logger
 }
 
 // NewWsAdapter wraps an existing websocket connection.
-func NewWsAdapter(conn *websocket.Conn) *WsReadWriteCloser {
-	return &WsReadWriteCloser{conn: conn}
+func NewWsAdapter(conn *websocket.Conn, logger *zap.Logger) *WsReadWriteCloser {
+	return &WsReadWriteCloser{conn: conn, logger: logger}
 }
 
 // DialWsAdapter dials a websocket endpoint and returns the adapter.
-// The caller must call Close() to release the connection and any dial response resources.
-func DialWsAdapter(ctx context.Context, url string) (*WsReadWriteCloser, error) {
+// The caller must call Close() to release the connection.
+// On error, gorilla closes resp.Body internally (wraps it in io.NopCloser),
+// so we only read it here for diagnostic logging.
+func DialWsAdapter(ctx context.Context, url string, logger *zap.Logger) (*WsReadWriteCloser, error) {
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, resp, err := dialer.DialContext(ctx, url, nil) //nolint:bodyclose // resp.Body is captured in respBody and closed via WsReadWriteCloser.Close or on error below
-	var respBody io.Closer
-	if resp != nil && resp.Body != nil {
-		respBody = resp.Body
-	}
+	conn, resp, err := dialer.DialContext(ctx, url, nil) //nolint:bodyclose // gorilla wraps resp.Body in io.NopCloser; no close needed
 	if err != nil {
-		if respBody != nil {
-			_ = respBody.Close()
+		if resp != nil {
+			body, _ := io.ReadAll(resp.Body)
+			logger.Error("WebSocket dial failed",
+				zap.Int("status", resp.StatusCode),
+				zap.String("body", string(body)),
+				zap.Error(err),
+			)
 		}
-		return nil, err
+		return nil, fmt.Errorf("websocket dial %s: %w", url, err)
 	}
-	return &WsReadWriteCloser{conn: conn, respBody: respBody}, nil
+	return &WsReadWriteCloser{conn: conn, logger: logger}, nil
 }
 
 func (w *WsReadWriteCloser) Read(p []byte) (int, error) {
@@ -72,11 +77,5 @@ func (w *WsReadWriteCloser) Write(p []byte) (int, error) {
 }
 
 func (w *WsReadWriteCloser) Close() error {
-	connErr := w.conn.Close()
-	if w.respBody != nil {
-		if err := w.respBody.Close(); err != nil && connErr == nil {
-			connErr = err
-		}
-	}
-	return connErr
+	return w.conn.Close()
 }

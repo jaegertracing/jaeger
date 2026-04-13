@@ -5,6 +5,7 @@
 package app
 
 import (
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -35,6 +36,16 @@ type AIConfig struct {
 	WaitForTurnTimeout time.Duration `mapstructure:"wait_for_turn_timeout" valid:"optional"`
 	// MaxRequestBodySize is the maximum allowed size in bytes for the chat request body.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
+}
+
+func (c AIConfig) Validate() error {
+	if c.MaxRequestBodySize < 0 {
+		return errors.New("ai.max_request_body_size must not be negative")
+	}
+	if c.WaitForTurnTimeout < 0 {
+		return errors.New("ai.wait_for_turn_timeout must not be negative")
+	}
+	return nil
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2

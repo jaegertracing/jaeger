@@ -83,6 +83,10 @@ func (a *mockACPAgent) Prompt(_ context.Context, params acp.PromptRequest) (acp.
 	return acp.PromptResponse{StopReason: acp.StopReasonEndTurn}, nil
 }
 
+func (*mockACPAgent) SetSessionConfigOption(context.Context, acp.SetSessionConfigOptionRequest) (acp.SetSessionConfigOptionResponse, error) {
+	return acp.SetSessionConfigOptionResponse{}, nil
+}
+
 func (*mockACPAgent) SetSessionMode(context.Context, acp.SetSessionModeRequest) (acp.SetSessionModeResponse, error) {
 	return acp.SetSessionModeResponse{}, nil
 }
@@ -104,7 +108,7 @@ func startMockACPWebSocketServer(t *testing.T, agent *mockACPAgent) (string, fun
 		}
 		defer conn.Close()
 
-		adapter := NewWsAdapter(conn)
+		adapter := NewWsAdapter(conn, zap.NewNop())
 		asc := acp.NewAgentSideConnection(agent, adapter, adapter)
 
 		<-asc.Done()
@@ -300,30 +304,18 @@ func TestChatHandlerPromptError(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "Error starting prompt", "expected prompt error message")
 }
 
-func TestChatHandlerErrorWriteFailurePaths(t *testing.T) {
-	tests := []struct {
-		name  string
-		agent *mockACPAgent
-	}{
-		{name: "initialize error write failure", agent: &mockACPAgent{initializeErr: errors.New("initialize failed")}},
-		{name: "new session error write failure", agent: &mockACPAgent{newSessionErr: errors.New("new session failed")}},
-		{name: "prompt error write failure", agent: &mockACPAgent{promptErr: errors.New("prompt failed")}},
-	}
+func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
+	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			wsURL, cleanup := startMockACPWebSocketServer(t, tc.agent)
-			defer cleanup()
+	handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err, "failed to marshal request")
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	w := &failingFlusherResponseWriter{}
 
-			handler := NewChatHandler(zap.NewNop(), wsURL, testWaitForTurnTimeout, 1<<20)
-			body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-			require.NoError(t, err, "failed to marshal request")
-			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
-			w := &failingFlusherResponseWriter{}
+	handler.ServeHTTP(w, req)
 
-			handler.ServeHTTP(w, req)
-
-			require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
-		})
-	}
+	require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
 }

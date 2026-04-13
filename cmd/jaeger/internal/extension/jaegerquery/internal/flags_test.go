@@ -22,4 +22,20 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, "ws://localhost:16688", aiCfg.AgentURL)
 	require.Equal(t, 50*time.Millisecond, aiCfg.WaitForTurnTimeout)
 	require.Equal(t, int64(1<<20), aiCfg.MaxRequestBodySize)
+	require.NoError(t, aiCfg.Validate())
+}
+
+func TestAIConfigValidateRejectsNegativeBodySize(t *testing.T) {
+	cfg := AIConfig{MaxRequestBodySize: -1}
+	require.Error(t, cfg.Validate())
+}
+
+func TestAIConfigValidateAcceptsZeroBodySize(t *testing.T) {
+	cfg := AIConfig{MaxRequestBodySize: 0}
+	require.NoError(t, cfg.Validate())
+}
+
+func TestAIConfigValidateRejectsNegativeTimeout(t *testing.T) {
+	cfg := AIConfig{WaitForTurnTimeout: -1}
+	require.Error(t, cfg.Validate())
 }

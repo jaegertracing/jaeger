@@ -69,27 +69,17 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL)
+	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, h.Logger)
 	if err != nil {
-		h.Logger.Error("Failed to dial ACP sidecar", zap.Error(err))
 		http.Error(w, "Failed to connect to agent backend", http.StatusBadGateway)
 		return
 	}
 	defer adapter.Close()
 
-	// Flusher is optional — without it, the response buffers until the handler returns.
-	flusher, _ := w.(http.Flusher)
-
-	clientImpl := &streamingClient{
-		requestCtx: ctx,
-		w:          w,
-		flusher:    flusher,
-		doneCh:     make(chan struct{}),
-	}
+	clientImpl := newStreamingClient(ctx, w)
 	// Build an ACP client-side connection over the websocket adapter.
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
 
-	clientVersion := version.Get().GitVersion
 	_, err = acpConn.Initialize(acpCtx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
@@ -98,14 +88,11 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 		ClientInfo: &acp.Implementation{
 			Name:    "jaeger-ai-gateway",
-			Version: clientVersion,
+			Version: version.Get().GitVersion,
 		},
 	})
 	if err != nil {
-		w.WriteHeader(http.StatusBadGateway)
-		if _, writeErr := fmt.Fprintf(w, "Error initializing agent: %v\n", err); writeErr != nil {
-			h.Logger.Warn("Failed to write initialize error response", zap.Error(writeErr))
-		}
+		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
 		return
 	}
 
@@ -114,10 +101,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		w.WriteHeader(http.StatusBadGateway)
-		if _, writeErr := fmt.Fprintf(w, "Error creating session: %v\n", err); writeErr != nil {
-			h.Logger.Warn("Failed to write new session error response", zap.Error(writeErr))
-		}
+		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
 	}
 
