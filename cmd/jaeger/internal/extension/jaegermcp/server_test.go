@@ -224,6 +224,34 @@ func TestServerQueryServiceRetrieval(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestServerStartContinuesWhenMetricsMiddlewareFails(t *testing.T) {
+	// Verify that a failing MeterProvider does not abort server startup;
+	// the server should continue with tracing only (a warning is logged).
+	host := newMockHost()
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	telset := componenttest.NewNopTelemetrySettings()
+	telset.MeterProvider = &failingMeterProvider{failCounter: true}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, server.Shutdown(context.Background()))
+	})
+}
+
 func TestServerStartFailsWithoutQueryExtension(t *testing.T) {
 	// Test that Start method fails when jaegerquery extension is not available
 	host := componenttest.NewNopHost() // No jaegerquery extension

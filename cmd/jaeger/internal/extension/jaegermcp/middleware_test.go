@@ -16,6 +16,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	baggageapi "go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	traceapi "go.opentelemetry.io/otel/trace"
@@ -472,4 +476,228 @@ func TestRequestMetaCarrier(t *testing.T) {
 		nilMetaCarrier.Set(traceContextMetaTraceParent, "trace-parent")
 	})
 	assert.Equal(t, "trace-parent", nilMetaCarrier.Get(traceContextMetaTraceParent))
+}
+
+// --- Metrics middleware tests ---
+
+func TestMetricsMiddlewareToolCallSuccess(t *testing.T) {
+	capture := newMetricsCapture(t)
+	mm, err := createMetricsMiddleware(capture.provider)
+	require.NoError(t, err)
+	middleware := chainMiddleware(mm)
+
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+
+	result, err := wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	metrics := capture.collect(t)
+
+	counterDP := findMetricDataPoint[metricdata.Sum[int64]](t, metrics, "jaeger.mcp.tool.calls")
+	require.Len(t, counterDP.DataPoints, 1)
+	assert.Equal(t, int64(1), counterDP.DataPoints[0].Value)
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, "status", metricStatusSuccess)
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.McpMethodName("").Key), mcpMethodToolsCall)
+
+	histoDP := findMetricDataPoint[metricdata.Histogram[float64]](t, metrics, "jaeger.mcp.tool.duration")
+	require.Len(t, histoDP.DataPoints, 1)
+	assert.Equal(t, uint64(1), histoDP.DataPoints[0].Count)
+	assert.GreaterOrEqual(t, histoDP.DataPoints[0].Sum, float64(0))
+}
+
+func TestMetricsMiddlewareToolCallError(t *testing.T) {
+	capture := newMetricsCapture(t)
+	mm, err := createMetricsMiddleware(capture.provider)
+	require.NoError(t, err)
+	middleware := chainMiddleware(mm)
+
+	expectedErr := errors.New("storage unavailable")
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return nil, expectedErr
+	})
+
+	_, err = wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("search_traces"))
+	require.ErrorIs(t, err, expectedErr)
+
+	metrics := capture.collect(t)
+
+	counterDP := findMetricDataPoint[metricdata.Sum[int64]](t, metrics, "jaeger.mcp.tool.calls")
+	require.Len(t, counterDP.DataPoints, 1)
+	assert.Equal(t, int64(1), counterDP.DataPoints[0].Value)
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, "status", metricStatusError)
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key), "search_traces")
+}
+
+func TestMetricsMiddlewareToolCallResultError(t *testing.T) {
+	capture := newMetricsCapture(t)
+	mm, err := createMetricsMiddleware(capture.provider)
+	require.NoError(t, err)
+	middleware := chainMiddleware(mm)
+
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		result := &mcp.CallToolResult{}
+		result.SetError(errors.New("invalid pattern"))
+		return result, nil
+	})
+
+	var result mcp.Result
+	result, err = wrapped(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	metrics := capture.collect(t)
+
+	counterDP := findMetricDataPoint[metricdata.Sum[int64]](t, metrics, "jaeger.mcp.tool.calls")
+	require.Len(t, counterDP.DataPoints, 1)
+	assert.Equal(t, int64(1), counterDP.DataPoints[0].Value)
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, "status", metricStatusError)
+}
+
+func TestMetricsMiddlewareNonToolMethod(t *testing.T) {
+	capture := newMetricsCapture(t)
+	mm, err := createMetricsMiddleware(capture.provider)
+	require.NoError(t, err)
+	middleware := chainMiddleware(mm)
+
+	wrapped := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+
+	_, err = wrapped(context.Background(), "initialize", newToolCallRequest("get_services"))
+	require.NoError(t, err)
+
+	metrics := capture.collect(t)
+
+	counterDP := findMetricDataPoint[metricdata.Sum[int64]](t, metrics, "jaeger.mcp.tool.calls")
+	require.Len(t, counterDP.DataPoints, 1)
+	assert.Equal(t, int64(1), counterDP.DataPoints[0].Value)
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.McpMethodName("").Key), "initialize")
+	assertMetricHasAttr(t, counterDP.DataPoints[0].Attributes, "status", metricStatusSuccess)
+	// Non-tool methods should NOT have gen_ai.tool.name attribute
+	assertMetricMissingAttr(t, counterDP.DataPoints[0].Attributes, string(otelsemconv.GenAIToolName("").Key))
+}
+
+func TestMetricsMiddlewareMultipleCalls(t *testing.T) {
+	capture := newMetricsCapture(t)
+	mm, err := createMetricsMiddleware(capture.provider)
+	require.NoError(t, err)
+	middleware := chainMiddleware(mm)
+
+	successHandler := middleware(func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+
+	_, err = successHandler(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+	_, err = successHandler(context.Background(), mcpMethodToolsCall, newToolCallRequest("get_services"))
+	require.NoError(t, err)
+
+	metrics := capture.collect(t)
+
+	counterDP := findMetricDataPoint[metricdata.Sum[int64]](t, metrics, "jaeger.mcp.tool.calls")
+	require.Len(t, counterDP.DataPoints, 1)
+	assert.Equal(t, int64(2), counterDP.DataPoints[0].Value)
+}
+
+// --- Metrics test helpers ---
+
+type metricsCapture struct {
+	provider *sdkmetric.MeterProvider
+	reader   *sdkmetric.ManualReader
+}
+
+func newMetricsCapture(t *testing.T) *metricsCapture {
+	t.Helper()
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+	return &metricsCapture{provider: provider, reader: reader}
+}
+
+func (c *metricsCapture) collect(t *testing.T) *metricdata.ResourceMetrics {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, c.reader.Collect(context.Background(), &rm))
+	return &rm
+}
+
+func findMetricDataPoint[T metricdata.Sum[int64] | metricdata.Histogram[float64]](t *testing.T, rm *metricdata.ResourceMetrics, name string) *T {
+	t.Helper()
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name == name {
+				if dp, ok := m.Data.(T); ok {
+					return &dp
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %q not found", name)
+	return nil
+}
+
+func assertMetricHasAttr(t *testing.T, attrs attribute.Set, key, value string) {
+	t.Helper()
+	v, ok := attrs.Value(attribute.Key(key))
+	require.Truef(t, ok, "attribute %q not found in %v", key, attrs)
+	assert.Equalf(t, value, v.AsString(), "attribute %q expected %q, got %q", key, value, v.AsString())
+}
+
+func assertMetricMissingAttr(t *testing.T, attrs attribute.Set, key string) {
+	t.Helper()
+	_, ok := attrs.Value(attribute.Key(key))
+	assert.Falsef(t, ok, "attribute %q should not be present", key)
+}
+
+func TestCreateMetricsMiddlewareCounterError(t *testing.T) {
+	provider := &failingMeterProvider{failCounter: true}
+	mm, err := createMetricsMiddleware(provider)
+	require.Error(t, err)
+	require.Nil(t, mm)
+	assert.Contains(t, err.Error(), "failed to create tool calls counter")
+}
+
+func TestCreateMetricsMiddlewareHistogramError(t *testing.T) {
+	provider := &failingMeterProvider{failHistogram: true}
+	mm, err := createMetricsMiddleware(provider)
+	require.Error(t, err)
+	require.Nil(t, mm)
+	assert.Contains(t, err.Error(), "failed to create tool duration histogram")
+}
+
+// failingMeterProvider returns a Meter whose instrument creation fails on demand.
+type failingMeterProvider struct {
+	metricnoop.MeterProvider
+	failCounter   bool
+	failHistogram bool
+}
+
+func (p *failingMeterProvider) Meter(_ string, _ ...metric.MeterOption) metric.Meter {
+	return &failingMeter{failCounter: p.failCounter, failHistogram: p.failHistogram}
+}
+
+type failingMeter struct {
+	metricnoop.Meter
+	failCounter   bool
+	failHistogram bool
+}
+
+func (m *failingMeter) Int64Counter(name string, opts ...metric.Int64CounterOption) (metric.Int64Counter, error) {
+	if m.failCounter {
+		return nil, errors.New("counter creation failed")
+	}
+	return m.Meter.Int64Counter(name, opts...)
+}
+
+func (m *failingMeter) Float64Histogram(name string, opts ...metric.Float64HistogramOption) (metric.Float64Histogram, error) {
+	if m.failHistogram {
+		return nil, errors.New("histogram creation failed")
+	}
+	return m.Meter.Float64Histogram(name, opts...)
 }

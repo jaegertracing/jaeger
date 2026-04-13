@@ -5,11 +5,14 @@ package jaegermcp
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
@@ -79,6 +82,67 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			return result, err
 		}
 	}
+}
+
+// createMetricsMiddleware creates an MCP middleware that records per-method and per-tool invocation metrics.
+func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware, error) {
+	meter := meterProvider.Meter("jaeger.mcp")
+	callCounter, err := meter.Int64Counter(
+		"jaeger.mcp.tool.calls",
+		metric.WithDescription("Number of MCP method/tool invocations"),
+		metric.WithUnit("{call}"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool calls counter: %w", err)
+	}
+	durationHistogram, err := meter.Float64Histogram(
+		"jaeger.mcp.tool.duration",
+		metric.WithDescription("Duration of MCP method/tool invocations"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tool duration histogram: %w", err)
+	}
+
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			start := time.Now()
+			toolName := toolNameFromRequest(method, req)
+			attrs := buildMetricAttributes(method, toolName)
+
+			result, err := next(ctx, method, req)
+
+			status := metricStatusSuccess
+			if err != nil {
+				status = metricStatusError
+			} else if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
+				status = metricStatusError
+			}
+			attrs = append(attrs, statusAttr(status))
+
+			callCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+			durationHistogram.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
+
+			return result, err
+		}
+	}, nil
+}
+
+const (
+	metricStatusSuccess = "success"
+	metricStatusError   = "error"
+)
+
+func statusAttr(status string) attribute.KeyValue {
+	return attribute.String("status", status)
+}
+
+func buildMetricAttributes(method, toolName string) []attribute.KeyValue {
+	attrs := []attribute.KeyValue{otelsemconv.McpMethodName(method)}
+	if toolName != "" {
+		attrs = append(attrs, otelsemconv.GenAIToolName(toolName))
+	}
+	return attrs
 }
 
 func toolNameFromRequest(method string, req mcp.Request) string {
