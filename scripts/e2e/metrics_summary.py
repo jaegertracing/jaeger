@@ -28,7 +28,7 @@ def parse_diff_file(diff_path):
         original_line = line.rstrip('\n')
         stripped = original_line.strip()
 
-        if stripped.startswith('# Metrics excluded from A: ') or stripped.startswith('# Metrics excluded from B: '):
+        if stripped.startswith('# Metrics excluded from baseline: ') or stripped.startswith('# Metrics excluded from current: '):
             count_str = stripped.split(': ')[1]
             exclusion_count += int(count_str)
             continue
@@ -73,19 +73,38 @@ def extract_metric_name(line):
         return line.split('{')[0].strip()
     return line.strip()
 
-def get_raw_diff_sample(raw_lines, max_lines=7):
+def get_raw_diff_sample(raw_lines, max_lines=8):
     """
     Get sample raw diff lines, preserving original diff formatting.
+
+    For modified metrics that have both removed (-) and added (+) lines,
+    interleaves them so both sides are visible when the sample is truncated,
+    avoiding the problem of showing only the removed side.
     """
     if not raw_lines:
         return []
 
-    # Take up to max_lines
-    sample_lines = raw_lines[:max_lines]
-    if len(raw_lines) > max_lines:
-        sample_lines.append("...")
+    removed_lines = [l for l in raw_lines if l.startswith('-')]
+    added_lines = [l for l in raw_lines if l.startswith('+')]
 
-    return sample_lines
+    # If only one direction of change (pure add or pure remove), just truncate.
+    if not removed_lines or not added_lines:
+        sample_lines = raw_lines[:max_lines]
+        if len(raw_lines) > max_lines:
+            sample_lines.append("...")
+        return sample_lines
+
+    # Interleave pairs of (removed, added) lines so both sides are always visible.
+    max_pairs = max(1, max_lines // 2)
+    interleaved = []
+    for i in range(min(max_pairs, len(removed_lines), len(added_lines))):
+        interleaved.append(removed_lines[i])
+        interleaved.append(added_lines[i])
+
+    if len(removed_lines) > max_pairs or len(added_lines) > max_pairs:
+        interleaved.append("...")
+
+    return interleaved
 
 def generate_diff_summary(changes, raw_diff_sections, exclusion_count):
     """

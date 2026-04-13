@@ -88,7 +88,7 @@ class FakeAgent(Agent):
     async def list_sessions(self, cursor: str | None = None, cwd: str | None = None, **kwargs: Any) -> ListSessionsResponse:
         return ListSessionsResponse(sessions=[])
 
-    async def prompt(self, prompt: list[Any], session_id: str, **kwargs: Any) -> PromptResponse:
+    async def prompt(self, prompt: list[Any], session_id: str, message_id: str | None = None, **kwargs: Any) -> PromptResponse:
         user_text = "".join(block.text for block in prompt if hasattr(block, "text"))
         self.received_prompts.append((session_id, user_text))
 
