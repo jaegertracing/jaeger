@@ -37,7 +37,7 @@ func TestWriteDependencies(t *testing.T) {
 	row := b.Appended[0]
 	assert.Equal(t, ts, row[0])
 	expectedJSON := `[{"parent":"serviceA","child":"serviceB","callCount":10},{"parent":"serviceB","child":"serviceC","callCount":5}]`
-	assert.Equal(t, expectedJSON, row[1])
+	assert.JSONEq(t, expectedJSON, row[1].(string))
 }
 
 func TestWriteDependencies_Errors(t *testing.T) {
