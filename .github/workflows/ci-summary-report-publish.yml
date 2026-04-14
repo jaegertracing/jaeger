@@ -17,6 +17,7 @@
 # Security model: see .github/scripts/ci-summary-report-publish.js
 
 name: CI Summary Report (Publish)
+run-name: Report for ${{ github.event.workflow_run.display_title }}
 on:
   workflow_run:
     workflows: ["CI Orchestrator"]
