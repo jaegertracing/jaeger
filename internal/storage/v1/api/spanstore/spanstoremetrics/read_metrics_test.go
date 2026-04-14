@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestSuccessfulUnderlyingCalls(t *testing.T) {
@@ -25,9 +26,9 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs := spanstoremetrics.NewReaderDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
-	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
+	operationQuery := tracestore.OperationQueryParams{ServiceName: "something"}
 	mockReader.On("GetOperations", context.Background(), operationQuery).
-		Return([]spanstore.Operation{}, nil)
+		Return([]tracestore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTrace", context.Background(), spanstore.GetTraceParameters{}).Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), spanstore.GetTraceParameters{})
@@ -93,7 +94,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetServices", context.Background()).
 		Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
-	operationQuery := spanstore.OperationQueryParameters{ServiceName: "something"}
+	operationQuery := tracestore.OperationQueryParams{ServiceName: "something"}
 	mockReader.On("GetOperations", context.Background(), operationQuery).
 		Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), operationQuery)

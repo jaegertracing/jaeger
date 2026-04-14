@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
@@ -60,12 +61,13 @@ func (*server) Dependencies() []component.ID {
 func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint))
 
-	// Get v2 QueryService from jaegerquery extension
+	// Get v2 QueryService from jaegerquery extension.
 	queryExt, err := jaegerquery.GetExtension(host)
 	if err != nil {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
 		&mcp.Implementation{
@@ -77,7 +79,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 	s.registerTools()
-	s.mcpServer.AddReceivingMiddleware(createLoggingMiddleware(s.telset.Logger))
+	s.mcpServer.AddReceivingMiddleware(createTracingMiddleware(s.telset.TracerProvider))
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
@@ -88,7 +90,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 
-	handler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
+	handler := otelhttp.NewHandler(
+		tenantHandler,
+		"jaeger_mcp",
+		otelhttp.WithTracerProvider(s.telset.TracerProvider),
+	)
 
 	s.listener, err = s.config.HTTP.ToListener(ctx)
 	if err != nil {

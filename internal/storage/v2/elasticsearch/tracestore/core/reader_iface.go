@@ -1,16 +1,16 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package spanstore
+package core
 
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-// CoreSpanReader is a DB-Level abstraction which directly deals with database level operations
-type CoreSpanReader interface {
+// Reader is a DB-Level abstraction which directly deals with database level operations
+type Reader interface {
 	// FindTraceIDs retrieves traces IDs that match the traceQuery
 	FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error)
 	// FindTraces retrieves traces that match the traceQuery

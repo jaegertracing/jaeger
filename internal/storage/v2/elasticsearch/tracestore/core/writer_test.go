@@ -2,7 +2,7 @@
 // Copyright (c) 2017 Uber Technologies, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-package spanstore
+package core
 
 import (
 	"strings"
@@ -19,9 +19,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -49,8 +49,6 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 	}
 	fn(w)
 }
-
-var _ spanstore.Writer = &SpanWriterV1{} // check API conformance
 
 func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
@@ -249,8 +247,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
-	serviceIndexName := indexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
+	spanIndexName := indices.IndexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
+	serviceIndexName := indices.IndexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

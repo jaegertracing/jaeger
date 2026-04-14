@@ -17,6 +17,7 @@
 # Security model: see .github/scripts/ci-summary-report-publish.js
 
 name: CI Summary Report (Publish)
+run-name: Report for ${{ github.event.workflow_run.display_title }}
 on:
   workflow_run:
     workflows: ["CI Orchestrator"]
@@ -109,19 +110,20 @@ jobs:
 
       - name: Post PR comment and create check runs
         if: steps.source-run.outputs.head_sha
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const handler = require('./.github/scripts/ci-summary-report-publish.js');
             await handler({
               github, core, fs: require('fs'),
               inputs: {
-                owner:      context.repo.owner,
-                repo:       context.repo.repo,
-                headSha:    '${{ steps.source-run.outputs.head_sha }}',
-                prNumber:   '${{ steps.source-run.outputs.pr_number || steps.pr.outputs.pr_number }}',
-                ciRunUrl:   '${{ steps.source-run.outputs.source_run_url }}',
-                publishUrl: '${{ steps.source-run.outputs.summary_run_url }}',
+                owner:       context.repo.owner,
+                repo:        context.repo.repo,
+                headSha:     '${{ steps.source-run.outputs.head_sha }}',
+                prNumber:    '${{ steps.source-run.outputs.pr_number || steps.pr.outputs.pr_number }}',
+                ciRunUrl:    '${{ steps.source-run.outputs.source_run_url }}',
+                publishUrl:  '${{ steps.source-run.outputs.summary_run_url }}',
+                sourceRunId: '${{ steps.source-run.outputs.run_id }}',
               },
             });
         env:
