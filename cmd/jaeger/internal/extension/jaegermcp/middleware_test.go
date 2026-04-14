@@ -199,13 +199,13 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 		return &mcp.CallToolResult{}, nil
 	})
 
-	parentCtx, parentSpan := capture.provider.Tracer("test-parent").Start(context.Background(), "http.request")
+	_, parentSpan := capture.provider.Tracer("test-parent").Start(context.Background(), "http.request")
 	parentSC := parentSpan.SpanContext()
 
 	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
 		traceContextMetaTraceParent: fmt.Sprintf("00-%s-%s-01", parentSC.TraceID(), parentSC.SpanID()),
 	})
-	_, err := wrapped(parentCtx, mcpMethodToolsCall, req)
+	_, err := wrapped(context.Background(), mcpMethodToolsCall, req)
 	require.NoError(t, err)
 
 	parentSpan.End()
