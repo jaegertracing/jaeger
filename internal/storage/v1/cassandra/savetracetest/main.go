@@ -95,7 +95,15 @@ func main() {
 }
 
 func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
-	traces, err := spanReader.FindTraces(ctx, tqp)
+	var traces []dbmodel.Trace
+	var err error
+	for trace, inerr := range spanReader.FindTraces(ctx, tqp) {
+		if inerr != nil {
+			err = inerr
+			break
+		}
+		traces = append(traces, trace)
+	}
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))
 	} else {
