@@ -72,7 +72,7 @@ func TestWriteDependencies_Errors(t *testing.T) {
 				},
 			}
 			w := NewDependencyWriter(conn)
-			err := w.WriteDependencies(time.Now(), testDeps)
+			err := w.WriteDependencies(t.Context(), time.Now(), testDeps)
 			require.ErrorContains(t, err, test.expectError)
 			require.ErrorIs(t, err, assert.AnError)
 		})
