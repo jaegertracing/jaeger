@@ -13,6 +13,10 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  },
   "suppressNotifications": [
     "prEditedNotification"
   ],
