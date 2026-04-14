@@ -26,12 +26,11 @@ func NewDependencyWriter(conn driver.Conn) *Writer {
 	return &Writer{conn: conn}
 }
 
-func (w *Writer) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+func (w *Writer) WriteDependencies(ctx context.Context, ts time.Time, dependencies []model.DependencyLink) error {
 	jsonBytes, err := json.Marshal(dependencyLinksFromModel(dependencies))
 	if err != nil {
 		return fmt.Errorf("failed to marshal dependencies: %w", err)
 	}
-	ctx := context.TODO()
 	batch, err := w.conn.PrepareBatch(ctx, sql.InsertDependencies)
 	if err != nil {
 		return fmt.Errorf("failed to prepare batch: %w", err)

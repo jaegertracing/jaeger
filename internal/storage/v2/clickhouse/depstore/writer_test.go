@@ -29,7 +29,7 @@ func TestWriteDependencies(t *testing.T) {
 		},
 	}
 	w := NewDependencyWriter(conn)
-	err := w.WriteDependencies(ts, testDeps)
+	err := w.WriteDependencies(t.Context(), ts, testDeps)
 	require.NoError(t, err)
 
 	require.True(t, b.SendCalled)
