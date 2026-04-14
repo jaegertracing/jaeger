@@ -15,7 +15,7 @@
   ],
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security"]
+    "labels": ["security", "changelog:dependencies"]
   },
   "suppressNotifications": [
     "prEditedNotification"
