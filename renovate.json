@@ -23,6 +23,12 @@
   "schedule": [
     "on the first day of the month"
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "on the first day of the month"
+    ]
+  },
   "packageRules": [
     {
       "matchFileNames": [
@@ -116,6 +122,15 @@
       "matchPackageNames": [
         "github.com/prometheus{/,}**"
       ]
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "enabled": false
     },
     {
       "groupName": "Exclude frequent tools upgrades",
