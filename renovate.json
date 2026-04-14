@@ -23,6 +23,12 @@
   "schedule": [
     "on the first day of the month"
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "on the first day of the month"
+    ]
+  },
   "packageRules": [
     {
       "matchFileNames": [
