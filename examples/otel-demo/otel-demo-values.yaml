@@ -108,7 +108,7 @@ opentelemetry-collector:
       spanmetrics: null
     exporters:
       otlp/jaeger:
-        endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
+        endpoint: jaeger.jaeger.svc.cluster.local:4317
         tls:
           insecure: true
       opensearch: null

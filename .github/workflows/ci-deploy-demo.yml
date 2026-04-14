@@ -35,10 +35,10 @@ jobs:
       run: |
         if [ "${{ github.event_name }}" = "schedule" ]; then
           echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
-          bash ./examples/oci/deploy-all.sh
+          bash ./examples/otel-demo/deploy-all.sh
         else
           echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
-          bash ./examples/oci/deploy-all.sh clean
+          bash ./examples/otel-demo/deploy-all.sh clean
         fi         
 
     - name: Send detailed Slack notification on failure

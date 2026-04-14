@@ -25,6 +25,7 @@ extensions:
         opensearch:
           server_urls:
             - http://opensearch-cluster-single.opensearch.svc.cluster.local:9200
+          create_mappings: true
           indices:
             index_prefix: "jaeger-main"
             spans:
