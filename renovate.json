@@ -124,15 +124,6 @@
       ]
     },
     {
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchUpdateTypes": [
-        "patch"
-      ],
-      "enabled": false
-    },
-    {
       "groupName": "Exclude frequent tools upgrades",
       "matchDatasources": [
         "go"
