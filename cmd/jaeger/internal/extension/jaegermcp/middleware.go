@@ -119,12 +119,7 @@ func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) co
 		return ctx
 	}
 
-	meta := params.GetMeta()
-	if !hasTraceContextMeta(meta) {
-		return ctx
-	}
-
-	return requestMetaPropagator.Extract(ctx, requestMetaCarrier{meta: meta})
+	return requestMetaPropagator.Extract(ctx, newRequestMetaCarrier(params.GetMeta()))
 }
 
 func paramsFromRequest(req mcp.Request) mcp.Params {
@@ -151,17 +146,15 @@ func isNil(value any) bool {
 	}
 }
 
-func hasTraceContextMeta(meta map[string]any) bool {
-	for _, key := range traceContextMetaKeys {
-		if value, ok := meta[key].(string); ok && value != "" {
-			return true
-		}
-	}
-	return false
-}
-
 type requestMetaCarrier struct {
 	meta map[string]any
+}
+
+func newRequestMetaCarrier(meta map[string]any) requestMetaCarrier {
+	if meta == nil {
+		meta = map[string]any{}
+	}
+	return requestMetaCarrier{meta: meta}
 }
 
 func (carrier requestMetaCarrier) Get(key string) string {
@@ -170,17 +163,16 @@ func (carrier requestMetaCarrier) Get(key string) string {
 }
 
 func (carrier requestMetaCarrier) Set(key, value string) {
-	if carrier.meta == nil {
-		return
-	}
 	carrier.meta[key] = value
 }
 
 func (carrier requestMetaCarrier) Keys() []string {
 	keys := make([]string, 0, len(traceContextMetaKeys))
 	for _, key := range traceContextMetaKeys {
-		if value, ok := carrier.meta[key].(string); ok && value != "" {
-			keys = append(keys, key)
+		if value, ok := carrier.meta[key]; ok {
+			if value, ok := value.(string); ok && value != "" {
+				keys = append(keys, key)
+			}
 		}
 	}
 	return keys

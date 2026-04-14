@@ -199,24 +199,23 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 		return &mcp.CallToolResult{}, nil
 	})
 
-	const (
-		traceIDHex = "0af7651916cd43dd8448eb211c80319c"
-		spanIDHex  = "00f067aa0ba902b7"
-	)
-	traceID, err := traceapi.TraceIDFromHex(traceIDHex)
-	require.NoError(t, err)
-	spanID, err := traceapi.SpanIDFromHex(spanIDHex)
-	require.NoError(t, err)
+	seedProvider := tracesdk.NewTracerProvider(tracesdk.WithSampler(tracesdk.AlwaysSample()))
+	t.Cleanup(func() {
+		require.NoError(t, seedProvider.Shutdown(context.Background()))
+	})
+	parentCtx, parentSpan := seedProvider.Tracer("test-parent").Start(context.Background(), "http.request")
+	parentSC := parentSpan.SpanContext()
+	parentSpan.End()
 
 	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
-		traceContextMetaTraceParent: fmt.Sprintf("00-%s-%s-01", traceIDHex, spanIDHex),
+		traceContextMetaTraceParent: fmt.Sprintf("00-%s-%s-01", parentSC.TraceID(), parentSC.SpanID()),
 	})
-	_, err = wrapped(context.Background(), mcpMethodToolsCall, req)
+	_, err := wrapped(parentCtx, mcpMethodToolsCall, req)
 	require.NoError(t, err)
 
 	spanData := capture.singleSpan(t)
-	assert.Equal(t, traceID, spanData.SpanContext.TraceID())
-	assert.Equal(t, spanID, spanData.Parent.SpanID())
+	assert.Equal(t, parentSC.TraceID(), spanData.SpanContext.TraceID())
+	assert.Equal(t, parentSC.SpanID(), spanData.Parent.SpanID())
 }
 
 func TestToolNameFromRequest(t *testing.T) {
@@ -440,16 +439,6 @@ func TestIsNil(t *testing.T) {
 	assert.False(t, isNil(42))
 }
 
-func TestHasTraceContextMeta(t *testing.T) {
-	assert.False(t, hasTraceContextMeta(nil))
-	assert.False(t, hasTraceContextMeta(map[string]any{
-		traceContextMetaTraceParent: 123,
-	}))
-	assert.True(t, hasTraceContextMeta(map[string]any{
-		traceContextMetaTraceParent: "00-0af7651916cd43dd8448eb211c80319c-00f067aa0ba902b7-01",
-	}))
-}
-
 func TestRequestMetaCarrier(t *testing.T) {
 	meta := map[string]any{
 		traceContextMetaTraceParent: "trace-parent",
@@ -457,7 +446,7 @@ func TestRequestMetaCarrier(t *testing.T) {
 		traceContextMetaTraceState:  "",
 		"other":                     "ignored",
 	}
-	carrier := requestMetaCarrier{meta: meta}
+	carrier := newRequestMetaCarrier(meta)
 
 	assert.Equal(t, "trace-parent", carrier.Get(traceContextMetaTraceParent))
 	assert.Equal(t, "ignored", carrier.Get("other"))
@@ -474,8 +463,9 @@ func TestRequestMetaCarrier(t *testing.T) {
 		carrier.Keys(),
 	)
 
-	nilMetaCarrier := requestMetaCarrier{}
+	nilMetaCarrier := newRequestMetaCarrier(nil)
 	assert.NotPanics(t, func() {
-		nilMetaCarrier.Set(traceContextMetaTraceParent, "ignored")
+		nilMetaCarrier.Set(traceContextMetaTraceParent, "trace-parent")
 	})
+	assert.Equal(t, "trace-parent", nilMetaCarrier.Get(traceContextMetaTraceParent))
 }
