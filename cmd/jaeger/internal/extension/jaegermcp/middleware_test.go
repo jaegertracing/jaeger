@@ -199,13 +199,8 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 		return &mcp.CallToolResult{}, nil
 	})
 
-	seedProvider := tracesdk.NewTracerProvider(tracesdk.WithSampler(tracesdk.AlwaysSample()))
-	t.Cleanup(func() {
-		require.NoError(t, seedProvider.Shutdown(context.Background()))
-	})
-	parentCtx, parentSpan := seedProvider.Tracer("test-parent").Start(context.Background(), "http.request")
+	parentCtx, parentSpan := capture.provider.Tracer("test-parent").Start(context.Background(), "http.request")
 	parentSC := parentSpan.SpanContext()
-	parentSpan.End()
 
 	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
 		traceContextMetaTraceParent: fmt.Sprintf("00-%s-%s-01", parentSC.TraceID(), parentSC.SpanID()),
@@ -213,9 +208,21 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 	_, err := wrapped(parentCtx, mcpMethodToolsCall, req)
 	require.NoError(t, err)
 
-	spanData := capture.singleSpan(t)
-	assert.Equal(t, parentSC.TraceID(), spanData.SpanContext.TraceID())
-	assert.Equal(t, parentSC.SpanID(), spanData.Parent.SpanID())
+	parentSpan.End()
+
+	spans := capture.waitForSpanCount(t, 2)
+	var childSpan tracetest.SpanStub
+	foundChild := false
+	for _, span := range spans {
+		if span.Name == mcpMethodToolsCall+" get_services" {
+			childSpan = span
+			foundChild = true
+			break
+		}
+	}
+	require.True(t, foundChild, "mcp tool child span should be present")
+	assert.Equal(t, parentSC.TraceID(), childSpan.SpanContext.TraceID())
+	assert.Equal(t, parentSC.SpanID(), childSpan.Parent.SpanID())
 }
 
 func TestToolNameFromRequest(t *testing.T) {
@@ -407,21 +414,13 @@ func TestSessionIDFromRequestWithNonNilSession(t *testing.T) {
 	assert.Empty(t, sessionIDFromRequest(serverReq))
 }
 
-func TestIsNilSession(t *testing.T) {
-	var nilSession mcp.Session
-	assert.True(t, isNilSession(nilSession))
-	assert.True(t, isNilSession((*mcp.ServerSession)(nil)))
-	assert.True(t, isNilSession((*mcp.ClientSession)(nil)))
-	assert.False(t, isNilSession(&mcp.ServerSession{}))
-	assert.False(t, isNilSession(&mcp.ClientSession{}))
-}
-
 func TestIsNil(t *testing.T) {
 	var nilMap map[string]any
 	var nilSlice []string
 	var nilFunc func()
 	var nilChan chan int
 	var nilInterface any
+	var nilSession mcp.Session
 	typedNilMapInInterface := any(nilMap)
 
 	assert.True(t, isNil(nil))
@@ -430,40 +429,45 @@ func TestIsNil(t *testing.T) {
 	assert.True(t, isNil(nilFunc))
 	assert.True(t, isNil(nilChan))
 	assert.True(t, isNil(nilInterface))
+	assert.True(t, isNil(nilSession))
+	assert.True(t, isNil((*mcp.ServerSession)(nil)))
+	assert.True(t, isNil((*mcp.ClientSession)(nil)))
 	assert.True(t, isNil(typedNilMapInInterface))
 
 	assert.False(t, isNil(map[string]any{}))
 	assert.False(t, isNil([]string{}))
 	assert.False(t, isNil(func() {}))
 	assert.False(t, isNil(make(chan int)))
+	assert.False(t, isNil(&mcp.ServerSession{}))
+	assert.False(t, isNil(&mcp.ClientSession{}))
 	assert.False(t, isNil(42))
 }
 
 func TestRequestMetaCarrier(t *testing.T) {
-	meta := map[string]any{
+	meta := mcp.Meta{
 		traceContextMetaTraceParent: "trace-parent",
 		traceContextMetaBaggage:     "tenant.id=acme",
 		traceContextMetaTraceState:  "",
 		"other":                     "ignored",
 	}
-	carrier := newRequestMetaCarrier(meta)
+	carrier := &requestMetaCarrier{meta: meta}
 
 	assert.Equal(t, "trace-parent", carrier.Get(traceContextMetaTraceParent))
 	assert.Equal(t, "ignored", carrier.Get("other"))
 	assert.Empty(t, carrier.Get("missing"))
 	assert.ElementsMatch(t,
-		[]string{traceContextMetaTraceParent, traceContextMetaBaggage},
+		[]string{traceContextMetaTraceParent, traceContextMetaTraceState, traceContextMetaBaggage, "other"},
 		carrier.Keys(),
 	)
 
 	carrier.Set(traceContextMetaTraceState, "rojo=1")
 	assert.Equal(t, "rojo=1", meta[traceContextMetaTraceState])
 	assert.ElementsMatch(t,
-		[]string{traceContextMetaTraceParent, traceContextMetaTraceState, traceContextMetaBaggage},
+		[]string{traceContextMetaTraceParent, traceContextMetaTraceState, traceContextMetaBaggage, "other"},
 		carrier.Keys(),
 	)
 
-	nilMetaCarrier := newRequestMetaCarrier(nil)
+	nilMetaCarrier := &requestMetaCarrier{}
 	assert.NotPanics(t, func() {
 		nilMetaCarrier.Set(traceContextMetaTraceParent, "trace-parent")
 	})

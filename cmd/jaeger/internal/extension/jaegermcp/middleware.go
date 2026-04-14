@@ -30,12 +30,6 @@ var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
 	propagation.Baggage{},
 )
 
-var traceContextMetaKeys = [...]string{
-	traceContextMetaTraceParent,
-	traceContextMetaTraceState,
-	traceContextMetaBaggage,
-}
-
 // createTracingMiddleware creates an MCP middleware that emits tool-level spans.
 func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware {
 	tracer := tracerProvider.Tracer("jaeger.mcp")
@@ -103,34 +97,23 @@ func sessionIDFromRequest(req mcp.Request) string {
 		return ""
 	}
 	session := req.GetSession()
-	if isNilSession(session) {
+	if isNil(session) {
 		return ""
 	}
 	return session.ID()
 }
 
-func isNilSession(session mcp.Session) bool {
-	return isNil(session)
-}
-
 func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {
-	params := paramsFromRequest(req)
-	if isNilParams(params) {
+	if req == nil {
 		return ctx
 	}
 
-	return requestMetaPropagator.Extract(ctx, newRequestMetaCarrier(params.GetMeta()))
-}
-
-func paramsFromRequest(req mcp.Request) mcp.Params {
-	if req == nil {
-		return nil
+	params := req.GetParams()
+	if isNil(params) {
+		return ctx
 	}
-	return req.GetParams()
-}
 
-func isNilParams(params mcp.Params) bool {
-	return isNil(params)
+	return requestMetaPropagator.Extract(ctx, &requestMetaCarrier{meta: params.GetMeta()})
 }
 
 func isNil(value any) bool {
@@ -147,33 +130,25 @@ func isNil(value any) bool {
 }
 
 type requestMetaCarrier struct {
-	meta map[string]any
+	meta mcp.Meta
 }
 
-func newRequestMetaCarrier(meta map[string]any) requestMetaCarrier {
-	if meta == nil {
-		meta = map[string]any{}
-	}
-	return requestMetaCarrier{meta: meta}
-}
-
-func (carrier requestMetaCarrier) Get(key string) string {
+func (carrier *requestMetaCarrier) Get(key string) string {
 	value, _ := carrier.meta[key].(string)
 	return value
 }
 
-func (carrier requestMetaCarrier) Set(key, value string) {
+func (carrier *requestMetaCarrier) Set(key, value string) {
+	if carrier.meta == nil {
+		carrier.meta = mcp.Meta{}
+	}
 	carrier.meta[key] = value
 }
 
-func (carrier requestMetaCarrier) Keys() []string {
-	keys := make([]string, 0, len(traceContextMetaKeys))
-	for _, key := range traceContextMetaKeys {
-		if value, ok := carrier.meta[key]; ok {
-			if value, ok := value.(string); ok && value != "" {
-				keys = append(keys, key)
-			}
-		}
+func (carrier *requestMetaCarrier) Keys() []string {
+	keys := make([]string, 0, len(carrier.meta))
+	for key := range carrier.meta {
+		keys = append(keys, key)
 	}
 	return keys
 }
