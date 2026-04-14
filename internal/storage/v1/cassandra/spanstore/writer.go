@@ -215,7 +215,7 @@ func (s *SpanWriter) indexByTags(ds *dbmodel.Span) error {
 
 	var (
 		wg      sync.WaitGroup
-		errOnce sync.Once
+		errMu   sync.Mutex
 		lastErr error
 	)
 
@@ -225,16 +225,21 @@ func (s *SpanWriter) indexByTags(ds *dbmodel.Span) error {
 		if !s.shouldIndexTag(v) {
 			s.tagIndexSkipped.Inc(1)
 			continue
+		v := v
 		}
 
 		sem <- struct{}{}
-		wg.Go(func() {
-			defer func() { <-sem }()
-			insertTagQuery := s.session.Query(tagIndex, ds.TraceID, ds.SpanID, v.ServiceName, ds.StartTime, v.TagKey, v.TagValue)
-			if err := s.writerMetrics.tagIndex.Exec(insertTagQuery, s.logger); err != nil {
 				withTagInfo := s.logger.
 					With(zap.String("tag_key", v.TagKey)).
 					With(zap.String("tag_value", v.TagValue)).
+					With(zap.String("service_name", v.ServiceName))
+				loggedErr := s.logError(ds, err, "Failed to index tag", withTagInfo)
+
+				errMu.Lock()
+				if lastErr == nil {
+					lastErr = loggedErr
+				}
+				errMu.Unlock()
 					With(zap.String("service_name", v.ServiceName))
 
 				// Log all errors to satisfy diagnostics requirement
