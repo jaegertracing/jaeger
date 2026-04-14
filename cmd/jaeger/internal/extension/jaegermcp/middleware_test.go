@@ -264,7 +264,7 @@ func TestContextWithRequestMetaTraceContextExtractsBaggage(t *testing.T) {
 	assert.False(t, traceapi.SpanContextFromContext(ctx).IsValid())
 }
 
-func TestContextWithRequestMetaTraceContextMergesBaggageWithExistingContext(t *testing.T) {
+func TestContextWithRequestMetaTraceContextReplacesExistingBaggage(t *testing.T) {
 	baseBag, err := baggageapi.Parse("tenant.id=acme,region=us-west")
 	require.NoError(t, err)
 	baseCtx := baggageapi.ContextWithBaggage(context.Background(), baseBag)
@@ -276,24 +276,9 @@ func TestContextWithRequestMetaTraceContextMergesBaggageWithExistingContext(t *t
 	ctx := contextWithRequestMetaTraceContext(baseCtx, req)
 	bag := baggageapi.FromContext(ctx)
 
-	assert.Equal(t, "acme", bag.Member("tenant.id").Value())
-	assert.Equal(t, "us-west", bag.Member("region").Value())
+	assert.Empty(t, bag.Member("tenant.id").Value())
+	assert.Empty(t, bag.Member("region").Value())
 	assert.Equal(t, "prod", bag.Member("env").Value())
-}
-
-func TestContextWithRequestMetaTraceContextBaggageMetaOverridesExistingKey(t *testing.T) {
-	baseBag, err := baggageapi.Parse("tenant.id=acme")
-	require.NoError(t, err)
-	baseCtx := baggageapi.ContextWithBaggage(context.Background(), baseBag)
-
-	req := newToolCallRequestWithMeta("health", mcp.Meta{
-		traceContextMetaBaggage: "tenant.id=globex",
-	})
-
-	ctx := contextWithRequestMetaTraceContext(baseCtx, req)
-	bag := baggageapi.FromContext(ctx)
-
-	assert.Equal(t, "globex", bag.Member("tenant.id").Value())
 }
 
 func TestContextWithRequestMetaTraceContextIgnoresInvalidTraceparent(t *testing.T) {
@@ -476,7 +461,7 @@ func TestRequestMetaCarrier(t *testing.T) {
 
 	assert.Equal(t, "trace-parent", carrier.Get(traceContextMetaTraceParent))
 	assert.Equal(t, "ignored", carrier.Get("other"))
-	assert.Equal(t, "", carrier.Get("missing"))
+	assert.Empty(t, carrier.Get("missing"))
 	assert.ElementsMatch(t,
 		[]string{traceContextMetaTraceParent, traceContextMetaBaggage},
 		carrier.Keys(),

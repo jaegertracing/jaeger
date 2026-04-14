@@ -9,7 +9,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -125,37 +124,7 @@ func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) co
 		return ctx
 	}
 
-	extractedCtx := requestMetaPropagator.Extract(ctx, requestMetaCarrier{meta: meta})
-	extractedSpanContext := trace.SpanContextFromContext(extractedCtx)
-	if extractedSpanContext.IsValid() {
-		// Preserve request cancellation/deadlines while overriding span parent.
-		ctx = trace.ContextWithRemoteSpanContext(ctx, extractedSpanContext)
-	}
-
-	ctx = mergeBaggageFromContexts(ctx, extractedCtx)
-
-	return ctx
-}
-
-func mergeBaggageFromContexts(baseCtx, extractedCtx context.Context) context.Context {
-	extractedBag := baggage.FromContext(extractedCtx)
-	if extractedBag.Len() == 0 {
-		return baseCtx
-	}
-	baseBag := baggage.FromContext(baseCtx)
-	if baseBag.Len() == 0 {
-		return baggage.ContextWithBaggage(baseCtx, extractedBag)
-	}
-
-	mergedBag := baseBag
-	for _, member := range extractedBag.Members() {
-		// Best-effort merge: if a member cannot be set, keep existing baggage and continue.
-		nextBag, err := mergedBag.SetMember(member)
-		if err == nil {
-			mergedBag = nextBag
-		}
-	}
-	return baggage.ContextWithBaggage(baseCtx, mergedBag)
+	return requestMetaPropagator.Extract(ctx, requestMetaCarrier{meta: meta})
 }
 
 func paramsFromRequest(req mcp.Request) mcp.Params {
