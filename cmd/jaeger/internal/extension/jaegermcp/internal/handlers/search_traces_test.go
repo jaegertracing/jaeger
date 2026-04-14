@@ -588,3 +588,19 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	// Returned traces are capped at exactly the limit (5 traces, limit=3 → exactly 3 traces)
 	assert.Len(t, output.Traces, 3)
 }
+
+func TestSearchTracesHandler_Handle_ReversedTimeRange(t *testing.T) {
+	handler := NewSearchTracesHandler(nil, 100)
+
+	input := types.SearchTracesInput{
+		// start_time_max is before start_time_min — should be rejected
+		StartTimeMin: "-1h",
+		StartTimeMax: "-2h",
+		ServiceName:  "test",
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start_time_max must not be before start_time_min")
+}

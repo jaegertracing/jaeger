@@ -122,6 +122,11 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		return querysvc.TraceQueryParams{}, errors.New("service_name is required")
 	}
 
+	// Validate time range
+	if maxStartTime.Before(minStartTime) {
+		return querysvc.TraceQueryParams{}, errors.New("start_time_max must not be before start_time_min")
+	}
+
 	// Parse duration parameters
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
