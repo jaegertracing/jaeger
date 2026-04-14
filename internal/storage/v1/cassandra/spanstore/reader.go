@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -104,7 +105,7 @@ type CoreSpanReader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)
 	GetTrace(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)
-	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error)
+	FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error]
 	FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error)
 }
 
@@ -237,24 +238,27 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error) {
-	dbTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
-	if err != nil {
-		return nil, err
-	}
-	var traces []dbmodel.Trace
-	for _, traceID := range dbTraceIDs {
-		spans, err := s.GetTrace(ctx, traceID)
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error] {
+	return func(yield func(dbmodel.Trace, error) bool) {
+		dbTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 		if err != nil {
-			s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
-			continue
+			yield(dbmodel.Trace{}, err)
+			return
 		}
-		if len(spans) == 0 {
-			continue
+		for _, traceID := range dbTraceIDs {
+			spans, err := s.GetTrace(ctx, traceID)
+			if err != nil {
+				s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
+				continue
+			}
+			if len(spans) == 0 {
+				continue
+			}
+			if !yield(dbmodel.Trace{Spans: spans}, nil) {
+				return
+			}
 		}
-		traces = append(traces, dbmodel.Trace{Spans: spans})
 	}
-	return traces, nil
 }
 
 // FindTraceIDs retrieve traceIDs that match the traceQuery

@@ -54,12 +54,11 @@ func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetT
 
 func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traces, err := r.reader.FindTraces(ctx, v1adapter.GetV1QueryParameters(query))
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-		for _, trace := range traces {
+		for trace, err := range r.reader.FindTraces(ctx, v1adapter.GetV1QueryParameters(query)) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
 			td := FromDBModel(trace.Spans)
 			if !yield([]ptrace.Traces{td}, nil) {
 				return

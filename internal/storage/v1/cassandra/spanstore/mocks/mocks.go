@@ -11,6 +11,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
@@ -114,31 +115,22 @@ func (_c *CoreSpanReader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Co
 }
 
 // FindTraces provides a mock function for the type CoreSpanReader
-func (_mock *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error) {
+func (_mock *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error] {
 	ret := _mock.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
 		panic("no return value specified for FindTraces")
 	}
 
-	var r0 []dbmodel.Trace
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error)); ok {
-		return returnFunc(ctx, traceQuery)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *spanstore.TraceQueryParameters) []dbmodel.Trace); ok {
+	var r0 iter.Seq2[dbmodel.Trace, error]
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error]); ok {
 		r0 = returnFunc(ctx, traceQuery)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]dbmodel.Trace)
+			r0 = ret.Get(0).(iter.Seq2[dbmodel.Trace, error])
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *spanstore.TraceQueryParameters) error); ok {
-		r1 = returnFunc(ctx, traceQuery)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
+	return r0
 }
 
 // CoreSpanReader_FindTraces_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraces'
@@ -171,12 +163,12 @@ func (_c *CoreSpanReader_FindTraces_Call) Run(run func(ctx context.Context, trac
 	return _c
 }
 
-func (_c *CoreSpanReader_FindTraces_Call) Return(traces []dbmodel.Trace, err error) *CoreSpanReader_FindTraces_Call {
-	_c.Call.Return(traces, err)
+func (_c *CoreSpanReader_FindTraces_Call) Return(seq2 iter.Seq2[dbmodel.Trace, error]) *CoreSpanReader_FindTraces_Call {
+	_c.Call.Return(seq2)
 	return _c
 }
 
-func (_c *CoreSpanReader_FindTraces_Call) RunAndReturn(run func(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.Trace, error)) *CoreSpanReader_FindTraces_Call {
+func (_c *CoreSpanReader_FindTraces_Call) RunAndReturn(run func(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error]) *CoreSpanReader_FindTraces_Call {
 	_c.Call.Return(run)
 	return _c
 }
