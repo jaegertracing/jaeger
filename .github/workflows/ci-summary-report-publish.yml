@@ -66,19 +66,9 @@ jobs:
             HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.head_sha')
           else
             RUN_ID="${{ github.event.workflow_run.id }}"
-            # For pull_request-triggered CI Orchestrator runs, workflow_run.head_sha
-            # is the synthetic merge commit (refs/pull/N/merge), not the PR head
-            # branch tip.  Branch protection required checks are evaluated against the
-            # PR head SHA, so posting check runs against the merge commit SHA would
-            # leave "Coverage Gate" permanently stuck at "Expected".
-            # workflow_run.pull_requests[0].head.sha is the actual PR head SHA; use
-            # it when present and fall back to head_sha for push/merge_group events.
-            PR_HEAD_SHA="${{ github.event.workflow_run.pull_requests[0].head.sha }}"
-            if [ -n "$PR_HEAD_SHA" ]; then
-              HEAD_SHA="$PR_HEAD_SHA"
-            else
-              HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-            fi
+            # workflow_run.head_sha is the PR branch-tip SHA (not the synthetic merge
+            # commit), so it matches what branch-protection evaluates against.
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           fi
 
           echo "run_id=$RUN_ID" >> "$STEP_OUTPUTS"
