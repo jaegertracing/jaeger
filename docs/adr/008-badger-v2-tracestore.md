@@ -154,11 +154,8 @@ Existing v1 tests already cover encoding dispatch, round-trip, index queries, ca
 
 ## Subsequent Work
 
-1. **Index extensions.** Add spanKind to operation index (`0x82`), resolving [#1922](https://github.com/jaegertracing/jaeger/issues/1922).
-2. **Dependency store.** The v2 depstore depends on the v2 tracestore reader (`CreateDependencyReader` chains through `CreateSpanReader`).
-3. **Sampling store.** Independent of tracestore, can be migrated separately.
-4. **Legacy read path removal.** Once old data has expired, remove `0x02` deserialisation and `model.Span` conversion code.
-5. **Value envelope.** If future schema evolution requires richer per-entry metadata (layout flags, compression), a structured value header can be introduced under a new UserMeta value.
+1. **Legacy read path removal.** Once old data has expired, remove `0x02` deserialisation and `model.Span` conversion code.
+2. **Value envelope.** If future schema evolution requires richer per-entry metadata (layout flags, compression), a structured value header can be introduced under a new UserMeta value.
 
 ## References
 
