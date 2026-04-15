@@ -21,7 +21,6 @@ Badger's v2 factory uses v1adapter to bridge the v2 storage API. v1adapter conve
 | `scope.Name()`                | `span.Tags["otel.scope.name"]`         | Degraded: stored as tag, reconstructed on read |
 | `scope.Version()`             | `span.Tags["otel.scope.version"]`      | Degraded: stored as tag, reconstructed on read |
 | `span.Links[].Attributes()`   | `span.References` (ref_type only)      | Lossy: link attributes beyond ref_type dropped |
-| `span.Kind()`                 | not indexed                            | Blocks #1922                                   |
 
 > Scope name and version survive the round-trip but are reconstructed on every read by scanning and deleting tags from `model.Span`. Native OTLP storage eliminates this per-read cost.
 
@@ -41,7 +40,7 @@ Key construction, prefix scans, range scans, cache, and TTL management remain un
 
 ### What changes
 
-New writes store OTLP protobuf as the value. Index coverage can be extended with OTLP first-class fields: for example, spanKind is a typed enum on `ptrace.Span` (`span.Kind()`), directly available at write time for index key construction, unlike `model.Span` where it is buried in tags. This unblocks [#1922](https://github.com/jaegertracing/jaeger/issues/1922). The v2 Storage API supports batched writes; `ptrace.Traces` is naturally batched, so the writer handles multiple spans per call.
+New writes store OTLP protobuf as the value. The v2 Storage API supports batched writes; ptrace.Traces is naturally batched, so the writer handles multiple spans per call.
 
 ### Versioning mechanism
 
@@ -92,11 +91,9 @@ This ADR stores each entry as a `ResourceSpans` with one `ScopeSpans` and one `S
 
 ### Migration
 
-No data conversion is needed. Trace data in Badger is short-lived by design: all span entries expire via TTL (default 72h).
+No data conversion is needed. Old entries are not rewritten or migrated. They remain readable through the dual read path and expire naturally via TTL (default 72h).
 
-After upgrade, only one writer exists and it writes 0x03. Existing 0x02 entries are not touched. They remain readable through the dual read path and expire on their own. Once the oldest 0x02 entry has expired, the legacy read path can be removed through the feature gate deprecation lifecycle.
-
-For deployments with longer TTLs, an optional read-triggered rewrite can convert 0x02 entries to 0x03 on access, shortening the transition window at the cost of additional disk I/O.
+After upgrade, only one writer exists and it writes 0x03. The feature gate controls when the legacy read path is removed.
 
 ### Backward Compatibility
 
@@ -109,14 +106,14 @@ The reader dispatches on `UserMeta & 0x0F` to select the deserializer:
 
 ### Legacy read path deprecation
 
-The legacy `0x02` read path follows the OTel Collector feature gate lifecycle:
+A feature flag `badger_legacy_model_dual_read` controls the legacy `0x02` read path and follows the OTel Collector feature gate lifecycle:
 
 | Stage   | Gate behavior                    | Legacy `0x02` read path                   |
 | ------- | -------------------------------- | ----------------------------------------- |
-| Alpha   | off by default                   | Dual-read active                          |
-| Beta    | on by default, can disable       | Dual-read off, opt-in to re-enable legacy |
-| Stable  | permanently on, disabling errors | Legacy path no longer available           |
-| Removed | gate deleted                     | Legacy code deleted                       |
+| Alpha   | off by default, can enable       | Dual-read is opt-in                       |
+| Beta    | on by default, can disable       | Dual-read is opt-out                      |
+| Stable  | permanently on, cannot disable   | Dual-read is always on                    |
+| Removed | gate deleted                     | Legacy code not possible                  |
 
 ## Success Criteria
 
@@ -142,7 +139,7 @@ Existing v1 tests already cover encoding dispatch, round-trip, index queries, ca
 
 * Removes `model.Span` conversion layer. Simpler read/write paths.
 * Lossless OTLP round-trip.
-* OTLP first-class fields available for indexing (spanKind, span status, scope attributes).
+* OTLP first-class fields available for indexing (span status, scope attributes).
 * Aligns with v2 OTLP-native storage goal.
 * TTL-based migration. No migration script.
 
@@ -152,17 +149,11 @@ Existing v1 tests already cover encoding dispatch, round-trip, index queries, ca
 * Dual read path maintained until old data expires.
 * Single-span `ResourceSpans` duplicates resource/scope per entry, comparable to existing `Process` duplication.
 
-## Subsequent Work
-
-1. **Legacy read path removal.** Once old data has expired, remove `0x02` deserialisation and `model.Span` conversion code.
-2. **Value envelope.** If future schema evolution requires richer per-entry metadata (layout flags, compression), a structured value header can be introduced under a new UserMeta value.
-
 ## References
 
 * [ADR-005: Badger Storage Record Layouts](005-badger-storage-record-layouts.md) — on-disk key schema
 * [#6458: Upgrade Storage Backends to V2 Storage API](https://github.com/jaegertracing/jaeger/issues/6458) — parent issue
 * [#7937: Upgrade Badger Storage to v2 API](https://github.com/jaegertracing/jaeger/issues/7937) — this issue
 * [#5079: v2 Storage API](https://github.com/jaegertracing/jaeger/issues/5079) — v2 API introduction
-* [#1922: spanKind in GetOperations](https://github.com/jaegertracing/jaeger/issues/1922) — missing feature
 * [dgraph-io/badger#142](https://github.com/dgraph-io/badger/issues/142) — UserMeta usage by Dgraph
 * [`internal/storage/v1/badger/spanstore/`](../../internal/storage/v1/badger/spanstore/) — current v1 implementation
