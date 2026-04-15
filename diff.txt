@@ -1,0 +1,49 @@
+diff --git a/docs/adr/008-badger-v2-tracestore.md b/docs/adr/008-badger-v2-tracestore.md
+index 3bedba60..fd06a709 100644
+--- a/docs/adr/008-badger-v2-tracestore.md
++++ b/docs/adr/008-badger-v2-tracestore.md
+@@ -63,17 +63,10 @@ config:
+ graph TD
+     subgraph Ingestion Pipeline [Write Path]
+         direction TB
+-        M[model.Span] --> E1[Extract Primitives]
+-        P[ptrace] --> E2[Extract Primitives]
+-        
+-        E1 --> K1[Build Keys]
+-        E2 --> K2[Build Keys]
+-        
+-        K1 --> V1[Serialize model.Span + UserMeta 0x02]
+-        K2 --> V2[Serialize ptrace + UserMeta 0x03]
+-        
+-        V1 --> DB[(Badger DB)]
+-        V2 --> DB
++        P[ptrace] --> E[Extract Primitives]
++        E --> K[Build Keys]
++        K --> V[Serialize ptrace + UserMeta 0x03]
++        V --> DB[(Badger DB)]
+     end
+     subgraph Retrieval Pipeline [Read Path]
+         direction TB
+@@ -89,7 +82,7 @@ graph TD
+     end
+ ```
+ 
+-> After upgrade only the v2 writer is active. Both paths share the same key construction. The value encoding and UserMeta marker differ.
++> The write path stores only the new OTLP format (`0x03`). The read path handles both `0x02` and `0x03` entries for backward compatibility until old data expires via TTL.
+ 
+ ### Value layout for ptrace entries
+ 
+@@ -107,9 +100,11 @@ Option 3 matches the current layout where each entry is self-contained. One key
+ 
+ ### Migration
+ 
+-New writes use 0x03. Existing 0x02 entries are left in place and expire naturally via TTL, after which the 0x02 read path can be dropped.
++No data conversion is needed. Trace data in Badger is short-lived by design: all span entries expire via TTL (default 72h).
++
++After upgrade, only one writer exists and it writes 0x03. Existing 0x02 entries are not touched. They remain readable through the dual read path and expire on their own. Once the oldest 0x02 entry has expired, the legacy read path can be removed through the feature gate deprecation lifecycle.
+ 
+-For users with longer TTLs, entries can be rewritten on read, converting 0x02 to 0x03 in-place and shortening the transition window at the cost of additional disk I/O. This is a lazy migration, read-triggered rather than batched.
++For deployments with longer TTLs, an optional read-triggered rewrite can convert 0x02 entries to 0x03 on access, shortening the transition window at the cost of additional disk I/O.
+ 
+ ### Backward Compatibility
+ 
