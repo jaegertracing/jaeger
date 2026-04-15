@@ -88,15 +88,7 @@ graph TD
 
 `ptrace.Traces` is a nested structure: `ResourceSpans` → `ScopeSpans` → `Spans`. Badger stores one span per key. Flattening is required.
 
-Three options:
-
-1. **Inner Span only.** Store `ptrace.Span` proto per key. Smallest value size, but resource and scope are lost. Reconstructing a full span on read requires separate lookups, breaking the current one-key-one-read pattern.
-
-2. **Span + Resource + Scope envelope.** Wrap all three in a single message. Preserves full context per entry but requires a custom proto not in the OTLP spec.
-
-3. **Single-span ResourceSpans.** Store a complete `ResourceSpans` with one `ScopeSpans` and one `Span`. No custom proto. Duplicates resource and scope per entry.
-
-Option 3 matches the current layout where each entry is self-contained. One key gives you the full span with its resource and scope. Duplication cost is comparable to existing `Process` duplication in `model.Span`.
+This ADR stores each entry as a `ResourceSpans` with one `ScopeSpans` and one `Span`, following existing OTLP proto. This keeps the current pattern where one key gives you everything you need for a full span, including its resource and scope, in a single read. Resource and scope are duplicated per entry, same as how `model.Span` already duplicates `Process` today.
 
 ### Migration
 
