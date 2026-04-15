@@ -36,7 +36,7 @@ jobs:
             --repo "${{ github.repository }}" --dir .artifacts
 
       - name: Install dependencies
-        run: python3 -m pip install prometheus-client
+        run: python3 -m pip install prometheus-client pyyaml
 
       - name: Compare metrics and generate summary
         id: compare-metrics
@@ -44,6 +44,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: bash ./scripts/e2e/metrics_summary.sh
+
+      - name: Export metrics to YAML for documentation
+        if: github.ref == 'refs/heads/main'
+        run: |
+          python3 ./scripts/e2e/export_metrics_to_yaml.py \
+            --snapshot-dir .artifacts \
+            --output .artifacts/jaeger-metrics.yaml || \
+          echo "::warning::Metrics YAML export failed (non-fatal)"
+
+      - name: Upload metrics YAML artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: jaeger-metrics-yaml
+          path: .artifacts/jaeger-metrics.yaml
+          retention-days: 90
+          if-no-files-found: ignore
 
       - name: Set up Go for coverage tools
         uses: ./.github/actions/setup-go

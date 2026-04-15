@@ -163,3 +163,45 @@ jobs:
         overwrite: ${{ inputs.overwrite }}
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Download metrics YAML from latest CI run
+      # Download the metrics YAML artifact produced by ci-summary-report.yml
+      # on the main branch. This file documents all Prometheus metrics emitted
+      # by Jaeger and is consumed by the documentation website.
+      continue-on-error: true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        echo "Downloading jaeger-metrics-yaml artifact from latest CI Orchestrator run on main"
+        LATEST_RUN=$(gh run list \
+          --repo "${GH_REPO}" \
+          --workflow "CI Orchestrator" \
+          --branch main \
+          --status success \
+          --limit 1 \
+          --json databaseId \
+          --jq '.[0].databaseId')
+        if [ -z "$LATEST_RUN" ]; then
+          echo "::warning::No successful CI Orchestrator run found on main; skipping metrics YAML upload"
+          exit 0
+        fi
+        echo "Using CI Orchestrator run: $LATEST_RUN"
+        gh run download "$LATEST_RUN" \
+          --repo "${GH_REPO}" \
+          --name jaeger-metrics-yaml \
+          --dir .metrics-export || {
+            echo "::warning::jaeger-metrics-yaml artifact not found in run $LATEST_RUN; skipping"
+            exit 0
+          }
+        ls -la .metrics-export/
+
+    - name: Upload metrics YAML as release asset
+      if: ${{ inputs.dry_run != true }}
+      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
+      continue-on-error: true
+      with:
+        file: .metrics-export/jaeger-metrics.yaml
+        overwrite: ${{ inputs.overwrite }}
+        tag: ${{ env.BRANCH }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
