@@ -27,7 +27,7 @@ Badger's v2 factory uses v1adapter to bridge the v2 storage API. v1adapter conve
 
 For Badger, native OTLP support without the `model.Span` dependency involves changing what is stored on disk. `model.Span` and `ptrace.Traces` are different proto schemas, not incremental evolutions of the same one, so protobuf forward compatibility does not apply. The key schema is built from primitives common to both (traceID, spanID, startTime, serviceName, operationName, duration), so keys are unaffected. The values and indexes are where the models diverge.
 
-Jaeger already uses Badger's per-entry metadata byte (`UserMeta`) to indicate encoding type (`0x01`=JSON, `0x02`=protobuf). All span-related entries expire via TTL (default 72h).
+A Badger entry is a four-field struct (`Key`, `Value`, `UserMeta`, `ExpiresAt`), not just a key-value pair. `UserMeta` is a single byte stored alongside the key and value in each entry. Writers set it via the entry struct before committing to a transaction. During iteration, the byte is readable from the item metadata without loading the value bytes, allowing the reader to determine the encoding type before deserializing. Jaeger uses the lower 4 bits of this byte to indicate encoding type (`0x01`=JSON, `0x02`=protobuf). All span-related entries expire via TTL (default 72h).
 
 When other Jaeger storage backends require schema changes, the established approach is to maintain a dual read path where old data remains readable until it naturally expires, then drop the legacy read path, as done in other v2 storage migrations.
 
@@ -45,7 +45,7 @@ New writes store OTLP protobuf as the value. Index coverage can be extended with
 
 ### Versioning mechanism
 
-Jaeger already uses Badger's per-entry `UserMeta` byte to indicate encoding type (`0x01`=JSON, `0x02`=protobuf). This ADR extends it with `0x03` for ptrace proto. The reader already dispatches on `UserMeta & 0x0F`, so no new mechanism is needed. Zero storage overhead, and format is detectable without loading the value.
+This ADR extends UserMeta with `0x03` for ptrace proto. The existing dispatch on `UserMeta & 0x0F` handles it without a new mechanism.
 
 An alternative is prepending a version byte to the value. This is portable across KV stores and extensible to a multi-byte envelope for future schema evolution (layout flags, compression, etc.). The cost is 1 byte overhead per entry and requiring value loading before format detection. Since Badger is Jaeger's only embedded store and no immediate need for an extensible header exists, UserMeta is sufficient. If schema evolution demands a richer header, it can be introduced under a new UserMeta value without redesigning the detection mechanism.
 
