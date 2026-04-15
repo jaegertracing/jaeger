@@ -333,7 +333,7 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	}{
 		{
 			name: "first loadTemplate call fails",
-			mockFn: func(name, tmplBody string, data any) (string, error) {
+			mockFn: func(_, _ string, _ any) (string, error) {
 				return "", errors.New("mock template error")
 			},
 			expectedError: "mock template error",
