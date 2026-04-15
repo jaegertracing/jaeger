@@ -104,9 +104,8 @@ linters:
           arguments:
             - 80
           disabled: true
-        # this should be enabled after fixing or disabling in a few packages
-        - name: package-directory-mismatch
-          disabled: true
+        # package-directory-mismatch: enabled (fixed ddg and wrapper packages)
+        # storage/v1/api and storage/v2/api intentionally use different package names
         # would be ok if we could exclude the test files, but otherwise too noisy
         - name: add-constant
           disabled: true
@@ -184,6 +183,10 @@ linters:
           - revive
         text: "unhandled-error"
         path: _test\.go
+      - linters:
+          - revive
+        text: "package-directory-mismatch"
+        path: internal/storage/v[12]/api/
     paths:
       - .*.pb.go$
       - mocks
