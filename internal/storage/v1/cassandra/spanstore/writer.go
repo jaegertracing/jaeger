@@ -89,6 +89,10 @@ type SpanWriter struct {
 	indexFilter          dbmodel.IndexFilter
 }
 
+type CoreSpanWriter interface {
+	WriteDbSpan(ctx context.Context, span *dbmodel.Span) error
+}
+
 // NewSpanWriter returns a SpanWriter
 func NewSpanWriter(
 	session cassandra.Session,
@@ -130,22 +134,37 @@ func (s *SpanWriter) Close() error {
 }
 
 // WriteSpan saves the span into Cassandra
-func (s *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
+func (s *SpanWriter) WriteSpan(ctx context.Context, span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
+	return s.WriteDbSpan(ctx, ds)
+}
+
+func (s *SpanWriter) WriteDbSpan(ctx context.Context, ds *dbmodel.Span) error {
+	// Check if cancelled before the main span write
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if s.storageMode&storeFlag == storeFlag {
-		if err := s.writeSpanToDB(span, ds); err != nil {
+		if err := s.writeSpanToDB(ds); err != nil {
 			return err
 		}
 	}
+
+	// Check again before the expensive indexing phase
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if s.storageMode&indexFlag == indexFlag {
-		if err := s.writeIndexes(span, ds); err != nil {
+		if err := s.writeIndexes(ds); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeSpanToDB(ds *dbmodel.Span) error {
 	mainQuery := s.session.Query(
 		insertSpan,
 		ds.TraceID,
@@ -167,14 +186,19 @@ func (s *SpanWriter) writeSpanToDB(_ *model.Span, ds *dbmodel.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	spanKind, _ := span.GetSpanKind() // if not found it returns ""
+func (s *SpanWriter) writeIndexes(ds *dbmodel.Span) error {
+	var spanKind string
+	for _, tag := range ds.Tags {
+		if tag.Key == string(model.SpanKindKey) && tag.ValueType == dbmodel.StringType {
+			spanKind = tag.ValueString
+			break
+		}
+	}
 	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
-		SpanKind:      string(spanKind),
+		SpanKind:      spanKind,
 		OperationName: ds.OperationName,
 	}); err != nil {
-		// should this be a soft failure?
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
 	}
 
@@ -190,8 +214,8 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		}
 	}
 
-	if span.Flags.IsFirehoseEnabled() {
-		return nil // skipping expensive indexing
+	if model.Flags(ds.Flags).IsFirehoseEnabled() {
+		return nil
 	}
 
 	if err := s.indexByTags(ds); err != nil {
@@ -199,7 +223,7 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 	}
 
 	if s.indexFilter(ds, dbmodel.DurationIndex) {
-		if err := s.indexByDuration(ds, span.StartTime); err != nil {
+		if err := s.indexByDuration(ds, time.UnixMicro(ds.StartTime)); err != nil {
 			return s.logError(ds, err, "Failed to index duration", s.logger)
 		}
 	}
