@@ -148,7 +148,7 @@ func TestDialWsAdapterSuccess(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	adapter, err := DialWsAdapter(context.Background(), wsURL, zap.NewNop())
+	adapter, err := DialWsAdapter(context.Background(), wsURL, nil, zap.NewNop())
 	require.NoError(t, err, "DialWsAdapter should succeed")
 	require.NoError(t, adapter.Close(), "close should succeed")
 }
@@ -156,7 +156,7 @@ func TestDialWsAdapterSuccess(t *testing.T) {
 func TestDialWsAdapterFailure(t *testing.T) {
 	t.Parallel()
 
-	_, err := DialWsAdapter(context.Background(), "ws://127.0.0.1:1", zap.NewNop())
+	_, err := DialWsAdapter(context.Background(), "ws://127.0.0.1:1", nil, zap.NewNop())
 	require.Error(t, err, "DialWsAdapter should fail for unreachable host")
 }
 
@@ -171,7 +171,7 @@ func TestDialWsAdapterHTTPErrorLogsResponse(t *testing.T) {
 	defer server.Close()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	_, err := DialWsAdapter(context.Background(), wsURL, zap.NewNop())
+	_, err := DialWsAdapter(context.Background(), wsURL, nil, zap.NewNop())
 	require.Error(t, err, "DialWsAdapter should fail when server rejects upgrade")
 	require.Contains(t, err.Error(), "websocket dial")
 }
