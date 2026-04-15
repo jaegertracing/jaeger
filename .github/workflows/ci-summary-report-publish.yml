@@ -51,6 +51,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          STEP_OUTPUTS=$(mktemp)
+
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             RUN_ID="${{ github.event.inputs.run_id }}"
             PR_NUMBER="${{ github.event.inputs.pr_number }}"
@@ -60,7 +62,7 @@ jobs:
                 exit 1
               fi
             done
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+            echo "pr_number=$PR_NUMBER" >> "$STEP_OUTPUTS"
             HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.head_sha')
           else
             RUN_ID="${{ github.event.workflow_run.id }}"
@@ -79,10 +81,13 @@ jobs:
             fi
           fi
 
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
-          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
-          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> "$STEP_OUTPUTS"
+          echo "head_sha=$HEAD_SHA" >> "$STEP_OUTPUTS"
+          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> "$STEP_OUTPUTS"
+          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$STEP_OUTPUTS"
+
+          cat "$STEP_OUTPUTS"
+          cat "$STEP_OUTPUTS" >> "$GITHUB_OUTPUT"
 
       # Checkout the base repo so that .github/scripts/ci-summary-report-publish.js
       # is available for require() in the github-script step below.
