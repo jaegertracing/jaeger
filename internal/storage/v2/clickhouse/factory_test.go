@@ -357,7 +357,11 @@ func TestNewSchemaBuilder_Errors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			loadTemplate = tt.mockFn
-			_, err := newSchemaBuilder(Configuration{})
+			_, err := NewFactory(
+				context.Background(),
+				Configuration{CreateSchema: true},
+				telemetry.NoopSettings(),
+			)
 			require.ErrorContains(t, err, tt.expectedError)
 		})
 	}
