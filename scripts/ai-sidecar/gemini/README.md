@@ -135,7 +135,8 @@ sequenceDiagram
     GEM-->>GL: function_calls or final text
 
     loop For each function call
-        GL->>MCP: call_tool(name,args)
+        GL->>MCP: call_tool(name,args, acp_session_id)
+        Note over MCP: inject ACP session_id<br/>for list_contextual_tools
         MCP->>JMCP: execute tool
         JMCP-->>MCP: tool output
         MCP-->>GL: tool result

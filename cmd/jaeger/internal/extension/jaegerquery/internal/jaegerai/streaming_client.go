@@ -5,29 +5,38 @@ package jaegerai
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/acp-go-sdk"
 )
 
 var _ acp.Client = (*streamingClient)(nil)
 
-// streamingClient implements acp.Client to handle callbacks and streaming text.
+// streamingClient implements acp.Client and translates ACP session updates
+// into AG-UI SSE events written to the HTTP response.
 type streamingClient struct {
 	requestCtx context.Context
 	w          io.Writer
+	flusher    http.Flusher
 	mu         sync.Mutex
 	closed     bool
+	runID      string
+	messageID  string
+	textOpen   bool
 }
 
-func newStreamingClient(ctx context.Context, w http.ResponseWriter) *streamingClient {
+func newStreamingClient(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, runID string) *streamingClient {
 	return &streamingClient{
 		requestCtx: ctx,
 		w:          w,
+		flusher:    flusher,
+		runID:      runID,
 	}
 }
 
@@ -59,9 +68,88 @@ func (c *streamingClient) writeAndFlush(text string) {
 		return
 	}
 
-	if flusher, ok := c.w.(http.Flusher); ok {
-		flusher.Flush()
+	if c.flusher != nil {
+		c.flusher.Flush()
 	}
+}
+
+// writeSSEEvent encodes event as JSON and emits it as a single SSE frame.
+func (c *streamingClient) writeSSEEvent(event map[string]any) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	c.writeAndFlush("data: " + string(payload) + "\n\n")
+}
+
+// startRun emits RUN_STARTED and allocates a message id for the assistant
+// text stream. RunID is preserved if the caller provided one via the AG-UI
+// RunAgentInput payload.
+func (c *streamingClient) startRun() {
+	if c.runID == "" {
+		c.runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
+	}
+	if c.messageID == "" {
+		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+	}
+	c.writeSSEEvent(map[string]any{
+		"type":  "RUN_STARTED",
+		"runId": c.runID,
+	})
+}
+
+// finishRun closes any open text message and emits RUN_FINISHED. The stop
+// reason reported by the sidecar is passed through to AG-UI consumers.
+func (c *streamingClient) finishRun(stopReason string) {
+	if c.textOpen {
+		c.writeSSEEvent(map[string]any{
+			"type":      "TEXT_MESSAGE_END",
+			"runId":     c.runID,
+			"messageId": c.messageID,
+		})
+		c.textOpen = false
+	}
+	event := map[string]any{
+		"type":  "RUN_FINISHED",
+		"runId": c.runID,
+	}
+	if stopReason != "" {
+		event["stopReason"] = stopReason
+	}
+	c.writeSSEEvent(event)
+}
+
+// failRun emits RUN_ERROR with the supplied message. It is safe to call from
+// any handler error path; an open text message is closed first so frontends
+// can finalize rendering before reporting the failure.
+func (c *streamingClient) failRun(message string) {
+	if c.textOpen {
+		c.writeSSEEvent(map[string]any{
+			"type":      "TEXT_MESSAGE_END",
+			"runId":     c.runID,
+			"messageId": c.messageID,
+		})
+		c.textOpen = false
+	}
+	c.writeSSEEvent(map[string]any{
+		"type":    "RUN_ERROR",
+		"runId":   c.runID,
+		"message": message,
+	})
+}
+
+// ensureTextStart emits TEXT_MESSAGE_START the first time streamed assistant
+// text is observed. Subsequent chunks are emitted as TEXT_MESSAGE_CONTENT.
+func (c *streamingClient) ensureTextStart() {
+	if c.textOpen {
+		return
+	}
+	c.writeSSEEvent(map[string]any{
+		"type":      "TEXT_MESSAGE_START",
+		"runId":     c.runID,
+		"messageId": c.messageID,
+	})
+	c.textOpen = true
 }
 
 // RequestPermission always denies. The gateway advertises no filesystem or
@@ -81,18 +169,58 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content
 		if content.Text != nil {
-			c.writeAndFlush(content.Text.Text)
+			c.ensureTextStart()
+			c.writeSSEEvent(map[string]any{
+				"type":      "TEXT_MESSAGE_CONTENT",
+				"runId":     c.runID,
+				"messageId": c.messageID,
+				"delta":     content.Text.Text,
+			})
 		}
 	}
-	// [tool_call] and [tool_result] are informational markers streamed to the
-	// HTTP response for the UI to display progress. They are not part of the
-	// ACP protocol — just human-readable status lines in the text stream.
-	// TODO: upgrade to AG-UI https://docs.ag-ui.com/concepts/events
 	if u.ToolCall != nil {
-		c.writeAndFlush(fmt.Sprintf("\n[tool_call] %s\n", u.ToolCall.Title))
+		c.writeSSEEvent(map[string]any{
+			"type":       "TOOL_CALL_START",
+			"runId":      c.runID,
+			"toolCallId": u.ToolCall.ToolCallId,
+			"title":      u.ToolCall.Title,
+			"kind":       u.ToolCall.Kind,
+		})
+		if u.ToolCall.RawInput != nil {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_ARGS",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCall.ToolCallId,
+				"args":       u.ToolCall.RawInput,
+			})
+		}
 	}
 	if u.ToolCallUpdate != nil {
-		c.writeAndFlush(fmt.Sprintf("\n[tool_result] id=%s status=%s\n", u.ToolCallUpdate.ToolCallId, valueOrUnknown(u.ToolCallUpdate.Status)))
+		if u.ToolCallUpdate.RawInput != nil {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_ARGS",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCallUpdate.ToolCallId,
+				"args":       u.ToolCallUpdate.RawInput,
+			})
+		}
+		if u.ToolCallUpdate.RawOutput != nil {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_RESULT",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCallUpdate.ToolCallId,
+				"result":     u.ToolCallUpdate.RawOutput,
+			})
+		}
+		status := valueOrUnknown(u.ToolCallUpdate.Status)
+		if status == string(acp.ToolCallStatusCompleted) || status == string(acp.ToolCallStatusFailed) {
+			c.writeSSEEvent(map[string]any{
+				"type":       "TOOL_CALL_END",
+				"runId":      c.runID,
+				"toolCallId": u.ToolCallUpdate.ToolCallId,
+				"status":     status,
+			})
+		}
 	}
 	return nil
 }

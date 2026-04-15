@@ -177,6 +177,11 @@ func (s *server) registerTools() {
 		Name:        "get_critical_path",
 		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_contextual_tools",
+		Description: "Return the frontend-provided AG-UI tools array for the given ACP session_id. The sidecar MUST forward the ACP PromptRequest.SessionId it received for the in-flight turn.",
+	}, s.listContextualToolsTool)
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
@@ -184,6 +189,19 @@ type HealthToolOutput struct {
 	Status  string `json:"status" jsonschema:"Server status (ok/error)"`
 	Server  string `json:"server" jsonschema:"Server name"`
 	Version string `json:"version" jsonschema:"Server version"`
+}
+
+// ListContextualToolsInput is the input for the list_contextual_tools MCP tool.
+// The sidecar is expected to pass the ACP session ID it received on the
+// in-flight PromptRequest so the backend can return the correct per-turn
+// snapshot even when multiple chat requests run concurrently.
+type ListContextualToolsInput struct {
+	SessionID string `json:"session_id" jsonschema:"ACP session id for the in-flight prompt; forward PromptRequest.SessionId verbatim"`
+}
+
+// ListContextualToolsOutput is the output for the list_contextual_tools MCP tool.
+type ListContextualToolsOutput struct {
+	Tools []any `json:"tools" jsonschema:"Frontend-provided AG-UI tools array for the requested session"`
 }
 
 // healthTool is a placeholder MCP tool that checks server health.
@@ -198,4 +216,21 @@ func (s *server) healthTool(
 		Server:  s.config.ServerName,
 		Version: s.config.ServerVersion,
 	}, nil
+}
+
+// listContextualToolsTool returns the AG-UI tools snapshot the frontend
+// attached to the chat request whose ACP session matches input.SessionID.
+// The agent uses this to discover contextual UI actions (e.g.
+// frontend-provided tools like visualization) for the specific turn it is
+// serving — keying by session ID prevents concurrent turns from clobbering
+// each other's snapshots.
+func (s *server) listContextualToolsTool(
+	_ context.Context,
+	_ *mcp.CallToolRequest,
+	input ListContextualToolsInput,
+) (*mcp.CallToolResult, ListContextualToolsOutput, error) {
+	if s.queryAPI == nil {
+		return nil, ListContextualToolsOutput{Tools: nil}, nil
+	}
+	return nil, ListContextualToolsOutput{Tools: s.queryAPI.GetContextualToolsForSession(input.SessionID)}, nil
 }

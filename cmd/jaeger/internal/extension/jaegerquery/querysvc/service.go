@@ -5,8 +5,10 @@ package querysvc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"iter"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -50,6 +52,22 @@ type QueryService struct {
 	dependencyReader depstore.Reader
 	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
+	contextualTools  *contextualToolsState
+}
+
+// contextualToolsState stores the AG-UI tools that the frontend provided for
+// a given ACP session. The AI gateway populates it on each chat request and
+// the jaegermcp extension reads the snapshot for a specific session when the
+// agent invokes the list_contextual_tools MCP tool. The session ID is the
+// correlation key: concurrent turns from different frontends each get their
+// own snapshot without racing.
+type contextualToolsState struct {
+	mu        sync.RWMutex
+	bySession map[string][]any
+}
+
+func newContextualToolsState() *contextualToolsState {
+	return &contextualToolsState{bySession: make(map[string][]any)}
 }
 
 // GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
@@ -80,10 +98,57 @@ func NewQueryService(
 		adjuster: adjuster.Sequence(
 			adjuster.StandardAdjusters(options.MaxClockSkewAdjust)...,
 		),
-		options: options,
+		options:         options,
+		contextualTools: newContextualToolsState(),
 	}
 
 	return qsvc
+}
+
+// SetContextualToolsForSession stores frontend-provided AG-UI tools keyed by
+// ACP session ID. Tools are decoded lazily so the caller can pass raw JSON
+// without constraining downstream consumers to a specific schema.
+func (qs *QueryService) SetContextualToolsForSession(sessionID string, rawTools []json.RawMessage) {
+	if qs == nil {
+		return
+	}
+
+	decoded := make([]any, 0, len(rawTools))
+	for _, raw := range rawTools {
+		var tool any
+		if err := json.Unmarshal(raw, &tool); err != nil {
+			continue
+		}
+		decoded = append(decoded, tool)
+	}
+
+	state := qs.contextualTools
+	state.mu.Lock()
+	state.bySession[sessionID] = decoded
+	state.mu.Unlock()
+}
+
+// GetContextualToolsForSession returns a copy of the tools snapshot stored
+// for the given ACP session. It returns nil when the session is unknown or
+// has no registered tools.
+func (qs *QueryService) GetContextualToolsForSession(sessionID string) []any {
+	if qs == nil || sessionID == "" {
+		return nil
+	}
+
+	state := qs.contextualTools
+
+	state.mu.RLock()
+	tools := state.bySession[sessionID]
+	state.mu.RUnlock()
+
+	if len(tools) == 0 {
+		return nil
+	}
+
+	result := make([]any, len(tools))
+	copy(result, tools)
+	return result
 }
 
 // GetTraces retrieves traces with given trace IDs from the primary reader,

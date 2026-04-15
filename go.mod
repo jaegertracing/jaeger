@@ -130,6 +130,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/IBM/sarama v1.47.0 // indirect
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260327153043-e451b8933b72 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect

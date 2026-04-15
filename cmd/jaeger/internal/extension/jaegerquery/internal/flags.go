@@ -36,8 +36,8 @@ type AIConfig struct {
 }
 
 func (c AIConfig) Validate() error {
-	if c.MaxRequestBodySize < 0 {
-		return errors.New("ai.max_request_body_size must not be negative")
+	if c.MaxRequestBodySize <= 0 {
+		return errors.New("ai.max_request_body_size must be a positive integer")
 	}
 	return nil
 }

@@ -9,29 +9,35 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
+	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
-// ChatRequest is the incoming payload
-type ChatRequest struct {
-	Prompt string `json:"prompt"`
-}
+// ChatRequest is the AG-UI payload accepted by the chat endpoint.
+type ChatRequest = aguitypes.RunAgentInput
 
-// ChatHandler manages the AI gateway requests
+// ChatHandler manages the AI gateway requests. Incoming AG-UI RunAgentInput
+// payloads are translated into ACP prompts against a sidecar agent, and the
+// resulting ACP notifications are streamed back to the caller as AG-UI SSE
+// events.
 type ChatHandler struct {
 	Logger             *zap.Logger
+	QueryService       *querysvc.QueryService
 	sidecarWSURL       string
 	maxRequestBodySize int64
 }
 
-func NewChatHandler(logger *zap.Logger, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
+// NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
+// QueryService may be nil in tests that do not exercise contextual tooling.
+func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
+		QueryService:       queryService,
 		sidecarWSURL:       sidecarWSURL,
 		maxRequestBodySize: maxRequestBodySize,
 	}
@@ -57,8 +63,20 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.Prompt) == "" {
+	prompt, err := latestUserMessageText(req.Messages)
+	if err != nil {
 		http.Error(w, "prompt is required", http.StatusBadRequest)
+		return
+	}
+
+	promptBlocks := []acp.ContentBlock{acp.TextBlock(prompt)}
+	for _, ctxText := range contextTextEntries(req.Context) {
+		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
 
@@ -73,7 +91,14 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer adapter.Close()
 
-	clientImpl := newStreamingClient(ctx, w)
+	// Set streaming headers before any SSE event is written.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	clientImpl := newStreamingClient(ctx, w, flusher, req.RunID)
+	clientImpl.startRun()
+
 	// Build an ACP client-side connection over the websocket adapter.
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
 
@@ -89,7 +114,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
+		clientImpl.failRun(fmt.Sprintf("Error initializing agent: %v", err))
 		return
 	}
 
@@ -98,28 +123,27 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
+		clientImpl.failRun(fmt.Sprintf("Error creating session: %v", err))
 		return
 	}
 
-	// Set streaming headers just before Prompt(), since SessionUpdate callbacks
-	// may start writing to the response during this call.
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache")
+	// Publish the frontend-provided tools snapshot so the agent can retrieve
+	// them via the list_contextual_tools MCP tool.
+	if h.QueryService != nil {
+		h.QueryService.SetContextualToolsForSession(string(sess.SessionId), encodeToolsAsRaw(req.Tools))
+	}
 
-	// Prompt blocks until the sidecar completes the ACP turn. During processing,
-	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
+	// Prompt blocks until the sidecar completes the ACP turn. The acp-go-sdk
+	// drains pending SessionUpdate notifications before the call returns, so
+	// by the time we reach finishRun() all streamed content has been flushed.
 	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
-		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
+		Prompt:    promptBlocks,
 	})
 	if err != nil {
-		w.WriteHeader(http.StatusBadGateway)
-		if _, writeErr := fmt.Fprintf(w, "Error starting prompt: %v\n", err); writeErr != nil {
-			h.Logger.Warn("Failed to write prompt error response", zap.Error(writeErr))
-		}
+		clientImpl.failRun(fmt.Sprintf("Error starting prompt: %v", err))
 		return
 	}
 
-	clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
+	clientImpl.finishRun(string(promptResp.StopReason))
 }

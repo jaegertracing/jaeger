@@ -138,7 +138,7 @@ class JaegerSidecarAgent(Agent):
             ),
         )
 
-        tool_output = await self._mcp.call_tool(tool_name, args)
+        tool_output = await self._mcp.call_tool(tool_name, args, acp_session_id=session_id)
         output_text = _to_tool_text(tool_output)
 
         await conn.session_update(

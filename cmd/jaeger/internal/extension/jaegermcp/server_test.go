@@ -452,6 +452,44 @@ func TestNewServer(t *testing.T) {
 	assert.Nil(t, server.listener)
 }
 
+func TestListContextualToolsToolNilQueryAPIReturnsEmpty(t *testing.T) {
+	s := &server{}
+	_, output, err := s.listContextualToolsTool(context.Background(), nil, ListContextualToolsInput{SessionID: "sess-1"})
+	require.NoError(t, err)
+	assert.Nil(t, output.Tools, "nil queryAPI must not panic and must surface empty tools")
+}
+
+func TestListContextualToolsToolReturnsSessionSnapshot(t *testing.T) {
+	queryService := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	queryService.SetContextualToolsForSession("sess-1", []json.RawMessage{
+		json.RawMessage(`{"name":"visualize"}`),
+	})
+	queryService.SetContextualToolsForSession("sess-2", []json.RawMessage{
+		json.RawMessage(`{"name":"other"}`),
+	})
+
+	s := &server{queryAPI: queryService}
+	_, output, err := s.listContextualToolsTool(context.Background(), nil, ListContextualToolsInput{SessionID: "sess-1"})
+	require.NoError(t, err)
+	require.Len(t, output.Tools, 1)
+	tool, ok := output.Tools[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "visualize", tool["name"],
+		"agent must receive the snapshot for the session it passed, not the most recently registered one")
+}
+
+func TestListContextualToolsToolUnknownSessionReturnsEmpty(t *testing.T) {
+	queryService := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	queryService.SetContextualToolsForSession("sess-1", []json.RawMessage{
+		json.RawMessage(`{"name":"visualize"}`),
+	})
+
+	s := &server{queryAPI: queryService}
+	_, output, err := s.listContextualToolsTool(context.Background(), nil, ListContextualToolsInput{SessionID: "sess-nope"})
+	require.NoError(t, err)
+	assert.Nil(t, output.Tools, "unknown session_id must not leak another session's snapshot")
+}
+
 func TestHealthTool(t *testing.T) {
 	telset := componenttest.NewNopTelemetrySettings()
 	config := &Config{

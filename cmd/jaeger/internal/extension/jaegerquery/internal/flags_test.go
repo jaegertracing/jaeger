@@ -29,6 +29,6 @@ func TestAIConfigValidateRejectsNegativeBodySize(t *testing.T) {
 }
 
 func TestAIConfigValidateAcceptsZeroBodySize(t *testing.T) {
-	cfg := AIConfig{MaxRequestBodySize: 0}
+	cfg := AIConfig{MaxRequestBodySize: 1}
 	require.NoError(t, cfg.Validate())
 }
