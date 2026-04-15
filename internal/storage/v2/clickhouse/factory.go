@@ -41,7 +41,7 @@ var (
 	_ storage.Purger     = (*Factory)(nil)
 )
 
-type schemaParams struct {
+type schemaTemplateParams struct {
 	TTLSeconds int64
 }
 
@@ -58,7 +58,7 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	createSpansTableQuery, err := loadTemplate(
 		"create_spans_table",
 		sql.CreateSpansTable,
-		schemaParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
 	)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	createTraceIDTsTableQuery, err := loadTemplate(
 		"create_trace_id_timestamps_table",
 		sql.CreateTraceIDTimestampsTable,
-		schemaParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
 	)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,10 @@ func getProtocol(protocol string) clickhouse.Protocol {
 	return clickhouse.Native
 }
 
-func loadTemplate(name, tmplBody string, data any) (string, error) {
+// loadTemplate is defined as a variable to allow overriding it in tests.
+var loadTemplate func(name, tmplBody string, data any) (string, error) = loadTemplateImpl
+
+func loadTemplateImpl(name, tmplBody string, data any) (string, error) {
 	tmpl, err := template.New(name).Parse(tmplBody)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse %s template: %w", name, err)

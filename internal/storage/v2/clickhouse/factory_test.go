@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -79,10 +80,10 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
-	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, schemaParams{TTLSeconds: 0})
+	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
 	require.NoError(t, err)
 
-	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, schemaParams{TTLSeconds: 0})
+	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -321,6 +322,47 @@ func TestNewFactory_FeatureGateDisabled(t *testing.T) {
 	require.Nil(t, f)
 }
 
+func TestNewSchemaBuilder_Errors(t *testing.T) {
+	originalLoadTemplate := loadTemplate
+	t.Cleanup(func() { loadTemplate = originalLoadTemplate })
+
+	tests := []struct {
+		name          string
+		mockFn        func(name, tmplBody string, data any) (string, error)
+		expectedError string
+	}{
+		{
+			name: "first loadTemplate call fails",
+			mockFn: func(name, tmplBody string, data any) (string, error) {
+				return "", errors.New("mock template error")
+			},
+			expectedError: "mock template error",
+		},
+		{
+			name: "second loadTemplate call fails",
+			mockFn: func() func(name, tmplBody string, data any) (string, error) {
+				calls := 0
+				return func(name, tmplBody string, data any) (string, error) {
+					calls++
+					if calls >= 2 {
+						return "", errors.New("mock template error")
+					}
+					return loadTemplateImpl(name, tmplBody, data)
+				}
+			}(),
+			expectedError: "mock template error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loadTemplate = tt.mockFn
+			_, err := newSchemaBuilder(Configuration{})
+			require.ErrorContains(t, err, tt.expectedError)
+		})
+	}
+}
+
 func TestLoadTemplate(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -364,13 +406,13 @@ func TestLoadTemplate(t *testing.T) {
 
 func TestCreateSpansTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaParams{TTLSeconds: 0})
+		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
 	})
@@ -378,13 +420,13 @@ func TestCreateSpansTableTemplate(t *testing.T) {
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaParams{TTLSeconds: 0})
+		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL end")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400})
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
 	})
