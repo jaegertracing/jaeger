@@ -100,9 +100,9 @@ For deployments with longer TTLs, an optional read-triggered rewrite can convert
 
 ### Backward Compatibility
 
-Old and new data share the same key schema. A single prefix scan returns both `0x02` and `0x03` entries without separate queries.
+In the dual read path, `0x02` and `0x03` entries use the same key schema, so both show up in the same scan. No separate query is needed for each format.
 
-On read, the reader checks `UserMeta & 0x0F` before loading the value:
+The reader dispatches on `UserMeta & 0x0F` to select the deserializer:
 
 * `0x02`: deserialize as `model.Span`, convert to ptrace via existing translator
 * `0x03`: deserialize as ptrace directly
