@@ -128,9 +128,9 @@ The schema is subject to breaking changes in future releases.
 `)
 	cfg.applyDefaults()
 
-	var err error
 	var builder *schemaBuilder
 	if cfg.CreateSchema {
+		var err error
 		builder, err = newSchemaBuilder(cfg)
 		if err != nil {
 			return nil, err
