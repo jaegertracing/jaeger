@@ -107,7 +107,16 @@ The reader dispatches on `UserMeta & 0x0F` to select the deserializer:
 * `0x02`: deserialize as `model.Span`, convert to ptrace via existing translator
 * `0x03`: deserialize as ptrace directly
 
-No feature gate is needed because format detection is per-entry, not per-database. Old and new entries coexist in the same scan, same transaction, same trace.
+### Legacy read path deprecation
+
+The legacy `0x02` read path follows the OTel Collector feature gate lifecycle:
+
+| Stage   | Gate behavior                    | Legacy `0x02` read path                   |
+| ------- | -------------------------------- | ----------------------------------------- |
+| Alpha   | off by default                   | Dual-read active                          |
+| Beta    | on by default, can disable       | Dual-read off, opt-in to re-enable legacy |
+| Stable  | permanently on, disabling errors | Legacy path no longer available           |
+| Removed | gate deleted                     | Legacy code deleted                       |
 
 ## Success Criteria
 
