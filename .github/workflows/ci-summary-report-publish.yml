@@ -45,7 +45,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Resolve the CI Orchestrator run ID and head SHA.
-      # PR number is read from the ci-summary artifact after download (see below).
+      # For workflow_run events the ci-summary artifact is downloaded here so
+      # that pr_number can be read from it; the GitHub Pulls API then returns
+      # the authoritative PR head SHA.  workflow_run.head_sha is NOT used for
+      # PR-triggered runs because it points to the synthetic merge commit
+      # (refs/pull/N/merge), not the PR branch tip.  Branch protection required
+      # checks are evaluated against the PR branch tip, so using the merge
+      # commit SHA leaves "Coverage Gate" stuck at "Expected" permanently.
+      # The ci-summary artifact is also downloaded again by the step below so
+      # that later steps can rely on .artifacts/ci-summary.json without special-
+      # casing which step downloaded it.
       - name: Resolve source run
         id: source-run
         env:
@@ -66,17 +75,26 @@ jobs:
             HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.head_sha')
           else
             RUN_ID="${{ github.event.workflow_run.id }}"
-            # For pull_request-triggered CI Orchestrator runs, workflow_run.head_sha
-            # is the synthetic merge commit (refs/pull/N/merge), not the PR head
-            # branch tip.  Branch protection required checks are evaluated against the
-            # PR head SHA, so posting check runs against the merge commit SHA would
-            # leave "Coverage Gate" permanently stuck at "Expected".
-            # workflow_run.pull_requests[0].head.sha is the actual PR head SHA; use
-            # it when present and fall back to head_sha for push/merge_group events.
-            PR_HEAD_SHA="${{ github.event.workflow_run.pull_requests[0].head.sha }}"
-            if [ -n "$PR_HEAD_SHA" ]; then
-              HEAD_SHA="$PR_HEAD_SHA"
+
+            # Download the ci-summary artifact to read pr_number, then use the
+            # GitHub Pulls API to get the true PR branch-tip SHA.
+            mkdir -p .artifacts
+            gh run download "$RUN_ID" \
+              --repo "${{ github.repository }}" \
+              --name ci-summary \
+              --dir .artifacts 2>/dev/null \
+            || echo "::warning::ci-summary artifact not found in source run."
+
+            PR_NUMBER=""
+            if [ -f .artifacts/ci-summary.json ]; then
+              PR_NUMBER=$(jq -r '.pr_number // empty' .artifacts/ci-summary.json 2>/dev/null || true)
+            fi
+
+            if [ -n "$PR_NUMBER" ]; then
+              echo "pr_number=$PR_NUMBER" >> "$STEP_OUTPUTS"
+              HEAD_SHA=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '.head.sha')
             else
+              # Not a PR run (push, merge_group, etc.): head_sha is the real commit.
               HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
             fi
           fi
