@@ -79,9 +79,6 @@ jobs:
 
       # Download the ci-summary artifact (pre-computed by ci-summary-report.yml).
       # head_sha and pr_number are read from ci-summary.json in the next step.
-      # head_sha written into the artifact uses github.event.pull_request.head.sha
-      # (PR branch-tip, not the synthetic merge commit) so check runs are posted
-      # against the SHA that branch-protection evaluates.
       - name: Download CI summary artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,37 +89,82 @@ jobs:
             --dir .artifacts \
           || echo "::warning::ci-summary artifact not found; proceeding without summary artifact (later checks may fail)."
 
-      # Read head_sha and pr_number from the artifact.
-      # For workflow_dispatch, pr_number is already set from the input (source-run),
-      # but head_sha still comes from the artifact so we don't need an extra API call.
-      # head_sha is validated as a 40-char hex SHA before use; if the artifact is
-      # missing or contains no valid SHA, fall back to workflow_run.head_sha so the
-      # handler is always invoked and can post "failure" check runs (instead of
-      # silently leaving required checks absent at "Expected").
+      # Read head_sha and pr_number from the artifact, with fallbacks.
+      #
+      # head_sha resolution order:
+      #   1. ci-summary.json artifact field — written by ci-summary-report.yml from
+      #      github.event.pull_request.head.sha (the PR branch-tip, not the synthetic
+      #      merge commit).  This is the SHA that branch-protection evaluates required
+      #      checks against, and the preferred source.
+      #   2. GitHub Pulls API (/repos/.../pulls/{pr_number}) — used when the artifact
+      #      is missing or predates head_sha support (runs before this field was added).
+      #      The API always returns the current branch-tip for the PR; it is authoritative
+      #      and consistent.  Requires pr_number to be known.
+      #   3. workflow_run.head_sha — absolute last resort.
+      #      WARNING: For pull_request-triggered CI runs, workflow_run.head_sha is the
+      #      synthetic merge commit (refs/pull/N/merge), NOT the PR branch tip.  Check
+      #      runs posted against this SHA will NOT satisfy branch-protection and will
+      #      leave "Coverage Gate" / "Metrics Comparison" stuck at "Expected" forever.
+      #      Only reached for non-PR events (push, merge_group) where head_sha is the
+      #      real commit, or when the artifact is completely missing and pr_number is
+      #      unknown (very early failures before artifact upload).
+      #
+      # HISTORY — why workflow_run.pull_requests[0].head.sha is NOT used:
+      #   It was tried as a lighter alternative to the Pulls API but proved unreliable:
+      #   the pull_requests array is sometimes empty even for valid, non-fork PR runs
+      #   (observed repeatedly in this repo).  The Pulls API is authoritative; prefer
+      #   it over any pull_requests context field.
       - name: Read run info from artifact
         id: run-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           STEP_OUTPUTS=$(mktemp)
           HEAD_SHA=""
           PR_NUMBER=""
+
           if [ -f .artifacts/ci-summary.json ]; then
             RAW_SHA=$(jq -r '.head_sha // empty' .artifacts/ci-summary.json 2>/dev/null || true)
             if [[ "$RAW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
               HEAD_SHA="$RAW_SHA"
             elif [ -n "$RAW_SHA" ]; then
-              echo "::warning::head_sha in artifact ('$RAW_SHA') is not a valid 40-char hex SHA; will use fallback."
+              echo "::warning::head_sha in artifact ('$RAW_SHA') is not a valid 40-char hex SHA; will try fallback."
             fi
             PR_NUMBER=$(jq -r '.pr_number // empty' .artifacts/ci-summary.json 2>/dev/null || true)
           else
             echo "::warning::ci-summary.json not found; PR comment and check runs may be affected."
           fi
-          # For workflow_run events, fall back to workflow_run.head_sha when the
-          # artifact is missing or contains no valid SHA.  This may be the synthetic
-          # merge commit, but it is better than leaving required checks at "Expected".
+
+          # For workflow_dispatch, pr_number is already validated in source-run.
+          # Use it if the artifact did not provide one (e.g. artifact is missing).
+          DISPATCH_PR="${{ steps.source-run.outputs.pr_number }}"
+          if [ -z "$PR_NUMBER" ] && [ -n "$DISPATCH_PR" ]; then
+            PR_NUMBER="$DISPATCH_PR"
+          fi
+
+          # Fallback 2: Pulls API — authoritative branch-tip SHA.
+          # Handles artifacts that predate head_sha support and missing artifacts
+          # where pr_number is still known.
+          if [ -z "$HEAD_SHA" ] && [ -n "$PR_NUMBER" ]; then
+            echo "::notice::Resolving head_sha via Pulls API for PR #$PR_NUMBER."
+            RESOLVED=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" \
+              --jq '.head.sha' 2>/dev/null || true)
+            if [[ "$RESOLVED" =~ ^[0-9a-f]{40}$ ]]; then
+              HEAD_SHA="$RESOLVED"
+              echo "::notice::head_sha resolved from Pulls API: $HEAD_SHA"
+            else
+              echo "::warning::Pulls API did not return a valid SHA for PR #$PR_NUMBER."
+            fi
+          fi
+
+          # Fallback 3 (last resort): workflow_run.head_sha.
+          # See WARNING above — this is the synthetic merge commit for PR runs.
+          # Only acceptable for non-PR events or when everything else has failed.
           if [ -z "$HEAD_SHA" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
             HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
-            echo "::warning::Using workflow_run.head_sha as fallback (may be synthetic merge commit)."
+            echo "::warning::Using workflow_run.head_sha as last resort ($HEAD_SHA). For PR runs this is the synthetic merge commit — check runs may not satisfy branch-protection."
           fi
+
           if [ -n "$HEAD_SHA" ]; then
             echo "head_sha=$HEAD_SHA" >> "$STEP_OUTPUTS"
           fi
