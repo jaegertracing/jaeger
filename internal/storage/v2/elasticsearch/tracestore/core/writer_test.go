@@ -199,7 +199,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				spanIndexName := "jaeger-span-1995-04-21"
 				serviceIndexName := "jaeger-service-1995-04-21"
-				serviceHash := "de3b5a8f1a79989d"
+				serviceHash := "d17b3510df3ba545" // hash of "service||operation" (spanKind is empty)
 
 				indexService := &mocks.IndexService{}
 				indexServicePut := &mocks.IndexService{}
