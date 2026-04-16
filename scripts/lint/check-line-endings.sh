@@ -41,6 +41,10 @@ while IFS= read -r -d $'\0' FILE; do
     # Skip symlinks and files that no longer exist on disk.
     [ ! -f "$FILE" ] && continue
 
+    # Skip binary files. grep -I treats binary files as non-matching; an empty
+    # pattern always matches text files, so a non-zero exit here means binary.
+    grep -qI '' "$FILE" || continue
+
     HAS_TRAILING_SPACE=$(grep -q '[[:blank:]]$' "$FILE" && echo true || echo false)
     HAS_CRLF=$(grep -q $'\r' "$FILE" && echo true || echo false)
     # tail -c1 | read -r exits 1 when the last byte is not a newline.
