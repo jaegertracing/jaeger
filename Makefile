@@ -144,7 +144,7 @@ fmt: $(GOFUMPT)
 	@echo Running updateLicense.py on ALL_SRC ...
 	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
 	@echo Running check-line-endings on all files ...
-	@./scripts/lint/check-line-endings.sh -u
+	@./scripts/lint/check-line-endings.py -u
 
 .PHONY: lint
 lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings
@@ -180,7 +180,7 @@ lint-imports:
 .PHONY: lint-line-endings
 lint-line-endings:
 	@echo Verifying that all files use Unix line endings, have no trailing whitespace, and end with a final newline at EOF
-	@./scripts/lint/check-line-endings.sh
+	@./scripts/lint/check-line-endings.py
 
 .PHONY: lint-fmt
 lint-fmt: $(GOFUMPT)
