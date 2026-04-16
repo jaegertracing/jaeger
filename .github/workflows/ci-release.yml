@@ -182,7 +182,7 @@ jobs:
           --limit 1 \
           --json databaseId \
           --jq '.[0].databaseId')
-        if [ -z "$LATEST_RUN" ]; then
+        if [ -z "$LATEST_RUN" ] || [ "$LATEST_RUN" = "null" ]; then
           echo "::warning::No successful CI Orchestrator run found on main; skipping metrics YAML upload"
           exit 0
         fi

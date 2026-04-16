@@ -29,7 +29,6 @@ import argparse
 import os
 import re
 import sys
-from collections import defaultdict
 from typing import Any
 
 # PyYAML is preferred for output (human-readable, block style).
@@ -60,10 +59,10 @@ def parse_snapshot(content: str) -> list[dict[str, Any]]:
     Each dict has the following structure::
 
         {
-            "name": "http_server_duration_milliseconds_bucket",
+            "name": "http_server_duration_milliseconds",
             "type": "histogram",     # counter | gauge | histogram | summary | untyped
             "help": "Duration of HTTP server requests.",
-            "labels": ["le", "http_method", "http_route"],
+            "labels": ["http_method", "http_route", "le"],
         }
 
     Metrics are deduplicated by name: the ``labels`` list is the union of all
