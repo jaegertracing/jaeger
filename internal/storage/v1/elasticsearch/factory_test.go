@@ -139,6 +139,16 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 }
 
 func TestTagKeysAsFields(t *testing.T) {
+	dir := t.TempDir()
+
+	tagsFile := filepath.Join(dir, "tags.txt")
+	require.NoError(t, os.WriteFile(tagsFile, []byte("foo\nbar\n      space   \n"), 0o600))
+
+	emptyFile := filepath.Join(dir, "empty.txt")
+	require.NoError(t, os.WriteFile(emptyFile, []byte(""), 0o600))
+
+	missingFile := filepath.Join(dir, "missing.txt") // intentionally not created
+
 	tests := []struct {
 		path          string
 		include       string
@@ -146,15 +156,15 @@ func TestTagKeysAsFields(t *testing.T) {
 		errorExpected bool
 	}{
 		{
-			path:          "fixtures/do_not_exists.txt",
+			path:          missingFile,
 			errorExpected: true,
 		},
 		{
-			path:     "fixtures/tags_01.txt",
+			path:     tagsFile,
 			expected: []string{"foo", "bar", "space"},
 		},
 		{
-			path:     "fixtures/tags_02.txt",
+			path:     emptyFile,
 			expected: nil,
 		},
 		{
@@ -165,12 +175,12 @@ func TestTagKeysAsFields(t *testing.T) {
 			expected: nil,
 		},
 		{
-			path:     "fixtures/tags_01.txt",
+			path:     tagsFile,
 			include:  "televators,eriatarka,thewidow",
 			expected: []string{"foo", "bar", "space", "televators", "eriatarka", "thewidow"},
 		},
 		{
-			path:     "fixtures/tags_02.txt",
+			path:     emptyFile,
 			include:  "televators,eriatarka,thewidow",
 			expected: []string{"televators", "eriatarka", "thewidow"},
 		},
