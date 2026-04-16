@@ -23,7 +23,6 @@ var _ acp.Client = (*streamingClient)(nil)
 type streamingClient struct {
 	requestCtx context.Context
 	w          io.Writer
-	flusher    http.Flusher
 	mu         sync.Mutex
 	closed     bool
 	runID      string
@@ -31,16 +30,15 @@ type streamingClient struct {
 	textOpen   bool
 }
 
-func newStreamingClient(ctx context.Context, w http.ResponseWriter, flusher http.Flusher, runID string) *streamingClient {
+func newStreamingClient(ctx context.Context, w http.ResponseWriter, runID string) *streamingClient {
 	return &streamingClient{
 		requestCtx: ctx,
 		w:          w,
-		flusher:    flusher,
 		runID:      runID,
 	}
 }
 
-func (c *streamingClient) writeAndFlush(text string) {
+func (c *streamingClient) write(text string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -67,10 +65,6 @@ func (c *streamingClient) writeAndFlush(text string) {
 		c.closed = true
 		return
 	}
-
-	if c.flusher != nil {
-		c.flusher.Flush()
-	}
 }
 
 // writeSSEEvent encodes event as JSON and emits it as a single SSE frame.
@@ -79,7 +73,7 @@ func (c *streamingClient) writeSSEEvent(event map[string]any) {
 	if err != nil {
 		return
 	}
-	c.writeAndFlush("data: " + string(payload) + "\n\n")
+	c.write("data: " + string(payload) + "\n\n")
 }
 
 // startRun emits RUN_STARTED and allocates a message id for the assistant

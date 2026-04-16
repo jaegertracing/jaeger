@@ -17,21 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type flushCountingRecorder struct {
-	httptest.ResponseRecorder
-	count int
-}
-
-func newFlushCountingRecorder() *flushCountingRecorder {
-	return &flushCountingRecorder{
-		ResponseRecorder: *httptest.NewRecorder(),
-	}
-}
-
-func (f *flushCountingRecorder) Flush() {
-	f.count++
-}
-
 type errResponseWriter struct {
 	header http.Header
 }
@@ -93,22 +78,20 @@ func eventTypes(events []map[string]any) []string {
 	return types
 }
 
-func TestStreamingClientWriteAndFlushWritesText(t *testing.T) {
-	rec := newFlushCountingRecorder()
+func TestStreamingClientWriteWritesText(t *testing.T) {
+	rec := httptest.NewRecorder()
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          rec,
-		flusher:    rec,
 	}
 
-	c.writeAndFlush("hello")
+	c.write("hello")
 
 	assert.Equal(t, "hello", rec.Body.String(), "unexpected body content")
-	assert.Equal(t, 1, rec.count, "expected one flush")
 }
 
-func TestStreamingClientWriteAndFlushContextDoneSetsClosedFlag(t *testing.T) {
-	rec := newFlushCountingRecorder()
+func TestStreamingClientWriteContextDoneSetsClosedFlag(t *testing.T) {
+	rec := httptest.NewRecorder()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -117,52 +100,50 @@ func TestStreamingClientWriteAndFlushContextDoneSetsClosedFlag(t *testing.T) {
 		w:          rec,
 	}
 
-	c.writeAndFlush("ignored")
+	c.write("ignored")
 
 	assert.True(t, c.closed, "expected client to be closed")
 	assert.Empty(t, rec.Body.String(), "expected empty body")
 }
 
-func TestStreamingClientWriteAndFlushWriteErrorSetsClosedFlag(t *testing.T) {
+func TestStreamingClientWriteErrorSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &errResponseWriter{},
 	}
 
-	c.writeAndFlush("hello")
+	c.write("hello")
 
 	assert.True(t, c.closed, "expected client to be closed on write error")
 }
 
-func TestStreamingClientWriteAndFlushRecoverSetsClosedFlag(t *testing.T) {
+func TestStreamingClientWriteRecoverSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &panicResponseWriter{},
 	}
 
-	c.writeAndFlush("hello")
+	c.write("hello")
 
 	assert.True(t, c.closed, "expected client to be closed after panic")
 }
 
-func TestStreamingClientWriteAndFlushNoopWhenClosed(t *testing.T) {
-	rec := newFlushCountingRecorder()
+func TestStreamingClientWriteNoopWhenClosed(t *testing.T) {
+	rec := httptest.NewRecorder()
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          rec,
-		flusher:    rec,
 		closed:     true,
 	}
 
-	c.writeAndFlush("ignored")
+	c.write("ignored")
 
 	assert.Empty(t, rec.Body.String(), "expected no writes when already closed")
-	assert.Zero(t, rec.count, "expected no flush when already closed")
 }
 
 func TestStreamingClientStartRunEmitsRunStarted(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 
 	c.startRun()
 
@@ -175,8 +156,8 @@ func TestStreamingClientStartRunEmitsRunStarted(t *testing.T) {
 }
 
 func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "")
 
 	c.startRun()
 
@@ -185,8 +166,8 @@ func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 }
 
 func TestStreamingClientFinishRunClosesOpenTextAndEmitsStopReason(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
@@ -200,8 +181,8 @@ func TestStreamingClientFinishRunClosesOpenTextAndEmitsStopReason(t *testing.T) 
 }
 
 func TestStreamingClientFinishRunOmitsStopReasonWhenEmpty(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 	c.startRun()
 
 	c.finishRun("")
@@ -214,8 +195,8 @@ func TestStreamingClientFinishRunOmitsStopReasonWhenEmpty(t *testing.T) {
 }
 
 func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
@@ -228,8 +209,8 @@ func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 }
 
 func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 
 	c.ensureTextStart()
 	c.ensureTextStart()
@@ -259,8 +240,8 @@ func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
 }
 
 func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 	c.startRun()
 
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
@@ -280,8 +261,8 @@ func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testin
 }
 
 func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
@@ -307,8 +288,8 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 }
 
 func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 
 	completed := acp.ToolCallStatusCompleted
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
@@ -331,8 +312,8 @@ func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.
 }
 
 func TestStreamingClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *testing.T) {
-	rec := newFlushCountingRecorder()
-	c := newStreamingClient(context.Background(), &rec.ResponseRecorder, rec, "run-1")
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "run-1")
 
 	inProgress := acp.ToolCallStatusInProgress
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{

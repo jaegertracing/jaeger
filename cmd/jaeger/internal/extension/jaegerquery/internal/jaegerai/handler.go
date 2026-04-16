@@ -74,12 +74,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
 	}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
 	ctx := r.Context()
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -91,13 +85,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer adapter.Close()
 
-	// Set streaming headers before any SSE event is written.
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	clientImpl := newStreamingClient(ctx, w, flusher, req.RunID)
-	clientImpl.startRun()
+	clientImpl := newStreamingClient(ctx, w, req.RunID)
 
 	// Build an ACP client-side connection over the websocket adapter.
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
@@ -114,7 +102,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
-		clientImpl.failRun(fmt.Sprintf("Error initializing agent: %v", err))
+		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
 		return
 	}
 
@@ -123,7 +111,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		clientImpl.failRun(fmt.Sprintf("Error creating session: %v", err))
+		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
 	}
 
@@ -133,9 +121,20 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.QueryService.SetContextualToolsForSession(string(sess.SessionId), encodeToolsAsRaw(req.Tools))
 	}
 
+	// Set streaming headers just before Prompt: SessionUpdate callbacks start
+	// firing SSE frames from here on, and headers must be committed before
+	// the first write. Earlier errors (dial/initialize/new_session) use
+	// http.Error with a standard status code since no streaming contract has
+	// been established yet.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	clientImpl.startRun()
+
 	// Prompt blocks until the sidecar completes the ACP turn. The acp-go-sdk
 	// drains pending SessionUpdate notifications before the call returns, so
-	// by the time we reach finishRun() all streamed content has been flushed.
+	// by the time we reach finishRun() all streamed content has been written.
 	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    promptBlocks,

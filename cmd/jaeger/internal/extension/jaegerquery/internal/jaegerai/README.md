@@ -109,7 +109,7 @@ sequenceDiagram
 
     Sidecar-->>acpConn: PromptResponse (StopReason)
     acpConn-->>ChatHandler: Prompt() returns
-    ChatHandler->>SC: writeAndFlush([stop_reason])
+    ChatHandler->>SC: finishRun(stop_reason)
     SC-->>UI: [stop_reason]
     ChatHandler->>Sidecar: WS close
 ```

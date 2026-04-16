@@ -204,54 +204,28 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.Contains(t, body, "\"stopReason\":\"end_turn\"", "expected end_turn stop reason")
 }
 
-type noFlusherResponseWriter struct {
+type failingResponseWriter struct {
 	header http.Header
-	body   bytes.Buffer
 	status int
 }
 
-func (w *noFlusherResponseWriter) Header() http.Header {
+func (w *failingResponseWriter) Header() http.Header {
 	if w.header == nil {
 		w.header = make(http.Header)
 	}
 	return w.header
 }
 
-func (w *noFlusherResponseWriter) Write(p []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.body.Write(p)
-}
-
-func (w *noFlusherResponseWriter) WriteHeader(statusCode int) {
-	w.status = statusCode
-}
-
-type failingFlusherResponseWriter struct {
-	header http.Header
-	status int
-}
-
-func (w *failingFlusherResponseWriter) Header() http.Header {
-	if w.header == nil {
-		w.header = make(http.Header)
-	}
-	return w.header
-}
-
-func (w *failingFlusherResponseWriter) Write([]byte) (int, error) {
+func (w *failingResponseWriter) Write([]byte) (int, error) {
 	if w.status == 0 {
 		w.status = http.StatusOK
 	}
 	return 0, errors.New("forced write failure")
 }
 
-func (w *failingFlusherResponseWriter) WriteHeader(statusCode int) {
+func (w *failingResponseWriter) WriteHeader(statusCode int) {
 	w.status = statusCode
 }
-
-func (*failingFlusherResponseWriter) Flush() {}
 
 func TestNewChatHandlerPassesThroughConfig(t *testing.T) {
 	h := NewChatHandler(zap.NewNop(), nil, "ws://localhost:1", 512)
@@ -302,18 +276,6 @@ func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 	require.Equal(t, http.StatusRequestEntityTooLarge, rr.Code, "unexpected status code")
 }
 
-func TestChatHandlerStreamingUnsupported(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 1<<20)
-	body, err := json.Marshal(userMessageRequest("hello"))
-	require.NoError(t, err, "failed to marshal request")
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
-	w := &noFlusherResponseWriter{}
-
-	handler.ServeHTTP(w, req)
-
-	require.Equal(t, http.StatusInternalServerError, w.status, "unexpected status code")
-}
-
 func TestChatHandlerDialFailure(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 1<<20)
 	body, err := json.Marshal(userMessageRequest("hello"))
@@ -339,9 +301,12 @@ func TestChatHandlerInitializeError(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
-	require.Contains(t, rr.Body.String(), "\"type\":\"RUN_ERROR\"", "expected RUN_ERROR SSE event")
+	// SSE headers are committed only just before Prompt(), so errors during
+	// Initialize surface as a plain 502 with no streaming contract.
+	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Contains(t, rr.Body.String(), "Error initializing agent", "expected initialize error message")
+	require.NotContains(t, rr.Header().Get("Content-Type"), "text/event-stream",
+		"initialize errors must not claim to be an SSE stream")
 }
 
 func TestChatHandlerNewSessionError(t *testing.T) {
@@ -357,9 +322,11 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 
 	handler.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
-	require.Contains(t, rr.Body.String(), "\"type\":\"RUN_ERROR\"", "expected RUN_ERROR SSE event")
+	// Same reasoning as Initialize — no SSE contract yet, use a plain 502.
+	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
 	require.Contains(t, rr.Body.String(), "Error creating session", "expected session error message")
+	require.NotContains(t, rr.Header().Get("Content-Type"), "text/event-stream",
+		"new_session errors must not claim to be an SSE stream")
 }
 
 func TestChatHandlerPromptError(t *testing.T) {
@@ -471,7 +438,7 @@ func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	body, err := json.Marshal(userMessageRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
-	w := &failingFlusherResponseWriter{}
+	w := &failingResponseWriter{}
 
 	handler.ServeHTTP(w, req)
 
