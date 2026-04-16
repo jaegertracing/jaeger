@@ -45,17 +45,17 @@ METRIC_EXCLUSION_RULES = {
 def should_exclude_metric(metric_name, labels):
     """
     Determines if a metric should be excluded from comparison based on configured rules.
-    
+
     Args:
         metric_name: The name of the metric
         labels: Dictionary of labels for the metric
-        
+
     Returns:
         tuple: (should_exclude: bool, reason: str or None)
     """
     for rule_name, rule_config in METRIC_EXCLUSION_RULES.items():
         condition = rule_config['condition']
-        
+
         if condition == 'label_match':
             label = rule_config['label']
             pattern = rule_config['pattern']
@@ -71,16 +71,16 @@ def should_exclude_metric(metric_name, labels):
 def suppress_transient_labels(metric_name, labels):
     """
     Suppresses transient labels in metrics based on configured patterns.
-    
+
     Args:
         metric_name: The name of the metric
         labels: Dictionary of labels for the metric
-        
+
     Returns:
         Dictionary of labels with transient values normalized
     """
     labels_copy = labels.copy()
-    
+
     for service_pattern, label_configs in TRANSIENT_LABEL_PATTERNS.items():
         if service_pattern in metric_name:
             for label_name, pattern_config in label_configs.items():
@@ -88,13 +88,13 @@ def suppress_transient_labels(metric_name, labels):
                     pattern = pattern_config['pattern']
                     replacement = pattern_config['replacement']
                     labels_copy[label_name] = re.sub(pattern, replacement, labels_copy[label_name])
-    
+
     return labels_copy
 
 def read_metric_file(file_path):
     with open(file_path, 'r') as f:
         return f.readlines()
-    
+
 def parse_metrics(content):
     metrics = []
     metrics_exclusion_count = 0
@@ -110,12 +110,12 @@ def parse_metrics(content):
             for label in EXCLUDED_LABELS:
                 labels.pop(label, None)
             labels = suppress_transient_labels(sample.name, labels)
-            
+
             label_pairs = sorted(labels.items(), key=lambda x: x[0])
             label_str = ','.join(f'{k}="{v}"' for k,v in label_pairs)
             metric = f"{family.name}{{{label_str}}}"
             insort(metrics , metric)
-        
+
     return metrics,metrics_exclusion_count
 
 
@@ -177,7 +177,7 @@ def generate_diff(baseline_content, current_content):
     return '\n'.join(diff) + exclusion_lines
 
 def write_diff_file(diff_lines, output_path):
-    
+
     with open(output_path, 'w') as f:
         f.write(diff_lines)
         f.write('\n')  # Add final newline

@@ -33,8 +33,8 @@ jobs:
           stale-issue-label: 'stale'
           exempt-issue-labels: 'do-not-expire,help-wanted'
           only-issue-labels: 'question'
-          
-          # Pull requests configuration  
+
+          # Pull requests configuration
           days-before-pr-stale: 60
           days-before-pr-close: 14
           stale-pr-message: >
@@ -47,7 +47,7 @@ jobs:
             that this has not been completed.
           stale-pr-label: 'stale'
           exempt-pr-labels: 'do-not-expire'
-          
+
           # General configuration
           operations-per-run: 100
           remove-stale-when-updated: true
