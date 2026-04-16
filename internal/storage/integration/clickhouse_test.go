@@ -29,8 +29,9 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 	})
 
 	cfg := ch.Configuration{
-		Addresses: []string{"127.0.0.1:9000"},
-		Database:  "jaeger",
+		Addresses:    []string{"127.0.0.1:9000"},
+		Database:     "jaeger",
+		CreateSchema: true,
 		Auth: ch.Authentication{
 			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 				Username: "default",
