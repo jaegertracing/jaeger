@@ -18,9 +18,9 @@
 
 # Use GNU sed on macOS (same pattern as the project Makefile).
 if [[ "$(uname)" == "Darwin" ]]; then
-    SED=gsed
+    SED='gsed'
 else
-    SED=sed
+    SED='sed'
 fi
 
 FIX_MODE=false
@@ -58,7 +58,8 @@ while IFS= read -r -d $'\0' FILE; do
             # Remove trailing spaces and tabs.
             "$SED" -i 's/[[:blank:]]*$//' "$FILE"
             # Append a newline if the file does not already end with one.
-            "$SED" -i -e '$a\' "$FILE"
+            # Only reached when HAS_NEWLINE=false, so printf never double-adds.
+            [ "$HAS_NEWLINE" = false ] && printf '\n' >> "$FILE"
         else
             echo "Lint error: $FILE"
             [ "$HAS_TRAILING_SPACE" = true ] && echo "  -> Trailing whitespace found"
