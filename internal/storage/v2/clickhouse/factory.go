@@ -139,6 +139,10 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 	return chdepstore.NewDependencyReader(f.conn), nil
 }
 
+func (f *Factory) CreateDependencyWriter() (depstore.Writer, error) {
+	return chdepstore.NewDependencyWriter(f.conn), nil
+}
+
 func (f *Factory) Close() error {
 	return f.conn.Close()
 }
