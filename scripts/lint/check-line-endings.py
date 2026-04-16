@@ -24,16 +24,9 @@ from pathlib import Path
 
 
 def get_tracked_files() -> list[bytes]:
-    try:
-        result = subprocess.run(
-            ["git", "ls-files", "-z"], capture_output=True, check=True
-        )
-    except FileNotFoundError:
-        raise SystemExit("error: 'git' not found on PATH")
-    except subprocess.CalledProcessError as exc:
-        stderr = exc.stderr.decode(errors="replace").strip()
-        msg = "error: 'git ls-files -z' failed"
-        raise SystemExit(f"{msg}: {stderr}" if stderr else msg)
+    result = subprocess.run(
+        ["git", "ls-files", "-z"], capture_output=True, check=True
+    )
     return [f for f in result.stdout.split(b"\0") if f]
 
 
