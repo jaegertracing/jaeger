@@ -1,4 +1,4 @@
-# OpenTelemetry Demo app + HotRODapp + Jaeger + OpenSearch 
+# OpenTelemetry Demo app + HotRODapp + Jaeger + OpenSearch
 
 This example provides a one-command deployment of a complete observability stack on Kubernetes:
 - Jaeger (all-in-one) for tracing
@@ -44,11 +44,11 @@ ROLLOUT_TIMEOUT=900 ./deploy-all.sh clean
   - OpenSearch Dashboards Deployment
 - Namespace `jaeger`:
   - Jaeger all-in-one Deployment (storage=none)
-  - HOTROD application 
+  - HOTROD application
   - Jaeger Query ClusterIP service (jaeger-query-clusterip)
 - Namespace `otel-demo`:
   - OpenTelemetry Demo (frontend, load-generator, and supporting services)
-  
+
 
 ## Verifying the deployment
 - Pods status:

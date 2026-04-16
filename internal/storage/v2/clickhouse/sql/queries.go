@@ -281,7 +281,7 @@ const (
 
 const SelectDependencies = `
 SELECT
-    dependencies
+    dependencies_json
 FROM
     dependencies
 WHERE

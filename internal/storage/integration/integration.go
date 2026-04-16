@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"slices"
@@ -88,7 +89,12 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 		case int:
 			attributes.PutInt(k, int64(v))
 		case float64:
-			attributes.PutDouble(k, v)
+			// JSON numbers are always float64 in Go; detect integers.
+			if v == math.Trunc(v) && !math.IsInf(v, 0) && !math.IsNaN(v) {
+				attributes.PutInt(k, int64(v))
+			} else {
+				attributes.PutDouble(k, v)
+			}
 		case bool:
 			attributes.PutBool(k, v)
 		default:
