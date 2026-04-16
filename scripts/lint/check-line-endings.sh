@@ -47,14 +47,22 @@ while IFS= read -r -d $'\0' FILE; do
 
     HAS_TRAILING_SPACE=$(grep -q '[[:blank:]]$' "$FILE" && echo true || echo false)
     HAS_CRLF=$(grep -q $'\r' "$FILE" && echo true || echo false)
-    # tail -c1 | read -r exits 1 when the last byte is not a newline.
-    HAS_NEWLINE=$(tail -c1 "$FILE" | read -r _ && echo true || echo false)
+    # Empty files lack a terminal newline; for non-empty files compare the last
+    # byte to 0a (LF) using od to avoid relying on shell read's EOF behaviour.
+    if [ ! -s "$FILE" ]; then
+        HAS_NEWLINE=false
+    elif [ "$(tail -c1 "$FILE" | od -An -tx1 | tr -d ' \n')" = "0a" ]; then
+        HAS_NEWLINE=true
+    else
+        HAS_NEWLINE=false
+    fi
 
     if [ "$HAS_TRAILING_SPACE" = true ] || [ "$HAS_CRLF" = true ] || [ "$HAS_NEWLINE" = false ]; then
         if [ "$FIX_MODE" = true ]; then
             echo "Fixing: $FILE"
-            # Strip carriage returns (CRLF -> LF, or bare CR -> nothing).
-            "$SED" -i 's/\r//' "$FILE"
+            # Strip all carriage returns (CRLF -> LF, or bare CR -> nothing).
+            # Use ANSI-C quoting to pass a literal CR so the match is unambiguous.
+            "$SED" -i $'s/\r//g' "$FILE"
             # Remove trailing spaces and tabs.
             "$SED" -i 's/[[:blank:]]*$//' "$FILE"
             # Append a newline if the file does not already end with one.
