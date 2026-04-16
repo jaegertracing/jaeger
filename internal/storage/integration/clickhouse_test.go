@@ -7,7 +7,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 
 	ch "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
@@ -29,6 +31,12 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 	cfg := ch.Configuration{
 		Addresses: []string{"127.0.0.1:9000"},
 		Database:  "jaeger",
+		Auth: ch.Authentication{
+			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+				Username: "default",
+				Password: "password",
+			}),
+		},
 	}
 	f, err := ch.NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
