@@ -43,6 +43,10 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 	s.factory = f
 
+	s.TraceReader, err = f.CreateTraceReader()
+	require.NoError(t, err)
+	s.TraceWriter, err = f.CreateTraceWriter()
+	require.NoError(t, err)
 	s.DependencyReader, err = f.CreateDependencyReader()
 	require.NoError(t, err)
 	s.DependencyWriter, err = f.CreateDependencyWriter()
