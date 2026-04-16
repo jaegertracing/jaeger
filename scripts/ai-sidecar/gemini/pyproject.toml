@@ -10,8 +10,8 @@ dependencies = [
     "google-genai>=1.68.0",
     "opentelemetry-exporter-otlp-proto-grpc",
     "opentelemetry-instrumentation-google-generativeai",
+    "opentelemetry-sdk",
     "requests>=2.32.6",
-    "traceloop-sdk",
     "websockets>=16.0",
 ]
 

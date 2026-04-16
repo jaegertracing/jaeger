@@ -4,24 +4,25 @@
 import logging
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from traceloop.sdk import Traceloop
+from opentelemetry.instrumentation.google_generativeai import GoogleGenerativeAiInstrumentor
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 logger = logging.getLogger(__name__)
 
 
 def init_tracing(endpoint: str, insecure: bool) -> None:
-    """Initialize OpenTelemetry tracing with OpenLLMetry for automatic Gemini instrumentation."""
-    exporter = OTLPSpanExporter(endpoint=endpoint, insecure=insecure)
-    metrics_exporter = OTLPMetricExporter(endpoint=endpoint, insecure=insecure)
-
-    Traceloop.init(
-        app_name="jaeger-gemini-sidecar",
-        exporter=exporter,
-        metrics_exporter=metrics_exporter,
-        disable_batch=False,
+    """Initialize OpenTelemetry tracing with automatic Gemini instrumentation."""
+    resource = Resource.create({"service.name": "jaeger-gemini-sidecar"})
+    provider = TracerProvider(resource=resource)
+    provider.add_span_processor(
+        BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=insecure))
     )
+    trace.set_tracer_provider(provider)
+
+    GoogleGenerativeAiInstrumentor().instrument()
 
     logger.info("Tracing initialized (endpoint=%s, insecure=%s)", endpoint, insecure)
 

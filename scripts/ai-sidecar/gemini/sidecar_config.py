@@ -22,4 +22,6 @@ class SidecarConfig:
         if self.mcp_discovery_timeout_sec <= 0:
             raise RuntimeError("MCP discovery timeout must be > 0 seconds")
         if not self.otlp_endpoint:
-            raise RuntimeError("OTLP endpoint must be provided via --otlp-endpoint or environment variable")
+            raise RuntimeError(
+                "OTEL_EXPORTER_OTLP_ENDPOINT must be provided via --otlp-endpoint or environment variable"
+            )

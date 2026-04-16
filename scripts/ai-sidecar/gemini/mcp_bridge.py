@@ -8,6 +8,7 @@ from typing import Any
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.genai import types
 from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 from sidecar_helpers import _extract_function_declaration, _to_jsonable
 from tracing import get_tracer
@@ -50,7 +51,7 @@ class JaegerMCPBridge:
                 )
                 adk_tools = await asyncio.wait_for(self._toolset.get_tools(), timeout=self._timeout_sec)
             except asyncio.CancelledError:
-                span.set_status(trace.StatusCode.ERROR, "cancelled")
+                span.set_status(Status(StatusCode.ERROR, description="cancelled"))
                 logger.warning(
                     "MCP tool discovery cancelled before completion "
                     "(client likely disconnected before MCP became available)."
@@ -63,7 +64,7 @@ class JaegerMCPBridge:
                     "Stopping request."
                 )
                 span.record_exception(exc)
-                span.set_status(trace.StatusCode.ERROR, message)
+                span.set_status(Status(StatusCode.ERROR, description=message))
                 logger.error("%s Error: %s", message, exc)
                 raise RuntimeError(message) from exc
 
@@ -97,7 +98,7 @@ class JaegerMCPBridge:
         }) as span:
             tool = self._tools_by_name.get(name)
             if tool is None:
-                span.set_status(trace.StatusCode.ERROR, f"unsupported tool: {name}")
+                span.set_status(Status(StatusCode.ERROR, description=f"unsupported tool: {name}"))
                 return {"error": f"unsupported tool: {name}"}
 
             result = await tool.run_async(args=args or {}, tool_context=None)

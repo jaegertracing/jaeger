@@ -9,6 +9,7 @@ from typing import Any, Callable, cast
 from google import genai
 from google.genai import types
 from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 from ws_commands import ws_to_client_writer, client_reader_to_ws
 from mcp_bridge import JaegerMCPBridge
 from sidecar_config import SidecarConfig
@@ -259,7 +260,7 @@ class JaegerSidecarAgent(Agent):
                         update_agent_message(text_block(final_answer)),
                     )
             except asyncio.CancelledError:
-                span.set_status(trace.StatusCode.ERROR, "cancelled")
+                span.set_status(Status(StatusCode.ERROR, description="cancelled"))
                 logger.warning(
                     f"Prompt handling cancelled for session {session_id} "
                     "(connection/task terminated before response completed)."
@@ -267,7 +268,7 @@ class JaegerSidecarAgent(Agent):
                 raise
             except Exception as e:
                 span.record_exception(e)
-                span.set_status(trace.StatusCode.ERROR, str(e))
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
                 logger.exception("Error calling Gemini: %s", e)
                 conn = self._require_conn()
                 await conn.session_update(
