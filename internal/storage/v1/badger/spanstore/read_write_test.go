@@ -6,7 +6,6 @@ package spanstore_test
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -473,10 +472,10 @@ func BenchmarkWrites(b *testing.B) {
 
 		f, err := os.Create("writes.out")
 		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
+			b.Fatal("could not create CPU profile: ", err)
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
+			b.Fatal("could not start CPU profile: ", err)
 		}
 		defer pprof.StopCPUProfile()
 
@@ -530,10 +529,10 @@ func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryPa
 
 		f, err := os.Create(outputFile)
 		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
+			b.Fatal("could not create CPU profile: ", err)
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
+			b.Fatal("could not start CPU profile: ", err)
 		}
 		defer pprof.StopCPUProfile()
 
