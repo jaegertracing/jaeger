@@ -44,40 +44,38 @@ jobs:
       github.event.workflow_run.conclusion == 'failure'
     runs-on: ubuntu-latest
     steps:
-      # Resolve the CI Orchestrator run ID and head SHA.
-      # PR number is read from the ci-summary artifact after download (see below).
+      # Resolve the CI Orchestrator run ID so the artifact can be downloaded.
+      # For workflow_dispatch, run_id is validated here; pr_number is read and
+      # validated later in run-info after the artifact is downloaded.
       - name: Resolve source run
         id: source-run
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          STEP_OUTPUTS=$(mktemp)
+
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             RUN_ID="${{ github.event.inputs.run_id }}"
-            PR_NUMBER="${{ github.event.inputs.pr_number }}"
-            for var in RUN_ID PR_NUMBER; do
-              if ! [[ "${!var}" =~ ^[1-9][0-9]*$ ]]; then
-                echo "::error::Invalid $var input: must be a positive integer, got: '${!var}'"
-                exit 1
-              fi
-            done
-            echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-            HEAD_SHA=$(gh api "repos/${{ github.repository }}/actions/runs/$RUN_ID" --jq '.head_sha')
+            if ! [[ "$RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::Invalid run_id input: must be a positive integer, got: '$RUN_ID'"
+              exit 1
+            fi
           else
             RUN_ID="${{ github.event.workflow_run.id }}"
-            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
           fi
 
-          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-          echo "head_sha=$HEAD_SHA" >> $GITHUB_OUTPUT
-          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> $GITHUB_OUTPUT
-          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> "$STEP_OUTPUTS"
+          echo "source_run_url=https://github.com/${{ github.repository }}/actions/runs/$RUN_ID" >> "$STEP_OUTPUTS"
+          echo "summary_run_url=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$STEP_OUTPUTS"
+
+          cat "$STEP_OUTPUTS"
+          cat "$STEP_OUTPUTS" >> "$GITHUB_OUTPUT"
 
       # Checkout the base repo so that .github/scripts/ci-summary-report-publish.js
       # is available for require() in the github-script step below.
       # Do NOT checkout the PR head: this workflow must only run base-repo code.
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
 
-      # Download only the ci-summary artifact (pre-computed by ci-summary-report.yml).
+      # Download the ci-summary artifact (pre-computed by ci-summary-report.yml).
+      # head_sha and pr_number are read from ci-summary.json in the next step.
       - name: Download CI summary artifact
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,28 +86,99 @@ jobs:
             --dir .artifacts \
           || echo "::warning::ci-summary artifact not found; proceeding without summary artifact (later checks may fail)."
 
-      # For workflow_run triggers, read pr_number from ci-summary.json (written
-      # by ci-summary-report.yml inside the CI Orchestrator, where
-      # github.event.pull_request.number is accurate).
-      # For workflow_dispatch, pr_number is already set from the input above.
-      - name: Read PR number from artifact
-        id: pr
-        if: github.event_name != 'workflow_dispatch'
+      # Read head_sha and pr_number from the artifact, with fallbacks.
+      #
+      # head_sha resolution order:
+      #   1. ci-summary.json artifact field — written by ci-summary-report.yml from
+      #      github.event.pull_request.head.sha (the PR branch-tip, not the synthetic
+      #      merge commit).  This is the SHA that branch-protection evaluates required
+      #      checks against, and the preferred source.
+      #   2. GitHub Pulls API (/repos/.../pulls/{pr_number}) — used when the artifact
+      #      is missing or predates head_sha support (runs before this field was added).
+      #      The API always returns the current branch-tip for the PR; it is authoritative
+      #      and consistent.  Requires pr_number to be known.
+      #   3. workflow_run.head_sha — absolute last resort.
+      #      WARNING: For pull_request-triggered CI runs, workflow_run.head_sha is the
+      #      synthetic merge commit (refs/pull/N/merge), NOT the PR branch tip.  Check
+      #      runs posted against this SHA will NOT satisfy branch-protection and will
+      #      leave "Coverage Gate" / "Metrics Comparison" stuck at "Expected" forever.
+      #      Only reached for non-PR events (push, merge_group) where head_sha is the
+      #      real commit, or when the artifact is completely missing and pr_number is
+      #      unknown (very early failures before artifact upload).
+      #
+      # HISTORY — why workflow_run.pull_requests[0].head.sha is NOT used:
+      #   It was tried as a lighter alternative to the Pulls API but proved unreliable:
+      #   the pull_requests array is sometimes empty even for valid, non-fork PR runs
+      #   (observed repeatedly in this repo).  The Pulls API is authoritative; prefer
+      #   it over any pull_requests context field.
+      - name: Read run info from artifact
+        id: run-info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          STEP_OUTPUTS=$(mktemp)
+          HEAD_SHA=""
+          PR_NUMBER=""
+
           if [ -f .artifacts/ci-summary.json ]; then
-            PR_NUMBER=$(jq -r '.pr_number // empty' .artifacts/ci-summary.json 2>/dev/null || true)
-            if [ -n "$PR_NUMBER" ]; then
-              echo "Found PR #$PR_NUMBER in ci-summary.json"
-              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-            else
-              echo "No PR number in ci-summary.json; PR comment will be skipped."
+            RAW_SHA=$(jq -r '.head_sha // empty' .artifacts/ci-summary.json 2>/dev/null || true)
+            if [[ "$RAW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              HEAD_SHA="$RAW_SHA"
+            elif [ -n "$RAW_SHA" ]; then
+              echo "::warning::head_sha in artifact ('$RAW_SHA') is not a valid 40-char hex SHA; will try fallback."
             fi
+            PR_NUMBER=$(jq -r '.pr_number // empty' .artifacts/ci-summary.json 2>/dev/null || true)
           else
-            echo "ci-summary.json not found; PR comment will be skipped."
+            echo "::warning::ci-summary.json not found; PR comment and check runs may be affected."
           fi
 
+          # For workflow_dispatch, fall back to the user-supplied pr_number input
+          # if the artifact did not provide one (e.g. artifact is missing).
+          DISPATCH_PR="${{ github.event.inputs.pr_number }}"
+          if [ -z "$PR_NUMBER" ] && [ -n "$DISPATCH_PR" ]; then
+            PR_NUMBER="$DISPATCH_PR"
+          fi
+
+          # Validate the settled PR_NUMBER once, regardless of which source it came from.
+          if [ -n "$PR_NUMBER" ] && ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::warning::pr_number '$PR_NUMBER' is not a valid positive integer; ignoring."
+            PR_NUMBER=""
+          fi
+
+          # Fallback 2: Pulls API — authoritative branch-tip SHA.
+          # Handles artifacts that predate head_sha support and missing artifacts
+          # where pr_number is still known.
+          if [ -z "$HEAD_SHA" ] && [ -n "$PR_NUMBER" ]; then
+            echo "::notice::Resolving head_sha via Pulls API for PR #$PR_NUMBER."
+            RESOLVED=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" \
+              --jq '.head.sha' 2>/dev/null || true)
+            if [[ "$RESOLVED" =~ ^[0-9a-f]{40}$ ]]; then
+              HEAD_SHA="$RESOLVED"
+              echo "::notice::head_sha resolved from Pulls API: $HEAD_SHA"
+            else
+              echo "::warning::Pulls API did not return a valid SHA for PR #$PR_NUMBER."
+            fi
+          fi
+
+          # Fallback 3 (last resort): workflow_run.head_sha.
+          # See WARNING above — this is the synthetic merge commit for PR runs.
+          # Only acceptable for non-PR events or when everything else has failed.
+          if [ -z "$HEAD_SHA" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+            echo "::warning::Using workflow_run.head_sha as last resort ($HEAD_SHA). For PR runs this is the synthetic merge commit — check runs may not satisfy branch-protection."
+          fi
+
+          if [ -n "$HEAD_SHA" ]; then
+            echo "head_sha=$HEAD_SHA" >> "$STEP_OUTPUTS"
+          fi
+          if [ -n "$PR_NUMBER" ]; then
+            echo "pr_number=$PR_NUMBER" >> "$STEP_OUTPUTS"
+          fi
+          cat "$STEP_OUTPUTS"
+          cat "$STEP_OUTPUTS" >> "$GITHUB_OUTPUT"
+
       - name: Post PR comment and create check runs
-        if: steps.source-run.outputs.head_sha
+        if: steps.run-info.outputs.head_sha
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -119,8 +188,8 @@ jobs:
               inputs: {
                 owner:       context.repo.owner,
                 repo:        context.repo.repo,
-                headSha:     '${{ steps.source-run.outputs.head_sha }}',
-                prNumber:    '${{ steps.source-run.outputs.pr_number || steps.pr.outputs.pr_number }}',
+                headSha:     '${{ steps.run-info.outputs.head_sha }}',
+                prNumber:    '${{ steps.run-info.outputs.pr_number }}',
                 ciRunUrl:    '${{ steps.source-run.outputs.source_run_url }}',
                 publishUrl:  '${{ steps.source-run.outputs.summary_run_url }}',
                 sourceRunId: '${{ steps.source-run.outputs.run_id }}',
