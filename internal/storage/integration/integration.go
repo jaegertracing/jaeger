@@ -554,7 +554,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 		},
 	}
 	startTime := time.Now()
-	require.NoError(t, s.DependencyWriter.WriteDependencies(startTime, expected))
+	require.NoError(t, s.DependencyWriter.WriteDependencies(t.Context(), startTime, expected))
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {

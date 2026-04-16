@@ -46,6 +46,8 @@ extensions:
                 password: "cassandra"
             tls:
               insecure: true
+          query:
+            timeout: 30s
       another_storage:
         cassandra:
           schema: 
@@ -59,6 +61,8 @@ extensions:
                 password: "cassandra"
             tls:
               insecure: true
+          query:
+            timeout: 30s
 
   remote_sampling:
     adaptive:

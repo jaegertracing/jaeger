@@ -32,7 +32,7 @@ func (s *DependencyStoreV2) GetDependencies(ctx context.Context, query depstore.
 	return dependencies, nil
 }
 
-func (s *DependencyStoreV2) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+func (s *DependencyStoreV2) WriteDependencies(_ context.Context, ts time.Time, dependencies []model.DependencyLink) error {
 	dbDependencies := dbmodel.FromDomainDependencies(dependencies)
 	return s.store.WriteDependencies(ts, dbDependencies)
 }

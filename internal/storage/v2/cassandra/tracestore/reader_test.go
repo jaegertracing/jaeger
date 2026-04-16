@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -148,7 +149,7 @@ func TestFindTraces(t *testing.T) {
 		{Spans: []cassdbmodel.Span{{TraceID: traceID, OperationName: "op"}}},
 	}
 	reader := mocks.CoreSpanReader{}
-	reader.On("FindTraces", mock.Anything, mock.Anything).Return(dbTraces, nil)
+	reader.On("FindTraces", mock.Anything, mock.Anything).Return(mockIter(dbTraces, nil))
 	tracereader := &TraceReader{reader: &reader}
 	var results []ptrace.Traces
 	for batch, err := range tracereader.FindTraces(context.Background(), newTraceQueryParams(t)) {
@@ -165,7 +166,7 @@ func TestFindTraces_StopIteration(t *testing.T) {
 		{Spans: []cassdbmodel.Span{{TraceID: traceID, OperationName: "op2"}}},
 	}
 	reader := mocks.CoreSpanReader{}
-	reader.On("FindTraces", mock.Anything, mock.Anything).Return(dbTraces, nil)
+	reader.On("FindTraces", mock.Anything, mock.Anything).Return(mockIter(dbTraces, nil))
 	tracereader := &TraceReader{reader: &reader}
 	var count int
 	for range tracereader.FindTraces(context.Background(), newTraceQueryParams(t)) {
@@ -177,7 +178,7 @@ func TestFindTraces_StopIteration(t *testing.T) {
 
 func TestFindTraces_Error(t *testing.T) {
 	reader := mocks.CoreSpanReader{}
-	reader.On("FindTraces", mock.Anything, mock.Anything).Return([]cassdbmodel.Trace(nil), errors.New("find error"))
+	reader.On("FindTraces", mock.Anything, mock.Anything).Return(mockIter([]cassdbmodel.Trace{}, errors.New("find error")))
 	tracereader := &TraceReader{reader: &reader}
 	for _, err := range tracereader.FindTraces(context.Background(), newTraceQueryParams(t)) {
 		require.ErrorContains(t, err, "find error")
@@ -216,5 +217,19 @@ func TestFindTraceIDs_Error(t *testing.T) {
 	tracereader := &TraceReader{reader: &reader}
 	for _, err := range tracereader.FindTraceIDs(context.Background(), newTraceQueryParams(t)) {
 		require.ErrorContains(t, err, "find error")
+	}
+}
+
+func mockIter(traces []cassdbmodel.Trace, err error) iter.Seq2[cassdbmodel.Trace, error] {
+	return func(yield func(cassdbmodel.Trace, error) bool) {
+		if err != nil {
+			yield(cassdbmodel.Trace{}, err)
+			return
+		}
+		for _, trace := range traces {
+			if !yield(trace, err) {
+				return
+			}
+		}
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -18,6 +19,15 @@ import (
 const (
 	mcpMethodToolsCall = "tools/call"
 	errorTypeTool      = "tool_error"
+
+	traceContextMetaTraceParent = "traceparent"
+	traceContextMetaTraceState  = "tracestate"
+	traceContextMetaBaggage     = "baggage"
+)
+
+var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
+	propagation.TraceContext{},
+	propagation.Baggage{},
 )
 
 // createTracingMiddleware creates an MCP middleware that emits tool-level spans.
@@ -26,6 +36,8 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			ctx = contextWithRequestMetaTraceContext(ctx, req)
+
 			toolName := toolNameFromRequest(method, req)
 			sessionID := sessionIDFromRequest(req)
 			spanName := method
@@ -85,15 +97,58 @@ func sessionIDFromRequest(req mcp.Request) string {
 		return ""
 	}
 	session := req.GetSession()
-	if isNilSession(session) {
+	if isNil(session) {
 		return ""
 	}
 	return session.ID()
 }
 
-func isNilSession(session mcp.Session) bool {
-	if session == nil {
+func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {
+	if req == nil {
+		return ctx
+	}
+
+	params := req.GetParams()
+	if isNil(params) {
+		return ctx
+	}
+
+	return requestMetaPropagator.Extract(ctx, &requestMetaCarrier{meta: params.GetMeta()})
+}
+
+func isNil(value any) bool {
+	if value == nil {
 		return true
 	}
-	return reflect.ValueOf(session).IsNil()
+	reflectValue := reflect.ValueOf(value)
+	switch reflectValue.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return reflectValue.IsNil()
+	default:
+		return false
+	}
+}
+
+type requestMetaCarrier struct {
+	meta mcp.Meta
+}
+
+func (carrier *requestMetaCarrier) Get(key string) string {
+	value, _ := carrier.meta[key].(string)
+	return value
+}
+
+func (carrier *requestMetaCarrier) Set(key, value string) {
+	if carrier.meta == nil {
+		carrier.meta = mcp.Meta{}
+	}
+	carrier.meta[key] = value
+}
+
+func (carrier *requestMetaCarrier) Keys() []string {
+	keys := make([]string, 0, len(carrier.meta))
+	for key := range carrier.meta {
+		keys = append(keys, key)
+	}
+	return keys
 }

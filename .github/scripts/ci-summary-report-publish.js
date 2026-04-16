@@ -15,6 +15,10 @@
 // Required invariants maintained by this file:
 //   1. ci-summary.json contains ONLY typed primitives: numbers, booleans, and
 //      fixed enum strings ("success"/"failure"/"skipped"). No free-form text.
+//      Exception: head_sha is a 40-char hex string produced from GitHub's own
+//      event context (github.event.pull_request.head.sha), validated as
+//      /^[0-9a-f]{40}$/ in the publish workflow before being passed here, and
+//      used only as an API parameter — never interpolated into display strings.
 //   2. All display text (PR comments, check summaries) is constructed entirely
 //      from trusted template strings defined in this file.
 //   3. Numeric values are coerced through safeNum() which validates with
