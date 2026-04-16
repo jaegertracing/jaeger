@@ -16,11 +16,14 @@
 # macOS note: GNU sed (gsed) is required for in-place editing because BSD sed
 # has different -i semantics.  Install with: brew install gnu-sed
 
-# Use GNU sed on macOS (same pattern as the project Makefile).
+set -euf -o pipefail
+
+# Use GNU sed on macOS (same pattern as the project Makefile), while allowing
+# callers to override SED for local tooling differences.
 if [[ "$(uname)" == "Darwin" ]]; then
-    SED='gsed'
+    SED="${SED:-gsed}"
 else
-    SED='sed'
+    SED="${SED:-sed}"
 fi
 
 FIX_MODE=false

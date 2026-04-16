@@ -179,7 +179,7 @@ lint-imports:
 
 .PHONY: lint-line-endings
 lint-line-endings:
-	@echo Verifying that all files use Unix line endings and have no trailing whitespace
+	@echo Verifying that all files use Unix line endings, have no trailing whitespace, and end with a final newline at EOF
 	@./scripts/lint/check-line-endings.sh
 
 .PHONY: lint-fmt
