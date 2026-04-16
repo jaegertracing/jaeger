@@ -149,6 +149,10 @@ jobs:
       # All display text is constructed from this structured data by trusted publish-
       # workflow code running in the base repository context.
       #
+      # head_sha comes from GitHub's own event context (not from test output), so it
+      # is a trusted value.  The publish workflow validates it as a 40-char hex SHA
+      # before use and passes it only to GitHub API calls, never into display strings.
+      #
       # metrics_snapshots is an array of per-snapshot change data (metric names and
       # counts) produced by metrics_summary.sh.  The publish workflow validates every
       # field before rendering (see sanitizeSnapshots in ci-summary-report-publish.js).

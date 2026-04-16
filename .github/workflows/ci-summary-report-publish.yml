@@ -95,21 +95,39 @@ jobs:
       # Read head_sha and pr_number from the artifact.
       # For workflow_dispatch, pr_number is already set from the input (source-run),
       # but head_sha still comes from the artifact so we don't need an extra API call.
+      # head_sha is validated as a 40-char hex SHA before use; if the artifact is
+      # missing or contains no valid SHA, fall back to workflow_run.head_sha so the
+      # handler is always invoked and can post "failure" check runs (instead of
+      # silently leaving required checks absent at "Expected").
       - name: Read run info from artifact
         id: run-info
         run: |
           STEP_OUTPUTS=$(mktemp)
+          HEAD_SHA=""
+          PR_NUMBER=""
           if [ -f .artifacts/ci-summary.json ]; then
-            HEAD_SHA=$(jq -r '.head_sha // empty' .artifacts/ci-summary.json 2>/dev/null || true)
+            RAW_SHA=$(jq -r '.head_sha // empty' .artifacts/ci-summary.json 2>/dev/null || true)
+            if [[ "$RAW_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              HEAD_SHA="$RAW_SHA"
+            elif [ -n "$RAW_SHA" ]; then
+              echo "::warning::head_sha in artifact ('$RAW_SHA') is not a valid 40-char hex SHA; will use fallback."
+            fi
             PR_NUMBER=$(jq -r '.pr_number // empty' .artifacts/ci-summary.json 2>/dev/null || true)
-            if [ -n "$HEAD_SHA" ]; then
-              echo "head_sha=$HEAD_SHA" >> "$STEP_OUTPUTS"
-            fi
-            if [ -n "$PR_NUMBER" ]; then
-              echo "pr_number=$PR_NUMBER" >> "$STEP_OUTPUTS"
-            fi
           else
-            echo "ci-summary.json not found; PR comment and check runs will be skipped."
+            echo "::warning::ci-summary.json not found; PR comment and check runs may be affected."
+          fi
+          # For workflow_run events, fall back to workflow_run.head_sha when the
+          # artifact is missing or contains no valid SHA.  This may be the synthetic
+          # merge commit, but it is better than leaving required checks at "Expected".
+          if [ -z "$HEAD_SHA" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+            echo "::warning::Using workflow_run.head_sha as fallback (may be synthetic merge commit)."
+          fi
+          if [ -n "$HEAD_SHA" ]; then
+            echo "head_sha=$HEAD_SHA" >> "$STEP_OUTPUTS"
+          fi
+          if [ -n "$PR_NUMBER" ]; then
+            echo "pr_number=$PR_NUMBER" >> "$STEP_OUTPUTS"
           fi
           cat "$STEP_OUTPUTS"
           cat "$STEP_OUTPUTS" >> "$GITHUB_OUTPUT"
