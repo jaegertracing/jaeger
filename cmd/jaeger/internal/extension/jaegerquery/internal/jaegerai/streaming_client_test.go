@@ -143,13 +143,14 @@ func TestStreamingClientWriteNoopWhenClosed(t *testing.T) {
 
 func TestStreamingClientStartRunEmitsRunStarted(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
 	c.startRun()
 
 	events := parseSSEEvents(t, rec.Body.String())
 	require.Len(t, events, 1, "expected one RUN_STARTED event")
 	assert.Equal(t, "RUN_STARTED", events[0]["type"])
+	assert.Equal(t, "thread-1", events[0]["threadId"])
 	assert.Equal(t, "run-1", events[0]["runId"])
 	assert.Equal(t, "run-1", c.runID, "preserved runID should stay")
 	assert.NotEmpty(t, c.messageID, "startRun should allocate a messageID")
@@ -157,17 +158,18 @@ func TestStreamingClientStartRunEmitsRunStarted(t *testing.T) {
 
 func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "")
+	c := newStreamingClient(context.Background(), rec, "", "")
 
 	c.startRun()
 
+	assert.NotEmpty(t, c.threadID, "startRun should allocate a threadID when none was provided")
 	assert.NotEmpty(t, c.runID, "startRun should allocate a runID when none was provided")
 	assert.NotEmpty(t, c.messageID, "startRun should allocate a messageID")
 }
 
 func TestStreamingClientFinishRunClosesOpenTextAndEmitsStopReason(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
@@ -182,7 +184,7 @@ func TestStreamingClientFinishRunClosesOpenTextAndEmitsStopReason(t *testing.T) 
 
 func TestStreamingClientFinishRunOmitsStopReasonWhenEmpty(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 
 	c.finishRun("")
@@ -196,7 +198,7 @@ func TestStreamingClientFinishRunOmitsStopReasonWhenEmpty(t *testing.T) {
 
 func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
@@ -210,7 +212,7 @@ func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 
 func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
 	c.ensureTextStart()
 	c.ensureTextStart()
@@ -241,7 +243,7 @@ func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
 
 func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
@@ -262,7 +264,7 @@ func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testin
 
 func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
 		Update: acp.SessionUpdate{
@@ -289,7 +291,7 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 
 func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
 	completed := acp.ToolCallStatusCompleted
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
@@ -313,7 +315,7 @@ func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.
 
 func TestStreamingClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "run-1")
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
 	inProgress := acp.ToolCallStatusInProgress
 	err := c.SessionUpdate(context.Background(), acp.SessionNotification{

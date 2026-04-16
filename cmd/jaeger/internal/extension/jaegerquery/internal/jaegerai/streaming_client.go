@@ -25,15 +25,17 @@ type streamingClient struct {
 	w          io.Writer
 	mu         sync.Mutex
 	closed     bool
+	threadID   string
 	runID      string
 	messageID  string
 	textOpen   bool
 }
 
-func newStreamingClient(ctx context.Context, w http.ResponseWriter, runID string) *streamingClient {
+func newStreamingClient(ctx context.Context, w http.ResponseWriter, threadID, runID string) *streamingClient {
 	return &streamingClient{
 		requestCtx: ctx,
 		w:          w,
+		threadID:   threadID,
 		runID:      runID,
 	}
 }
@@ -80,6 +82,9 @@ func (c *streamingClient) writeSSEEvent(event map[string]any) {
 // text stream. RunID is preserved if the caller provided one via the AG-UI
 // RunAgentInput payload.
 func (c *streamingClient) startRun() {
+	if c.threadID == "" {
+		c.threadID = fmt.Sprintf("thread-%d", time.Now().UnixNano())
+	}
 	if c.runID == "" {
 		c.runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
 	}
@@ -87,8 +92,9 @@ func (c *streamingClient) startRun() {
 		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
 	c.writeSSEEvent(map[string]any{
-		"type":  "RUN_STARTED",
-		"runId": c.runID,
+		"type":     "RUN_STARTED",
+		"threadId": c.threadID,
+		"runId":    c.runID,
 	})
 }
 
@@ -104,8 +110,9 @@ func (c *streamingClient) finishRun(stopReason string) {
 		c.textOpen = false
 	}
 	event := map[string]any{
-		"type":  "RUN_FINISHED",
-		"runId": c.runID,
+		"type":     "RUN_FINISHED",
+		"threadId": c.threadID,
+		"runId":    c.runID,
 	}
 	if stopReason != "" {
 		event["stopReason"] = stopReason

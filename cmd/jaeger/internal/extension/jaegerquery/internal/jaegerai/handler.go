@@ -85,7 +85,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer adapter.Close()
 
-	clientImpl := newStreamingClient(ctx, w, req.RunID)
+	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
 
 	// Build an ACP client-side connection over the websocket adapter.
 	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
