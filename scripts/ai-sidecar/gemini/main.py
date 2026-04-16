@@ -11,6 +11,7 @@ import websockets
 
 from sidecar import JaegerSidecarAgent, handle_websocket
 from sidecar_config import SidecarConfig
+from tracing import init_tracing
 
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_MCP_URL = "http://127.0.0.1:16687/mcp"
 DEFAULT_SIDECAR_PORT = 16688
 DEFAULT_MCP_DISCOVERY_TIMEOUT_SEC = 15.0
+DEFAULT_OTLP_ENDPOINT = "http://localhost:4317"
+DEFAULT_OTLP_INSECURE = True
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +40,17 @@ def parse_args() -> argparse.Namespace:
         ),
         help="Timeout (seconds) for single MCP tool discovery attempt",
     )
+    parser.add_argument(
+        "--otlp-endpoint",
+        default=os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", DEFAULT_OTLP_ENDPOINT),
+        help="OTLP receiver endpoint for trace export",
+    )
+    parser.add_argument(
+        "--otlp-insecure",
+        type=lambda v: v.lower() in ("true", "1", "yes"),
+        default=os.environ.get("OTEL_EXPORTER_OTLP_INSECURE", str(DEFAULT_OTLP_INSECURE)).lower() in ("true", "1", "yes"),
+        help="Skip TLS for OTLP export (default: true)",
+    )
     return parser.parse_args()
 
 
@@ -47,6 +61,8 @@ def parse_config() -> tuple[str, int, SidecarConfig]:
         gemini_api_key=args.gemini_api_key,
         mcp_url=args.mcp_url,
         mcp_discovery_timeout_sec=args.mcp_discovery_timeout_sec,
+        otlp_endpoint=args.otlp_endpoint,
+        otlp_insecure=args.otlp_insecure,
     )
     config.validate()
     return args.host, args.port, config
@@ -54,6 +70,7 @@ def parse_config() -> tuple[str, int, SidecarConfig]:
 
 async def main() -> None:
     host, port, config = parse_config()
+    init_tracing(endpoint=config.otlp_endpoint, insecure=config.otlp_insecure)
     # The lambda below is an agent factory, not a single shared instance.
     # Every new WebSocket connection invokes it to create a fresh JaegerSidecarAgent.
     # Each connection gets its own agent instance, so active connections can process prompts concurrently.

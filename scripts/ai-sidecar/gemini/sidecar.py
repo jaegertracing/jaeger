@@ -8,10 +8,12 @@ from typing import Any, Callable, cast
 
 from google import genai
 from google.genai import types
+from opentelemetry import trace
 from ws_commands import ws_to_client_writer, client_reader_to_ws
 from mcp_bridge import JaegerMCPBridge
 from sidecar_config import SidecarConfig
 from sidecar_helpers import _to_tool_text
+from tracing import get_tracer
 
 from acp import (
     PROTOCOL_VERSION,
@@ -127,88 +129,101 @@ class JaegerSidecarAgent(Agent):
         return ListSessionsResponse(sessions=[])
 
     async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
-        conn = self._require_conn()
-        await conn.session_update(
-            session_id,
-            start_tool_call(
-                tool_call_id,
-                tool_name,
-                kind="search",
-                status="in_progress",
-            ),
-        )
+        tracer = get_tracer()
+        with tracer.start_as_current_span("sidecar.execute_tool", attributes={
+            "tool.name": tool_name,
+            "tool.call_id": tool_call_id,
+            "session.id": session_id,
+        }):
+            conn = self._require_conn()
+            await conn.session_update(
+                session_id,
+                start_tool_call(
+                    tool_call_id,
+                    tool_name,
+                    kind="search",
+                    status="in_progress",
+                ),
+            )
 
-        tool_output = await self._mcp.call_tool(tool_name, args)
-        output_text = _to_tool_text(tool_output)
+            tool_output = await self._mcp.call_tool(tool_name, args)
+            output_text = _to_tool_text(tool_output)
 
-        await conn.session_update(
-            session_id,
-            update_tool_call(
-                tool_call_id,
-                status="completed",
-                content=[tool_content(text_block(output_text))],
-                raw_output={"content": tool_output},
-            ),
-        )
+            await conn.session_update(
+                session_id,
+                update_tool_call(
+                    tool_call_id,
+                    status="completed",
+                    content=[tool_content(text_block(output_text))],
+                    raw_output={"content": tool_output},
+                ),
+            )
 
-        return tool_output
+            return tool_output
 
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
-        logger.info("Starting agentic Gemini loop for session %s", session_id)
-        system_instruction = (
-            "You are Jaeger AI, an assistant for distributed tracing investigations. "
-            "You will be given telemetry information from MCP tool results; treat that data as your source of truth. "
-            "When telemetry evidence is needed, request the MCP tool instead of answering from assumptions. "
-            "Before each MCP tool call, briefly state what you are querying and why. "
-            "Do not invent telemetry data. If the tool result is empty, say so clearly and suggest how to narrow or "
-            "expand the query (service name, operation name, tags, and time range). "
-            "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps."
-        )
+        tracer = get_tracer()
+        with tracer.start_as_current_span("sidecar.agentic_loop", attributes={
+            "session.id": session_id,
+            "gemini.model": "gemini-2.5-flash",
+        }) as loop_span:
+            logger.info("Starting agentic Gemini loop for session %s", session_id)
+            system_instruction = (
+                "You are Jaeger AI, an assistant for distributed tracing investigations. "
+                "You will be given telemetry information from MCP tool results; treat that data as your source of truth. "
+                "When telemetry evidence is needed, request the MCP tool instead of answering from assumptions. "
+                "Before each MCP tool call, briefly state what you are querying and why. "
+                "Do not invent telemetry data. If the tool result is empty, say so clearly and suggest how to narrow or "
+                "expand the query (service name, operation name, tags, and time range). "
+                "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps."
+            )
 
-        mcp_tools = await self._mcp.get_gemini_tools()
-        tool_names: list[str] = []
-        for tool in mcp_tools:
-            if tool.function_declarations:
-                tool_names.extend(fd.name for fd in tool.function_declarations if fd.name)
-        logger.info("Passing tools to Gemini: %s", tool_names)
+            mcp_tools = await self._mcp.get_gemini_tools()
+            tool_names: list[str] = []
+            for tool in mcp_tools:
+                if tool.function_declarations:
+                    tool_names.extend(fd.name for fd in tool.function_declarations if fd.name)
+            logger.info("Passing tools to Gemini: %s", tool_names)
 
-        chat = self._gemini.chats.create(
-            model="gemini-2.5-flash",
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                tools=cast(Any, mcp_tools),
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            ),
-        )
+            chat = self._gemini.chats.create(
+                model="gemini-2.5-flash",
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    tools=cast(Any, mcp_tools),
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                ),
+            )
 
-        logger.info("Sending user message to Gemini")
-        response = await asyncio.to_thread(chat.send_message, user_text)
+            logger.info("Sending user message to Gemini")
+            response = await asyncio.to_thread(chat.send_message, user_text)
 
-        # Iterate model->tool->model until Gemini produces a final text response.
-        for _ in range(6):
-            function_calls = response.function_calls
-            if not function_calls:
-                logger.info("No function calls in Gemini response, returning final text")
-                return response.text or ""
+            # Iterate model->tool->model until Gemini produces a final text response.
+            for iteration in range(6):
+                function_calls = response.function_calls
+                if not function_calls:
+                    logger.info("No function calls in Gemini response, returning final text")
+                    loop_span.set_attribute("loop.iterations", iteration + 1)
+                    return response.text or ""
 
-            function_responses = []
+                function_responses = []
 
-            for function_call in function_calls:
-                name = function_call.name or ""
-                args = function_call.args or {}
-                call_id = function_call.id or self._new_tool_call_id(name)
-                logger.info("Gemini requested tool call: %s (call_id=%s)", name, call_id)
-                tool_output = await self._execute_tool(session_id, name, args, call_id)
-                function_responses.append(
-                    types.Part.from_function_response(name=name, response={"result": tool_output})
-                )
+                for function_call in function_calls:
+                    name = function_call.name or ""
+                    args = function_call.args or {}
+                    call_id = function_call.id or self._new_tool_call_id(name)
+                    logger.info("Gemini requested tool call: %s (call_id=%s)", name, call_id)
+                    tool_output = await self._execute_tool(session_id, name, args, call_id)
+                    function_responses.append(
+                        types.Part.from_function_response(name=name, response={"result": tool_output})
+                    )
 
-            logger.debug("Sending function responses back to Gemini")
-            response = await asyncio.to_thread(chat.send_message, function_responses)
-            logger.info("Received Gemini response after tool calls")
+                logger.debug("Sending function responses back to Gemini")
+                response = await asyncio.to_thread(chat.send_message, function_responses)
+                logger.info("Received Gemini response after tool calls")
 
-        logger.info("Reached max tool loop iterations, returning last Gemini response")
-        return response.text or ""
+            loop_span.set_attribute("loop.iterations", 6)
+            logger.info("Reached max tool loop iterations, returning last Gemini response")
+            return response.text or ""
 
     async def prompt(
         self,
@@ -222,38 +237,45 @@ class JaegerSidecarAgent(Agent):
         Invoked by ACP runtime dispatch after initialize/session handshake; this
         is the protocol entrypoint for prompt execution.
         """
-        logger.info("Received prompt request for session %s", session_id)
+        tracer = get_tracer()
+        with tracer.start_as_current_span("sidecar.prompt", attributes={
+            "session.id": session_id,
+        }) as span:
+            logger.info("Received prompt request for session %s", session_id)
 
-        # Extract text from prompt blocks
-        user_text = ""
-        for block in prompt:
-            if hasattr(block, "text"):
-                user_text += block.text
+            # Extract text from prompt blocks
+            user_text = ""
+            for block in prompt:
+                if hasattr(block, "text"):
+                    user_text += block.text
 
-        try:
-            conn = self._require_conn()
-            final_answer = await self._run_agentic_gemini_loop(session_id, user_text)
-            if final_answer:
-                logger.info("Sending final answer for session %s", session_id)
+            try:
+                conn = self._require_conn()
+                final_answer = await self._run_agentic_gemini_loop(session_id, user_text)
+                if final_answer:
+                    logger.info("Sending final answer for session %s", session_id)
+                    await conn.session_update(
+                        session_id,
+                        update_agent_message(text_block(final_answer)),
+                    )
+            except asyncio.CancelledError:
+                span.set_status(trace.StatusCode.ERROR, "cancelled")
+                logger.warning(
+                    f"Prompt handling cancelled for session {session_id} "
+                    "(connection/task terminated before response completed)."
+                )
+                raise
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(trace.StatusCode.ERROR, str(e))
+                logger.exception("Error calling Gemini: %s", e)
+                conn = self._require_conn()
                 await conn.session_update(
                     session_id,
-                    update_agent_message(text_block(final_answer)),
+                    update_agent_message(text_block(f"\n[Error: {str(e)}]"))
                 )
-        except asyncio.CancelledError:
-            logger.warning(
-                f"Prompt handling cancelled for session {session_id} "
-                "(connection/task terminated before response completed)."
-            )
-            raise
-        except Exception as e:
-            logger.exception("Error calling Gemini: %s", e)
-            conn = self._require_conn()
-            await conn.session_update(
-                session_id,
-                update_agent_message(text_block(f"\n[Error: {str(e)}]"))
-            )
 
-        return PromptResponse(stop_reason="end_turn")
+            return PromptResponse(stop_reason="end_turn")
 
 
 async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | None = None) -> None:
