@@ -464,7 +464,47 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, string(expectedData), string(actualData))
 		}
+		})
+	}
+
+func TestSpanReader_multiRead_withReadWriteAliasesAddsTimeRange(t *testing.T) {
+	client := &mocks.Client{}
+	tracer, _, closer := tracerProvider(t)
+	defer closer()
+
+	reader := NewSpanReader(SpanReaderParams{
+		Client:              func() es.Client { return client },
+		Logger:              zap.NewNop(),
+		Tracer:              tracer.Tracer("test"),
+		MaxSpanAge:          0,
+		TagDotReplacement:   "@",
+		MaxDocCount:         defaultMaxDocCount,
+		UseReadWriteAliases: true,
 	})
+
+	traceID := dbmodel.TraceID(testingTraceId)
+	startTime := time.Date(2026, 4, 17, 0, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(time.Hour)
+	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
+
+	traceQuery := buildTraceByIDQuery(traceID)
+	startTimeRangeQuery := reader.buildStartTimeQuery(startTime.Add(-24*time.Hour), endTime.Add(24*time.Hour))
+	expectedQuery := elastic.NewBoolQuery().Must(traceQuery, startTimeRangeQuery)
+	expectedSearch := newSearchRequest(reader.sourceFn(expectedQuery, nextTime).TrackTotalHits(true))
+
+	multiSearchService := &mocks.MultiSearchService{}
+	multiSearchService.On("Add", mock.MatchedBy(func(searches []*elastic.SearchRequest) bool {
+		return len(searches) == 1 && reflect.DeepEqual(searches[0], expectedSearch)
+	})).Return(multiSearchService).Once()
+	multiSearchService.On("Index", mock.AnythingOfType("[]string")).Return(multiSearchService)
+	multiSearchService.On("Do", mock.Anything).Return(&elastic.MultiSearchResult{
+		Responses: []*elastic.SearchResult{},
+	}, nil).Once()
+	client.On("MultiSearch").Return(multiSearchService)
+
+	traces, err := reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, startTime, endTime)
+	require.NoError(t, err)
+	assert.Empty(t, traces)
 }
 
 func TestSpanReader_SearchAfter(t *testing.T) {
