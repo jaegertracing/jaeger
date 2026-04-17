@@ -246,3 +246,34 @@ func TestGetSpanKindFromSpan(t *testing.T) {
 		})
 	}
 }
+
+func TestOperationsBucketToOperations_InvalidOperationNameKey(t *testing.T) {
+	_, err := operationsBucketToOperations([]*elastic.AggregationBucketKeyItem{
+		{Key: 123},
+	})
+
+	require.EqualError(t, err, "could not convert operation name bucket key to string")
+}
+
+func TestOperationsBucketToOperations_InvalidSpanKindKey(t *testing.T) {
+	rawMessage, err := json.Marshal(map[string]any{
+		"buckets": []map[string]any{
+			{
+				"key":       "myOperation",
+				"doc_count": 1,
+				spanKindAggregation: map[string]any{
+					"buckets": []map[string]any{
+						{"key": 123, "doc_count": 1},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	var bucket elastic.AggregationBucketKeyItems
+	require.NoError(t, json.Unmarshal(rawMessage, &bucket))
+
+	_, err = operationsBucketToOperations(bucket.Buckets)
+	require.EqualError(t, err, "could not convert span kind bucket key to string")
+}
