@@ -8,7 +8,7 @@
 [![Project+Community stats][community-badge]][community-stats]
 [![FOSSA Status][fossa-img]][fossa]
 [![OpenSSF Scorecard][openssf-img]][openssf]
-[![OpenSSF Best Practices][openssf-bp-img]][openssf-bp] 
+[![OpenSSF Best Practices][openssf-bp-img]][openssf-bp]
 [![CLOMonitor][clomonitor-img]][clomonitor]
 [![Artifact Hub][artifacthub-img]][artifacthub]
 

@@ -115,7 +115,7 @@ kubectl create configmap trace-script --from-file=./load-generator/generate_trac
 echo "🟡 Step 4: Deploying Trace Generator Pod..."
 kubectl apply -f ./load-generator/load-generator.yaml
 
-# Deploy ingress changes 
+# Deploy ingress changes
 echo "🟡 Step 5: Deploying Ingress Resource..."
 kubectl apply -f ingress.yaml
 

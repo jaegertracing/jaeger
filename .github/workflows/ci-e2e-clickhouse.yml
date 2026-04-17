@@ -15,9 +15,16 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 jobs:
   clickhouse:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        storage_test:
+        - e2e
+        - direct
+    name: clickhouse ${{ matrix.storage_test }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -29,9 +36,10 @@ jobs:
 
     - name: Run ClickHouse integration tests
       id: test-execution
-      run: bash scripts/e2e/clickhouse.sh
-     
+      run: bash scripts/e2e/clickhouse.sh ${{ matrix.storage_test }}
+
     - uses: ./.github/actions/verify-metrics-snapshot
+      if: matrix.storage_test == 'e2e'
       with:
         snapshot: metrics_snapshot_clickhouse
         artifact_key: metrics_snapshot_clickhouse
@@ -40,6 +48,6 @@ jobs:
       uses: ./.github/actions/upload-codecov
       with:
         files: cover.out
-        flag: clickhouse
-    
-    
+        flag: clickhouse-${{ matrix.storage_test }}
+
+

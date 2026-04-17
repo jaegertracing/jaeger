@@ -9,6 +9,8 @@ import (
 	"iter"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1003,4 +1005,59 @@ func TestServerAPINotFound(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitRouterAIHandlerRegistration(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+
+	t.Run("ai handler disabled when sidecar url empty", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{AgentURL: ""})
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		t.Cleanup(func() {
+			require.NoError(t, closer.Close())
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"hello"}`))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusNotFound, rr.Code)
+	})
+
+	t.Run("ai handler registered without base path", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		t.Cleanup(func() {
+			require.NoError(t, closer.Close())
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"hello"}`))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadGateway, rr.Code)
+	})
+
+	t.Run("ai handler registered with base path", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.BasePath = "/jaeger"
+		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		t.Cleanup(func() {
+			require.NoError(t, closer.Close())
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/ai/chat", strings.NewReader(`{"prompt":"hello"}`))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusBadGateway, rr.Code)
+	})
 }

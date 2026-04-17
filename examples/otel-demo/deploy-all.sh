@@ -146,39 +146,39 @@ cleanup() {
 # Deploy HTTPS ingress resources
 deploy_ingress() {
   log "Deploying HTTPS ingress resources..."
-  
+
   # Check if ingress files exist
   if [[ ! -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" ]]; then
     log " Ingress files not found in $SCRIPT_DIR/ingress/ - skipping HTTPS setup"
     return 0
   fi
-  
+
   # Apply ingress for each namespace
   if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-jaeger.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
     log "Jaeger ingress configured (jaeger.demo.jaegertracing.io, hotrod.demo.jaegertracing.io)"
   else
     log " Failed to apply Jaeger ingress "
   fi
-  
+
   if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-opensearch.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
     log " OpenSearch ingress configured (opensearch.demo.jaegertracing.io)"
   else
     log "  Failed to apply OpenSearch ingress "
   fi
-  
+
   if kubectl apply -f "$SCRIPT_DIR/ingress/ingress-otel-demo.yaml" 2>&1 | grep -q "created\|configured\|unchanged"; then
     log " OTel Demo ingress configured (shop.demo.jaegertracing.io)"
   else
     log "  Failed to apply OTel Demo ingress "
   fi
-  
+
   log "Waiting for SSL certificates to be issued..."
   sleep 10
-  
+
   # Check certificate status
   local certs_ready=0
   local certs_total=0
-  
+
   for ns in jaeger opensearch otel-demo; do
     if kubectl get namespace "$ns" >/dev/null 2>&1; then
       if kubectl get certificate -n "$ns" >/dev/null 2>&1; then
@@ -189,7 +189,7 @@ deploy_ingress() {
       fi
     fi
   done
-  
+
   if [[ $certs_total -eq 0 ]]; then
     log " No certificates found - cert-manager may not be installed"
   elif [[ $certs_ready -eq $certs_total ]]; then
@@ -198,7 +198,7 @@ deploy_ingress() {
     log "Some certificates still pending ($certs_ready/$certs_total ready)"
     log "Certificates will be issued automatically by cert-manager"
   fi
-  
+
   log "HTTPS endpoints:"
   log " • https://jaeger.demo.jaegertracing.io"
   log " • https://hotrod.demo.jaegertracing.io"
@@ -273,7 +273,7 @@ main() {
     --wait --timeout 10m
   wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
 
-  
+
   log "Deploying Jaeger (all-in-one, no storage)"
   helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
     --namespace jaeger --create-namespace \
@@ -286,7 +286,7 @@ main() {
     --wait --timeout 10m
   wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
 
-  
+
   log "Creating Jaeger query ClusterIP service..."
   kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
   log "Jaeger query ClusterIP service created"

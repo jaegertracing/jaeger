@@ -51,7 +51,7 @@ func (h *getTraceErrorsHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// AggregateTraces reassembles the full trace so ErrorCount reflects every error span.
+	// AggregateTraces reassembles the full trace so TotalErrorCount reflects every error span.
 	// The Spans slice is capped inside the iteration loop below.
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
@@ -86,9 +86,9 @@ func (h *getTraceErrorsHandler) handle(
 	}
 
 	output := types.GetTraceErrorsOutput{
-		TraceID:    input.TraceID,
-		ErrorCount: totalErrors,
-		Spans:      errorSpans,
+		TraceID:         input.TraceID,
+		TotalErrorCount: totalErrors,
+		Spans:           errorSpans,
 	}
 
 	return nil, output, nil

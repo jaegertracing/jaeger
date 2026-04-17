@@ -32,6 +32,6 @@ The example can be run using the following command:
 make dev
 ```
 
-To see the tail-based sampling processor in action, go to the Jaeger UI at <http://localhost:16686/>. 
-You will see that only traces for the services outlined in the policy in [jaeger-v2-config.yml](./jaeger-v2-config.yml) 
+To see the tail-based sampling processor in action, go to the Jaeger UI at <http://localhost:16686/>.
+You will see that only traces for the services outlined in the policy in [jaeger-v2-config.yml](./jaeger-v2-config.yml)
 are sampled.

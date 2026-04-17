@@ -17,6 +17,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -61,11 +62,11 @@ func main() {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	trace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: s.TraceID})
+	spans, err := spanReader.GetTrace(ctx, dbmodel.TraceIDFromDomain(s.TraceID))
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
-		logger.Info("Loaded trace", zap.Any("trace", trace))
+		logger.Info("Loaded trace", zap.Any("spans", spans))
 	}
 
 	tqp := &spanstore.TraceQueryParameters{
@@ -94,7 +95,15 @@ func main() {
 }
 
 func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
-	traces, err := spanReader.FindTraces(ctx, tqp)
+	var traces []dbmodel.Trace
+	var err error
+	for trace, inerr := range spanReader.FindTraces(ctx, tqp) {
+		if inerr != nil {
+			err = inerr
+			break
+		}
+		traces = append(traces, trace)
+	}
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))
 	} else {
