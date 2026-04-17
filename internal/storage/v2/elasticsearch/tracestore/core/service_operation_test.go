@@ -7,6 +7,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/olivere/elastic/v7"
@@ -127,16 +128,34 @@ func TestSpanReader_GetOperations(t *testing.T) {
 
 func TestSpanReader_GetOperationsWithSpanKind(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
+		searchService := &mocks.SearchService{}
+
+		expectedQuery := elastic.NewBoolQuery().Must(
+			elastic.NewTermQuery(serviceName, "myService"),
+			elastic.NewTermQuery(spanKindField, "server"),
+		)
+
+		searchService.On("Query", mock.MatchedBy(func(query elastic.Query) bool {
+			actualSource, err := query.Source()
+			require.NoError(t, err)
+			expectedSource, err := expectedQuery.Source()
+			require.NoError(t, err)
+			return reflect.DeepEqual(actualSource, expectedSource)
+		})).Return(searchService)
+		searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
+		searchService.On("Size", 0).Return(searchService)
+		searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
+		r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
+
 		// Aggregation result that includes a spanKind sub-aggregation.
 		rawMessage, err := json.Marshal(map[string]any{
 			"buckets": []map[string]any{
 				{
 					"key":       "myOperation",
-					"doc_count": 5,
+					"doc_count": 3,
 					spanKindAggregation: map[string]any{
 						"buckets": []map[string]any{
 							{"key": "server", "doc_count": 3},
-							{"key": "client", "doc_count": 2},
 						},
 					},
 				},
@@ -147,7 +166,7 @@ func TestSpanReader_GetOperationsWithSpanKind(t *testing.T) {
 		aggs := elastic.Aggregations(map[string]json.RawMessage{
 			operationsAggregation: rawMessage,
 		})
-		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: aggs}, nil)
+		searchService.On("Do", mock.Anything).Return(&elastic.SearchResult{Aggregations: aggs}, nil)
 
 		ops, err := r.reader.GetOperations(
 			context.Background(),
@@ -156,7 +175,6 @@ func TestSpanReader_GetOperationsWithSpanKind(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []dbmodel.Operation{
 			{Name: "myOperation", SpanKind: "server"},
-			{Name: "myOperation", SpanKind: "client"},
 		}, ops)
 	})
 }

@@ -43,6 +43,10 @@
         "type":"keyword",
         "ignore_above":256
       },
+      "spanKind":{
+        "type":"keyword",
+        "ignore_above":256
+      },
       "operationName":{
         "type":"keyword",
         "ignore_above":256
