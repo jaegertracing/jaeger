@@ -464,8 +464,8 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, string(expectedData), string(actualData))
 		}
-		})
-	}
+	})
+}
 
 func TestSpanReader_multiRead_withReadWriteAliasesAddsTimeRange(t *testing.T) {
 	client := &mocks.Client{}
