@@ -80,7 +80,7 @@ Each query specifies exact values for `bucket`, `service_name`, and `operation_n
 ```cql
 SELECT trace_id
 FROM duration_index
-WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration > ? AND duration < ?
+WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration >= ? AND duration <= ?
 LIMIT ?
 ```
 
