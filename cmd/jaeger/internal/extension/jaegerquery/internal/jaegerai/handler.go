@@ -14,7 +14,6 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -27,17 +26,17 @@ type ChatRequest = aguitypes.RunAgentInput
 // events.
 type ChatHandler struct {
 	Logger             *zap.Logger
-	QueryService       *querysvc.QueryService
+	ctxTools           *ContextualToolsStore
 	sidecarWSURL       string
 	maxRequestBodySize int64
 }
 
 // NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
-// QueryService may be nil in tests that do not exercise contextual tooling.
-func NewChatHandler(logger *zap.Logger, queryService *querysvc.QueryService, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
+// ctxTools may be nil in tests that do not exercise contextual tooling.
+func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
-		QueryService:       queryService,
+		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
 		maxRequestBodySize: maxRequestBodySize,
 	}
@@ -117,8 +116,8 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Publish the frontend-provided tools snapshot so the agent can retrieve
 	// them via the list_contextual_tools MCP tool.
-	if h.QueryService != nil {
-		h.QueryService.SetContextualToolsForSession(string(sess.SessionId), encodeToolsAsRaw(req.Tools))
+	if h.ctxTools != nil {
+		h.ctxTools.SetForSession(string(sess.SessionId), encodeToolsAsRaw(req.Tools))
 	}
 
 	// Set streaming headers just before Prompt: SessionUpdate callbacks start

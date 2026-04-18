@@ -34,23 +34,6 @@ func (*errResponseWriter) Write([]byte) (int, error) {
 
 func (*errResponseWriter) WriteHeader(int) {}
 
-type panicResponseWriter struct {
-	header http.Header
-}
-
-func (w *panicResponseWriter) Header() http.Header {
-	if w.header == nil {
-		w.header = make(http.Header)
-	}
-	return w.header
-}
-
-func (*panicResponseWriter) Write([]byte) (int, error) {
-	panic("boom")
-}
-
-func (*panicResponseWriter) WriteHeader(int) {}
-
 // parseSSEEvents extracts the JSON payloads from the `data:` frames in the
 // supplied SSE body. Each returned map corresponds to one AG-UI event.
 func parseSSEEvents(t *testing.T, body string) []map[string]any {
@@ -115,17 +98,6 @@ func TestStreamingClientWriteErrorSetsClosedFlag(t *testing.T) {
 	c.write("hello")
 
 	assert.True(t, c.closed, "expected client to be closed on write error")
-}
-
-func TestStreamingClientWriteRecoverSetsClosedFlag(t *testing.T) {
-	c := &streamingClient{
-		requestCtx: context.Background(),
-		w:          &panicResponseWriter{},
-	}
-
-	c.write("hello")
-
-	assert.True(t, c.closed, "expected client to be closed after panic")
 }
 
 func TestStreamingClientWriteNoopWhenClosed(t *testing.T) {

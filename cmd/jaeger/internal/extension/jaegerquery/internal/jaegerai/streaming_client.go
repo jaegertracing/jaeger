@@ -57,12 +57,6 @@ func (c *streamingClient) write(text string) {
 		}
 	}
 
-	defer func() {
-		if recover() != nil {
-			c.closed = true
-		}
-	}()
-
 	if _, err := io.WriteString(c.w, text); err != nil {
 		c.closed = true
 		return

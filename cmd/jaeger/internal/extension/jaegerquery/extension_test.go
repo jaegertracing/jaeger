@@ -32,6 +32,10 @@ func (m *mockExtension) TenancyManager() *tenancy.Manager {
 	return m.tm
 }
 
+func (*mockExtension) ContextualToolsStore() ContextualToolsProvider {
+	return nil
+}
+
 func TestGetExtension_Success(t *testing.T) {
 	// Create a mock QueryService
 	mockQS := &querysvc.QueryService{}

@@ -26,6 +26,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -54,6 +56,10 @@ func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
 
 func (m *mockQueryExtension) TenancyManager() *tenancy.Manager {
 	return m.tm
+}
+
+func (*mockQueryExtension) ContextualToolsStore() jaegerquery.ContextualToolsProvider {
+	return nil
 }
 
 // mockHost implements component.Host with a jaegerquery extension
@@ -452,24 +458,26 @@ func TestNewServer(t *testing.T) {
 	assert.Nil(t, server.listener)
 }
 
-func TestListContextualToolsToolNilQueryAPIReturnsEmpty(t *testing.T) {
-	s := &server{}
-	_, output, err := s.listContextualToolsTool(context.Background(), nil, ListContextualToolsInput{SessionID: "sess-1"})
-	require.NoError(t, err)
-	assert.Nil(t, output.Tools, "nil queryAPI must not panic and must surface empty tools")
+// stubContextualToolsProvider is a test double for the contextualToolsProvider
+// interface used by the list_contextual_tools handler.
+type stubContextualToolsProvider struct {
+	tools map[string][]any
+}
+
+func (s *stubContextualToolsProvider) GetContextualToolsForSession(sessionID string) []any {
+	return s.tools[sessionID]
 }
 
 func TestListContextualToolsToolReturnsSessionSnapshot(t *testing.T) {
-	queryService := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	queryService.SetContextualToolsForSession("sess-1", []json.RawMessage{
-		json.RawMessage(`{"name":"visualize"}`),
-	})
-	queryService.SetContextualToolsForSession("sess-2", []json.RawMessage{
-		json.RawMessage(`{"name":"other"}`),
-	})
+	provider := &stubContextualToolsProvider{
+		tools: map[string][]any{
+			"sess-1": {map[string]any{"name": "visualize"}},
+			"sess-2": {map[string]any{"name": "other"}},
+		},
+	}
 
-	s := &server{queryAPI: queryService}
-	_, output, err := s.listContextualToolsTool(context.Background(), nil, ListContextualToolsInput{SessionID: "sess-1"})
+	handler := handlers.NewListContextualToolsHandler(provider)
+	_, output, err := handler(context.Background(), nil, types.ListContextualToolsInput{SessionID: "sess-1"})
 	require.NoError(t, err)
 	require.Len(t, output.Tools, 1)
 	tool, ok := output.Tools[0].(map[string]any)
@@ -479,13 +487,14 @@ func TestListContextualToolsToolReturnsSessionSnapshot(t *testing.T) {
 }
 
 func TestListContextualToolsToolUnknownSessionReturnsEmpty(t *testing.T) {
-	queryService := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	queryService.SetContextualToolsForSession("sess-1", []json.RawMessage{
-		json.RawMessage(`{"name":"visualize"}`),
-	})
+	provider := &stubContextualToolsProvider{
+		tools: map[string][]any{
+			"sess-1": {map[string]any{"name": "visualize"}},
+		},
+	}
 
-	s := &server{queryAPI: queryService}
-	_, output, err := s.listContextualToolsTool(context.Background(), nil, ListContextualToolsInput{SessionID: "sess-nope"})
+	handler := handlers.NewListContextualToolsHandler(provider)
+	_, output, err := handler(context.Background(), nil, types.ListContextualToolsInput{SessionID: "sess-nope"})
 	require.NoError(t, err)
 	assert.Nil(t, output.Tools, "unknown session_id must not leak another session's snapshot")
 }
