@@ -8,7 +8,6 @@ from typing import Any, Callable, cast
 
 from google import genai
 from google.genai import types
-from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 from ws_commands import ws_to_client_writer, client_reader_to_ws
 from mcp_bridge import JaegerMCPBridge
@@ -135,32 +134,37 @@ class JaegerSidecarAgent(Agent):
             "tool.name": tool_name,
             "tool.call_id": tool_call_id,
             "session.id": session_id,
-        }):
-            conn = self._require_conn()
-            await conn.session_update(
-                session_id,
-                start_tool_call(
-                    tool_call_id,
-                    tool_name,
-                    kind="search",
-                    status="in_progress",
-                ),
-            )
+        }) as span:
+            try:
+                conn = self._require_conn()
+                await conn.session_update(
+                    session_id,
+                    start_tool_call(
+                        tool_call_id,
+                        tool_name,
+                        kind="search",
+                        status="in_progress",
+                    ),
+                )
 
-            tool_output = await self._mcp.call_tool(tool_name, args)
-            output_text = _to_tool_text(tool_output)
+                tool_output = await self._mcp.call_tool(tool_name, args)
+                output_text = _to_tool_text(tool_output)
 
-            await conn.session_update(
-                session_id,
-                update_tool_call(
-                    tool_call_id,
-                    status="completed",
-                    content=[tool_content(text_block(output_text))],
-                    raw_output={"content": tool_output},
-                ),
-            )
+                await conn.session_update(
+                    session_id,
+                    update_tool_call(
+                        tool_call_id,
+                        status="completed",
+                        content=[tool_content(text_block(output_text))],
+                        raw_output={"content": tool_output},
+                    ),
+                )
 
-            return tool_output
+                return tool_output
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                raise
 
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
         tracer = get_tracer()

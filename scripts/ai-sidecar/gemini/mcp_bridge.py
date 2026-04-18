@@ -7,7 +7,6 @@ from typing import Any
 
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.genai import types
-from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from sidecar_helpers import _extract_function_declaration, _to_jsonable
@@ -101,5 +100,10 @@ class JaegerMCPBridge:
                 span.set_status(Status(StatusCode.ERROR, description=f"unsupported tool: {name}"))
                 return {"error": f"unsupported tool: {name}"}
 
-            result = await tool.run_async(args=args or {}, tool_context=None)
-            return _to_jsonable(result)
+            try:
+                result = await tool.run_async(args=args or {}, tool_context=None)
+                return _to_jsonable(result)
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                raise
