@@ -176,7 +176,7 @@ make sure the year is current and the copyright says "The Jaeger Authors".
 // SPDX-License-Identifier: Apache-2.0
 ```
 
-**Never remove existing copyright headers**. 
+**Never remove existing copyright headers**.
 
 Some files may have other copyright headers, such as:
 ```

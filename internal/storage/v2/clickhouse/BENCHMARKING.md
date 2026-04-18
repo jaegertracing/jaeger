@@ -17,8 +17,8 @@
 | **Total traces** | 1,000,000 |
 | **Spans per trace** | 10 (1 parent + 9 children) |
 | **Total spans** | 10,000,000 |
-| **Services** | 2 |
-| **Partitions (days)** | 5 |
+| **Services** | 10 |
+| **Partitions (days)** | 10 |
 | **Attributes per span** | 11 (across 97 distinct keys, 1000 distinct values) |
 
 ## Results
@@ -28,8 +28,8 @@
 | Metric | Value |
 | --- | --- |
 | **Uncompressed size** | 5.99 GiB |
-| **Compressed size** | 387.79 MiB |
-| **Compression ratio** | 15.85x |
+| **Compressed size** | 722.09 MiB |
+| **Compression ratio** | 8.6x |
 
 Script: [`table_compression_spans`](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/performance-retrieval-scripts/native-schema/table_compression_spans)
 
@@ -38,8 +38,8 @@ Script: [`table_compression_spans`](https://github.com/mahadzaryab1/clickhouse-b
 | Metric | Value |
 | --- | --- |
 | **Total spans** | 10,000,000 |
-| **Total insert duration** | 308.4 s |
-| **Throughput (spans/sec)** | 32,422 |
+| **Total insert duration** | 191.8 s |
+| **Throughput (spans/sec)** | 52,129 |
 
 Script: [`schema_insert`](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/performance-retrieval-scripts/native-schema/schema_insert)
 
@@ -51,19 +51,18 @@ Each query was run 3 times. The table shows averages across all runs.
 | --- | --- |
 | [**Retrieve services**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_services.sql) | 3 ms |
 | [**Retrieve operations**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_operations.sql) | 4 ms |
-| [**Get trace by ID**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_spans_by_trace_id.sql) | 27 ms |
-| [**Get trace by ID + time range**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_spans_by_trace_id_with_time_range.sql) | 27 ms |
+| [**Get trace by ID**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/retrieve_spans_by_trace_id.sql) | 101 ms |
 
 #### Search Queries
 
 | Query | Avg Duration |
 | --- | --- |
-| [**Search by service**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_service.sql) | 43 ms |
-| [**Search by operation**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_operation.sql) | 44 ms |
-| [**Search by duration range**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_duration.sql) | 49 ms |
-| [**Search by timestamp range**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_timestamp.sql) | 46 ms |
-| [**Search by attribute**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_attribute.sql) | 2,451 ms |
-| [**Search by all filters**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_all.sql) | 881 ms |
+| [**Search by service**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_service.sql) | 37 ms |
+| [**Search by operation**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_operation.sql) | 38 ms |
+| [**Search by duration range**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_duration.sql) | 43 ms |
+| [**Search by timestamp range**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_timestamp.sql) | 47 ms |
+| [**Search by attribute**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_attribute.sql) | 1,769 ms |
+| [**Search by all filters**](https://github.com/mahadzaryab1/clickhouse-benchmarking/blob/main/setup/native/queries/search_by_all.sql) | 139 ms |
 
 ## Reproducing
 

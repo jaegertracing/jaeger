@@ -6,10 +6,12 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"os"
@@ -672,6 +674,28 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 	return options, nil
 }
 
+// getBodyFixRoundTripper ensures req.GetBody is populated when req.Body is set.
+// The olivere/elastic v7 client sets req.Body directly without setting GetBody,
+// which breaks HTTP authenticators (like sigv4auth) that rely on GetBody to hash
+// the request payload for signing.
+type getBodyFixRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (t *getBodyFixRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body != nil && req.GetBody == nil {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
+	}
+	return t.base.RoundTrip(req)
+}
+
 // GetHTTPRoundTripper returns configured http.RoundTripper with optional HTTP authenticator.
 // Pass nil for httpAuth if authentication is not required.
 func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (http.RoundTripper, error) {
@@ -739,8 +763,13 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 	}
 
-	// Apply HTTP authenticator extension if configured (e.g., SigV4)
+	// Apply HTTP authenticator extension if configured (e.g., SigV4).
+	// Wrap with getBodyFixRoundTripper first so that authenticators that
+	// rely on req.GetBody for payload hashing (such as sigv4auth) see
+	// a properly populated GetBody even when the upstream HTTP client
+	// (olivere/elastic) does not set it.
 	if httpAuth != nil {
+		roundTripper = &getBodyFixRoundTripper{base: roundTripper}
 		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
 		if err != nil {
 			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)

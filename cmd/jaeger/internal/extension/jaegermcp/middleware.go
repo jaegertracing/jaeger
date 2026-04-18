@@ -1,0 +1,154 @@
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package jaegermcp
+
+import (
+	"context"
+	"reflect"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+)
+
+const (
+	mcpMethodToolsCall = "tools/call"
+	errorTypeTool      = "tool_error"
+
+	traceContextMetaTraceParent = "traceparent"
+	traceContextMetaTraceState  = "tracestate"
+	traceContextMetaBaggage     = "baggage"
+)
+
+var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
+	propagation.TraceContext{},
+	propagation.Baggage{},
+)
+
+// createTracingMiddleware creates an MCP middleware that emits tool-level spans.
+func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware {
+	tracer := tracerProvider.Tracer("jaeger.mcp")
+
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			ctx = contextWithRequestMetaTraceContext(ctx, req)
+
+			toolName := toolNameFromRequest(method, req)
+			sessionID := sessionIDFromRequest(req)
+			spanName := method
+			attrs := []attribute.KeyValue{}
+			if toolName != "" {
+				spanName = method + " " + toolName
+				attrs = append(attrs,
+					otelsemconv.GenAIOperationNameExecuteTool,
+					otelsemconv.GenAIToolName(toolName),
+				)
+			} else {
+				attrs = append(attrs, otelsemconv.McpMethodName(method))
+			}
+			if sessionID != "" {
+				attrs = append(attrs, otelsemconv.McpSessionID(sessionID))
+			}
+
+			ctx, span := tracer.Start(
+				ctx,
+				spanName,
+				trace.WithSpanKind(trace.SpanKindInternal),
+				trace.WithAttributes(attrs...),
+			)
+			defer span.End()
+
+			result, err := next(ctx, method, req)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				return result, err
+			}
+			if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
+				span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
+				if toolErr := callResult.GetError(); toolErr != nil {
+					span.RecordError(toolErr)
+				}
+			}
+
+			return result, err
+		}
+	}
+}
+
+func toolNameFromRequest(method string, req mcp.Request) string {
+	if method != mcpMethodToolsCall || req == nil {
+		return ""
+	}
+	params, ok := req.GetParams().(*mcp.CallToolParamsRaw)
+	if !ok || params == nil {
+		return ""
+	}
+	return params.Name
+}
+
+func sessionIDFromRequest(req mcp.Request) string {
+	if req == nil {
+		return ""
+	}
+	session := req.GetSession()
+	if isNil(session) {
+		return ""
+	}
+	return session.ID()
+}
+
+func contextWithRequestMetaTraceContext(ctx context.Context, req mcp.Request) context.Context {
+	if req == nil {
+		return ctx
+	}
+
+	params := req.GetParams()
+	if isNil(params) {
+		return ctx
+	}
+
+	return requestMetaPropagator.Extract(ctx, &requestMetaCarrier{meta: params.GetMeta()})
+}
+
+func isNil(value any) bool {
+	if value == nil {
+		return true
+	}
+	reflectValue := reflect.ValueOf(value)
+	switch reflectValue.Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+		return reflectValue.IsNil()
+	default:
+		return false
+	}
+}
+
+type requestMetaCarrier struct {
+	meta mcp.Meta
+}
+
+func (carrier *requestMetaCarrier) Get(key string) string {
+	value, _ := carrier.meta[key].(string)
+	return value
+}
+
+func (carrier *requestMetaCarrier) Set(key, value string) {
+	if carrier.meta == nil {
+		carrier.meta = mcp.Meta{}
+	}
+	carrier.meta[key] = value
+}
+
+func (carrier *requestMetaCarrier) Keys() []string {
+	keys := make([]string, 0, len(carrier.meta))
+	for key := range carrier.meta {
+		keys = append(keys, key)
+	}
+	return keys
+}

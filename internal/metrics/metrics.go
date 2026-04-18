@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // MustInit initializes the passed in metrics and initializes its fields using the passed in factory.
@@ -46,7 +47,8 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 	for i := 0; i < t.NumField(); i++ {
 		tags := make(map[string]string)
 		maps.Copy(tags, globalTags)
-		var buckets []float64
+		var histogramBuckets []float64
+		var timerBuckets []time.Duration
 		field := t.Field(i)
 		metric := field.Tag.Get("metric")
 		if metric == "" {
@@ -66,10 +68,16 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		if bucketString := field.Tag.Get("buckets"); bucketString != "" {
 			switch {
 			case field.Type.AssignableTo(timerPtrType):
-				// TODO: Parse timer duration buckets
-				return fmt.Errorf(
-					"Field [%s]: Buckets are not currently initialized for timer metrics",
-					field.Name)
+				bucketValues := strings.Split(bucketString, ",")
+				for _, bucket := range bucketValues {
+					d, err := time.ParseDuration(bucket)
+					if err != nil {
+						return fmt.Errorf(
+							"Field [%s]: Bucket [%s] could not be parsed as duration in 'buckets' string [%s]",
+							field.Name, bucket, bucketString)
+					}
+					timerBuckets = append(timerBuckets, d)
+				}
 			case field.Type.AssignableTo(histogramPtrType):
 				bucketValues := strings.Split(bucketString, ",")
 				for _, bucket := range bucketValues {
@@ -79,7 +87,7 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 							"Field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
 							field.Name, bucket, bucketString)
 					}
-					buckets = append(buckets, b)
+					histogramBuckets = append(histogramBuckets, b)
 				}
 			default:
 				return fmt.Errorf(
@@ -103,18 +111,18 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				Help: help,
 			})
 		case field.Type.AssignableTo(timerPtrType):
-			// TODO: Add buckets once parsed (see TODO above)
 			obj = factory.Timer(TimerOptions{
-				Name: metric,
-				Tags: tags,
-				Help: help,
+				Name:    metric,
+				Tags:    tags,
+				Help:    help,
+				Buckets: timerBuckets,
 			})
 		case field.Type.AssignableTo(histogramPtrType):
 			obj = factory.Histogram(HistogramOptions{
 				Name:    metric,
 				Tags:    tags,
 				Help:    help,
-				Buckets: buckets,
+				Buckets: histogramBuckets,
 			})
 		default:
 			return fmt.Errorf(

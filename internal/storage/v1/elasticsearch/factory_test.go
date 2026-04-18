@@ -30,10 +30,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -57,9 +57,9 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
 	require.NoError(t, err)
 	readerParams := f.GetSpanReaderParams()
-	assert.IsType(t, spanstore.SpanReaderParams{}, readerParams)
+	assert.IsType(t, core.SpanReaderParams{}, readerParams)
 	writerParams := f.GetSpanWriterParams()
-	assert.IsType(t, spanstore.SpanWriterParams{}, writerParams)
+	assert.IsType(t, core.SpanWriterParams{}, writerParams)
 	depParams := f.GetDependencyStoreParams()
 	assert.IsType(t, esdepstorev2.Params{}, depParams)
 	_, err = f.CreateSamplingStore(1)
@@ -139,6 +139,16 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 }
 
 func TestTagKeysAsFields(t *testing.T) {
+	dir := t.TempDir()
+
+	tagsFile := filepath.Join(dir, "tags.txt")
+	require.NoError(t, os.WriteFile(tagsFile, []byte("foo\nbar\n      space   \n"), 0o600))
+
+	emptyFile := filepath.Join(dir, "empty.txt")
+	require.NoError(t, os.WriteFile(emptyFile, []byte(""), 0o600))
+
+	missingFile := filepath.Join(dir, "missing.txt") // intentionally not created
+
 	tests := []struct {
 		path          string
 		include       string
@@ -146,15 +156,15 @@ func TestTagKeysAsFields(t *testing.T) {
 		errorExpected bool
 	}{
 		{
-			path:          "fixtures/do_not_exists.txt",
+			path:          missingFile,
 			errorExpected: true,
 		},
 		{
-			path:     "fixtures/tags_01.txt",
+			path:     tagsFile,
 			expected: []string{"foo", "bar", "space"},
 		},
 		{
-			path:     "fixtures/tags_02.txt",
+			path:     emptyFile,
 			expected: nil,
 		},
 		{
@@ -165,12 +175,12 @@ func TestTagKeysAsFields(t *testing.T) {
 			expected: nil,
 		},
 		{
-			path:     "fixtures/tags_01.txt",
+			path:     tagsFile,
 			include:  "televators,eriatarka,thewidow",
 			expected: []string{"foo", "bar", "space", "televators", "eriatarka", "thewidow"},
 		},
 		{
-			path:     "fixtures/tags_02.txt",
+			path:     emptyFile,
 			include:  "televators,eriatarka,thewidow",
 			expected: []string{"televators", "eriatarka", "thewidow"},
 		},
@@ -399,7 +409,7 @@ func runPasswordFromFileTest(t *testing.T) {
 		require.NoError(t, f.Close())
 	})
 
-	writer := spanstore.NewSpanWriter(f.GetSpanWriterParams())
+	writer := core.NewSpanWriter(f.GetSpanWriterParams())
 	span1 := &dbmodel.Span{
 		Process: dbmodel.Process{ServiceName: "foo"},
 	}
@@ -527,7 +537,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 
 	// Verify factory is properly initialized with authenticator
 	readerParams := f.GetSpanReaderParams()
-	assert.IsType(t, spanstore.SpanReaderParams{}, readerParams)
+	assert.IsType(t, core.SpanReaderParams{}, readerParams)
 }
 
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
