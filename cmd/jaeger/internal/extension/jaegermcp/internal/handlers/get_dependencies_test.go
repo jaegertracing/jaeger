@@ -17,11 +17,13 @@ import (
 )
 
 type mockDependencyService struct {
-	deps []model.DependencyLink
-	err  error
+	deps             []model.DependencyLink
+	err              error
+	capturedLookback time.Duration
 }
 
-func (m *mockDependencyService) GetDependencies(_ context.Context, _ time.Time, _ time.Duration) ([]model.DependencyLink, error) {
+func (m *mockDependencyService) GetDependencies(_ context.Context, _ time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	m.capturedLookback = lookback
 	return m.deps, m.err
 }
 
@@ -41,11 +43,22 @@ func TestGetDependenciesHandler_Handle_Success(t *testing.T) {
 	assert.Equal(t, uint64(150), output.Dependencies[0].CallCount)
 }
 
-func TestGetDependenciesHandler_Handle_WithLookback(t *testing.T) {
-	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
+func TestGetDependenciesHandler_Handle_DefaultLookback(t *testing.T) {
+	mock := &mockDependencyService{}
+	h := &getDependenciesHandler{queryService: mock}
+
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{})
+	require.NoError(t, err)
+	assert.Equal(t, defaultDependencyLookback, mock.capturedLookback)
+}
+
+func TestGetDependenciesHandler_Handle_CustomLookback(t *testing.T) {
+	mock := &mockDependencyService{}
+	h := &getDependenciesHandler{queryService: mock}
 
 	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "1h"})
 	require.NoError(t, err)
+	assert.Equal(t, time.Hour, mock.capturedLookback)
 }
 
 func TestGetDependenciesHandler_Handle_InvalidLookback(t *testing.T) {
@@ -54,6 +67,22 @@ func TestGetDependenciesHandler_Handle_InvalidLookback(t *testing.T) {
 	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "invalid"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid lookback")
+}
+
+func TestGetDependenciesHandler_Handle_NegativeLookback(t *testing.T) {
+	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
+
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "-1h"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lookback must be positive")
+}
+
+func TestGetDependenciesHandler_Handle_ZeroLookback(t *testing.T) {
+	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
+
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "0s"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lookback must be positive")
 }
 
 func TestGetDependenciesHandler_Handle_StorageError(t *testing.T) {

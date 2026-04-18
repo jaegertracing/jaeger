@@ -47,6 +47,9 @@ func (h *getDependenciesHandler) handle(
 		if err != nil {
 			return nil, types.GetDependenciesOutput{}, fmt.Errorf("invalid lookback: %w", err)
 		}
+		if parsed <= 0 {
+			return nil, types.GetDependenciesOutput{}, fmt.Errorf("lookback must be positive, got %s", parsed)
+		}
 		lookback = parsed
 	}
 
