@@ -37,7 +37,7 @@ func withDepStore(version Version, fn func(s *depStorageTest)) {
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
-	store, _ := NewDependencyStore(session, metricsFactory, logger, version)
+	store, _ := NewDependencyStore(session, metricsFactory, logger, version, 24*time.Hour)
 	s := &depStorageTest{
 		session:   session,
 		logger:    logger,
@@ -59,7 +59,7 @@ func TestVersionIsValid(t *testing.T) {
 }
 
 func TestInvalidVersion(t *testing.T) {
-	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
+	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd, 24*time.Hour)
 	require.Error(t, err)
 }
 
@@ -243,6 +243,31 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 	}
 }
 
+func TestGetBuckets_InvalidTimeRange(t *testing.T) {
+	store := &DependencyStore{tsBucket: 24 * time.Hour}
+	start := time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC)
+	assert.Empty(t, store.getBuckets(start, end))
+}
+
+func TestGetBuckets_ZeroBucketSize(t *testing.T) {
+	logger, logBuffer := testutils.NewLogger()
+	store := &DependencyStore{tsBucket: 0, logger: logger}
+	start := time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC)
+	assert.Empty(t, store.getBuckets(start, end))
+	assert.Contains(t, logBuffer.String(), "invalid dependency bucket size")
+}
+
+func TestGetBuckets_MaxBucketGuard(t *testing.T) {
+	logger, logBuffer := testutils.NewLogger()
+	store := &DependencyStore{tsBucket: time.Nanosecond, logger: logger}
+	start := time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC)
+	assert.Empty(t, store.getBuckets(start, end))
+	assert.Contains(t, logBuffer.String(), "exceeds maximum bucket count")
+}
+
 func TestGetBuckets(t *testing.T) {
 	var (
 		start    = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
@@ -253,7 +278,8 @@ func TestGetBuckets(t *testing.T) {
 			time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
 		}
 	)
-	assert.Equal(t, expected, getBuckets(start, end))
+	store := &DependencyStore{tsBucket: 24 * time.Hour}
+	assert.Equal(t, expected, store.getBuckets(start, end))
 }
 
 func matchEverything() any {
