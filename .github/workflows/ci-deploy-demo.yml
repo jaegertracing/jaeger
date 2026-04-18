@@ -24,10 +24,10 @@ jobs:
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
         enablePrivateEndpoint: false
-    
+
     - name: Install Helm
       uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
-        
+
     - name: Checkout jaeger repository
       uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
 
@@ -39,7 +39,7 @@ jobs:
         else
           echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
           bash ./examples/oci/deploy-all.sh clean
-        fi         
+        fi
 
     - name: Send detailed Slack notification on failure
       if: failure()
@@ -57,7 +57,7 @@ jobs:
           *Run ID:* ${{ github.run_id }}
           *Trigger:* ${{ github.event_name }}
           *Actor:* ${{ github.actor }}
-          
+
           <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|🔗 View Failed Run>
         SLACK_FOOTER: 'Jaeger CI/CD Pipeline'
-        
+

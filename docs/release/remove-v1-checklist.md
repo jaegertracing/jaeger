@@ -1,7 +1,7 @@
 # Remove v1 release logic — incremental milestone checklist (updated)
 
-Owner: @yurishkuro  
-Related: https://github.com/jaegertracing/jaeger/issues/7497  
+Owner: @yurishkuro
+Related: https://github.com/jaegertracing/jaeger/issues/7497
 Prepared: 2025-11-12
 
 ## Summary
@@ -50,11 +50,11 @@ Acceptance criteria
 - CI or documented developer convenience targets no longer pull/build v1 artifacts by default.
 
 Files / targets assigned to this milestone (non-exhaustive — guidance to scan repo)
-- [ ] `scripts/makefiles/BuildBinaries.mk`  
+- [ ] `scripts/makefiles/BuildBinaries.mk`
   - Change defaults for targets other than the four exceptions listed above.
-- [ ] `scripts/build/build-upload-a-docker-image.sh`  
+- [ ] `scripts/build/build-upload-a-docker-image.sh`
   - Default to v2 push/tags.
-- [ ] `scripts/utils/compute-tags.sh`  
+- [ ] `scripts/utils/compute-tags.sh`
   - Ensure default computed tags are v2-first.
 
 Implementation guidance
@@ -80,19 +80,19 @@ Acceptance criteria
 - Release/publish scripts remain able to produce v1 artifacts (unchanged in this milestone).
 
 Files assigned to Milestone 2 (update usage only)
-- [ ] `docker-compose/tail-sampling/Makefile`  
+- [ ] `docker-compose/tail-sampling/Makefile`
   - Replace `JAEGER_VERSION=1...` convenience defaults with v2 or remove v1 convenience targets.
-- [ ] `docker-compose/monitor/Makefile`  
+- [ ] `docker-compose/monitor/Makefile`
   - Update dev convenience targets and README examples to use v2 by default.
-- [ ] `examples/otel-demo/deploy-all.sh`  
+- [ ] `examples/otel-demo/deploy-all.sh`
   - If the script is referenced by CI/docs, default to v2 (or make v1 explicit/legacy).
-- [ ] `examples/*` and README example lines that are invoked by CI or referenced in release docs  
+- [ ] `examples/*` and README example lines that are invoked by CI or referenced in release docs
   - Update documented example commands to v2.
-- [ ] small convenience Makefile targets / scripts referenced in documentation or used by CI tests (identify by scan)  
+- [ ] small convenience Makefile targets / scripts referenced in documentation or used by CI tests (identify by scan)
   - Replace v1 defaults with v2; remove legacy v1 targets where appropriate.
-- [ ] `scripts/e2e/*` (only test helpers invoked by CI, if they default to v1)  
+- [ ] `scripts/e2e/*` (only test helpers invoked by CI, if they default to v1)
   - Update defaults used by CI test jobs to v2 (but do not modify release/publish scripts).
-- [ ] `scripts/utils/compare_metrics.py` (if used in tests or example automation)  
+- [ ] `scripts/utils/compare_metrics.py` (if used in tests or example automation)
   - Make v2 metrics the default for compare helpers invoked by CI.
 - [ ] Any other example/demo helpers that are used by CI or are part of the documented maintainer workflow (identify & update).
 
@@ -117,19 +117,19 @@ Acceptance criteria
 - No v1 images/binaries are uploaded to registries or GitHub Releases.
 
 Files assigned to Milestone 3 (publish removal)
-- [ ] `.github/workflows/ci-release.yml`  
+- [ ] `.github/workflows/ci-release.yml`
   - Remove steps that create/upload v1 release artifacts; ensure upload steps use v2 artifact names only.
-- [ ] `.github/workflows/ci-docker-build.yml` (publish-related steps)  
+- [ ] `.github/workflows/ci-docker-build.yml` (publish-related steps)
   - Do not push v1 tags for official releases; push only v2.
-- [ ] `.github/workflows/ci-docker-hotrod.yml` (if it participates in release publish)  
+- [ ] `.github/workflows/ci-docker-hotrod.yml` (if it participates in release publish)
   - Ensure demo/image publishing uses v2 tags only.
-- [ ] `scripts/build/build-upload-a-docker-image.sh`  
+- [ ] `scripts/build/build-upload-a-docker-image.sh`
   - Remove v1 push logic and ensure push paths (for releases) only push v2 tags.
-- [ ] `scripts/build/package-deploy.sh`  
+- [ ] `scripts/build/package-deploy.sh`
   - Stop packaging/uploading `VERSION_V1` artifacts; upload only v2 artifacts. Remove checks that required both versions.
-- [ ] `scripts/utils/compute-tags.sh`  
+- [ ] `scripts/utils/compute-tags.sh`
   - Ensure the computed publish tags for release flows are v2-only; remove v1 tag generation on release branch.
-- [ ] any other upload/publish helper invoked by the release workflow  
+- [ ] any other upload/publish helper invoked by the release workflow
   - Remove v1 publish behavior.
 
 Implementation guidance
@@ -148,13 +148,13 @@ Goal
 - Update user-facing release docs and helper scripts so maintainers have a clean v2-only flow and instructions.
 
 Files assigned to Milestone 4
-- [ ] `RELEASE.md`  
+- [ ] `RELEASE.md`
   - Update instructions to be v2-only (replace "tag v1 & v2" with v2-only).
-- [ ] `CHANGELOG.md` (and any tools that parse its headers)  
+- [ ] `CHANGELOG.md` (and any tools that parse its headers)
   - Ensure automated changelog tooling extracts v2 headers correctly; be tolerant of legacy format for a short transition time.
-- [ ] `scripts/release/start.sh`  
+- [ ] `scripts/release/start.sh`
   - Finalize prompts to v2-only (after Milestone 3).
-- [ ] `scripts/release/draft.py`  
+- [ ] `scripts/release/draft.py`
   - Draft v2-only GitHub releases; update headers and `gh release` invocations to use v2 tag.
 
 Testing

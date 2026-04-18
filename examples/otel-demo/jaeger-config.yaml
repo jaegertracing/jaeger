@@ -1,6 +1,6 @@
 service:
   extensions: [jaeger_storage, jaeger_query, healthcheckv2]
-  
+
   pipelines:
     traces:
       receivers: [otlp]
@@ -12,13 +12,13 @@ extensions:
     use_v2: true
     http:
       endpoint: 0.0.0.0:13133
-  
+
   jaeger_query:
     storage:
       traces: some_storage
       traces_archive: another_storage
       metrics: some_storage  # For SPM metrics
-  
+
   jaeger_storage:
     backends:
       some_storage: &opensearch_config
@@ -47,7 +47,7 @@ extensions:
               rollover_frequency: "day"
               shards: 1
               replicas: 0
-      
+
       another_storage:
         opensearch:
           server_urls:
@@ -59,7 +59,7 @@ extensions:
               rollover_frequency: "day"
               shards: 1
               replicas: 0
-    
+
     metric_backends:
       some_storage: *opensearch_config
 

@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         runtime: [docker, k8s]
-          
+
     steps:
     - uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
       with:
@@ -53,7 +53,7 @@ jobs:
       uses: azure/setup-kubectl@15650b3ad78fff148532a140b8a4c821796b2d7b # v5
       with:
         version: 'latest'
-  
+
     - name: Create k8s Kind Cluster
       if: matrix.runtime == 'k8s'
       uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1

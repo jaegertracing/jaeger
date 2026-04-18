@@ -281,12 +281,18 @@ const (
 
 const SelectDependencies = `
 SELECT
-    dependencies
+    dependencies_json
 FROM
     dependencies
 WHERE
     timestamp >= ?
     AND timestamp < ?`
+
+const InsertDependencies = `
+INSERT INTO
+    dependencies (timestamp, dependencies_json)
+VALUES
+    (?, ?)`
 
 //go:embed create_dependencies_table.sql
 var CreateDependenciesTable string

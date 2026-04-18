@@ -15,8 +15,8 @@ from metrics_summary import (
 
 # A minimal unified diff that exercises added/removed/modified cases and exclusion counts.
 _DIFF_WITH_ALL_CATEGORIES = """\
---- 
-+++ 
+---
++++
 @@ -1,3 +1,3 @@
 -baseline_only{job="a"}
 -http_server_duration{le="+Inf"}
@@ -28,16 +28,16 @@ _DIFF_WITH_ALL_CATEGORIES = """\
 
 # A diff with only added metrics (present in current, absent from baseline).
 _DIFF_ADDED_ONLY = """\
---- 
-+++ 
+---
++++
 @@ -1 +2 @@
 +new_metric{job="a"}
 """
 
 # A diff with only removed metrics (present in baseline, absent from current).
 _DIFF_REMOVED_ONLY = """\
---- 
-+++ 
+---
++++
 @@ -2 +1 @@
 -old_metric{job="b"}
 """

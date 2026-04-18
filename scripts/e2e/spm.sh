@@ -108,7 +108,7 @@ wait_for_services_to_be_healthy() {
 }
 
 get_expected_operations_of_service() {
-  # Which span names do we expect from which service? 
+  # Which span names do we expect from which service?
   # See https://github.com/yurishkuro/microsim/blob/main/config/hotrod.go
   local service=$1
   case "$service" in
@@ -143,44 +143,44 @@ get_expected_operations_of_service() {
 validate_operations_for_service() {
   local service=$1
   local found_operations=$2
-  
+
   local expected_operations
   expected_operations=$(get_expected_operations_of_service "$service")
-  
+
   # If no expected operations defined for this service, skip validation
   if [[ -z "$expected_operations" ]]; then
     return 0
   fi
-  
+
   # Log expected and found operations
   if [[ -n "$found_operations" ]]; then
     echo "Expected operations for service '$service': [$expected_operations] | Found operations: [$found_operations]"
   else
     echo "Expected operations for service '$service': [$expected_operations] | Found operations: []"
   fi
-  
+
   # If no operations found, that's an error
   if [[ -z "$found_operations" ]]; then
     echo "❌ ERROR: No operations found for service '$service', but expected: [$expected_operations]"
     return 1
   fi
-  
+
   # Parse comma-separated operations (format: "op1, op2, op3")
   # Convert to space-separated and normalize whitespace
   local found_ops_list
   found_ops_list=$(echo "$found_operations" | sed 's/,/ /g' | tr -s ' ' | sed 's/^ *//;s/ *$//')
-  
+
   # Check each found operation against expected ones
   local found_op
   for found_op in $found_ops_list; do
     # Remove any leading/trailing spaces
     found_op=$(echo "$found_op" | sed 's/^ *//;s/ *$//')
-    
+
     # Skip empty operations
     if [[ -z "$found_op" ]]; then
       continue
     fi
-    
+
     # Check if this operation is in the expected list
     local is_expected=false
     local expected_op
@@ -190,13 +190,13 @@ validate_operations_for_service() {
         break
       fi
     done
-    
+
     if [[ "$is_expected" == "false" ]]; then
       echo "❌ ERROR: Unexpected operation '$found_op' found for service '$service'. Expected operations: [$expected_operations]"
       return 1
     fi
   done
-  
+
   echo "✅ Operation validation passed for service '$service'"
   return 0
 }
@@ -244,7 +244,7 @@ validate_service_metrics() {
     if ! assert_labels_set_equals "$response" "operation service_name" ; then
       return 1
     fi
-    
+
     # Validate operations from this service are what we expect.
     echo "Checking operations for service: $service"
     local operations
@@ -327,12 +327,12 @@ extract_operations() {
     else
       empty
     end' 2>/dev/null)
-  
+
   if [[ -z "$operations" ]]; then
     echo ""
     return 0
   fi
-  
+
   # Return operations as a comma-separated list
   echo "$operations" | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g'
 }

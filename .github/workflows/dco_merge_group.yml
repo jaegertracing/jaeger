@@ -5,7 +5,7 @@ name: DCO
 on:
   merge_group:
 
-permissions:  
+permissions:
   contents: read
 jobs:
   DCO:
