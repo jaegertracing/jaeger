@@ -140,7 +140,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader creates a dependencystore.Reader.
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cdepstore.GetDependencyVersion(f.session)
-	return cdepstore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version)
+	return cdepstore.NewDependencyStore(f.session, f.metricsFactory, f.logger, version, f.Options.DependencyTsBucket)
 }
 
 // CreateLock implements storage.SamplingStoreFactory
