@@ -294,6 +294,44 @@ INSERT INTO
 VALUES
     (?, ?)`
 
+const SelectLatencies = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    quantile(?)(duration) / 1e6 AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectLatenciesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    quantile(?)(duration) / 1e6 AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
 //go:embed create_dependencies_table.sql
 var CreateDependenciesTable string
 
