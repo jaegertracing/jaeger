@@ -129,7 +129,7 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 	dbTraceId := dbmodel.TraceID(span.TraceID())
 	dbReferences := linksToDbSpanRefs(span.Links(), spanIDToDbSpanId(span.ParentSpanID()), dbTraceId)
 	startTime := span.StartTimestamp().AsTime()
-	return dbmodel.Span{
+	dbSpan := dbmodel.Span{
 		TraceID:       dbTraceId,
 		SpanID:        spanIDToDbSpanId(span.SpanID()),
 		OperationName: span.Name(),
@@ -146,6 +146,10 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		ServiceName: process.ServiceName,
 		ParentID:    spanIDToDbSpanId(span.ParentSpanID()),
 	}
+	spanHash, _ := model.HashCode(dbSpan)
+	//nolint:gosec // G115
+	dbSpan.SpanHash = int64(spanHash)
+	return dbSpan
 }
 
 func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {

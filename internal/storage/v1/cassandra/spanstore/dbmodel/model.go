@@ -7,7 +7,9 @@ package dbmodel
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/hex"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +43,12 @@ type Span struct {
 	Process       Process
 	ServiceName   string
 	SpanHash      int64
+}
+
+// Hash implements Hash from Hashable.
+func (s Span) Hash(w io.Writer) (err error) {
+	enc := gob.NewEncoder(w)
+	return enc.Encode(s)
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
