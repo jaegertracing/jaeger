@@ -4,9 +4,11 @@
 package handlers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -69,6 +71,14 @@ func (h *getDependenciesHandler) handle(
 			CallCount: d.CallCount,
 		})
 	}
+
+	// Sort by caller then callee for consistent ordering
+	slices.SortFunc(links, func(a, b types.DependencyLink) int {
+		if c := cmp.Compare(a.Caller, b.Caller); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Callee, b.Callee)
+	})
 
 	return nil, types.GetDependenciesOutput{
 		Dependencies: links,

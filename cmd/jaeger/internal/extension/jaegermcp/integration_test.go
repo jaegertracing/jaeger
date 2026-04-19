@@ -368,11 +368,13 @@ func TestMCPClientGetServiceDependencies(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(text), &output))
 	require.Len(t, output.Dependencies, 2)
-	assert.Equal(t, "frontend", output.Dependencies[0].Caller)
-	assert.Equal(t, "backend", output.Dependencies[0].Callee)
-	assert.Equal(t, uint64(100), output.Dependencies[0].CallCount)
-	assert.Equal(t, "database", output.Dependencies[1].Callee)
-	assert.Equal(t, uint64(50), output.Dependencies[1].CallCount)
+	// Sorted by caller then callee: backend->database before frontend->backend
+	assert.Equal(t, "backend", output.Dependencies[0].Caller)
+	assert.Equal(t, "database", output.Dependencies[0].Callee)
+	assert.Equal(t, uint64(50), output.Dependencies[0].CallCount)
+	assert.Equal(t, "frontend", output.Dependencies[1].Caller)
+	assert.Equal(t, "backend", output.Dependencies[1].Callee)
+	assert.Equal(t, uint64(100), output.Dependencies[1].CallCount)
 }
 
 // --- End-to-end workflow test ---
