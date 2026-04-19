@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -72,6 +73,17 @@ func connectMCPSession(t *testing.T, mockReader *tracestoremocks.Reader) *mcpSes
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 
+	return &mcpSession{ClientSession: session, ctx: ctx}
+}
+
+// connectMCPSessionWithQueryService is like connectMCPSession but accepts a
+// pre-built QueryService, allowing custom dep/trace reader mocks.
+func connectMCPSessionWithQueryService(t *testing.T, svc *querysvc.QueryService) *mcpSession {
+	t.Helper()
+	_, addr := startTestServerWithQueryService(t, svc, nil)
+	session := connectMCPClient(t, addr)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
 	return &mcpSession{ClientSession: session, ctx: ctx}
 }
 
@@ -332,6 +344,35 @@ func TestMCPClientGetCriticalPath(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(text), &output))
 	assert.Equal(t, testTraceID.String(), output.TraceID)
 	assert.NotEmpty(t, output.Segments)
+}
+
+func TestMCPClientGetServiceDependencies(t *testing.T) {
+	mockDepReader := &depstoremocks.Reader{}
+	mockDepReader.On("GetDependencies", mock.Anything, mock.Anything).Return(
+		[]model.DependencyLink{
+			{Parent: "frontend", Child: "backend", CallCount: 100},
+			{Parent: "backend", Child: "database", CallCount: 50},
+		}, nil,
+	)
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, mockDepReader, querysvc.QueryServiceOptions{})
+	s := connectMCPSessionWithQueryService(t, svc)
+
+	text := s.callTool(t, "get_service_dependencies", nil)
+
+	var output struct {
+		Dependencies []struct {
+			Caller    string `json:"caller"`
+			Callee    string `json:"callee"`
+			CallCount uint64 `json:"call_count"`
+		} `json:"dependencies"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(text), &output))
+	require.Len(t, output.Dependencies, 2)
+	assert.Equal(t, "frontend", output.Dependencies[0].Caller)
+	assert.Equal(t, "backend", output.Dependencies[0].Callee)
+	assert.Equal(t, uint64(100), output.Dependencies[0].CallCount)
+	assert.Equal(t, "database", output.Dependencies[1].Callee)
+	assert.Equal(t, uint64(50), output.Dependencies[1].CallCount)
 }
 
 // --- End-to-end workflow test ---

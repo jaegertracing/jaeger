@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
 
-// queryServiceGetDependenciesInterface defines the interface needed from QueryService for testing.
+// queryServiceGetDependenciesInterface defines the interface we need from QueryService for testing.
 type queryServiceGetDependenciesInterface interface {
 	GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error)
 }
