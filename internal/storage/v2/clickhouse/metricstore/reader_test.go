@@ -67,7 +67,7 @@ func TestGetLatencies(t *testing.T) {
 	require.Equal(t, "service_latencies", result.Name)
 	require.Len(t, result.Metrics[0].MetricPoints, 1)
 	require.Equal(t, "frontend", result.Metrics[0].Labels[0].Value)
-	require.Equal(t, 150.5, result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue())
+	require.InDelta(t, 150.5, result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
 }
 
 func TestGetLatencies_MultipleServicesAndBuckets(t *testing.T) {
@@ -107,13 +107,13 @@ func TestGetLatencies_MultipleServicesAndBuckets(t *testing.T) {
 	// frontend: two time buckets
 	fe := byService["frontend"]
 	require.Len(t, fe.MetricPoints, 2)
-	assert.Equal(t, 100.0, fe.MetricPoints[0].GetGaugeValue().GetDoubleValue())
-	assert.Equal(t, 200.0, fe.MetricPoints[1].GetGaugeValue().GetDoubleValue())
+	assert.InDelta(t, 100.0, fe.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+	assert.InDelta(t, 200.0, fe.MetricPoints[1].GetGaugeValue().GetDoubleValue(), 0.001)
 
 	// backend: one time bucket
 	be := byService["backend"]
 	require.Len(t, be.MetricPoints, 1)
-	assert.Equal(t, 50.0, be.MetricPoints[0].GetGaugeValue().GetDoubleValue())
+	assert.InDelta(t, 50.0, be.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
 }
 
 func TestGetLatencies_GroupByOperation(t *testing.T) {
@@ -155,13 +155,13 @@ func TestGetLatencies_GroupByOperation(t *testing.T) {
 	// GET /api: two data points
 	getAPI := byOp["GET /api"]
 	require.Len(t, getAPI.MetricPoints, 2)
-	assert.Equal(t, 100.0, getAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue())
-	assert.Equal(t, 120.0, getAPI.MetricPoints[1].GetGaugeValue().GetDoubleValue())
+	assert.InDelta(t, 100.0, getAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+	assert.InDelta(t, 120.0, getAPI.MetricPoints[1].GetGaugeValue().GetDoubleValue(), 0.001)
 
 	// POST /api: one data point
 	postAPI := byOp["POST /api"]
 	require.Len(t, postAPI.MetricPoints, 1)
-	assert.Equal(t, 250.0, postAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue())
+	assert.InDelta(t, 250.0, postAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
 }
 
 func TestGetCallRates(t *testing.T) {

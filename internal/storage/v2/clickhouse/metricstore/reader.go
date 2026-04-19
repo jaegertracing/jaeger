@@ -55,17 +55,17 @@ func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.Latencies
 }
 
 // GetCallRates implements metricstore.Reader.
-func (r *Reader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+func (r *Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	panic("unimplemented")
 }
 
 // GetErrorRates implements metricstore.Reader.
-func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+func (r *Reader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	panic("unimplemented")
 }
 
 // GetMinStepDuration implements metricstore.Reader.
-func (r *Reader) GetMinStepDuration(ctx context.Context, params *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
+func (r *Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	panic("unimplemented")
 }
 
