@@ -131,3 +131,8 @@ func TestGetDependenciesHandler_Handle_EmptyResult(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, output.Dependencies)
 }
+
+func TestNewGetDependenciesHandler(t *testing.T) {
+	handler := NewGetDependenciesHandler(nil)
+	assert.NotNil(t, handler)
+}
