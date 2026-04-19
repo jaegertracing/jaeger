@@ -47,8 +47,11 @@ type Span struct {
 
 // Hash implements Hash from Hashable.
 func (s Span) Hash(w io.Writer) (err error) {
+	sCopy := s
+	sCopy.SpanHash = 0
+
 	enc := gob.NewEncoder(w)
-	return enc.Encode(s)
+	return enc.Encode(sCopy)
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
