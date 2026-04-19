@@ -13,7 +13,7 @@ hotrod:
     - --jaeger-ui=https://demo.jaegertracing.io/jaeger
   livenessProbe:
     path: /hotrod
-  readinessProbe: 
+  readinessProbe:
     path: /hotrod
   extraEnv:
     - name: OTEL_EXPORTER_OTLP_ENDPOINT

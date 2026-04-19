@@ -12,18 +12,18 @@ project-lifecycle:
   - https://github.com/jaegertracing/jaeger/blob/main/README.md#maintainers
   roadmap: https://www.jaegertracing.io/roadmap/
   release-cycle: https://github.com/jaegertracing/jaeger/blob/main/RELEASE.md#release-managers
-  status: active 
+  status: active
 contribution-policy:
   accepts-pull-requests: true
   accepts-automated-pull-requests: true
-  contributing-policy: https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md 
+  contributing-policy: https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md
   code-of-conduct: https://github.com/jaegertracing/jaeger/blob/main/CODE_OF_CONDUCT.md
 documentation:
 - https://www.jaegertracing.io/docs/
 distribution-points:
 - https://github.com/jaegertracing/jaeger/
 - https://hub.docker.com/r/jaegertracing/
-- https://quay.io/organization/jaegertracing/ 
+- https://quay.io/organization/jaegertracing/
 security-artifacts:
   threat-model:
     threat-model-created: true
@@ -58,9 +58,9 @@ dependencies:
   dependencies-lists:
   - https://github.com/jaegertracing/jaeger/blob/main/go.mod
   sbom:
-  - sbom-file: https://github.com/jaegertracing/jaeger/releases/latest/download/jaeger-SBOM.spdx.json 
+  - sbom-file: https://github.com/jaegertracing/jaeger/releases/latest/download/jaeger-SBOM.spdx.json
     sbom-format: SPDX
-    sbom-url: https://github.com/anchore/sbom-action 
+    sbom-url: https://github.com/anchore/sbom-action
   dependencies-lifecycle:
     policy-url: https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#security-patch-policy
   env-dependencies-policy:

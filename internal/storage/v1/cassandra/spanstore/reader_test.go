@@ -190,9 +190,10 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		_, err := r.reader.FindTraces(context.Background(), nil)
+		for _, err := range r.reader.FindTraces(context.Background(), nil) {
+			require.Error(t, err)
+		}
 		require.Empty(t, r.traceBuffer.GetSpans(), "Spans Not recorded")
-		require.Error(t, err)
 	})
 }
 
@@ -212,6 +213,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		expectedCount                     int
 		expectedError                     string
 		expectedLogs                      []string
+		breakIter                         bool
 	}{
 		{
 			caption:       "main query",
@@ -311,6 +313,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				`"trace_id":"0000000000000001"`,
 				`"trace_id":"0000000000000002"`,
 			},
+		},
+		{
+			caption:       "break iter",
+			expectedCount: 1,
+			breakIter:     true,
 		},
 	}
 	for _, tc := range testCases {
@@ -413,7 +420,18 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					queryParams.DurationMin = time.Minute
 					queryParams.DurationMax = time.Minute * 3
 				}
-				res, err := r.reader.FindTraces(context.Background(), queryParams)
+				var res []dbmodel.Trace
+				var err error
+				for tr, inerr := range r.reader.FindTraces(context.Background(), queryParams) {
+					if inerr != nil {
+						err = inerr
+						break
+					}
+					res = append(res, tr)
+					if testCase.breakIter {
+						break
+					}
+				}
 				if testCase.expectedError == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					require.NoError(t, err)

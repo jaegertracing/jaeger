@@ -415,11 +415,11 @@ extensions:
     # HTTP endpoint for MCP protocol (Streamable HTTP transport)
     http:
       endpoint: "0.0.0.0:16687"
-    
+
     # Server identification for MCP protocol
     server_name: "jaeger"
     server_version: "${version}"
-    
+
     # Limits
     max_span_details_per_request: 20
     max_search_results: 100

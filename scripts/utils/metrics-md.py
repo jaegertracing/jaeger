@@ -90,7 +90,7 @@ class ConvertJson:
         combined_metrics_table = generate_combined_markdown_table(
             common_metrics, v1_only_metrics, v2_only_metrics
         )
-        
+
         filtered_v1_metrics = {
        "jaeger_collector_spans_rejected_total": {"debug": "false", "format": "","svc": "","transport":""},
        "jaeger_build_info": {"build_date": "","revision": ""," version": ""}  # Add more metrics as needed

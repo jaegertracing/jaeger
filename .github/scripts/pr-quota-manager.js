@@ -2,11 +2,11 @@
 
 /**
  * PR Quota Management System
- * 
+ *
  * This script implements a "Waiting Room" system that limits concurrent open PRs
  * from contributors based on their merge history, automatically unlocking queued PRs
  * when quota becomes available.
- * 
+ *
  * Usage:
  *   - Via GitHub Actions (integrated with actions/github-script)
  *   - Manual execution: GITHUB_TOKEN=<token> node pr-quota-manager.js <username> [owner] [repo]
@@ -94,7 +94,7 @@ async function fetchAuthorPRs(octokit, owner, repo, author) {
 
     // Stop if we have enough merged PRs to determine unlimited quota
     if (mergedPRs.length >= MAX_MERGED_NEEDED) break;
-    
+
     if (data.length < perPage) break;
     page++;
   }
@@ -271,7 +271,7 @@ async function hasBlockingComment(octokit, owner, repo, issueNumber) {
     issue_number: issueNumber
   });
 
-  return comments.some(comment => 
+  return comments.some(comment =>
     comment.body && comment.body.includes('This PR is currently **on hold**')
   );
 }
@@ -336,7 +336,7 @@ Thank you for your patience.`;
  */
 async function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length < 1) {
     console.error('Usage: GITHUB_TOKEN=<token> node pr-quota-manager.js <username> [owner] [repo]');
     process.exit(1);
@@ -376,26 +376,26 @@ async function githubActionHandler({github, core, username, owner, repo, dryRun 
     core.setFailed('Username is required');
     return;
   }
-  
+
   if (!owner || !repo) {
     core.setFailed('Owner and repo are required');
     return;
   }
-  
+
   // Process the quota
   try {
     const result = await processQuotaForAuthor(github, owner, repo, username, console, dryRun);
-    
+
     core.info('');
     core.info('=== Summary ===');
     core.info(`Blocked: ${result.results.blocked.length} PRs`);
     core.info(`Unblocked: ${result.results.unblocked.length} PRs`);
     core.info(`Unchanged: ${result.results.unchanged.length} PRs`);
-    
+
     if (result.results.blocked.length > 0) {
       core.info(`Blocked PRs: ${result.results.blocked.join(', ')}`);
     }
-    
+
     if (result.results.unblocked.length > 0) {
       core.info(`Unblocked PRs: ${result.results.unblocked.join(', ')}`);
     }
@@ -409,7 +409,7 @@ async function githubActionHandler({github, core, username, owner, repo, dryRun 
 if (typeof module !== 'undefined' && module.exports) {
   // Default export is the GitHub Actions handler
   module.exports = githubActionHandler;
-  
+
   // Named exports for testing and direct usage
   module.exports.formatStatus = formatStatus;
   module.exports.calculateQuota = calculateQuota;
