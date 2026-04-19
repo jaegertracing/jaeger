@@ -190,8 +190,8 @@ func (s *server) registerTools() {
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_service_dependencies",
-		Description: "Get the service dependency graph showing which services call which. " +
-			"Returns edges with call counts over a configurable time window (default 24h).",
+		Description: "Get the service dependency graph showing caller-callee pairs. " +
+			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
 }
 

@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,8 +15,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 )
-
-const defaultDependencyLookback = 24 * time.Hour
 
 // queryServiceGetDependenciesInterface defines the interface needed from QueryService for testing.
 type queryServiceGetDependenciesInterface interface {
@@ -41,20 +40,23 @@ func (h *getDependenciesHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetDependenciesInput,
 ) (*mcp.CallToolResult, types.GetDependenciesOutput, error) {
-	lookback := defaultDependencyLookback
-	if input.Lookback != "" {
-		parsed, err := time.ParseDuration(input.Lookback)
-		if err != nil {
-			return nil, types.GetDependenciesOutput{}, fmt.Errorf("invalid lookback: %w", err)
-		}
-		if parsed <= 0 {
-			return nil, types.GetDependenciesOutput{}, fmt.Errorf("lookback must be positive, got %s", parsed)
-		}
-		lookback = parsed
+	endTime, err := parseDependencyTime(input.EndTime, time.Now())
+	if err != nil {
+		return nil, types.GetDependenciesOutput{}, fmt.Errorf("invalid end_time: %w", err)
 	}
 
-	endTs := time.Now()
-	deps, err := h.queryService.GetDependencies(ctx, endTs, lookback)
+	defaultStart := endTime.Add(-24 * time.Hour)
+	startTime, err := parseDependencyTime(input.StartTime, defaultStart)
+	if err != nil {
+		return nil, types.GetDependenciesOutput{}, fmt.Errorf("invalid start_time: %w", err)
+	}
+
+	if !startTime.Before(endTime) {
+		return nil, types.GetDependenciesOutput{}, errors.New("start_time must be before end_time")
+	}
+
+	lookback := endTime.Sub(startTime)
+	deps, err := h.queryService.GetDependencies(ctx, endTime, lookback)
 	if err != nil {
 		return nil, types.GetDependenciesOutput{}, fmt.Errorf("failed to get dependencies: %w", err)
 	}
@@ -62,14 +64,21 @@ func (h *getDependenciesHandler) handle(
 	links := make([]types.DependencyLink, 0, len(deps))
 	for _, d := range deps {
 		links = append(links, types.DependencyLink{
-			Parent:    d.Parent,
-			Child:     d.Child,
+			Caller:    d.Parent,
+			Callee:    d.Child,
 			CallCount: d.CallCount,
-			Source:    d.Source,
 		})
 	}
 
 	return nil, types.GetDependenciesOutput{
 		Dependencies: links,
 	}, nil
+}
+
+// parseDependencyTime parses a time string, returning the default if the input is empty.
+func parseDependencyTime(input string, defaultTime time.Time) (time.Time, error) {
+	if input == "" {
+		return defaultTime, nil
+	}
+	return parseTimeParam(input)
 }

@@ -19,10 +19,12 @@ import (
 type mockDependencyService struct {
 	deps             []model.DependencyLink
 	err              error
+	capturedEndTs    time.Time
 	capturedLookback time.Duration
 }
 
-func (m *mockDependencyService) GetDependencies(_ context.Context, _ time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (m *mockDependencyService) GetDependencies(_ context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	m.capturedEndTs = endTs
 	m.capturedLookback = lookback
 	return m.deps, m.err
 }
@@ -38,51 +40,78 @@ func TestGetDependenciesHandler_Handle_Success(t *testing.T) {
 	_, output, err := h.handle(context.Background(), nil, types.GetDependenciesInput{})
 	require.NoError(t, err)
 	require.Len(t, output.Dependencies, 3)
-	assert.Equal(t, "api-gateway", output.Dependencies[0].Parent)
-	assert.Equal(t, "payment-service", output.Dependencies[0].Child)
+	assert.Equal(t, "api-gateway", output.Dependencies[0].Caller)
+	assert.Equal(t, "payment-service", output.Dependencies[0].Callee)
 	assert.Equal(t, uint64(150), output.Dependencies[0].CallCount)
 }
 
-func TestGetDependenciesHandler_Handle_DefaultLookback(t *testing.T) {
+func TestGetDependenciesHandler_Handle_DefaultTimeRange(t *testing.T) {
 	mock := &mockDependencyService{}
 	h := &getDependenciesHandler{queryService: mock}
 
+	before := time.Now()
 	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{})
 	require.NoError(t, err)
-	assert.Equal(t, defaultDependencyLookback, mock.capturedLookback)
+
+	// Default lookback should be 24h
+	assert.InDelta(t, (24 * time.Hour).Seconds(), mock.capturedLookback.Seconds(), 1)
+	// End time should be approximately now
+	assert.WithinDuration(t, before, mock.capturedEndTs, 2*time.Second)
 }
 
-func TestGetDependenciesHandler_Handle_CustomLookback(t *testing.T) {
+func TestGetDependenciesHandler_Handle_CustomTimeRange(t *testing.T) {
 	mock := &mockDependencyService{}
 	h := &getDependenciesHandler{queryService: mock}
 
-	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "1h"})
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{
+		StartTime: "-1h",
+		EndTime:   "now",
+	})
 	require.NoError(t, err)
-	assert.Equal(t, time.Hour, mock.capturedLookback)
+	assert.InDelta(t, time.Hour.Seconds(), mock.capturedLookback.Seconds(), 1)
 }
 
-func TestGetDependenciesHandler_Handle_InvalidLookback(t *testing.T) {
-	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
+func TestGetDependenciesHandler_Handle_RFC3339TimeRange(t *testing.T) {
+	mock := &mockDependencyService{}
+	h := &getDependenciesHandler{queryService: mock}
 
-	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "invalid"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid lookback")
+	endTime := time.Now().UTC().Truncate(time.Second)
+	startTime := endTime.Add(-2 * time.Hour)
+
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{
+		StartTime: startTime.Format(time.RFC3339),
+		EndTime:   endTime.Format(time.RFC3339),
+	})
+	require.NoError(t, err)
+	assert.InDelta(t, (2 * time.Hour).Seconds(), mock.capturedLookback.Seconds(), 1)
+	assert.WithinDuration(t, endTime, mock.capturedEndTs, time.Second)
 }
 
-func TestGetDependenciesHandler_Handle_NegativeLookback(t *testing.T) {
+func TestGetDependenciesHandler_Handle_InvalidStartTime(t *testing.T) {
 	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
 
-	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "-1h"})
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{StartTime: "invalid"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "lookback must be positive")
+	assert.Contains(t, err.Error(), "invalid start_time")
 }
 
-func TestGetDependenciesHandler_Handle_ZeroLookback(t *testing.T) {
+func TestGetDependenciesHandler_Handle_InvalidEndTime(t *testing.T) {
 	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
 
-	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{Lookback: "0s"})
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{EndTime: "invalid"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "lookback must be positive")
+	assert.Contains(t, err.Error(), "invalid end_time")
+}
+
+func TestGetDependenciesHandler_Handle_StartAfterEnd(t *testing.T) {
+	h := &getDependenciesHandler{queryService: &mockDependencyService{}}
+
+	_, _, err := h.handle(context.Background(), nil, types.GetDependenciesInput{
+		StartTime: "now",
+		EndTime:   "-1h",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start_time must be before end_time")
 }
 
 func TestGetDependenciesHandler_Handle_StorageError(t *testing.T) {
