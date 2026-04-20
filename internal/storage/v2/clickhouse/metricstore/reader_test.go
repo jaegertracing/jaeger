@@ -239,3 +239,87 @@ func TestGetMinStepDuration(t *testing.T) {
 		reader.GetMinStepDuration(t.Context(), &metricstore.MinStepDurationQueryParameters{})
 	})
 }
+
+func TestStepSeconds(t *testing.T) {
+	tests := []struct {
+		name string
+		step *time.Duration
+		want uint64
+	}{
+		{
+			name: "nil step returns default",
+			step: nil,
+			want: defaultStepSeconds,
+		},
+		{
+			name: "normal step",
+			step: ptr(30 * time.Second),
+			want: 30,
+		},
+		{
+			name: "sub-second step clamped to 1",
+			step: ptr(500 * time.Millisecond),
+			want: 1,
+		},
+		{
+			name: "zero step returns default",
+			step: ptr(time.Duration(0)),
+			want: defaultStepSeconds,
+		},
+		{
+			name: "negative step returns default",
+			step: ptr(-5 * time.Second),
+			want: defaultStepSeconds,
+		},
+		{
+			name: "one second step",
+			step: ptr(time.Second),
+			want: 1,
+		},
+		{
+			name: "fractional seconds truncated",
+			step: ptr(2500 * time.Millisecond),
+			want: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := metricstore.BaseQueryParameters{Step: tt.step}
+			assert.Equal(t, tt.want, stepSeconds(p))
+		})
+	}
+}
+
+func TestConvertSpanKinds(t *testing.T) {
+	tests := []struct {
+		name  string
+		kinds []string
+		want  []string
+	}{
+		{
+			name:  "server",
+			kinds: []string{"SPAN_KIND_SERVER"},
+			want:  []string{"server"},
+		},
+		{
+			name:  "multiple kinds",
+			kinds: []string{"SPAN_KIND_SERVER", "SPAN_KIND_CLIENT"},
+			want:  []string{"server", "client"},
+		},
+		{
+			name:  "unspecified maps to empty string",
+			kinds: []string{"SPAN_KIND_UNSPECIFIED"},
+			want:  []string{""},
+		},
+		{
+			name:  "empty input",
+			kinds: []string{},
+			want:  []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, convertSpanKinds(tt.kinds))
+		})
+	}
+}

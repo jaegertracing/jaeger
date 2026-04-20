@@ -138,12 +138,13 @@ func queryWindow(p metricstore.BaseQueryParameters) (start, end time.Time) {
 }
 
 // stepSeconds extracts the step duration in seconds from BaseQueryParameters.
-// Sub-second steps are clamped to 1 second.
 func stepSeconds(p metricstore.BaseQueryParameters) uint64 {
-	if p.Step != nil {
-		if s := uint64(*p.Step / time.Second); s > 0 {
-			return s
+	if p.Step != nil && *p.Step > 0 {
+		s := *p.Step / time.Second
+		if s < 1 {
+			return 1
 		}
+		return uint64(s)
 	}
 	return defaultStepSeconds
 }
@@ -151,7 +152,13 @@ func stepSeconds(p metricstore.BaseQueryParameters) uint64 {
 func convertSpanKinds(kinds []string) []string {
 	out := make([]string, 0, len(kinds))
 	for _, k := range kinds {
-		out = append(out, jptrace.ProtoSpanKindToString(k))
+		converted := jptrace.ProtoSpanKindToString(k)
+		// SpanKindUnspecified is stored as "" in ClickHouse (via jptrace.SpanKindToString),
+		// but ProtoSpanKindToString returns "unspecified". Normalize to match storage.
+		if converted == "unspecified" {
+			converted = ""
+		}
+		out = append(out, converted)
 	}
 	return out
 }
