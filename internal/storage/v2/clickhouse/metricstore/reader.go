@@ -61,8 +61,27 @@ func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParam
 	return nil, errNotImplemented
 }
 
-func (*Reader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, errNotImplemented
+func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	name, desc := "service_error_rate", "error rate, grouped by service"
+	query := sql.SelectErrorRates
+	if params.GroupByOperation {
+		name = "service_operation_error_rate"
+		desc += " & operation"
+		query = sql.SelectErrorRatesByOperation
+	}
+
+	start, end := queryWindow(params.BaseQueryParameters)
+	step := stepSeconds(params.BaseQueryParameters)
+	kinds := convertSpanKinds(params.SpanKinds)
+
+	rows, err := r.conn.Query(ctx, query,
+		step, start, end, params.ServiceNames, kinds,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query error rates: %w", err)
+	}
+
+	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
 }
 
 func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
