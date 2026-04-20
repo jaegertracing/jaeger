@@ -49,7 +49,10 @@ type Span struct {
 func (s Span) Hash(w io.Writer) (err error) {
 	sCopy := s
 	sCopy.SpanHash = 0
-
+	SortKVs(sCopy.Tags)
+	SortKVs(sCopy.Process.Tags)
+	sortLogs(sCopy.Logs)
+	sortSpanRefs(sCopy.Refs)
 	enc := gob.NewEncoder(w)
 	return enc.Encode(sCopy)
 }
@@ -152,6 +155,36 @@ func (t *KeyValue) AsString() string {
 func SortKVs(kvs []KeyValue) {
 	slices.SortFunc(kvs, func(a, b KeyValue) int {
 		return a.Compare(b)
+	})
+}
+
+func compareKVs(a, b []KeyValue) int {
+	if lenComp := len(a) - len(b); lenComp != 0 {
+		return lenComp
+	}
+	return slices.CompareFunc(a, b, func(a KeyValue, b KeyValue) int {
+		return a.Compare(b)
+	})
+}
+
+func sortLogs(logs []Log) {
+	slices.SortFunc(logs, func(a, b Log) int {
+		if timeComp := int(a.Timestamp - b.Timestamp); timeComp != 0 {
+			return timeComp
+		}
+		return compareKVs(a.Fields, b.Fields)
+	})
+}
+
+func sortSpanRefs(spanRefs []SpanRef) {
+	slices.SortFunc(spanRefs, func(a, b SpanRef) int {
+		if traceIDComp := bytes.Compare(a.TraceID[:], b.TraceID[:]); traceIDComp != 0 {
+			return traceIDComp
+		}
+		if spanIDComp := int(a.SpanID - b.SpanID); spanIDComp != 0 {
+			return spanIDComp
+		}
+		return strings.Compare(a.RefType, b.RefType)
 	})
 }
 

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
@@ -400,4 +401,198 @@ func TestSortKVs_WithValue(t *testing.T) {
 	for i, kv := range kvs {
 		assert.Equal(t, want[i], kv.ValueString)
 	}
+}
+
+func TestSpanHash(t *testing.T) {
+	baseSpan := Span{
+		TraceID:       TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+		SpanID:        123,
+		OperationName: "test",
+		StartTime:     456,
+		Duration:      789,
+		Tags: []KeyValue{
+			{Key: "b", ValueType: StringType, ValueString: "v2"},
+			{Key: "a", ValueType: StringType, ValueString: "v1"},
+		},
+		Process: Process{
+			ServiceName: "svc",
+			Tags: []KeyValue{
+				{Key: "d", ValueType: StringType, ValueString: "v4"},
+				{Key: "c", ValueType: StringType, ValueString: "v3"},
+			},
+		},
+		Logs: []Log{
+			{Timestamp: 2, Fields: []KeyValue{{Key: "f", ValueType: StringType, ValueString: "v6"}}},
+			{Timestamp: 1, Fields: []KeyValue{{Key: "e", ValueType: StringType, ValueString: "v5"}}},
+		},
+		Refs: []SpanRef{
+			{RefType: ChildOf, SpanID: 2},
+			{RefType: ChildOf, SpanID: 1},
+		},
+		SpanHash: 1000,
+	}
+
+	getHash := func(s Span) []byte {
+		var buf bytes.Buffer
+		err := s.Hash(&buf)
+		require.NoError(t, err)
+		return buf.Bytes()
+	}
+
+	baseHash := getHash(baseSpan)
+
+	tests := []struct {
+		name     string
+		mutate   func(s *Span)
+		shouldEq bool
+	}{
+		{
+			name:     "determinism",
+			mutate:   func(_ *Span) {},
+			shouldEq: true,
+		},
+		{
+			name: "ignore existing SpanHash",
+			mutate: func(s *Span) {
+				s.SpanHash = 2000
+			},
+			shouldEq: true,
+		},
+		{
+			name: "stable under tag reordering",
+			mutate: func(s *Span) {
+				s.Tags[0], s.Tags[1] = s.Tags[1], s.Tags[0]
+			},
+			shouldEq: true,
+		},
+		{
+			name: "stable under process tag reordering",
+			mutate: func(s *Span) {
+				s.Process.Tags[0], s.Process.Tags[1] = s.Process.Tags[1], s.Process.Tags[0]
+			},
+			shouldEq: true,
+		},
+		{
+			name: "stable under log reordering",
+			mutate: func(s *Span) {
+				s.Logs[0], s.Logs[1] = s.Logs[1], s.Logs[0]
+			},
+			shouldEq: true,
+		},
+		{
+			name: "stable under ref reordering",
+			mutate: func(s *Span) {
+				s.Refs[0], s.Refs[1] = s.Refs[1], s.Refs[0]
+			},
+			shouldEq: true,
+		},
+		{
+			name: "different TraceID",
+			mutate: func(s *Span) {
+				s.TraceID[0] = 255
+			},
+			shouldEq: false,
+		},
+		{
+			name: "different SpanID",
+			mutate: func(s *Span) {
+				s.SpanID = 999
+			},
+			shouldEq: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			testSpan := baseSpan
+			// Deep copy slices to avoid side effects
+			testSpan.Tags = append([]KeyValue(nil), baseSpan.Tags...)
+			testSpan.Process.Tags = append([]KeyValue(nil), baseSpan.Process.Tags...)
+			testSpan.Logs = append([]Log(nil), baseSpan.Logs...)
+			testSpan.Refs = append([]SpanRef(nil), baseSpan.Refs...)
+
+			tc.mutate(&testSpan)
+			currentHash := getHash(testSpan)
+			if tc.shouldEq {
+				assert.Equal(t, baseHash, currentHash)
+			} else {
+				assert.NotEqual(t, baseHash, currentHash)
+			}
+		})
+	}
+}
+
+func TestCompareKVs(t *testing.T) {
+	tests := []struct {
+		name   string
+		a, b   []KeyValue
+		expect int
+	}{
+		{
+			name:   "equal empty",
+			a:      []KeyValue{},
+			b:      []KeyValue{},
+			expect: 0,
+		},
+		{
+			name:   "length mismatch",
+			a:      []KeyValue{{Key: "a"}},
+			b:      []KeyValue{},
+			expect: 1,
+		},
+		{
+			name:   "content mismatch",
+			a:      []KeyValue{{Key: "a"}},
+			b:      []KeyValue{{Key: "b"}},
+			expect: -1,
+		},
+		{
+			name:   "equal content",
+			a:      []KeyValue{{Key: "a", ValueType: StringType, ValueString: "v"}},
+			b:      []KeyValue{{Key: "a", ValueType: StringType, ValueString: "v"}},
+			expect: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, compareKVs(tc.a, tc.b))
+		})
+	}
+}
+
+func TestSortLogs(t *testing.T) {
+	logs := []Log{
+		{Timestamp: 2, Fields: []KeyValue{{Key: "a"}}},
+		{Timestamp: 1, Fields: []KeyValue{{Key: "b"}}},
+		{Timestamp: 2, Fields: []KeyValue{{Key: "b"}}},
+	}
+	sortLogs(logs)
+	assert.Equal(t, int64(1), logs[0].Timestamp)
+	assert.Equal(t, int64(2), logs[1].Timestamp)
+	assert.Equal(t, "a", logs[1].Fields[0].Key)
+	assert.Equal(t, int64(2), logs[2].Timestamp)
+	assert.Equal(t, "b", logs[2].Fields[0].Key)
+}
+
+func TestSortSpanRefs(t *testing.T) {
+	refs := []SpanRef{
+		{TraceID: TraceID{2}, SpanID: 1, RefType: ChildOf},
+		{TraceID: TraceID{1}, SpanID: 2, RefType: ChildOf},
+		{TraceID: TraceID{1}, SpanID: 1, RefType: FollowsFrom},
+		{TraceID: TraceID{1}, SpanID: 1, RefType: ChildOf},
+	}
+	sortSpanRefs(refs)
+	assert.Equal(t, byte(1), refs[0].TraceID[0])
+	assert.Equal(t, int64(1), refs[0].SpanID)
+	assert.Equal(t, ChildOf, refs[0].RefType)
+
+	assert.Equal(t, byte(1), refs[1].TraceID[0])
+	assert.Equal(t, int64(1), refs[1].SpanID)
+	assert.Equal(t, FollowsFrom, refs[1].RefType)
+
+	assert.Equal(t, byte(1), refs[2].TraceID[0])
+	assert.Equal(t, int64(2), refs[2].SpanID)
+
+	assert.Equal(t, byte(2), refs[3].TraceID[0])
 }
