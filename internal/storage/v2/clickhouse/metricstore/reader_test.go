@@ -164,6 +164,55 @@ func TestGetLatencies_GroupByOperation(t *testing.T) {
 	assert.InDelta(t, 250.0, postAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
 }
 
+func TestGetLatencies_Errors(t *testing.T) {
+	tests := []struct {
+		name     string
+		response *clickhousetest.QueryResponse
+		err      string
+	}{
+		{
+			name:     "query error",
+			response: &clickhousetest.QueryResponse{Err: assert.AnError},
+			err:      "failed to query latencies",
+		},
+		{
+			name: "scan error",
+			response: &clickhousetest.QueryResponse{
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data:    []metricsRow{{ServiceName: "frontend"}},
+					ScanErr: assert.AnError,
+				},
+			},
+			err: "failed to scan metrics row",
+		},
+		{
+			name: "rows error",
+			response: &clickhousetest.QueryResponse{
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data:    []metricsRow{},
+					RowsErr: assert.AnError,
+				},
+			},
+			err: "error iterating metrics rows",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SelectLatencies: tt.response,
+				},
+			}
+			reader := NewReader(driver)
+			_, err := reader.GetLatencies(t.Context(), &metricstore.LatenciesQueryParameters{
+				BaseQueryParameters: testQueryParams,
+				Quantile:            0.95,
+			})
+			require.ErrorContains(t, err, tt.err)
+		})
+	}
+}
+
 func TestGetCallRates(t *testing.T) {
 	reader := NewReader(&clickhousetest.Driver{})
 	assert.Panics(t, func() {
