@@ -187,6 +187,12 @@ func (s *server) registerTools() {
 			"that determined end-to-end duration. " +
 			"Higher self_time_us values indicate where time is concentrated on the critical path.",
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "get_service_dependencies",
+		Description: "Get the service dependency graph showing caller-callee pairs. " +
+			"Returns edges with call counts over a configurable time window (default: last 24h).",
+	}, handlers.NewGetDependenciesHandler(s.queryAPI))
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
