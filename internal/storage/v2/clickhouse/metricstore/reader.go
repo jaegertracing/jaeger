@@ -153,8 +153,7 @@ func convertSpanKinds(kinds []string) []string {
 	out := make([]string, 0, len(kinds))
 	for _, k := range kinds {
 		converted := jptrace.ProtoSpanKindToString(k)
-		// SpanKindUnspecified is stored as "" in ClickHouse (via jptrace.SpanKindToString),
-		// but ProtoSpanKindToString returns "unspecified". Normalize to match storage.
+		// SpanKindUnspecified is stored as "" in ClickHouse
 		if converted == "unspecified" {
 			converted = ""
 		}
