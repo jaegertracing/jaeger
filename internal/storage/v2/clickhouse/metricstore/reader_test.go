@@ -121,15 +121,16 @@ func TestGetLatencies_MultipleServicesAndBuckets(t *testing.T) {
 }
 
 func TestGetLatencies_GroupByOperation(t *testing.T) {
-	ts := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	ts1 := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	ts2 := time.Date(2025, 1, 1, 11, 31, 0, 0, time.UTC)
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectLatenciesByOperation: {
 				Rows: &clickhousetest.Rows[metricsRow]{
 					Data: []metricsRow{
-						{Timestamp: ts, ServiceName: "frontend", Operation: "GET /api", Value: 100.0},
-						{Timestamp: ts, ServiceName: "frontend", Operation: "POST /api", Value: 250.0},
-						{Timestamp: ts, ServiceName: "frontend", Operation: "GET /api", Value: 120.0},
+						{Timestamp: ts1, ServiceName: "frontend", Operation: "GET /api", Value: 100.0},
+						{Timestamp: ts1, ServiceName: "frontend", Operation: "POST /api", Value: 250.0},
+						{Timestamp: ts2, ServiceName: "frontend", Operation: "GET /api", Value: 120.0},
 					},
 					ScanFn: scanMetricsRowWithOpFn,
 				},
