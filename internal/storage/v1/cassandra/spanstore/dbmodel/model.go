@@ -168,7 +168,7 @@ func SortLogs(logs []Log) {
 		SortKVs(log.Fields)
 	}
 	slices.SortFunc(logs, func(a, b Log) int {
-		if timeComp := int(a.Timestamp - b.Timestamp); timeComp != 0 {
+		if timeComp := compareInt64(a.Timestamp, b.Timestamp); timeComp != 0 {
 			return timeComp
 		}
 		return compareKVs(a.Fields, b.Fields)
@@ -180,11 +180,21 @@ func SortSpanRefs(spanRefs []SpanRef) {
 		if traceIDComp := bytes.Compare(a.TraceID[:], b.TraceID[:]); traceIDComp != 0 {
 			return traceIDComp
 		}
-		if spanIDComp := int(a.SpanID - b.SpanID); spanIDComp != 0 {
+		if spanIDComp := compareInt64(a.SpanID, b.SpanID); spanIDComp != 0 {
 			return spanIDComp
 		}
 		return strings.Compare(a.RefType, b.RefType)
 	})
+}
+
+func compareInt64(a, b int64) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 // Log is the UDT representation of a Jaeger Log.

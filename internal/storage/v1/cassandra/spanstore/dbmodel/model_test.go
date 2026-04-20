@@ -497,6 +497,38 @@ func TestSpanHash(t *testing.T) {
 	assert.NotEqual(t, codes[0], codes[2])
 }
 
+func Test_compareInt64(t *testing.T) {
+	tests := []struct {
+		name   string
+		a, b   int64
+		expect int
+	}{
+		{
+			name:   "equal",
+			a:      1,
+			b:      1,
+			expect: 0,
+		},
+		{
+			name:   "lesser",
+			a:      1,
+			b:      2,
+			expect: -1,
+		},
+		{
+			name:   "greater",
+			a:      2,
+			b:      1,
+			expect: 1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, compareInt64(tc.a, tc.b))
+		})
+	}
+}
+
 func makeSpan(kv KeyValue) Span {
 	return Span{
 		TraceID:       TraceID{1},
