@@ -125,9 +125,9 @@ func rowsToMetricFamily(rows driver.Rows, name, desc string, groupByOperation bo
 
 // queryWindow extracts the start and end time from BaseQueryParameters.
 func queryWindow(p metricstore.BaseQueryParameters) (start, end time.Time) {
-	end = time.Now()
+	end = time.Now().UTC()
 	if p.EndTime != nil {
-		end = *p.EndTime
+		end = p.EndTime.UTC()
 	}
 	lookback := defaultLookback
 	if p.Lookback != nil {
@@ -152,12 +152,15 @@ func stepSeconds(p metricstore.BaseQueryParameters) uint64 {
 func convertSpanKinds(kinds []string) []string {
 	out := make([]string, 0, len(kinds))
 	for _, k := range kinds {
-		converted := jptrace.ProtoSpanKindToString(k)
-		// SpanKindUnspecified is stored as "" in ClickHouse
-		if converted == "unspecified" {
-			converted = ""
+		// SpanKindUnspecified is stored as "" in ClickHouse (via jptrace.SpanKindToString).
+		if k == "SPAN_KIND_UNSPECIFIED" {
+			out = append(out, "")
+			continue
 		}
-		out = append(out, converted)
+		converted := jptrace.ProtoSpanKindToString(k)
+		if converted != "" {
+			out = append(out, converted)
+		}
 	}
 	return out
 }

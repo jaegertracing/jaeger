@@ -316,6 +316,11 @@ func TestConvertSpanKinds(t *testing.T) {
 			kinds: []string{},
 			want:  []string{},
 		},
+		{
+			name:  "unknown kind is skipped",
+			kinds: []string{"SPAN_KIND_SERVER", "INVALID_KIND"},
+			want:  []string{"server"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
