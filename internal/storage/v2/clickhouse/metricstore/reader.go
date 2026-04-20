@@ -138,14 +138,14 @@ func queryWindow(p metricstore.BaseQueryParameters) (start, end time.Time) {
 }
 
 // stepSeconds extracts the step duration in seconds from BaseQueryParameters.
+// Sub-second steps are clamped to 1 second.
 func stepSeconds(p metricstore.BaseQueryParameters) uint64 {
-	step := defaultStepSeconds
 	if p.Step != nil {
-		if p.Step.Seconds() > 0 {
-			step = uint64(p.Step.Seconds())
+		if s := uint64(*p.Step / time.Second); s > 0 {
+			return s
 		}
 	}
-	return step
+	return defaultStepSeconds
 }
 
 func convertSpanKinds(kinds []string) []string {
