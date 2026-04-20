@@ -65,8 +65,10 @@ func TestGetLatencies(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Metrics, 1)
 	require.Equal(t, "service_latencies", result.Name)
-	require.Len(t, result.Metrics[0].MetricPoints, 1)
+	require.Len(t, result.Metrics[0].Labels, 1)
+	require.Equal(t, "service_name", result.Metrics[0].Labels[0].Name)
 	require.Equal(t, "frontend", result.Metrics[0].Labels[0].Value)
+	require.Len(t, result.Metrics[0].MetricPoints, 1)
 	require.InDelta(t, 150.5, result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
 }
 
@@ -101,6 +103,8 @@ func TestGetLatencies_MultipleServicesAndBuckets(t *testing.T) {
 	// Build a map of service -> metric points for order-independent assertions.
 	byService := make(map[string]*metrics.Metric, len(result.Metrics))
 	for _, m := range result.Metrics {
+		require.Len(t, m.Labels, 1)
+		assert.Equal(t, "service_name", m.Labels[0].Name)
 		byService[m.Labels[0].Value] = m
 	}
 
@@ -149,6 +153,7 @@ func TestGetLatencies_GroupByOperation(t *testing.T) {
 		require.Len(t, m.Labels, 2)
 		assert.Equal(t, "service_name", m.Labels[0].Name)
 		assert.Equal(t, "frontend", m.Labels[0].Value)
+		assert.Equal(t, "operation", m.Labels[1].Name)
 		byOp[m.Labels[1].Value] = m
 	}
 
