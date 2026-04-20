@@ -54,17 +54,14 @@ func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.Latencies
 	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
 }
 
-// GetCallRates implements metricstore.Reader.
 func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	panic("unimplemented")
 }
 
-// GetErrorRates implements metricstore.Reader.
 func (*Reader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	panic("unimplemented")
 }
 
-// GetMinStepDuration implements metricstore.Reader.
 func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	panic("unimplemented")
 }
