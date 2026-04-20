@@ -403,125 +403,6 @@ func TestSortKVs_WithValue(t *testing.T) {
 	}
 }
 
-func TestSpanHash(t *testing.T) {
-	baseSpan := Span{
-		TraceID:       TraceID{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		SpanID:        123,
-		OperationName: "test",
-		StartTime:     456,
-		Duration:      789,
-		Tags: []KeyValue{
-			{Key: "b", ValueType: StringType, ValueString: "v2"},
-			{Key: "a", ValueType: StringType, ValueString: "v1"},
-		},
-		Process: Process{
-			ServiceName: "svc",
-			Tags: []KeyValue{
-				{Key: "d", ValueType: StringType, ValueString: "v4"},
-				{Key: "c", ValueType: StringType, ValueString: "v3"},
-			},
-		},
-		Logs: []Log{
-			{Timestamp: 2, Fields: []KeyValue{{Key: "f", ValueType: StringType, ValueString: "v6"}}},
-			{Timestamp: 1, Fields: []KeyValue{{Key: "e", ValueType: StringType, ValueString: "v5"}}},
-		},
-		Refs: []SpanRef{
-			{RefType: ChildOf, SpanID: 2},
-			{RefType: ChildOf, SpanID: 1},
-		},
-		SpanHash: 1000,
-	}
-
-	getHash := func(s Span) []byte {
-		var buf bytes.Buffer
-		err := s.Hash(&buf)
-		require.NoError(t, err)
-		return buf.Bytes()
-	}
-
-	baseHash := getHash(baseSpan)
-
-	tests := []struct {
-		name     string
-		mutate   func(s *Span)
-		shouldEq bool
-	}{
-		{
-			name:     "determinism",
-			mutate:   func(_ *Span) {},
-			shouldEq: true,
-		},
-		{
-			name: "ignore existing SpanHash",
-			mutate: func(s *Span) {
-				s.SpanHash = 2000
-			},
-			shouldEq: true,
-		},
-		{
-			name: "stable under tag reordering",
-			mutate: func(s *Span) {
-				s.Tags[0], s.Tags[1] = s.Tags[1], s.Tags[0]
-			},
-			shouldEq: true,
-		},
-		{
-			name: "stable under process tag reordering",
-			mutate: func(s *Span) {
-				s.Process.Tags[0], s.Process.Tags[1] = s.Process.Tags[1], s.Process.Tags[0]
-			},
-			shouldEq: true,
-		},
-		{
-			name: "stable under log reordering",
-			mutate: func(s *Span) {
-				s.Logs[0], s.Logs[1] = s.Logs[1], s.Logs[0]
-			},
-			shouldEq: true,
-		},
-		{
-			name: "stable under ref reordering",
-			mutate: func(s *Span) {
-				s.Refs[0], s.Refs[1] = s.Refs[1], s.Refs[0]
-			},
-			shouldEq: true,
-		},
-		{
-			name: "different TraceID",
-			mutate: func(s *Span) {
-				s.TraceID[0] = 255
-			},
-			shouldEq: false,
-		},
-		{
-			name: "different SpanID",
-			mutate: func(s *Span) {
-				s.SpanID = 999
-			},
-			shouldEq: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			testSpan := baseSpan
-			// Deep copy slices to avoid side effects
-			testSpan.Tags = append([]KeyValue(nil), baseSpan.Tags...)
-			testSpan.Process.Tags = append([]KeyValue(nil), baseSpan.Process.Tags...)
-			testSpan.Logs = append([]Log(nil), baseSpan.Logs...)
-			testSpan.Refs = append([]SpanRef(nil), baseSpan.Refs...)
-
-			tc.mutate(&testSpan)
-			currentHash := getHash(testSpan)
-			if tc.shouldEq {
-				assert.Equal(t, baseHash, currentHash)
-			} else {
-				assert.NotEqual(t, baseHash, currentHash)
-			}
-		})
-	}
-}
-
 func TestCompareKVs(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -567,7 +448,7 @@ func TestSortLogs(t *testing.T) {
 		{Timestamp: 1, Fields: []KeyValue{{Key: "b"}}},
 		{Timestamp: 2, Fields: []KeyValue{{Key: "b"}}},
 	}
-	sortLogs(logs)
+	SortLogs(logs)
 	assert.Equal(t, int64(1), logs[0].Timestamp)
 	assert.Equal(t, int64(2), logs[1].Timestamp)
 	assert.Equal(t, "a", logs[1].Fields[0].Key)
@@ -582,7 +463,7 @@ func TestSortSpanRefs(t *testing.T) {
 		{TraceID: TraceID{1}, SpanID: 1, RefType: FollowsFrom},
 		{TraceID: TraceID{1}, SpanID: 1, RefType: ChildOf},
 	}
-	sortSpanRefs(refs)
+	SortSpanRefs(refs)
 	assert.Equal(t, byte(1), refs[0].TraceID[0])
 	assert.Equal(t, int64(1), refs[0].SpanID)
 	assert.Equal(t, ChildOf, refs[0].RefType)
@@ -595,4 +476,39 @@ func TestSortSpanRefs(t *testing.T) {
 	assert.Equal(t, int64(2), refs[2].SpanID)
 
 	assert.Equal(t, byte(2), refs[3].TraceID[0])
+}
+
+func TestSpanHash(t *testing.T) {
+	kvs := []KeyValue{
+		{Key: "a", ValueType: StringType, ValueString: "a"},
+		{Key: "a", ValueType: StringType, ValueString: "a"},
+		{Key: "c", ValueType: StringType, ValueString: "c"},
+	}
+	spans := make([]Span, len(kvs))
+	codes := make([]uint64, len(kvs))
+	// create 3 spans that are only different in some KeyValues
+	for i := range kvs {
+		spans[i] = makeSpan(kvs[i])
+		hc, err := model.HashCode(spans[i])
+		require.NoError(t, err)
+		codes[i] = hc
+	}
+	assert.Equal(t, codes[0], codes[1])
+	assert.NotEqual(t, codes[0], codes[2])
+}
+
+func makeSpan(kv KeyValue) Span {
+	return Span{
+		TraceID:       TraceID{1},
+		SpanID:        1,
+		Tags:          []KeyValue{kv},
+		OperationName: "test",
+		Process: Process{
+			ServiceName: "service",
+			Tags:        []KeyValue{kv},
+		},
+		Logs: []Log{
+			{Timestamp: 2, Fields: []KeyValue{kv}},
+		},
+	}
 }

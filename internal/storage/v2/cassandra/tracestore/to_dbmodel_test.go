@@ -366,6 +366,65 @@ func loadSpans(t *testing.T, i int) []byte {
 	return spansData
 }
 
+func TestToDBModel_Stability(t *testing.T) {
+	td1 := createTracesWithSliceOrder([]int{0, 1, 2}, []int{0, 1, 2}, []int{0, 1, 2})
+	td2 := createTracesWithSliceOrder([]int{2, 1, 0}, []int{2, 1, 0}, []int{2, 1, 0})
+	spans1 := ToDBModel(td1)
+	spans2 := ToDBModel(td2)
+	require.Len(t, spans1, 1)
+	require.Len(t, spans2, 1)
+	s1 := spans1[0]
+	assert.NotZero(t, s1.SpanHash)
+	assert.Equal(t, spans1, spans2)
+}
+
+func createTracesWithSliceOrder(tagOrder, logOrder, linkOrder []int) ptrace.Traces {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	// Add tags in specified order
+	tags := []struct{ k, v string }{
+		{k: "z", v: "last"},
+		{k: "a", v: "first"},
+		{k: "m", v: "middle"},
+	}
+	for _, i := range tagOrder {
+		rs.Resource().Attributes().PutStr(tags[i].k, tags[i].v)
+	}
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+	for _, i := range tagOrder {
+		span.Attributes().PutStr(tags[i].k, tags[i].v)
+	}
+	// Add logs in specified order
+	logs := []struct {
+		ts uint64
+		n  string
+	}{
+		{ts: 2000, n: "log2"},
+		{ts: 1000, n: "log1"},
+		{ts: 1500, n: "log3"},
+	}
+	for _, i := range logOrder {
+		event := span.Events().AppendEmpty()
+		event.SetTimestamp(pcommon.Timestamp(logs[i].ts))
+		event.SetName(logs[i].n)
+	}
+	// Add links in specified order
+	links := []struct{ id byte }{
+		{3},
+		{1},
+		{2},
+	}
+	for _, i := range linkOrder {
+		link := span.Links().AppendEmpty()
+		link.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		link.SetSpanID([8]byte{links[i].id})
+	}
+	return td
+}
+
 func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {
 	unmarshaller := ptrace.JSONUnmarshaler{}
 	expectedTd, err := unmarshaller.UnmarshalTraces(expectedTraces)

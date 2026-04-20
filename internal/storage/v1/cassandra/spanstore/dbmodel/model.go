@@ -49,10 +49,6 @@ type Span struct {
 func (s Span) Hash(w io.Writer) (err error) {
 	sCopy := s
 	sCopy.SpanHash = 0
-	SortKVs(sCopy.Tags)
-	SortKVs(sCopy.Process.Tags)
-	sortLogs(sCopy.Logs)
-	sortSpanRefs(sCopy.Refs)
 	enc := gob.NewEncoder(w)
 	return enc.Encode(sCopy)
 }
@@ -167,7 +163,10 @@ func compareKVs(a, b []KeyValue) int {
 	})
 }
 
-func sortLogs(logs []Log) {
+func SortLogs(logs []Log) {
+	for _, log := range logs {
+		SortKVs(log.Fields)
+	}
 	slices.SortFunc(logs, func(a, b Log) int {
 		if timeComp := int(a.Timestamp - b.Timestamp); timeComp != 0 {
 			return timeComp
@@ -176,7 +175,7 @@ func sortLogs(logs []Log) {
 	})
 }
 
-func sortSpanRefs(spanRefs []SpanRef) {
+func SortSpanRefs(spanRefs []SpanRef) {
 	slices.SortFunc(spanRefs, func(a, b SpanRef) int {
 		if traceIDComp := bytes.Compare(a.TraceID[:], b.TraceID[:]); traceIDComp != 0 {
 			return traceIDComp
