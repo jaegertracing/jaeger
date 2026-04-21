@@ -182,6 +182,18 @@ func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 	assert.Equal(t, "boom", events[3]["message"])
 }
 
+func TestStreamingClientWriteSSEEventSilentlyDropsUnmarshallable(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+	// Channels cannot be JSON-marshalled. writeSSEEvent must swallow the
+	// error and emit nothing rather than corrupt the stream.
+	c.writeSSEEvent(map[string]any{"bad": make(chan int)})
+
+	assert.Empty(t, rec.Body.String(),
+		"writeSSEEvent must not write anything when json.Marshal fails")
+}
+
 func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")

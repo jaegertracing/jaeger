@@ -429,6 +429,42 @@ func TestChatHandlerContextEntriesAppendedAsPromptBlocks(t *testing.T) {
 	require.Equal(t, "raw-context", promptReq.Prompt[2].Text.Text)
 }
 
+func TestChatHandlerPublishesContextualToolsAndCleansUp(t *testing.T) {
+	// Tools supplied by the frontend must be visible on the store for the
+	// duration of the turn (so the MCP list_contextual_tools tool can read
+	// them) and must be removed once the prompt finishes.
+	store := NewContextualToolsStore()
+
+	var duringTurn []any
+	agent := &mockACPAgent{
+		promptHook: func(_ context.Context, _ *acp.AgentSideConnection, params acp.PromptRequest) {
+			duringTurn = store.GetContextualToolsForSession(string(params.SessionId))
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), store, wsURL, 1<<20)
+
+	reqBody, err := json.Marshal(ChatRequest{
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hi"}},
+		Tools:    []aguitypes.Tool{{Name: "visualize_trace", Description: "render a waterfall"}},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status: body=%q", rr.Body.String())
+
+	require.Len(t, duringTurn, 1, "tools snapshot must be available during the turn")
+	require.Equal(t, "visualize_trace", duringTurn[0].(map[string]any)["name"])
+
+	require.Nil(t, store.GetContextualToolsForSession("sess-test"),
+		"store entry must be removed once the prompt finishes")
+}
+
 func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)

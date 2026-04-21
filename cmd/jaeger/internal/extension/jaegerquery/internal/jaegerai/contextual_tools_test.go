@@ -101,6 +101,28 @@ func TestGetContextualToolsForSessionIsolatesNestedMutations(t *testing.T) {
 		"mutating a nested map in the returned snapshot must not corrupt the stored entry")
 }
 
+func TestGetContextualToolsForSessionSkipsUnparsableEntries(t *testing.T) {
+	store := NewContextualToolsStore()
+	store.SetForSession("session-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+
+	// White-box: simulate a corrupted entry slipping past the write-side
+	// validation (e.g. memory corruption) and verify the read path degrades
+	// gracefully instead of exploding.
+	store.mu.Lock()
+	store.bySession["session-1"] = append(store.bySession["session-1"], json.RawMessage(`{broken`))
+	store.mu.Unlock()
+
+	got := store.GetContextualToolsForSession("session-1")
+	assert.Len(t, got, 1, "unparsable raw entries must be skipped at read time")
+	assert.Equal(t, "tool-a", got[0].(map[string]any)["name"])
+
+	// All entries corrupted → read returns nil.
+	store.mu.Lock()
+	store.bySession["session-1"] = []json.RawMessage{json.RawMessage(`{also-broken`)}
+	store.mu.Unlock()
+	assert.Nil(t, store.GetContextualToolsForSession("session-1"))
+}
+
 func TestSetForSessionCopiesRawBytes(t *testing.T) {
 	store := NewContextualToolsStore()
 	raw := json.RawMessage(`{"name":"tool-a"}`)
