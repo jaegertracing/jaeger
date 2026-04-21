@@ -19,6 +19,8 @@ import (
 
 var _ metricstore.Reader = (*Reader)(nil)
 
+var errNotImplemented = errors.New("not implemented")
+
 const (
 	defaultLookback    = time.Hour
 	defaultStepSeconds = uint64(60)
@@ -54,8 +56,6 @@ func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.Latencies
 
 	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
 }
-
-var errNotImplemented = errors.New("not implemented")
 
 func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, errNotImplemented
