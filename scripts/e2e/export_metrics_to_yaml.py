@@ -161,13 +161,24 @@ def collect_snapshots(
             content = f.read()
         parsed = parse_snapshot(content)
         if backend in snapshots:
-            # Merge with existing: union of metrics
-            existing_names = {m["name"] for m in snapshots[backend]}
+            # Merge per-metric so that duplicate snapshot files for the same
+            # backend do not drop label keys that only appear in later
+            # snapshots. For duplicate metric names, union the ``labels`` list
+            # and keep the first-seen ``help`` / ``type`` (they should match
+            # in practice since Prometheus exposition normalizes these).
+            existing = {m["name"]: m for m in snapshots[backend]}
             for metric in parsed:
-                if metric["name"] not in existing_names:
-                    snapshots[backend].append(metric)
-                    existing_names.add(metric["name"])
-            snapshots[backend].sort(key=lambda m: m["name"])
+                name = metric["name"]
+                if name in existing:
+                    union_labels = sorted(
+                        set(existing[name]["labels"]) | set(metric["labels"])
+                    )
+                    existing[name]["labels"] = union_labels
+                else:
+                    existing[name] = metric
+            snapshots[backend] = sorted(
+                existing.values(), key=lambda m: m["name"]
+            )
         else:
             snapshots[backend] = parsed
 
