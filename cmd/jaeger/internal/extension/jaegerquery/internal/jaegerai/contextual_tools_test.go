@@ -59,6 +59,24 @@ func TestGetContextualToolsForSessionReturnsNilForEmptySessionID(t *testing.T) {
 		"empty session_id must never match — guards against misrouted snapshots")
 }
 
+func TestDeleteForSessionRemovesSnapshot(t *testing.T) {
+	store := NewContextualToolsStore()
+	store.SetForSession("session-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("session-2", []json.RawMessage{json.RawMessage(`{"name":"tool-b"}`)})
+
+	store.DeleteForSession("session-1")
+
+	assert.Nil(t, store.GetContextualToolsForSession("session-1"),
+		"deleted session must no longer resolve")
+	assert.NotNil(t, store.GetContextualToolsForSession("session-2"),
+		"DeleteForSession must only affect the target session")
+
+	// Deleting an unknown or empty session must not panic or affect state.
+	store.DeleteForSession("nonexistent")
+	store.DeleteForSession("")
+	assert.NotNil(t, store.GetContextualToolsForSession("session-2"))
+}
+
 func TestGetContextualToolsForSessionReturnsDefensiveCopy(t *testing.T) {
 	store := NewContextualToolsStore()
 	store.SetForSession("session-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
@@ -69,4 +87,31 @@ func TestGetContextualToolsForSessionReturnsDefensiveCopy(t *testing.T) {
 	second := store.GetContextualToolsForSession("session-1")
 	assert.Equal(t, "tool-a", second[0].(map[string]any)["name"],
 		"callers mutating their copy must not corrupt the stored snapshot")
+}
+
+func TestGetContextualToolsForSessionIsolatesNestedMutations(t *testing.T) {
+	store := NewContextualToolsStore()
+	store.SetForSession("session-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+
+	first := store.GetContextualToolsForSession("session-1")
+	first[0].(map[string]any)["name"] = "hijacked"
+
+	second := store.GetContextualToolsForSession("session-1")
+	assert.Equal(t, "tool-a", second[0].(map[string]any)["name"],
+		"mutating a nested map in the returned snapshot must not corrupt the stored entry")
+}
+
+func TestSetForSessionCopiesRawBytes(t *testing.T) {
+	store := NewContextualToolsStore()
+	raw := json.RawMessage(`{"name":"tool-a"}`)
+	store.SetForSession("session-1", []json.RawMessage{raw})
+
+	// Mutate the caller's bytes after storing. The snapshot must be unaffected.
+	for i := range raw {
+		raw[i] = 'x'
+	}
+
+	got := store.GetContextualToolsForSession("session-1")
+	assert.Equal(t, "tool-a", got[0].(map[string]any)["name"],
+		"SetForSession must defensively copy raw bytes")
 }

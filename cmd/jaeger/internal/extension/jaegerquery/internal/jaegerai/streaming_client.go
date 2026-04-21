@@ -20,9 +20,15 @@ var _ acp.Client = (*streamingClient)(nil)
 
 // streamingClient implements acp.Client and translates ACP session updates
 // into AG-UI SSE events written to the HTTP response.
+//
+// All mutable fields (closed, threadID, runID, messageID, textOpen) are
+// guarded by mu. The ACP SDK may invoke SessionUpdate on a goroutine other
+// than the one driving Prompt, so every entry point that touches state or
+// writes a frame must acquire the lock first.
 type streamingClient struct {
 	requestCtx context.Context
-	w          io.Writer
+	w          http.ResponseWriter
+	flusher    http.Flusher
 	mu         sync.Mutex
 	closed     bool
 	threadID   string
@@ -32,18 +38,20 @@ type streamingClient struct {
 }
 
 func newStreamingClient(ctx context.Context, w http.ResponseWriter, threadID, runID string) *streamingClient {
-	return &streamingClient{
+	c := &streamingClient{
 		requestCtx: ctx,
 		w:          w,
 		threadID:   threadID,
 		runID:      runID,
 	}
+	if f, ok := w.(http.Flusher); ok {
+		c.flusher = f
+	}
+	return c
 }
 
+// write emits text and flushes. Must be called with c.mu held.
 func (c *streamingClient) write(text string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.closed {
 		return
 	}
@@ -61,9 +69,13 @@ func (c *streamingClient) write(text string) {
 		c.closed = true
 		return
 	}
+	if c.flusher != nil {
+		c.flusher.Flush()
+	}
 }
 
-// writeSSEEvent encodes event as JSON and emits it as a single SSE frame.
+// writeSSEEvent encodes event as JSON and emits it as a single SSE
+// frame. Must be called with c.mu held.
 func (c *streamingClient) writeSSEEvent(event map[string]any) {
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -76,6 +88,8 @@ func (c *streamingClient) writeSSEEvent(event map[string]any) {
 // text stream. RunID is preserved if the caller provided one via the AG-UI
 // RunAgentInput payload.
 func (c *streamingClient) startRun() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.threadID == "" {
 		c.threadID = fmt.Sprintf("thread-%d", time.Now().UnixNano())
 	}
@@ -95,6 +109,8 @@ func (c *streamingClient) startRun() {
 // finishRun closes any open text message and emits RUN_FINISHED. The stop
 // reason reported by the sidecar is passed through to AG-UI consumers.
 func (c *streamingClient) finishRun(stopReason string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.textOpen {
 		c.writeSSEEvent(map[string]any{
 			"type":      "TEXT_MESSAGE_END",
@@ -118,6 +134,8 @@ func (c *streamingClient) finishRun(stopReason string) {
 // any handler error path; an open text message is closed first so frontends
 // can finalize rendering before reporting the failure.
 func (c *streamingClient) failRun(message string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.textOpen {
 		c.writeSSEEvent(map[string]any{
 			"type":      "TEXT_MESSAGE_END",
@@ -135,6 +153,7 @@ func (c *streamingClient) failRun(message string) {
 
 // ensureTextStart emits TEXT_MESSAGE_START the first time streamed assistant
 // text is observed. Subsequent chunks are emitted as TEXT_MESSAGE_CONTENT.
+// Must be called with c.mu held.
 func (c *streamingClient) ensureTextStart() {
 	if c.textOpen {
 		return
@@ -160,6 +179,8 @@ func (*streamingClient) RequestPermission(context.Context, acp.RequestPermission
 }
 
 func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotification) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	u := n.Update
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content

@@ -125,7 +125,7 @@ class JaegerMCPBridge:
         # for the in-flight turn, so we always override whatever the model may
         # have supplied with the authoritative value from the ACP handler.
         call_args: dict[str, Any] = dict(args or {})
-        if name == CONTEXTUAL_TOOLS_TOOL_NAME and acp_session_id:
+        if name == CONTEXTUAL_TOOLS_TOOL_NAME and acp_session_id is not None:
             call_args[CONTEXTUAL_TOOLS_SESSION_ARG] = acp_session_id
 
         result = await tool.run_async(args=call_args, tool_context=None)

@@ -26,18 +26,26 @@ type UIConfig struct {
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
+// DefaultMaxRequestBodySize is the fallback limit applied when
+// AIConfig.MaxRequestBodySize is left unset (zero).
+const DefaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
+
 type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
 	// MaxRequestBodySize is the maximum allowed size in bytes for the chat request body.
+	// A value of 0 selects DefaultMaxRequestBodySize; negative values are rejected.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 }
 
-func (c AIConfig) Validate() error {
-	if c.MaxRequestBodySize <= 0 {
-		return errors.New("ai.max_request_body_size must be a positive integer")
+func (c *AIConfig) Validate() error {
+	if c.MaxRequestBodySize < 0 {
+		return errors.New("ai.max_request_body_size must be a non-negative integer")
+	}
+	if c.MaxRequestBodySize == 0 {
+		c.MaxRequestBodySize = DefaultMaxRequestBodySize
 	}
 	return nil
 }
@@ -72,7 +80,7 @@ func DefaultQueryOptions() QueryOptions {
 		MaxClockSkewAdjust: 0, // disabled by default
 		AI: configoptional.Default(AIConfig{
 			AgentURL:           "ws://localhost:16688",
-			MaxRequestBodySize: 1 << 20, // 1 MiB
+			MaxRequestBodySize: DefaultMaxRequestBodySize,
 		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{

@@ -115,9 +115,13 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Publish the frontend-provided tools snapshot so the agent can retrieve
-	// them via the list_contextual_tools MCP tool.
+	// them via the list_contextual_tools MCP tool. The entry is scoped to
+	// this ACP session and must be removed once the turn ends, otherwise the
+	// store grows unboundedly over the lifetime of the query process.
 	if h.ctxTools != nil {
-		h.ctxTools.SetForSession(string(sess.SessionId), encodeToolsAsRaw(req.Tools))
+		sessionID := string(sess.SessionId)
+		h.ctxTools.SetForSession(sessionID, encodeToolsAsRaw(req.Tools))
+		defer h.ctxTools.DeleteForSession(sessionID)
 	}
 
 	// Set streaming headers just before Prompt: SessionUpdate callbacks start
@@ -127,7 +131,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// been established yet.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
 
 	clientImpl.startRun()
 
