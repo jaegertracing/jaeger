@@ -7,7 +7,9 @@ package dbmodel
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"encoding/hex"
+	"io"
 	"slices"
 	"strconv"
 	"strings"
@@ -41,6 +43,14 @@ type Span struct {
 	Process       Process
 	ServiceName   string
 	SpanHash      int64
+}
+
+// Hash implements Hash from Hashable.
+func (s Span) Hash(w io.Writer) (err error) {
+	sCopy := s
+	sCopy.SpanHash = 0
+	enc := gob.NewEncoder(w)
+	return enc.Encode(sCopy)
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
@@ -142,6 +152,49 @@ func SortKVs(kvs []KeyValue) {
 	slices.SortFunc(kvs, func(a, b KeyValue) int {
 		return a.Compare(b)
 	})
+}
+
+func compareKVs(a, b []KeyValue) int {
+	if lenComp := len(a) - len(b); lenComp != 0 {
+		return lenComp
+	}
+	return slices.CompareFunc(a, b, func(a KeyValue, b KeyValue) int {
+		return a.Compare(b)
+	})
+}
+
+func SortLogs(logs []Log) {
+	for _, log := range logs {
+		SortKVs(log.Fields)
+	}
+	slices.SortFunc(logs, func(a, b Log) int {
+		if timeComp := compareInt64(a.Timestamp, b.Timestamp); timeComp != 0 {
+			return timeComp
+		}
+		return compareKVs(a.Fields, b.Fields)
+	})
+}
+
+func SortSpanRefs(spanRefs []SpanRef) {
+	slices.SortFunc(spanRefs, func(a, b SpanRef) int {
+		if traceIDComp := bytes.Compare(a.TraceID[:], b.TraceID[:]); traceIDComp != 0 {
+			return traceIDComp
+		}
+		if spanIDComp := compareInt64(a.SpanID, b.SpanID); spanIDComp != 0 {
+			return spanIDComp
+		}
+		return strings.Compare(a.RefType, b.RefType)
+	})
+}
+
+func compareInt64(a, b int64) int {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 // Log is the UDT representation of a Jaeger Log.
