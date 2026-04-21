@@ -191,6 +191,12 @@ func (s *server) registerTools() {
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "get_service_dependencies",
+		Description: "Get the service dependency graph showing caller-callee pairs. " +
+			"Returns edges with call counts over a configurable time window (default: last 24h).",
+	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "list_contextual_tools",
 		Description: "Return the frontend-provided AG-UI tools array for the given ACP session_id. The sidecar MUST forward the ACP PromptRequest.SessionId it received for the in-flight turn.",
 	}, handlers.NewListContextualToolsHandler(s.ctxToolsProv))
