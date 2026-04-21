@@ -338,15 +338,15 @@ func TestEdgeCases(t *testing.T) {
 func TestRefsSorting(t *testing.T) {
 	tests := []struct {
 		name             string
-		withParentSpanId bool
+		withParentSpanID bool
 	}{
 		{
 			name:             "without parent span id",
-			withParentSpanId: false,
+			withParentSpanID: false,
 		},
 		{
 			name:             "with parent span id",
-			withParentSpanId: true,
+			withParentSpanID: true,
 		},
 	}
 	for _, tt := range tests {
