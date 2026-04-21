@@ -6,11 +6,11 @@ package main
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
@@ -56,13 +56,13 @@ func main() {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
 	ctx := context.Background()
-	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
+	if err = spanStore.WriteSpan(getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
 	} else {
-		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
+		logger.Info("Saved span", zap.String("spanID", strconv.FormatInt(getSomeSpan().SpanID, 10)))
 	}
 	s := getSomeSpan()
-	spans, err := spanReader.GetTrace(ctx, dbmodel.TraceIDFromDomain(s.TraceID))
+	spans, err := spanReader.GetTrace(ctx, s.TraceID)
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
@@ -111,56 +111,65 @@ func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *
 	}
 }
 
-func getSomeProcess() *model.Process {
+func getSomeProcess() dbmodel.Process {
 	processTagVal := "indexMe"
-	return &model.Process{
+	return dbmodel.Process{
 		ServiceName: "someServiceName",
-		Tags: model.KeyValues{
-			model.String("processTagKey", processTagVal),
+		Tags: []dbmodel.KeyValue{
+			{
+				Key:         "processTagKey",
+				ValueString: processTagVal,
+			},
 		},
 	}
 }
 
-func getSomeSpan() *model.Span {
-	traceID := model.NewTraceID(1, 2)
-	return &model.Span{
+func getSomeSpan() *dbmodel.Span {
+	traceID := [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	return &dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(3),
+		SpanID:        3,
 		OperationName: "opName",
-		References:    model.MaybeAddParentSpanID(traceID, 4, getReferences()),
-		Flags:         model.Flags(uint32(5)),
-		StartTime:     time.Now(),
-		Duration:      50000 * time.Microsecond,
+		Refs:          getReferences(),
+		Flags:         5,
+		StartTime:     time.Now().UnixMicro(),
+		Duration:      (50000 * time.Microsecond).Microseconds(),
 		Tags:          getTags(),
 		Logs:          getLogs(),
 		Process:       getSomeProcess(),
 	}
 }
 
-func getReferences() []model.SpanRef {
-	return []model.SpanRef{
+func getReferences() []dbmodel.SpanRef {
+	return []dbmodel.SpanRef{
 		{
-			RefType: model.ChildOf,
-			TraceID: model.NewTraceID(1, 1),
-			SpanID:  model.NewSpanID(4),
+			RefType: dbmodel.ChildOf,
+			TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1},
+			SpanID:  4,
 		},
 	}
 }
 
-func getTags() model.KeyValues {
+func getTags() []dbmodel.KeyValue {
 	someVal := "someVal"
-	return model.KeyValues{
-		model.String("someKey", someVal),
+	return []dbmodel.KeyValue{
+		{
+			Key:         "someKey",
+			ValueString: someVal,
+		},
 	}
 }
 
-func getLogs() []model.Log {
+func getLogs() []dbmodel.Log {
 	logTag := "this is a msg"
-	return []model.Log{
+	return []dbmodel.Log{
 		{
-			Timestamp: time.Now(),
-			Fields: model.KeyValues{
-				model.String("event", logTag),
+			Timestamp: time.Now().UnixMicro(),
+			Fields: []dbmodel.KeyValue{
+				{
+					Key:         "event",
+					ValueString: logTag,
+				},
 			},
 		},
 	}
