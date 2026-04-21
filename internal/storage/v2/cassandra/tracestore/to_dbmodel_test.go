@@ -335,6 +335,55 @@ func TestEdgeCases(t *testing.T) {
 	}
 }
 
+func TestRefsSorting(t *testing.T) {
+	tests := []struct {
+		name             string
+		withParentSpanId bool
+	}{
+		{
+			name:             "without parent span id",
+			withParentSpanId: false,
+		},
+		{
+			name:             "with parent span id",
+			withParentSpanId: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := ptrace.NewTraces()
+			span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			tID := pcommon.TraceID{1, 2, 3, 4, 5, 6}
+			highSpanId := pcommon.SpanID{7, 8, 9}
+			lowSpanId := pcommon.SpanID{1, 2, 3}
+			midSpanId := pcommon.SpanID{4, 5, 6}
+			if tt.withParentSpanId {
+				span.SetParentSpanID(highSpanId)
+			}
+			link1 := span.Links().AppendEmpty()
+			link1.SetSpanID(midSpanId)
+			link1.SetTraceID(tID)
+			link1.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, otelsemconv.AttributeOpentracingRefTypeChildOf)
+			link2 := span.Links().AppendEmpty()
+			link2.SetSpanID(lowSpanId)
+			link2.SetTraceID(tID)
+			link2.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, otelsemconv.AttributeOpentracingRefTypeChildOf)
+			spans := ToDBModel(td)
+			assert.Len(t, spans, 1)
+			dbSpan := spans[0]
+			assert.NotEmpty(t, dbSpan.Refs)
+			expectedLen := 2
+			if tt.withParentSpanId {
+				assert.Equal(t, spanIDToDbSpanId(highSpanId), dbSpan.Refs[0].SpanID)
+				expectedLen++
+			}
+			assert.Len(t, dbSpan.Refs, expectedLen)
+			assert.Equal(t, spanIDToDbSpanId(lowSpanId), dbSpan.Refs[expectedLen-2].SpanID)
+			assert.Equal(t, spanIDToDbSpanId(midSpanId), dbSpan.Refs[expectedLen-1].SpanID)
+		})
+	}
+}
+
 func writeActualData(t *testing.T, name string, data []byte) {
 	var prettyJson bytes.Buffer
 	err := json.Indent(&prettyJson, data, "", "  ")

@@ -251,7 +251,11 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID int64, traceID d
 			RefType: linkRefType,
 		})
 	}
-	dbmodel.SortSpanRefs(refs)
+	if parentSpanID != 0 {
+		dbmodel.SortSpanRefs(refs[1:])
+	} else {
+		dbmodel.SortSpanRefs(refs)
+	}
 	return refs
 }
 
