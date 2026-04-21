@@ -5,6 +5,7 @@ package metricstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -54,16 +55,18 @@ func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.Latencies
 	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
 }
 
+var errNotImplemented = errors.New("not implemented")
+
 func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	panic("unimplemented")
+	return nil, errNotImplemented
 }
 
 func (*Reader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	panic("unimplemented")
+	return nil, errNotImplemented
 }
 
 func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	panic("unimplemented")
+	return 0, errNotImplemented
 }
 
 // metricsKey groups metric points by service (and optionally operation).

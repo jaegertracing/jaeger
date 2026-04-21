@@ -221,23 +221,20 @@ func TestGetLatencies_Errors(t *testing.T) {
 
 func TestGetCallRates(t *testing.T) {
 	reader := NewReader(&clickhousetest.Driver{})
-	assert.Panics(t, func() {
-		reader.GetCallRates(t.Context(), &metricstore.CallRateQueryParameters{})
-	})
+	_, err := reader.GetCallRates(t.Context(), &metricstore.CallRateQueryParameters{})
+	require.ErrorIs(t, err, errNotImplemented)
 }
 
 func TestGetErrorRates(t *testing.T) {
 	reader := NewReader(&clickhousetest.Driver{})
-	assert.Panics(t, func() {
-		reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{})
-	})
+	_, err := reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{})
+	require.ErrorIs(t, err, errNotImplemented)
 }
 
 func TestGetMinStepDuration(t *testing.T) {
 	reader := NewReader(&clickhousetest.Driver{})
-	assert.Panics(t, func() {
-		reader.GetMinStepDuration(t.Context(), &metricstore.MinStepDurationQueryParameters{})
-	})
+	_, err := reader.GetMinStepDuration(t.Context(), &metricstore.MinStepDurationQueryParameters{})
+	require.ErrorIs(t, err, errNotImplemented)
 }
 
 func TestStepSeconds(t *testing.T) {
