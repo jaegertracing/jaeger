@@ -4,6 +4,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -49,16 +50,26 @@ type Configuration struct {
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
 	// Default is 1000.
 	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
+	// TTL is the Time-To-Live for spans in the database.
+	// Data older than this will be automatically deleted. 0 means disabled.
+	TTL time.Duration `mapstructure:"ttl"`
 }
 
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
-	// TODO: add JWT
 }
 
 func (cfg *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if _, err := govalidator.ValidateStruct(cfg); err != nil {
+		return err
+	}
+	if cfg.TTL < 0 {
+		return errors.New("ttl must be a non-negative duration")
+	}
+	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
+		return errors.New("ttl must be a whole number of seconds")
+	}
+	return nil
 }
 
 func (cfg *Configuration) applyDefaults() {

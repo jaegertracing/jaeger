@@ -80,7 +80,7 @@ Each query specifies exact values for `bucket`, `service_name`, and `operation_n
 ```cql
 SELECT trace_id
 FROM duration_index
-WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration > ? AND duration < ?
+WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration >= ? AND duration <= ?
 LIMIT ?
 ```
 
@@ -89,12 +89,12 @@ LIMIT ?
 Unlike storage backends such as Badger (which can perform hash-joins and arbitrary index intersections), Cassandra's partition-based architecture makes cross-index intersections expensive and impractical:
 
 1. **Partition key constraints**: The duration index requires equality on `(service_name, operation_name, bucket)`. You cannot efficiently query across multiple operations or join with the tag index without scanning many partitions.
-   
+
 2. **No server-side joins**: Cassandra does not support server-side joins. To intersect duration results with tag results, the client would need to:
    - Query the duration index for all matching trace IDs
    - Query the tag index for all matching trace IDs
    - Perform a client-side intersection
-   
+
    This would be inefficient for large result sets and would require fetching potentially many trace IDs over the network.
 
 3. **Hourly bucket iteration**: The duration query already iterates over hourly buckets. Adding tag intersections would multiply the number of queries and result sets to merge.
@@ -143,7 +143,7 @@ This approach is documented in code comments and in this ADR to set proper expec
 ### Guidance for Users
 
 - **When using Cassandra spanstore**: Be aware that specifying `DurationMin` or `DurationMax` will cause tag filters to be ignored. Validate that `ErrDurationAndTagQueryNotSupported` is returned if both are specified (enforced in `validateQuery` at line 227-229 in reader.go).
-  
+
 - **For combined filtering needs**: Consider using the Badger backend, or implement client-side filtering by:
   1. Querying with duration filters to get a candidate set of trace IDs
   2. Fetching those traces

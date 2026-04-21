@@ -40,6 +40,7 @@ packages:
   github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore:
     interfaces:
       Reader: {}
+      Writer: {}
   github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore:
     config:
       all: true

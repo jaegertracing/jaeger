@@ -52,7 +52,7 @@ jobs:
       with:
         snapshot: metrics_snapshot_badger
         artifact_key: metrics_snapshot_badger_${{ matrix.storage_test }}
-  
+
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:

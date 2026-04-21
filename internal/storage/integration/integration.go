@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"slices"
@@ -88,7 +89,12 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 		case int:
 			attributes.PutInt(k, int64(v))
 		case float64:
-			attributes.PutDouble(k, v)
+			// JSON numbers are always float64 in Go; detect integers.
+			if v == math.Trunc(v) && !math.IsInf(v, 0) && !math.IsNaN(v) {
+				attributes.PutInt(k, int64(v))
+			} else {
+				attributes.PutDouble(k, v)
+			}
 		case bool:
 			attributes.PutBool(k, v)
 		default:
@@ -139,9 +145,7 @@ var CassandraSkippedTests = []string{
 	"Tags_+_Duration_range",
 	"Tags_+_Operation_name_+_max_Duration",
 	"Tags_+_max_Duration",
-	"Operation_name_+_Duration_range",
-	"Duration_range",
-	"max_Duration",
+	"Operation_name_+_max_Duration",
 	"Multiple_Traces",
 }
 
@@ -554,7 +558,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 		},
 	}
 	startTime := time.Now()
-	require.NoError(t, s.DependencyWriter.WriteDependencies(startTime, expected))
+	require.NoError(t, s.DependencyWriter.WriteDependencies(t.Context(), startTime, expected))
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {

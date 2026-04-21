@@ -19,9 +19,9 @@ run_test_file() {
         echo "Error: Test file not found: $test_file"
         return 1
     fi
-    
+
     echo "Running tests from: $test_file"
-    
+
     export SHUNIT2="${SHUNIT2:?'SHUNIT2 environment variable must be set'}"
 
     bash "$test_file"
@@ -57,7 +57,7 @@ main() {
     echo "Total: $total"
     echo "Passed: $passed"
     echo "Failed: $((total - passed))"
-    
+
     if [ ${#failed_tests[@]} -gt 0 ]; then
         echo "Failed tests:"
         for test in "${failed_tests[@]}"; do

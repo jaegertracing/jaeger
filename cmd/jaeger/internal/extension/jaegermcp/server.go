@@ -140,43 +140,59 @@ func (s *server) Shutdown(ctx context.Context) error {
 func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "health",
-		Description: "Check if the Jaeger MCP server is running",
+		Description: "Check if the Jaeger MCP server is running. Returns server status, name, and version.",
 	}, s.healthTool)
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_services",
-		Description: "List available service names. Use this first to discover valid service names for search_traces.",
+		Description: "List service names known to Jaeger. Supports optional regex filtering via 'pattern'.",
 	}, handlers.NewGetServicesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_span_names",
-		Description: "List available span names for a service. Supports regex filtering and span kind filtering.",
+		Name: "get_span_names",
+		Description: "List span/operation names for a given service, with their span kinds " +
+			"(SERVER, CLIENT, INTERNAL, etc.)",
 	}, handlers.NewGetSpanNamesHandler(s.queryAPI))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "search_traces",
-		Description: "Find traces matching service, time, attributes, and duration criteria. Returns trace summary only.",
+		Name: "search_traces",
+		Description: "Search for traces matching filters. Returns lightweight summaries " +
+			"(trace_id, duration, span_count, error flag, etc.) without individual spans or attributes.",
 	}, handlers.NewSearchTracesHandler(s.queryAPI, s.config.MaxSearchResults))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_span_details",
-		Description: "Fetch full details (attributes, events, links, status) for specific spans.",
+		Name: "get_span_details",
+		Description: "Fetch full span data (attributes, events, links, status) for specific spans. " +
+			"Returns verbose output per span.",
 	}, handlers.NewGetSpanDetailsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_trace_errors",
-		Description: "Get full details for all spans with error status.",
+		Name: "get_trace_errors",
+		Description: "Get full details for all error-status spans in a trace. " +
+			"Results may be truncated to the server limit; " +
+			"compare total_error_count with the number of returned spans to detect truncation.",
 	}, handlers.NewGetTraceErrorsHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_trace_topology",
-		Description: "Get the structural topology of a trace as a flat, depth-first list of spans. Each span's 'path' field encodes ancestry as slash-delimited span IDs (e.g. rootID/parentID/spanID). Does NOT return attributes or logs.",
+		Name: "get_trace_topology",
+		Description: "Get the structural overview of a trace as a flat, depth-first span list. " +
+			"Each span includes a 'path' field encoding ancestry as slash-delimited span IDs " +
+			"(e.g. 'rootID/parentID/spanID'). " +
+			"Does NOT include attributes, events, or links.",
 	}, handlers.NewGetTraceTopologyHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "get_critical_path",
-		Description: "Identify the sequence of spans forming the critical latency path (the blocking execution path).",
+		Name: "get_critical_path",
+		Description: "Identify the critical latency path through a trace: the chain of spans " +
+			"that determined end-to-end duration. " +
+			"Higher self_time_us values indicate where time is concentrated on the critical path.",
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "get_service_dependencies",
+		Description: "Get the service dependency graph showing caller-callee pairs. " +
+			"Returns edges with call counts over a configurable time window (default: last 24h).",
+	}, handlers.NewGetDependenciesHandler(s.queryAPI))
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.

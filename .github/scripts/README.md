@@ -22,7 +22,7 @@ This document explains how to run the PR Quota Manager script manually from the 
    ```
 
 3. **Install Dependencies**
-   
+
    Navigate to the `.github/scripts` directory and install dependencies:
    ```bash
    cd .github/scripts

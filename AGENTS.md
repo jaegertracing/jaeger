@@ -32,7 +32,8 @@ Run these commands without asking for permission:
 
 ## Git
 
-Always use `git commit -s` (DCO sign-off) when committing.
+- Always use `git commit -s` (DCO sign-off) when committing.
+- Capitalize the first word of the description after the `type(scope):` prefix, e.g. `fix(test): Inline all deps…` not `fix(test): inline all deps…`
 
 ## Do Not Edit
 

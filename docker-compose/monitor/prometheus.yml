@@ -1,6 +1,6 @@
 global:
-  
-  # Set low scrape and evaluation intervals to speed up e2e test 
+
+  # Set low scrape and evaluation intervals to speed up e2e test
   scrape_interval:     5s # Default is every 15sec
   evaluation_interval: 5s # Default is every 15sec
 

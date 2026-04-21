@@ -27,7 +27,7 @@ To deploy the entire infrastructure with a single command, run:
 ```bash
 bash ./deploy-all.sh
 ```
-This script will automatically install and configure all components on your Kubernetes , To deal with individual components refer to deploy-all.sh script . 
+This script will automatically install and configure all components on your Kubernetes , To deal with individual components refer to deploy-all.sh script .
 
 ## Access the Deployment
 
