@@ -298,15 +298,16 @@ func TestGetErrorRates_MultipleServicesAndBuckets(t *testing.T) {
 }
 
 func TestGetErrorRates_GroupByOperation(t *testing.T) {
-	ts := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	ts1 := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	ts2 := time.Date(2025, 1, 1, 11, 31, 0, 0, time.UTC)
 	driver := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectErrorRatesByOperation: {
 				Rows: &clickhousetest.Rows[metricsRow]{
 					Data: []metricsRow{
-						{Timestamp: ts, ServiceName: "frontend", Operation: "GET /api", Value: 0.03},
-						{Timestamp: ts, ServiceName: "frontend", Operation: "POST /api", Value: 0.12},
-						{Timestamp: ts, ServiceName: "frontend", Operation: "GET /api", Value: 0.05},
+						{Timestamp: ts1, ServiceName: "frontend", Operation: "GET /api", Value: 0.03},
+						{Timestamp: ts1, ServiceName: "frontend", Operation: "POST /api", Value: 0.12},
+						{Timestamp: ts2, ServiceName: "frontend", Operation: "GET /api", Value: 0.05},
 					},
 					ScanFn: scanMetricsRowWithOpFn,
 				},
