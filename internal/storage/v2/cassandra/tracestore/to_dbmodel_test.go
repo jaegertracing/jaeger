@@ -353,11 +353,12 @@ func TestRefsSorting(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			td := ptrace.NewTraces()
 			span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			span.SetTraceID(pcommon.TraceID{1})
 			tID := pcommon.TraceID{1, 2, 3, 4, 5, 6}
 			highSpanId := pcommon.SpanID{7, 8, 9}
 			lowSpanId := pcommon.SpanID{1, 2, 3}
 			midSpanId := pcommon.SpanID{4, 5, 6}
-			if tt.withParentSpanId {
+			if tt.withParentSpanID {
 				span.SetParentSpanID(highSpanId)
 			}
 			link1 := span.Links().AppendEmpty()
@@ -373,7 +374,7 @@ func TestRefsSorting(t *testing.T) {
 			dbSpan := spans[0]
 			assert.NotEmpty(t, dbSpan.Refs)
 			expectedLen := 2
-			if tt.withParentSpanId {
+			if tt.withParentSpanID {
 				assert.Equal(t, spanIDToDbSpanId(highSpanId), dbSpan.Refs[0].SpanID)
 				expectedLen++
 			}
