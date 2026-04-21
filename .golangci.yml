@@ -104,9 +104,9 @@ linters:
           arguments:
             - 80
           disabled: true
-        # package-directory-mismatch: enabled (fixed ddg and wrapper packages)
-        # storage/v1/api and storage/v2/api intentionally use different package names
-        # would be ok if we could exclude the test files, but otherwise too noisy
+        # package-directory-mismatch is enabled; ddg/ and eswrapper/ packages match their dirs.
+        # internal/storage/v1/api and internal/storage/v2/api intentionally use different
+        # package names and are handled via path-based exclusions under issues.exclusions.rules.
         - name: add-constant
           disabled: true
         # maybe enable in the future, needs more investigation
