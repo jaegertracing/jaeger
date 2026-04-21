@@ -44,6 +44,8 @@ type BaseQueryParameters struct {
 	// RatePer is the duration in which the per-second rate of change is calculated for a cumulative counter metric.
 	RatePer *time.Duration
 	// SpanKinds is the list of span kinds to include (logical OR) in the resulting metrics aggregation.
+	// The jaeger_query extension always populates this with a non-empty default,
+	// so backend implementations can assume it will not be empty.
 	SpanKinds []string
 }
 
