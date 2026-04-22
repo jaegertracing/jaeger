@@ -233,9 +233,8 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 	indexByOperationName := func(operationName string) {
 		q1 := query.Bind(span.Process.ServiceName, operationName, timeBucket, span.Duration, span.StartTime, span.TraceID)
 		if err2 := s.writerMetrics.durationIndex.Exec(q1, s.logger); err2 != nil {
-			_ = s.logError(span, err2, "Cannot index duration", s.logger)
-			err = err2
-		}
+        err = s.logError(span, err2, "Cannot index duration", s.logger)
+        }
 	}
 	indexByOperationName("")                 // index by service name alone
 	indexByOperationName(span.OperationName) // index by service name and operation name
