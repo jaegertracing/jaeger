@@ -179,7 +179,7 @@ func TestGetLatencies_Errors(t *testing.T) {
 		{
 			name:     "query error",
 			response: &clickhousetest.QueryResponse{Err: assert.AnError},
-			err:      "failed to query latencies",
+			err:      "failed to query service_latencies",
 		},
 		{
 			name: "scan error",
@@ -226,9 +226,170 @@ func TestGetCallRates(t *testing.T) {
 }
 
 func TestGetErrorRates(t *testing.T) {
-	reader := NewReader(&clickhousetest.Driver{})
-	_, err := reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{})
-	require.ErrorIs(t, err, errNotImplemented)
+	ts := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectErrorRates: {
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data: []metricsRow{
+						{Timestamp: ts, ServiceName: "frontend", Value: 0.05},
+					},
+					ScanFn: scanMetricsRowFn,
+				},
+			},
+		},
+	}
+	reader := NewReader(driver)
+	result, err := reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{
+		BaseQueryParameters: testQueryParams,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "service_error_rate", result.Name)
+	require.Len(t, result.Metrics, 1)
+	require.Len(t, result.Metrics[0].Labels, 1)
+	require.Equal(t, "service_name", result.Metrics[0].Labels[0].Name)
+	require.Equal(t, "frontend", result.Metrics[0].Labels[0].Value)
+	require.Len(t, result.Metrics[0].MetricPoints, 1)
+	require.InDelta(t, 0.05, result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+}
+
+func TestGetErrorRates_MultipleServicesAndBuckets(t *testing.T) {
+	ts1 := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	ts2 := time.Date(2025, 1, 1, 11, 31, 0, 0, time.UTC)
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectErrorRates: {
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data: []metricsRow{
+						{Timestamp: ts1, ServiceName: "frontend", Value: 0.10},
+						{Timestamp: ts2, ServiceName: "frontend", Value: 0.15},
+						{Timestamp: ts1, ServiceName: "backend", Value: 0.02},
+					},
+					ScanFn: scanMetricsRowFn,
+				},
+			},
+		},
+	}
+	reader := NewReader(driver)
+	params := testQueryParams
+	params.ServiceNames = []string{"frontend", "backend"}
+	result, err := reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{
+		BaseQueryParameters: params,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "service_error_rate", result.Name)
+	require.Len(t, result.Metrics, 2)
+
+	byService := make(map[string]*metrics.Metric, len(result.Metrics))
+	for _, m := range result.Metrics {
+		require.Len(t, m.Labels, 1)
+		assert.Equal(t, "service_name", m.Labels[0].Name)
+		byService[m.Labels[0].Value] = m
+	}
+
+	fe := byService["frontend"]
+	require.Len(t, fe.MetricPoints, 2)
+	assert.InDelta(t, 0.10, fe.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+	assert.InDelta(t, 0.15, fe.MetricPoints[1].GetGaugeValue().GetDoubleValue(), 0.001)
+
+	be := byService["backend"]
+	require.Len(t, be.MetricPoints, 1)
+	assert.InDelta(t, 0.02, be.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+}
+
+func TestGetErrorRates_GroupByOperation(t *testing.T) {
+	ts1 := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
+	ts2 := time.Date(2025, 1, 1, 11, 31, 0, 0, time.UTC)
+	driver := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectErrorRatesByOperation: {
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data: []metricsRow{
+						{Timestamp: ts1, ServiceName: "frontend", Operation: "GET /api", Value: 0.03},
+						{Timestamp: ts1, ServiceName: "frontend", Operation: "POST /api", Value: 0.12},
+						{Timestamp: ts2, ServiceName: "frontend", Operation: "GET /api", Value: 0.05},
+					},
+					ScanFn: scanMetricsRowWithOpFn,
+				},
+			},
+		},
+	}
+	reader := NewReader(driver)
+	params := testQueryParams
+	params.GroupByOperation = true
+	result, err := reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{
+		BaseQueryParameters: params,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "service_operation_error_rate", result.Name)
+	require.Contains(t, result.Help, "& operation")
+	require.Len(t, result.Metrics, 2)
+
+	byOp := make(map[string]*metrics.Metric, len(result.Metrics))
+	for _, m := range result.Metrics {
+		require.Len(t, m.Labels, 2)
+		assert.Equal(t, "service_name", m.Labels[0].Name)
+		assert.Equal(t, "frontend", m.Labels[0].Value)
+		assert.Equal(t, "operation", m.Labels[1].Name)
+		byOp[m.Labels[1].Value] = m
+	}
+
+	getAPI := byOp["GET /api"]
+	require.Len(t, getAPI.MetricPoints, 2)
+	assert.InDelta(t, 0.03, getAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+	assert.InDelta(t, 0.05, getAPI.MetricPoints[1].GetGaugeValue().GetDoubleValue(), 0.001)
+
+	postAPI := byOp["POST /api"]
+	require.Len(t, postAPI.MetricPoints, 1)
+	assert.InDelta(t, 0.12, postAPI.MetricPoints[0].GetGaugeValue().GetDoubleValue(), 0.001)
+}
+
+func TestGetErrorRates_Errors(t *testing.T) {
+	tests := []struct {
+		name     string
+		response *clickhousetest.QueryResponse
+		err      string
+	}{
+		{
+			name:     "query error",
+			response: &clickhousetest.QueryResponse{Err: assert.AnError},
+			err:      "failed to query service_error_rate",
+		},
+		{
+			name: "scan error",
+			response: &clickhousetest.QueryResponse{
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data:    []metricsRow{{ServiceName: "frontend"}},
+					ScanErr: assert.AnError,
+				},
+			},
+			err: "failed to scan metrics row",
+		},
+		{
+			name: "rows error",
+			response: &clickhousetest.QueryResponse{
+				Rows: &clickhousetest.Rows[metricsRow]{
+					Data:    []metricsRow{},
+					RowsErr: assert.AnError,
+				},
+			},
+			err: "error iterating metrics rows",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			driver := &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SelectErrorRates: tt.response,
+				},
+			}
+			reader := NewReader(driver)
+			_, err := reader.GetErrorRates(t.Context(), &metricstore.ErrorRateQueryParameters{
+				BaseQueryParameters: testQueryParams,
+			})
+			require.ErrorContains(t, err, tt.err)
+		})
+	}
 }
 
 func TestGetMinStepDuration(t *testing.T) {
