@@ -11,14 +11,19 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
+type TestRows interface {
+	driver.Rows
+	Reset()
+}
+
 type QueryResponse struct {
-	Rows driver.Rows
+	Rows TestRows
 	Err  error
 }
 
 func (r *QueryResponse) Reset() {
-	if rows, ok := r.Rows.(interface{ Reset() }); ok {
-		rows.Reset()
+	if r.Rows != nil {
+		r.Rows.Reset()
 	}
 }
 

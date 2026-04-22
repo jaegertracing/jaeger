@@ -208,3 +208,25 @@ func TestRows_Scan_NilScanFn(t *testing.T) {
 	r.Next()
 	require.Error(t, r.Scan(nil))
 }
+
+func TestRows_Reset(t *testing.T) {
+	r := &Rows[string]{Data: []string{"a", "b"}}
+	assert.True(t, r.Next())
+	assert.True(t, r.Next())
+	assert.False(t, r.Next())
+	assert.Equal(t, 2, r.Index)
+	r.Reset()
+	assert.Equal(t, 0, r.Index)
+}
+
+func TestQueryResponse_Reset(t *testing.T) {
+	r := &Rows[string]{Data: []string{"a"}, Index: 1}
+	qr := &QueryResponse{Rows: r}
+	qr.Reset()
+	assert.Equal(t, 0, r.Index)
+}
+
+func TestQueryResponse_Reset_NilRows(t *testing.T) {
+	qr := &QueryResponse{}
+	require.NotPanics(t, func() { qr.Reset() })
+}
