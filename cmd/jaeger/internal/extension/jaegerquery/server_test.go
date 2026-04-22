@@ -438,4 +438,6 @@ func TestQueryService(t *testing.T) {
 
 	tm := server.TenancyManager()
 	require.NotNil(t, tm, "TenancyManager should not be nil")
+	ctxTools := server.ContextualToolsStore()
+	require.NotNil(t, ctxTools, "ContextualToolsStore should not be nil")
 }

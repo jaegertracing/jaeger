@@ -57,6 +57,7 @@ func NewServer(
 	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
+	ctxTools *jaegerai.ContextualToolsStore,
 ) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTP.NetAddr.Endpoint)
 	if err != nil {
@@ -77,7 +78,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset, ctxTools)
 	if err != nil {
 		return nil, err
 	}
@@ -162,6 +163,7 @@ func initRouter(
 	caps querysvc.StorageCapabilities,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
+	ctxTools *jaegerai.ContextualToolsStore,
 ) (http.Handler, io.Closer) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
@@ -201,7 +203,7 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, aiCfg.AgentURL, aiCfg.MaxRequestBodySize).ServeHTTP)
+				r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, ctxTools, aiCfg.AgentURL, aiCfg.MaxRequestBodySize).ServeHTTP)
 			}
 		}
 	}
@@ -231,8 +233,9 @@ func createHTTPServer(
 	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
+	ctxTools *jaegerai.ContextualToolsStore,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset, ctxTools)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {

@@ -35,12 +35,13 @@ var (
 
 // server implements the Jaeger MCP extension.
 type server struct {
-	config     *Config
-	telset     component.TelemetrySettings
-	httpServer *http.Server
-	listener   net.Listener
-	mcpServer  *mcp.Server
-	queryAPI   *querysvc.QueryService
+	config       *Config
+	telset       component.TelemetrySettings
+	httpServer   *http.Server
+	listener     net.Listener
+	mcpServer    *mcp.Server
+	queryAPI     *querysvc.QueryService
+	ctxToolsProv jaegerquery.ContextualToolsProvider
 }
 
 // newServer creates a new MCP server instance.
@@ -67,6 +68,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+	s.ctxToolsProv = queryExt.ContextualToolsStore()
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
@@ -193,6 +195,11 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+	
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name:        "list_contextual_tools",
+		Description: "Return the frontend-provided AG-UI tools array for the given ACP session_id. The sidecar MUST forward the ACP PromptRequest.SessionId it received for the in-flight turn.",
+	}, handlers.NewListContextualToolsHandler(s.ctxToolsProv))
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.

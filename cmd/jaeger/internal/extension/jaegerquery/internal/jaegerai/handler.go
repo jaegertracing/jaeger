@@ -25,13 +25,17 @@ type ChatRequest struct {
 // ChatHandler manages the AI gateway requests
 type ChatHandler struct {
 	Logger             *zap.Logger
+	ctxTools           *ContextualToolsStore
 	sidecarWSURL       string
 	maxRequestBodySize int64
 }
 
-func NewChatHandler(logger *zap.Logger, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
+// NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
+// ctxTools may be nil in tests that do not exercise contextual tooling.
+func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
+		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
 		maxRequestBodySize: maxRequestBodySize,
 	}
@@ -106,6 +110,17 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// may start writing to the response during this call.
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
+
+	// Publish the frontend-provided tools snapshot so the agent can retrieve
+	// them via the list_contextual_tools MCP tool. The entry is scoped to
+	// this ACP session and must be removed once the turn ends, otherwise the
+	// store grows unboundedly over the lifetime of the query process.
+	if h.ctxTools != nil {
+		sessionID := string(sess.SessionId)
+		// TODO: Implement contextual tooling
+		// h.ctxTools.SetForSession(sessionID, encodeToolsAsRaw(req.Tools))
+		defer h.ctxTools.DeleteForSession(sessionID)
+	}
 
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
 	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
