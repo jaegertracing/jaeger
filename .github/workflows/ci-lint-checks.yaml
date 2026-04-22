@@ -128,7 +128,7 @@ jobs:
 
     - name: Run Python unit tests for e2e scripts
       run: |
-        pip install prometheus-client
+        pip install prometheus-client pyyaml
         python3 -m unittest discover -s scripts/e2e -p '*_test.py' -v
 
   binary-size-check:
