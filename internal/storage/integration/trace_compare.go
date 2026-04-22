@@ -226,8 +226,8 @@ func sortLinks(links ptrace.SpanLinkSlice) {
 		if attrComp := compareAttributes(a.Attributes(), b.Attributes()); attrComp != 0 {
 			return attrComp < 0
 		}
-		if flagsComp := a.Flags() - b.Flags(); flagsComp != 0 {
-			return flagsComp < 0
+		if a.Flags() != b.Flags() {
+			return a.Flags() < b.Flags()
 		}
 		if traceStateComp := strings.Compare(a.TraceState().AsRaw(), b.TraceState().AsRaw()); traceStateComp != 0 {
 			return traceStateComp < 0
