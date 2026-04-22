@@ -263,8 +263,9 @@ func TestMetricStore_Errors(t *testing.T) {
 
 func TestGetMinStepDuration(t *testing.T) {
 	reader := NewReader(&clickhousetest.Driver{})
-	_, err := reader.GetMinStepDuration(t.Context(), &metricstore.MinStepDurationQueryParameters{})
-	require.ErrorIs(t, err, errNotImplemented)
+	minStep, err := reader.GetMinStepDuration(t.Context(), &metricstore.MinStepDurationQueryParameters{})
+	require.NoError(t, err)
+	assert.Equal(t, time.Millisecond, minStep)
 }
 
 func TestStepSeconds(t *testing.T) {

@@ -5,7 +5,6 @@ package metricstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -19,9 +18,8 @@ import (
 
 var _ metricstore.Reader = (*Reader)(nil)
 
-var errNotImplemented = errors.New("not implemented")
-
 const (
+	minStep            = time.Millisecond
 	defaultLookback    = time.Hour
 	defaultStepSeconds = uint64(60)
 )
@@ -80,7 +78,7 @@ func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRat
 }
 
 func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return 0, errNotImplemented
+	return minStep, nil
 }
 
 type metricsQuery struct {
