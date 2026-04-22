@@ -7,24 +7,18 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"testing"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
-type TestRows interface {
-	driver.Rows
-	Reset()
-}
-
 type QueryResponse struct {
-	Rows TestRows
+	Rows driver.Rows
 	Err  error
 }
 
 func (r *QueryResponse) Reset() {
-	if r.Rows != nil {
-		r.Rows.Reset()
+	if rows, ok := r.Rows.(interface{ Reset() }); ok {
+		rows.Reset()
 	}
 }
 
@@ -33,10 +27,11 @@ type BatchResponse struct {
 	Err   error
 }
 
+// Driver is a test double for driver.Conn, which is an interface to manage connections to a ClickHouse database.
+// It returns pre-configured response entries matched by query substring.
 type Driver struct {
 	driver.Conn
 
-	T               *testing.T
 	QueryResponses  map[string]*QueryResponse
 	BatchResponses  map[string]*BatchResponse
 	RecordedQueries []string
@@ -64,8 +59,11 @@ func (d *Driver) PrepareBatch(
 ) (driver.Batch, error) {
 	d.RecordedQueries = append(d.RecordedQueries, query)
 
+	// Normalize whitespace so substring matching works regardless of indentation.
+	normalized := strings.Join(strings.Fields(query), " ")
 	for querySubstring, response := range d.BatchResponses {
-		if strings.Contains(query, querySubstring) {
+		normalizedSubstring := strings.Join(strings.Fields(querySubstring), " ")
+		if strings.Contains(normalized, normalizedSubstring) {
 			return response.Batch, response.Err
 		}
 	}
@@ -73,9 +71,10 @@ func (d *Driver) PrepareBatch(
 	return nil, nil
 }
 
+// Batch is a test double for driver.Batch, which is an interface
+// to allow inserting multiple rows in a single operation.
 type Batch struct {
 	driver.Batch
-	T          *testing.T
 	Appended   [][]any
 	AppendErr  error
 	SendCalled bool
@@ -102,6 +101,7 @@ func (*Batch) Close() error {
 	return nil
 }
 
+// Rows is a generic test double for driver.Rows, which is an interface representing a query response.
 type Rows[T any] struct {
 	driver.Rows
 
@@ -126,35 +126,35 @@ func (r *Rows[T]) Err() error {
 }
 
 func (r *Rows[T]) Next() bool {
-	return r.Index < len(r.Data)
+	if r.Index >= len(r.Data) {
+		return false
+	}
+	r.Index++
+	return true
 }
 
 func (r *Rows[T]) ScanStruct(dest any) error {
 	if r.ScanErr != nil {
 		return r.ScanErr
 	}
-	if r.Index >= len(r.Data) {
+	if r.Index <= 0 || r.Index > len(r.Data) {
 		return errors.New("no more rows")
 	}
 	if r.ScanFn == nil {
-		return errors.New("ScanFn is not provided")
+		return errors.New("scanFn is not provided")
 	}
-	err := r.ScanFn(dest, r.Data[r.Index])
-	r.Index++
-	return err
+	return r.ScanFn(dest, r.Data[r.Index-1])
 }
 
 func (r *Rows[T]) Scan(dest ...any) error {
 	if r.ScanErr != nil {
 		return r.ScanErr
 	}
-	if r.Index >= len(r.Data) {
+	if r.Index <= 0 || r.Index > len(r.Data) {
 		return errors.New("no more rows")
 	}
 	if r.ScanFn == nil {
-		return errors.New("ScanFn is not provided")
+		return errors.New("scanFn is not provided")
 	}
-	err := r.ScanFn(dest, r.Data[r.Index])
-	r.Index++
-	return err
+	return r.ScanFn(dest, r.Data[r.Index-1])
 }
