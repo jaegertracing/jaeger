@@ -92,7 +92,7 @@ var testCases = []testCase{
 	},
 }
 
-func TestMetricQueries_SingleService(t *testing.T) {
+func TestMetricStore_SingleService(t *testing.T) {
 	ts := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
 	for _, mt := range testCases {
 		t.Run(mt.name, func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestMetricQueries_SingleService(t *testing.T) {
 	}
 }
 
-func TestMetricQueries_MultipleServicesAndBuckets(t *testing.T) {
+func TestMetricStore_MultipleServicesAndBuckets(t *testing.T) {
 	ts1 := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
 	ts2 := time.Date(2025, 1, 1, 11, 31, 0, 0, time.UTC)
 	for _, mt := range testCases {
@@ -164,7 +164,7 @@ func TestMetricQueries_MultipleServicesAndBuckets(t *testing.T) {
 	}
 }
 
-func TestMetricQueries_GroupByOperation(t *testing.T) {
+func TestMetricStore_GroupByOperation(t *testing.T) {
 	ts1 := time.Date(2025, 1, 1, 11, 30, 0, 0, time.UTC)
 	ts2 := time.Date(2025, 1, 1, 11, 31, 0, 0, time.UTC)
 	for _, mt := range testCases {
@@ -211,7 +211,7 @@ func TestMetricQueries_GroupByOperation(t *testing.T) {
 	}
 }
 
-func TestMetricQueries_Errors(t *testing.T) {
+func TestMetricStore_Errors(t *testing.T) {
 	errorTests := []struct {
 		name     string
 		response *clickhousetest.QueryResponse
