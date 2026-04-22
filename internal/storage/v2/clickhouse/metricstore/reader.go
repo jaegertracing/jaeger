@@ -49,8 +49,19 @@ func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.Latencies
 	}, base)
 }
 
-func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, errNotImplemented
+func (r *Reader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	base := params.BaseQueryParameters
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+	return r.queryMetrics(ctx, metricsQuery{
+		baseName:  "service_call_rate",
+		opName:    "service_operation_call_rate",
+		baseDesc:  "calls/sec, grouped by service",
+		baseQuery: sql.SelectCallRates,
+		opQuery:   sql.SelectCallRatesByOperation,
+		args:      []any{step, step, start, end, base.ServiceNames, kinds},
+	}, base)
 }
 
 func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
