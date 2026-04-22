@@ -34,24 +34,19 @@ func NewReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
 }
 
-// metricsQueryConfig holds the query-specific metadata that varies between
-// different metric types (latencies, error rates, call rates).
-type metricsQueryConfig struct {
-	baseName  string
-	opName    string
-	baseDesc  string
-	baseQuery string
-	opQuery   string
-}
-
 func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	return r.queryMetrics(ctx, metricsQueryConfig{
+	base := params.BaseQueryParameters
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+	return r.queryMetrics(ctx, metricsQuery{
 		baseName:  "service_latencies",
 		opName:    "service_operation_latencies",
 		baseDesc:  fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
 		baseQuery: sql.SelectLatencies,
 		opQuery:   sql.SelectLatenciesByOperation,
-	}, params.BaseQueryParameters, params.Quantile)
+		args:      []any{step, params.Quantile, start, end, base.ServiceNames, kinds},
+	}, base)
 }
 
 func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
@@ -59,50 +54,53 @@ func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParam
 }
 
 func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	return r.queryMetrics(ctx, metricsQueryConfig{
+	base := params.BaseQueryParameters
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+	return r.queryMetrics(ctx, metricsQuery{
 		baseName:  "service_error_rate",
 		opName:    "service_operation_error_rate",
 		baseDesc:  "error rate, grouped by service",
 		baseQuery: sql.SelectErrorRates,
 		opQuery:   sql.SelectErrorRatesByOperation,
-	}, params.BaseQueryParameters)
+		args:      []any{step, start, end, base.ServiceNames, kinds},
+	}, base)
 }
 
 func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return 0, errNotImplemented
 }
 
+type metricsQuery struct {
+	baseName  string
+	opName    string
+	baseDesc  string
+	baseQuery string
+	opQuery   string
+	args      []any
+}
+
 // queryMetrics executes a metrics query against ClickHouse and returns the
-// result as a MetricFamily. extraArgs are inserted between the step and the
-// time-window arguments (e.g. quantile for latencies).
+// result as a MetricFamily.
 func (r *Reader) queryMetrics(
 	ctx context.Context,
-	cfg metricsQueryConfig,
-	base metricstore.BaseQueryParameters,
-	extraArgs ...any,
+	cfg metricsQuery,
+	params metricstore.BaseQueryParameters,
 ) (*metrics.MetricFamily, error) {
 	name, desc := cfg.baseName, cfg.baseDesc
 	query := cfg.baseQuery
-	if base.GroupByOperation {
+	if params.GroupByOperation {
 		name = cfg.opName
 		desc += " & operation"
 		query = cfg.opQuery
 	}
 
-	start, end := queryWindow(base)
-	step := stepSeconds(base)
-	kinds := convertSpanKinds(base.SpanKinds)
-
-	args := make([]any, 0, 6)
-	args = append(args, step)
-	args = append(args, extraArgs...)
-	args = append(args, start, end, base.ServiceNames, kinds)
-
-	rows, err := r.conn.Query(ctx, query, args...)
+	rows, err := r.conn.Query(ctx, query, cfg.args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query %s: %w", name, err)
 	}
-	return rowsToMetricFamily(rows, name, desc, base.GroupByOperation)
+	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
 }
 
 // metricsKey groups metric points by service (and optionally operation).
