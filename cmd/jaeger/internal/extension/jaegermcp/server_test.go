@@ -504,7 +504,7 @@ func TestServerWiresContextualToolsProviderFromQueryExtension(t *testing.T) {
 	require.NoError(t, server.Start(context.Background(), host))
 	t.Cleanup(func() { _ = server.Shutdown(context.Background()) })
 
-	require.Same(t, provider, server.ctxToolsProv,
+	require.Same(t, provider, server.ctxTools,
 		"Start must forward the jaegerquery provider unchanged to the list_contextual_tools handler")
 }
 

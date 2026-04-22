@@ -48,7 +48,6 @@ func (s *ContextualToolsStore) SetForSession(sessionID string, rawTools []json.R
 	s.mu.Unlock()
 }
 
-
 // DeleteForSession drops the tools snapshot for the given ACP session. The
 // chat handler must call this once the turn has finished (success or
 // failure) so the store does not accumulate entries across the lifetime of

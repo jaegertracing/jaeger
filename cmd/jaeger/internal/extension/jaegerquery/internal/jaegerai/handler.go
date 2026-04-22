@@ -111,16 +111,10 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	// Publish the frontend-provided tools snapshot so the agent can retrieve
-	// them via the list_contextual_tools MCP tool. The entry is scoped to
-	// this ACP session and must be removed once the turn ends, otherwise the
-	// store grows unboundedly over the lifetime of the query process.
-	if h.ctxTools != nil {
-		sessionID := string(sess.SessionId)
-		// TODO: Implement contextual tooling
-		// h.ctxTools.SetForSession(sessionID, encodeToolsAsRaw(req.Tools))
-		defer h.ctxTools.DeleteForSession(sessionID)
-	}
+	// TODO: wire the frontend-provided AG-UI tools snapshot into h.ctxTools
+	// (SetForSession before Prompt, deferred DeleteForSession after) once the
+	// chat request carries a Tools field. Until then the store is populated
+	// only via code paths added in the AG-UI gateway PR.
 
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
 	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.

@@ -9,22 +9,18 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
-
-// contextualToolsProvider defines the interface for retrieving contextual tools.
-type contextualToolsProvider interface {
-	GetContextualToolsForSession(sessionID string) []any
-}
 
 // listContextualToolsHandler implements the list_contextual_tools MCP tool.
 type listContextualToolsHandler struct {
-	provider contextualToolsProvider
+	provider jaegerquery.ContextualToolsProvider
 }
 
 // NewListContextualToolsHandler creates a new list_contextual_tools handler
 // and returns the handler function.
 func NewListContextualToolsHandler(
-	provider contextualToolsProvider,
+	provider jaegerquery.ContextualToolsProvider,
 ) mcp.ToolHandlerFor[types.ListContextualToolsInput, types.ListContextualToolsOutput] {
 	h := &listContextualToolsHandler{
 		provider: provider,

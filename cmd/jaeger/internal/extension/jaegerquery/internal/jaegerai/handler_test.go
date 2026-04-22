@@ -386,30 +386,3 @@ func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 
 	require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
 }
-
-func TestChatHandlerCleansUpContextualToolsOnTurnEnd(t *testing.T) {
-	// With a real ContextualToolsStore supplied, the handler must call
-	// DeleteForSession once the turn finishes so the store does not grow
-	// unboundedly across requests. We pre-seed the store for the mock
-	// agent's session id and assert the entry is gone after ServeHTTP.
-	agent := &mockACPAgent{}
-	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
-	defer cleanup()
-
-	store := NewContextualToolsStore()
-	store.SetForSession("sess-test", []json.RawMessage{json.RawMessage(`{"name":"seeded"}`)})
-	require.NotNil(t, store.GetContextualToolsForSession("sess-test"),
-		"pre-seeded snapshot should be readable before the turn runs")
-
-	handler := NewChatHandler(zap.NewNop(), store, wsURL, 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code)
-
-	require.Nil(t, store.GetContextualToolsForSession("sess-test"),
-		"handler must drop the snapshot via DeleteForSession once the turn ends")
-}

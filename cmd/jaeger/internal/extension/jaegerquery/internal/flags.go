@@ -17,7 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-
 type UIConfig struct {
 	// ConfigFile is the path to a configuration file for the UI.
 	ConfigFile string `mapstructure:"config_file" valid:"optional"`
@@ -40,6 +39,9 @@ type AIConfig struct {
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 }
 
+// Validate checks the AI config and applies DefaultMaxRequestBodySize in place
+// when MaxRequestBodySize is zero; the pointer receiver is required so the
+// default persists back to the caller's config.
 func (c *AIConfig) Validate() error {
 	if c.MaxRequestBodySize < 0 {
 		return errors.New("ai.max_request_body_size must be a non-negative integer")
