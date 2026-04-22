@@ -332,6 +332,44 @@ GROUP BY
 ORDER BY
     ts`
 
+const SelectCallRates = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    count(*) / ? AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectCallRatesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    count(*) / ? AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
 const SelectErrorRates = `
 SELECT
     toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
