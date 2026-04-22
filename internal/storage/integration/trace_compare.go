@@ -91,12 +91,8 @@ func sortTrace(td ptrace.Traces) {
 			})
 			for _, span := range scopeSpan.Spans().All() {
 				sortAttributes(span.Attributes())
-				for _, events := range span.Events().All() {
-					sortAttributes(events.Attributes())
-				}
-				for _, link := range span.Links().All() {
-					sortAttributes(link.Attributes())
-				}
+				sortEvents(span.Events())
+				sortLinks(span.Links())
 			}
 		}
 		resourceSpan.ScopeSpans().Sort(func(a, b ptrace.ScopeSpans) bool {
@@ -195,6 +191,48 @@ func sortTracesByTraceID(traces []ptrace.Traces) {
 		aID := a.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 		bID := b.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 		return compareTraceIDs(aID, bID)
+	})
+}
+
+func sortEvents(events ptrace.SpanEventSlice) {
+	for _, event := range events.All() {
+		sortAttributes(event.Attributes())
+	}
+	events.Sort(func(a, b ptrace.SpanEvent) bool {
+		if nameComp := strings.Compare(a.Name(), b.Name()); nameComp != 0 {
+			return nameComp < 0
+		}
+		if timeStampComp := compareTimestamps(a.Timestamp(), b.Timestamp()); timeStampComp != 0 {
+			return timeStampComp < 0
+		}
+		if attrComp := compareAttributes(a.Attributes(), b.Attributes()); attrComp != 0 {
+			return attrComp < 0
+		}
+		return false
+	})
+}
+
+func sortLinks(links ptrace.SpanLinkSlice) {
+	for _, link := range links.All() {
+		sortAttributes(link.Attributes())
+	}
+	links.Sort(func(a, b ptrace.SpanLink) bool {
+		if traceIDComp := compareTraceIDs(a.TraceID(), b.TraceID()); traceIDComp != 0 {
+			return traceIDComp < 0
+		}
+		if spanIDComp := compareSpanIDs(a.SpanID(), b.SpanID()); spanIDComp != 0 {
+			return spanIDComp < 0
+		}
+		if attrComp := compareAttributes(a.Attributes(), b.Attributes()); attrComp != 0 {
+			return attrComp < 0
+		}
+		if flagsComp := a.Flags() - b.Flags(); flagsComp != 0 {
+			return flagsComp < 0
+		}
+		if traceStateComp := strings.Compare(a.TraceState().AsRaw(), b.TraceState().AsRaw()); traceStateComp != 0 {
+			return traceStateComp < 0
+		}
+		return false
 	})
 }
 
