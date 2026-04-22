@@ -37,8 +37,8 @@ This RFC proposes extending Jaeger's storage layer with a small set of new entit
 - API surface for storing and querying these entities.
 - Strategy for schema evolution without DDL migrations.
 - Integration with external eval orchestrators (Langfuse, DeepEval, etc.).
-- Trace Correlation ID convention: tagging traces with `sample_id` so introspective evaluators can locate them.
-- API support for introspective evaluators to retrieve traces by sample/experiment context.
+- Trace Correlation ID convention: tagging traces with `jaeger.eval.trial_id` / `jaeger.eval.iteration_index` so introspective evaluators can locate them.
+- API support for introspective evaluators to retrieve traces by trial/iteration context.
 
 **Out of scope:**
 - Full eval execution engine (triggering model calls, running evaluators programmatically).
@@ -193,7 +193,7 @@ version          String
 description      String
 kind             Enum           llm_judge | heuristic | human
 scope            Enum           black_box | introspective
-                                  black_box:     scores only Trial.output
+                                  black_box:     scores only Iteration.output
                                   introspective: fetches and traverses the execution trace
 config           String (JSON)  Evaluator definition (prompt, model, thresholds, etc.)
 created_at       DateTime
@@ -219,7 +219,7 @@ jaeger.eval.iteration_index  = "<iteration_index>"
 
 These attributes on the root span allow Jaeger to answer "give me the trace for iteration 2 of Trial X" without requiring the caller to know the `trace_id` in advance. The `GetTraceForIteration` API (see §5.1) accepts a `(trial_id, iteration_index)` pair and returns the matching trace.
 
-The `trace_id` in `Iteration` is populated by the orchestrator after the run completes, by querying back through these correlation attributes — or by the application explicitly reporting it via `WriteTrials`.
+The `trace_id` in `Iteration` is populated by the orchestrator after the run completes, by querying back through these correlation attributes — or by the application explicitly reporting it via `WriteIterations`.
 
 #### Introspective Evaluator Flow
 
@@ -326,6 +326,7 @@ CREATE TABLE genai_evaluators (
     version       String,
     description   String,
     kind          LowCardinality(String),
+    scope         LowCardinality(String),
     config        String,
     created_at    DateTime
 ) ENGINE = MergeTree()
@@ -513,7 +514,7 @@ The `trace_id` in each row can be passed to `GetTrace` to open the full span tre
 - **Trace linkage:** Direct `trace_id` reference enables drill-down from quality metrics into raw spans.
 - **Orchestrator-agnostic:** Terminology aligns with Langfuse, DeepEval, Braintrust, and TruLens, enabling straightforward adapter implementations.
 - **Source of truth for introspection:** Introspective evaluators query traces directly from Jaeger via `GetTraceForIteration` — no need to export traces to an external system.
-- **Correlation ID convention:** Tagging traces with `jaeger.eval.experiment_id` / `jaeger.eval.sample_id` makes trace discovery deterministic from any evaluator without out-of-band coordination.
+- **Correlation ID convention:** Tagging traces with `jaeger.eval.trial_id` / `jaeger.eval.iteration_index` makes trace discovery deterministic from any evaluator without out-of-band coordination.
 
 ### 6.2 Cons and Mitigations
 
@@ -523,7 +524,7 @@ The `trace_id` in each row can be passed to `GetTrace` to open the full span tre
 | Soft trace reference may become stale (trace TTL shorter than eval result TTL) | Document that trace TTL should be ≥ eval result TTL; return a clear error if a referenced trace is not found. |
 | OpenSearch schema for score fields is less type-safe than ClickHouse Map | Provide a dedicated OpenSearch index template with explicit float mappings for known evaluator names; new names fall back to dynamic mapping. |
 | Adding a new gRPC service increases Jaeger API surface area | Keep the service optional and behind a feature flag until stabilized. |
-| Snapshotting `input`/`expected_output` in Trial doubles storage for large inputs | For large payloads, consider storing a content hash + pointer to the Dataset Sample, with full snapshot as an opt-in. |
+| Retaining old Sample versions requires a retention policy | Sample versions referenced by existing Trials must not be deleted. Apply a version retention rule so that referenced Sample versions always outlive the Trial records that point to them. |
 
 ---
 
