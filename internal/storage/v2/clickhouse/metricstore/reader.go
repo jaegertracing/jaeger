@@ -34,27 +34,24 @@ func NewReader(conn driver.Conn) *Reader {
 	return &Reader{conn: conn}
 }
 
+// metricsQueryConfig holds the query-specific metadata that varies between
+// different metric types (latencies, error rates, call rates).
+type metricsQueryConfig struct {
+	baseName  string
+	opName    string
+	baseDesc  string
+	baseQuery string
+	opQuery   string
+}
+
 func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	name, desc := "service_latencies", fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile)
-	query := sql.SelectLatencies
-	if params.GroupByOperation {
-		name = "service_operation_latencies"
-		desc += " & operation"
-		query = sql.SelectLatenciesByOperation
-	}
-
-	start, end := queryWindow(params.BaseQueryParameters)
-	step := stepSeconds(params.BaseQueryParameters)
-	kinds := convertSpanKinds(params.SpanKinds)
-
-	rows, err := r.conn.Query(ctx, query,
-		step, params.Quantile, start, end, params.ServiceNames, kinds,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query latencies: %w", err)
-	}
-
-	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
+	return r.queryMetrics(ctx, metricsQueryConfig{
+		baseName:  "service_latencies",
+		opName:    "service_operation_latencies",
+		baseDesc:  fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
+		baseQuery: sql.SelectLatencies,
+		opQuery:   sql.SelectLatenciesByOperation,
+	}, params.BaseQueryParameters, params.Quantile)
 }
 
 func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
@@ -62,30 +59,50 @@ func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParam
 }
 
 func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	name, desc := "service_error_rate", "error rate, grouped by service"
-	query := sql.SelectErrorRates
-	if params.GroupByOperation {
-		name = "service_operation_error_rate"
-		desc += " & operation"
-		query = sql.SelectErrorRatesByOperation
-	}
-
-	start, end := queryWindow(params.BaseQueryParameters)
-	step := stepSeconds(params.BaseQueryParameters)
-	kinds := convertSpanKinds(params.SpanKinds)
-
-	rows, err := r.conn.Query(ctx, query,
-		step, start, end, params.ServiceNames, kinds,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query error rates: %w", err)
-	}
-
-	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
+	return r.queryMetrics(ctx, metricsQueryConfig{
+		baseName:  "service_error_rate",
+		opName:    "service_operation_error_rate",
+		baseDesc:  "error rate, grouped by service",
+		baseQuery: sql.SelectErrorRates,
+		opQuery:   sql.SelectErrorRatesByOperation,
+	}, params.BaseQueryParameters)
 }
 
 func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
 	return 0, errNotImplemented
+}
+
+// queryMetrics executes a metrics query against ClickHouse and returns the
+// result as a MetricFamily. extraArgs are inserted between the step and the
+// time-window arguments (e.g. quantile for latencies).
+func (r *Reader) queryMetrics(
+	ctx context.Context,
+	cfg metricsQueryConfig,
+	base metricstore.BaseQueryParameters,
+	extraArgs ...any,
+) (*metrics.MetricFamily, error) {
+	name, desc := cfg.baseName, cfg.baseDesc
+	query := cfg.baseQuery
+	if base.GroupByOperation {
+		name = cfg.opName
+		desc += " & operation"
+		query = cfg.opQuery
+	}
+
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+
+	args := make([]any, 0, 6)
+	args = append(args, step)
+	args = append(args, extraArgs...)
+	args = append(args, start, end, base.ServiceNames, kinds)
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query %s: %w", name, err)
+	}
+	return rowsToMetricFamily(rows, name, desc, base.GroupByOperation)
 }
 
 // metricsKey groups metric points by service (and optionally operation).

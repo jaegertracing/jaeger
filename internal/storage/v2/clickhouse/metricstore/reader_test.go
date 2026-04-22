@@ -179,7 +179,7 @@ func TestGetLatencies_Errors(t *testing.T) {
 		{
 			name:     "query error",
 			response: &clickhousetest.QueryResponse{Err: assert.AnError},
-			err:      "failed to query latencies",
+			err:      "failed to query service_latencies",
 		},
 		{
 			name: "scan error",
@@ -353,7 +353,7 @@ func TestGetErrorRates_Errors(t *testing.T) {
 		{
 			name:     "query error",
 			response: &clickhousetest.QueryResponse{Err: assert.AnError},
-			err:      "failed to query error rates",
+			err:      "failed to query service_error_rate",
 		},
 		{
 			name: "scan error",
