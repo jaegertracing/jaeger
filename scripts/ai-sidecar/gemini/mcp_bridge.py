@@ -7,10 +7,12 @@ from typing import Any
 
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.genai import types
+from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
+from opentelemetry.semconv.attributes.url_attributes import URL_FULL
 from opentelemetry.trace import Status, StatusCode
 
 from sidecar_helpers import _extract_function_declaration, _to_jsonable
-from tracing import get_tracer
+from tracing import tracer
 
 
 logger = logging.getLogger(__name__)
@@ -33,9 +35,8 @@ class JaegerMCPBridge:
         if self._initialized:
             return
 
-        tracer = get_tracer()
-        with tracer.start_as_current_span("mcp.discover_tools", attributes={
-            "mcp.url": self._mcp_url,
+        with tracer().start_as_current_span("mcp.discover_tools", attributes={
+            URL_FULL: self._mcp_url,
         }) as span:
             # Discover available MCP tools once, then expose them to Gemini as function declarations.
             logger.info(
@@ -69,7 +70,6 @@ class JaegerMCPBridge:
 
             self._tools_by_name = {tool.name: tool for tool in adk_tools}
             logger.info("Retrieved tools from MCP: %s", list(self._tools_by_name.keys()))
-            span.set_attribute("mcp.tool_count", len(self._tools_by_name))
 
             function_declarations: list[types.FunctionDeclaration] = []
             for tool in adk_tools:
@@ -91,9 +91,8 @@ class JaegerMCPBridge:
     async def call_tool(self, name: str, args: dict[str, Any]) -> Any:
         await self.initialize()
 
-        tracer = get_tracer()
-        with tracer.start_as_current_span("mcp.call_tool", attributes={
-            "tool.name": name,
+        with tracer().start_as_current_span("mcp.call_tool", attributes={
+            GEN_AI_TOOL_NAME: name,
         }) as span:
             tool = self._tools_by_name.get(name)
             if tool is None:

@@ -47,9 +47,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--otlp-insecure",
-        type=lambda v: v.lower() in ("true", "1", "yes"),
+        action=argparse.BooleanOptionalAction,
         default=os.environ.get("OTEL_EXPORTER_OTLP_INSECURE", str(DEFAULT_OTLP_INSECURE)).lower() in ("true", "1", "yes"),
-        help="Skip TLS for OTLP export (default: true)",
+        help="Skip TLS for OTLP export; use --otlp-insecure or --no-otlp-insecure",
     )
     return parser.parse_args()
 

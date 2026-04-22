@@ -27,6 +27,6 @@ def init_tracing(endpoint: str, insecure: bool) -> None:
     logger.info("Tracing initialized (endpoint=%s, insecure=%s)", endpoint, insecure)
 
 
-def get_tracer() -> trace.Tracer:
+def tracer() -> trace.Tracer:
     """Return the sidecar's tracer instance."""
     return trace.get_tracer("jaeger-gemini-sidecar")

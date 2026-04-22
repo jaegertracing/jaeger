@@ -8,12 +8,18 @@ from typing import Any, Callable, cast
 
 from google import genai
 from google.genai import types
+from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
+    GEN_AI_CONVERSATION_ID,
+    GEN_AI_REQUEST_MODEL,
+    GEN_AI_TOOL_CALL_ID,
+    GEN_AI_TOOL_NAME,
+)
 from opentelemetry.trace import Status, StatusCode
 from ws_commands import ws_to_client_writer, client_reader_to_ws
 from mcp_bridge import JaegerMCPBridge
 from sidecar_config import SidecarConfig
 from sidecar_helpers import _to_tool_text
-from tracing import get_tracer
+from tracing import tracer
 
 from acp import (
     PROTOCOL_VERSION,
@@ -129,11 +135,10 @@ class JaegerSidecarAgent(Agent):
         return ListSessionsResponse(sessions=[])
 
     async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
-        tracer = get_tracer()
-        with tracer.start_as_current_span("sidecar.execute_tool", attributes={
-            "tool.name": tool_name,
-            "tool.call_id": tool_call_id,
-            "session.id": session_id,
+        with tracer().start_as_current_span("sidecar.execute_tool", attributes={
+            GEN_AI_TOOL_NAME: tool_name,
+            GEN_AI_TOOL_CALL_ID: tool_call_id,
+            GEN_AI_CONVERSATION_ID: session_id,
         }) as span:
             try:
                 conn = self._require_conn()
@@ -167,11 +172,10 @@ class JaegerSidecarAgent(Agent):
                 raise
 
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
-        tracer = get_tracer()
-        with tracer.start_as_current_span("sidecar.agentic_loop", attributes={
-            "session.id": session_id,
-            "gemini.model": "gemini-2.5-flash",
-        }) as loop_span:
+        with tracer().start_as_current_span("sidecar.agentic_loop", attributes={
+            GEN_AI_CONVERSATION_ID: session_id,
+            GEN_AI_REQUEST_MODEL: "gemini-2.5-flash",
+        }):
             logger.info("Starting agentic Gemini loop for session %s", session_id)
             system_instruction = (
                 "You are Jaeger AI, an assistant for distributed tracing investigations. "
@@ -203,11 +207,10 @@ class JaegerSidecarAgent(Agent):
             response = await asyncio.to_thread(chat.send_message, user_text)
 
             # Iterate model->tool->model until Gemini produces a final text response.
-            for iteration in range(6):
+            while True:
                 function_calls = response.function_calls
                 if not function_calls:
                     logger.info("No function calls in Gemini response, returning final text")
-                    loop_span.set_attribute("loop.iterations", iteration + 1)
                     return response.text or ""
 
                 function_responses = []
@@ -226,10 +229,6 @@ class JaegerSidecarAgent(Agent):
                 response = await asyncio.to_thread(chat.send_message, function_responses)
                 logger.info("Received Gemini response after tool calls")
 
-            loop_span.set_attribute("loop.iterations", 6)
-            logger.info("Reached max tool loop iterations, returning last Gemini response")
-            return response.text or ""
-
     async def prompt(
         self,
         prompt: list[Any],
@@ -242,9 +241,8 @@ class JaegerSidecarAgent(Agent):
         Invoked by ACP runtime dispatch after initialize/session handshake; this
         is the protocol entrypoint for prompt execution.
         """
-        tracer = get_tracer()
-        with tracer.start_as_current_span("sidecar.prompt", attributes={
-            "session.id": session_id,
+        with tracer().start_as_current_span("sidecar.prompt", attributes={
+            GEN_AI_CONVERSATION_ID: session_id,
         }) as span:
             logger.info("Received prompt request for session %s", session_id)
 
