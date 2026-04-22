@@ -95,3 +95,65 @@ func TestExtractTextHandlesStringBytesAndStructuredContent(t *testing.T) {
 func TestExtractTextReturnsEmptyForUnknownShape(t *testing.T) {
 	assert.Empty(t, extractText(42))
 }
+
+func TestEncodeToolsAsRawSkipsUnmarshalableTool(t *testing.T) {
+	// A chan is not JSON-marshalable, so the middle tool should be dropped
+	// while the neighbours are still encoded.
+	tools := []aguitypes.Tool{
+		{Name: "ok-1"},
+		{Name: "broken", Parameters: map[string]any{"ch": make(chan int)}},
+		{Name: "ok-2"},
+	}
+	raw := encodeToolsAsRaw(tools)
+	require.Len(t, raw, 2)
+
+	var first, second map[string]any
+	require.NoError(t, json.Unmarshal(raw[0], &first))
+	require.NoError(t, json.Unmarshal(raw[1], &second))
+	assert.Equal(t, "ok-1", first["name"])
+	assert.Equal(t, "ok-2", second["name"])
+}
+
+func TestExtractTextReturnsEmptyWhenMarshalFails(t *testing.T) {
+	// A channel cannot be JSON-marshalled, which exercises the error path
+	// after the string and []InputContent type assertions both miss.
+	assert.Empty(t, extractText(make(chan int)))
+}
+
+func TestExtractTextDecodesMarshalledInputContent(t *testing.T) {
+	// []map[string]any is not the concrete []aguitypes.InputContent type, so
+	// extractText falls through to json.Marshal and then decodeInputContent
+	// before collecting the text parts.
+	content := []map[string]any{
+		{"type": aguitypes.InputContentTypeText, "text": "hello"},
+		{"type": aguitypes.InputContentTypeText, "text": "world"},
+	}
+	assert.Equal(t, "hello\nworld", extractText(content))
+}
+
+func TestCollectInputContentTextIgnoresNonTextParts(t *testing.T) {
+	parts := []aguitypes.InputContent{
+		{Type: aguitypes.InputContentTypeText, Text: "keep"},
+		{Type: aguitypes.InputContentTypeBinary, MimeType: "image/png", URL: "https://example.com/x.png"},
+		{Type: aguitypes.InputContentTypeText, Text: "also-keep"},
+	}
+	assert.Equal(t, "keep\nalso-keep", collectInputContentText(parts))
+}
+
+func TestExtractTextDecodesDirectStringFromMarshaledBytes(t *testing.T) {
+	// json.RawMessage is []byte, so the string type assertion misses but the
+	// marshaled output is a JSON string that falls through to the direct
+	// string unmarshal branch.
+	raw := json.RawMessage(`"  trimmed  "`)
+	assert.Equal(t, "trimmed", extractText(raw))
+}
+
+func TestCollectTextPartsIgnoresUnsupportedElementTypes(t *testing.T) {
+	parts := []any{
+		"keep",
+		42,
+		true,
+		map[string]any{"text": "also-keep"},
+	}
+	assert.Equal(t, "keep\nalso-keep", collectTextParts(parts))
+}
