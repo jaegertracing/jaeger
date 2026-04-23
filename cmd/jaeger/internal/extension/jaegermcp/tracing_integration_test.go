@@ -5,7 +5,6 @@ package jaegermcp
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -27,13 +26,15 @@ func TestTracingE2E_MetaPropagation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
-	_, rootSpan := capture.provider.Tracer("test").Start(ctx, "test-root")
+	rootCtx, rootSpan := capture.provider.Tracer("test").Start(ctx, "test-root")
 	sc := rootSpan.SpanContext()
-	traceparent := fmt.Sprintf("00-%s-%s-01", sc.TraceID(), sc.SpanID())
 	rootSpan.End()
 
+	meta := mcp.Meta{}
+	requestMetaPropagator.Inject(rootCtx, &requestMetaCarrier{meta: meta})
+
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Meta: mcp.Meta{traceContextMetaTraceParent: traceparent},
+		Meta: meta,
 		Name: "health",
 	})
 	require.NoError(t, err)
