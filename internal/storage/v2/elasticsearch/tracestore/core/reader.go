@@ -255,20 +255,7 @@ func (s *SpanReader) GetOperations(
 		currentTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
 	)
-	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
-	// 	- return the operations with actual span kind that meet requirement
-	var result []dbmodel.Operation
-	for _, operation := range operations {
-		result = append(result, dbmodel.Operation{
-			Name: operation,
-		})
-	}
-	return result, err
+	return s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, query.SpanKind, s.maxDocCount)
 }
 
 func bucketToStringArray[T ~string](buckets []*elastic.AggregationBucketKeyItem) ([]T, error) {
