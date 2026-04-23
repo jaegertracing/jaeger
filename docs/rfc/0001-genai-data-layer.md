@@ -112,8 +112,8 @@ Key invariants:
 dataset_id       UUID
 name             String         Human-readable name
 description      String         Optional free-text
-created_at       DateTime
-updated_at       DateTime
+created_at       DateTime64(9)
+updated_at       DateTime64(9)
 tags             Map(String, String)   Arbitrary labels (e.g. "domain": "rag", "language": "en")
 ```
 
@@ -125,7 +125,7 @@ dataset_id       UUID           → Dataset
 version          UInt32         Monotonically increasing version number (starts at 1)
 input            String (JSON)  Prompt text and/or structured input (e.g. {"question": "...", "context": "..."})
 expected_output  String (JSON)  Ground truth or reference answer
-created_at       DateTime
+created_at       DateTime64(9)
 attributes       Map(String, String)  Per-sample labels (e.g. "difficulty": "hard", "topic": "finance")
 ```
 
@@ -142,8 +142,8 @@ model_id         String         Model identifier (e.g. "gpt-4o", "llama-3-8b")
 prompt_version   String         Opaque reference to prompt template version
 config           String (JSON)  Full config snapshot (temperature, system prompt, evaluator list, etc.)
 status           Enum           pending | running | completed | failed
-started_at       DateTime
-finished_at      DateTime
+started_at       DateTime64(9)
+finished_at      DateTime64(9)
 tags             Map(String, String)
 ```
 
@@ -159,7 +159,7 @@ sample_version   UInt32         Version of the Sample used in this Trial
 n_iterations     UInt16         Number of Iterations executed (default 1)
 scores           Map(String, Float64)  Aggregated scores across iterations (e.g. mean faithfulness)
 score_metadata   Map(String, String)   Per-score metadata (e.g. "aggregation": "mean", "n": "5")
-created_at       DateTime
+created_at       DateTime64(9)
 ```
 
 Trial records which version of the Sample it was evaluated against via `sample_version`. This allows input and expected output to live exclusively on the Sample record (no duplication), while still giving a precise, stable reference even if the Sample is later edited. Multiple Trials across different Experiments that ran against the same Sample version share that one copy of the data.
@@ -177,7 +177,7 @@ output           String (JSON)  Actual model output for this execution
 scores           Map(String, Float64)  Raw scores for this iteration
 score_metadata   Map(String, String)   Per-score auxiliary metadata (e.g. "reason", "judge_model")
 error            String         Non-empty if this execution failed
-created_at       DateTime
+created_at       DateTime64(9)
 ```
 
 The `trace_id` lives on Iteration, not Trial, because each execution produces a distinct trace. For the common case of a single run, a Trial has exactly one Iteration with `iteration_index = 0`.
@@ -196,7 +196,7 @@ scope            Enum           black_box | introspective
                                   black_box:     scores only Iteration.output
                                   introspective: fetches and traverses the execution trace
 config           String (JSON)  Evaluator definition (prompt, model, thresholds, etc.)
-created_at       DateTime
+created_at       DateTime64(9)
 ```
 
 The Evaluator table is an optional registry. Scores can be written without a corresponding Evaluator record; the Evaluator table exists for teams that want to version and describe their judges formally.
@@ -252,7 +252,7 @@ ClickHouse is the primary target for this feature for several reasons:
 
 2. **`Map` type for schema-free scoring.** The set of evaluators ("judges") changes frequently as teams experiment with new quality metrics. ClickHouse's native `Map(String, Float64)` type lets a new score like `toxicity` or `coherence` be written as a new map key without any DDL migration, while still being queryable with `scores['toxicity']` in standard SQL. OpenSearch supports dynamic mapping, but its nested-object model for arrays of scores is significantly more complex to query.
 
-3. **JOIN capability within the same engine.** Correlating trials with trace metadata (e.g. latency, error rate) requires joining the `genai_trials` table with Jaeger's `jaeger_spans` or `jaeger_index` tables. ClickHouse can execute this join locally within a single cluster. With a document store there is no native cross-index join — the join must be done in application code, making complex analytical queries impractical.
+3. **JOIN capability within the same engine.** Correlating trials with trace metadata (e.g. latency, error rate) requires joining the `genai_iterations` table with Jaeger's ClickHouse `spans` table (the table name used by Jaeger v2). ClickHouse can execute this join locally within a single cluster. With a document store there is no native cross-index join — the join must be done in application code, making complex analytical queries impractical.
 
 4. **Already the recommended Jaeger backend for production at scale.** ClickHouse was introduced as Jaeger's preferred analytics-grade backend precisely because of the query patterns listed above. Adding GenAI tables to the same ClickHouse instance incurs no new infrastructure cost for operators who have already adopted it.
 
@@ -263,8 +263,8 @@ CREATE TABLE genai_datasets (
     dataset_id   UUID,
     name         String,
     description  String,
-    created_at   DateTime,
-    updated_at   DateTime,
+    created_at   DateTime64(9),
+    updated_at   DateTime64(9),
     tags         Map(String, String)
 ) ENGINE = MergeTree()
 ORDER BY (dataset_id, created_at);
@@ -275,7 +275,7 @@ CREATE TABLE genai_samples (
     version          UInt32,
     input            String,
     expected_output  String,
-    created_at       DateTime,
+    created_at       DateTime64(9),
     attributes       Map(String, String)
 ) ENGINE = MergeTree()
 ORDER BY (dataset_id, sample_id, version);
@@ -289,8 +289,8 @@ CREATE TABLE genai_experiments (
     prompt_version String,
     config         String,
     status         LowCardinality(String),
-    started_at     DateTime,
-    finished_at    DateTime,
+    started_at     DateTime64(9),
+    finished_at    DateTime64(9),
     tags           Map(String, String)
 ) ENGINE = MergeTree()
 ORDER BY (dataset_id, experiment_id, started_at);
@@ -303,7 +303,7 @@ CREATE TABLE genai_trials (
     n_iterations     UInt16,
     scores           Map(String, Float64),
     score_metadata   Map(String, String),
-    created_at       DateTime
+    created_at       DateTime64(9)
 ) ENGINE = MergeTree()
 ORDER BY (experiment_id, sample_id, created_at);
 
@@ -316,7 +316,8 @@ CREATE TABLE genai_iterations (
     scores           Map(String, Float64),
     score_metadata   Map(String, String),
     error            String,
-    created_at       DateTime
+    created_at       DateTime64(9),
+    INDEX idx_trace_id (trace_id) TYPE bloom_filter GRANULARITY 4
 ) ENGINE = MergeTree()
 ORDER BY (trial_id, iteration_index, created_at);
 
@@ -328,27 +329,16 @@ CREATE TABLE genai_evaluators (
     kind          LowCardinality(String),
     scope         LowCardinality(String),
     config        String,
-    created_at    DateTime
+    created_at    DateTime64(9)
 ) ENGINE = MergeTree()
 ORDER BY (name, evaluator_id);
 ```
 
 #### Indexing Strategy
 
-High-frequency filter fields get ClickHouse skipping indexes:
+The `trace_id` bloom filter index is declared inline in the `CREATE TABLE genai_iterations` DDL above, consistent with how Jaeger's ClickHouse v2 schema manages indexes (no separate `ALTER` statements).
 
-```sql
--- Fast lookup of iterations by trace_id (for "which trial produced this trace?")
-ALTER TABLE genai_iterations
-    ADD INDEX idx_trace_id (trace_id) TYPE bloom_filter GRANULARITY 4;
-
--- Fast lookup by trial is already covered by ORDER BY (trial_id, ...).
-
--- Fast filtering on aggregated score values (e.g. mean faithfulness < 0.5):
--- ClickHouse Map columns support mapKeys()/mapValues() in WHERE clauses;
--- no extra index needed for moderate dataset sizes. For large deployments,
--- consider materializing commonly queried score columns as real columns.
-```
+For score value filtering (e.g. `faithfulness < 0.5`): ClickHouse `Map` columns support `mapKeys()`/`mapValues()` in `WHERE` clauses with a full column scan. No extra index is needed for moderate dataset sizes. For large deployments, consider materializing commonly queried score columns as real columns.
 
 #### Schema Evolution: Adding New Evaluators
 
@@ -360,7 +350,7 @@ If a new evaluator needs structured metadata beyond key-value strings, `score_me
 
 The `trace_id` column in `genai_iterations` is a plain string matching the Jaeger trace ID format. No foreign key constraint is enforced — the link is soft, because traces and iterations have independent lifecycles and may reside in different retention windows.
 
-Cross-entity queries join `genai_iterations` with Jaeger's `jaeger_spans` or `jaeger_index` tables on `trace_id`.
+Cross-entity queries join `genai_iterations` with Jaeger's ClickHouse `spans` table on `trace_id`.
 
 ### 4.2 OpenSearch
 
@@ -602,6 +592,6 @@ Currently the aggregation of per-Iteration scores into per-Trial scores is the r
 - [Braintrust Experiments documentation](https://www.braintrust.dev/docs/guides/evals)
 - [DeepEval documentation](https://docs.confident-ai.com/)
 - [TruLens documentation](https://www.trulens.org/docs/)
-- [Jaeger Storage Architecture](../../architecture/)
+- [Jaeger Architecture](../../README.md#architecture)
 - [ClickHouse Map Data Type](https://clickhouse.com/docs/en/sql-reference/data-types/map)
 - [OpenSearch Dynamic Mapping](https://opensearch.org/docs/latest/field-types/index/)

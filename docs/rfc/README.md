@@ -8,4 +8,4 @@ An RFC is a document that describes a problem, surveys the solution space, and p
 
 ## RFCs in This Repository
 
-- [0001: GenAI Data Layer](./0001-genai-data-layer.md) - GenAI Observability Data Layer
+- [0001: GenAI Observability Data Layer](./0001-genai-data-layer.md) - GenAI Observability Data Layer
