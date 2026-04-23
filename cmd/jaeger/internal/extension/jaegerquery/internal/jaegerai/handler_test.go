@@ -18,6 +18,9 @@ import (
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -383,4 +386,103 @@ func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
+}
+
+func TestChatHandlerEnrichesContextSpan(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := tracesdk.NewTracerProvider()
+	tracerProvider.RegisterSpanProcessor(spanRecorder)
+	t.Cleanup(func() {
+		require.NoError(t, tracerProvider.Shutdown(context.Background()))
+	})
+
+	tracer := tracerProvider.Tracer("test")
+
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	// Inject a span into the context just like standard HTTP middleware does
+	ctx, span := tracer.Start(req.Context(), "HTTP POST /api/ai/chat")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	span.End()
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	spans := spanRecorder.Ended()
+	require.Len(t, spans, 1)
+
+	httpSpan := spans[0]
+	require.Equal(t, "HTTP POST /api/ai/chat", httpSpan.Name())
+	require.Equal(t, codes.Unset, httpSpan.Status().Code)
+
+	var foundOperationName, foundConversationId, foundFinishReason, foundBodySize bool
+	for _, attr := range httpSpan.Attributes() {
+		switch string(attr.Key) {
+		case "gen_ai.operation.name":
+			require.Equal(t, "chat", attr.Value.AsString())
+			foundOperationName = true
+		case "gen_ai.conversation.id":
+			require.Equal(t, "sess-test", attr.Value.AsString())
+			foundConversationId = true
+		case "gen_ai.response.finish_reason":
+			require.Equal(t, "end_turn", attr.Value.AsString())
+			foundFinishReason = true
+		case "http.request.body.size":
+			require.Equal(t, int64(len(body)), attr.Value.AsInt64())
+			foundBodySize = true
+		default:
+		}
+	}
+
+	require.True(t, foundOperationName)
+	require.True(t, foundConversationId)
+	require.True(t, foundFinishReason)
+	require.True(t, foundBodySize)
+
+	require.Contains(t, rr.Body.String(), "[stop_reason] end_turn")
+}
+
+func TestChatHandlerPromptErrorEnrichesSpan(t *testing.T) {
+	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := tracesdk.NewTracerProvider()
+	tracerProvider.RegisterSpanProcessor(spanRecorder)
+	t.Cleanup(func() {
+		require.NoError(t, tracerProvider.Shutdown(context.Background()))
+	})
+
+	tracer := tracerProvider.Tracer("test")
+
+	handler := NewChatHandler(zap.NewNop(), wsURL, 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	ctx, span := tracer.Start(req.Context(), "HTTP POST /api/ai/chat")
+	req = req.WithContext(ctx)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	span.End()
+
+	require.Equal(t, http.StatusBadGateway, rr.Code)
+
+	spans := spanRecorder.Ended()
+	require.Len(t, spans, 1)
+
+	httpSpan := spans[0]
+	require.Equal(t, codes.Error, httpSpan.Status().Code)
+	require.Contains(t, httpSpan.Status().Description, "prompt failed")
 }

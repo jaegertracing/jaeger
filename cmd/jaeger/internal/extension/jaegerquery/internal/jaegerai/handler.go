@@ -8,10 +8,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
 	acp "github.com/coder/acp-go-sdk"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -47,12 +53,19 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, h.maxRequestBodySize)
 	defer r.Body.Close()
 
-	var req ChatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+	bodyBytes, err := io.ReadAll(r.Body)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
 			http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
+		http.Error(w, "Bad request", http.StatusBadRequest)
+		return
+	}
+
+	var req ChatRequest
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
@@ -63,11 +76,26 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	span := oteltrace.SpanFromContext(ctx)
+	span.SetAttributes(
+		attribute.String("gen_ai.operation.name", "chat"),
+		attribute.Int64("http.request.body.size", int64(len(bodyBytes))),
+	)
+
 	acpCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, h.Logger)
+	headers := make(http.Header)
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(headers))
+
+	adapter, err := DialWsAdapter(acpCtx, h.sidecarWSURL, headers, h.Logger)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(
+			attribute.String("error.type", "connection"),
+			attribute.String("go.error.type", fmt.Sprintf("%T", err)),
+		)
 		http.Error(w, "Failed to connect to agent backend", http.StatusBadGateway)
 		return
 	}
@@ -89,6 +117,12 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		},
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(
+			attribute.String("error.type", "initialization"),
+			attribute.String("go.error.type", fmt.Sprintf("%T", err)),
+		)
 		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
 		return
 	}
@@ -98,9 +132,17 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(
+			attribute.String("error.type", "session_creation"),
+			attribute.String("go.error.type", fmt.Sprintf("%T", err)),
+		)
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
 	}
+
+	span.SetAttributes(attribute.String("gen_ai.conversation.id", string(sess.SessionId)))
 
 	// Set streaming headers just before Prompt(), since SessionUpdate callbacks
 	// may start writing to the response during this call.
@@ -114,6 +156,12 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
 	})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		span.SetAttributes(
+			attribute.String("error.type", "prompt"),
+			attribute.String("go.error.type", fmt.Sprintf("%T", err)),
+		)
 		w.WriteHeader(http.StatusBadGateway)
 		if _, writeErr := fmt.Fprintf(w, "Error starting prompt: %v\n", err); writeErr != nil {
 			h.Logger.Warn("Failed to write prompt error response", zap.Error(writeErr))
@@ -121,5 +169,6 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	span.SetAttributes(attribute.String("gen_ai.response.finish_reason", string(promptResp.StopReason)))
 	clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
 }
