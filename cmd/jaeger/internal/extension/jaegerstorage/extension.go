@@ -18,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	chmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/clickhouse"
 	esmetrics "github.com/jaegertracing/jaeger/internal/storage/metricstore/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
@@ -282,6 +283,15 @@ func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.M
 			*cfg.Opensearch,
 			osTelset,
 			httpAuth,
+		)
+
+	case cfg.ClickHouse != nil:
+		chTelset := telset
+		chTelset.Metrics = scopedMetricsFactory(name, "clickhouse", "metricstore")
+		metricStoreFactory, err = chmetrics.NewFactory(
+			context.Background(),
+			*cfg.ClickHouse,
+			chTelset,
 		)
 
 	default:
