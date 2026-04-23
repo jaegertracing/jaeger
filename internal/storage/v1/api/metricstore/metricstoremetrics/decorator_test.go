@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -39,21 +38,14 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		Return(&protometrics.MetricFamily{}, nil)
 	mrs.GetErrorRates(context.Background(), gerParams)
 
-	msdParams := &metricstore.MinStepDurationQueryParameters{}
-	mockReader.On("GetMinStepDuration", context.Background(), msdParams).
-		Return(time.Second, nil)
-	mrs.GetMinStepDuration(context.Background(), msdParams)
-
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
-		"requests|operation=get_latencies|result=ok":          1,
-		"requests|operation=get_latencies|result=err":         0,
-		"requests|operation=get_call_rates|result=ok":         1,
-		"requests|operation=get_call_rates|result=err":        0,
-		"requests|operation=get_error_rates|result=ok":        1,
-		"requests|operation=get_error_rates|result=err":       0,
-		"requests|operation=get_min_step_duration|result=ok":  1,
-		"requests|operation=get_min_step_duration|result=err": 0,
+		"requests|operation=get_latencies|result=ok":    1,
+		"requests|operation=get_latencies|result=err":   0,
+		"requests|operation=get_call_rates|result=ok":   1,
+		"requests|operation=get_call_rates|result=err":  0,
+		"requests|operation=get_error_rates|result=ok":  1,
+		"requests|operation=get_error_rates|result=err": 0,
 	}
 
 	// This is not exhaustive.
@@ -112,21 +104,14 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		Return(&protometrics.MetricFamily{}, errors.New("failure"))
 	mrs.GetErrorRates(context.Background(), gerParams)
 
-	msdParams := &metricstore.MinStepDurationQueryParameters{}
-	mockReader.On("GetMinStepDuration", context.Background(), msdParams).
-		Return(time.Second, errors.New("failure"))
-	mrs.GetMinStepDuration(context.Background(), msdParams)
-
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
-		"requests|operation=get_latencies|result=ok":          0,
-		"requests|operation=get_latencies|result=err":         1,
-		"requests|operation=get_call_rates|result=ok":         0,
-		"requests|operation=get_call_rates|result=err":        1,
-		"requests|operation=get_error_rates|result=ok":        0,
-		"requests|operation=get_error_rates|result=err":       1,
-		"requests|operation=get_min_step_duration|result=ok":  0,
-		"requests|operation=get_min_step_duration|result=err": 1,
+		"requests|operation=get_latencies|result=ok":    0,
+		"requests|operation=get_latencies|result=err":   1,
+		"requests|operation=get_call_rates|result=ok":   0,
+		"requests|operation=get_call_rates|result=err":  1,
+		"requests|operation=get_error_rates|result=ok":  0,
+		"requests|operation=get_error_rates|result=err": 1,
 	}
 
 	// This is not exhaustive.
