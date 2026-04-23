@@ -246,3 +246,12 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 	binary.BigEndian.PutUint64(dbTraceID[8:], uint64(traceID.Low))
 	return dbTraceID
 }
+
+func GetSpanKind(ds *Span) string {
+	for _, tag := range ds.Tags {
+		if tag.Key == model.SpanKindKey {
+			return tag.ValueString
+		}
+	}
+	return ""
+}

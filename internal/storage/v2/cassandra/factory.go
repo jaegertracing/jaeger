@@ -5,6 +5,7 @@ package cassandra
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -14,6 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
@@ -61,11 +63,20 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 }
 
 func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
-	writer, err := f.v1Factory.CreateSpanWriter()
+	options, err := writerOptions(f.v1Factory.Options)
 	if err != nil {
 		return nil, err
 	}
-	return v1adapter.NewTraceWriter(writer), nil
+	writer, err := ctracestore.NewTraceWriter(
+		f.v1Factory.GetSession(),
+		f.v1Factory.Options.SpanStoreWriteCacheTTL,
+		f.metricsFactory,
+		f.logger,
+		options...)
+	if err != nil {
+		return nil, err
+	}
+	return writer, nil
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
@@ -131,4 +142,33 @@ func (b *withConfigBuilder) build() (*cassandra.Factory, error) {
 		return nil, err
 	}
 	return b.f, nil
+}
+
+func writerOptions(opts *cassandra.Options) ([]cspanstore.Option, error) {
+	var tagFilters []dbmodel.TagFilter
+
+	// drop all tag filters
+	if !opts.Index.Tags || !opts.Index.ProcessTags || !opts.Index.Logs {
+		tagFilters = append(tagFilters, dbmodel.NewTagFilterDropAll(!opts.Index.Tags, !opts.Index.ProcessTags, !opts.Index.Logs))
+	}
+
+	// black/white list tag filters
+	tagIndexBlacklist := opts.TagIndexBlacklist()
+	tagIndexWhitelist := opts.TagIndexWhitelist()
+	if len(tagIndexBlacklist) > 0 && len(tagIndexWhitelist) > 0 {
+		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+	}
+	if len(tagIndexBlacklist) > 0 {
+		tagFilters = append(tagFilters, dbmodel.NewBlacklistFilter(tagIndexBlacklist))
+	} else if len(tagIndexWhitelist) > 0 {
+		tagFilters = append(tagFilters, dbmodel.NewWhitelistFilter(tagIndexWhitelist))
+	}
+
+	if len(tagFilters) == 0 {
+		return nil, nil
+	} else if len(tagFilters) == 1 {
+		return []cspanstore.Option{cspanstore.TagFilter(tagFilters[0])}, nil
+	}
+
+	return []cspanstore.Option{cspanstore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
 }
