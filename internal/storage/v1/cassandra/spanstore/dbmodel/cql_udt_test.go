@@ -36,7 +36,7 @@ func TestDBModelUDTMarshall(t *testing.T) {
 
 	spanRef := &SpanRef{
 		RefType: "childOf",
-		TraceID: TraceID{1},
+		TraceID: TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 		SpanID:  123,
 	}
 

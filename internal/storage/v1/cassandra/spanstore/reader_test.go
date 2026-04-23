@@ -325,7 +325,10 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(_ /* name */ string) any {
-					traceIDs := []dbmodel.TraceID{{1}, {2}}
+					traceIDs := []dbmodel.TraceID{
+						{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+						{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
+					}
 					scanFunc := func(args []any) bool {
 						if len(traceIDs) == 0 {
 							return false
