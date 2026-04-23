@@ -119,7 +119,6 @@ func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
 	aH.handleFunc(router, aH.latencies, http.MethodGet, "/metrics/latencies")
 	aH.handleFunc(router, aH.calls, http.MethodGet, "/metrics/calls")
 	aH.handleFunc(router, aH.errors, http.MethodGet, "/metrics/errors")
-	aH.handleFunc(router, aH.minStep, http.MethodGet, "/metrics/minstep")
 	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
 }
 
