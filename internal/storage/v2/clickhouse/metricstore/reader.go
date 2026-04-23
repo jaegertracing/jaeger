@@ -5,7 +5,6 @@ package metricstore
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -18,8 +17,6 @@ import (
 )
 
 var _ metricstore.Reader = (*Reader)(nil)
-
-var errNotImplemented = errors.New("not implemented")
 
 const (
 	defaultLookback    = time.Hour
@@ -35,38 +32,79 @@ func NewReader(conn driver.Conn) *Reader {
 }
 
 func (r *Reader) GetLatencies(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error) {
-	name, desc := "service_latencies", fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile)
-	query := sql.SelectLatencies
+	base := params.BaseQueryParameters
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+	return r.queryMetrics(ctx, metricsQuery{
+		baseName:  "service_latencies",
+		opName:    "service_operation_latencies",
+		baseDesc:  fmt.Sprintf("%.2fth quantile latency, grouped by service", params.Quantile),
+		baseQuery: sql.SelectLatencies,
+		opQuery:   sql.SelectLatenciesByOperation,
+		args:      []any{step, params.Quantile, start, end, base.ServiceNames, kinds},
+	}, base)
+}
+
+func (r *Reader) GetCallRates(ctx context.Context, params *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
+	base := params.BaseQueryParameters
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+	return r.queryMetrics(ctx, metricsQuery{
+		baseName:  "service_call_rate",
+		opName:    "service_operation_call_rate",
+		baseDesc:  "calls/sec, grouped by service",
+		baseQuery: sql.SelectCallRates,
+		opQuery:   sql.SelectCallRatesByOperation,
+		args:      []any{step, step, start, end, base.ServiceNames, kinds},
+	}, base)
+}
+
+func (r *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
+	base := params.BaseQueryParameters
+	start, end := queryWindow(base)
+	step := stepSeconds(base)
+	kinds := convertSpanKinds(base.SpanKinds)
+	return r.queryMetrics(ctx, metricsQuery{
+		baseName:  "service_error_rate",
+		opName:    "service_operation_error_rate",
+		baseDesc:  "error rate, grouped by service",
+		baseQuery: sql.SelectErrorRates,
+		opQuery:   sql.SelectErrorRatesByOperation,
+		args:      []any{step, start, end, base.ServiceNames, kinds},
+	}, base)
+}
+
+type metricsQuery struct {
+	baseName  string
+	opName    string
+	baseDesc  string
+	baseQuery string
+	opQuery   string
+	args      []any
+}
+
+// queryMetrics executes a metrics query against ClickHouse and returns the
+// result as a MetricFamily.
+func (r *Reader) queryMetrics(
+	ctx context.Context,
+	cfg metricsQuery,
+	params metricstore.BaseQueryParameters,
+) (*metrics.MetricFamily, error) {
+	name, desc := cfg.baseName, cfg.baseDesc
+	query := cfg.baseQuery
 	if params.GroupByOperation {
-		name = "service_operation_latencies"
+		name = cfg.opName
 		desc += " & operation"
-		query = sql.SelectLatenciesByOperation
+		query = cfg.opQuery
 	}
 
-	start, end := queryWindow(params.BaseQueryParameters)
-	step := stepSeconds(params.BaseQueryParameters)
-	kinds := convertSpanKinds(params.SpanKinds)
-
-	rows, err := r.conn.Query(ctx, query,
-		step, params.Quantile, start, end, params.ServiceNames, kinds,
-	)
+	rows, err := r.conn.Query(ctx, query, cfg.args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query latencies: %w", err)
+		return nil, fmt.Errorf("failed to query %s: %w", name, err)
 	}
-
 	return rowsToMetricFamily(rows, name, desc, params.GroupByOperation)
-}
-
-func (*Reader) GetCallRates(_ context.Context, _ *metricstore.CallRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, errNotImplemented
-}
-
-func (*Reader) GetErrorRates(_ context.Context, _ *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
-	return nil, errNotImplemented
-}
-
-func (*Reader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return 0, errNotImplemented
 }
 
 // metricsKey groups metric points by service (and optionally operation).

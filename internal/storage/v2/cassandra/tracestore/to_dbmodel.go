@@ -87,6 +87,7 @@ func resourceToDbProcess(resource pcommon.Resource) dbmodel.Process {
 		tags = append(tags, attributeToDbTag(key, attr))
 	}
 	process.Tags = tags
+	dbmodel.SortKVs(process.Tags)
 	return process
 }
 
@@ -129,7 +130,7 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 	dbTraceId := dbmodel.TraceID(span.TraceID())
 	dbReferences := linksToDbSpanRefs(span.Links(), spanIDToDbSpanId(span.ParentSpanID()), dbTraceId)
 	startTime := span.StartTimestamp().AsTime()
-	return dbmodel.Span{
+	dbSpan := dbmodel.Span{
 		TraceID:       dbTraceId,
 		SpanID:        spanIDToDbSpanId(span.SpanID()),
 		OperationName: span.Name(),
@@ -146,6 +147,10 @@ func spanToDbSpan(span ptrace.Span, scope pcommon.InstrumentationScope, process 
 		ServiceName: process.ServiceName,
 		ParentID:    spanIDToDbSpanId(span.ParentSpanID()),
 	}
+	spanHash, _ := model.HashCode(dbSpan)
+	//nolint:gosec // G115
+	dbSpan.SpanHash = int64(spanHash)
+	return dbSpan
 }
 
 func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
@@ -197,6 +202,7 @@ func getDbTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmodel.K
 	if traceStateTagsFound {
 		tags = append(tags, traceStateTags...)
 	}
+	dbmodel.SortKVs(tags)
 	return tags
 }
 
@@ -245,7 +251,11 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID int64, traceID d
 			RefType: linkRefType,
 		})
 	}
-
+	if parentSpanID != 0 {
+		dbmodel.SortSpanRefs(refs[1:])
+	} else {
+		dbmodel.SortSpanRefs(refs)
+	}
 	return refs
 }
 
@@ -273,7 +283,7 @@ func spanEventsToDbLogs(events ptrace.SpanEventSlice) []dbmodel.Log {
 			Fields:    fields,
 		})
 	}
-
+	dbmodel.SortLogs(logs)
 	return logs
 }
 
