@@ -17,18 +17,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-// stubContextualTools is a ContextualToolsProvider used only to distinguish
-// the store returned by the extension from the nil default.
-type stubContextualTools struct{}
-
-func (*stubContextualTools) GetContextualToolsForSession(string) []any { return nil }
-
 // mockExtension implements Extension for testing
 type mockExtension struct {
 	extension.Extension
-	qs       *querysvc.QueryService
-	tm       *tenancy.Manager
-	ctxTools ContextualToolsProvider
+	qs *querysvc.QueryService
+	tm *tenancy.Manager
 }
 
 func (m *mockExtension) QueryService() *querysvc.QueryService {
@@ -39,16 +32,11 @@ func (m *mockExtension) TenancyManager() *tenancy.Manager {
 	return m.tm
 }
 
-func (m *mockExtension) ContextualToolsStore() ContextualToolsProvider {
-	return m.ctxTools
-}
-
 func TestGetExtension_Success(t *testing.T) {
 	// Create a mock QueryService
 	mockQS := &querysvc.QueryService{}
 	mockTM := tenancy.NewManager(&tenancy.Options{})
-	mockCtxTools := &stubContextualTools{}
-	mockExt := &mockExtension{qs: mockQS, tm: mockTM, ctxTools: mockCtxTools}
+	mockExt := &mockExtension{qs: mockQS, tm: mockTM}
 
 	// Create a mock host with the jaegerquery extension
 	host := &mockHost{
@@ -68,11 +56,6 @@ func TestGetExtension_Success(t *testing.T) {
 	// Verify we got the right tenancy manager
 	tm := ext.TenancyManager()
 	assert.Equal(t, mockTM, tm)
-
-	// Verify the contextual tools provider is surfaced so MCP handlers can
-	// look up AG-UI tool snapshots for in-flight ACP sessions.
-	ctxTools := ext.ContextualToolsStore()
-	assert.Same(t, mockCtxTools, ctxTools)
 }
 
 func TestGetExtension_NotFound(t *testing.T) {

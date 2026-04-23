@@ -26,8 +26,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
@@ -39,9 +37,8 @@ import (
 // mockQueryExtension implements jaegerquery.Extension for testing
 type mockQueryExtension struct {
 	extension.Extension
-	svc      *querysvc.QueryService
-	tm       *tenancy.Manager
-	ctxTools jaegerquery.ContextualToolsProvider
+	svc *querysvc.QueryService
+	tm  *tenancy.Manager
 }
 
 func newMockQueryExtension(svc *querysvc.QueryService) *mockQueryExtension {
@@ -49,9 +46,8 @@ func newMockQueryExtension(svc *querysvc.QueryService) *mockQueryExtension {
 		svc = querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	}
 	return &mockQueryExtension{
-		svc:      svc,
-		tm:       tenancy.NewManager(&tenancy.Options{}),
-		ctxTools: &stubContextualToolsProvider{},
+		svc: svc,
+		tm:  tenancy.NewManager(&tenancy.Options{}),
 	}
 }
 
@@ -61,10 +57,6 @@ func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
 
 func (m *mockQueryExtension) TenancyManager() *tenancy.Manager {
 	return m.tm
-}
-
-func (m *mockQueryExtension) ContextualToolsStore() jaegerquery.ContextualToolsProvider {
-	return m.ctxTools
 }
 
 // mockHost implements component.Host with a jaegerquery extension
@@ -91,9 +83,8 @@ func newMockHostWithQueryServiceAndTenancy(svc *querysvc.QueryService, tm *tenan
 	return &mockHost{
 		Host: componenttest.NewNopHost(),
 		queryExt: &mockQueryExtension{
-			svc:      svc,
-			tm:       tm,
-			ctxTools: &stubContextualToolsProvider{},
+			svc: svc,
+			tm:  tm,
 		},
 	}
 }
@@ -462,81 +453,6 @@ func TestNewServer(t *testing.T) {
 	assert.Equal(t, telset, server.telset)
 	assert.Nil(t, server.httpServer)
 	assert.Nil(t, server.listener)
-}
-
-// stubContextualToolsProvider is a test double for the contextualToolsProvider
-// interface used by the list_contextual_tools handler.
-type stubContextualToolsProvider struct {
-	tools map[string][]any
-}
-
-func (s *stubContextualToolsProvider) GetContextualToolsForSession(sessionID string) []any {
-	return s.tools[sessionID]
-}
-
-func TestServerWiresContextualToolsProviderFromQueryExtension(t *testing.T) {
-	// The MCP server must forward whatever provider the jaegerquery extension
-	// returns so the list_contextual_tools handler can look up session
-	// snapshots. A nil wiring would panic on handler invocation.
-	provider := &stubContextualToolsProvider{
-		tools: map[string][]any{
-			"sess-wired": {map[string]any{"name": "wired"}},
-		},
-	}
-	host := &mockHost{
-		Host: componenttest.NewNopHost(),
-		queryExt: &mockQueryExtension{
-			svc:      querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{}),
-			tm:       tenancy.NewManager(&tenancy.Options{}),
-			ctxTools: provider,
-		},
-	}
-
-	telset := componenttest.NewNopTelemetrySettings()
-	config := &Config{
-		HTTP:                     createDefaultConfig().(*Config).HTTP,
-		ServerName:               "jaeger",
-		ServerVersion:            "1.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-	server := newServer(config, telset)
-	require.NoError(t, server.Start(context.Background(), host))
-	t.Cleanup(func() { _ = server.Shutdown(context.Background()) })
-
-	require.Same(t, provider, server.ctxTools,
-		"Start must forward the jaegerquery provider unchanged to the list_contextual_tools handler")
-}
-
-func TestListContextualToolsToolReturnsSessionSnapshot(t *testing.T) {
-	provider := &stubContextualToolsProvider{
-		tools: map[string][]any{
-			"sess-1": {map[string]any{"name": "visualize"}},
-			"sess-2": {map[string]any{"name": "other"}},
-		},
-	}
-
-	handler := handlers.NewListContextualToolsHandler(provider)
-	_, output, err := handler(context.Background(), nil, types.ListContextualToolsInput{SessionID: "sess-1"})
-	require.NoError(t, err)
-	require.Len(t, output.Tools, 1)
-	tool, ok := output.Tools[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "visualize", tool["name"],
-		"agent must receive the snapshot for the session it passed, not the most recently registered one")
-}
-
-func TestListContextualToolsToolUnknownSessionReturnsEmpty(t *testing.T) {
-	provider := &stubContextualToolsProvider{
-		tools: map[string][]any{
-			"sess-1": {map[string]any{"name": "visualize"}},
-		},
-	}
-
-	handler := handlers.NewListContextualToolsHandler(provider)
-	_, output, err := handler(context.Background(), nil, types.ListContextualToolsInput{SessionID: "sess-nope"})
-	require.NoError(t, err)
-	assert.Nil(t, output.Tools, "unknown session_id must not leak another session's snapshot")
 }
 
 func TestHealthTool(t *testing.T) {

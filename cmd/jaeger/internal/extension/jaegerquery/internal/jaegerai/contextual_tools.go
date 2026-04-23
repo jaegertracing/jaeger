@@ -10,9 +10,10 @@ import (
 
 // ContextualToolsStore stores the AG-UI tools that the frontend provided for
 // a given ACP session. The chat handler populates it on each request and
-// the MCP list_contextual_tools tool reads the snapshot for the requested
-// session. The session ID is the correlation key so concurrent turns from
-// different frontends cannot clobber each other's snapshots.
+// the gateway-hosted MCP endpoint (see contextual_mcp.go) reads the
+// snapshot for the requested session. The session ID is the correlation
+// key so concurrent turns from different frontends cannot clobber each
+// other's snapshots.
 //
 // Entries are kept as []json.RawMessage so that GetContextualToolsForSession
 // can unmarshal a fresh tree per reader. That guarantees callers cannot

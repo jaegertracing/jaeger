@@ -200,9 +200,3 @@ func (s *server) QueryService() *querysvc.QueryService {
 func (s *server) TenancyManager() *tenancy.Manager {
 	return s.tenancyManager
 }
-
-// ContextualToolsStore returns the store used to exchange AG-UI tools
-// between the AI chat gateway and the MCP extension.
-func (s *server) ContextualToolsStore() ContextualToolsProvider {
-	return s.ctxTools
-}

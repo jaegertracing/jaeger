@@ -12,10 +12,15 @@ import (
 	"strings"
 
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/version"
 )
+
+// contextualMCPServerName is the ACP-visible name for the per-session MCP
+// server that surfaces the frontend-provided AG-UI tool snapshot.
+const contextualMCPServerName = "jaeger-ai-contextual"
 
 // ChatRequest is the incoming payload
 type ChatRequest struct {
@@ -27,16 +32,21 @@ type ChatHandler struct {
 	Logger             *zap.Logger
 	ctxTools           *ContextualToolsStore
 	sidecarWSURL       string
+	basePath           string
 	maxRequestBodySize int64
 }
 
 // NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
 // ctxTools may be nil in tests that do not exercise contextual tooling.
-func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL string, maxRequestBodySize int64) *ChatHandler {
+// basePath is the jaeger-query base path (empty or "/" mean no prefix);
+// the handler uses it to build the absolute URL the sidecar will dial
+// back for per-session contextual MCP tools.
+func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
+		basePath:           basePath,
 		maxRequestBodySize: maxRequestBodySize,
 	}
 }
@@ -97,9 +107,24 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Mint a per-turn id that ties this chat request's AG-UI tool snapshot
+	// to the contextual MCP endpoint the sidecar will read from. The URL is
+	// constructed from the inbound request so deployments that expose
+	// jaeger-query on one hostname but internally resolve it under another
+	// still send the sidecar back to where the gateway actually listens.
+	contextualMCPID := uuid.NewString()
+	contextualMCPURL := h.buildContextualMCPURL(r, contextualMCPID)
+
 	sess, err := acpConn.NewSession(acpCtx, acp.NewSessionRequest{
-		Cwd:        "/",
-		McpServers: []acp.McpServer{},
+		Cwd: "/",
+		McpServers: []acp.McpServer{{
+			Http: &acp.McpServerHttpInline{
+				Name:    contextualMCPServerName,
+				Type:    "http",
+				Url:     contextualMCPURL,
+				Headers: []acp.HttpHeader{},
+			},
+		}},
 	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
@@ -131,4 +156,25 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
+}
+
+// buildContextualMCPURL reconstructs the absolute URL at which the gateway
+// serves the per-turn contextual MCP endpoint. The sidecar dials this URL
+// after receiving it in NewSessionRequest.McpServers, so it must be
+// reachable from the sidecar — hence the honoring of the standard
+// reverse-proxy forwarding headers when present.
+func (h *ChatHandler) buildContextualMCPURL(r *http.Request, id string) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := r.Host
+	if xfh := r.Header.Get("X-Forwarded-Host"); xfh != "" {
+		host = xfh
+	}
+	prefix := strings.TrimSuffix(h.basePath, "/")
+	return scheme + "://" + host + prefix + "/api/ai/mcp/" + id
 }

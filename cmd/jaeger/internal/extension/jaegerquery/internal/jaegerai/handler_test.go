@@ -6,6 +6,7 @@ package jaegerai
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -150,12 +151,13 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20)
 
 	reqBody, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
 	require.NoError(t, err, "failed to marshal request")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	req.Host = "gateway.example:16686"
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -174,7 +176,15 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.Equal(t, version.Get().GitVersion, initReq.ClientInfo.Version, "client version mismatch")
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
-	require.Empty(t, sessionReq.McpServers, "expected no MCP servers in session/new")
+	require.Len(t, sessionReq.McpServers, 1, "expected one contextual MCP server in session/new")
+	mcpEntry := sessionReq.McpServers[0]
+	require.NotNil(t, mcpEntry.Http, "expected inline HTTP MCP server entry")
+	require.Equal(t, contextualMCPServerName, mcpEntry.Http.Name, "unexpected MCP server name")
+	require.Equal(t, "http", mcpEntry.Http.Type, "unexpected MCP server type")
+	require.True(t, strings.HasPrefix(mcpEntry.Http.Url, "http://gateway.example:16686/jaeger/api/ai/mcp/"),
+		"unexpected MCP server URL: %s", mcpEntry.Http.Url)
+	require.NotEmpty(t, strings.TrimPrefix(mcpEntry.Http.Url, "http://gateway.example:16686/jaeger/api/ai/mcp/"),
+		"expected non-empty contextual MCP id suffix")
 
 	require.EqualValues(t, "sess-test", promptReq.SessionId, "prompt sessionId mismatch")
 	require.Len(t, promptReq.Prompt, 1, "prompt content length mismatch")
@@ -213,14 +223,15 @@ func (*failingFlusherResponseWriter) Flush() {}
 
 func TestNewChatHandlerPassesThroughConfig(t *testing.T) {
 	store := NewContextualToolsStore()
-	h := NewChatHandler(zap.NewNop(), store, "ws://localhost:1", 512)
+	h := NewChatHandler(zap.NewNop(), store, "ws://localhost:1", "/jaeger", 512)
 	require.Equal(t, int64(512), h.maxRequestBodySize, "expected configured maxRequestBodySize")
 	require.Equal(t, "ws://localhost:1", h.sidecarWSURL, "expected configured sidecarWSURL")
+	require.Equal(t, "/jaeger", h.basePath, "expected configured basePath")
 	require.Same(t, store, h.ctxTools, "expected configured ctxTools store")
 }
 
 func TestChatHandlerMethodNotAllowed(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	req := httptest.NewRequest(http.MethodGet, "/api/ai/chat", http.NoBody)
 	rr := httptest.NewRecorder()
 
@@ -230,7 +241,7 @@ func TestChatHandlerMethodNotAllowed(t *testing.T) {
 }
 
 func TestChatHandlerBadRequest(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader("{"))
 	rr := httptest.NewRecorder()
 
@@ -240,7 +251,7 @@ func TestChatHandlerBadRequest(t *testing.T) {
 }
 
 func TestChatHandlerEmptyPrompt(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "   "})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -253,7 +264,7 @@ func TestChatHandlerEmptyPrompt(t *testing.T) {
 }
 
 func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 10)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 10)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"this body exceeds the 10 byte limit"}`))
 	rr := httptest.NewRecorder()
 
@@ -263,7 +274,7 @@ func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 }
 
 func TestChatHandlerDialFailure(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -279,7 +290,7 @@ func TestChatHandlerInitializeError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -296,7 +307,7 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -313,7 +324,7 @@ func TestChatHandlerPromptError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -330,7 +341,7 @@ func TestChatHandlerNonEndTurnStopReason(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -358,7 +369,7 @@ func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -371,12 +382,79 @@ func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
 		"SessionUpdate should be flushed before Prompt() returns")
 }
 
+func TestBuildContextualMCPURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		basePath string
+		host     string
+		tls      bool
+		headers  map[string]string
+		wantBase string
+	}{
+		{
+			name:     "plain host no prefix",
+			basePath: "",
+			host:     "gateway.example:16686",
+			wantBase: "http://gateway.example:16686/api/ai/mcp/",
+		},
+		{
+			name:     "with base path",
+			basePath: "/jaeger",
+			host:     "gateway.example:16686",
+			wantBase: "http://gateway.example:16686/jaeger/api/ai/mcp/",
+		},
+		{
+			name:     "trailing slash in base path is trimmed",
+			basePath: "/jaeger/",
+			host:     "gateway.example",
+			wantBase: "http://gateway.example/jaeger/api/ai/mcp/",
+		},
+		{
+			name:     "tls flips scheme to https",
+			basePath: "",
+			host:     "gateway.example",
+			tls:      true,
+			wantBase: "https://gateway.example/api/ai/mcp/",
+		},
+		{
+			name:     "forwarded proto overrides tls-derived scheme",
+			basePath: "",
+			host:     "gateway.example",
+			headers:  map[string]string{"X-Forwarded-Proto": "https"},
+			wantBase: "https://gateway.example/api/ai/mcp/",
+		},
+		{
+			name:     "forwarded host overrides request host",
+			basePath: "/jaeger",
+			host:     "internal.local",
+			headers:  map[string]string{"X-Forwarded-Host": "public.example:443", "X-Forwarded-Proto": "https"},
+			wantBase: "https://public.example:443/jaeger/api/ai/mcp/",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			h := NewChatHandler(zap.NewNop(), nil, "ws://unused", tc.basePath, 1<<20)
+			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", http.NoBody)
+			req.Host = tc.host
+			if tc.tls {
+				req.TLS = &tls.ConnectionState{}
+			}
+			for k, v := range tc.headers {
+				req.Header.Set(k, v)
+			}
+			got := h.buildContextualMCPURL(req, "abc-123")
+			require.Equal(t, tc.wantBase+"abc-123", got)
+		})
+	}
+}
+
 func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, 1<<20)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))

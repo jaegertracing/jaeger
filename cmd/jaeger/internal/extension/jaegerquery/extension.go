@@ -13,14 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-// ContextualToolsProvider gives read access to the AG-UI tools snapshot
-// that the frontend attached to a chat request. It is keyed by ACP session
-// ID so concurrent turns from different frontends each get their own
-// snapshot without racing.
-type ContextualToolsProvider interface {
-	GetContextualToolsForSession(sessionID string) []any
-}
-
 // Extension is the interface that the jaegerquery extension implements.
 // It allows other extensions to access the query service.
 type Extension interface {
@@ -29,9 +21,6 @@ type Extension interface {
 	QueryService() *querysvc.QueryService
 	// TenancyManager returns the tenancy manager used by query endpoints.
 	TenancyManager() *tenancy.Manager
-	// ContextualToolsStore returns the store used to exchange AG-UI tools
-	// between the AI chat gateway and the MCP extension.
-	ContextualToolsStore() ContextualToolsProvider
 }
 
 // GetExtension retrieves the jaegerquery extension from the host.
