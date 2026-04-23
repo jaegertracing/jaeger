@@ -9,15 +9,16 @@ import (
 	"strconv"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -69,10 +70,11 @@ func main() {
 		logger.Info("Loaded trace", zap.Any("spans", spans))
 	}
 
-	tqp := &spanstore.TraceQueryParameters{
+	tqp := &tracestore.TraceQueryParams{
 		ServiceName:  "someServiceName",
 		StartTimeMin: time.Now().Add(time.Hour * -1),
 		StartTimeMax: time.Now().Add(time.Hour),
+		Attributes:   pcommon.NewMap(),
 	}
 	logger.Info("Check main query")
 	queryAndPrint(ctx, spanReader, tqp)
@@ -81,20 +83,18 @@ func main() {
 	logger.Info("Check query with operation")
 	queryAndPrint(ctx, spanReader, tqp)
 
-	tqp.Tags = map[string]string{
-		"someKey": "someVal",
-	}
+	tqp.Attributes.PutStr("someKey", "someVal")
 	logger.Info("Check query with operation name and tags")
 	queryAndPrint(ctx, spanReader, tqp)
 
 	tqp.DurationMin = 0
 	tqp.DurationMax = time.Hour
-	tqp.Tags = map[string]string{}
+	tqp.Attributes = pcommon.NewMap()
 	logger.Info("check query with duration")
 	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
+func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *tracestore.TraceQueryParams) {
 	var traces []dbmodel.Trace
 	var err error
 	for trace, inerr := range spanReader.FindTraces(ctx, tqp) {

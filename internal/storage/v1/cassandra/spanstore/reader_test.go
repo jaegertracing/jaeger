@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -23,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -401,17 +401,17 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					stringMatcher("SELECT trace_id"),
 					mock.Anything).Return(makeLoadQuery())
 
-				queryParams := &spanstore.TraceQueryParameters{
+				queryParams := &tracestore.TraceQueryParams{
 					ServiceName:  "service-a",
-					NumTraces:    100,
+					SearchDepth:  100,
 					StartTimeMax: time.Now(),
 					StartTimeMin: time.Now().Add(-1 * time.Minute * 30),
+					Attributes:   pcommon.NewMap(),
 				}
 
-				queryParams.NumTraces = testCase.numTraces
+				queryParams.SearchDepth = testCase.numTraces
 				if testCase.queryTags {
-					queryParams.Tags = make(map[string]string)
-					queryParams.Tags["x"] = "y"
+					queryParams.Attributes.PutStr("x", "y")
 				}
 				if testCase.queryOperation {
 					queryParams.OperationName = "operation-b"
@@ -451,11 +451,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	tsp := &spanstore.TraceQueryParameters{
+	attr := pcommon.NewMap()
+	attr.PutStr("michael", "jackson")
+	tsp := &tracestore.TraceQueryParams{
 		ServiceName: "",
-		Tags: map[string]string{
-			"michael": "jackson",
-		},
+		Attributes:  attr,
 	}
 	err := validateQuery(tsp)
 	require.EqualError(t, err, ErrServiceNameNotSet.Error())

@@ -9,6 +9,8 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 func TestDefaultTagFilter(t *testing.T) {
@@ -63,4 +65,27 @@ func compareTags(t *testing.T, expected, actual []KeyValue) {
 			t.Log(diff)
 		}
 	}
+}
+
+func getTestSpan() *Span {
+	span := &Span{
+		TraceID:       someDBTraceID,
+		SpanID:        someSpanID,
+		OperationName: someOperationName,
+		Flags:         someFlags,
+		StartTime:     int64(model.TimeAsEpochMicroseconds(someStartTime)),
+		Duration:      int64(model.DurationAsMicroseconds(someDuration)),
+		Tags:          someDBTags,
+		Logs:          someDBLogs,
+		Refs:          someDBRefs,
+		Process:       someDBProcess,
+		ServiceName:   someServiceName,
+	}
+	// there is no way to validate if the hash code is "correct" or not,
+	// other than comparing it with some magic number that keeps changing
+	// as the model changes. So let's just make sure the code is being
+	// calculated during the conversion.
+	spanHash, _ := model.HashCode(span)
+	span.SpanHash = int64(spanHash)
+	return span
 }
