@@ -379,18 +379,6 @@ func (aH *APIHandler) errors(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (aH *APIHandler) minStep(w http.ResponseWriter, r *http.Request) {
-	minStep, err := aH.metricsQueryService.GetMinStepDuration(r.Context(), &metricstore.MinStepDurationQueryParameters{})
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-
-	structuredRes := structuredResponse{
-		Data: minStep.Milliseconds(),
-	}
-	aH.writeJSON(w, r, &structuredRes)
-}
-
 func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics func(context.Context, metricstore.BaseQueryParameters) (*metrics.MetricFamily, error)) {
 	requestParams, err := aH.queryParser.parseMetricsQueryParams(r)
 	if aH.handleError(w, err, http.StatusBadRequest) {

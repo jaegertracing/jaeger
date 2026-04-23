@@ -66,6 +66,3 @@ type CallRateQueryParameters struct {
 type ErrorRateQueryParameters struct {
 	BaseQueryParameters
 }
-
-// MinStepDurationQueryParameters contains the parameters required for fetching the minimum step duration.
-type MinStepDurationQueryParameters struct{}

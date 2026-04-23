@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -38,11 +37,6 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetErrorRates", context.Background(), gerParams).
 		Return(&protometrics.MetricFamily{}, nil)
 	mrs.GetErrorRates(context.Background(), gerParams)
-
-	msdParams := &metricstore.MinStepDurationQueryParameters{}
-	mockReader.On("GetMinStepDuration", context.Background(), msdParams).
-		Return(time.Second, nil)
-	mrs.GetMinStepDuration(context.Background(), msdParams)
 
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
@@ -111,11 +105,6 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetErrorRates", context.Background(), gerParams).
 		Return(&protometrics.MetricFamily{}, errors.New("failure"))
 	mrs.GetErrorRates(context.Background(), gerParams)
-
-	msdParams := &metricstore.MinStepDurationQueryParameters{}
-	mockReader.On("GetMinStepDuration", context.Background(), msdParams).
-		Return(time.Second, errors.New("failure"))
-	mrs.GetMinStepDuration(context.Background(), msdParams)
 
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
