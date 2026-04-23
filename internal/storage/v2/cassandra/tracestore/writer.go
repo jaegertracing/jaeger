@@ -42,7 +42,7 @@ func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 	var errs error
 	for i := range dbSpans {
 		if err := t.writer.WriteSpan(&dbSpans[i]); err != nil {
-			errs = errors.Join(err)
+			errs = errors.Join(errs, err)
 		}
 	}
 	return errs

@@ -6,7 +6,6 @@ package cassandra
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"go.opentelemetry.io/otel/trace"
@@ -22,7 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	cdepstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/dependencystore"
 	csamplingstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
@@ -119,16 +117,6 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 	}
 
 	return createSession(c)
-}
-
-// CreateSpanReader implements storage.Factory
-func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return nil, errors.New("not implemented")
-}
-
-// CreateSpanWriter creates a spanstore.Writer.
-func (*Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return nil, errors.New("not implemented")
 }
 
 // CreateDependencyReader creates a dependencystore.Reader.

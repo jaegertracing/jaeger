@@ -44,6 +44,19 @@ func TestWriteTraces(t *testing.T) {
 	require.NoError(t, writer.WriteTraces(context.Background(), td))
 }
 
+func TestWriteTracesWithError(t *testing.T) {
+	td := ptrace.NewTraces()
+	td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName("operation-a")
+	td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetName("operation-b")
+	mockWriter := &storemocks.CoreSpanWriter{}
+	expectedErr := errors.New("test error")
+	mockWriter.On("WriteSpan", mock.Anything).Return(expectedErr)
+	writer := TraceWriter{writer: mockWriter}
+	err := writer.WriteTraces(context.Background(), td)
+	expected := "test error\ntest error"
+	require.ErrorContains(t, err, expected)
+}
+
 func TestTraceWriterClose(t *testing.T) {
 	mockWriter := &storemocks.CoreSpanWriter{}
 	mockWriter.On("Close").Return(nil)

@@ -529,6 +529,39 @@ func Test_compareInt64(t *testing.T) {
 	}
 }
 
+func Test_GetSpanKind(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     []KeyValue
+		expected string
+	}{
+		{
+			name: "no span kind tag",
+			tags: []KeyValue{
+				{Key: "foo", ValueString: "bar"},
+			},
+			expected: "",
+		},
+		{
+			name: "span kind tag present",
+			tags: []KeyValue{
+				{Key: "foo", ValueString: "bar"},
+				{Key: model.SpanKindKey, ValueString: "server"},
+			},
+			expected: "server",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			span := &Span{
+				Tags: tc.tags,
+			}
+			assert.Equal(t, tc.expected, GetSpanKind(span))
+		})
+	}
+}
+
 func makeSpan(kv KeyValue) Span {
 	return Span{
 		TraceID:       TraceID{1},

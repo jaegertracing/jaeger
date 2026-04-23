@@ -56,13 +56,13 @@ func main() {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
 	ctx := context.Background()
-	if err = spanStore.WriteSpan(getSomeSpan()); err != nil {
+	span := getSomeSpan()
+	if err = spanStore.WriteSpan(span); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
 	} else {
-		logger.Info("Saved span", zap.String("spanID", strconv.FormatInt(getSomeSpan().SpanID, 10)))
+		logger.Info("Saved span", zap.String("spanID", strconv.FormatInt(span.SpanID, 10)))
 	}
-	s := getSomeSpan()
-	spans, err := spanReader.GetTrace(ctx, s.TraceID)
+	spans, err := spanReader.GetTrace(ctx, span.TraceID)
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
@@ -119,6 +119,7 @@ func getSomeProcess() dbmodel.Process {
 			{
 				Key:         "processTagKey",
 				ValueString: processTagVal,
+				ValueType:   dbmodel.StringType,
 			},
 		},
 	}
@@ -156,6 +157,7 @@ func getTags() []dbmodel.KeyValue {
 		{
 			Key:         "someKey",
 			ValueString: someVal,
+			ValueType:   dbmodel.StringType,
 		},
 	}
 }
@@ -169,6 +171,7 @@ func getLogs() []dbmodel.Log {
 				{
 					Key:         "event",
 					ValueString: logTag,
+					ValueType:   dbmodel.StringType,
 				},
 			},
 		},

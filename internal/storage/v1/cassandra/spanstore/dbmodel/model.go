@@ -26,8 +26,6 @@ const (
 	Int64Type   = "int64"
 	Float64Type = "float64"
 	BinaryType  = "binary"
-
-	spanKindKey = "span.kind"
 )
 
 // Span is the database representation of a span.
@@ -251,7 +249,7 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 
 func GetSpanKind(ds *Span) string {
 	for _, tag := range ds.Tags {
-		if tag.Key == spanKindKey {
+		if tag.Key == model.SpanKindKey {
 			return tag.ValueString
 		}
 	}
