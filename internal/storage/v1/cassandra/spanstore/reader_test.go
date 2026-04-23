@@ -20,7 +20,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
@@ -326,10 +325,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(_ /* name */ string) any {
-					traceIDs := []dbmodel.TraceID{
-						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 1)),
-						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 2)),
-					}
+					traceIDs := []dbmodel.TraceID{{1}, {2}}
 					scanFunc := func(args []any) bool {
 						if len(traceIDs) == 0 {
 							return false

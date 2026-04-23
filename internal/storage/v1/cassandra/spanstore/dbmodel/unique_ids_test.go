@@ -8,13 +8,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+)
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
+var (
+	firstTraceID  = TraceID{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1}
+	secondTraceID = TraceID{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2}
 )
 
 func TestGetIntersectedTraceIDs(t *testing.T) {
-	firstTraceID := TraceIDFromDomain(model.NewTraceID(1, 1))
-	secondTraceID := TraceIDFromDomain(model.NewTraceID(2, 2))
 	listOfUniqueTraceIDs := []UniqueTraceIDs{
 		{
 			firstTraceID:  struct{}{},
@@ -37,13 +38,13 @@ func TestGetIntersectedTraceIDs(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	u := UniqueTraceIDs{}
-	someID := TraceIDFromDomain(model.NewTraceID(1, 1))
+	someID := firstTraceID
 	u.Add(someID)
 	assert.Contains(t, u, someID)
 }
 
 func TestFromList(t *testing.T) {
-	someID := TraceIDFromDomain(model.NewTraceID(1, 1))
+	someID := firstTraceID
 	traceIDList := []TraceID{
 		someID,
 	}

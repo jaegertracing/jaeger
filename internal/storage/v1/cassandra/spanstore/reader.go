@@ -329,7 +329,7 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *tracestore.Trac
 			queryByTag,
 			tq.ServiceName,
 			k,
-			v,
+			v.AsString(),
 			model.TimeAsEpochMicroseconds(tq.StartTimeMin),
 			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
 			tq.SearchDepth*limitMultiple,
