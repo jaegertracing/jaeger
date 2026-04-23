@@ -204,7 +204,10 @@ FROM
     spans s
 `
 
-const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
+const (
+	SelectSpansByTraceID  = SelectSpansQuery + " WHERE s.trace_id = ?"
+	SelectSpansByTraceIDs = SelectSpansQuery + " WHERE s.trace_id IN (?)"
+)
 
 // SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //

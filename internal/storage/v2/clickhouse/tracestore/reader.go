@@ -58,40 +58,43 @@ func (r *Reader) GetTraces(
 	traceIDs ...tracestore.GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		for _, traceID := range traceIDs {
-			query, args := buildGetTracesQuery(traceID)
-			rows, err := r.conn.Query(ctx, query, args...)
+		if len(traceIDs) == 0 {
+			return
+		}
+
+		query, args := buildGetTracesQuery(traceIDs...)
+		rows, err := r.conn.Query(ctx, query, args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query traces: %w", err))
+			return
+		}
+
+		for rows.Next() {
+			span, err := dbmodel.ScanRow(rows)
 			if err != nil {
-				yield(nil, fmt.Errorf("failed to query trace: %w", err))
-				return
-			}
-
-			done := false
-			for rows.Next() {
-				span, err := dbmodel.ScanRow(rows)
-				if err != nil {
-					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
-						done = true
-						break
-					}
-					continue
+				if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
+					rows.Close()
+					return
 				}
-
-				trace := dbmodel.FromRow(span)
-				if !yield([]ptrace.Traces{trace}, nil) {
-					done = true
-					break
-				}
+				continue
 			}
 
-			if err := rows.Close(); err != nil {
-				yield(nil, fmt.Errorf("failed to close rows: %w", err))
+			trace := dbmodel.FromRow(span)
+			if !yield([]ptrace.Traces{trace}, nil) {
+				rows.Close()
 				return
 			}
+		}
 
-			if done {
-				return
-			}
+		if err := rows.Err(); err != nil {
+			yield(nil, fmt.Errorf("rows error: %w", err))
+			rows.Close()
+			return
+		}
+
+		if err := rows.Close(); err != nil {
+			yield(nil, fmt.Errorf("failed to close rows: %w", err))
+			return
 		}
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
@@ -96,18 +97,45 @@ func appendStringAttributeFallback(q *strings.Builder, args []any, key string, a
 	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
 
-func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
+func buildGetTracesQuery(params ...tracestore.GetTraceParams) (string, []any) {
 	var q strings.Builder
-	q.WriteString(sql.SelectSpansByTraceID)
-	args := []any{params.TraceID}
+	if len(params) == 1 {
+		q.WriteString(sql.SelectSpansByTraceID)
+		args := []any{params[0].TraceID}
 
-	if !params.Start.IsZero() {
-		q.WriteString(" AND s.start_time >= ?")
-		args = append(args, params.Start)
+		if !params[0].Start.IsZero() {
+			q.WriteString(" AND s.start_time >= ?")
+			args = append(args, params[0].Start)
+		}
+		if !params[0].End.IsZero() {
+			q.WriteString(" AND s.start_time <= ?")
+			args = append(args, params[0].End)
+		}
+
+		return q.String(), args
 	}
-	if !params.End.IsZero() {
+
+	q.WriteString(sql.SelectSpansByTraceIDs)
+	ids := make([]pcommon.TraceID, len(params))
+	var minStart, maxEnd time.Time
+	for i, p := range params {
+		ids[i] = p.TraceID
+		if !p.Start.IsZero() && (minStart.IsZero() || p.Start.Before(minStart)) {
+			minStart = p.Start
+		}
+		if !p.End.IsZero() && (maxEnd.IsZero() || p.End.After(maxEnd)) {
+			maxEnd = p.End
+		}
+	}
+	args := []any{ids}
+
+	if !minStart.IsZero() {
+		q.WriteString(" AND s.start_time >= ?")
+		args = append(args, minStart)
+	}
+	if !maxEnd.IsZero() {
 		q.WriteString(" AND s.start_time <= ?")
-		args = append(args, params.End)
+		args = append(args, maxEnd)
 	}
 
 	return q.String(), args
