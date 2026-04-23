@@ -446,7 +446,7 @@ func TestMetricStorageStartError(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "Addresses: non zero value required",
+			expectedError: "failed to initialize metrics storage 'foo'",
 		},
 	}
 

@@ -7,8 +7,12 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/testutils"
+	"go.opentelemetry.io/collector/featuregate"
 )
 
 func TestMain(m *testing.M) {
+	if err := featuregate.GlobalRegistry().Set("storage.clickhouse", true); err != nil {
+		panic(err)
+	}
 	testutils.VerifyGoLeaks(m)
 }
