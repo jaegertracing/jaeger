@@ -8,6 +8,16 @@
   "Duration": 5,
   "Tags": [
     {
+      "Key": "blob",
+      "ValueType": "binary",
+      "value_binary": "AAAwOQ=="
+    },
+    {
+      "Key": "error",
+      "ValueType": "bool",
+      "value_bool": true
+    },
+    {
       "Key": "otel.scope.name",
       "ValueType": "string",
       "value_string": "testing-library"
@@ -18,9 +28,9 @@
       "value_string": "1.1.1"
     },
     {
-      "Key": "peer.service",
+      "Key": "otel.status_description",
       "ValueType": "string",
-      "value_string": "service-y"
+      "value_string": "random-message"
     },
     {
       "Key": "peer.ipv4",
@@ -28,24 +38,14 @@
       "value_long": 23456
     },
     {
-      "Key": "blob",
-      "ValueType": "binary",
-      "value_binary": "AAAwOQ=="
+      "Key": "peer.service",
+      "ValueType": "string",
+      "value_string": "service-y"
     },
     {
       "Key": "temperature",
       "ValueType": "float64",
       "value_double": 72.5
-    },
-    {
-      "Key": "error",
-      "ValueType": "bool",
-      "value_bool": true
-    },
-    {
-      "Key": "otel.status_description",
-      "ValueType": "string",
-      "value_string": "random-message"
     },
     {
       "Key": "w3c.tracestate",
@@ -58,6 +58,16 @@
       "Timestamp": 1485467191639875,
       "Fields": [
         {
+          "Key": "x",
+          "ValueType": "string",
+          "value_string": "y"
+        }
+      ]
+    },
+    {
+      "Timestamp": 1485467191639875,
+      "Fields": [
+        {
           "Key": "event",
           "ValueType": "string",
           "value_string": "testing-event"
@@ -66,16 +76,6 @@
           "Key": "event-x",
           "ValueType": "string",
           "value_string": "event-y"
-        }
-      ]
-    },
-    {
-      "Timestamp": 1485467191639875,
-      "Fields": [
-        {
-          "Key": "x",
-          "ValueType": "string",
-          "value_string": "y"
         }
       ]
     }
@@ -108,5 +108,5 @@
     ]
   },
   "ServiceName": "service-x",
-  "SpanHash": 0
+  "SpanHash": 8792829599673354201
 }
