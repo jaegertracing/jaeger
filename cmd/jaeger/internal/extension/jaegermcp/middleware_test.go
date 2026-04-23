@@ -6,7 +6,6 @@ package jaegermcp
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -199,12 +198,12 @@ func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
 		return &mcp.CallToolResult{}, nil
 	})
 
-	_, parentSpan := capture.provider.Tracer("test-parent").Start(context.Background(), "http.request")
+	parentCtx, parentSpan := capture.provider.Tracer("test-parent").Start(context.Background(), "http.request")
 	parentSC := parentSpan.SpanContext()
 
-	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
-		traceContextMetaTraceParent: fmt.Sprintf("00-%s-%s-01", parentSC.TraceID(), parentSC.SpanID()),
-	})
+	meta := mcp.Meta{}
+	requestMetaPropagator.Inject(parentCtx, &requestMetaCarrier{meta: meta})
+	req := newToolCallRequestWithMeta("get_services", meta)
 	_, err := wrapped(context.Background(), mcpMethodToolsCall, req)
 	require.NoError(t, err)
 
