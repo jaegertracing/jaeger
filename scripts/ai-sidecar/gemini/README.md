@@ -39,6 +39,27 @@ export JAEGER_MCP_DISCOVERY_TIMEOUT_SEC="15"
 
 This controls the timeout for a single MCP tool discovery attempt.
 
+## Tracing
+
+The sidecar emits OpenTelemetry traces under service name `jaeger-gemini-sidecar`. Spans cover prompt handling, the agentic Gemini loop, MCP tool discovery, and MCP tool calls. Gemini calls are auto-instrumented via `opentelemetry-instrumentation-google-generativeai` and use the OTel GenAI semantic conventions.
+
+Traces are exported over OTLP/gRPC. The default target (`http://localhost:4317`) matches the Jaeger all-in-one OTLP receiver, which makes the sidecar appear as its own service in the Jaeger UI.
+
+| Flag | Env var | Default | Purpose |
+| --- | --- | --- | --- |
+| `--otlp-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | OTLP/gRPC collector endpoint |
+| `--otlp-insecure` / `--no-otlp-insecure` | `OTEL_EXPORTER_OTLP_INSECURE` | `true` | Skip TLS when exporting (set to false + provide TLS at the collector for production) |
+
+Example pointing at a remote collector with TLS:
+
+```bash
+uv run python main.py \
+  --otlp-endpoint https://otel.example.com:4317 \
+  --no-otlp-insecure
+```
+
+Metrics are intentionally not exported — Jaeger does not accept OTLP metrics. Metric export can be added once a metrics backend is available (see [#8397](https://github.com/jaegertracing/jaeger/issues/8397)).
+
 ## Install Dependencies
 
 From this directory:
@@ -66,7 +87,11 @@ Jaeger ACP Sidecar listening on ws://localhost:16688
 Useful runtime flags:
 
 ```bash
-uv run python main.py --host localhost --port 16688 --mcp-url http://127.0.0.1:16687/mcp --mcp-discovery-timeout-sec 15
+uv run python main.py \
+  --host localhost --port 16688 \
+  --mcp-url http://127.0.0.1:16687/mcp \
+  --mcp-discovery-timeout-sec 15 \
+  --otlp-endpoint http://localhost:4317 --otlp-insecure
 ```
 
 ## Code Layout
