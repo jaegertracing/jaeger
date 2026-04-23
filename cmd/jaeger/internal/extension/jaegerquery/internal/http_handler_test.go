@@ -1010,11 +1010,6 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
 			wantErrorMessage: "metrics querying is currently disabled",
 		},
-		{
-			name:             "metrics query disabled error returned when fetching min step duration",
-			urlPath:          "/api/metrics/minstep",
-			wantErrorMessage: "metrics querying is currently disabled",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test

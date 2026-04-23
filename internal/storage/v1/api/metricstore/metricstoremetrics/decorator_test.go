@@ -40,14 +40,12 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
-		"requests|operation=get_latencies|result=ok":          1,
-		"requests|operation=get_latencies|result=err":         0,
-		"requests|operation=get_call_rates|result=ok":         1,
-		"requests|operation=get_call_rates|result=err":        0,
-		"requests|operation=get_error_rates|result=ok":        1,
-		"requests|operation=get_error_rates|result=err":       0,
-		"requests|operation=get_min_step_duration|result=ok":  1,
-		"requests|operation=get_min_step_duration|result=err": 0,
+		"requests|operation=get_latencies|result=ok":    1,
+		"requests|operation=get_latencies|result=err":   0,
+		"requests|operation=get_call_rates|result=ok":   1,
+		"requests|operation=get_call_rates|result=err":  0,
+		"requests|operation=get_error_rates|result=ok":  1,
+		"requests|operation=get_error_rates|result=err": 0,
 	}
 
 	// This is not exhaustive.
@@ -108,14 +106,12 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 	counters, gauges := mf.Snapshot()
 	wantCounts := map[string]int64{
-		"requests|operation=get_latencies|result=ok":          0,
-		"requests|operation=get_latencies|result=err":         1,
-		"requests|operation=get_call_rates|result=ok":         0,
-		"requests|operation=get_call_rates|result=err":        1,
-		"requests|operation=get_error_rates|result=ok":        0,
-		"requests|operation=get_error_rates|result=err":       1,
-		"requests|operation=get_min_step_duration|result=ok":  0,
-		"requests|operation=get_min_step_duration|result=err": 1,
+		"requests|operation=get_latencies|result=ok":    0,
+		"requests|operation=get_latencies|result=err":   1,
+		"requests|operation=get_call_rates|result=ok":   0,
+		"requests|operation=get_call_rates|result=err":  1,
+		"requests|operation=get_error_rates|result=ok":  0,
+		"requests|operation=get_error_rates|result=err": 1,
 	}
 
 	// This is not exhaustive.
