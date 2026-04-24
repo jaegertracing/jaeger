@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestElasticsearchStorage(t *testing.T) {
@@ -15,9 +16,9 @@ func TestElasticsearchStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-elasticsearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:                      purge,
-			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			GetOperationsMissingSpanKind: true,
+			CleanUp:      purge,
+			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.Elasticsearch(),
 		},
 	}
 	s.e2eInitialize(t, "elasticsearch")

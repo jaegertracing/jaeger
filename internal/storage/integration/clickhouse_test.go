@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	ch "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -65,7 +66,7 @@ func TestClickHouseStorage(t *testing.T) {
 	})
 	s := &ClickHouseStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			SkipList: []string{"GetThroughput", "GetLatestProbability"},
+			Capabilities: capabilities.ClickHouse(),
 		},
 	}
 	s.CleanUp = s.cleanUp
