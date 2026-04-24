@@ -9,7 +9,7 @@ type Capabilities struct {
 	getOperationsMissingSpanKind bool
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesMissingSource bool
-	// List of tests which has to be skipped, it can be regex too.
+	// List of tests which has to be skipped (exact name or substring).
 	skipList []string
 }
 
