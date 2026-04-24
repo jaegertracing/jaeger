@@ -18,9 +18,12 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	chdepstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/depstore"
+	chmetricstore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	chtracestore "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -35,10 +38,11 @@ var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
 )
 
 var (
-	_ io.Closer          = (*Factory)(nil)
-	_ depstore.Factory   = (*Factory)(nil)
-	_ tracestore.Factory = (*Factory)(nil)
-	_ storage.Purger     = (*Factory)(nil)
+	_ io.Closer                  = (*Factory)(nil)
+	_ depstore.Factory           = (*Factory)(nil)
+	_ tracestore.Factory         = (*Factory)(nil)
+	_ storage.MetricStoreFactory = (*Factory)(nil)
+	_ storage.Purger             = (*Factory)(nil)
 )
 
 type schemaTemplateParams struct {
@@ -200,6 +204,13 @@ func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 
 func (f *Factory) CreateDependencyWriter() (depstore.Writer, error) {
 	return chdepstore.NewDependencyWriter(f.conn), nil
+}
+
+func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
+	return metricstoremetrics.NewReaderDecorator(
+		chmetricstore.NewReader(f.conn),
+		f.telset.Metrics,
+	), nil
 }
 
 func (f *Factory) Close() error {
