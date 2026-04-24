@@ -71,6 +71,10 @@ func TestFactory(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, dr)
 
+			mr, err := f.CreateMetricsReader()
+			require.NoError(t, err)
+			require.NotNil(t, mr)
+
 			err = f.Purge(context.Background())
 			require.NoError(t, err)
 
