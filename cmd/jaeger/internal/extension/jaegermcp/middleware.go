@@ -26,6 +26,9 @@ const (
 	traceContextMetaTraceParent = "traceparent"
 	traceContextMetaTraceState  = "tracestate"
 	traceContextMetaBaggage     = "baggage"
+
+	metricStatusSuccess = "success"
+	metricStatusError   = "error"
 )
 
 var requestMetaPropagator = propagation.NewCompositeTextMapPropagator(
@@ -108,7 +111,6 @@ func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			start := time.Now()
 			toolName := toolNameFromRequest(method, req)
-			attrs := buildMetricAttributes(method, toolName)
 
 			result, err := next(ctx, method, req)
 
@@ -118,7 +120,7 @@ func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware
 			} else if callResult, ok := result.(*mcp.CallToolResult); ok && callResult.IsError {
 				status = metricStatusError
 			}
-			attrs = append(attrs, statusAttr(status))
+			attrs := buildMetricAttributes(method, toolName, status)
 
 			callCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 			durationHistogram.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(attrs...))
@@ -128,20 +130,13 @@ func createMetricsMiddleware(meterProvider metric.MeterProvider) (mcp.Middleware
 	}, nil
 }
 
-const (
-	metricStatusSuccess = "success"
-	metricStatusError   = "error"
-)
-
-func statusAttr(status string) attribute.KeyValue {
-	return attribute.String("status", status)
-}
-
-func buildMetricAttributes(method, toolName string) []attribute.KeyValue {
-	attrs := []attribute.KeyValue{otelsemconv.McpMethodName(method)}
+func buildMetricAttributes(method, toolName, status string) []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, 3)
+	attrs = append(attrs, otelsemconv.McpMethodName(method))
 	if toolName != "" {
 		attrs = append(attrs, otelsemconv.GenAIToolName(toolName))
 	}
+	attrs = append(attrs, attribute.String("status", status))
 	return attrs
 }
 

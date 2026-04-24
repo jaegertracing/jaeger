@@ -79,18 +79,16 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 	s.registerTools()
+	mw := []mcp.Middleware{
+		createTracingMiddleware(s.telset.TracerProvider),
+	}
 	metricsMiddleware, err := createMetricsMiddleware(s.telset.MeterProvider)
 	if err != nil {
 		s.telset.Logger.Warn("failed to create MCP metrics middleware, continuing without metrics", zap.Error(err))
-		s.mcpServer.AddReceivingMiddleware(
-			createTracingMiddleware(s.telset.TracerProvider),
-		)
 	} else {
-		s.mcpServer.AddReceivingMiddleware(
-			metricsMiddleware,
-			createTracingMiddleware(s.telset.TracerProvider),
-		)
+		mw = append(mw, metricsMiddleware)
 	}
+	s.mcpServer.AddReceivingMiddleware(mw...)
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(_ *http.Request) *mcp.Server { return s.mcpServer },
