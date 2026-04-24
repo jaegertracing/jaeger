@@ -5,9 +5,12 @@ package capabilities
 
 // Capabilities defines the capabilities of a storage backend for integration tests.
 type Capabilities struct {
+	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
+	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesReturnsSource bool
-	skipList                     []string
+	// List of tests which has to be skipped, it can be regex too.
+	skipList []string
 }
 
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
