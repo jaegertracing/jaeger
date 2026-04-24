@@ -21,9 +21,6 @@ type Reader interface {
 	// GetErrorRates gets the error rate metrics for a given list of services grouped by service
 	// and optionally grouped by operation.
 	GetErrorRates(ctx context.Context, params *ErrorRateQueryParameters) (*metrics.MetricFamily, error)
-	// GetMinStepDuration gets the min time resolution supported by the backing metrics store,
-	// e.g. 10s means the backend can only return data points that are at least 10s apart, not closer.
-	GetMinStepDuration(ctx context.Context, params *MinStepDurationQueryParameters) (time.Duration, error)
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
@@ -44,6 +41,8 @@ type BaseQueryParameters struct {
 	// RatePer is the duration in which the per-second rate of change is calculated for a cumulative counter metric.
 	RatePer *time.Duration
 	// SpanKinds is the list of span kinds to include (logical OR) in the resulting metrics aggregation.
+	// The jaeger_query extension always populates this with a non-empty default,
+	// so backend implementations can assume it will not be empty.
 	SpanKinds []string
 }
 
@@ -67,6 +66,3 @@ type CallRateQueryParameters struct {
 type ErrorRateQueryParameters struct {
 	BaseQueryParameters
 }
-
-// MinStepDurationQueryParameters contains the parameters required for fetching the minimum step duration.
-type MinStepDurationQueryParameters struct{}

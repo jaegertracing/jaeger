@@ -13,7 +13,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
 	cassdbmodel "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
 type TraceReader struct {
@@ -54,7 +53,7 @@ func (r *TraceReader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetT
 
 func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		for trace, err := range r.reader.FindTraces(ctx, v1adapter.GetV1QueryParameters(query)) {
+		for trace, err := range r.reader.FindTraces(ctx, &query) {
 			if err != nil {
 				yield(nil, err)
 				return
@@ -69,7 +68,7 @@ func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 
 func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		dbIDs, err := r.reader.FindTraceIDs(ctx, v1adapter.GetV1QueryParameters(query))
+		dbIDs, err := r.reader.FindTraceIDs(ctx, &query)
 		if err != nil {
 			yield(nil, err)
 			return

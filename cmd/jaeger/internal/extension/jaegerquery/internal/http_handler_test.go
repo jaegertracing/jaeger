@@ -974,13 +974,6 @@ func TestMetricsReaderError(t *testing.T) {
 			mockedResponse:             nil,
 			wantErrorMessage:           "error fetching call rates",
 		},
-		{
-			urlPath:                    "/api/metrics/minstep",
-			mockedQueryMethod:          "GetMinStepDuration",
-			mockedQueryMethodParamType: "*metricstore.MinStepDurationQueryParameters",
-			mockedResponse:             time.Duration(0),
-			wantErrorMessage:           "error fetching min step duration",
-		},
 	} {
 		t.Run(tc.wantErrorMessage, func(t *testing.T) {
 			// Prepare
@@ -1017,11 +1010,6 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
 			wantErrorMessage: "metrics querying is currently disabled",
 		},
-		{
-			name:             "metrics query disabled error returned when fetching min step duration",
-			urlPath:          "/api/metrics/minstep",
-			wantErrorMessage: "metrics querying is currently disabled",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
@@ -1032,26 +1020,6 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			assert.ErrorContains(t, err, tc.wantErrorMessage)
 		})
 	}
-}
-
-func TestGetMinStep(t *testing.T) {
-	metricsReader := &metricsmocks.Reader{}
-	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
-	defer ts.server.Close()
-	// Prepare
-	metricsReader.On(
-		"GetMinStepDuration",
-		mock.Anything,
-		mock.AnythingOfType("*metricstore.MinStepDurationQueryParameters"),
-	).Return(5*time.Millisecond, nil).Once()
-
-	// Test
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/metrics/minstep", &response)
-
-	// Verify
-	require.NoError(t, err)
-	assert.InDelta(t, float64(5), response.Data, 0.01)
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET

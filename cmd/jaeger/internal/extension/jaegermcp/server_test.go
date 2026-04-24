@@ -112,17 +112,24 @@ func waitForServer(t *testing.T, addr string) {
 // Pass a nil logger to use the no-op logger from componenttest.
 func startTestServerWithQueryService(t *testing.T, svc *querysvc.QueryService, logger *zap.Logger) (*server, string) {
 	t.Helper()
-
-	host := newMockHostWithQueryService(svc)
 	telset := componenttest.NewNopTelemetrySettings()
 	if logger != nil {
 		telset.Logger = logger
 	}
+	return startTestServerWithTelemetry(t, svc, telset)
+}
+
+// startTestServerWithTelemetry creates and starts a test server with the given
+// telemetry settings. Use this when you need a real TracerProvider for tracing tests.
+func startTestServerWithTelemetry(t *testing.T, svc *querysvc.QueryService, telset component.TelemetrySettings) (*server, string) {
+	t.Helper()
+
+	host := newMockHostWithQueryService(svc)
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  "localhost:0", // OS will assign a free port
+				Endpoint:  "localhost:0",
 				Transport: confignet.TransportTypeTCP,
 			},
 		},

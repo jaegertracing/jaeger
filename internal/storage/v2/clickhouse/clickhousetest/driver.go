@@ -11,9 +11,20 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 )
 
+type TestRows interface {
+	driver.Rows
+	Reset()
+}
+
 type QueryResponse struct {
-	Rows driver.Rows
+	Rows TestRows
 	Err  error
+}
+
+func (r *QueryResponse) Reset() {
+	if r.Rows != nil {
+		r.Rows.Reset()
+	}
 }
 
 type BatchResponse struct {
@@ -105,6 +116,10 @@ type Rows[T any] struct {
 	ScanFn   func(dest any, src T) error
 	CloseErr error
 	RowsErr  error
+}
+
+func (r *Rows[T]) Reset() {
+	r.Index = 0
 }
 
 func (r *Rows[T]) Close() error {
