@@ -6,7 +6,6 @@ package dbmodel
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/gob"
 	"encoding/hex"
 	"io"
@@ -237,14 +236,6 @@ func (t TagInsertion) String() string {
 // Trace is a collection of spans with the same trace ID.
 type Trace struct {
 	Spans []Span
-}
-
-// TraceIDFromDomain converts domain TraceID into serializable DB representation.
-func TraceIDFromDomain(traceID model.TraceID) TraceID {
-	dbTraceID := TraceID{}
-	binary.BigEndian.PutUint64(dbTraceID[:8], uint64(traceID.High))
-	binary.BigEndian.PutUint64(dbTraceID[8:], uint64(traceID.Low))
-	return dbTraceID
 }
 
 func GetSpanKind(ds *Span) string {

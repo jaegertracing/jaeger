@@ -20,3 +20,12 @@ func TestGetUniqueTags(t *testing.T) {
 		}
 	}
 }
+
+func getTestUniqueTags() []TagInsertion {
+	return []TagInsertion{
+		{ServiceName: "someServiceName", TagKey: "someBoolTag", TagValue: "true"},
+		{ServiceName: "someServiceName", TagKey: "someDoubleTag", TagValue: "1.4"},
+		{ServiceName: "someServiceName", TagKey: "someLongTag", TagValue: "123"},
+		{ServiceName: "someServiceName", TagKey: "someStringTag", TagValue: "someTagValue"},
+	}
+}
