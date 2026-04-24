@@ -522,7 +522,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	defer s.cleanUp(t)
 
 	source := model.JaegerDependencyLinkSource
-	if !s.Capabilities.GetDependenciesReturnsSource() {
+	if !s.Capabilities.GetDependenciesMissingSource() {
 		source = ""
 	}
 
