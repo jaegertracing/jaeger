@@ -8,7 +8,7 @@ type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
 	// TODO: remove this after all storage backends return Source column from GetDependencies
-	getDependenciesReturnsSource bool
+	getDependenciesMissingSource bool
 	// List of tests which has to be skipped, it can be regex too.
 	skipList []string
 }
@@ -20,7 +20,7 @@ func (c Capabilities) GetOperationsMissingSpanKind() bool {
 
 // GetDependenciesReturnsSource returns true if the storage backend returns the Source column from GetDependencies.
 func (c Capabilities) GetDependenciesReturnsSource() bool {
-	return c.getDependenciesReturnsSource
+	return c.getDependenciesMissingSource
 }
 
 // SkipList returns a list of tests that should be skipped for this storage backend.
@@ -31,7 +31,7 @@ func (c Capabilities) SkipList() []string {
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
-		getOperationsMissingSpanKind: true,
+		getDependenciesMissingSource: true,
 		skipList: []string{
 			"Tags_+_Operation_name_+_Duration_range",
 			"Tags_+_Duration_range",
@@ -77,6 +77,6 @@ func OpenSearch() Capabilities {
 // Kafka defines the capabilities for the Kafka storage backend.
 func Kafka() Capabilities {
 	return Capabilities{
-		getDependenciesReturnsSource: true,
+		getDependenciesMissingSource: true,
 	}
 }
