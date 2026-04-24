@@ -30,53 +30,53 @@ func (c Capabilities) SkipList() []string {
 
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
-	c := Capabilities{}
-	c.getDependenciesReturnsSource = true
-	c.skipList = []string{
-		"Tags_+_Operation_name_+_Duration_range",
-		"Tags_+_Duration_range",
-		"Tags_+_Operation_name_+_max_Duration",
-		"Tags_+_max_Duration",
-		"Operation_name_+_max_Duration",
-		"Multiple_Traces",
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+		skipList: []string{
+			"Tags_+_Operation_name_+_Duration_range",
+			"Tags_+_Duration_range",
+			"Tags_+_Operation_name_+_max_Duration",
+			"Tags_+_max_Duration",
+			"Operation_name_+_max_Duration",
+			"Multiple_Traces",
+		},
 	}
-	return c
 }
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
-	c := Capabilities{}
-	c.skipList = []string{"GetThroughput", "GetLatestProbability"}
-	return c
+	return Capabilities{
+		skipList: []string{"GetThroughput", "GetLatestProbability"},
+	}
 }
 
 // Badger defines the capabilities for the Badger storage backend.
 func Badger() Capabilities {
-	c := Capabilities{}
-	// TODO: remove this badger supports returning spanKind from GetOperations
-	c.getOperationsMissingSpanKind = true
-	return c
+	return Capabilities{
+		// TODO: remove this badger supports returning spanKind from GetOperations
+		getOperationsMissingSpanKind: true,
+	}
 }
 
 // Elasticsearch defines the capabilities for the Elasticsearch storage backend.
 func Elasticsearch() Capabilities {
-	c := Capabilities{}
-	// TODO: remove this flag after ES supports returning spanKind
-	//  Issue https://github.com/jaegertracing/jaeger/issues/1923
-	c.getOperationsMissingSpanKind = true
-	return c
+	return Capabilities{
+		// TODO: remove this flag after ES supports returning spanKind
+		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
+		getOperationsMissingSpanKind: true,
+	}
 }
 
 // OpenSearch defines the capabilities for the OpenSearch storage backend.
 func OpenSearch() Capabilities {
-	c := Capabilities{}
-	c.getOperationsMissingSpanKind = true
-	return c
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+	}
 }
 
 // Kafka defines the capabilities for the Kafka storage backend.
 func Kafka() Capabilities {
-	c := Capabilities{}
-	c.getDependenciesReturnsSource = true
-	return c
+	return Capabilities{
+		getDependenciesReturnsSource: true,
+	}
 }
