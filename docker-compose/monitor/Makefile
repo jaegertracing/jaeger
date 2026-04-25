@@ -32,6 +32,11 @@ opensearch: export JAEGER_VERSION = dev
 opensearch:
 	docker compose -f docker-compose-opensearch.yml up $(DOCKER_COMPOSE_ARGS)
 
+.PHONY: clickhouse
+clickhouse: export JAEGER_VERSION = dev
+clickhouse:
+	docker compose -f docker-compose-clickhouse.yml up $(DOCKER_COMPOSE_ARGS)
+
 .PHONY: clean-jaeger
 clean-jaeger:
 	# Also cleans up intermediate cached containers.
