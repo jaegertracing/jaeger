@@ -3,7 +3,7 @@
 
 # E2E integration tests for Service Performance Monitoring (SPM), verifying
 # that span metrics are correctly derived and served via the metrics API,
-# with Prometheus, Elasticsearch, and OpenSearch as the metrics store.
+# with Prometheus, Elasticsearch, OpenSearch, and ClickHouse as the metrics store.
 
 name: Test SPM
 
