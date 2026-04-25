@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestEncodingTypes(t *testing.T) {
@@ -217,15 +218,122 @@ func TestOldReads(t *testing.T) {
 
 		nuTid := tid.Add(1 * time.Hour)
 
-		cache.Update("service1", "operation1", uint64(tid.Unix()))
+		cache.Update("service1", "operation1", "", uint64(tid.Unix()))
 		cache.services["service1"] = uint64(nuTid.Unix())
-		cache.operations["service1"]["operation1"] = uint64(nuTid.Unix())
+		cache.operations["service1"][tracestore.Operation{Name: "operation1"}] = uint64(nuTid.Unix())
 
 		// This is equivalent to populate caches of cache
 		_ = NewTraceReader(store, cache, true)
 
 		// Now make sure we didn't use the older timestamps from the DB
 		assert.Equal(t, uint64(nuTid.Unix()), cache.services["service1"])
-		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"]["operation1"])
+		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"][tracestore.Operation{Name: "operation1"}])
+	})
+}
+
+func TestSpanKindByteMappings(t *testing.T) {
+	tests := []struct {
+		kind string
+		b    byte
+	}{
+		{"", 0},
+		{"internal", 1},
+		{"server", 2},
+		{"client", 3},
+		{"producer", 4},
+		{"consumer", 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.kind, func(t *testing.T) {
+			assert.Equal(t, tt.b, spanKindToByte(model.SpanKind(tt.kind)))
+			assert.Equal(t, tt.kind, spanKindByteToString(tt.b))
+		})
+	}
+	// Unknown byte maps to empty string
+	assert.Empty(t, spanKindByteToString(0xFF))
+}
+
+func TestOperationKindIndexKeyLayout(t *testing.T) {
+	service := "mysvc"
+	operation := "myop"
+	var kindByte byte = 2 // server
+	startTime := uint64(1000)
+	traceID := model.TraceID{High: 1, Low: 2}
+
+	// Build the composite value the same way the writer does
+	value := make([]byte, len(service)+1+len(operation))
+	copy(value, service)
+	value[len(service)] = kindByte
+	copy(value[len(service)+1:], operation)
+
+	key := createIndexKey(operationKindIndexKey, value, startTime, traceID)
+
+	// Verify prefix byte
+	assert.Equal(t, byte(0x85), key[0])
+
+	// Verify service name
+	assert.Equal(t, service, string(key[1:1+len(service)]))
+
+	// Verify kind byte sits between service and operation
+	assert.Equal(t, kindByte, key[1+len(service)])
+
+	// Verify operation name
+	opStart := 1 + len(service) + 1
+	opEnd := len(key) - sizeOfTraceID - 8 // before startTime and traceID
+	assert.Equal(t, operation, string(key[opStart:opEnd]))
+}
+
+func TestPreloadOperationsWithSpanKind(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		timeNow := model.TimeAsEpochMicroseconds(time.Now())
+		tid := time.Now().Add(1 * time.Minute)
+
+		// Write 0x81 service key
+		s1Key := createIndexKey(serviceNameIndexKey, []byte("svc1"), timeNow, model.TraceID{High: 0, Low: 0})
+
+		// Write 0x85 operation+kind keys directly
+		serverValue := make([]byte, len("svc1")+1+len("get-users"))
+		copy(serverValue, "svc1")
+		serverValue[len("svc1")] = 2 // server
+		copy(serverValue[len("svc1")+1:], "get-users")
+		kindKey1 := createIndexKey(operationKindIndexKey, serverValue, timeNow, model.TraceID{High: 0, Low: 1})
+
+		clientValue := make([]byte, len("svc1")+1+len("db-call"))
+		copy(clientValue, "svc1")
+		clientValue[len("svc1")] = 3 // client
+		copy(clientValue[len("svc1")+1:], "db-call")
+		kindKey2 := createIndexKey(operationKindIndexKey, clientValue, timeNow, model.TraceID{High: 0, Low: 2})
+
+		store.Update(func(txn *badger.Txn) error {
+			txn.SetEntry(&badger.Entry{Key: s1Key, ExpiresAt: uint64(tid.Unix())})
+			txn.SetEntry(&badger.Entry{Key: kindKey1, ExpiresAt: uint64(tid.Unix())})
+			txn.SetEntry(&badger.Entry{Key: kindKey2, ExpiresAt: uint64(tid.Unix())})
+			return nil
+		})
+
+		cache := NewCacheStore(store, time.Duration(1*time.Hour))
+		_ = NewTraceReader(store, cache, true)
+
+		// Filter server — preloaded from 0x85 disk keys
+		ops, err := cache.GetOperations("svc1", "server")
+		require.NoError(t, err)
+		assert.Equal(t, []tracestore.Operation{
+			{Name: "get-users", SpanKind: "server"},
+		}, ops)
+
+		// Filter client — preloaded from 0x85 disk keys
+		ops, err = cache.GetOperations("svc1", "client")
+		require.NoError(t, err)
+		assert.Equal(t, []tracestore.Operation{
+			{Name: "db-call", SpanKind: "client"},
+		}, ops)
+
+		// All operations
+		ops, err = cache.GetOperations("svc1", "")
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []tracestore.Operation{
+			{Name: "get-users", SpanKind: "server"},
+			{Name: "db-call", SpanKind: "client"},
+		}, ops)
 	})
 }

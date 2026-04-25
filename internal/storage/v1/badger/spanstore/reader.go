@@ -248,7 +248,7 @@ func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	return r.cache.GetOperations(query.ServiceName, query.SpanKind)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
@@ -648,17 +648,20 @@ func (r *TraceReader) preloadOperations(service string) {
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		serviceKey := make([]byte, len(service)+1)
-		serviceKey[0] = operationNameIndexKey
-		copy(serviceKey[1:], service)
+		// Scan 0x85 keys with spanKind (replaces 0x82 scan for cache preload)
+		serviceKindKey := make([]byte, len(service)+1)
+		serviceKindKey[0] = operationKindIndexKey
+		copy(serviceKindKey[1:], service)
 
-		// Seek all the services first
-		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
+		for it.Seek(serviceKindKey); it.ValidForPrefix(serviceKindKey); it.Next() {
+			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8)
+			// Key layout after prefix: [serviceName][kindByte][operationName][startTime][traceID]
+			kindByte := it.Item().Key()[len(serviceKindKey)]
+			operationName := string(it.Item().Key()[len(serviceKindKey)+1 : timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			r.cache.AddOperation(service, operationName, keyTTL)
+			r.cache.AddOperation(service, operationName, spanKindByteToString(kindByte), keyTTL)
 		}
+
 		return nil
 	})
 }

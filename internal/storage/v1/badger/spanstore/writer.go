@@ -12,8 +12,10 @@ import (
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/gogo/protobuf/proto"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 )
 
 /*
@@ -30,10 +32,20 @@ const (
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
+	operationKindIndexKey byte = 0x85
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
 )
+
+func spanKindToByte(sk model.SpanKind) byte {
+	//nolint:gosec // G115: SpanKind values are 0-5, safe for byte
+	return byte(jptrace.StringToSpanKind(string(sk)))
+}
+
+func spanKindByteToString(b byte) string {
+	return jptrace.SpanKindToString(ptrace.SpanKind(b))
+}
 
 // SpanWriter for writing spans to badger
 type SpanWriter struct {
@@ -60,17 +72,25 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	startTime := model.TimeAsEpochMicroseconds(span.StartTime)
 
 	// Avoid doing as much as possible inside the transaction boundary, create entries here
-	entriesToStore := make([]*badger.Entry, 0, len(span.Tags)+4+len(span.Process.Tags)+len(span.Logs)*4)
+	entriesToStore := make([]*badger.Entry, 0, len(span.Tags)+5+len(span.Process.Tags)+len(span.Logs)*4)
 
 	trace, err := w.createTraceEntry(span, startTime, expireTime)
 	if err != nil {
 		return err
 	}
 
+	spanKind, _ := span.GetSpanKind()
+	kindByte := spanKindToByte(spanKind)
+	operationKindValue := make([]byte, len(span.Process.ServiceName)+1+len(span.OperationName))
+	copy(operationKindValue, span.Process.ServiceName)
+	operationKindValue[len(span.Process.ServiceName)] = kindByte
+	copy(operationKindValue[len(span.Process.ServiceName)+1:], span.OperationName)
+
 	entriesToStore = append(entriesToStore,
 		trace,
 		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
 		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
+		w.createBadgerEntry(createIndexKey(operationKindIndexKey, operationKindValue, startTime, span.TraceID), nil, expireTime),
 	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
@@ -111,7 +131,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	w.cache.Update(span.Process.ServiceName, span.OperationName, string(spanKind), expireTime)
 
 	return err
 }
