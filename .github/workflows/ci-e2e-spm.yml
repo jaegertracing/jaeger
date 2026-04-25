@@ -27,7 +27,7 @@ jobs:
           metricstore: elasticsearch
         - name: v2 with OS
           metricstore: opensearch
-        - name: v2 with CH
+        - name: v2 with ClickHouse
           metricstore: clickhouse
 
     steps:
