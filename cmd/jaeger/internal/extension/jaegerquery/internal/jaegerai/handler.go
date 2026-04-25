@@ -161,20 +161,12 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // buildContextualMCPURL reconstructs the absolute URL at which the gateway
 // serves the per-turn contextual MCP endpoint. The sidecar dials this URL
 // after receiving it in NewSessionRequest.McpServers, so it must be
-// reachable from the sidecar — hence the honoring of the standard
-// reverse-proxy forwarding headers when present.
+// reachable from the sidecar.
 func (h *ChatHandler) buildContextualMCPURL(r *http.Request, id string) string {
 	scheme := "http"
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := r.Host
-	if xfh := r.Header.Get("X-Forwarded-Host"); xfh != "" {
-		host = xfh
-	}
 	prefix := strings.TrimSuffix(h.basePath, "/")
-	return scheme + "://" + host + prefix + "/api/ai/mcp/" + id
+	return scheme + "://" + r.Host + prefix + "/api/ai/mcp/" + id
 }

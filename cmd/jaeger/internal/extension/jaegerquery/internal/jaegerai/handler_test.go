@@ -417,18 +417,22 @@ func TestBuildContextualMCPURL(t *testing.T) {
 			wantBase: "https://gateway.example/api/ai/mcp/",
 		},
 		{
-			name:     "forwarded proto overrides tls-derived scheme",
+			// Forwarded headers must NOT be honored: any HTTP client can set
+			// them, and trusting them would let a caller redirect the sidecar
+			// to an attacker-controlled host. The URL is still derived from
+			// r.Host / r.TLS only.
+			name:     "forwarded proto is ignored",
 			basePath: "",
 			host:     "gateway.example",
 			headers:  map[string]string{"X-Forwarded-Proto": "https"},
-			wantBase: "https://gateway.example/api/ai/mcp/",
+			wantBase: "http://gateway.example/api/ai/mcp/",
 		},
 		{
-			name:     "forwarded host overrides request host",
+			name:     "forwarded host is ignored",
 			basePath: "/jaeger",
 			host:     "internal.local",
-			headers:  map[string]string{"X-Forwarded-Host": "public.example:443", "X-Forwarded-Proto": "https"},
-			wantBase: "https://public.example:443/jaeger/api/ai/mcp/",
+			headers:  map[string]string{"X-Forwarded-Host": "attacker.evil", "X-Forwarded-Proto": "https"},
+			wantBase: "http://internal.local/jaeger/api/ai/mcp/",
 		},
 	}
 
