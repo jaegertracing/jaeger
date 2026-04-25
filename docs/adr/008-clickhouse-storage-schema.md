@@ -49,6 +49,8 @@ Jaeger v1 span tags were typed, although v1 query filters were often represented
 
 In every option below, complex types (`Bytes`, `Slice`, `Map`) are encoded to strings and stored alongside other strings in a `complex_*` group. Their keys are prefixed with a type tag (`@bytes@`, `@slice@`, `@map@`) on ingest and stripped on read so the original key and type can be recovered.
 
+Several representation options were considered and option 2 was selected for implementation.
+
 ### Option 1: Parallel Arrays
 
 Each attribute type is represented by a pair of arrays. Both arrays must always be the same length; the element at index `i` in the keys array corresponds to the value at index `i` in the values array.
@@ -61,7 +63,7 @@ str_keys      Array(String), str_values      Array(String),
 complex_keys  Array(String), complex_values  Array(String),
 ```
 
-### Option 2: Nested ✅
+### Option 2: Nested ✅ (chosen)
 
 Each attribute type is represented by a `Nested(key, value)` column. ClickHouse stores `Nested` columns as a pair of aligned arrays under the hood, but the engine guarantees the arrays stay the same length and gives us natural `ARRAY JOIN` semantics over them.
 
@@ -162,7 +164,7 @@ Sort by `trace_id`. Every span belonging to the same trace lands in one contiguo
 
 The cost is that search queries (`FindTraces`/`FindTraceIDs`) become expensive. Spans for any given service are scattered across the entire keyspace, so filters on `service_name`, `name`, or `start_time` cannot use the primary-key index — they degrade to scans, mitigated only by skip indexes on those columns (`set` on `service_name` and `name`, `minmax` on `start_time`).
 
-#### Option B: Optimize for Search ✅
+#### Option B: Optimize for Search ✅ (chosen)
 
 Sort by `(service_name, name, toDateTime(start_time))`. Search queries — the dominant interaction in Jaeger — become direct primary-key lookups. The cost is that spans for a single trace are no longer co-located; `GetTraces` for a single trace ID must locate the matching rows by other means.
 
