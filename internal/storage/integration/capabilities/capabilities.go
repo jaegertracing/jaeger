@@ -18,7 +18,7 @@ func (c Capabilities) GetOperationsMissingSpanKind() bool {
 	return c.getOperationsMissingSpanKind
 }
 
-// GetDependenciesMissingSource returns true if the storage backend returns the Source column from GetDependencies.
+// GetDependenciesMissingSource returns true if the storage backend does not return the Source column from GetDependencies.
 func (c Capabilities) GetDependenciesMissingSource() bool {
 	return c.getDependenciesMissingSource
 }
