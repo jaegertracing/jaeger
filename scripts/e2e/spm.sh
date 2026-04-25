@@ -12,7 +12,7 @@ log() {
 
 print_help() {
   log "Usage: $0 [-m metricstore]"
-  log "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch' or 'opensearch'"
+  log "-m: Which database to use as metrics store: 'prometheus' (default) or 'elasticsearch' or 'opensearch' or 'clickhouse'"
   log "-h: Print help"
   exit 1
 }
