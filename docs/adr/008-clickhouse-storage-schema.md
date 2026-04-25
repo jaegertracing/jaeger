@@ -1,11 +1,11 @@
-# ClickHouse Storage Schema
+# ADR-008: ClickHouse Storage Schema
 
 * **Status**: Implemented
 * **Date**: 2026-04-25
 
 ## Context
 
-ClickHouse has been one of the most-requested storage backends for Jaeger. This ADR proposes a native ClickHouse backend for Jaeger v2 — covering schema design, primary-key choice, secondary indexes, and the materialized views that support Jaeger's query API. It also documents the alternatives we considered and why we rejected them.
+ClickHouse has been one of the most-requested storage backends for Jaeger. This ADR documents the native ClickHouse backend for Jaeger v2 — covering schema design, primary-key choice, secondary indexes, and the materialized views that support Jaeger's query API. It also documents the alternatives we considered and why we rejected them.
 
 The implementation lives in:
 
@@ -23,7 +23,7 @@ ClickHouse is a column-oriented analytical database optimized for high-throughpu
 ### Relevant ClickHouse Concepts
 
 * **`Nested` data type** — stores arrays of structured values aligned within each row, behaving like a sub-table per row. Used here for per-span collections (events, links, attributes).
-* **Primary key** — does *not* enforce uniqueness in ClickHouse. It defines the on-disk sort order and powers a sparse index that stores one entry per granule (8,192 rows). Filtering by the primary key turns into a fast in-memory binary search over granules.
+* **Primary key** — does *not* enforce uniqueness in ClickHouse. It defines the on-disk sort order and powers a sparse index that stores one entry per granule (by default about 8,192 rows). Filtering by the primary key turns into a fast in-memory binary search over granules.
 * **Skip indexes (data-skipping indexes)** — secondary indexes that store small per-granule summaries (`minmax`, `set`, `bloom_filter`). Before reading a granule, the engine consults the index; if it can prove no row in the granule matches the filter, the granule is skipped entirely.
 * **Materialized views** — server-side triggers that transform rows on insert into a source table and write the result to a target table.
 
@@ -45,9 +45,9 @@ The remainder of this section walks through the schema and the alternatives that
 
 ## Storing Typed Attributes
 
-Jaeger v1 tags were always strings. The Jaeger v2 reader API accepts a `pcommon.Map`, so an attribute value can be one of `Bool`, `Int64`, `Float64`, `String`, `Bytes`, `Slice`, or `KvList`. The storage layer must support filtering by all of these types, not just round-tripping them.
+Jaeger v1 span tags were typed, although v1 query filters were often represented as strings. The Jaeger v2 reader API accepts a `pcommon.Map`, so an attribute value can be one of `Bool`, `Int64`, `Float64`, `String`, `Bytes`, `Slice`, or `Map`. The storage layer must support filtering by all of these types, not just round-tripping them.
 
-In every option below, complex types (`Bytes`, `Slice`, `KvList`) are encoded to strings and stored alongside other strings in a `complex_*` group. Their keys are prefixed with a type tag (`@bytes@`, `@slice@`, `@map@`) on ingest and stripped on read so the original key and type can be recovered.
+In every option below, complex types (`Bytes`, `Slice`, `Map`) are encoded to strings and stored alongside other strings in a `complex_*` group. Their keys are prefixed with a type tag (`@bytes@`, `@slice@`, `@map@`) on ingest and stripped on read so the original key and type can be recovered.
 
 ### Option 1: Parallel Arrays
 
@@ -164,7 +164,7 @@ The cost is that search queries (`FindTraces`/`FindTraceIDs`) become expensive. 
 
 #### Option B: Optimize for Search ✅
 
-Sort by `(service_name, name, toDateTime(start_time))`. Search queries — the dominant interaction in Jaeger — become direct primary-key lookups. The cost is that spans for a single trace are no longer co-located; `GetTrace` must locate the matching rows by other means.
+Sort by `(service_name, name, toDateTime(start_time))`. Search queries — the dominant interaction in Jaeger — become direct primary-key lookups. The cost is that spans for a single trace are no longer co-located; `GetTraces` for a single trace ID must locate the matching rows by other means.
 
 We chose Option B because the trade-off is asymmetric. Sorting by `trace_id` (Option A) makes search performance terrible — `service_name` and `name` filters degrade to scans across the entire keyspace, mitigated only by skip indexes that still need to read every granule's index entry. Sorting by `(service_name, name, start_time)` (Option B) hurts trace retrieval much less: the `bloom_filter` skip index on `trace_id` (see below) lets `GetTraces` skip the vast majority of granules, and the per-trace time-bounds hint that `FindTraceIDs` returns alongside each candidate ID further narrows the partitions and granules that need to be consulted. In benchmarks, Option B's hit on retrieval was small, while Option A's hit on search was severe.
 
