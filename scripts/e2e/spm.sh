@@ -36,7 +36,7 @@ set -x # Enable verbose logging for debugging
 
 # Validate metricstore option
 case "$METRICSTORE" in
-  "prometheus"|"elasticsearch"|"opensearch")
+  "prometheus"|"elasticsearch"|"opensearch"|"clickhouse")
     # Valid options
     ;;
   *)
@@ -54,6 +54,11 @@ fi
 if [ "$METRICSTORE" == "opensearch" ]; then
   compose_file=docker-compose/monitor/docker-compose-opensearch.yml
   make_target="opensearch"
+fi
+
+if [ "$METRICSTORE" == "clickhouse" ]; then
+  compose_file=docker-compose/monitor/docker-compose-clickhouse.yml
+  make_target="clickhouse"
 fi
 
 timeout=600
@@ -98,6 +103,9 @@ wait_for_services_to_be_healthy() {
       ;;
     "opensearch")
       check_service_health "Opensearch" "http://localhost:9200"
+      ;;
+    "clickhouse")
+      check_service_health "ClickHouse" "http://localhost:8123"
       ;;
     "prometheus")
       check_service_health "Prometheus" "http://localhost:9090/query"

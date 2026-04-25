@@ -37,7 +37,7 @@ extensions:
       some-storage:
         clickhouse:
           addresses:
-            - localhost:9000
+            - ${env:CLICKHOUSE_HOST:-localhost}:9000
           database: jaeger
           auth:
             basic:
@@ -48,7 +48,7 @@ extensions:
       some-metrics:
         clickhouse:
           addresses:
-            - localhost:9000
+            - ${env:CLICKHOUSE_HOST:-localhost}:9000
           database: jaeger
           auth:
             basic:

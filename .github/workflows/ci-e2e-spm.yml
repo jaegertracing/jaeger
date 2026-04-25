@@ -27,6 +27,8 @@ jobs:
           metricstore: elasticsearch
         - name: v2 with OS
           metricstore: opensearch
+        - name: v2 with CH
+          metricstore: clickhouse
 
     steps:
     - name: Harden Runner
