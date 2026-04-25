@@ -18,7 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
-// contextualMCPServerName is the ACP-visible name for the per-session MCP
+// contextualMCPServerName is the ACP-visible name for the per-turn MCP
 // server that surfaces the frontend-provided AG-UI tool snapshot.
 const contextualMCPServerName = "jaeger-ai-contextual"
 
@@ -40,7 +40,7 @@ type ChatHandler struct {
 // ctxTools may be nil in tests that do not exercise contextual tooling.
 // basePath is the jaeger-query base path (empty or "/" mean no prefix);
 // the handler uses it to build the absolute URL the sidecar will dial
-// back for per-session contextual MCP tools.
+// back for per-turn contextual MCP tools.
 func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,

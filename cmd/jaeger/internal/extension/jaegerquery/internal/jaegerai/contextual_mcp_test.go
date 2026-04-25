@@ -19,10 +19,9 @@ import (
 
 const testAIMCPPath = "/api/ai/mcp/{contextual_mcp_id}"
 
-// startContextualMCPTestServer mounts the handler on a test HTTP server and
-// returns the session-scoped base URL plus the session id the caller
-// seeded. Caller-provided tools are stored before the server comes up so
-// initialisation sees a consistent snapshot.
+// startContextualMCPTestServer mounts the handler on a test HTTP server
+// and returns that server. Tests construct the per-turn URL by appending
+// the contextual MCP id to srv.URL + "/api/ai/mcp/".
 func startContextualMCPTestServer(t *testing.T, store *ContextualToolsStore) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -32,11 +31,11 @@ func startContextualMCPTestServer(t *testing.T, store *ContextualToolsStore) *ht
 	return srv
 }
 
-func connectContextualMCP(t *testing.T, srv *httptest.Server, sessionID string) *mcp.ClientSession {
+func connectContextualMCP(t *testing.T, srv *httptest.Server, contextualMCPID string) *mcp.ClientSession {
 	t.Helper()
 	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
 	transport := &mcp.StreamableClientTransport{
-		Endpoint:   srv.URL + "/api/ai/mcp/" + sessionID,
+		Endpoint:   srv.URL + "/api/ai/mcp/" + contextualMCPID,
 		HTTPClient: srv.Client(),
 	}
 

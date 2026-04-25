@@ -15,8 +15,9 @@ const (
 )
 
 // Handler is the entry point for the jaeger-query AI gateway. It owns the
-// per-turn contextual tools store, the chat handler, and the per-session
-// MCP endpoint, and registers all of them on the caller-provided mux.
+// per-turn contextual tools store, the chat handler, and the per-turn
+// contextual MCP endpoint, and registers all of them on the caller-provided
+// mux.
 //
 // Callers construct a Handler once (in jaegerquery's Start path), then call
 // RegisterRoutes when wiring the HTTP mux. This mirrors the APIHandler /

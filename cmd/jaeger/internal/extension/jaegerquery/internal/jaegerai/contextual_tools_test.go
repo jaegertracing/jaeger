@@ -5,6 +5,8 @@ package jaegerai
 
 import (
 	"encoding/json"
+	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -149,4 +151,60 @@ func TestSetForContextualMCPIDCopiesRawBytes(t *testing.T) {
 	got := store.GetContextualToolsForID("id-1")
 	assert.Equal(t, "tool-a", got[0].(map[string]any)["name"],
 		"SetForContextualMCPID must defensively copy raw bytes")
+}
+
+// TestContextualToolsStoreConcurrentAccess exercises the RWMutex with a
+// fan-out of writers, readers, and deleters touching distinct ids. Run
+// under -race to catch any unsynchronised access. The test does not assert
+// on values — concurrent map access is itself the property under test;
+// the assertions verify the store stays usable afterwards.
+func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
+	store := NewContextualToolsStore()
+
+	const goroutines = 32
+	const iterations = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines * 3)
+
+	for w := 0; w < goroutines; w++ {
+		go func(w int) {
+			defer wg.Done()
+			id := "writer-" + strconv.Itoa(w)
+			for i := 0; i < iterations; i++ {
+				store.SetForContextualMCPID(id, []json.RawMessage{
+					json.RawMessage(`{"name":"tool-` + strconv.Itoa(i) + `"}`),
+				})
+			}
+		}(w)
+	}
+
+	for r := 0; r < goroutines; r++ {
+		go func(r int) {
+			defer wg.Done()
+			id := "writer-" + strconv.Itoa(r)
+			for i := 0; i < iterations; i++ {
+				_ = store.GetContextualToolsForID(id)
+			}
+		}(r)
+	}
+
+	for d := 0; d < goroutines; d++ {
+		go func(d int) {
+			defer wg.Done()
+			id := "deleter-" + strconv.Itoa(d)
+			for i := 0; i < iterations; i++ {
+				store.SetForContextualMCPID(id, []json.RawMessage{json.RawMessage(`{"name":"tmp"}`)})
+				store.DeleteForContextualMCPID(id)
+			}
+		}(d)
+	}
+
+	wg.Wait()
+
+	// Sanity: store is still usable after the storm.
+	store.SetForContextualMCPID("after", []json.RawMessage{json.RawMessage(`{"name":"final"}`)})
+	got := store.GetContextualToolsForID("after")
+	assert.Len(t, got, 1)
+	assert.Equal(t, "final", got[0].(map[string]any)["name"])
 }
