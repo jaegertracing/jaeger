@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const testAIMCPPath = "/api/ai/mcp/{session_id}"
+const testAIMCPPath = "/api/ai/mcp/{contextual_mcp_id}"
 
 // startContextualMCPTestServer mounts the handler on a test HTTP server and
 // returns the session-scoped base URL plus the session id the caller
@@ -50,7 +50,7 @@ func connectContextualMCP(t *testing.T, srv *httptest.Server, sessionID string) 
 
 func TestContextualMCPHandler_ListToolsReturnsSessionSnapshot(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForSession("sess-abc", []json.RawMessage{
+	store.SetForContextualMCPID("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart","description":"Draws a chart","parameters":{"type":"object","properties":{"kind":{"type":"string"}}}}`),
 	})
 	srv := startContextualMCPTestServer(t, store)
@@ -68,7 +68,7 @@ func TestContextualMCPHandler_ListToolsReturnsSessionSnapshot(t *testing.T) {
 
 func TestContextualMCPHandler_UnknownSessionYieldsNoTools(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForSession("sess-abc", []json.RawMessage{
+	store.SetForContextualMCPID("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart"}`),
 	})
 	srv := startContextualMCPTestServer(t, store)
@@ -84,7 +84,7 @@ func TestContextualMCPHandler_UnknownSessionYieldsNoTools(t *testing.T) {
 
 func TestContextualMCPHandler_CallToolReturnsBrowserRelayStub(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForSession("sess-abc", []json.RawMessage{
+	store.SetForContextualMCPID("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart"}`),
 	})
 	srv := startContextualMCPTestServer(t, store)
@@ -106,7 +106,7 @@ func TestContextualMCPHandler_CallToolReturnsBrowserRelayStub(t *testing.T) {
 
 func TestContextualMCPHandler_SkipsEntriesWithoutName(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForSession("sess-abc", []json.RawMessage{
+	store.SetForContextualMCPID("sess-abc", []json.RawMessage{
 		json.RawMessage(`"not-an-object"`),
 		json.RawMessage(`{"description":"missing name, must be skipped"}`),
 		json.RawMessage(`{"name":"valid_tool","description":"kept"}`),
@@ -125,10 +125,10 @@ func TestContextualMCPHandler_SkipsEntriesWithoutName(t *testing.T) {
 
 func TestContextualMCPHandler_EmptySessionIDYieldsNoTools(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForSession("sess-abc", []json.RawMessage{
+	store.SetForContextualMCPID("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart"}`),
 	})
-	// Route that does NOT populate the session_id wildcard.
+	// Route that does NOT populate the contextual_mcp_id wildcard.
 	mux := http.NewServeMux()
 	mux.Handle("/api/ai/mcp", NewContextualMCPHandler(zap.NewNop(), store))
 	srv := httptest.NewServer(mux)
@@ -148,4 +148,19 @@ func TestContextualMCPHandler_EmptySessionIDYieldsNoTools(t *testing.T) {
 	result, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, result.Tools, "missing session id must not leak tools from any session")
+}
+
+func TestContextualMCPHandler_NilStoreYieldsNoTools(t *testing.T) {
+	// A nil store must not panic on first request — handler is exported and
+	// callers (or tests) can construct it without a store. The expected
+	// behavior is an empty tool list.
+	srv := startContextualMCPTestServer(t, nil)
+	session := connectContextualMCP(t, srv, "sess-anything")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := session.ListTools(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, result.Tools, "nil store must surface as empty tools, not a panic")
 }

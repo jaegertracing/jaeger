@@ -9,30 +9,40 @@ import (
 )
 
 // ContextualToolsStore stores the AG-UI tools that the frontend provided for
-// a given ACP session. The chat handler populates it on each request and
-// the gateway-hosted MCP endpoint (see contextual_mcp.go) reads the
-// snapshot for the requested session. The session ID is the correlation
-// key so concurrent turns from different frontends cannot clobber each
-// other's snapshots.
+// a given ACP turn. The chat handler mints a per-turn contextual MCP id,
+// uses it both as the URL token the sidecar dials back and as the key into
+// this store, and the gateway-hosted MCP endpoint (see contextual_mcp.go)
+// reads the snapshot for that id.
 //
-// Entries are kept as []json.RawMessage so that GetContextualToolsForSession
-// can unmarshal a fresh tree per reader. That guarantees callers cannot
-// corrupt the stored snapshot by mutating decoded maps.
+// The contextual MCP id is *not* the ACP session id: the latter is assigned
+// by the sidecar after NewSession returns, which is too late to embed in
+// NewSessionRequest.McpServers. The contextual MCP id is minted client-side
+// (gateway-side) before the request leaves and is the correlation key for
+// concurrent turns.
+//
+// Entries are kept as []json.RawMessage so that GetContextualToolsForID can
+// unmarshal a fresh tree per reader. That guarantees callers cannot corrupt
+// the stored snapshot by mutating decoded maps.
 type ContextualToolsStore struct {
-	mu        sync.RWMutex
-	bySession map[string][]json.RawMessage
+	mu   sync.RWMutex
+	byID map[string][]json.RawMessage
 }
 
 // NewContextualToolsStore creates a ready-to-use store.
 func NewContextualToolsStore() *ContextualToolsStore {
-	return &ContextualToolsStore{bySession: make(map[string][]json.RawMessage)}
+	return &ContextualToolsStore{byID: make(map[string][]json.RawMessage)}
 }
 
-// SetForSession stores frontend-provided AG-UI tools keyed by ACP session
-// ID. Entries that do not parse as JSON are skipped. The raw bytes are
-// copied so that later mutations of the caller's slice cannot affect the
-// stored snapshot.
-func (s *ContextualToolsStore) SetForSession(sessionID string, rawTools []json.RawMessage) {
+// SetForContextualMCPID stores frontend-provided AG-UI tools keyed by the
+// per-turn contextual MCP id. Entries that do not parse as JSON are
+// skipped. The raw bytes are copied so that later mutations of the
+// caller's slice cannot affect the stored snapshot. An empty id is treated
+// as a no-op so callers cannot accidentally write an entry under "" that
+// Get/Delete refuse to touch.
+func (s *ContextualToolsStore) SetForContextualMCPID(contextualMCPID string, rawTools []json.RawMessage) {
+	if contextualMCPID == "" {
+		return
+	}
 	valid := make([]json.RawMessage, 0, len(rawTools))
 	for _, raw := range rawTools {
 		var probe any
@@ -45,34 +55,35 @@ func (s *ContextualToolsStore) SetForSession(sessionID string, rawTools []json.R
 	}
 
 	s.mu.Lock()
-	s.bySession[sessionID] = valid
+	s.byID[contextualMCPID] = valid
 	s.mu.Unlock()
 }
 
-// DeleteForSession drops the tools snapshot for the given ACP session. The
-// chat handler must call this once the turn has finished (success or
+// DeleteForContextualMCPID drops the tools snapshot for the given turn.
+// The chat handler must call this once the turn has finished (success or
 // failure) so the store does not accumulate entries across the lifetime of
 // the query process.
-func (s *ContextualToolsStore) DeleteForSession(sessionID string) {
-	if sessionID == "" {
+func (s *ContextualToolsStore) DeleteForContextualMCPID(contextualMCPID string) {
+	if contextualMCPID == "" {
 		return
 	}
 	s.mu.Lock()
-	delete(s.bySession, sessionID)
+	delete(s.byID, contextualMCPID)
 	s.mu.Unlock()
 }
 
-// GetContextualToolsForSession returns a freshly-unmarshalled copy of the
-// tools snapshot stored for the given ACP session. Each call produces a new
-// tree, so callers cannot corrupt the stored snapshot by mutating nested
-// maps. Returns nil when the session is unknown or has no registered tools.
-func (s *ContextualToolsStore) GetContextualToolsForSession(sessionID string) []any {
-	if sessionID == "" {
+// GetContextualToolsForID returns a freshly-unmarshalled copy of the tools
+// snapshot stored under the given contextual MCP id. Each call produces a
+// new tree, so callers cannot corrupt the stored snapshot by mutating
+// nested maps. Returns nil when the id is unknown or has no registered
+// tools.
+func (s *ContextualToolsStore) GetContextualToolsForID(contextualMCPID string) []any {
+	if contextualMCPID == "" {
 		return nil
 	}
 
 	s.mu.RLock()
-	raws := s.bySession[sessionID]
+	raws := s.byID[contextualMCPID]
 	s.mu.RUnlock()
 
 	if len(raws) == 0 {

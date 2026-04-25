@@ -14,7 +14,6 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -38,7 +37,6 @@ type server struct {
 	telset         component.TelemetrySettings
 	qs             *querysvc.QueryService
 	tenancyManager *tenancy.Manager
-	ctxTools       *jaegerai.ContextualToolsStore
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -97,7 +95,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
-	s.ctxTools = jaegerai.NewContextualToolsStore()
 
 	caps := querysvc.StorageCapabilities{
 		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
@@ -113,7 +110,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		caps,
 		tm,
 		telset,
-		s.ctxTools,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)

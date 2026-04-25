@@ -11,15 +11,20 @@ import (
 	"go.uber.org/zap"
 )
 
-// sessionIDPathValue is the name of the path wildcard carrying the ACP
-// session id in the gateway MCP URL template (/api/ai/mcp/{session_id}).
-const sessionIDPathValue = "session_id"
+// contextualMCPIDPathValue is the name of the path wildcard carrying the
+// per-turn contextual MCP id in the gateway MCP URL template
+// (/api/ai/mcp/{contextual_mcp_id}). This id is minted by the chat
+// handler for each ACP turn and used as the key into ContextualToolsStore;
+// it is *not* the ACP session id (which is assigned by the sidecar after
+// NewSession returns and is therefore not available when the URL must be
+// embedded in NewSessionRequest.McpServers).
+const contextualMCPIDPathValue = "contextual_mcp_id"
 
-// NewContextualMCPHandler returns an http.Handler that serves a per-session
+// NewContextualMCPHandler returns an http.Handler that serves a per-turn
 // MCP endpoint exposing only the AG-UI tools the frontend attached to the
-// given session. The returned handler must be mounted at a path that
-// captures the session id as a {session_id} wildcard (e.g.
-// "/api/ai/mcp/{session_id}").
+// given turn. The returned handler must be mounted at a path that captures
+// the contextual MCP id as a {contextual_mcp_id} wildcard (e.g.
+// "/api/ai/mcp/{contextual_mcp_id}").
 //
 // The sidecar connects to this URL after receiving it via
 // NewSessionRequest.McpServers so a single agent instance can dispatch
@@ -30,8 +35,8 @@ const sessionIDPathValue = "session_id"
 func NewContextualMCPHandler(logger *zap.Logger, store *ContextualToolsStore) http.Handler {
 	return mcp.NewStreamableHTTPHandler(
 		func(r *http.Request) *mcp.Server {
-			sessionID := r.PathValue(sessionIDPathValue)
-			return newContextualMCPServer(logger, store, sessionID)
+			contextualMCPID := r.PathValue(contextualMCPIDPathValue)
+			return newContextualMCPServer(logger, store, contextualMCPID)
 		},
 		&mcp.StreamableHTTPOptions{
 			JSONResponse: false,
@@ -41,9 +46,11 @@ func NewContextualMCPHandler(logger *zap.Logger, store *ContextualToolsStore) ht
 }
 
 // newContextualMCPServer materialises a one-shot MCP server exposing the
-// tools recorded for sessionID. Unknown sessions yield a server with no
-// tools registered.
-func newContextualMCPServer(logger *zap.Logger, store *ContextualToolsStore, sessionID string) *mcp.Server {
+// tools recorded under contextualMCPID. Unknown ids, an empty id, or a nil
+// store all yield a server with no tools registered — callers that
+// constructed the handler without a store get an empty tool list rather
+// than a nil-pointer panic on the first request.
+func newContextualMCPServer(logger *zap.Logger, store *ContextualToolsStore, contextualMCPID string) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    "jaeger-ai-contextual",
@@ -52,16 +59,16 @@ func newContextualMCPServer(logger *zap.Logger, store *ContextualToolsStore, ses
 		nil,
 	)
 
-	if sessionID == "" {
+	if store == nil || contextualMCPID == "" {
 		return server
 	}
 
-	tools := store.GetContextualToolsForSession(sessionID)
+	tools := store.GetContextualToolsForID(contextualMCPID)
 	for _, entry := range tools {
 		tool, ok := toMCPTool(entry)
 		if !ok {
 			logger.Warn("skipping contextual tool with unexpected shape",
-				zap.String("session_id", sessionID))
+				zap.String("contextual_mcp_id", contextualMCPID))
 			continue
 		}
 		server.AddTool(tool, newContextualToolHandler(tool.Name))

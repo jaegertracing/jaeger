@@ -137,9 +137,9 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 
 	// TODO: wire the frontend-provided AG-UI tools snapshot into h.ctxTools
-	// (SetForSession before Prompt, deferred DeleteForSession after) once the
-	// chat request carries a Tools field. Until then the store is populated
-	// only via code paths added in the AG-UI gateway PR.
+	// (SetForContextualMCPID before Prompt, deferred DeleteForContextualMCPID
+	// after) once the chat request carries a Tools field. Until then the
+	// store is populated only via code paths added in the AG-UI gateway PR.
 
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
 	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
