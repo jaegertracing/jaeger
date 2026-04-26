@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestKafkaStorage(t *testing.T) {
@@ -56,8 +57,8 @@ func TestKafkaStorage(t *testing.T) {
 				ConfigFile:      "../../config-kafka-ingester.yaml",
 				HealthCheckPort: 14133,
 				StorageIntegration: integration.StorageIntegration{
-					CleanUp:                      purge,
-					GetDependenciesReturnsSource: true,
+					CleanUp:      purge,
+					Capabilities: capabilities.Kafka(),
 				},
 				EnvVarOverrides: envVarOverrides,
 			}
