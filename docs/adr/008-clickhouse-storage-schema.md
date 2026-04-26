@@ -170,6 +170,13 @@ Sort by `(service_name, name, toDateTime(start_time))`. Search queries — the d
 
 We chose Option B because the trade-off is asymmetric. Sorting by `trace_id` (Option A) makes search performance terrible — `service_name` and `name` filters degrade to scans across the entire keyspace, mitigated only by skip indexes that still need to read every granule's index entry. Sorting by `(service_name, name, start_time)` (Option B) hurts trace retrieval much less: the `bloom_filter` skip index on `trace_id` (see below) lets `GetTraces` skip the vast majority of granules, and the per-trace time-bounds hint that `FindTraceIDs` returns alongside each candidate ID further narrows the partitions and granules that need to be consulted. In benchmarks, Option B's hit on retrieval was small, while Option A's hit on search was severe.
 
+The same workload measured under both sort orders (10M spans / 1M traces, single-node) bears this out:
+
+|Query|Option A (sort by `trace_id`)|Option B (sort by `(service_name, name, start_time)`)|
+|---|---|---|
+|Trace retrieval by ID|~27 ms|~100 ms|
+|Multi-filter search|~880 ms|~140 ms|
+
 ### Secondary (Skip) Indexes
 
 Two skip indexes are defined on the `spans` table:
