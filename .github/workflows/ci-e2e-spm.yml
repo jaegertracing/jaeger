@@ -21,14 +21,10 @@ jobs:
       fail-fast: false
       matrix:
         mode:
-        - name: v2
-          metricstore: prometheus
-        - name: v2 with ES
-          metricstore: elasticsearch
-        - name: v2 with OS
-          metricstore: opensearch
-        - name: v2 with ClickHouse
-          metricstore: clickhouse
+        - metricstore: prometheus
+        - metricstore: elasticsearch
+        - metricstore: opensearch
+        - metricstore: clickhouse
 
     steps:
     - name: Harden Runner
