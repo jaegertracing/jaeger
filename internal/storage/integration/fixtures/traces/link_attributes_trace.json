@@ -23,27 +23,9 @@
               "endTimeUnixNano": "1485449191639877000",
               "attributes": [
                 {
-                  "key": "sameplacetag1",
+                  "key": "sameplacespanattribute1",
                   "value": {
                     "stringValue": "sameplacevalue"
-                  }
-                },
-                {
-                  "key": "sameplacetag2",
-                  "value": {
-                    "intValue": "123"
-                  }
-                },
-                {
-                  "key": "sameplacetag4",
-                  "value": {
-                    "boolValue": true
-                  }
-                },
-                {
-                  "key": "sameplacetag3",
-                  "value": {
-                    "doubleValue": 72.5
                   }
                 }
               ],
@@ -59,31 +41,31 @@
                       }
                     },
                     {
-                      "key": "sameplaceattribute1",
+                      "key": "sameplacelinkattribute1",
                       "value": {
                         "stringValue": "sameplacevalue"
                       }
                     },
                     {
-                      "key": "sameplaceattribute2",
+                      "key": "sameplacelinkattribute2",
                       "value": {
                         "intValue": "123"
                       }
                     },
                     {
-                      "key": "sameplaceattribute4",
+                      "key": "sameplacelinkattribute4",
                       "value": {
                         "boolValue": true
                       }
                     },
                     {
-                      "key": "sameplaceattribute3",
+                      "key": "sameplacelinkattribute3",
                       "value": {
                         "doubleValue": 72.5
                       }
                     },
                     {
-                      "key": "blob",
+                      "key": "linkblob",
                       "value": {
                         "bytesValue": "AAAwOQ=="
                       }

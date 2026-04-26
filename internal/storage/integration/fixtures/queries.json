@@ -402,10 +402,10 @@
       "ServiceName": "query24-service",
       "OperationName": "",
       "Tags": {
-        "sameplaceattribute1":"sameplacevalue",
-        "sameplaceattribute2":123,
-        "sameplaceattribute3":72.5,
-        "sameplaceattribute4":true
+        "sameplacescopeattribute1":"sameplacevalue",
+        "sameplacescopeattribute2":123,
+        "sameplacescopeattribute3":72.5,
+        "sameplacescopeattribute4":true
       },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
@@ -421,10 +421,10 @@
       "ServiceName": "query25-service",
       "OperationName": "",
       "Tags": {
-        "sameplaceattribute1":"sameplacevalue",
-        "sameplaceattribute2":123,
-        "sameplaceattribute3":72.5,
-        "sameplaceattribute4":true
+        "sameplacelinkattribute1":"sameplacevalue",
+        "sameplacelinkattribute2":123,
+        "sameplacelinkattribute3":72.5,
+        "sameplacelinkattribute4":true
       },
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",

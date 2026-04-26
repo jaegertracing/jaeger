@@ -18,31 +18,31 @@
             "version": "1.1.1",
             "attributes": [
               {
-                "key": "sameplaceattribute1",
+                "key": "sameplacescopeattribute1",
                 "value": {
                   "stringValue": "sameplacevalue"
                 }
               },
               {
-                "key": "sameplaceattribute2",
+                "key": "sameplacescopeattribute2",
                 "value": {
                   "intValue": "123"
                 }
               },
               {
-                "key": "sameplaceattribute4",
+                "key": "sameplacescopeattribute4",
                 "value": {
                   "boolValue": true
                 }
               },
               {
-                "key": "sameplaceattribute3",
+                "key": "sameplacescopeattribute3",
                 "value": {
                   "doubleValue": 72.5
                 }
               },
               {
-                "key": "blob",
+                "key": "scopeblob",
                 "value": {
                   "bytesValue": "AAAwOQ=="
                 }
@@ -58,15 +58,9 @@
               "endTimeUnixNano": "1485449191639876000",
               "attributes": [
                 {
-                  "key": "sameplacetag1",
+                  "key": "sameplacespanattribute1",
                   "value": {
                     "stringValue": "sameplacevalue"
-                  }
-                },
-                {
-                  "key": "sameplacetag2",
-                  "value": {
-                    "intValue": "123"
                   }
                 }
               ],
