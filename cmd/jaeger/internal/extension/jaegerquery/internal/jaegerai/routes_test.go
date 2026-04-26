@@ -47,6 +47,15 @@ func TestRegisterRoutesMountsBothEndpoints(t *testing.T) {
 			wantChat:    "/jaeger/api/ai/chat",
 			wantMCPHead: "/jaeger/api/ai/mcp/",
 		},
+		{
+			// Operator-supplied trailing slash must be normalized away so we
+			// don't register a "/jaeger//api/..." pattern that diverges from
+			// the URL the contextual MCP handler builds for the sidecar.
+			name:        "trailing slash in base path is normalized",
+			basePath:    "/jaeger/",
+			wantChat:    "/jaeger/api/ai/chat",
+			wantMCPHead: "/jaeger/api/ai/mcp/",
+		},
 	}
 
 	for _, tc := range tests {
@@ -73,6 +82,25 @@ func TestRegisterRoutesMountsBothEndpoints(t *testing.T) {
 				"MCP endpoint should be mounted under %s{contextual_mcp_id}", tc.wantMCPHead)
 		})
 	}
+}
+
+func TestBasePathNormalizationAgreesAcrossRoutesAndURL(t *testing.T) {
+	// Regression: registering with "/jaeger/" must not produce a mux
+	// pattern with "//", and buildContextualMCPURL must not strip the slash
+	// independently. Both must converge on a single canonical "/jaeger".
+	const dirty = "/jaeger/"
+	h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", dirty, 1<<20)
+
+	assert.Equal(t, "/jaeger", h.basePath, "NewHandler should normalize the trailing slash")
+
+	chatHandler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", dirty, 1<<20)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", http.NoBody)
+	req.Host = "gateway.example"
+	url := chatHandler.buildContextualMCPURL(req, "id-x")
+
+	assert.Equal(t, "http://gateway.example/jaeger/api/ai/mcp/id-x", url,
+		"URL builder must use the same normalized prefix as RegisterRoutes")
+	assert.NotContains(t, url, "//api", "no double slash before /api/...")
 }
 
 func TestRegisterRoutesChatHandlerSharesStore(t *testing.T) {

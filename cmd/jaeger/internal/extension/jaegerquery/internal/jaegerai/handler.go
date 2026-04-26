@@ -46,7 +46,7 @@ func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarW
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
-		basePath:           basePath,
+		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
 	}
 }
@@ -167,6 +167,5 @@ func (h *ChatHandler) buildContextualMCPURL(r *http.Request, id string) string {
 	if r.TLS != nil {
 		scheme = "https"
 	}
-	prefix := strings.TrimSuffix(h.basePath, "/")
-	return scheme + "://" + r.Host + prefix + "/api/ai/mcp/" + id
+	return scheme + "://" + r.Host + h.basePath + "/api/ai/mcp/" + id
 }
