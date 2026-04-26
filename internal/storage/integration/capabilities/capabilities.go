@@ -3,6 +3,11 @@
 
 package capabilities
 
+const (
+	scopeAttributesTest = "Scope_Attributes"
+	linkAttributesTest  = "Link_Attributes"
+)
+
 // Capabilities defines the capabilities of a storage backend for integration tests.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
@@ -39,6 +44,8 @@ func Cassandra() Capabilities {
 			"Tags_+_max_Duration",
 			"Operation_name_+_max_Duration",
 			"Multiple_Traces",
+			scopeAttributesTest,
+			linkAttributesTest,
 		},
 	}
 }
@@ -55,6 +62,7 @@ func Badger() Capabilities {
 	return Capabilities{
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}
 }
 
@@ -64,6 +72,7 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}
 }
 
@@ -71,6 +80,7 @@ func Elasticsearch() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}
 }
 
