@@ -69,6 +69,12 @@ func (h *Handler) internalFindTraces(
 		query.GetStartTimeMax().IsZero() {
 		return errors.New("start time min and max are required parameters")
 	}
+	if query.GetStartTimeMin().After(query.GetStartTimeMax()) {
+		return status.Error(codes.InvalidArgument, "start time min must be before or equal to start time max")
+	}
+	if query.GetSearchDepth() <= 0 {
+		return status.Error(codes.InvalidArgument, "search depth must be greater than 0")
+	}
 
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
