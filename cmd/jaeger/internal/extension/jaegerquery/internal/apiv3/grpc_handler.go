@@ -70,7 +70,7 @@ func (h *Handler) internalFindTraces(
 		return errors.New("start time min and max are required parameters")
 	}
 	if query.GetStartTimeMin().After(query.GetStartTimeMax()) {
-		return status.Error(codes.InvalidArgument, "start time min must be before or equal to start time max")
+		return status.Error(codes.InvalidArgument, "start_time_min must be before start_time_max")
 	}
 	if query.GetSearchDepth() <= 0 {
 		return status.Error(codes.InvalidArgument, "search depth must be greater than 0")
