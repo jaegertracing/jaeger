@@ -12,15 +12,10 @@ import (
 	"strings"
 
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/version"
 )
-
-// contextualMCPServerName is the ACP-visible name for the per-turn MCP
-// server that surfaces the frontend-provided AG-UI tool snapshot.
-const contextualMCPServerName = "jaeger-ai-contextual"
 
 // ChatRequest is the incoming payload
 type ChatRequest struct {
@@ -39,8 +34,7 @@ type ChatHandler struct {
 // NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
 // ctxTools may be nil in tests that do not exercise contextual tooling.
 // basePath is the jaeger-query base path (empty or "/" mean no prefix);
-// the handler uses it to build the absolute URL the sidecar will dial
-// back for per-turn contextual MCP tools.
+// it is normalized so concatenations cannot produce a double slash.
 func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
@@ -88,10 +82,14 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer adapter.Close()
 
 	clientImpl := newStreamingClient(ctx, w)
-	// Build an ACP client-side connection over the websocket adapter.
-	acpConn := acp.NewClientSideConnection(clientImpl, adapter, adapter)
+	// Build the ACP connection ourselves so the inbound dispatcher can
+	// route both standard ACP methods (session/update etc.) and our
+	// extension method (ExtMethodJaegerToolCall) — the SDK's
+	// NewClientSideConnection has a hardcoded dispatcher that returns
+	// MethodNotFound for any extension method we add.
+	acpConn := acp.NewConnection(newDispatcher(clientImpl, h.Logger), adapter, adapter)
 
-	_, err = acpConn.Initialize(acpCtx, acp.InitializeRequest{
+	if _, err = acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
 			Fs:       acp.FileSystemCapability{ReadTextFile: false, WriteTextFile: false},
@@ -101,30 +99,17 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Name:    "jaeger-ai-gateway",
 			Version: version.Get().GitVersion,
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
 		return
 	}
 
-	// Mint a per-turn id that ties this chat request's AG-UI tool snapshot
-	// to the contextual MCP endpoint the sidecar will read from. The URL is
-	// constructed from the inbound request so deployments that expose
-	// jaeger-query on one hostname but internally resolve it under another
-	// still send the sidecar back to where the gateway actually listens.
-	contextualMCPID := uuid.NewString()
-	contextualMCPURL := h.buildContextualMCPURL(r, contextualMCPID)
-
-	sess, err := acpConn.NewSession(acpCtx, acp.NewSessionRequest{
+	sess, err := acp.SendRequest[acp.NewSessionResponse](acpConn, acpCtx, acp.AgentMethodSessionNew, acp.NewSessionRequest{
 		Cwd: "/",
-		McpServers: []acp.McpServer{{
-			Http: &acp.McpServerHttpInline{
-				Name:    contextualMCPServerName,
-				Type:    "http",
-				Url:     contextualMCPURL,
-				Headers: []acp.HttpHeader{},
-			},
-		}},
+		// McpServers must be non-nil for ACP validation. PR1 advertises no
+		// MCP servers (contextual tools ride the ACP extension method
+		// instead); PR2 may add the built-in jaeger MCP server here.
+		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
@@ -136,14 +121,13 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-cache")
 
-	// TODO: wire the frontend-provided AG-UI tools snapshot into h.ctxTools
-	// (SetForContextualMCPID before Prompt, deferred DeleteForContextualMCPID
-	// after) once the chat request carries a Tools field. Until then the
-	// store is populated only via code paths added in the AG-UI gateway PR.
+	// TODO(PR2): wire AG-UI tools into NewSessionRequest.Meta and into
+	// h.ctxTools so the sidecar can register contextual tools with Gemini
+	// and dispatch them back through ExtMethodJaegerToolCall.
 
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
 	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
-	promptResp, err := acpConn.Prompt(acpCtx, acp.PromptRequest{
+	promptResp, err := acp.SendRequest[acp.PromptResponse](acpConn, acpCtx, acp.AgentMethodSessionPrompt, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    []acp.ContentBlock{acp.TextBlock(req.Prompt)},
 	})
@@ -156,16 +140,4 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientImpl.writeAndFlush(fmt.Sprintf("\n[stop_reason] %s\n", promptResp.StopReason))
-}
-
-// buildContextualMCPURL reconstructs the absolute URL at which the gateway
-// serves the per-turn contextual MCP endpoint. The sidecar dials this URL
-// after receiving it in NewSessionRequest.McpServers, so it must be
-// reachable from the sidecar.
-func (h *ChatHandler) buildContextualMCPURL(r *http.Request, id string) string {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	return scheme + "://" + r.Host + h.basePath + "/api/ai/mcp/" + id
 }

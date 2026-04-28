@@ -6,7 +6,6 @@ package jaegerai
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -176,15 +175,8 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.Equal(t, version.Get().GitVersion, initReq.ClientInfo.Version, "client version mismatch")
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
-	require.Len(t, sessionReq.McpServers, 1, "expected one contextual MCP server in session/new")
-	mcpEntry := sessionReq.McpServers[0]
-	require.NotNil(t, mcpEntry.Http, "expected inline HTTP MCP server entry")
-	require.Equal(t, contextualMCPServerName, mcpEntry.Http.Name, "unexpected MCP server name")
-	require.Equal(t, "http", mcpEntry.Http.Type, "unexpected MCP server type")
-	require.True(t, strings.HasPrefix(mcpEntry.Http.Url, "http://gateway.example:16686/jaeger/api/ai/mcp/"),
-		"unexpected MCP server URL: %s", mcpEntry.Http.Url)
-	require.NotEmpty(t, strings.TrimPrefix(mcpEntry.Http.Url, "http://gateway.example:16686/jaeger/api/ai/mcp/"),
-		"expected non-empty contextual MCP id suffix")
+	require.Empty(t, sessionReq.McpServers,
+		"PR1 must not advertise gateway-hosted MCP servers; contextual tools ride ACP extension methods now")
 
 	require.EqualValues(t, "sess-test", promptReq.SessionId, "prompt sessionId mismatch")
 	require.Len(t, promptReq.Prompt, 1, "prompt content length mismatch")
@@ -380,77 +372,6 @@ func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Contains(t, rr.Body.String(), "streamed-via-notification",
 		"SessionUpdate should be flushed before Prompt() returns")
-}
-
-func TestBuildContextualMCPURL(t *testing.T) {
-	tests := []struct {
-		name     string
-		basePath string
-		host     string
-		tls      bool
-		headers  map[string]string
-		wantBase string
-	}{
-		{
-			name:     "plain host no prefix",
-			basePath: "",
-			host:     "gateway.example:16686",
-			wantBase: "http://gateway.example:16686/api/ai/mcp/",
-		},
-		{
-			name:     "with base path",
-			basePath: "/jaeger",
-			host:     "gateway.example:16686",
-			wantBase: "http://gateway.example:16686/jaeger/api/ai/mcp/",
-		},
-		{
-			name:     "trailing slash in base path is trimmed",
-			basePath: "/jaeger/",
-			host:     "gateway.example",
-			wantBase: "http://gateway.example/jaeger/api/ai/mcp/",
-		},
-		{
-			name:     "tls flips scheme to https",
-			basePath: "",
-			host:     "gateway.example",
-			tls:      true,
-			wantBase: "https://gateway.example/api/ai/mcp/",
-		},
-		{
-			// Forwarded headers must NOT be honored: any HTTP client can set
-			// them, and trusting them would let a caller redirect the sidecar
-			// to an attacker-controlled host. The URL is still derived from
-			// r.Host / r.TLS only.
-			name:     "forwarded proto is ignored",
-			basePath: "",
-			host:     "gateway.example",
-			headers:  map[string]string{"X-Forwarded-Proto": "https"},
-			wantBase: "http://gateway.example/api/ai/mcp/",
-		},
-		{
-			name:     "forwarded host is ignored",
-			basePath: "/jaeger",
-			host:     "internal.local",
-			headers:  map[string]string{"X-Forwarded-Host": "attacker.evil", "X-Forwarded-Proto": "https"},
-			wantBase: "http://internal.local/jaeger/api/ai/mcp/",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := NewChatHandler(zap.NewNop(), nil, "ws://unused", tc.basePath, 1<<20)
-			req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", http.NoBody)
-			req.Host = tc.host
-			if tc.tls {
-				req.TLS = &tls.ConnectionState{}
-			}
-			for k, v := range tc.headers {
-				req.Header.Set(k, v)
-			}
-			got := h.buildContextualMCPURL(req, "abc-123")
-			require.Equal(t, tc.wantBase+"abc-123", got)
-		})
-	}
 }
 
 func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
