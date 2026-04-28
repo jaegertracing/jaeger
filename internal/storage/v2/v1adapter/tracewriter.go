@@ -5,9 +5,9 @@ package v1adapter
 
 import (
 	"context"
-	"errors"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -38,19 +38,40 @@ func NewTraceWriter(spanWriter spanstore.Writer) *TraceWriter {
 // WriteTraces implements tracestore.Writer.
 func (t *TraceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 	batches := V1BatchesFromTraces(td)
-	var errs []error
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(50)
+
+	var canceled bool
 	for _, batch := range batches {
+		if gCtx.Err() != nil {
+			canceled = true
+			break
+		}
 		for _, span := range batch.Spans {
+			if gCtx.Err() != nil {
+				canceled = true
+				break
+			}
 			if span.Process == nil {
 				span.Process = batch.Process
 			}
-			err := t.spanWriter.WriteSpan(ctx, span)
-			if err != nil {
-				errs = append(errs, err)
-			}
+
+			s := span
+			g.Go(func() error {
+				if gCtx.Err() != nil {
+					return gCtx.Err()
+				}
+				return t.spanWriter.WriteSpan(gCtx, s)
+			})
 		}
 	}
-	return errors.Join(errs...)
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	if canceled {
+		return gCtx.Err()
+	}
+	return nil
 }
 
 type DependencyWriter struct {
