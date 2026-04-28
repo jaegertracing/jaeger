@@ -193,15 +193,11 @@ func initRouter(
 
 	// AI Gateway Endpoints
 	if queryOpts.AI.HasValue() {
-		aiHandlerPath := "/api/ai/chat"
-		if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-			aiHandlerPath = queryOpts.BasePath + aiHandlerPath
-		}
 		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, aiCfg.AgentURL, aiCfg.MaxRequestBodySize).ServeHTTP)
+				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
 			}
 		}
 	}
