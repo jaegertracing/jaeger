@@ -15,6 +15,10 @@
 // Required invariants maintained by this file:
 //   1. ci-summary.json contains ONLY typed primitives: numbers, booleans, and
 //      fixed enum strings ("success"/"failure"/"skipped"). No free-form text.
+//      Exception: head_sha is a 40-char hex string produced from GitHub's own
+//      event context (github.event.pull_request.head.sha), validated as
+//      /^[0-9a-f]{40}$/ in the publish workflow before being passed here, and
+//      used only as an API parameter — never interpolated into display strings.
 //   2. All display text (PR comments, check summaries) is constructed entirely
 //      from trusted template strings defined in this file.
 //   3. Numeric values are coerced through safeNum() which validates with
@@ -97,7 +101,12 @@ function sanitizeSnapshots(raw) {
         if (clean) names.push(clean);
       }
     }
-    result.push({ snapshot, added, removed, modified, metric_names: names });
+    // Validate artifact_id (optional, non-negative integer for the diff artifact download link)
+    const artifactId = safeNum(entry.artifact_id);
+    // artifact_id must be a positive integer (GitHub artifact IDs are always > 0)
+    const sanitizedArtifactId = (artifactId !== null && Number.isInteger(artifactId) && artifactId > 0)
+      ? artifactId : null;
+    result.push({ snapshot, added, removed, modified, metric_names: names, artifact_id: sanitizedArtifactId });
   }
   return result.length > 0 ? result : null;
 }
@@ -158,9 +167,14 @@ function computeCoverage(s) {
  * All text is built from trusted templates; metric names have been validated
  * through sanitizeMetricName() and are rendered in backtick-code spans.
  * @param {Array|null} snapshots - Sanitized snapshots from computeMetrics
+ * @param {string} [ciRunUrl] - URL to the CI run for linking to step logs
+ * @param {string} [artifactUrlPrefix] - Base URL for artifact downloads:
+ *   `https://github.com/{owner}/{repo}/actions/runs/{runId}/artifacts`.
+ *   When provided, each snapshot with a valid artifact_id gets a direct
+ *   download link appended to its header line.
  * @returns {string} - Markdown detail block, or empty string if no data
  */
-function formatMetricsDetail(snapshots) {
+function formatMetricsDetail(snapshots, { ciRunUrl, artifactUrlPrefix } = {}) {
   if (!snapshots || snapshots.length === 0) return '';
 
   const lines = [
@@ -170,8 +184,18 @@ function formatMetricsDetail(snapshots) {
     '',
   ];
 
+  if (ciRunUrl) {
+    lines.push(`_For label-level diff details, open the [CI run](${ciRunUrl}) and expand the "Compare metrics and generate summary" step logs._`);
+    lines.push('');
+  }
+
   for (const snap of snapshots) {
-    lines.push(`**${snap.snapshot}**`);
+    // Build the snapshot header, optionally with a direct diff artifact download link.
+    let snapHeader = `**${snap.snapshot}**`;
+    if (artifactUrlPrefix && snap.artifact_id !== null && snap.artifact_id !== undefined) {
+      snapHeader += ` — [⬇️ download diff](${artifactUrlPrefix}/${snap.artifact_id})`;
+    }
+    lines.push(snapHeader);
     const parts = [];
     if (snap.added    !== null && snap.added    > 0) parts.push(`${snap.added} added`);
     if (snap.removed  !== null && snap.removed  > 0) parts.push(`${snap.removed} removed`);
@@ -201,9 +225,11 @@ function formatMetricsDetail(snapshots) {
  * @param {string} footer - links + timestamp line
  * @param {object} [opts]
  * @param {Array|null} [opts.metricsSnapshots] - sanitized snapshot data for detail rendering
+ * @param {string} [opts.ciRunUrl] - URL to the CI run, passed through to formatMetricsDetail
+ * @param {string} [opts.artifactUrlPrefix] - Base URL for artifact downloads, passed through
  * @returns {string}
  */
-function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots } = {}) {
+function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots, ciRunUrl, artifactUrlPrefix } = {}) {
   const parts = [
     COMMENT_TAG,
     '## CI Summary Report',
@@ -212,7 +238,7 @@ function buildCommentBody(metricsText, coverageText, footer, { metricsSnapshots 
     metricsText,
   ];
 
-  const detail = formatMetricsDetail(metricsSnapshots);
+  const detail = formatMetricsDetail(metricsSnapshots, { ciRunUrl, artifactUrlPrefix });
   if (detail) {
     parts.push(detail);
   }
@@ -301,6 +327,8 @@ async function postOrUpdateComment(github, owner, repo, prNumber, body, core, { 
  * @param {string} opts.inputs.prNumber  - raw string from step output
  * @param {string} opts.inputs.ciRunUrl
  * @param {string} opts.inputs.publishUrl
+ * @param {string} [opts.inputs.sourceRunId] - numeric run ID of the CI Orchestrator run;
+ *   used to construct direct artifact download URLs (e.g. .../artifacts/{id})
  */
 async function handler({ github, core, fs, inputs }) {
   const { owner, repo, headSha, ciRunUrl, publishUrl } = inputs;
@@ -309,6 +337,13 @@ async function handler({ github, core, fs, inputs }) {
   const links  = `➡️ [View CI run](${ciRunUrl}) | [View publish logs](${publishUrl})`;
   const ts     = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
   const footer = `${links}\n_${ts}_`;
+
+  // Construct the artifact URL prefix for per-snapshot diff download links.
+  // All parts come from trusted sources: owner/repo from context, runId validated as integer.
+  const sourceRunId = parseInt(inputs.sourceRunId, 10) || null;
+  const artifactUrlPrefix = (owner && repo && sourceRunId)
+    ? `https://github.com/${owner}/${repo}/actions/runs/${sourceRunId}/artifacts`
+    : null;
 
   // Read structured data written by ci-summary-report.yml.
   // All fields are primitives (enums, numbers, booleans) — no free-form text.
@@ -349,7 +384,11 @@ async function handler({ github, core, fs, inputs }) {
     // after a green run.  Only create a new comment when there is something to report.
     const hasIssues = metrics.conclusion === 'failure' || coverage.conclusion === 'failure'
                       || metrics.totalChanges > 0;
-    const body = buildCommentBody(metrics.text, coverage.text, footer, { metricsSnapshots: metrics.snapshots });
+    const body = buildCommentBody(metrics.text, coverage.text, footer, {
+      metricsSnapshots: metrics.snapshots,
+      ciRunUrl,
+      artifactUrlPrefix,
+    });
     await postOrUpdateComment(github, owner, repo, prNumber, body, core, { createNew: hasIssues });
   } else {
     core.info('No PR number; skipping PR comment.');

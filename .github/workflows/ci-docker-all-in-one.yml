@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 30 # max + 3*std over the last 2600 runs
 
     steps:
-    - uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+    - uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -55,8 +55,14 @@ jobs:
         esac
 
     - name: Build, test, and publish all-in-one image
+      if: github.event_name == 'push' && github.ref_name == 'main'
       run: |
         bash scripts/build/build-all-in-one-image.sh ${{ env.BUILD_FLAGS }} v2
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build and test all-in-one image (no publish)
+      if: github.event_name != 'push' || github.ref_name != 'main'
+      run: |
+        bash scripts/build/build-all-in-one-image.sh ${{ env.BUILD_FLAGS }} v2

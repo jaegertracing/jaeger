@@ -1,0 +1,23 @@
+[project]
+name = "python-sidecar"
+version = "0.1.0"
+description = "Python sidecar that runs an Agent Client Protocol (ACP) agent backed by Google Gemini and exposes a Jaeger MCP bridge for observability and tooling integration."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "agent-client-protocol>=0.8.1",
+    "google-adk>=1.10.0",
+    "google-cloud-aiplatform>=1.133.0",
+    "google-genai>=1.68.0",
+    "opentelemetry-exporter-otlp-proto-grpc",
+    "opentelemetry-instrumentation-google-generativeai",
+    "opentelemetry-sdk",
+    "requests>=2.32.6",
+    "websockets>=16.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+    "pytest>=8.3.4",
+]

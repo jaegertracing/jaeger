@@ -40,6 +40,8 @@ jobs:
 
       - name: Compare metrics and generate summary
         id: compare-metrics
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: bash ./scripts/e2e/metrics_summary.sh
 
@@ -147,6 +149,10 @@ jobs:
       # All display text is constructed from this structured data by trusted publish-
       # workflow code running in the base repository context.
       #
+      # head_sha comes from GitHub's own event context (not from test output), so it
+      # is a trusted value.  The publish workflow validates it as a 40-char hex SHA
+      # before use and passes it only to GitHub API calls, never into display strings.
+      #
       # metrics_snapshots is an array of per-snapshot change data (metric names and
       # counts) produced by metrics_summary.sh.  The publish workflow validates every
       # field before rendering (see sanitizeSnapshots in ci-summary-report-publish.js).
@@ -154,6 +160,12 @@ jobs:
         if: always()
         env:
           PR_NUMBER:              ${{ github.event.pull_request.number }}
+          # Use the PR branch-tip SHA when available (pull_request event); fall
+          # back to github.sha for push/merge_group events where it is the real
+          # commit.  github.event.pull_request.head.sha is reliable here because
+          # this workflow runs inside the CI Orchestrator, which is triggered
+          # directly by the pull_request event (not via workflow_run).
+          HEAD_SHA:               ${{ github.event.pull_request.head.sha || github.sha }}
           METRICS_CONCLUSION:     ${{ steps.compare-metrics.outputs.CONCLUSION }}
           METRICS_TOTAL:          ${{ steps.compare-metrics.outputs.TOTAL_CHANGES }}
           METRICS_INFRA_ERRORS:   ${{ steps.compare-metrics.outputs.INFRA_ERRORS }}
@@ -211,8 +223,11 @@ jobs:
           pr_number_env = os.environ.get('PR_NUMBER')
           pr_number = int(pr_number_env) if pr_number_env else None
 
+          head_sha = os.environ.get('HEAD_SHA') or None
+
           data = {
               'pr_number':               pr_number,
+              'head_sha':                head_sha,
               'metrics_conclusion':      metrics_conclusion,
               'metrics_total_changes':   metrics_total,
               'metrics_has_infra_errors': has_infra_errors,

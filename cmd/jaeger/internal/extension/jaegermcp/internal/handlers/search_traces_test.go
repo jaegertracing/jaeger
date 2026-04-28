@@ -13,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
@@ -33,6 +34,7 @@ func TestSearchTracesHandler_Handle_Success(t *testing.T) {
 	assert.Equal(t, "/api/checkout", summary.RootSpanName)
 	assert.Equal(t, 1, summary.SpanCount)
 	assert.Equal(t, 1, summary.ServiceCount)
+	assert.Equal(t, []string{"frontend"}, summary.Services)
 	assert.False(t, summary.HasErrors)
 }
 
@@ -43,7 +45,41 @@ func TestSearchTracesHandler_BuildSummary_WithErrors(t *testing.T) {
 
 	assert.Equal(t, "payment", summary.RootService)
 	assert.Equal(t, "/process", summary.RootSpanName)
+	assert.Equal(t, []string{"payment"}, summary.Services)
 	assert.True(t, summary.HasErrors)
+}
+
+func TestSearchTracesHandler_BuildSummary_MultipleServices(t *testing.T) {
+	traces := ptrace.NewTraces()
+	tid := pcommon.TraceID{}
+	copy(tid[:], "multiservicetrace")
+
+	// Add spans from three different services in non-alphabetical order
+	spanIDs := []pcommon.SpanID{
+		{1, 0, 0, 0, 0, 0, 0, 0},
+		{2, 0, 0, 0, 0, 0, 0, 0},
+		{3, 0, 0, 0, 0, 0, 0, 0},
+	}
+	for i, svc := range []string{"payment", "api-gateway", "user-service"} {
+		rs := traces.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr("service.name", svc)
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(tid)
+		span.SetSpanID(spanIDs[i])
+		span.SetName("/op")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+		span.Status().SetCode(ptrace.StatusCodeOk)
+		if i > 0 {
+			span.SetParentSpanID(spanIDs[0])
+		}
+	}
+
+	summary := buildTraceSummary(traces)
+
+	assert.Equal(t, 3, summary.ServiceCount)
+	// Services must be sorted alphabetically for deterministic output
+	assert.Equal(t, []string{"api-gateway", "payment", "user-service"}, summary.Services)
 }
 
 func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
@@ -414,6 +450,21 @@ func TestSearchTracesHandler_Handle_InvalidDurationMax(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid duration_max")
+}
+
+func TestSearchTracesHandler_Handle_StartTimeMaxBeforeMin(t *testing.T) {
+	handler := NewSearchTracesHandler(nil, 100)
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		StartTimeMax: "-2h",
+		ServiceName:  "test",
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "start_time_max must be after start_time_min")
 }
 
 func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {

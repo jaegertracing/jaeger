@@ -53,11 +53,11 @@ def update_changelog(version: str, release_date: str, changelog_content: str, ui
         if '</details>' in line:
             template_end = i + 1
             break
-    
+
     if template_end == -1:
         print("Error: Could not find template end marker", file=sys.stderr)
         sys.exit(1)
-    
+
     # Create the new changelog section
     new_section = []
     new_section.append(f"\nv{version} ({release_date})\n")
@@ -67,7 +67,7 @@ def update_changelog(version: str, release_date: str, changelog_content: str, ui
     new_section.append(changelog_content)
     if not changelog_content.endswith('\n'):
         new_section.append("\n")
-    
+
     if ui_changelog:
         ui_content = extract_version_content(ui_changelog, version)
         if ui_content:
@@ -79,7 +79,7 @@ def update_changelog(version: str, release_date: str, changelog_content: str, ui
         f.writelines(lines[:template_end])
         f.writelines(new_section)
         f.writelines(lines[template_end:])
-    
+
     print(f"Updated CHANGELOG.md with v{version}")
 
 
@@ -110,13 +110,13 @@ def main():
         help="Path to the UI changelog file to extract notes from",
         default=None
     )
-    
+
     args = parser.parse_args()
-    
+
     # Use provided date or default to today
     from datetime import date
     release_date = args.date if args.date else date.today().strftime("%Y-%m-%d")
-    
+
     update_changelog(args.version, release_date, args.content, args.ui_changelog)
 
 

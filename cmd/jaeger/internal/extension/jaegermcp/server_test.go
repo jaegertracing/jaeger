@@ -112,17 +112,24 @@ func waitForServer(t *testing.T, addr string) {
 // Pass a nil logger to use the no-op logger from componenttest.
 func startTestServerWithQueryService(t *testing.T, svc *querysvc.QueryService, logger *zap.Logger) (*server, string) {
 	t.Helper()
-
-	host := newMockHostWithQueryService(svc)
 	telset := componenttest.NewNopTelemetrySettings()
 	if logger != nil {
 		telset.Logger = logger
 	}
+	return startTestServerWithTelemetry(t, svc, telset)
+}
+
+// startTestServerWithTelemetry creates and starts a test server with the given
+// telemetry settings. Use this when you need a real TracerProvider for tracing tests.
+func startTestServerWithTelemetry(t *testing.T, svc *querysvc.QueryService, telset component.TelemetrySettings) (*server, string) {
+	t.Helper()
+
+	host := newMockHostWithQueryService(svc)
 
 	config := &Config{
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
-				Endpoint:  "localhost:0", // OS will assign a free port
+				Endpoint:  "localhost:0",
 				Transport: confignet.TransportTypeTCP,
 			},
 		},
@@ -222,6 +229,34 @@ func TestServerQueryServiceRetrieval(t *testing.T) {
 	// Test Shutdown
 	err = server.Shutdown(context.Background())
 	assert.NoError(t, err)
+}
+
+func TestServerStartContinuesWhenMetricsMiddlewareFails(t *testing.T) {
+	// Verify that a failing MeterProvider does not abort server startup;
+	// the server should continue with tracing only (a warning is logged).
+	host := newMockHost()
+	config := &Config{
+		HTTP: confighttp.ServerConfig{
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
+		},
+		ServerName:               "jaeger",
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 20,
+		MaxSearchResults:         100,
+	}
+
+	telset := componenttest.NewNopTelemetrySettings()
+	telset.MeterProvider = &failingMeterProvider{failCounter: true}
+
+	server := newServer(config, telset)
+	err := server.Start(context.Background(), host)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		assert.NoError(t, server.Shutdown(context.Background()))
+	})
 }
 
 func TestServerStartFailsWithoutQueryExtension(t *testing.T) {

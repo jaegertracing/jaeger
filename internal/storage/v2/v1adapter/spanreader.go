@@ -57,23 +57,9 @@ func (sr *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 
 func (sr *SpanReader) GetOperations(
 	ctx context.Context,
-	query spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
-	o, err := sr.traceReader.GetOperations(ctx, tracestore.OperationQueryParams{
-		ServiceName: query.ServiceName,
-		SpanKind:    query.SpanKind,
-	})
-	if err != nil || o == nil {
-		return nil, err
-	}
-	operations := []spanstore.Operation{}
-	for _, operation := range o {
-		operations = append(operations, spanstore.Operation{
-			Name:     operation.Name,
-			SpanKind: operation.SpanKind,
-		})
-	}
-	return operations, nil
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
+	return sr.traceReader.GetOperations(ctx, query)
 }
 
 func (sr *SpanReader) FindTraces(

@@ -45,7 +45,7 @@ def fetch_content(file_name):
     return text
 
 def main():
-    
+
     version = sys.argv[1]
     ui_filename = sys.argv[2]
     loc = sys.argv[3]
