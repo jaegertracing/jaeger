@@ -6,6 +6,7 @@ package uiconv
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,16 +50,12 @@ func TestExtractorTraceSuccess(t *testing.T) {
 }
 
 func TestExtractorTraceOutputFileError(t *testing.T) {
+	tempDir := t.TempDir()
 	inputFile := "fixtures/trace_success.json"
-	outputFile := "fixtures/trace_success_ui_anonymized.json"
-	defer os.Remove(outputFile)
+	outputFile := filepath.Join(tempDir, "nonexistent", "output.json")
 
 	reader, err := newSpanReader(inputFile, zap.NewNop())
 	require.NoError(t, err)
-
-	err = os.Chmod("fixtures", 0o000)
-	require.NoError(t, err)
-	defer os.Chmod("fixtures", 0o755)
 
 	_, err = newExtractor(
 		outputFile,
