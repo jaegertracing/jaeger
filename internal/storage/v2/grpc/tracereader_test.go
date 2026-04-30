@@ -491,7 +491,7 @@ func TestTraceReader_FindTraceIDs(t *testing.T) {
 			queryParams: queryParams,
 			expectedIDs: []tracestore.FoundTraceID{
 				{
-					TraceID: pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8}),
+					TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8}),
 					Start:   now,
 					End:     now.Add(1 * time.Second),
 				},
