@@ -46,6 +46,7 @@ type Server struct {
 	httpServer   *httpServer
 	bgFinished   sync.WaitGroup
 	telset       telemetry.Settings
+	host         component.Host
 }
 
 // NewServer creates and initializes Server
@@ -57,6 +58,7 @@ func NewServer(
 	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
+	host component.Host,
 ) (*Server, error) {
 	_, httpPort, err := net.SplitHostPort(options.HTTP.NetAddr.Endpoint)
 	if err != nil {
@@ -87,6 +89,7 @@ func NewServer(
 		grpcServer:   grpcServer,
 		httpServer:   httpServer,
 		telset:       telset,
+		host:         host,
 	}, nil
 }
 
@@ -318,6 +321,11 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("query server failed to initialize listener: %w", err)
 	}
 
+	// Report healthy status to the collector runtime
+	if s.host != nil {
+		componentstatus.ReportStatus(s.host, componentstatus.NewEvent(componentstatus.StatusStarting))
+	}
+
 	var httpPort int
 	if port, err := getPortForAddr(s.httpConn.Addr()); err == nil {
 		httpPort = port
@@ -351,6 +359,12 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 		s.telset.Logger.Info("GRPC server stopped", zap.Int("port", grpcPort), zap.String("addr", s.queryOptions.GRPC.NetAddr.Endpoint))
 	})
+
+	// Report OK status after servers have started successfully
+	if s.host != nil {
+		componentstatus.ReportStatus(s.host, componentstatus.NewEvent(componentstatus.StatusOK))
+	}
+
 	return nil
 }
 
@@ -364,6 +378,11 @@ func (s *Server) GRPCAddr() string {
 
 // Close stops HTTP, GRPC servers and closes the port listener.
 func (s *Server) Close() error {
+	// Report stopping status to the collector runtime
+	if s.host != nil {
+		componentstatus.ReportStatus(s.host, componentstatus.NewEvent(componentstatus.StatusStopping))
+	}
+
 	var errs []error
 
 	s.telset.Logger.Info("Closing HTTP server")
@@ -377,5 +396,11 @@ func (s *Server) Close() error {
 	s.bgFinished.Wait()
 
 	s.telset.Logger.Info("Server stopped")
+
+	// Report stopped status to the collector runtime
+	if s.host != nil {
+		componentstatus.ReportStatus(s.host, componentstatus.NewEvent(componentstatus.StatusStopped))
+	}
+
 	return errors.Join(errs...)
 }
