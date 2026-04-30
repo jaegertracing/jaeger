@@ -128,6 +128,24 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	}, nil
 }
 
+// GetDependencies implements api_v3.QueryServiceServer's GetDependencies
+func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDependenciesRequest) (*api_v3.GetDependenciesResponse, error) {
+	deps, err := h.QueryService.GetDependencies(ctx, request.EndTime, request.Lookback)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]*api_v3.DependencyLink, len(deps))
+	for i, dep := range deps {
+		links[i] = &api_v3.DependencyLink{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: dep.CallCount,
+			Source:    dep.Source,
+		}
+	}
+	return &api_v3.GetDependenciesResponse{Dependencies: links}, nil
+}
+
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*jptrace.TracesData) error,

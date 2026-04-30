@@ -17,6 +17,7 @@ import (
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -45,7 +46,7 @@ var (
 type testGateway struct {
 	reader *tracestoremocks.Reader
 	url    string
-	router *http.ServeMux
+	router *mux.Router
 	// used to set a tenancy header when executing requests
 	setupRequest func(*http.Request)
 }
