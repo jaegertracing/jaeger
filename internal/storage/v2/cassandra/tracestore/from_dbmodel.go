@@ -90,7 +90,7 @@ func dbSpanToSpan(dbspan *dbmodel.Span, span ptrace.Span) {
 	}
 	setSpanStatus(attrs, span)
 
-	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
+	span.TraceState().FromRaw(dbspan.TraceState)
 
 	// drop the attributes slice if all of them were replaced during translation
 	if attrs.Len() == 0 {
@@ -307,38 +307,19 @@ func dbReferencesToSpanLinks(refs []dbmodel.SpanRef, excludeParentID int64, span
 		link.SetTraceID(pcommon.TraceID(ref.TraceID))
 		//nolint:gosec // G115 // bit-preserving uint64<->int64 conversion for opaque IDs
 		link.SetSpanID(idutils.UInt64ToSpanID(uint64(ref.SpanID)))
-		link.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
+		link.TraceState().FromRaw(ref.TraceState)
+		dbTagsToAttributes(ref.Tags, link.Attributes())
+		if refType, ok := link.Attributes().Get(otelsemconv.AttributeOpentracingRefType); !ok {
+			link.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
+		} else if refType.Str() == "" {
+			link.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
+		}
 	}
-}
-
-func getTraceStateFromAttrs(attrs pcommon.Map) string {
-	traceState := ""
-	// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
-	if attr, ok := attrs.Get(tagW3CTraceState); ok {
-		traceState = attr.Str()
-		attrs.Remove(tagW3CTraceState)
-	}
-	return traceState
 }
 
 func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
-	if libraryName, ok := getAndDeleteTag(span, otelsemconv.AttributeOtelScopeName); ok {
-		scopeSpan.Scope().SetName(libraryName)
-		if libraryVersion, ok := getAndDeleteTag(span, otelsemconv.AttributeOtelScopeVersion); ok {
-			scopeSpan.Scope().SetVersion(libraryVersion)
-		}
-	}
-}
-
-func getAndDeleteTag(span *dbmodel.Span, key string) (string, bool) {
-	for i, tag := range span.Tags {
-		if tag.Key == key {
-			val := tag.ValueString
-			span.Tags = append(span.Tags[:i], span.Tags[i+1:]...)
-			return val, true
-		}
-	}
-	return "", false
+	scopeSpan.Scope().SetName(span.ScopeName)
+	scopeSpan.Scope().SetVersion(span.ScopeVersion)
 }
 
 func dbRefTypeToAttribute(ref string) string {
