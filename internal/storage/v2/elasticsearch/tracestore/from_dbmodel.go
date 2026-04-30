@@ -102,18 +102,32 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	endTime := startTime.Add(duration)
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(endTime))
 
-	// TODO rewrite this to use a single loop over tags
-	// and map special tag names to OTEL Span fields
+	// Process tags in a single loop, mapping special tag names
+	// directly to OTEL Span fields instead of adding then removing.
 	attrs := span.Attributes()
 	attrs.EnsureCapacity(len(dbSpan.Tags))
-	dbTagsToAttributes(dbSpan.Tags, attrs)
-	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
-		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
-		attrs.Remove(model.SpanKindKey)
+	var statusTags collectedStatusTags
+	for i, tag := range dbSpan.Tags {
+		switch tag.Key {
+		case model.SpanKindKey:
+			if v, ok := tag.Value.(string); ok {
+				span.SetKind(dbSpanKindToOTELSpanKind(v))
+			}
+		case tagW3CTraceState:
+			if v, ok := tag.Value.(string); ok {
+				span.TraceState().FromRaw(v)
+			}
+		case tagError:
+			statusTags.errorTag = &dbSpan.Tags[i]
+		case conventions.OtelStatusCode:
+			statusTags.statusCode = &dbSpan.Tags[i]
+		case conventions.OtelStatusDescription:
+			statusTags.statusDesc = &dbSpan.Tags[i]
+		default:
+			dbTagToAttribute(tag, attrs)
+		}
 	}
-	setSpanStatus(attrs, span)
-
-	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
+	resolveSpanStatus(attrs, span, statusTags)
 
 	// drop the attributes slice if all of them were replaced during translation
 	if attrs.Len() == 0 {
@@ -133,58 +147,63 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 
 func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	for _, tag := range tags {
-		tagValue, ok := tag.Value.(string)
-		if !ok {
-			switch tag.Type {
-			case dbmodel.Float64Type, dbmodel.Int64Type:
-				fromDBNumber(tag, attributes)
-			case dbmodel.BoolType:
-				v, ok := tag.Value.(bool)
-				if !ok {
-					recordTagInvalidTypeError(tag, attributes)
-				} else {
-					attributes.PutBool(tag.Key, v)
-				}
-			default:
-				// This means type is string/binary but value is of non string type, hence record the type error
-				recordTagInvalidTypeError(tag, attributes)
-			}
-			continue
-		}
+		dbTagToAttribute(tag, attributes)
+	}
+}
+
+// dbTagToAttribute converts a single DB KeyValue tag to an OTEL attribute.
+func dbTagToAttribute(tag dbmodel.KeyValue, attributes pcommon.Map) {
+	tagValue, ok := tag.Value.(string)
+	if !ok {
 		switch tag.Type {
-		case dbmodel.StringType:
-			attributes.PutStr(tag.Key, tagValue)
+		case dbmodel.Float64Type, dbmodel.Int64Type:
+			fromDBNumber(tag, attributes)
 		case dbmodel.BoolType:
-			convBoolVal, err := strconv.ParseBool(tagValue)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
+			v, ok := tag.Value.(bool)
+			if !ok {
+				recordTagInvalidTypeError(tag, attributes)
 			} else {
-				attributes.PutBool(tag.Key, convBoolVal)
-			}
-		case dbmodel.Int64Type:
-			intVal, err := strconv.ParseInt(tagValue, 10, 64)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutInt(tag.Key, intVal)
-			}
-		case dbmodel.Float64Type:
-			floatVal, err := strconv.ParseFloat(tagValue, 64)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutDouble(tag.Key, floatVal)
-			}
-		case dbmodel.BinaryType:
-			value, err := hex.DecodeString(tagValue)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+				attributes.PutBool(tag.Key, v)
 			}
 		default:
-			attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
+			// This means type is string/binary but value is of non string type, hence record the type error
+			recordTagInvalidTypeError(tag, attributes)
 		}
+		return
+	}
+	switch tag.Type {
+	case dbmodel.StringType:
+		attributes.PutStr(tag.Key, tagValue)
+	case dbmodel.BoolType:
+		convBoolVal, err := strconv.ParseBool(tagValue)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutBool(tag.Key, convBoolVal)
+		}
+	case dbmodel.Int64Type:
+		intVal, err := strconv.ParseInt(tagValue, 10, 64)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutInt(tag.Key, intVal)
+		}
+	case dbmodel.Float64Type:
+		floatVal, err := strconv.ParseFloat(tagValue, 64)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutDouble(tag.Key, floatVal)
+		}
+	case dbmodel.BinaryType:
+		value, err := hex.DecodeString(tagValue)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+		}
+	default:
+		attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
 	}
 }
 
@@ -229,81 +248,113 @@ func recordTagConversionError(kv dbmodel.KeyValue, err error, dest pcommon.Map) 
 	dest.PutStr(kv.Key, fmt.Sprintf("Can't convert the type %s for the key %s: %v", string(kv.Type), kv.Key, err))
 }
 
-func setSpanStatus(attrs pcommon.Map, span ptrace.Span) {
+// collectedStatusTags holds special tags collected during the single-pass loop
+// that are needed for span status resolution.
+type collectedStatusTags struct {
+	errorTag   *dbmodel.KeyValue
+	statusCode *dbmodel.KeyValue
+	statusDesc *dbmodel.KeyValue
+}
+
+// errorTagAsBool checks if an error tag would convert to a boolean attribute.
+// Returns the boolean value and whether the tag represents a valid boolean.
+func errorTagAsBool(tag dbmodel.KeyValue) (value bool, isBool bool) {
+	if tag.Type != dbmodel.BoolType {
+		return false, false
+	}
+	switch v := tag.Value.(type) {
+	case bool:
+		return v, true
+	case string:
+		parsed, err := strconv.ParseBool(v)
+		return parsed, err == nil
+	default:
+		return false, false
+	}
+}
+
+// resolveSpanStatus determines the span status from collected special tags.
+// Priority: error tag > otel.status_code > HTTP status code (from attrs).
+// Tags not consumed by status resolution are added back to attrs.
+func resolveSpanStatus(attrs pcommon.Map, span ptrace.Span, tags collectedStatusTags) {
 	dest := span.Status()
 	statusCode := ptrace.StatusCodeUnset
 	statusMessage := ""
 	statusExists := false
+	statusDescConsumed := false
 
-	if errorVal, ok := attrs.Get(tagError); ok && errorVal.Type() == pcommon.ValueTypeBool {
-		if errorVal.Bool() {
-			statusCode = ptrace.StatusCodeError
-			attrs.Remove(tagError)
-			statusExists = true
-			if desc, ok := extractStatusDescFromAttr(attrs); ok {
-				statusMessage = desc
-			} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
-				statusMessage = descAttr.Str()
+	// 1. Error tag has highest priority
+	if tags.errorTag != nil {
+		if errVal, isBool := errorTagAsBool(*tags.errorTag); isBool {
+			if errVal {
+				statusCode = ptrace.StatusCodeError
+				statusExists = true
+				statusDescConsumed = true
+				if tags.statusDesc != nil {
+					if v, ok := tags.statusDesc.Value.(string); ok {
+						statusMessage = v
+					}
+				} else if descAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
+					statusMessage = descAttr.Str()
+				}
+			} else {
+				// error=false: add back to attrs as bool
+				attrs.PutBool(tags.errorTag.Key, false)
 			}
+		} else {
+			// Not a valid bool: add back to attrs as regular attribute
+			dbTagToAttribute(*tags.errorTag, attrs)
 		}
 	}
 
-	if codeAttr, ok := attrs.Get(conventions.OtelStatusCode); ok {
+	// 2. otel.status_code (never added back to attrs)
+	if tags.statusCode != nil {
 		if !statusExists {
 			// The error tag is the ultimate truth for a Jaeger spans' error
 			// status. Only parse the otel.status_code tag if the error tag is
 			// not set to true.
 			statusExists = true
-			switch strings.ToUpper(codeAttr.Str()) {
-			case statusOk:
-				statusCode = ptrace.StatusCodeOk
-			case statusError:
-				statusCode = ptrace.StatusCodeError
-			default:
-				statusCode = ptrace.StatusCodeUnset
+			statusDescConsumed = true
+			if v, ok := tags.statusCode.Value.(string); ok {
+				switch strings.ToUpper(v) {
+				case statusOk:
+					statusCode = ptrace.StatusCodeOk
+				case statusError:
+					statusCode = ptrace.StatusCodeError
+				default:
+					statusCode = ptrace.StatusCodeUnset
+				}
 			}
-
-			if desc, ok := extractStatusDescFromAttr(attrs); ok {
-				statusMessage = desc
-			}
-		}
-		// Regardless of error tag inputValue, remove the otel.status_code tag. The
-		// otel.status_message tag will have already been removed if
-		// statusExists is true.
-		attrs.Remove(conventions.OtelStatusCode)
-	} else if httpCodeAttr, ok := attrs.Get(string(conventions.HTTPResponseStatusCodeKey)); !statusExists && ok {
-		// Fallback to introspecting if this span represents a failed HTTP
-		// request or response, but again, only do so if the `error` tag was
-		// not set to true and no explicit status was sent.
-		if code, err := getStatusCodeFromHTTPStatusAttr(httpCodeAttr, span.Kind()); err == nil {
-			if code != ptrace.StatusCodeUnset {
-				statusExists = true
-				statusCode = code
-			}
-
-			if msgAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
-				statusMessage = msgAttr.Str()
+			if tags.statusDesc != nil {
+				if v, ok := tags.statusDesc.Value.(string); ok {
+					statusMessage = v
+				}
 			}
 		}
+	} else if !statusExists {
+		// 3. Fallback to HTTP status code (reads from attrs, never removes)
+		if httpCodeAttr, ok := attrs.Get(string(conventions.HTTPResponseStatusCodeKey)); ok {
+			if code, err := getStatusCodeFromHTTPStatusAttr(httpCodeAttr, span.Kind()); err == nil {
+				if code != ptrace.StatusCodeUnset {
+					statusExists = true
+					statusCode = code
+				}
+				if msgAttr, ok := attrs.Get(tagHTTPStatusMsg); ok {
+					statusMessage = msgAttr.Str()
+				}
+			}
+		}
+	}
+
+	// Add back otel.status_description if it wasn't consumed by status resolution
+	if tags.statusDesc != nil && !statusDescConsumed {
+		dbTagToAttribute(*tags.statusDesc, attrs)
 	}
 
 	if statusExists {
 		dest.SetCode(statusCode)
 		dest.SetMessage(statusMessage)
 	}
-}
-
-// extractStatusDescFromAttr returns the OTel status description from attrs
-// along with true if it is set. Otherwise, an empty string and false are
-// returned. The OTel status description attribute is deleted from attrs in
-// the process.
-func extractStatusDescFromAttr(attrs pcommon.Map) (string, bool) {
-	if msgAttr, ok := attrs.Get(conventions.OtelStatusDescription); ok {
-		msg := msgAttr.Str()
-		attrs.Remove(conventions.OtelStatusDescription)
-		return msg, true
-	}
-	return "", false
 }
 
 // codeFromAttr returns the integer code inputValue from attrVal. An error is
@@ -430,16 +481,6 @@ func dbSpanRefsToSpanEvents(refs []dbmodel.Reference, excludeParentID dbmodel.Sp
 		link.Attributes().PutStr(conventions.AttributeOpentracingRefType, dbRefTypeToAttribute(ref.RefType))
 	}
 	return nil
-}
-
-func getTraceStateFromAttrs(attrs pcommon.Map) string {
-	traceState := ""
-	// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
-	if attr, ok := attrs.Get(tagW3CTraceState); ok {
-		traceState = attr.Str()
-		attrs.Remove(tagW3CTraceState)
-	}
-	return traceState
 }
 
 func dbSpanToScope(span *dbmodel.Span, scopeSpan ptrace.ScopeSpans) {
