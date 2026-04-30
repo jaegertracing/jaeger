@@ -18,6 +18,8 @@ FROM (
 			OR
 			arrayExists((key, value) -> key = ? AND value = ?, s.resource_bool_attributes.key, s.resource_bool_attributes.value)
 			OR
+			arrayExists((key, value) -> key = ? AND value = ?, s.scope_bool_attributes.key, s.scope_bool_attributes.value)
+			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.bool_attributes.key, x.bool_attributes.value), s.events)
 			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.bool_attributes.key, x.bool_attributes.value), s.links)
@@ -26,6 +28,8 @@ FROM (
 			arrayExists((key, value) -> key = ? AND value = ?, s.double_attributes.key, s.double_attributes.value)
 			OR
 			arrayExists((key, value) -> key = ? AND value = ?, s.resource_double_attributes.key, s.resource_double_attributes.value)
+			OR
+			arrayExists((key, value) -> key = ? AND value = ?, s.scope_double_attributes.key, s.scope_double_attributes.value)
 			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.double_attributes.key, x.double_attributes.value), s.events)
 			OR
@@ -36,6 +40,8 @@ FROM (
 			OR
 			arrayExists((key, value) -> key = ? AND value = ?, s.resource_int_attributes.key, s.resource_int_attributes.value)
 			OR
+			arrayExists((key, value) -> key = ? AND value = ?, s.scope_int_attributes.key, s.scope_int_attributes.value)
+			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.int_attributes.key, x.int_attributes.value), s.events)
 			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.int_attributes.key, x.int_attributes.value), s.links)
@@ -45,14 +51,7 @@ FROM (
 			OR
 			arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
 			OR
-			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.complex_attributes.key, x.complex_attributes.value), s.events)
-			OR
-			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.complex_attributes.key, x.complex_attributes.value), s.links)
-		)
-		AND (
-			arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
-			OR
-			arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			arrayExists((key, value) -> key = ? AND value = ?, s.scope_complex_attributes.key, s.scope_complex_attributes.value)
 			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.complex_attributes.key, x.complex_attributes.value), s.events)
 			OR
@@ -62,6 +61,19 @@ FROM (
 			arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
 			OR
 			arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			OR
+			arrayExists((key, value) -> key = ? AND value = ?, s.scope_complex_attributes.key, s.scope_complex_attributes.value)
+			OR
+			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.complex_attributes.key, x.complex_attributes.value), s.events)
+			OR
+			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.complex_attributes.key, x.complex_attributes.value), s.links)
+		)
+		AND (
+			arrayExists((key, value) -> key = ? AND value = ?, s.complex_attributes.key, s.complex_attributes.value)
+			OR
+			arrayExists((key, value) -> key = ? AND value = ?, s.resource_complex_attributes.key, s.resource_complex_attributes.value)
+			OR
+			arrayExists((key, value) -> key = ? AND value = ?, s.scope_complex_attributes.key, s.scope_complex_attributes.value)
 			OR
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.complex_attributes.key, x.complex_attributes.value), s.events)
 			OR
