@@ -92,6 +92,7 @@ func createGRPCServer(
 	//nolint:contextcheck // The context is handled by the interceptors
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
+		//nolint:contextcheck // The context is handled by the interceptors
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
