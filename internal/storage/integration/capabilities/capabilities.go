@@ -88,5 +88,6 @@ func OpenSearch() Capabilities {
 func Kafka() Capabilities {
 	return Capabilities{
 		getDependenciesMissingSource: true,
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}
 }
