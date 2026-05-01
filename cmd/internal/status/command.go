@@ -30,13 +30,19 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			url := convert(v.GetString(statusHTTPHostPort))
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+			if err != nil {
+				return fmt.Errorf("failed to create status request: %w", err)
+			}
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err
 			}
 			defer resp.Body.Close()
-			body, _ := io.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return fmt.Errorf("failed to read status response: %w", err)
+			}
 			fmt.Println(string(body))
 			if resp.StatusCode != http.StatusOK {
 				return fmt.Errorf("abnormal value of http status code: %v", resp.StatusCode)
