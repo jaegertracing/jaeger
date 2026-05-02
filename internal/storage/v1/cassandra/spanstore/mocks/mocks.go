@@ -13,7 +13,6 @@ import (
 	"context"
 	"iter"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	mock "github.com/stretchr/testify/mock"
@@ -47,7 +46,7 @@ func (_m *CoreSpanReader) EXPECT() *CoreSpanReader_Expecter {
 }
 
 // FindTraceIDs provides a mock function for the type CoreSpanReader
-func (_mock *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (_mock *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *tracestore.TraceQueryParams) ([]dbmodel.TraceID, error) {
 	ret := _mock.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
@@ -56,17 +55,17 @@ func (_mock *CoreSpanReader) FindTraceIDs(ctx context.Context, traceQuery *spans
 
 	var r0 []dbmodel.TraceID
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *tracestore.TraceQueryParams) ([]dbmodel.TraceID, error)); ok {
 		return returnFunc(ctx, traceQuery)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *spanstore.TraceQueryParameters) []dbmodel.TraceID); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *tracestore.TraceQueryParams) []dbmodel.TraceID); ok {
 		r0 = returnFunc(ctx, traceQuery)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]dbmodel.TraceID)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *spanstore.TraceQueryParameters) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, *tracestore.TraceQueryParams) error); ok {
 		r1 = returnFunc(ctx, traceQuery)
 	} else {
 		r1 = ret.Error(1)
@@ -81,20 +80,20 @@ type CoreSpanReader_FindTraceIDs_Call struct {
 
 // FindTraceIDs is a helper method to define mock.On call
 //   - ctx context.Context
-//   - traceQuery *spanstore.TraceQueryParameters
+//   - traceQuery *tracestore.TraceQueryParams
 func (_e *CoreSpanReader_Expecter) FindTraceIDs(ctx interface{}, traceQuery interface{}) *CoreSpanReader_FindTraceIDs_Call {
 	return &CoreSpanReader_FindTraceIDs_Call{Call: _e.mock.On("FindTraceIDs", ctx, traceQuery)}
 }
 
-func (_c *CoreSpanReader_FindTraceIDs_Call) Run(run func(ctx context.Context, traceQuery *spanstore.TraceQueryParameters)) *CoreSpanReader_FindTraceIDs_Call {
+func (_c *CoreSpanReader_FindTraceIDs_Call) Run(run func(ctx context.Context, traceQuery *tracestore.TraceQueryParams)) *CoreSpanReader_FindTraceIDs_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 *spanstore.TraceQueryParameters
+		var arg1 *tracestore.TraceQueryParams
 		if args[1] != nil {
-			arg1 = args[1].(*spanstore.TraceQueryParameters)
+			arg1 = args[1].(*tracestore.TraceQueryParams)
 		}
 		run(
 			arg0,
@@ -109,13 +108,13 @@ func (_c *CoreSpanReader_FindTraceIDs_Call) Return(traceIDs []dbmodel.TraceID, e
 	return _c
 }
 
-func (_c *CoreSpanReader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error)) *CoreSpanReader_FindTraceIDs_Call {
+func (_c *CoreSpanReader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, traceQuery *tracestore.TraceQueryParams) ([]dbmodel.TraceID, error)) *CoreSpanReader_FindTraceIDs_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // FindTraces provides a mock function for the type CoreSpanReader
-func (_mock *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error] {
+func (_mock *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *tracestore.TraceQueryParams) iter.Seq2[dbmodel.Trace, error] {
 	ret := _mock.Called(ctx, traceQuery)
 
 	if len(ret) == 0 {
@@ -123,7 +122,7 @@ func (_mock *CoreSpanReader) FindTraces(ctx context.Context, traceQuery *spansto
 	}
 
 	var r0 iter.Seq2[dbmodel.Trace, error]
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error]); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *tracestore.TraceQueryParams) iter.Seq2[dbmodel.Trace, error]); ok {
 		r0 = returnFunc(ctx, traceQuery)
 	} else {
 		if ret.Get(0) != nil {
@@ -140,20 +139,20 @@ type CoreSpanReader_FindTraces_Call struct {
 
 // FindTraces is a helper method to define mock.On call
 //   - ctx context.Context
-//   - traceQuery *spanstore.TraceQueryParameters
+//   - traceQuery *tracestore.TraceQueryParams
 func (_e *CoreSpanReader_Expecter) FindTraces(ctx interface{}, traceQuery interface{}) *CoreSpanReader_FindTraces_Call {
 	return &CoreSpanReader_FindTraces_Call{Call: _e.mock.On("FindTraces", ctx, traceQuery)}
 }
 
-func (_c *CoreSpanReader_FindTraces_Call) Run(run func(ctx context.Context, traceQuery *spanstore.TraceQueryParameters)) *CoreSpanReader_FindTraces_Call {
+func (_c *CoreSpanReader_FindTraces_Call) Run(run func(ctx context.Context, traceQuery *tracestore.TraceQueryParams)) *CoreSpanReader_FindTraces_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 *spanstore.TraceQueryParameters
+		var arg1 *tracestore.TraceQueryParams
 		if args[1] != nil {
-			arg1 = args[1].(*spanstore.TraceQueryParameters)
+			arg1 = args[1].(*tracestore.TraceQueryParams)
 		}
 		run(
 			arg0,
@@ -168,7 +167,7 @@ func (_c *CoreSpanReader_FindTraces_Call) Return(seq2 iter.Seq2[dbmodel.Trace, e
 	return _c
 }
 
-func (_c *CoreSpanReader_FindTraces_Call) RunAndReturn(run func(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) iter.Seq2[dbmodel.Trace, error]) *CoreSpanReader_FindTraces_Call {
+func (_c *CoreSpanReader_FindTraces_Call) RunAndReturn(run func(ctx context.Context, traceQuery *tracestore.TraceQueryParams) iter.Seq2[dbmodel.Trace, error]) *CoreSpanReader_FindTraces_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -367,6 +366,128 @@ func (_c *CoreSpanReader_GetTrace_Call) Return(spans []dbmodel.Span, err error) 
 }
 
 func (_c *CoreSpanReader_GetTrace_Call) RunAndReturn(run func(ctx context.Context, traceID dbmodel.TraceID) ([]dbmodel.Span, error)) *CoreSpanReader_GetTrace_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// NewCoreSpanWriter creates a new instance of CoreSpanWriter. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// The first argument is typically a *testing.T value.
+func NewCoreSpanWriter(t interface {
+	mock.TestingT
+	Cleanup(func())
+}) *CoreSpanWriter {
+	mock := &CoreSpanWriter{}
+	mock.Mock.Test(t)
+
+	t.Cleanup(func() { mock.AssertExpectations(t) })
+
+	return mock
+}
+
+// CoreSpanWriter is an autogenerated mock type for the CoreSpanWriter type
+type CoreSpanWriter struct {
+	mock.Mock
+}
+
+type CoreSpanWriter_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *CoreSpanWriter) EXPECT() *CoreSpanWriter_Expecter {
+	return &CoreSpanWriter_Expecter{mock: &_m.Mock}
+}
+
+// Close provides a mock function for the type CoreSpanWriter
+func (_mock *CoreSpanWriter) Close() error {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for Close")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func() error); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// CoreSpanWriter_Close_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Close'
+type CoreSpanWriter_Close_Call struct {
+	*mock.Call
+}
+
+// Close is a helper method to define mock.On call
+func (_e *CoreSpanWriter_Expecter) Close() *CoreSpanWriter_Close_Call {
+	return &CoreSpanWriter_Close_Call{Call: _e.mock.On("Close")}
+}
+
+func (_c *CoreSpanWriter_Close_Call) Run(run func()) *CoreSpanWriter_Close_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *CoreSpanWriter_Close_Call) Return(err error) *CoreSpanWriter_Close_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *CoreSpanWriter_Close_Call) RunAndReturn(run func() error) *CoreSpanWriter_Close_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// WriteSpan provides a mock function for the type CoreSpanWriter
+func (_mock *CoreSpanWriter) WriteSpan(ds *dbmodel.Span) error {
+	ret := _mock.Called(ds)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WriteSpan")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(*dbmodel.Span) error); ok {
+		r0 = returnFunc(ds)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// CoreSpanWriter_WriteSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpan'
+type CoreSpanWriter_WriteSpan_Call struct {
+	*mock.Call
+}
+
+// WriteSpan is a helper method to define mock.On call
+//   - ds *dbmodel.Span
+func (_e *CoreSpanWriter_Expecter) WriteSpan(ds interface{}) *CoreSpanWriter_WriteSpan_Call {
+	return &CoreSpanWriter_WriteSpan_Call{Call: _e.mock.On("WriteSpan", ds)}
+}
+
+func (_c *CoreSpanWriter_WriteSpan_Call) Run(run func(ds *dbmodel.Span)) *CoreSpanWriter_WriteSpan_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *dbmodel.Span
+		if args[0] != nil {
+			arg0 = args[0].(*dbmodel.Span)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *CoreSpanWriter_WriteSpan_Call) Return(err error) *CoreSpanWriter_WriteSpan_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *CoreSpanWriter_WriteSpan_Call) RunAndReturn(run func(ds *dbmodel.Span) error) *CoreSpanWriter_WriteSpan_Call {
 	_c.Call.Return(run)
 	return _c
 }

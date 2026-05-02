@@ -17,12 +17,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
 )
 
-func TestCreateSpanReaderError(t *testing.T) {
-	f := NewFactory()
-	_, err := f.CreateSpanReader()
-	require.ErrorContains(t, err, "not implemented")
-}
-
 func TestConfigureFromOptions(t *testing.T) {
 	f := NewFactory()
 	o := NewOptions()

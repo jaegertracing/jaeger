@@ -437,6 +437,17 @@ func TestMetricStorageStartError(t *testing.T) {
 			},
 			expectedError: "Servers: non zero value required",
 		},
+		{
+			name: "ClickHouse backend initialization error",
+			config: storageconfig.Config{
+				MetricBackends: map[string]storageconfig.MetricBackend{
+					"foo": {
+						ClickHouse: &clickhouse.Configuration{},
+					},
+				},
+			},
+			expectedError: "failed to initialize metrics storage 'foo'",
+		},
 	}
 
 	for _, tt := range tests {

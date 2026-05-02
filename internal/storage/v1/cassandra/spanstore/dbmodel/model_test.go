@@ -20,7 +20,7 @@ func TestTagInsertionString(t *testing.T) {
 }
 
 func TestTraceIDString(t *testing.T) {
-	id := TraceIDFromDomain(model.NewTraceID(1, 1))
+	id := TraceID{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1}
 	assert.Equal(t, "00000000000000010000000000000001", id.String())
 }
 
@@ -525,6 +525,39 @@ func Test_compareInt64(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expect, compareInt64(tc.a, tc.b))
+		})
+	}
+}
+
+func Test_GetSpanKind(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     []KeyValue
+		expected string
+	}{
+		{
+			name: "no span kind tag",
+			tags: []KeyValue{
+				{Key: "foo", ValueString: "bar"},
+			},
+			expected: "",
+		},
+		{
+			name: "span kind tag present",
+			tags: []KeyValue{
+				{Key: "foo", ValueString: "bar"},
+				{Key: model.SpanKindKey, ValueString: "server"},
+			},
+			expected: "server",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			span := &Span{
+				Tags: tc.tags,
+			}
+			assert.Equal(t, tc.expected, GetSpanKind(span))
 		})
 	}
 }
