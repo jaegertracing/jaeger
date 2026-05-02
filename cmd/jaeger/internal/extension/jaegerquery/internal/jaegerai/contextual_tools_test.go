@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetForContextualMCPIDStoresPerIDSnapshots(t *testing.T) {
@@ -51,6 +52,36 @@ func TestGetContextualToolsForIDReturnsNilWhenUnknown(t *testing.T) {
 	store.SetForContextualMCPID("id-1", nil)
 	assert.Nil(t, store.GetContextualToolsForID("id-1"),
 		"id with empty tools list should still surface as nil to callers")
+
+	// Storing a nil/empty list must not leave an unreachable map entry —
+	// otherwise the store accumulates keys that Get reports as "no
+	// snapshot" and only DeleteForContextualMCPID can remove.
+	store.mu.RLock()
+	_, present := store.byID["id-1"]
+	store.mu.RUnlock()
+	assert.False(t, present, "empty validated tools list must not leave a map entry")
+}
+
+func TestSetForContextualMCPIDEmptyValidatedListClearsExisting(t *testing.T) {
+	// Writing a snapshot followed by an all-invalid (or nil) snapshot
+	// must clear the entry, so a subsequent caller sees the store as if
+	// no tools were ever registered for that id.
+	store := NewContextualToolsStore()
+	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+
+	store.mu.RLock()
+	_, presentBefore := store.byID["id-1"]
+	store.mu.RUnlock()
+	require.True(t, presentBefore, "precondition: id-1 should be in the map after the first set")
+
+	// All entries invalid → validated list ends up empty → delete the entry.
+	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{broken`)})
+
+	store.mu.RLock()
+	_, presentAfter := store.byID["id-1"]
+	store.mu.RUnlock()
+	assert.False(t, presentAfter, "all-invalid snapshot must remove the existing entry")
+	assert.Nil(t, store.GetContextualToolsForID("id-1"))
 }
 
 func TestGetContextualToolsForIDReturnsNilForEmptyID(t *testing.T) {

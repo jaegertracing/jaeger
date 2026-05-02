@@ -8,21 +8,22 @@ import (
 	"sync"
 )
 
-// ContextualToolsStore stores the AG-UI tools that the frontend provided for
-// a given ACP turn. The chat handler mints a per-turn contextual MCP id,
-// uses it both as the URL token the sidecar dials back and as the key into
-// this store, and the gateway-hosted MCP endpoint (see contextual_mcp.go)
-// reads the snapshot for that id.
+// ContextualToolsStore stores the AG-UI tools that the frontend provided
+// for a given ACP turn. The chat handler mints a per-turn contextual MCP
+// id and uses it as the key into this store; the dispatcher (see
+// dispatcher.go) reads the snapshot for that id when the sidecar
+// dispatches a contextual tool call back via the
+// ExtMethodJaegerToolCall ACP extension method.
 //
-// The contextual MCP id is *not* the ACP session id: the latter is assigned
-// by the sidecar after NewSession returns, which is too late to embed in
-// NewSessionRequest.McpServers. The contextual MCP id is minted client-side
-// (gateway-side) before the request leaves and is the correlation key for
+// The contextual MCP id is *not* the ACP session id: the latter is
+// assigned by the sidecar after NewSession returns, which is too late to
+// embed in NewSessionRequest.Meta. The contextual MCP id is minted
+// gateway-side before the request leaves and is the correlation key for
 // concurrent turns.
 //
-// Entries are kept as []json.RawMessage so that GetContextualToolsForID can
-// unmarshal a fresh tree per reader. That guarantees callers cannot corrupt
-// the stored snapshot by mutating decoded maps.
+// Entries are kept as []json.RawMessage so that GetContextualToolsForID
+// can unmarshal a fresh tree per reader. That guarantees callers cannot
+// corrupt the stored snapshot by mutating decoded maps.
 type ContextualToolsStore struct {
 	mu   sync.RWMutex
 	byID map[string][]json.RawMessage
@@ -33,12 +34,18 @@ func NewContextualToolsStore() *ContextualToolsStore {
 	return &ContextualToolsStore{byID: make(map[string][]json.RawMessage)}
 }
 
-// SetForContextualMCPID stores frontend-provided AG-UI tools keyed by the
-// per-turn contextual MCP id. Entries that do not parse as JSON are
+// SetForContextualMCPID stores frontend-provided AG-UI tools keyed by
+// the per-turn contextual MCP id. Entries that do not parse as JSON are
 // skipped. The raw bytes are copied so that later mutations of the
-// caller's slice cannot affect the stored snapshot. An empty id is treated
-// as a no-op so callers cannot accidentally write an entry under "" that
-// Get/Delete refuse to touch.
+// caller's slice cannot affect the stored snapshot. An empty id is
+// treated as a no-op so callers cannot accidentally write an entry
+// under "" that Get/Delete refuse to touch.
+//
+// If every entry is invalid (or rawTools is empty/nil) the call deletes
+// any existing entry for the id rather than writing an empty slice;
+// otherwise the map would accumulate keys that GetContextualToolsForID
+// reports as "no snapshot" but that DeleteForContextualMCPID is the
+// only way to ever remove.
 func (s *ContextualToolsStore) SetForContextualMCPID(contextualMCPID string, rawTools []json.RawMessage) {
 	if contextualMCPID == "" {
 		return
@@ -55,7 +62,11 @@ func (s *ContextualToolsStore) SetForContextualMCPID(contextualMCPID string, raw
 	}
 
 	s.mu.Lock()
-	s.byID[contextualMCPID] = valid
+	if len(valid) == 0 {
+		delete(s.byID, contextualMCPID)
+	} else {
+		s.byID[contextualMCPID] = valid
+	}
 	s.mu.Unlock()
 }
 

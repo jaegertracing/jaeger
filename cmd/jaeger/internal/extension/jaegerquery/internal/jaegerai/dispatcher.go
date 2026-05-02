@@ -19,7 +19,7 @@ import (
 // replace the placeholder with a real round-trip to the AG-UI client.
 const ExtMethodJaegerToolCall = "_meta/jaegertracing.io/tools/call"
 
-// UITooLPrefix is the namespace the gateway prepends to every contextual
+// UIToolPrefix is the namespace the gateway prepends to every contextual
 // tool name before advertising it to the sidecar (and through it to
 // Gemini). The prefix prevents a frontend-supplied tool from shadowing a
 // built-in Jaeger MCP tool with the same name (e.g. "search_traces") and
