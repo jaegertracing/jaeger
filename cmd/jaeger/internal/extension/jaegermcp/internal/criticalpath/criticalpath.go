@@ -69,7 +69,7 @@ func computeCriticalPath(
 			SectionEnd:   endTime,
 		}
 
-		if spanCriticalSection.SectionStart != spanCriticalSection.SectionEnd {
+		if spanCriticalSection.SectionStart < spanCriticalSection.SectionEnd {
 			criticalPath = append(criticalPath, spanCriticalSection)
 		}
 
@@ -88,7 +88,7 @@ func computeCriticalPath(
 			SectionEnd:   endTime,
 		}
 
-		if spanCriticalSection.SectionStart != spanCriticalSection.SectionEnd {
+		if spanCriticalSection.SectionStart < spanCriticalSection.SectionEnd {
 			criticalPath = append(criticalPath, spanCriticalSection)
 		}
 
