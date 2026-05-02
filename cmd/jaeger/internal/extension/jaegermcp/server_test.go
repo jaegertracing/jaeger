@@ -45,7 +45,10 @@ func newMockQueryExtension(svc *querysvc.QueryService) *mockQueryExtension {
 	if svc == nil {
 		svc = querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	}
-	return &mockQueryExtension{svc: svc, tm: tenancy.NewManager(&tenancy.Options{})}
+	return &mockQueryExtension{
+		svc: svc,
+		tm:  tenancy.NewManager(&tenancy.Options{}),
+	}
 }
 
 func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
