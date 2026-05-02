@@ -225,11 +225,14 @@ func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, v
 	appendArrayExists(q, 2, "resource", valueType)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
+	appendArrayExists(q, 2, "scope", valueType)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR")
 	appendNestedArrayExists(q, 2, "events", valueType)
 	appendNewlineAndIndent(q, 2)
 	q.WriteString("OR")
 	appendNestedArrayExists(q, 2, "links", valueType)
-	return append(args, key, value, key, value, key, value, key, value)
+	return append(args, key, value, key, value, key, value, key, value, key, value)
 }
 
 func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {

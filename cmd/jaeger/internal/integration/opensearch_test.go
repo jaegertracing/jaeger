@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestOpenSearchStorage(t *testing.T) {
@@ -14,9 +15,9 @@ func TestOpenSearchStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:                      purge,
-			Fixtures:                     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			GetOperationsMissingSpanKind: true,
+			CleanUp:      purge,
+			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.OpenSearch(),
 		},
 	}
 	s.e2eInitialize(t, "opensearch")

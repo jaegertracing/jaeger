@@ -395,5 +395,43 @@
       "NumTraces": 1000
     },
     "ExpectedFixtures": ["scope_name_version_trace"]
+  },
+  {
+    "Caption": "Scope Attributes",
+    "Query": {
+      "ServiceName": "query24-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacescopeattribute1":"sameplacevalue",
+        "sameplacescopeattribute2":123,
+        "sameplacescopeattribute3":72.5,
+        "sameplacescopeattribute4":true
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["scope_attributes_trace"]
+  },
+  {
+    "Caption": "Link Attributes",
+    "Query": {
+      "ServiceName": "query25-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacelinkattribute1":"sameplacevalue",
+        "sameplacelinkattribute2":123,
+        "sameplacelinkattribute3":72.5,
+        "sameplacelinkattribute4":true
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["link_attributes_trace"]
   }
 ]
