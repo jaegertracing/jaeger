@@ -54,12 +54,12 @@ func TestDispatcherSessionUpdateInvalidParamsErrors(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "invalid JSON should yield InvalidParams")
 }
 
-func TestDispatcherToolCallReturnsPlaceholderAndLogs(t *testing.T) {
+func TestDispatcherToolCallStripsUIPrefixAndLogsBoth(t *testing.T) {
 	d, _, logs := freshDispatcher(t)
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "sess-abc",
-		Name:      "render_chart",
+		Name:      UIToolPrefix + "render_chart",
 		Args:      json.RawMessage(`{"kind":"flame"}`),
 	})
 	require.NoError(t, err)
@@ -73,13 +73,34 @@ func TestDispatcherToolCallReturnsPlaceholderAndLogs(t *testing.T) {
 	assert.False(t, resp.IsError, "PR1 placeholder must not flag the call as an error")
 	assert.Contains(t, resp.Note, "AG-UI relay not yet wired")
 
-	// The handler must log the call so operators can see what came in
-	// before the AG-UI relay is wired up.
+	// The placeholder log must show the stripped name (what the AG-UI
+	// client sees) plus the original prefixed name (what Gemini called).
 	entries := logs.FilterMessage("contextual tool call received from sidecar (AG-UI relay pending)").All()
 	require.Len(t, entries, 1)
 	fields := entries[0].ContextMap()
 	assert.Equal(t, "sess-abc", fields["session_id"])
-	assert.Equal(t, "render_chart", fields["tool"])
+	assert.Equal(t, "render_chart", fields["tool"], "stripped name should be logged under 'tool'")
+	assert.Equal(t, UIToolPrefix+"render_chart", fields["prefixed_tool"])
+
+	// Stripping happens silently — no warning when the prefix is present.
+	require.Empty(t, logs.FilterMessage("contextual tool name missing UI prefix; passing through unchanged").All())
+}
+
+func TestDispatcherToolCallWarnsWhenPrefixMissing(t *testing.T) {
+	d, _, logs := freshDispatcher(t)
+
+	params, err := json.Marshal(extToolCallRequest{
+		SessionID: "sess-abc",
+		Name:      "render_chart", // no UIToolPrefix → defensive pass-through + warning
+	})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), ExtMethodJaegerToolCall, params)
+	require.Nil(t, reqErr, "missing prefix is a warning, not a hard error")
+
+	warnings := logs.FilterMessage("contextual tool name missing UI prefix; passing through unchanged").All()
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "render_chart", warnings[0].ContextMap()["tool"])
 }
 
 func TestDispatcherToolCallInvalidParamsErrors(t *testing.T) {
@@ -116,6 +137,20 @@ func TestDispatcherRequestPermissionDelegatesToStreamingClient(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, resp.Outcome.Cancelled,
 		"streamingClient denies permissions because the gateway advertises no fs/terminal capability")
+}
+
+func TestDispatcherRequestPermissionInvalidParamsErrors(t *testing.T) {
+	d, _, _ := freshDispatcher(t)
+
+	_, reqErr := d(t.Context(), acp.ClientMethodSessionRequestPermission, json.RawMessage(`{not-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code, "malformed request_permission params should yield InvalidParams")
+}
+
+func TestToRequestErrorReturnsNilForNilInput(t *testing.T) {
+	// Lets dispatch sites pass `client.X(...)`'s error through unconditionally
+	// without a leading `if err != nil` branch in the dispatcher itself.
+	assert.Nil(t, toRequestError(nil))
 }
 
 func TestToRequestErrorPreservesACPRequestError(t *testing.T) {

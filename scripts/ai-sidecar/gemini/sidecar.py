@@ -378,6 +378,15 @@ class JaegerSidecarAgent(Agent):
                     session_id,
                     update_agent_message(text_block(f"\n[Error: {str(e)}]"))
                 )
+            finally:
+                # Drop the per-session contextual tools snapshot now that
+                # the prompt has finished. The Jaeger AI gateway opens one
+                # ACP session per chat request and never reuses the
+                # session_id, so without this cleanup the dict would grow
+                # unbounded over the sidecar's lifetime. pop(..., None)
+                # is idempotent — safe even if no entry exists for this
+                # session (which is the common PR1 case).
+                self._contextual_tools.pop(session_id, None)
 
             return PromptResponse(stop_reason="end_turn")
 

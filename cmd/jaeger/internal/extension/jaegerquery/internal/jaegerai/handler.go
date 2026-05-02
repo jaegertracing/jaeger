@@ -124,6 +124,12 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// TODO(PR2): wire AG-UI tools into NewSessionRequest.Meta and into
 	// h.ctxTools so the sidecar can register contextual tools with Gemini
 	// and dispatch them back through ExtMethodJaegerToolCall.
+	//
+	// When populating the Meta payload, prepend UIToolPrefix to each
+	// contextual tool's name so the sidecar/Gemini can never mistake a
+	// frontend-supplied tool for a built-in Jaeger MCP tool of the same
+	// name. handleJaegerToolCall already strips the prefix on the way
+	// back, so the AG-UI client receives the original frontend name.
 
 	// Prompt blocks until the sidecar completes the ACP turn. During processing,
 	// SessionUpdate callbacks stream text to the HTTP response via clientImpl.
