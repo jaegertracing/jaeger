@@ -42,18 +42,6 @@ from acp.schema import (
 
 logger = logging.getLogger(__name__)
 
-# CONTEXTUAL_TOOLS_META_KEY is the namespaced key the Jaeger AI gateway uses
-# under NewSessionRequest._meta to attach the frontend-provided AG-UI tool
-# snapshot for the turn. The value at this key is shaped as
-# {"tools": [{"name": ..., "description": ..., "parameters": ...}, ...]}.
-CONTEXTUAL_TOOLS_META_KEY = "jaegertracing.io/contextual-tools"
-
-# EXT_METHOD_JAEGER_TOOL_CALL is the ACP extension method the sidecar
-# invokes when Gemini requests a contextual (frontend-supplied) tool. The
-# Python ACP runtime prepends a single "_", so we drop the leading "_" we
-# share with the Go side (Go const "_meta/jaegertracing.io/tools/call").
-EXT_METHOD_JAEGER_TOOL_CALL = "meta/jaegertracing.io/tools/call"
-
 
 class JaegerSidecarAgent(Agent):
     """ACP agent implementation that proxies trace-analysis requests to Gemini + MCP tools."""
@@ -66,12 +54,6 @@ class JaegerSidecarAgent(Agent):
         self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
         self._next_session_id = 1
         self._next_tool_call_id = 1
-        # Per-session AG-UI tool snapshot pulled from NewSessionRequest._meta.
-        # Each entry is the raw tool definition dict the frontend supplied
-        # (shape: {name, description?, parameters?}). The agentic loop uses
-        # the names to decide whether a Gemini function_call dispatches via
-        # MCP (built-in) or via the ACP extension method (contextual).
-        self._contextual_tools: dict[str, list[dict[str, Any]]] = {}
 
     def _new_tool_call_id(self, tool_name: str) -> str:
         call_id = f"{tool_name}-{self._next_tool_call_id}"
@@ -122,25 +104,9 @@ class JaegerSidecarAgent(Agent):
 
         Invoked by ACP runtime dispatch (not direct app code) to allocate a new
         session id that the client will use for subsequent prompt calls.
-
-        Reads the optional contextual tools snapshot the gateway attaches via
-        NewSessionRequest._meta (parsed by the Python ACP runtime as
-        ``field_meta``) and stashes it per-session so the agentic loop can
-        merge those tools into the Gemini chat config.
         """
         session_id = f"sess-{self._next_session_id}"
         self._next_session_id += 1
-
-        contextual = _extract_contextual_tools(kwargs.get("field_meta"))
-        if contextual:
-            self._contextual_tools[session_id] = contextual
-            logger.info(
-                "Registered %d contextual tool(s) for session %s: %s",
-                len(contextual),
-                session_id,
-                [t.get("name") for t in contextual],
-            )
-
         return NewSessionResponse(session_id=session_id)
 
     async def load_session(
@@ -167,56 +133,6 @@ class JaegerSidecarAgent(Agent):
         Called by ACP runtime to enumerate available sessions for the client.
         """
         return ListSessionsResponse(sessions=[])
-
-    async def _execute_contextual_tool(
-        self,
-        session_id: str,
-        tool_name: str,
-        args: dict[str, Any],
-        tool_call_id: str,
-    ) -> Any:
-        """Dispatch a contextual (frontend-supplied) tool call back to the
-        gateway via the ACP extension method. The gateway either logs
-        (PR1 placeholder) or forwards to the AG-UI client (PR2+) and
-        returns the result, which we feed back into Gemini's chat.
-        """
-        with tracer().start_as_current_span("sidecar.execute_contextual_tool", attributes={
-            GEN_AI_TOOL_NAME: tool_name,
-            GEN_AI_TOOL_CALL_ID: tool_call_id,
-            GEN_AI_CONVERSATION_ID: session_id,
-        }) as span:
-            try:
-                conn = self._require_conn()
-                await conn.session_update(
-                    session_id,
-                    start_tool_call(
-                        tool_call_id,
-                        tool_name,
-                        kind="other",
-                        status="in_progress",
-                    ),
-                )
-
-                response = await conn.ext_method(
-                    EXT_METHOD_JAEGER_TOOL_CALL,
-                    {"sessionId": session_id, "name": tool_name, "args": args},
-                )
-
-                output_text = _to_tool_text(response)
-                await conn.session_update(
-                    session_id,
-                    update_tool_call(
-                        tool_call_id,
-                        status="completed",
-                        content=[tool_content(text_block(output_text))],
-                        raw_output={"content": response},
-                    ),
-                )
-                return response
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                raise
 
     async def _execute_tool(self, session_id: str, tool_name: str, args: dict[str, Any], tool_call_id: str) -> Any:
         with tracer().start_as_current_span("sidecar.execute_tool", attributes={
@@ -272,30 +188,17 @@ class JaegerSidecarAgent(Agent):
             )
 
             mcp_tools = await self._mcp.get_gemini_tools()
-            mcp_tool_names: set[str] = set()
+            tool_names: list[str] = []
             for tool in mcp_tools:
                 if tool.function_declarations:
-                    mcp_tool_names.update(fd.name for fd in tool.function_declarations if fd.name)
-
-            contextual_tools = self._contextual_tools.get(session_id, [])
-            contextual_tool_names = {t["name"] for t in contextual_tools if t.get("name")}
-            contextual_gemini_tool = _build_gemini_contextual_tool(contextual_tools)
-
-            tools_for_gemini: list[Any] = list(mcp_tools)
-            if contextual_gemini_tool is not None:
-                tools_for_gemini.append(contextual_gemini_tool)
-
-            logger.info(
-                "Passing tools to Gemini: mcp=%s contextual=%s",
-                sorted(mcp_tool_names),
-                sorted(contextual_tool_names),
-            )
+                    tool_names.extend(fd.name for fd in tool.function_declarations if fd.name)
+            logger.info("Passing tools to Gemini: %s", tool_names)
 
             chat = self._gemini.chats.create(
                 model="gemini-2.5-flash",
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
-                    tools=cast(Any, tools_for_gemini),
+                    tools=cast(Any, mcp_tools),
                     automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                 ),
             )
@@ -316,12 +219,8 @@ class JaegerSidecarAgent(Agent):
                     name = function_call.name or ""
                     args = function_call.args or {}
                     call_id = function_call.id or self._new_tool_call_id(name)
-                    if name in contextual_tool_names:
-                        logger.info("Gemini requested contextual tool call: %s (call_id=%s)", name, call_id)
-                        tool_output = await self._execute_contextual_tool(session_id, name, args, call_id)
-                    else:
-                        logger.info("Gemini requested MCP tool call: %s (call_id=%s)", name, call_id)
-                        tool_output = await self._execute_tool(session_id, name, args, call_id)
+                    logger.info("Gemini requested tool call: %s (call_id=%s)", name, call_id)
+                    tool_output = await self._execute_tool(session_id, name, args, call_id)
                     function_responses.append(
                         types.Part.from_function_response(name=name, response={"result": tool_output})
                     )
@@ -378,59 +277,8 @@ class JaegerSidecarAgent(Agent):
                     session_id,
                     update_agent_message(text_block(f"\n[Error: {str(e)}]"))
                 )
-            finally:
-                # Drop the per-session contextual tools snapshot now that
-                # the prompt has finished. The Jaeger AI gateway opens one
-                # ACP session per chat request and never reuses the
-                # session_id, so without this cleanup the dict would grow
-                # unbounded over the sidecar's lifetime. pop(..., None)
-                # is idempotent — safe even if no entry exists for this
-                # session (which is the common PR1 case).
-                self._contextual_tools.pop(session_id, None)
 
             return PromptResponse(stop_reason="end_turn")
-
-
-def _extract_contextual_tools(field_meta: Any) -> list[dict[str, Any]]:
-    """Pull AG-UI tools out of NewSessionRequest._meta. Returns an empty
-    list if the meta is absent, the namespaced key is missing, or the
-    payload is malformed — the gateway populates this only when the
-    frontend actually attached tools to the chat request."""
-    if not isinstance(field_meta, dict):
-        return []
-    payload = field_meta.get(CONTEXTUAL_TOOLS_META_KEY)
-    if not isinstance(payload, dict):
-        return []
-    tools = payload.get("tools")
-    if not isinstance(tools, list):
-        return []
-    return [t for t in tools if isinstance(t, dict) and isinstance(t.get("name"), str)]
-
-
-def _build_gemini_contextual_tool(contextual_tools: list[dict[str, Any]]) -> types.Tool | None:
-    """Translate AG-UI tool entries into a single Gemini Tool wrapping a
-    list of FunctionDeclarations. Returns None when no tools are supplied
-    so the caller doesn't have to guard against an empty Tool."""
-    if not contextual_tools:
-        return None
-    declarations: list[types.FunctionDeclaration] = []
-    for tool in contextual_tools:
-        name = tool.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        params = tool.get("parameters")
-        if not isinstance(params, dict):
-            params = {"type": "object"}
-        declarations.append(
-            types.FunctionDeclaration(
-                name=name,
-                description=tool.get("description") or "",
-                parameters_json_schema=params,
-            )
-        )
-    if not declarations:
-        return None
-    return types.Tool(function_declarations=declarations)
 
 
 async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | None = None) -> None:
