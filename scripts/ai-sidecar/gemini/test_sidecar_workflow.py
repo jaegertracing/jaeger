@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import socket
 from pathlib import Path
 from typing import Any
 from functools import partial
@@ -155,71 +156,71 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
     received_messages: list[dict[str, Any]] = []
     stop_event = asyncio.Event()
 
-    async with websockets.serve(partial(sidecar.handle_websocket, agent_factory=FakeAgent), "127.0.0.1", 0) as server:
-        port = server.sockets[0].getsockname()[1]
-        uri = f"ws://127.0.0.1:{port}"
-
-        async with websockets.connect(uri) as websocket:
-            receiver_task = asyncio.create_task(recv_loop(websocket, pending, received_messages, stop_event))
-            try:
-                init_response = await send_request(
-                    websocket,
-                    pending,
-                    "initialize",
-                    {
-                        "protocolVersion": PROTOCOL_VERSION,
-                        "clientCapabilities": {
-                            "fs": {"readTextFile": False, "writeTextFile": False},
-                            "terminal": False,
+    with socket.create_server(("127.0.0.1", 0)) as sock:
+        host, port = sock.getsockname()
+        uri = f"ws://{host}:{port}"
+        async with websockets.serve(partial(sidecar.handle_websocket, agent_factory=FakeAgent), sock=sock):
+            async with websockets.connect(uri) as websocket:
+                receiver_task = asyncio.create_task(recv_loop(websocket, pending, received_messages, stop_event))
+                try:
+                    init_response = await send_request(
+                        websocket,
+                        pending,
+                        "initialize",
+                        {
+                            "protocolVersion": PROTOCOL_VERSION,
+                            "clientCapabilities": {
+                                "fs": {"readTextFile": False, "writeTextFile": False},
+                                "terminal": False,
+                            },
+                            "clientInfo": {
+                                "name": "pytest-client",
+                                "title": "pytest manual ACP workflow",
+                                "version": "test",
+                            },
                         },
-                        "clientInfo": {
-                            "name": "pytest-client",
-                            "title": "pytest manual ACP workflow",
-                            "version": "test",
+                    )
+                    init_result = init_response.get("result", init_response)
+                    assert init_result.get("protocolVersion", init_result.get("protocol_version")) == PROTOCOL_VERSION
+                    agent_info = init_result.get("agentInfo", init_result.get("agent_info"))
+                    assert agent_info["name"] == "jaeger-gemini-sidecar"
+
+                    session_response = await send_request(
+                        websocket,
+                        pending,
+                        "session/new",
+                        {
+                            "cwd": cwd,
+                            "mcpServers": [],
                         },
-                    },
-                )
-                init_result = init_response.get("result", init_response)
-                assert init_result.get("protocolVersion", init_result.get("protocol_version")) == PROTOCOL_VERSION
-                agent_info = init_result.get("agentInfo", init_result.get("agent_info"))
-                assert agent_info["name"] == "jaeger-gemini-sidecar"
+                    )
+                    session_result = session_response.get("result", session_response)
+                    session_id = session_result.get("sessionId") or session_result.get("session_id")
+                    assert session_id is not None
+                    assert session_id.startswith("sess-test-")
 
-                session_response = await send_request(
-                    websocket,
-                    pending,
-                    "session/new",
-                    {
-                        "cwd": cwd,
-                        "mcpServers": [],
-                    },
-                )
-                session_result = session_response.get("result", session_response)
-                session_id = session_result.get("sessionId") or session_result.get("session_id")
-                assert session_id is not None
-                assert session_id.startswith("sess-test-")
+                    prompt_response = await send_request(
+                        websocket,
+                        pending,
+                        "session/prompt",
+                        {
+                            "sessionId": session_id,
+                            "prompt": [
+                                {
+                                    "type": "text",
+                                    "text": prompt,
+                                }
+                            ],
+                        },
+                    )
+                    prompt_result = prompt_response.get("result", prompt_response)
+                    assert prompt_result.get("stopReason", prompt_result.get("stop_reason")) == "end_turn"
 
-                prompt_response = await send_request(
-                    websocket,
-                    pending,
-                    "session/prompt",
-                    {
-                        "sessionId": session_id,
-                        "prompt": [
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            }
-                        ],
-                    },
-                )
-                prompt_result = prompt_response.get("result", prompt_response)
-                assert prompt_result.get("stopReason", prompt_result.get("stop_reason")) == "end_turn"
-
-                await asyncio.wait_for(stop_event.wait(), timeout=10.0)
-            finally:
-                receiver_task.cancel()
-                with pytest.raises(asyncio.CancelledError):
-                    await receiver_task
+                    await asyncio.wait_for(stop_event.wait(), timeout=10.0)
+                finally:
+                    receiver_task.cancel()
+                    with pytest.raises(asyncio.CancelledError):
+                        await receiver_task
 
     fake_agent = FakeAgent.last_instance
     assert fake_agent is not None
