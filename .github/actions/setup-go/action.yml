@@ -16,3 +16,8 @@ runs:
         cache-dependency-path: |
           ./go.sum
           ./internal/tools/go.sum
+    - name: Download Go module dependencies
+      shell: bash
+      run: |
+        go mod download
+        cd internal/tools && go mod download
