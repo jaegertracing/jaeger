@@ -180,6 +180,37 @@ func TestComputeCriticalPath_Internal_LastFinishingChild_Recursive(t *testing.T)
 	// 3. span 1: 100-120 (before child starts)
 }
 
+func TestComputeCriticalPath_Internal_SkipsReversedSections(t *testing.T) {
+	rootID := pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1})
+	childID := pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2})
+
+	spanMap := map[pcommon.SpanID]CPSpan{
+		rootID: {
+			SpanID:       rootID,
+			StartTime:    0,
+			Duration:     100,
+			ChildSpanIDs: []pcommon.SpanID{childID},
+		},
+		childID: {
+			SpanID:    childID,
+			StartTime: 10,
+			Duration:  200,
+			References: []CPSpanReference{
+				{RefType: "CHILD_OF", SpanID: rootID},
+			},
+		},
+	}
+
+	result := computeCriticalPath(spanMap, rootID, nil, nil)
+	require.Len(t, result, 2)
+
+	for _, section := range result {
+		assert.Less(t, section.SectionStart, section.SectionEnd)
+	}
+	assert.Equal(t, Section{SpanID: "0000000000000002", SectionStart: 10, SectionEnd: 210}, result[0])
+	assert.Equal(t, Section{SpanID: "0000000000000001", SectionStart: 0, SectionEnd: 10}, result[1])
+}
+
 func TestFindLastFinishingChildSpan_MissingChild(t *testing.T) {
 	// Test findLastFinishingChildSpan with child ID in list but missing from map (find_lfc.go line 23)
 	parentSpan := CPSpan{

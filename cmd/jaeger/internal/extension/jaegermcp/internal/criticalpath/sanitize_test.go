@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 )
 
@@ -353,4 +354,54 @@ func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
 	assert.False(t, ok3)
 	_, ok4 := result[[8]byte{4}]
 	assert.False(t, ok4)
+}
+
+func TestSanitizeOverFlowingChildren_ParentsBeforeDescendants(t *testing.T) {
+	rootID := pcommon.SpanID([8]byte{1})
+	midID := pcommon.SpanID([8]byte{2})
+	leafID := pcommon.SpanID([8]byte{3})
+
+	const iterations = 200
+	for i := 0; i < iterations; i++ {
+		input := map[pcommon.SpanID]CPSpan{
+			rootID: {
+				SpanID:       rootID,
+				StartTime:    0,
+				Duration:     100,
+				ChildSpanIDs: []pcommon.SpanID{midID},
+			},
+			midID: {
+				SpanID:       midID,
+				StartTime:    10,
+				Duration:     200,
+				References:   []CPSpanReference{{RefType: "CHILD_OF", SpanID: rootID}},
+				ChildSpanIDs: []pcommon.SpanID{leafID},
+			},
+			leafID: {
+				SpanID:     leafID,
+				StartTime:  50,
+				Duration:   100,
+				References: []CPSpanReference{{RefType: "CHILD_OF", SpanID: midID}},
+			},
+		}
+
+		result := removeOverflowingChildren(input)
+
+		for spanID, span := range result {
+			if len(span.References) == 0 {
+				continue
+			}
+
+			parentSpan, ok := result[span.References[0].SpanID]
+			require.True(t, ok, "iteration %d: parent span %v missing", i, span.References[0].SpanID)
+
+			parentEndTime := parentSpan.StartTime + parentSpan.Duration
+			spanEndTime := span.StartTime + span.Duration
+
+			assert.GreaterOrEqualf(t, span.StartTime, parentSpan.StartTime,
+				"iteration %d: span %v starts before parent", i, spanID)
+			assert.LessOrEqualf(t, spanEndTime, parentEndTime,
+				"iteration %d: span %v ends after parent", i, spanID)
+		}
+	}
 }
