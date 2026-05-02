@@ -95,9 +95,8 @@ func computeCriticalPath(
 		// Now as there are no LFCs focus shifts to parent span from startTime of span
 		// return from recursion and walk backwards to one level depth to parent span
 		// provide span's startTime as returningChildStartTime
-		if len(currentSpan.References) > 0 {
-			parentSpanID := currentSpan.References[0].SpanID
-			criticalPath = computeCriticalPath(spanMap, parentSpanID, criticalPath, &currentSpan.StartTime)
+		if !currentSpan.ParentSpanID.IsEmpty() {
+			criticalPath = computeCriticalPath(spanMap, currentSpan.ParentSpanID, criticalPath, &currentSpan.StartTime)
 		}
 	}
 
@@ -144,8 +143,7 @@ func ComputeCriticalPathFromTraces(traces ptrace.Traces) ([]Section, error) {
 		}
 	}()
 
-	refinedSpanMap := getChildOfSpans(spanMap)
-	sanitizedSpanMap := removeOverflowingChildren(refinedSpanMap)
+	sanitizedSpanMap := removeOverflowingChildren(spanMap)
 	criticalPath = computeCriticalPath(sanitizedSpanMap, rootSpanID, criticalPath, nil)
 
 	if criticalPath == nil {

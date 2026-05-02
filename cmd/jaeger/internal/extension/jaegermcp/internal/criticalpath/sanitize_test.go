@@ -27,12 +27,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 120,
-					Duration:  50,
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    120,
+					Duration:     50,
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
@@ -43,12 +41,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 120,
-					Duration:  50,
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    120,
+					Duration:     50,
 				},
 			},
 		},
@@ -62,12 +58,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 250,
-					Duration:  50,
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    250,
+					Duration:     50,
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
@@ -89,12 +83,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 150,
-					Duration:  100, // ends at 250, parent ends at 200
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    150,
+					Duration:     100, // ends at 250, parent ends at 200
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
@@ -105,12 +97,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 150,
-					Duration:  50, // truncated to fit parent
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    150,
+					Duration:     50, // truncated to fit parent
 				},
 			},
 		},
@@ -124,12 +114,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 50,
-					Duration:  40, // ends at 90
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    50,
+					Duration:     40, // ends at 90
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
@@ -151,12 +139,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 50,
-					Duration:  100, // ends at 150
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    50,
+					Duration:     100, // ends at 150
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
@@ -167,12 +153,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 100, // adjusted to parent start
-					Duration:  50,  // adjusted duration
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    100, // adjusted to parent start
+					Duration:     50,  // adjusted duration
 				},
 			},
 		},
@@ -186,12 +170,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 50,
-					Duration:  200, // starts at 50, ends at 250
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    50,
+					Duration:     200, // starts at 50, ends at 250
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
@@ -202,12 +184,10 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 					ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 				},
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 100, // adjusted to parent start
-					Duration:  100, // adjusted to parent duration
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1},
+					StartTime:    100, // adjusted to parent start
+					Duration:     100, // adjusted to parent duration
 				},
 			},
 		},
@@ -215,32 +195,28 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 			name: "child with dropped parent - should be dropped",
 			input: map[pcommon.SpanID]CPSpan{
 				[8]byte{2}: {
-					SpanID:    [8]byte{2},
-					StartTime: 100,
-					Duration:  50,
-					References: []CPSpanReference{
-						{RefType: "CHILD_OF", SpanID: [8]byte{1}}, // parent doesn't exist
-					},
+					SpanID:       [8]byte{2},
+					ParentSpanID: [8]byte{1}, // parent doesn't exist
+					StartTime:    100,
+					Duration:     50,
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{}, // child should be dropped
 		},
 		{
-			name: "span without references",
+			name: "root span without parent",
 			input: map[pcommon.SpanID]CPSpan{
 				[8]byte{1}: {
-					SpanID:     [8]byte{1},
-					StartTime:  100,
-					Duration:   100,
-					References: []CPSpanReference{}, // no references
+					SpanID:    [8]byte{1},
+					StartTime: 100,
+					Duration:  100,
 				},
 			},
 			expected: map[pcommon.SpanID]CPSpan{
 				[8]byte{1}: {
-					SpanID:     [8]byte{1},
-					StartTime:  100,
-					Duration:   100,
-					References: []CPSpanReference{},
+					SpanID:    [8]byte{1},
+					StartTime: 100,
+					Duration:  100,
 				},
 			},
 		},
@@ -278,36 +254,8 @@ func TestSanitizeOverFlowingChildren(t *testing.T) {
 	}
 }
 
-func TestSanitizeOverFlowingChildren_ReferenceUpdate(t *testing.T) {
-	// Test that references are properly updated with parent span pointers
-	input := map[pcommon.SpanID]CPSpan{
-		[8]byte{1}: {
-			SpanID:       [8]byte{1},
-			StartTime:    100,
-			Duration:     100,
-			ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
-		},
-		[8]byte{2}: {
-			SpanID:    [8]byte{2},
-			StartTime: 120,
-			Duration:  50,
-			References: []CPSpanReference{
-				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-			},
-		},
-	}
-
-	result := removeOverflowingChildren(input)
-
-	// Verify child span's reference has parent span pointer
-	childSpan := result[[8]byte{2}]
-	assert.NotNil(t, childSpan.References[0].Span, "reference should have parent span pointer")
-	assert.Equal(t, pcommon.SpanID([8]byte{1}), childSpan.References[0].Span.SpanID, "reference should point to correct parent")
-}
-
 func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
-	// Test loops that filter children (lines 48-50 and 80-82 in sanitize.go)
-	// We need a parent with multiple children, where one is removed and others stay.
+	// Test loops that filter children when one is removed and others stay.
 	input := map[pcommon.SpanID]CPSpan{
 		[8]byte{1}: {
 			SpanID:       [8]byte{1},
@@ -316,28 +264,22 @@ func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
 			ChildSpanIDs: []pcommon.SpanID{[8]byte{2}, [8]byte{3}, [8]byte{4}},
 		},
 		[8]byte{2}: { // Valid child
-			SpanID:    [8]byte{2},
-			StartTime: 120,
-			Duration:  50, // 120-170
-			References: []CPSpanReference{
-				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-			},
+			SpanID:       [8]byte{2},
+			ParentSpanID: [8]byte{1},
+			StartTime:    120,
+			Duration:     50, // 120-170
 		},
-		[8]byte{3}: { // Invalid: starts after parent ends (line 40)
-			SpanID:    [8]byte{3},
-			StartTime: 250,
-			Duration:  50,
-			References: []CPSpanReference{
-				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-			},
+		[8]byte{3}: { // Invalid: starts after parent ends
+			SpanID:       [8]byte{3},
+			ParentSpanID: [8]byte{1},
+			StartTime:    250,
+			Duration:     50,
 		},
-		[8]byte{4}: { // Invalid: ends before parent starts (line 71)
-			SpanID:    [8]byte{4},
-			StartTime: 50,
-			Duration:  20, // 50-70
-			References: []CPSpanReference{
-				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-			},
+		[8]byte{4}: { // Invalid: ends before parent starts
+			SpanID:       [8]byte{4},
+			ParentSpanID: [8]byte{1},
+			StartTime:    50,
+			Duration:     20, // 50-70
 		},
 	}
 
