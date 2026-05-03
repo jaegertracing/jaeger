@@ -40,6 +40,7 @@ jobs:
 
       - name: Compare metrics and generate summary
         id: compare-metrics
+        if: github.ref != 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -119,8 +120,9 @@ jobs:
               failure_reasons+=("coverage ${CURRENT}% is below minimum ${MINIMUM}%")
             fi
 
-            # Gate 2: no regression vs main baseline
-            if [ -f .artifacts/baseline-coverage.txt ]; then
+            # Gate 2: no regression vs main baseline (PRs only — on main the commit is
+            # already merged and we are establishing the new baseline, not comparing).
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]] && [ -f .artifacts/baseline-coverage.txt ]; then
               BASELINE=$(cat .artifacts/baseline-coverage.txt)
               if [ -z "$BASELINE" ]; then
                 failure_reasons+=("baseline coverage file is empty; cannot perform regression check")
