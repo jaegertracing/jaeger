@@ -111,6 +111,34 @@ func TestDispatcherToolCallInvalidParamsErrors(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code)
 }
 
+func TestDispatcherToolCallRejectsEmptySessionID(t *testing.T) {
+	d, _, _ := freshDispatcher(t)
+
+	params, err := json.Marshal(extToolCallRequest{
+		SessionID: "",
+		Name:      UIToolPrefix + "render_chart",
+	})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), ExtMethodJaegerToolCall, params)
+	require.NotNil(t, reqErr, "empty sessionId must surface as a hard error, not a silent placeholder success")
+	assert.Equal(t, -32602, reqErr.Code, "missing required field should yield InvalidParams")
+}
+
+func TestDispatcherToolCallRejectsEmptyName(t *testing.T) {
+	d, _, _ := freshDispatcher(t)
+
+	params, err := json.Marshal(extToolCallRequest{
+		SessionID: "sess-abc",
+		Name:      "",
+	})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), ExtMethodJaegerToolCall, params)
+	require.NotNil(t, reqErr, "empty tool name must surface as a hard error, not a silent placeholder success")
+	assert.Equal(t, -32602, reqErr.Code, "missing required field should yield InvalidParams")
+}
+
 func TestDispatcherUnknownMethodReturnsMethodNotFound(t *testing.T) {
 	d, _, _ := freshDispatcher(t)
 

@@ -52,8 +52,7 @@ func (s *ContextualToolsStore) SetForContextualMCPID(contextualMCPID string, raw
 	}
 	valid := make([]json.RawMessage, 0, len(rawTools))
 	for _, raw := range rawTools {
-		var probe any
-		if err := json.Unmarshal(raw, &probe); err != nil {
+		if !json.Valid(raw) {
 			continue
 		}
 		cloned := make(json.RawMessage, len(raw))

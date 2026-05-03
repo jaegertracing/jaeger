@@ -18,7 +18,12 @@ from opentelemetry.trace import Status, StatusCode
 from ws_commands import ws_to_client_writer, client_reader_to_ws
 from mcp_bridge import JaegerMCPBridge
 from sidecar_config import SidecarConfig
-from sidecar_helpers import _to_tool_text
+from sidecar_helpers import (
+    _build_gemini_contextual_tool,
+    _extract_contextual_tools,
+    _to_tool_text,
+    _validate_function_call,
+)
 from tracing import tracer
 
 from acp import (
@@ -41,12 +46,6 @@ from acp.schema import (
 )
 
 logger = logging.getLogger(__name__)
-
-# CONTEXTUAL_TOOLS_META_KEY is the namespaced key the Jaeger AI gateway uses
-# under NewSessionRequest._meta to attach the frontend-provided AG-UI tool
-# snapshot for the turn. The value at this key is shaped as
-# {"tools": [{"name": ..., "description": ..., "parameters": ...}, ...]}.
-CONTEXTUAL_TOOLS_META_KEY = "jaegertracing.io/contextual-tools"
 
 # EXT_METHOD_JAEGER_TOOL_CALL is the ACP extension method the sidecar
 # invokes when Gemini requests a contextual (frontend-supplied) tool. The
@@ -186,6 +185,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_CONVERSATION_ID: session_id,
         }) as span:
             try:
+                _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
                 await conn.session_update(
                     session_id,
@@ -225,6 +225,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_CONVERSATION_ID: session_id,
         }) as span:
             try:
+                _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
                 await conn.session_update(
                     session_id,
@@ -314,8 +315,8 @@ class JaegerSidecarAgent(Agent):
 
                 for function_call in function_calls:
                     name = function_call.name or ""
-                    args = function_call.args or {}
-                    call_id = function_call.id or self._new_tool_call_id(name)
+                    args = function_call.args
+                    call_id = function_call.id or self._new_tool_call_id(name or "unnamed")
                     if name in contextual_tool_names:
                         logger.info("Gemini requested contextual tool call: %s (call_id=%s)", name, call_id)
                         tool_output = await self._execute_contextual_tool(session_id, name, args, call_id)
@@ -389,48 +390,6 @@ class JaegerSidecarAgent(Agent):
                 self._contextual_tools.pop(session_id, None)
 
             return PromptResponse(stop_reason="end_turn")
-
-
-def _extract_contextual_tools(field_meta: Any) -> list[dict[str, Any]]:
-    """Pull AG-UI tools out of NewSessionRequest._meta. Returns an empty
-    list if the meta is absent, the namespaced key is missing, or the
-    payload is malformed — the gateway populates this only when the
-    frontend actually attached tools to the chat request."""
-    if not isinstance(field_meta, dict):
-        return []
-    payload = field_meta.get(CONTEXTUAL_TOOLS_META_KEY)
-    if not isinstance(payload, dict):
-        return []
-    tools = payload.get("tools")
-    if not isinstance(tools, list):
-        return []
-    return [t for t in tools if isinstance(t, dict) and isinstance(t.get("name"), str)]
-
-
-def _build_gemini_contextual_tool(contextual_tools: list[dict[str, Any]]) -> types.Tool | None:
-    """Translate AG-UI tool entries into a single Gemini Tool wrapping a
-    list of FunctionDeclarations. Returns None when no tools are supplied
-    so the caller doesn't have to guard against an empty Tool."""
-    if not contextual_tools:
-        return None
-    declarations: list[types.FunctionDeclaration] = []
-    for tool in contextual_tools:
-        name = tool.get("name")
-        if not isinstance(name, str) or not name:
-            continue
-        params = tool.get("parameters")
-        if not isinstance(params, dict):
-            params = {"type": "object"}
-        declarations.append(
-            types.FunctionDeclaration(
-                name=name,
-                description=tool.get("description") or "",
-                parameters_json_schema=params,
-            )
-        )
-    if not declarations:
-        return None
-    return types.Tool(function_declarations=declarations)
 
 
 async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | None = None) -> None:

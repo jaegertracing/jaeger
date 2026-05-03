@@ -98,13 +98,19 @@ func newDispatcher(client *streamingClient, logger *zap.Logger) acp.MethodHandle
 // the prefix when populating the contextual tools meta payload — see
 // the TODO in handler.go) and is stripped back here so downstream
 // consumers see the original frontend-supplied name. Callers that
-// pre-date the prefix work pass the name through unchanged and only
-// log a warning, so the strip is safe to deploy ahead of the meta-side
+// pre-date the prefix pass the name through unchanged and only log a
+// warning, so the strip is safe to deploy ahead of the meta-side
 // prefix-add work.
 func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (any, *acp.RequestError) {
 	var req extToolCallRequest
 	if err := json.Unmarshal(params, &req); err != nil {
 		return nil, acp.NewInvalidParams(map[string]any{"error": err.Error()})
+	}
+	if req.SessionID == "" {
+		return nil, acp.NewInvalidParams(map[string]any{"error": "sessionId is required"})
+	}
+	if req.Name == "" {
+		return nil, acp.NewInvalidParams(map[string]any{"error": "name is required"})
 	}
 	originalName := req.Name
 	if stripped, ok := strings.CutPrefix(req.Name, UIToolPrefix); ok {
