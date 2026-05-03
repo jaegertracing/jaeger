@@ -1403,21 +1403,37 @@ func TestTagsMap(t *testing.T) {
 				},
 			}
 			spanTags := make(map[string]any)
+			scopeTags := make(map[string]any)
+			refTags := make(map[string]any)
 			maps.Copy(spanTags, test.fieldTags)
+			maps.Copy(scopeTags, test.fieldTags)
+			maps.Copy(refTags, test.fieldTags)
 			span := &dbmodel.Span{
 				Process: dbmodel.Process{
 					Tag:  test.fieldTags,
 					Tags: tags,
 				},
-				Tag:  spanTags,
-				Tags: tags,
+				Tag:       spanTags,
+				Tags:      tags,
+				ScopeTags: tags,
+				ScopeTag:  scopeTags,
+				References: []dbmodel.Reference{
+					{
+						Tag:  refTags,
+						Tags: tags,
+					},
+				},
 			}
 			reader.mergeAllNestedAndElevatedTagsOfSpan(span)
 			tags = append(tags, test.expected)
 			assert.Empty(t, span.Tag)
 			assert.Empty(t, span.Process.Tag)
+			assert.Empty(t, span.ScopeTag)
+			assert.Empty(t, span.References[0].Tag)
 			assert.Equal(t, tags, span.Tags)
 			assert.Equal(t, tags, span.Process.Tags)
+			assert.Equal(t, tags, span.ScopeTags)
+			assert.Equal(t, tags, span.References[0].Tags)
 		})
 	}
 }

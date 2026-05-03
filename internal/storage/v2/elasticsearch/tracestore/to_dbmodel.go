@@ -224,9 +224,13 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 		linkTraceID := dbmodel.TraceID(link.TraceID().String())
 		linkSpanID := dbmodel.SpanID(link.SpanID().String())
 		linkRefType := refTypeFromLink(link)
+		refTags := getLinkTags(link)
 		if parentSpanID != "" && linkTraceID == traceID && linkSpanID == parentSpanID {
 			// We already added a reference to this span, but maybe with the wrong type, so override.
 			refs[0].RefType = linkRefType
+			refs[0].TraceState = link.TraceState().AsRaw()
+			refs[0].Flags = link.Flags()
+			refs[0].Tags = refTags
 			continue
 		}
 		refs = append(refs, dbmodel.Reference{
@@ -235,7 +239,7 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 			RefType:    linkRefType,
 			TraceState: link.TraceState().AsRaw(),
 			Flags:      link.Flags(),
-			Tags:       getLinkTags(link),
+			Tags:       refTags,
 		})
 	}
 
