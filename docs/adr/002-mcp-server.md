@@ -96,7 +96,7 @@ tools:
       with_errors: boolean (optional) - If true, only return traces containing error spans
       duration_min: duration string (optional, e.g., "2s", "100ms")
       duration_max: duration string (optional)
-      limit: integer (default: 10, max: 100)
+      search_depth: integer (optional, default: 10, max: 100) - Maximum search depth. Depending on the storage backend, this may behave like a limit, but it is not guaranteed to be an exact SQL-style LIMIT.
     output: List of trace summaries (trace_id, service_count, span_count, duration, has_errors)
 
   - name: get_trace_topology
@@ -167,9 +167,12 @@ Find traces matching criteria. Returns lightweight metadata only (no attributes/
   "with_errors": true,               // optional: filter to error traces
   "duration_min": "2s",              // optional
   "duration_max": "10s",             // optional
-  "limit": 10                        // optional: default 10, max 100
+  "search_depth": 10                 // optional: default 10, max 100
 }
 ```
+
+> [!NOTE]
+> The MCP `search_traces` tool uses `search_depth`. Jaeger's HTTP query API uses `limit`, so examples from the HTTP API are not directly interchangeable with MCP tool inputs.
 
 **Output:**
 ```json
