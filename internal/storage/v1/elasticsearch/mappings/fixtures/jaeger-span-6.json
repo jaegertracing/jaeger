@@ -30,6 +30,24 @@
             },
             "path_match":"process.tag.*"
           }
+        },
+        {
+          "scope_tags_map":{
+            "mapping":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "path_match":"scopeTag.*"
+          }
+        },
+        {
+          "references_tags_map":{
+            "mapping":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "path_match":"references.tag.*"
+          }
         }
       ]
     },
@@ -135,13 +153,62 @@
             "spanID":{
               "type":"keyword",
               "ignore_above":256
+            },
+            "flags":{
+              "type":"integer"
+            },
+            "traceState":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "tag":{
+              "type":"object"
+            },
+            "tags":{
+              "type":"nested",
+              "dynamic":false,
+              "properties":{
+                "key":{
+                  "type":"keyword",
+                  "ignore_above":256
+                },
+                "value":{
+                  "type":"keyword",
+                  "ignore_above":256
+                },
+                "type":{
+                  "type":"keyword",
+                  "ignore_above":256
+                }
+              }
             }
           }
         },
         "tag":{
           "type":"object"
         },
+        "scopeTag":{
+          "type":"object"
+        },
         "tags":{
+          "type":"nested",
+          "dynamic":false,
+          "properties":{
+            "key":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "value":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "type":{
+              "type":"keyword",
+              "ignore_above":256
+            }
+          }
+        },
+        "scopeTags":{
           "type":"nested",
           "dynamic":false,
           "properties":{

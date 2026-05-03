@@ -24,6 +24,28 @@
         }
       },
       {
+        "bool":{
+          "must":{
+            "regexp":{
+              "scopeTag.bat@foo":{
+                "value":"spook"
+              }
+            }
+          }
+        }
+      },
+      {
+        "bool":{
+          "must":{
+            "regexp":{
+              "references.tag.bat@foo":{
+                "value":"spook"
+              }
+            }
+          }
+        }
+      },
+      {
         "nested":{
           "path":"tags",
           "query":{
@@ -90,6 +112,58 @@
                   "regexp":{
                     "logs.fields.value":{
                       "value":"spook"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "ignore_unmapped": true,
+          "path": "scopeTags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "match": {
+                    "scopeTags.key": {
+                      "query": "bat.foo"
+                    }
+                  }
+                },
+                {
+                  "regexp": {
+                    "scopeTags.value": {
+                      "value": "spook"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "nested": {
+          "ignore_unmapped": true,
+          "path": "references.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "match": {
+                    "references.tags.key": {
+                      "query": "bat.foo"
+                    }
+                  }
+                },
+                {
+                  "regexp": {
+                    "references.tags.value": {
+                      "value": "spook"
                     }
                   }
                 }
