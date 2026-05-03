@@ -66,13 +66,12 @@ type Span struct {
 
 // Reference is a reference from one span to another
 type Reference struct {
-	RefType    ReferenceType  `json:"refType"`
-	TraceID    TraceID        `json:"traceID"`
-	SpanID     SpanID         `json:"spanID"`
-	TraceState string         `json:"traceState,omitempty"`
-	Flags      uint32         `json:"flags,omitempty"`
-	Tags       []KeyValue     `json:"tags,omitempty"`
-	Tag        map[string]any `json:"tag,omitempty"`
+	RefType    ReferenceType `json:"refType"`
+	TraceID    TraceID       `json:"traceID"`
+	SpanID     SpanID        `json:"spanID"`
+	TraceState string        `json:"traceState,omitempty"`
+	Flags      uint32        `json:"flags,omitempty"`
+	Tags       []KeyValue    `json:"tags,omitempty"`
 }
 
 // Process is the process emitting a set of spans

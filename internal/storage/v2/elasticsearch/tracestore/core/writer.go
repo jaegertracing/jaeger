@@ -149,11 +149,6 @@ func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
 	scopeNestedTags, scopeFieldTags := s.splitElevatedTags(span.ScopeTags)
 	span.ScopeTags = scopeNestedTags
 	span.ScopeTag = scopeFieldTags
-	for i := range span.References {
-		refNestedTags, refFieldTags := s.splitElevatedTags(span.References[i].Tags)
-		span.References[i].Tags = refNestedTags
-		span.References[i].Tag = refFieldTags
-	}
 }
 
 // Close closes SpanWriter

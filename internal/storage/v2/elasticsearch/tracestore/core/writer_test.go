@@ -398,15 +398,12 @@ func TestTagMap(t *testing.T) {
 	assert.Equal(t, "foo", dbSpan.Process.Tags[0].Key)
 	assert.Len(t, dbSpan.ScopeTags, 1)
 	assert.Equal(t, "foo", dbSpan.ScopeTags[0].Key)
-	assert.Len(t, dbSpan.References[0].Tags, 1)
-	assert.Equal(t, "foo", dbSpan.References[0].Tags[0].Key)
 
 	tagsMap := map[string]any{}
 	tagsMap["a"] = true
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
-	assert.Equal(t, tagsMap, dbSpan.References[0].Tag)
 	assert.Equal(t, tagsMap, dbSpan.ScopeTag)
 }
 

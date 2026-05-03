@@ -39,15 +39,6 @@
             },
             "path_match":"scopeTag.*"
           }
-        },
-        {
-          "references_tags_map":{
-            "mapping":{
-              "type":"keyword",
-              "ignore_above":256
-            },
-            "path_match":"references.tag.*"
-          }
         }
       ]
     },
@@ -160,9 +151,6 @@
             "traceState":{
               "type":"keyword",
               "ignore_above":256
-            },
-            "tag":{
-              "type":"object"
             },
             "tags":{
               "type":"nested",

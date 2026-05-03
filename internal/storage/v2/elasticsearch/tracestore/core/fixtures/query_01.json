@@ -35,17 +35,6 @@
         }
       },
       {
-        "bool":{
-          "must":{
-            "regexp":{
-              "references.tag.bat@foo":{
-                "value":"spook"
-              }
-            }
-          }
-        }
-      },
-      {
         "nested":{
           "path":"tags",
           "query":{

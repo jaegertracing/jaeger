@@ -49,7 +49,6 @@ const (
 	tagValueField          = "value"
 
 	objectScopeTagsField      = "scopeTag"
-	objectReferencesTagsField = "references.tag"
 	nestedScopeTagsField      = "scopeTags"
 	nestedReferencesTagsField = "references.tags"
 
@@ -79,7 +78,7 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	objectTagFieldList = []string{objectTagsField, objectProcessTagsField, objectScopeTagsField, objectReferencesTagsField}
+	objectTagFieldList = []string{objectTagsField, objectProcessTagsField, objectScopeTagsField}
 
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField, nestedScopeTagsField, nestedReferencesTagsField}
 
@@ -645,10 +644,6 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
 	span.Tags = spanTags
 	scopeTags := s.mergeNestedAndElevatedTags(span.ScopeTags, span.ScopeTag)
 	span.ScopeTags = scopeTags
-	for i := range span.References {
-		refTags := s.mergeNestedAndElevatedTags(span.References[i].Tags, span.References[i].Tag)
-		span.References[i].Tags = refTags
-	}
 }
 
 func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {

@@ -35,17 +35,6 @@
         }
       },
       {
-        "bool":{
-          "must":{
-            "regexp":{
-              "references.tag.bat@foo":{
-                "value":"spo\\*"
-              }
-            }
-          }
-        }
-      },
-      {
         "nested":{
           "path":"tags",
           "query":{
