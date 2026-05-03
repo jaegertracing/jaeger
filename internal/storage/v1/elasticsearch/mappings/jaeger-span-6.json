@@ -207,7 +207,7 @@
               "ignore_above":256
             }
           }
-        }
+        },
         "scopeTags":{
           "type":"nested",
           "dynamic":false,
