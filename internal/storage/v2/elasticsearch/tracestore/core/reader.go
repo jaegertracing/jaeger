@@ -34,19 +34,23 @@ const (
 	traceIDAggregation   = "traceIDs"
 	indexPrefixSeparator = "-"
 
-	traceIDField           = "traceID"
-	durationField          = "duration"
-	startTimeField         = "startTime"
-	startTimeMillisField   = "startTimeMillis"
-	serviceNameField       = "process.serviceName"
-	operationNameField     = "operationName"
-	objectTagsField        = "tag"
-	objectProcessTagsField = "process.tag"
-	nestedTagsField        = "tags"
-	nestedProcessTagsField = "process.tags"
-	nestedLogFieldsField   = "logs.fields"
-	tagKeyField            = "key"
-	tagValueField          = "value"
+	traceIDField              = "traceID"
+	durationField             = "duration"
+	startTimeField            = "startTime"
+	startTimeMillisField      = "startTimeMillis"
+	serviceNameField          = "process.serviceName"
+	operationNameField        = "operationName"
+	objectTagsField           = "tag"
+	objectProcessTagsField    = "process.tag"
+	objectScopeTagsField      = "scopeTag"
+	objectReferencesTagsField = "references.tag"
+	nestedTagsField           = "tags"
+	nestedProcessTagsField    = "process.tags"
+	nestedLogFieldsField      = "logs.fields"
+	nestedScopeTagsField      = "scopeTags"
+	nestedReferencesTagsField = "references.tags"
+	tagKeyField               = "key"
+	tagValueField             = "value"
 
 	defaultNumTraces = 100
 
@@ -74,9 +78,9 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
+	objectTagFieldList = []string{objectTagsField, objectProcessTagsField, objectScopeTagsField, objectReferencesTagsField}
 
-	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
+	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField, nestedScopeTagsField, nestedReferencesTagsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
 
@@ -620,7 +624,11 @@ func (*SpanReader) buildNestedQuery(field string, k string, v string) elastic.Qu
 	keyQuery := elastic.NewMatchQuery(keyField, k)
 	valueQuery := elastic.NewRegexpQuery(valueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
-	return elastic.NewNestedQuery(field, tagBoolQuery)
+	query := elastic.NewNestedQuery(field, tagBoolQuery)
+	if field == nestedScopeTagsField || field == nestedReferencesTagsField {
+		return query.IgnoreUnmapped(true)
+	}
+	return query
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
@@ -634,6 +642,12 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
 	span.Process.Tags = processTags
 	spanTags := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
 	span.Tags = spanTags
+	scopeTags := s.mergeNestedAndElevatedTags(span.ScopeTags, span.ScopeTag)
+	span.ScopeTags = scopeTags
+	for _, ref := range span.References {
+		refTags := s.mergeNestedAndElevatedTags(ref.Tags, ref.Tag)
+		ref.Tags = refTags
+	}
 }
 
 func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {

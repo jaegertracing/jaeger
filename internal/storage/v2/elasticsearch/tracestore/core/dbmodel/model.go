@@ -57,16 +57,22 @@ type Span struct {
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
-	Tag     map[string]any `json:"tag,omitempty"`
-	Logs    []Log          `json:"logs"`
-	Process Process        `json:"process"`
+	Tag       map[string]any `json:"tag,omitempty"`
+	Logs      []Log          `json:"logs"`
+	Process   Process        `json:"process"`
+	ScopeTags []KeyValue     `json:"scopeTags,omitempty"`
+	ScopeTag  map[string]any `json:"scopeTag,omitempty"`
 }
 
 // Reference is a reference from one span to another
 type Reference struct {
-	RefType ReferenceType `json:"refType"`
-	TraceID TraceID       `json:"traceID"`
-	SpanID  SpanID        `json:"spanID"`
+	RefType    ReferenceType  `json:"refType"`
+	TraceID    TraceID        `json:"traceID"`
+	SpanID     SpanID         `json:"spanID"`
+	TraceState string         `json:"traceState"`
+	Flags      uint32         `json:"flags"`
+	Tags       []KeyValue     `json:"tags,omitempty"`
+	Tag        map[string]any `json:"tag,omitempty"`
 }
 
 // Process is the process emitting a set of spans

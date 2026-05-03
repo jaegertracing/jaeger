@@ -139,6 +139,7 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
 		Process:         process,
 		Flags:           span.Flags(),
+		ScopeTags:       getScopeTags(libraryTags),
 	}
 }
 
@@ -229,9 +230,12 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 			continue
 		}
 		refs = append(refs, dbmodel.Reference{
-			TraceID: linkTraceID,
-			SpanID:  linkSpanID,
-			RefType: linkRefType,
+			TraceID:    linkTraceID,
+			SpanID:     linkSpanID,
+			RefType:    linkRefType,
+			TraceState: link.TraceState().AsRaw(),
+			Flags:      link.Flags(),
+			Tags:       getLinkTags(link),
 		})
 	}
 
@@ -372,4 +376,24 @@ func strToDbSpanRefType(attr string) dbmodel.ReferenceType {
 	// There are only 2 types of SpanRefType we assume that everything
 	// that's not a model.ChildOf is a model.FollowsFrom
 	return dbmodel.FollowsFrom
+}
+
+func getScopeTags(scope pcommon.InstrumentationScope) []dbmodel.KeyValue {
+	scopeTags := make([]dbmodel.KeyValue, 0, scope.Attributes().Len())
+	for key, val := range scope.Attributes().All() {
+		scopeTags = append(scopeTags, attributeToDbTag(key, val))
+	}
+	return scopeTags
+}
+
+func getLinkTags(link ptrace.SpanLink) []dbmodel.KeyValue {
+	tags := make([]dbmodel.KeyValue, 0, link.Attributes().Len())
+	for key, val := range link.Attributes().All() {
+		// this is preserved in RefType of dbmodel.Reference
+		if key == conventions.AttributeOpentracingRefType {
+			continue
+		}
+		tags = append(tags, attributeToDbTag(key, val))
+	}
+	return tags
 }
