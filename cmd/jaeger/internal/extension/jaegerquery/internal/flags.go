@@ -56,6 +56,8 @@ func (c *AIConfig) Validate() error {
 type QueryOptions struct {
 	// BasePath is the base path for all HTTP routes.
 	BasePath string `mapstructure:"base_path"`
+	// UIBasePath is the base path for external routes
+	UIBasePath string `mapstructure:"ui_base_path"`
 	// UIConfig contains configuration related to the Jaeger UIConfig.
 	UIConfig UIConfig `mapstructure:"ui"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
