@@ -7,9 +7,7 @@
     {
       "refType": "CHILD_OF",
       "traceID": "00000000000000010000000000000000",
-      "spanID": "0000000000000003",
-      "traceState": "",
-      "flags": 0
+      "spanID": "0000000000000003"
     },
     {
       "refType": "FOLLOWS_FROM",
@@ -43,9 +41,7 @@
     {
       "refType": "CHILD_OF",
       "traceID": "00000000000000ff0000000000000000",
-      "spanID": "00000000000000ff",
-      "traceState": "",
-      "flags": 0
+      "spanID": "00000000000000ff"
     }
   ],
   "startTime": 1485467191639875,

@@ -69,8 +69,8 @@ type Reference struct {
 	RefType    ReferenceType  `json:"refType"`
 	TraceID    TraceID        `json:"traceID"`
 	SpanID     SpanID         `json:"spanID"`
-	TraceState string         `json:"traceState"`
-	Flags      uint32         `json:"flags"`
+	TraceState string         `json:"traceState,omitempty"`
+	Flags      uint32         `json:"flags,omitempty"`
 	Tags       []KeyValue     `json:"tags,omitempty"`
 	Tag        map[string]any `json:"tag,omitempty"`
 }
