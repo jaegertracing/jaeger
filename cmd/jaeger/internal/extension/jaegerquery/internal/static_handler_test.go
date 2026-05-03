@@ -59,6 +59,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 func TestRegisterStaticHandler(t *testing.T) {
 	testCases := []struct {
 		basePath                    string // input to the test
+		uiBasePath                  string // input to the test
 		subroute                    bool   // should we create a subroute?
 		baseURL                     string // expected URL prefix
 		archiveStorage              bool   // archive storage enabled?
@@ -71,6 +72,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}{
 		{
 			basePath:                    "",
+			uiBasePath:                  "",
 			baseURL:                     "/",
 			expectedBaseHTML:            `<base href="/"`,
 			archiveStorage:              false,
@@ -81,6 +83,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		},
 		{
 			basePath:                    "/",
+			uiBasePath:                  "",
 			baseURL:                     "/",
 			archiveStorage:              false,
 			expectedBaseHTML:            `<base href="/"`,
@@ -90,6 +93,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		},
 		{
 			basePath:                    "/jaeger",
+			uiBasePath:                  "",
 			baseURL:                     "/jaeger/",
 			expectedBaseHTML:            `<base href="/jaeger/"`,
 			subroute:                    true,
@@ -100,6 +104,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		},
 		{
 			basePath:                    "/metrics",
+			uiBasePath:                  "",
 			baseURL:                     "/metrics/",
 			expectedBaseHTML:            `<base href="/metrics/"`,
 			subroute:                    true,
@@ -107,6 +112,17 @@ func TestRegisterStaticHandler(t *testing.T) {
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
 			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true};`,
+		},
+		{
+			basePath:                    "/",
+			uiBasePath:                  "/jaeger",
+			baseURL:                     "/",
+			expectedBaseHTML:            `<base href="/jaeger/"`,
+			archiveStorage:              false,
+			logAccess:                   true,
+			UIConfigPath:                "",
+			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
+			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -122,7 +138,8 @@ func TestRegisterStaticHandler(t *testing.T) {
 					AssetsPath: "fixture",
 					LogAccess:  testCase.logAccess,
 				},
-				BasePath: testCase.basePath,
+				BasePath:   testCase.basePath,
+				UIBasePath: testCase.uiBasePath,
 			},
 				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
 			)
@@ -177,7 +194,18 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 			BasePath: base,
 			Logger:   zap.NewNop(),
 		})
-		assert.ErrorContainsf(t, err, "invalid base path", "basePath=%s", base)
+		require.ErrorContainsf(t, err, "invalid base path", "basePath=%s", base)
+	}
+
+	for _, uiBase := range []string{"x", "x/", "/x/"} {
+		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+			UIConfig: UIConfig{
+				ConfigFile: "fixture/ui-config.json",
+			},
+			UIBasePath: uiBase,
+			Logger:     zap.NewNop(),
+		})
+		require.ErrorContainsf(t, err, "invalid ui base path", "uiBasePath=%s", uiBase)
 	}
 }
 
