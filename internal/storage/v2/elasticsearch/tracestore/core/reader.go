@@ -645,9 +645,9 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
 	span.Tags = spanTags
 	scopeTags := s.mergeNestedAndElevatedTags(span.ScopeTags, span.ScopeTag)
 	span.ScopeTags = scopeTags
-	for _, ref := range span.References {
-		refTags := s.mergeNestedAndElevatedTags(ref.Tags, ref.Tag)
-		ref.Tags = refTags
+	for i := range span.References {
+		refTags := s.mergeNestedAndElevatedTags(span.References[i].Tags, span.References[i].Tag)
+		span.References[i].Tags = refTags
 	}
 }
 
