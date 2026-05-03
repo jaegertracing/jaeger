@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -35,12 +36,13 @@ var (
 
 // server implements the Jaeger MCP extension.
 type server struct {
-	config     *Config
-	telset     component.TelemetrySettings
-	httpServer *http.Server
-	listener   net.Listener
-	mcpServer  *mcp.Server
-	queryAPI   *querysvc.QueryService
+	config        *Config
+	telset        component.TelemetrySettings
+	httpServer    *http.Server
+	listener      net.Listener
+	mcpServer     *mcp.Server
+	queryAPI      *querysvc.QueryService
+	metricsReader metricstore.Reader
 }
 
 // newServer creates a new MCP server instance.
@@ -67,6 +69,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+	s.metricsReader = queryExt.MetricsReader()
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
@@ -202,6 +205,15 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "get_service_metrics",
+		Description: "Get RED metrics (latency, call rate, error rate) for one or more services " +
+			"from Jaeger's Service Performance Monitoring (SPM) backend. " +
+			"metric_type must be one of: latency, call_rate, error_rate. " +
+			"Returns a time series per service (and optionally per operation). " +
+			"Requires a metrics storage backend (e.g. Prometheus) to be configured.",
+	}, handlers.NewGetServiceMetricsHandler(s.metricsReader))
 }
 
 // HealthToolOutput is the strongly-typed output for the health tool.
@@ -212,7 +224,6 @@ type HealthToolOutput struct {
 }
 
 // healthTool is a placeholder MCP tool that checks server health.
-// Actual MCP tools for trace querying will be implemented in Phase 2.
 func (s *server) healthTool(
 	_ context.Context,
 	_ *mcp.CallToolRequest,

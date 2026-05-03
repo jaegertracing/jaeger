@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -21,27 +22,34 @@ type Extension interface {
 	QueryService() *querysvc.QueryService
 	// TenancyManager returns the tenancy manager used by query endpoints.
 	TenancyManager() *tenancy.Manager
+	// MetricsReader returns the SPM metrics reader.
+	// Returns nil when metrics storage is not configured.
+	MetricsReader() metricstore.Reader
 }
 
 // GetExtension retrieves the jaegerquery extension from the host.
 func GetExtension(host component.Host) (Extension, error) {
 	var id component.ID
 	var comp component.Component
+
 	for i, ext := range host.GetExtensions() {
 		if i.Type() == componentType {
 			id, comp = i, ext
 			break
 		}
 	}
+
 	if comp == nil {
 		return nil, fmt.Errorf(
 			"cannot find extension '%s' (make sure it's defined earlier in the config)",
 			componentType,
 		)
 	}
+
 	ext, ok := comp.(Extension)
 	if !ok {
 		return nil, fmt.Errorf("extension '%s' is not of expected type", id)
 	}
+
 	return ext, nil
 }

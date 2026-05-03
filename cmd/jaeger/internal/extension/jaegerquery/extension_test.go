@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -30,6 +31,10 @@ func (m *mockExtension) QueryService() *querysvc.QueryService {
 
 func (m *mockExtension) TenancyManager() *tenancy.Manager {
 	return m.tm
+}
+
+func (m *mockExtension) MetricsReader() metricstore.Reader {
+	return nil
 }
 
 func TestGetExtension_Success(t *testing.T) {
