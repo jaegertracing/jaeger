@@ -125,6 +125,11 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	if sH.options.BasePath == "" {
 		sH.options.BasePath = "/"
 	}
+	if sH.options.BasePath != "/" {
+		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
+			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
+		}
+	}
 
 	// if ui base path is empty, default to base path
 	if sH.options.UIBasePath == "" {
@@ -133,7 +138,7 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 
 	if sH.options.UIBasePath != "/" {
 		if !strings.HasPrefix(sH.options.UIBasePath, "/") || strings.HasSuffix(sH.options.UIBasePath, "/") {
-			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.UIBasePath)
+			return nil, fmt.Errorf("invalid ui base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.UIBasePath)
 		}
 		indexBytes = basePathPattern.ReplaceAll(indexBytes, fmt.Appendf(nil, `<base href="%s/"`, sH.options.UIBasePath))
 	}
