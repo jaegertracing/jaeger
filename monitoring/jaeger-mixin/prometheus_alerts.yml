@@ -5,7 +5,7 @@
     "annotations":
       "message": |
         {{ $labels.job }} {{ $labels.instance }} is refusing {{ printf "%.2f" $value }}% of received spans.
-    "expr": "100 * sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace) / (sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace) + sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace)) > 1"
+    "expr": "100 * ((sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace)) or on(instance, job, namespace) (0 * sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace))) / (((sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace)) or on(instance, job, namespace) (0 * sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace))) + ((sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace)) or on(instance, job, namespace) (0 * sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace)))) > 1"
     "for": "15m"
     "labels":
       "severity": "warning"
@@ -13,7 +13,7 @@
     "annotations":
       "message": |
         {{ $labels.job }} {{ $labels.instance }} is failing to export {{ printf "%.2f" $value }}% of spans.
-    "expr": "100 * sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace) / (sum(rate(otelcol_exporter_sent_spans_total[1m])) by (instance, job, namespace) + sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace)) > 1"
+    "expr": "100 * ((sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace)) or on(instance, job, namespace) (0 * sum(rate(otelcol_exporter_sent_spans_total[1m])) by (instance, job, namespace))) / (((sum(rate(otelcol_exporter_sent_spans_total[1m])) by (instance, job, namespace)) or on(instance, job, namespace) (0 * sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace))) + ((sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace)) or on(instance, job, namespace) (0 * sum(rate(otelcol_exporter_sent_spans_total[1m])) by (instance, job, namespace)))) > 1"
     "for": "15m"
     "labels":
       "severity": "warning"
