@@ -36,7 +36,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			}
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to execute status request: %w", err)
 			}
 			defer resp.Body.Close()
 			body, err := io.ReadAll(resp.Body)
