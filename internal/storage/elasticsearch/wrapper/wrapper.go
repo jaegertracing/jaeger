@@ -89,6 +89,10 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	return WrapESMultiSearchService(multiSearchService)
 }
 
+func (c ClientWrapper) GetTemplate(name string) es.IndicesGetIndexTemplateService {
+	return WrapESIndicesGetIndexTemplateService(c.client.IndexGetIndexTemplate(name))
+}
+
 // Close closes ESClient and flushes all data to the storage.
 func (c ClientWrapper) Close() error {
 	c.client.Stop()
@@ -290,4 +294,16 @@ func (s MultiSearchServiceWrapper) Index(indices ...string) es.MultiSearchServic
 // Do calls this function to internal service.
 func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearchResult, error) {
 	return s.multiSearchService.Do(ctx)
+}
+
+type IndicesGetIndexTemplateServiceWrapper struct {
+	indicesGetTemplateService *elastic.IndicesGetIndexTemplateService
+}
+
+func WrapESIndicesGetIndexTemplateService(indicesGetTemplateService *elastic.IndicesGetIndexTemplateService) IndicesGetIndexTemplateServiceWrapper {
+	return IndicesGetIndexTemplateServiceWrapper{indicesGetTemplateService: indicesGetTemplateService}
+}
+
+func (i IndicesGetIndexTemplateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesGetIndexTemplateResponse, error) {
+	return i.indicesGetTemplateService.Do(ctx)
 }

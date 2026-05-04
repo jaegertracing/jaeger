@@ -93,7 +93,9 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, err
 	}
-
+	if err = f.verifySpanMappingSchema(ctx); err != nil {
+		return nil, err
+	}
 	return f, nil
 }
 
@@ -267,4 +269,46 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// verifySpanMappingSchema verifies whether the span templates stored in
+// ES/OS consist of scope and references attributes, if not then it throws error
+func (f *FactoryBase) verifySpanMappingSchema(ctx context.Context) error {
+	if f.config.CreateIndexTemplates {
+		return nil
+	}
+	templateName := f.config.Indices.IndexPrefix.Apply("jaeger-span")
+	res, err := f.getClient().GetTemplate(templateName).Do(ctx)
+	if err != nil {
+		return err
+	}
+	template, ok := res.IndexTemplates.ByName(templateName)
+	if !ok {
+		return fmt.Errorf("template %q not found", templateName)
+	}
+	maps := template.IndexTemplate.Template.Mappings
+	// In ES7+, mappings have a "properties" field
+	var properties map[string]any
+	properties, ok = maps["properties"].(map[string]any)
+	if !ok {
+		// It could be possible that ES Version is 6 and there properties will be wrapped inside span
+		if span, ok := maps["span"].(map[string]any); ok {
+			if properties, ok = span["properties"].(map[string]any); !ok {
+				return fmt.Errorf("template %q mapping is missing 'properties'", templateName)
+			}
+		}
+	}
+	// Check for scopeTag (Scope attributes)
+	if _, ok = properties["scopeTag"]; !ok {
+		return fmt.Errorf("template %q is missing 'scopeTag' field; please update mappings", templateName)
+	}
+	// Check for references.tags (Link attributes)
+	if refs, ok := properties["references"].(map[string]any); ok {
+		if refProps, ok := refs["properties"].(map[string]any); ok {
+			if _, ok := refProps["tags"]; ok {
+				return nil
+			}
+		}
+	}
+	return fmt.Errorf("template %q is missing 'references.tags' (link attributes); please update mappings", templateName)
 }

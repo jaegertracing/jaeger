@@ -16,6 +16,7 @@ type Client interface {
 	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
 	CreateTemplate(id string) TemplateCreateService
+	GetTemplate(name string) IndicesGetIndexTemplateService
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
@@ -69,4 +70,8 @@ type MultiSearchService interface {
 	Add(requests ...*elastic.SearchRequest) MultiSearchService
 	Index(indices ...string) MultiSearchService
 	Do(ctx context.Context) (*elastic.MultiSearchResult, error)
+}
+
+type IndicesGetIndexTemplateService interface {
+	Do(ctx context.Context) (*elastic.IndicesGetIndexTemplateResponse, error)
 }

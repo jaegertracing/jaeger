@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -558,4 +560,318 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		return m.base.RoundTrip(req)
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+func TestVerifySpanMappingSchema(t *testing.T) {
+	templateName := "jaeger-test-jaeger-span"
+
+	tests := []struct {
+		name          string
+		createMapping bool
+		mockSetup     func(*mocks.Client, *mocks.IndicesGetIndexTemplateService)
+		expectedError string
+	}{
+		{
+			name:          "CreateIndexTemplates is true",
+			createMapping: true,
+			expectedError: "",
+		},
+		{
+			name:          "GetTemplate error",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				s.On("Do", mock.Anything).Return(nil, errors.New("ES error"))
+			},
+			expectedError: "ES error",
+		},
+		{
+			name:          "Template not found",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				s.On("Do", mock.Anything).Return(&elastic.IndicesGetIndexTemplateResponse{}, nil)
+			},
+			expectedError: fmt.Sprintf("template %q not found", templateName),
+		},
+		{
+			name:          "Missing properties (top level and span level)",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"not_properties": map[string]any{},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'scopeTag' field", templateName),
+		},
+		{
+			name:          "ES6 style - missing properties inside span",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"span": map[string]any{
+											"not_properties": map[string]any{},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q mapping is missing 'properties'", templateName),
+		},
+		{
+			name:          "Missing scopeTag",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"properties": map[string]any{
+											"references": map[string]any{
+												"properties": map[string]any{
+													"tags": map[string]any{},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'scopeTag' field", templateName),
+		},
+		{
+			name:          "Missing references",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"properties": map[string]any{
+											"scopeTag": map[string]any{},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+		},
+		{
+			name:          "References is not a map",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"properties": map[string]any{
+											"scopeTag":   map[string]any{},
+											"references": "not a map",
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+		},
+		{
+			name:          "Missing references.properties",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"properties": map[string]any{
+											"scopeTag": map[string]any{},
+											"references": map[string]any{
+												"not_properties": map[string]any{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+		},
+		{
+			name:          "Missing references.tags",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"properties": map[string]any{
+											"scopeTag": map[string]any{},
+											"references": map[string]any{
+												"properties": map[string]any{
+													"not_tags": map[string]any{},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+		},
+		{
+			name:          "Success ES7 style",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"properties": map[string]any{
+											"scopeTag": map[string]any{},
+											"references": map[string]any{
+												"properties": map[string]any{
+													"tags": map[string]any{},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: "",
+		},
+		{
+			name:          "Success ES6 style",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetIndexTemplateService) {
+				c.On("GetTemplate", templateName).Return(s)
+				res := &elastic.IndicesGetIndexTemplateResponse{
+					IndexTemplates: elastic.IndicesGetIndexTemplatesSlice{
+						{
+							Name: templateName,
+							IndexTemplate: &elastic.IndicesGetIndexTemplate{
+								Template: &elastic.IndicesGetIndexTemplateData{
+									Mappings: map[string]any{
+										"span": map[string]any{
+											"properties": map[string]any{
+												"scopeTag": map[string]any{},
+												"references": map[string]any{
+													"properties": map[string]any{
+														"tags": map[string]any{},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mocks.Client{}
+			mockService := &mocks.IndicesGetIndexTemplateService{}
+
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockClient, mockService)
+			}
+
+			cfg := &escfg.Configuration{
+				CreateIndexTemplates: tt.createMapping,
+				Indices: escfg.Indices{
+					IndexPrefix: "jaeger-test",
+				},
+			}
+			f := &FactoryBase{
+				config: cfg,
+			}
+			var client es.Client = mockClient
+			f.client.Store(&client)
+
+			err := f.verifySpanMappingSchema(context.Background())
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
