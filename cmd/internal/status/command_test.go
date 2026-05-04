@@ -62,6 +62,34 @@ func TestNoService(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestBodyReadFailure(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+			return
+		}
+		conn, buf, _ := hj.Hijack()
+		buf.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\npartial")
+		buf.Flush()
+		conn.Close()
+	}))
+	defer ts.Close()
+	v := viper.New()
+	cmd := Command(v, 80)
+	cmd.ParseFlags([]string{"--status.http.host-port=" + strings.TrimPrefix(ts.URL, "http://")})
+	err := cmd.Execute()
+	require.ErrorContains(t, err, "failed to read status response")
+}
+
+func TestInvalidStatusURL(t *testing.T) {
+	v := viper.New()
+	cmd := Command(v, 80)
+	cmd.ParseFlags([]string{"--status.http.host-port=%zzinvalid"})
+	err := cmd.Execute()
+	require.ErrorContains(t, err, "failed to create status request")
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
