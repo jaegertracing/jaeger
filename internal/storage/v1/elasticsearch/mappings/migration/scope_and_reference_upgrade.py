@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import sys
 import argparse

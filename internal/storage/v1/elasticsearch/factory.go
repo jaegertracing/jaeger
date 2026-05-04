@@ -93,7 +93,7 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, err
 	}
-	if err = f.verifySpanMappingSchema(ctx); err != nil {
+	if err := f.verifySpanMappingSchema(ctx); err != nil {
 		return nil, err
 	}
 	return f, nil
@@ -282,11 +282,11 @@ func (f *FactoryBase) verifySpanMappingSchema(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	template, ok := res.IndexTemplates.ByName(templateName)
+	template, ok := res[templateName]
 	if !ok {
 		return fmt.Errorf("template %q not found", templateName)
 	}
-	maps := template.IndexTemplate.Template.Mappings
+	maps := template.Mappings
 	// In ES7+, mappings have a "properties" field
 	var properties map[string]any
 	properties, ok = maps["properties"].(map[string]any)

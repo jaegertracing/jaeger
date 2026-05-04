@@ -89,8 +89,8 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	return WrapESMultiSearchService(multiSearchService)
 }
 
-func (c ClientWrapper) GetTemplate(name string) es.IndicesGetIndexTemplateService {
-	return WrapESIndicesGetIndexTemplateService(c.client.IndexGetIndexTemplate(name))
+func (c ClientWrapper) GetTemplate(names ...string) es.IndicesGetTemplateService {
+	return WrapESIndicesGetIndexTemplateService(c.client.IndexGetTemplate(names...))
 }
 
 // Close closes ESClient and flushes all data to the storage.
@@ -296,14 +296,14 @@ func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearch
 	return s.multiSearchService.Do(ctx)
 }
 
-type IndicesGetIndexTemplateServiceWrapper struct {
-	indicesGetTemplateService *elastic.IndicesGetIndexTemplateService
+type IndicesGetTemplateService struct {
+	indicesGetTemplateService *elastic.IndicesGetTemplateService
 }
 
-func WrapESIndicesGetIndexTemplateService(indicesGetTemplateService *elastic.IndicesGetIndexTemplateService) IndicesGetIndexTemplateServiceWrapper {
-	return IndicesGetIndexTemplateServiceWrapper{indicesGetTemplateService: indicesGetTemplateService}
+func WrapESIndicesGetIndexTemplateService(indicesGetTemplateService *elastic.IndicesGetTemplateService) IndicesGetTemplateService {
+	return IndicesGetTemplateService{indicesGetTemplateService: indicesGetTemplateService}
 }
 
-func (i IndicesGetIndexTemplateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesGetIndexTemplateResponse, error) {
+func (i IndicesGetTemplateService) Do(ctx context.Context) (map[string]*elastic.IndicesGetTemplateResponse, error) {
 	return i.indicesGetTemplateService.Do(ctx)
 }
