@@ -24,6 +24,7 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | Push to `main` branch | Already merged, fully trusted |
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
+| PR author has 3+ merged PRs in this repo | Established contributor (same threshold as "unlimited quota" in `pr-quota-manager.js`). Covers private org members whose `author_association` is incorrectly reported as `CONTRIBUTOR` when they lack direct team access. |
 | PR author login is `dependabot[bot]` or `renovate-bot` | Dependency automation bots |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
