@@ -315,7 +315,7 @@ class JaegerSidecarAgent(Agent):
 
                 for function_call in function_calls:
                     name = function_call.name or ""
-                    args = function_call.args
+                    args = function_call.args or dict[str, Any]()
                     call_id = function_call.id or self._new_tool_call_id(name or "unnamed")
                     if name in contextual_tool_names:
                         logger.info("Gemini requested contextual tool call: %s (call_id=%s)", name, call_id)
