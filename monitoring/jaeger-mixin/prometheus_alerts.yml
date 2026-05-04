@@ -7,16 +7,16 @@
   - "alert": "JaegerCollectorDroppingSpans"
     "annotations":
       "message": |
-        {{ $labels.job }} {{ $labels.instance }} is refusing {{ printf "%.2f" $value }}% of received spans.
-    "expr": "100 * sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace) / (sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace) + sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace)) > 1"
+        {{ $labels.job }} {{ $labels.instance }} receiver {{ $labels.receiver }} transport {{ $labels.transport }} is refusing {{ printf "%.2f" $value }}% of received spans.
+    "expr": "100 * ((sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace, receiver, transport)) or on(instance, job, namespace, receiver, transport) (0 * sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace, receiver, transport))) / (((sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace, receiver, transport)) or on(instance, job, namespace, receiver, transport) (0 * sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace, receiver, transport))) + ((sum(rate(otelcol_receiver_refused_spans_total[1m])) by (instance, job, namespace, receiver, transport)) or on(instance, job, namespace, receiver, transport) (0 * sum(rate(otelcol_receiver_accepted_spans_total[1m])) by (instance, job, namespace, receiver, transport)))) > 1"
     "for": "15m"
     "labels":
       "severity": "warning"
   - "alert": "JaegerExporterFailingSpans"
     "annotations":
       "message": |
-        {{ $labels.job }} {{ $labels.instance }} is failing to export {{ printf "%.2f" $value }}% of spans.
-    "expr": "100 * sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace) / (sum(rate(otelcol_exporter_sent_spans_total[1m])) by (instance, job, namespace) + sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (instance, job, namespace)) > 1"
+        {{ $labels.job }} {{ $labels.instance }} exporter {{ $labels.exporter }} is failing to export {{ printf "%.2f" $value }}% of spans.
+    "expr": "100 * ((sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (exporter, instance, job, namespace)) or on(exporter, instance, job, namespace) (0 * sum(rate(otelcol_exporter_sent_spans_total[1m])) by (exporter, instance, job, namespace))) / (((sum(rate(otelcol_exporter_sent_spans_total[1m])) by (exporter, instance, job, namespace)) or on(exporter, instance, job, namespace) (0 * sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (exporter, instance, job, namespace))) + ((sum(rate(otelcol_exporter_send_failed_spans_total[1m])) by (exporter, instance, job, namespace)) or on(exporter, instance, job, namespace) (0 * sum(rate(otelcol_exporter_sent_spans_total[1m])) by (exporter, instance, job, namespace)))) > 1"
     "for": "15m"
     "labels":
       "severity": "warning"
