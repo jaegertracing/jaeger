@@ -115,6 +115,11 @@ func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (extToolCa
 	}
 	originalName := req.Name
 	if stripped, ok := strings.CutPrefix(req.Name, UIToolPrefix); ok {
+		if stripped == "" {
+			return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{
+				"error": fmt.Sprintf("tool name was only the UI prefix %q; expected %s<name>", UIToolPrefix, UIToolPrefix),
+			})
+		}
 		req.Name = stripped
 	} else {
 		logger.Warn("contextual tool name missing UI prefix; passing through unchanged",

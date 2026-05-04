@@ -139,6 +139,22 @@ func TestDispatcherToolCallRejectsEmptyName(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "missing required field should yield InvalidParams")
 }
 
+func TestDispatcherToolCallRejectsPrefixOnlyName(t *testing.T) {
+	// A name that is exactly UIToolPrefix would strip to "" — we must reject
+	// it instead of accepting a tool call with no actual name.
+	d, _, _ := freshDispatcher(t)
+
+	params, err := json.Marshal(extToolCallRequest{
+		SessionID: "sess-abc",
+		Name:      UIToolPrefix,
+	})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), ExtMethodJaegerToolCall, params)
+	require.NotNil(t, reqErr, "prefix-only name must not be accepted as a successful tool call")
+	assert.Equal(t, -32602, reqErr.Code, "prefix-only name should yield InvalidParams")
+}
+
 func TestDispatcherUnknownMethodReturnsMethodNotFound(t *testing.T) {
 	d, _, _ := freshDispatcher(t)
 
