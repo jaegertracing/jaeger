@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	acp "github.com/coder/acp-go-sdk"
@@ -68,14 +69,14 @@ func newDispatcher(client *streamingClient, logger *zap.Logger) acp.MethodHandle
 		case acp.ClientMethodSessionUpdate:
 			var p acp.SessionNotification
 			if err := json.Unmarshal(params, &p); err != nil {
-				return nil, acp.NewInvalidParams(map[string]any{"error": err.Error()})
+				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
 			}
 			return nil, toRequestError(client.SessionUpdate(ctx, p))
 
 		case acp.ClientMethodSessionRequestPermission:
 			var p acp.RequestPermissionRequest
 			if err := json.Unmarshal(params, &p); err != nil {
-				return nil, acp.NewInvalidParams(map[string]any{"error": err.Error()})
+				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
 			}
 			resp, err := client.RequestPermission(ctx, p)
 			return resp, toRequestError(err)
@@ -101,16 +102,16 @@ func newDispatcher(client *streamingClient, logger *zap.Logger) acp.MethodHandle
 // pre-date the prefix pass the name through unchanged and only log a
 // warning, so the strip is safe to deploy ahead of the meta-side
 // prefix-add work.
-func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (any, *acp.RequestError) {
+func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (extToolCallResponse, *acp.RequestError) {
 	var req extToolCallRequest
 	if err := json.Unmarshal(params, &req); err != nil {
-		return nil, acp.NewInvalidParams(map[string]any{"error": err.Error()})
+		return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
 	}
 	if req.SessionID == "" {
-		return nil, acp.NewInvalidParams(map[string]any{"error": "sessionId is required"})
+		return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{"error": "sessionId is required"})
 	}
 	if req.Name == "" {
-		return nil, acp.NewInvalidParams(map[string]any{"error": "name is required"})
+		return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{"error": "tool name is required"})
 	}
 	originalName := req.Name
 	if stripped, ok := strings.CutPrefix(req.Name, UIToolPrefix); ok {
@@ -147,5 +148,5 @@ func toRequestError(err error) *acp.RequestError {
 	if errors.As(err, &re) {
 		return re
 	}
-	return acp.NewInternalError(map[string]any{"error": err.Error()})
+	return acp.NewInternalError(map[string]any{"error": fmt.Sprintf("client handler error: %v", err)})
 }

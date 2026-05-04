@@ -200,12 +200,12 @@ flowchart TB
 
 #### `ContextualToolsStore` (gateway-side)
 
-Thread-safe per-turn map of frontend-supplied tools. Keyed by a gateway-minted **contextual MCP id**, *not* the ACP session id (the latter is assigned by the sidecar after `NewSession` returns and is therefore unavailable when the gateway populates the meta payload before the call).
+Thread-safe per-turn map of frontend-supplied tools, keyed by **ACP session id**. The chat handler writes the snapshot once `NewSessionResponse` returns and before `Prompt` is sent; the dispatcher reads the snapshot using the same `sessionId` the sidecar puts on the ext_method payload, so the lookup is unambiguous without any extra correlation field.
 
 API:
-- `SetForContextualMCPID(id, rawTools)` — stores a snapshot, copying raw bytes; empty id is no-op; empty/all-invalid set deletes.
-- `DeleteForContextualMCPID(id)` — turn-end cleanup.
-- `GetContextualToolsForID(id)` — returns a fresh decoded copy per call so readers cannot corrupt the snapshot.
+- `SetForSession(sessionID, rawTools)` — stores a snapshot, copying raw bytes; empty id is no-op; empty/all-invalid set deletes.
+- `DeleteForSession(sessionID)` — turn-end cleanup.
+- `GetContextualToolsForSession(sessionID)` — returns a fresh decoded copy per call so readers cannot corrupt the snapshot.
 
 #### Custom ACP dispatcher (gateway-side)
 
@@ -240,10 +240,10 @@ sequenceDiagram
     participant LLM as LLM (Gemini)
 
     UI->>GW: POST /api/ai/chat<br>{prompt, tools, thread_id}
-    GW->>GW: mint contextual MCP id
-    GW->>GW: ContextualToolsStore.Set(id, prefixed_tools)
-    GW->>SC: ACP NewSession<br>Meta: {jaegertracing.io/contextual-tools: {tools}}
+    GW->>SC: ACP NewSession<br>Meta: {jaegertracing.io/contextual-tools: {prefixed_tools}}
     SC->>SC: stash tools per session_id
+    SC-->>GW: NewSessionResponse {sessionId}
+    GW->>GW: ContextualToolsStore.SetForSession(sessionId, prefixed_tools)
     GW->>SC: ACP Prompt
     SC->>LLM: send_message (mcp + contextual tools merged)
     LLM-->>SC: function_call
@@ -263,7 +263,7 @@ sequenceDiagram
     SC-->>GW: ACP session/update (text)
     SC-->>GW: ACP PromptResponse (StopReason)
     SC->>SC: drop contextual snapshot
-    GW->>GW: ContextualToolsStore.Delete(id)
+    GW->>GW: ContextualToolsStore.DeleteForSession(sessionId)
     GW-->>UI: close HTTP response
 ```
 
@@ -285,7 +285,7 @@ So the natural shape of "tools change when the user navigates" is already the pr
 - **LLM calls a contextual tool name that the store has no record of**: dispatcher returns a JSON-RPC error to the sidecar; the sidecar surfaces it as a tool error to the LLM.
 - **Browser disconnects mid-tool-call**: the streaming HTTP response writer fails; the dispatcher cancels the in-flight relay and returns an error to the sidecar.
 - **Turn ends before tool result arrives**: the chat handler's `defer Delete` runs; any further extension-method invocations under that id return "no snapshot".
-- **Concurrent turns from the same tab**: each turn mints its own contextual MCP id, so the store entries do not collide. The browser is responsible for not sending overlapping requests on the same chat thread.
+- **Concurrent turns from the same tab**: each turn opens its own ACP session and gets its own session id, so store entries do not collide. The browser is responsible for not sending overlapping requests on the same chat thread.
 
 ---
 

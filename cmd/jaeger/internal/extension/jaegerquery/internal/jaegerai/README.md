@@ -84,18 +84,19 @@ a frontend-supplied tool from shadowing a built-in Jaeger MCP tool with the same
 
 ### ContextualToolsStore (`contextual_tools.go`)
 
-Thread-safe per-turn store of frontend-supplied AG-UI tools. Keyed by a gateway-minted
-**contextual MCP id**, *not* the ACP session id — the latter is assigned by the sidecar
-after `NewSession` returns and is therefore unavailable when the gateway populates
-`NewSessionRequest.Meta`.
+Thread-safe per-turn store of frontend-supplied AG-UI tools, keyed by ACP **session
+id**. The chat handler writes the snapshot once `NewSessionResponse` returns and
+before `Prompt` is sent. The dispatcher (`handleJaegerToolCall`) reads the snapshot
+using the same `sessionId` the sidecar puts on the ext_method payload, so the
+lookup is unambiguous without any extra correlation field.
 
-- `SetForContextualMCPID` — stores a snapshot, copying raw JSON bytes so later caller
-  mutation cannot affect the stored entry. Empty id is a no-op; an empty/all-invalid set
-  deletes any existing entry rather than writing an empty slice.
-- `DeleteForContextualMCPID` — drops the snapshot at turn end. The chat handler must
-  call this once `Prompt` returns so the store does not grow over the gateway's lifetime.
-- `GetContextualToolsForID` — returns a freshly unmarshaled tree per call so readers
-  cannot corrupt the stored snapshot through map mutation.
+- `SetForSession` — stores a snapshot, copying raw JSON bytes so later caller
+  mutation cannot affect the stored entry. Empty id is a no-op; an empty/all-invalid
+  set deletes any existing entry rather than writing an empty slice.
+- `DeleteForSession` — drops the snapshot at turn end. The chat handler must call
+  this once `Prompt` returns so the store does not grow over the gateway's lifetime.
+- `GetContextualToolsForSession` — returns a freshly unmarshaled tree per call so
+  readers cannot corrupt the stored snapshot through map mutation.
 
 ### streamingClient (`streaming_client.go`)
 
@@ -210,18 +211,21 @@ HTTP — those calls do not flow through the gateway.
 Frontend-supplied AG-UI tools follow this lifecycle:
 
 1. The browser includes a `tools` array in its POST to `/api/ai/chat` (PR2 wiring).
-2. The gateway mints a per-turn **contextual MCP id**, prefixes each tool name with
-   `UIToolPrefix` (`ui_`), and writes the prefixed snapshot into `ContextualToolsStore`.
-3. The same snapshot is attached to `NewSessionRequest.Meta` under the namespaced key
+2. The gateway prefixes each tool name with `UIToolPrefix` (`ui_`) and attaches the
+   prefixed snapshot to `NewSessionRequest.Meta` under the namespaced key
    `jaegertracing.io/contextual-tools` so the sidecar can register them with the LLM.
+3. Once `NewSessionResponse` returns with the assigned `SessionId`, the gateway
+   writes the same prefixed snapshot into `ContextualToolsStore` keyed by that
+   session id, then sends `Prompt`.
 4. When the LLM calls a contextual tool, the sidecar dispatches
-   `_meta/jaegertracing.io/tools/call` over ACP back to the gateway.
-5. The dispatcher strips the `ui_` prefix, looks the call up in the store, and
-   (PR2) relays it to the browser via the streaming HTTP response.
+   `_meta/jaegertracing.io/tools/call` over ACP back to the gateway with
+   `{sessionId, name, args}`.
+5. The dispatcher strips the `ui_` prefix, looks the call up in the store by the
+   session id, and (PR2) relays it to the browser via the streaming HTTP response.
 6. The browser executes the tool, returns the result, the dispatcher returns it
    to the sidecar, the sidecar feeds it back into the LLM.
-7. After `Prompt` returns, the chat handler calls `DeleteForContextualMCPID` so the
-   store does not accumulate entries.
+7. After `Prompt` returns, the chat handler calls `DeleteForSession` so the store
+   does not accumulate entries.
 
 ## Related Components
 

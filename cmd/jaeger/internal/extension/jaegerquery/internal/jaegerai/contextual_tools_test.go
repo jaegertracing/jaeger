@@ -13,182 +13,182 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetForContextualMCPIDStoresPerIDSnapshots(t *testing.T) {
+func TestSetForSessionStoresPerSessionSnapshots(t *testing.T) {
 	store := NewContextualToolsStore()
 
 	toolsA := []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)}
 	toolsB := []json.RawMessage{json.RawMessage(`{"name":"tool-b"}`)}
 
-	store.SetForContextualMCPID("id-1", toolsA)
-	store.SetForContextualMCPID("id-2", toolsB)
+	store.SetForSession("sess-1", toolsA)
+	store.SetForSession("sess-2", toolsB)
 
-	gotA := store.GetContextualToolsForID("id-1")
+	gotA := store.GetContextualToolsForSession("sess-1")
 	assert.Len(t, gotA, 1)
 	assert.Equal(t, "tool-a", gotA[0].(map[string]any)["name"],
-		"GetContextualToolsForID must return the snapshot for the requested id, not the most recent one")
+		"GetContextualToolsForSession must return the snapshot for the requested session, not the most recent one")
 
-	gotB := store.GetContextualToolsForID("id-2")
+	gotB := store.GetContextualToolsForSession("sess-2")
 	assert.Len(t, gotB, 1)
 	assert.Equal(t, "tool-b", gotB[0].(map[string]any)["name"])
 }
 
-func TestSetForContextualMCPIDSkipsInvalidJSON(t *testing.T) {
+func TestSetForSessionSkipsInvalidJSON(t *testing.T) {
 	store := NewContextualToolsStore()
 
-	store.SetForContextualMCPID("id-1", []json.RawMessage{
+	store.SetForSession("sess-1", []json.RawMessage{
 		json.RawMessage(`{"name":"valid"}`),
 		json.RawMessage(`{broken`),
 	})
 
-	got := store.GetContextualToolsForID("id-1")
+	got := store.GetContextualToolsForSession("sess-1")
 	assert.Len(t, got, 1, "invalid JSON entries must be skipped silently")
 	assert.Equal(t, "valid", got[0].(map[string]any)["name"])
 }
 
-func TestGetContextualToolsForIDReturnsNilWhenUnknown(t *testing.T) {
+func TestGetContextualToolsForSessionReturnsNilWhenUnknown(t *testing.T) {
 	store := NewContextualToolsStore()
-	assert.Nil(t, store.GetContextualToolsForID("id-1"), "unknown id → nil snapshot")
+	assert.Nil(t, store.GetContextualToolsForSession("sess-1"), "unknown session → nil snapshot")
 
-	store.SetForContextualMCPID("id-1", nil)
-	assert.Nil(t, store.GetContextualToolsForID("id-1"),
-		"id with empty tools list should still surface as nil to callers")
+	store.SetForSession("sess-1", nil)
+	assert.Nil(t, store.GetContextualToolsForSession("sess-1"),
+		"session with empty tools list should still surface as nil to callers")
 
 	// Storing a nil/empty list must not leave an unreachable map entry —
 	// otherwise the store accumulates keys that Get reports as "no
-	// snapshot" and only DeleteForContextualMCPID can remove.
+	// snapshot" and only DeleteForSession can remove.
 	store.mu.RLock()
-	_, present := store.byID["id-1"]
+	_, present := store.bySession["sess-1"]
 	store.mu.RUnlock()
 	assert.False(t, present, "empty validated tools list must not leave a map entry")
 }
 
-func TestSetForContextualMCPIDEmptyValidatedListClearsExisting(t *testing.T) {
+func TestSetForSessionEmptyValidatedListClearsExisting(t *testing.T) {
 	// Writing a snapshot followed by an all-invalid (or nil) snapshot
 	// must clear the entry, so a subsequent caller sees the store as if
-	// no tools were ever registered for that id.
+	// no tools were ever registered for that session.
 	store := NewContextualToolsStore()
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
 
 	store.mu.RLock()
-	_, presentBefore := store.byID["id-1"]
+	_, presentBefore := store.bySession["sess-1"]
 	store.mu.RUnlock()
-	require.True(t, presentBefore, "precondition: id-1 should be in the map after the first set")
+	require.True(t, presentBefore, "precondition: sess-1 should be in the map after the first set")
 
 	// All entries invalid → validated list ends up empty → delete the entry.
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{broken`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{broken`)})
 
 	store.mu.RLock()
-	_, presentAfter := store.byID["id-1"]
+	_, presentAfter := store.bySession["sess-1"]
 	store.mu.RUnlock()
 	assert.False(t, presentAfter, "all-invalid snapshot must remove the existing entry")
-	assert.Nil(t, store.GetContextualToolsForID("id-1"))
+	assert.Nil(t, store.GetContextualToolsForSession("sess-1"))
 }
 
-func TestGetContextualToolsForIDReturnsNilForEmptyID(t *testing.T) {
+func TestGetContextualToolsForSessionReturnsNilForEmptySession(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
 
-	assert.Nil(t, store.GetContextualToolsForID(""),
-		"empty contextual_mcp_id must never match — guards against misrouted snapshots")
+	assert.Nil(t, store.GetContextualToolsForSession(""),
+		"empty session id must never match — guards against misrouted snapshots")
 }
 
-func TestSetForContextualMCPIDIgnoresEmptyID(t *testing.T) {
+func TestSetForSessionIgnoresEmptySession(t *testing.T) {
 	store := NewContextualToolsStore()
 
 	// Writes under "" must be no-ops; otherwise we'd leak entries that
 	// Get/Delete refuse to address (they both short-circuit on "").
-	store.SetForContextualMCPID("", []json.RawMessage{json.RawMessage(`{"name":"orphan"}`)})
+	store.SetForSession("", []json.RawMessage{json.RawMessage(`{"name":"orphan"}`)})
 
 	store.mu.RLock()
-	_, present := store.byID[""]
+	_, present := store.bySession[""]
 	store.mu.RUnlock()
-	assert.False(t, present, `SetForContextualMCPID("", ...) must not create an entry under ""`)
+	assert.False(t, present, `SetForSession("", ...) must not create an entry under ""`)
 }
 
-func TestDeleteForContextualMCPIDRemovesSnapshot(t *testing.T) {
+func TestDeleteForSessionRemovesSnapshot(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
-	store.SetForContextualMCPID("id-2", []json.RawMessage{json.RawMessage(`{"name":"tool-b"}`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("sess-2", []json.RawMessage{json.RawMessage(`{"name":"tool-b"}`)})
 
-	store.DeleteForContextualMCPID("id-1")
+	store.DeleteForSession("sess-1")
 
-	assert.Nil(t, store.GetContextualToolsForID("id-1"),
-		"deleted id must no longer resolve")
-	assert.NotNil(t, store.GetContextualToolsForID("id-2"),
-		"DeleteForContextualMCPID must only affect the target id")
+	assert.Nil(t, store.GetContextualToolsForSession("sess-1"),
+		"deleted session must no longer resolve")
+	assert.NotNil(t, store.GetContextualToolsForSession("sess-2"),
+		"DeleteForSession must only affect the target session")
 
-	// Deleting an unknown or empty id must not panic or affect state.
-	store.DeleteForContextualMCPID("nonexistent")
-	store.DeleteForContextualMCPID("")
-	assert.NotNil(t, store.GetContextualToolsForID("id-2"))
+	// Deleting an unknown or empty session must not panic or affect state.
+	store.DeleteForSession("nonexistent")
+	store.DeleteForSession("")
+	assert.NotNil(t, store.GetContextualToolsForSession("sess-2"))
 }
 
-func TestGetContextualToolsForIDReturnsDefensiveCopy(t *testing.T) {
+func TestGetContextualToolsForSessionReturnsDefensiveCopy(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
 
-	first := store.GetContextualToolsForID("id-1")
+	first := store.GetContextualToolsForSession("sess-1")
 	first[0] = "mutated"
 
-	second := store.GetContextualToolsForID("id-1")
+	second := store.GetContextualToolsForSession("sess-1")
 	assert.Equal(t, "tool-a", second[0].(map[string]any)["name"],
 		"callers mutating their copy must not corrupt the stored snapshot")
 }
 
-func TestGetContextualToolsForIDIsolatesNestedMutations(t *testing.T) {
+func TestGetContextualToolsForSessionIsolatesNestedMutations(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
 
-	first := store.GetContextualToolsForID("id-1")
+	first := store.GetContextualToolsForSession("sess-1")
 	first[0].(map[string]any)["name"] = "hijacked"
 
-	second := store.GetContextualToolsForID("id-1")
+	second := store.GetContextualToolsForSession("sess-1")
 	assert.Equal(t, "tool-a", second[0].(map[string]any)["name"],
 		"mutating a nested map in the returned snapshot must not corrupt the stored entry")
 }
 
-func TestGetContextualToolsForIDSkipsUnparsableEntries(t *testing.T) {
+func TestGetContextualToolsForSessionSkipsUnparsableEntries(t *testing.T) {
 	store := NewContextualToolsStore()
-	store.SetForContextualMCPID("id-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
+	store.SetForSession("sess-1", []json.RawMessage{json.RawMessage(`{"name":"tool-a"}`)})
 
 	// White-box: simulate a corrupted entry slipping past the write-side
 	// validation (e.g. memory corruption) and verify the read path degrades
 	// gracefully instead of exploding.
 	store.mu.Lock()
-	store.byID["id-1"] = append(store.byID["id-1"], json.RawMessage(`{broken`))
+	store.bySession["sess-1"] = append(store.bySession["sess-1"], json.RawMessage(`{broken`))
 	store.mu.Unlock()
 
-	got := store.GetContextualToolsForID("id-1")
+	got := store.GetContextualToolsForSession("sess-1")
 	assert.Len(t, got, 1, "unparsable raw entries must be skipped at read time")
 	assert.Equal(t, "tool-a", got[0].(map[string]any)["name"])
 
 	// All entries corrupted → read returns nil.
 	store.mu.Lock()
-	store.byID["id-1"] = []json.RawMessage{json.RawMessage(`{also-broken`)}
+	store.bySession["sess-1"] = []json.RawMessage{json.RawMessage(`{also-broken`)}
 	store.mu.Unlock()
-	assert.Nil(t, store.GetContextualToolsForID("id-1"))
+	assert.Nil(t, store.GetContextualToolsForSession("sess-1"))
 }
 
-func TestSetForContextualMCPIDCopiesRawBytes(t *testing.T) {
+func TestSetForSessionCopiesRawBytes(t *testing.T) {
 	store := NewContextualToolsStore()
 	raw := json.RawMessage(`{"name":"tool-a"}`)
-	store.SetForContextualMCPID("id-1", []json.RawMessage{raw})
+	store.SetForSession("sess-1", []json.RawMessage{raw})
 
 	// Mutate the caller's bytes after storing. The snapshot must be unaffected.
 	for i := range raw {
 		raw[i] = 'x'
 	}
 
-	got := store.GetContextualToolsForID("id-1")
+	got := store.GetContextualToolsForSession("sess-1")
 	assert.Equal(t, "tool-a", got[0].(map[string]any)["name"],
-		"SetForContextualMCPID must defensively copy raw bytes")
+		"SetForSession must defensively copy raw bytes")
 }
 
 // TestContextualToolsStoreConcurrentAccess exercises the RWMutex with a
-// fan-out of writers, readers, and deleters touching distinct ids. Run
-// under -race to catch any unsynchronised access. The test does not assert
-// on values — concurrent map access is itself the property under test;
-// the assertions verify the store stays usable afterwards.
+// fan-out of writers, readers, and deleters touching distinct sessions.
+// Run under -race to catch any unsynchronised access. The test does not
+// assert on values — concurrent map access is itself the property under
+// test; the assertions verify the store stays usable afterwards.
 func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
 	store := NewContextualToolsStore()
 
@@ -203,7 +203,7 @@ func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			id := "writer-" + strconv.Itoa(w)
 			for i := 0; i < iterations; i++ {
-				store.SetForContextualMCPID(id, []json.RawMessage{
+				store.SetForSession(id, []json.RawMessage{
 					json.RawMessage(`{"name":"tool-` + strconv.Itoa(i) + `"}`),
 				})
 			}
@@ -215,7 +215,7 @@ func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			id := "writer-" + strconv.Itoa(r)
 			for i := 0; i < iterations; i++ {
-				_ = store.GetContextualToolsForID(id)
+				_ = store.GetContextualToolsForSession(id)
 			}
 		}(r)
 	}
@@ -225,8 +225,8 @@ func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			id := "deleter-" + strconv.Itoa(d)
 			for i := 0; i < iterations; i++ {
-				store.SetForContextualMCPID(id, []json.RawMessage{json.RawMessage(`{"name":"tmp"}`)})
-				store.DeleteForContextualMCPID(id)
+				store.SetForSession(id, []json.RawMessage{json.RawMessage(`{"name":"tmp"}`)})
+				store.DeleteForSession(id)
 			}
 		}(d)
 	}
@@ -234,8 +234,8 @@ func TestContextualToolsStoreConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// Sanity: store is still usable after the storm.
-	store.SetForContextualMCPID("after", []json.RawMessage{json.RawMessage(`{"name":"final"}`)})
-	got := store.GetContextualToolsForID("after")
+	store.SetForSession("after", []json.RawMessage{json.RawMessage(`{"name":"final"}`)})
+	got := store.GetContextualToolsForSession("after")
 	assert.Len(t, got, 1)
 	assert.Equal(t, "final", got[0].(map[string]any)["name"])
 }
