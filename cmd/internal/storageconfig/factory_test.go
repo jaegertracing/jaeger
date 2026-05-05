@@ -19,7 +19,7 @@ import (
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	esv2 "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
@@ -34,7 +34,7 @@ func getTelemetrySettings() telemetry.Settings {
 func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if esv2.WriteMockMappingResponse("", w, r) {
+		if elasticsearch.WriteMockMappingResponse("", w, r) {
 			return
 		}
 		w.WriteHeader(statusCode)
