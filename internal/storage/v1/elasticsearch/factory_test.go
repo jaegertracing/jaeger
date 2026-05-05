@@ -48,9 +48,7 @@ var mockEsServerResponse = []byte(`
 `)
 
 func TestElasticsearchFactoryBase(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	t.Cleanup(server.Close)
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -124,9 +122,7 @@ func TestFactoryBase_Purge(t *testing.T) {
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	t.Cleanup(server.Close)
 	cfg := escfg.Configuration{
 		Servers: []string{server.URL},
@@ -315,9 +311,7 @@ func TestCreateTemplates(t *testing.T) {
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	defer server.Close()
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -375,6 +369,10 @@ func runPasswordFromFileTest(t *testing.T) {
 		t.Logf("request to fake ES server: %v", r)
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
+		w.Header().Set("Content-Type", "application/json")
+		if WriteMockMappingResponse("", w, r) {
+			return
+		}
 		if !assert.Len(t, h, 2) {
 			return
 		}
@@ -461,9 +459,7 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 
 func TestPasswordFromFileErrors(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	defer server.Close()
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
@@ -515,9 +511,7 @@ func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
 }
 
 func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	t.Cleanup(server.Close)
 
 	cfg := escfg.Configuration{
@@ -796,19 +790,28 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 					IndexPrefix: "jaeger-test",
 				},
 			}
-			f := &FactoryBase{
+			f := FactoryBase{
 				config: cfg,
 			}
 			var client es.Client = mockClient
 			f.client.Store(&client)
-
-			err := f.verifySpanMappingSchema(context.Background())
+			err := f.verifySpanMappingSchema(t.Context())
 			if tt.expectedError != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError)
+				require.ErrorContains(t, err, tt.expectedError)
 			} else {
 				require.NoError(t, err)
 			}
 		})
 	}
+}
+
+func mockHttpServerForFactory() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if WriteMockMappingResponse("", w, r) {
+			return
+		}
+		w.Write(mockEsServerResponse)
+	})
 }

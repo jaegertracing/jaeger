@@ -13,6 +13,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -43,9 +44,7 @@ var mockEsServerResponse = []byte(`
 // }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory(""))
 	defer server.Close()
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -71,9 +70,7 @@ func TestESStorageFactoryErr(t *testing.T) {
 
 func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	// Set up mock Elasticsearch server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory(""))
 	defer server.Close()
 
 	tests := []struct {
@@ -132,4 +129,14 @@ func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
 	expectedCfg := originalCfg
 	result := ensureRequiredFields(originalCfg)
 	require.Equal(t, expectedCfg, result)
+}
+
+func mockHttpServerForFactory(prefix escfg.IndexPrefix) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if elasticsearch.WriteMockMappingResponse(prefix, w, r) {
+			return
+		}
+		w.Write(mockEsServerResponse)
+	})
 }
