@@ -20,7 +20,9 @@ func WriteMockMappingResponse(prefix escfg.IndexPrefix, w http.ResponseWriter, r
 					"scopeTag": { "type": "keyword" },
 					"references": {
 						"properties": {
-							"tags": { "type": "nested" }
+							"tags": { "type": "nested" },
+							"traceState": { "type": "keyword" },
+							"flags": { "type": "integer" }
 						}
 					}
 				}

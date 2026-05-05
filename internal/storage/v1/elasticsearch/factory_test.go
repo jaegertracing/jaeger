@@ -660,7 +660,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
 			},
-			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
 		},
 		{
 			name:          "References is not a map",
@@ -679,7 +679,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
 			},
-			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
 		},
 		{
 			name:          "Missing references.properties",
@@ -700,7 +700,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
 			},
-			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
 		},
 		{
 			name:          "Missing references.tags",
@@ -723,7 +723,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
 			},
-			expectedError: fmt.Sprintf("template %q is missing 'references.tags'", templateName),
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
 		},
 		{
 			name:          "Success ES7 style",
@@ -737,7 +737,9 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 								"scopeTag": map[string]any{},
 								"references": map[string]any{
 									"properties": map[string]any{
-										"tags": map[string]any{},
+										"tags":       map[string]any{},
+										"traceState": map[string]any{},
+										"flags":      map[string]any{},
 									},
 								},
 							},
@@ -761,7 +763,9 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 									"scopeTag": map[string]any{},
 									"references": map[string]any{
 										"properties": map[string]any{
-											"tags": map[string]any{},
+											"tags":       map[string]any{},
+											"traceState": map[string]any{},
+											"flags":      map[string]any{},
 										},
 									},
 								},

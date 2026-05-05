@@ -305,10 +305,13 @@ func (f *FactoryBase) verifySpanMappingSchema(ctx context.Context) error {
 	// Check for references.tags (Link attributes)
 	if refs, ok := properties["references"].(map[string]any); ok {
 		if refProps, ok := refs["properties"].(map[string]any); ok {
-			if _, ok := refProps["tags"]; ok {
+			_, hasTags := refProps["tags"]
+			_, hasTraceState := refProps["traceState"]
+			_, hasFlags := refProps["flags"]
+			if hasTags && hasTraceState && hasFlags {
 				return nil
 			}
 		}
 	}
-	return fmt.Errorf("template %q is missing 'references.tags' (link attributes); please update mappings", templateName)
+	return fmt.Errorf("template %q is missing OTLP link fields (tags, traceState, flags) in 'references'; please update mappings", templateName)
 }

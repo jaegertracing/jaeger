@@ -103,13 +103,26 @@ def update_template(es_url, index_prefix):
         properties["scopeTags"] = nested_tag_props
         modified = True
 
-    # Inject references.tags (link attributes)
-    if "references" in properties:
-        ref_props = properties["references"].setdefault("properties", {})
-        if "tags" not in ref_props:
-            print("[+] Injecting 'references.tags' mapping")
-            ref_props["tags"] = nested_tag_props
-            modified = True
+    # Inject references fields (link attributes/metadata)
+    if "references" not in properties:
+        print("[!] Error: 'references' field missing in properties. This migration script expects an existing 'references' mapping.")
+        sys.exit(1)
+
+    ref_props = properties["references"].setdefault("properties", {})
+    if "tags" not in ref_props:
+        print("[+] Injecting 'references.tags' mapping")
+        ref_props["tags"] = nested_tag_props
+        modified = True
+
+    if "traceState" not in ref_props:
+        print("[+] Injecting 'references.traceState' mapping")
+        ref_props["traceState"] = {"type": "keyword", "ignore_above": 256}
+        modified = True
+
+    if "flags" not in ref_props:
+        print("[+] Injecting 'references.flags' mapping")
+        ref_props["flags"] = {"type": "integer"}
+        modified = True
 
     # Ensure dynamic_templates handles scopeTag.*
     dynamic_templates = target_mappings.setdefault("dynamic_templates", [])
