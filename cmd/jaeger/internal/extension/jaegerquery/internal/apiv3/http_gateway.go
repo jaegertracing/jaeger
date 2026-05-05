@@ -224,7 +224,12 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		return nil, true
 	}
 	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMax)
-	if h.tryParamError(w, err, paramTimeMax) {
+	if err := h.tryParamError(w, err, paramTimeMax); err {
+		return nil, true
+	}
+	if timeMinParsed.After(timeMaxParsed) {
+		err := fmt.Errorf("start_time_min must be before start_time_max")
+		h.tryHandleError(w, err, http.StatusBadRequest)
 		return nil, true
 	}
 	queryParams.StartTimeMin = timeMinParsed
@@ -233,6 +238,11 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	if n := q.Get(paramNumTraces); n != "" {
 		numTraces, err := strconv.Atoi(n)
 		if h.tryParamError(w, err, paramNumTraces) {
+			return nil, true
+		}
+		if numTraces <= 0 {
+			err := fmt.Errorf("%s must be greater than 0", paramNumTraces)
+			h.tryHandleError(w, err, http.StatusBadRequest)
 			return nil, true
 		}
 		queryParams.SearchDepth = numTraces
