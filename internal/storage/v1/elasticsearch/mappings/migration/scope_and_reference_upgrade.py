@@ -22,8 +22,15 @@ Security environment variables:
 - ES_CA_BUNDLE: Path to CA bundle or 'False' to disable SSL verification
 """
 
+def apply_index_prefix(index_prefix, name):
+    if not index_prefix:
+        return name
+    if index_prefix.endswith("-"):
+        return f"{index_prefix}{name}"
+    return f"{index_prefix}-{name}"
+
 def update_template(es_url, index_prefix):
-    template_name = f"{index_prefix}-jaeger-span"
+    template_name = apply_index_prefix(index_prefix, "jaeger-span")
     url = f"{es_url.rstrip('/')}/_template/{template_name}"
 
     # Security parameters from environment
