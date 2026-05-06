@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -29,9 +30,9 @@ func NewWsAdapter(conn *websocket.Conn, logger *zap.Logger) *WsReadWriteCloser {
 // The caller must call Close() to release the connection.
 // On error, gorilla closes resp.Body internally (wraps it in io.NopCloser),
 // so we only read it here for diagnostic logging.
-func DialWsAdapter(ctx context.Context, url string, logger *zap.Logger) (*WsReadWriteCloser, error) {
+func DialWsAdapter(ctx context.Context, url string, requestHeader http.Header, logger *zap.Logger) (*WsReadWriteCloser, error) {
 	dialer := websocket.Dialer{HandshakeTimeout: 5 * time.Second}
-	conn, resp, err := dialer.DialContext(ctx, url, nil) //nolint:bodyclose // gorilla wraps resp.Body in io.NopCloser; no close needed
+	conn, resp, err := dialer.DialContext(ctx, url, requestHeader) //nolint:bodyclose // gorilla wraps resp.Body in io.NopCloser; no close needed
 	if err != nil {
 		if resp != nil {
 			body, _ := io.ReadAll(resp.Body)
