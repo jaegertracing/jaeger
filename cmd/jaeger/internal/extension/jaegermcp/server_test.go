@@ -652,6 +652,11 @@ func TestSearchTracesToolEmptyResults(t *testing.T) {
 	// Verify that traces:null is NOT present (the validation error we fixed)
 	assert.NotContains(t, bodyStr, `"traces":null`)
 	assert.NotContains(t, bodyStr, `"traces": null`)
+	// trace_count must always be present and 0 for empty results
+	assert.True(t,
+		bytes.Contains(body, []byte(`"trace_count":0`)) || bytes.Contains(body, []byte(`"trace_count": 0`)),
+		"expected response to contain trace_count set to 0",
+	)
 
 	// Clean up MCP session to avoid goroutine leaks
 	deleteReq, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("http://%s/mcp", addr), http.NoBody)
