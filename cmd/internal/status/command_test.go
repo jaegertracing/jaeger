@@ -69,10 +69,23 @@ func TestBodyReadFailure(t *testing.T) {
 			http.Error(w, "hijacking not supported", http.StatusInternalServerError)
 			return
 		}
-		conn, buf, _ := hj.Hijack()
-		buf.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\npartial")
-		buf.Flush()
-		conn.Close()
+		conn, buf, err := hj.Hijack()
+		require.NoError(t, err)
+		if err != nil {
+			return
+		}
+		_, err = buf.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\npartial")
+		require.NoError(t, err)
+		if err != nil {
+			return
+		}
+		err = buf.Flush()
+		require.NoError(t, err)
+		if err != nil {
+			return
+		}
+		err = conn.Close()
+		require.NoError(t, err)
 	}))
 	defer ts.Close()
 	v := viper.New()
