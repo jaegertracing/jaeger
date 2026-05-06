@@ -594,8 +594,8 @@ github.com/prometheus/otlptranslator v1.0.0 h1:s0LJW/iN9dkIH+EnhiD3BlkkP5QVIUVEo
 github.com/prometheus/otlptranslator v1.0.0/go.mod h1:vRYWnXvI6aWGpsdY/mOT/cbeVRBlPWtBNDb7kGR3uKM=
 github.com/prometheus/procfs v0.20.1 h1:XwbrGOIplXW/AU3YhIhLODXMJYyC1isLFfYCsTEycfc=
 github.com/prometheus/procfs v0.20.1/go.mod h1:o9EMBZGRyvDrSPH1RqdxhojkuXstoe4UlK79eF5TGGo=
-github.com/prometheus/prometheus v0.311.2 h1:6fBxp93y08GAZGNT1o3bIhgV/AMYvBFfU+ltDNEsHg8=
-github.com/prometheus/prometheus v0.311.2/go.mod h1:gjsCxTKtHO1Q8T9333u1s+lUR1OjPyM7ruuGH8RvVyo=
+github.com/prometheus/prometheus v0.311.3 h1:3IrVxQv6v5i/ZCGi6OrYeBhtCwaPTn6Z3DYruXoYm3M=
+github.com/prometheus/prometheus v0.311.3/go.mod h1:gjsCxTKtHO1Q8T9333u1s+lUR1OjPyM7ruuGH8RvVyo=
 github.com/prometheus/sigv4 v0.4.1 h1:EIc3j+8NBea9u1iV6O5ZAN8uvPq2xOIUPcqCTivHuXs=
 github.com/prometheus/sigv4 v0.4.1/go.mod h1:eu+ZbRvsc5TPiHwqh77OWuCnWK73IdkETYY46P4dXOU=
 github.com/puzpuzpuz/xsync/v4 v4.4.0 h1:vlSN6/CkEY0pY8KaB0yqo/pCLZvp9nhdbBdjipT4gWo=
