@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2026 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package handlers
@@ -6,6 +6,7 @@ package handlers
 import (
     "context"
     "fmt"
+    "sort"
 
     "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -13,20 +14,25 @@ import (
     "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 )
 
+// ListSkillsInput is the input for the list_skills tool (no parameters required).
 type ListSkillsInput struct{}
 
+// ListSkillsOutput is the output for the list_skills tool.
 type ListSkillsOutput struct {
     Skills []skillSummary `json:"skills"`
 }
 
+// GetSkillInput is the input for the get_skill tool.
 type GetSkillInput struct {
-    Name string `json:"name" jsonschema:"description=The unique name of the skill to retrieve."`
+    Name string `json:"name" jsonschema:"The unique name of the skill to retrieve."`
 }
 
+// GetSkillOutput is the output for the get_skill tool.
 type GetSkillOutput struct {
     Skill *types.Skill `json:"skill"`
 }
 
+// skillSummary is the lightweight representation returned by list_skills.
 type skillSummary struct {
     Name         string   `json:"name"`
     Description  string   `json:"description"`
@@ -38,6 +44,7 @@ type listSkillsHandler struct {
     loader *skills.Loader
 }
 
+// NewListSkillsHandler creates a new list_skills handler and returns the handler function.
 func NewListSkillsHandler(loader *skills.Loader) mcp.ToolHandlerFor[ListSkillsInput, ListSkillsOutput] {
     h := &listSkillsHandler{loader: loader}
     return h.handle
@@ -54,6 +61,9 @@ func (h *listSkillsHandler) handle(_ context.Context, _ *mcp.CallToolRequest, _ 
             Version:      s.Version,
         })
     }
+    sort.Slice(summaries, func(i, j int) bool {
+        return summaries[i].Name < summaries[j].Name
+    })
     return nil, ListSkillsOutput{Skills: summaries}, nil
 }
 
@@ -61,6 +71,7 @@ type getSkillHandler struct {
     loader *skills.Loader
 }
 
+// NewGetSkillHandler creates a new get_skill handler and returns the handler function.
 func NewGetSkillHandler(loader *skills.Loader) mcp.ToolHandlerFor[GetSkillInput, GetSkillOutput] {
     h := &getSkillHandler{loader: loader}
     return h.handle
@@ -76,3 +87,4 @@ func (h *getSkillHandler) handle(_ context.Context, _ *mcp.CallToolRequest, inpu
     }
     return nil, GetSkillOutput{Skill: skill}, nil
 }
+

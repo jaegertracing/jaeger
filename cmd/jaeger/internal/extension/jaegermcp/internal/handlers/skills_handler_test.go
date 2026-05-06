@@ -46,6 +46,23 @@ func TestListSkillsHandler_ReturnsSummaries(t *testing.T) {
     assert.Equal(t, "analyze-critical-path", output.Skills[0].Name)
 }
 
+func TestListSkillsHandler_SortedByName(t *testing.T) {
+    dir := t.TempDir()
+    for _, name := range []string{"zzz-skill", "aaa-skill", "mmm-skill"} {
+        content := "name: " + name + "\ndescription: test\nsystem_prompt: prompt\nallowed_tools:\n  - get_critical_path\n"
+        require.NoError(t, os.WriteFile(filepath.Join(dir, name+".yaml"), []byte(content), 0o644))
+    }
+    loader := skills.NewLoader(dir, zaptest.NewLogger(t))
+    require.NoError(t, loader.Load(context.Background(), &staticToolLister{tools: []string{"get_critical_path"}}))
+    h := &listSkillsHandler{loader: loader}
+    _, output, err := h.handle(context.Background(), nil, ListSkillsInput{})
+    require.NoError(t, err)
+    require.Len(t, output.Skills, 3)
+    assert.Equal(t, "aaa-skill", output.Skills[0].Name)
+    assert.Equal(t, "mmm-skill", output.Skills[1].Name)
+    assert.Equal(t, "zzz-skill", output.Skills[2].Name)
+}
+
 func TestGetSkillHandler_Found(t *testing.T) {
     loader := newTestLoader(t)
     h := &getSkillHandler{loader: loader}
