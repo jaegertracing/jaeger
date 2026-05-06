@@ -22,8 +22,7 @@ type Extension interface {
 	QueryService() *querysvc.QueryService
 	// TenancyManager returns the tenancy manager used by query endpoints.
 	TenancyManager() *tenancy.Manager
-	// MetricsReader returns the SPM metrics reader.
-	// Returns nil when metrics storage is not configured.
+	// MetricsReader always returns a non-nil reader. When metrics storage is not\n\t// configured, it returns a disabled reader that returns ErrDisabled on all calls.
 	MetricsReader() metricstore.Reader
 }
 
@@ -53,3 +52,4 @@ func GetExtension(host component.Host) (Extension, error) {
 
 	return ext, nil
 }
+

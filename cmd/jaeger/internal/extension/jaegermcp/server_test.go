@@ -28,6 +28,7 @@ import (
 
     "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
     "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+    "github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
     "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
     depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
     "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -53,7 +54,10 @@ func newMockQueryExtension(svc *querysvc.QueryService) *mockQueryExtension {
 
 func (m *mockQueryExtension) QueryService() *querysvc.QueryService { return m.svc }
 func (m *mockQueryExtension) TenancyManager() *tenancy.Manager     { return m.tm }
-func (m *mockQueryExtension) MetricsReader() metricstore.Reader    { return nil }
+func (m *mockQueryExtension) MetricsReader() metricstore.Reader {
+    r, _ := disabled.NewMetricsReader()
+    return r
+}
 
 type mockHost struct {
     component.Host
@@ -487,3 +491,7 @@ func TestServerMCPEndpointEnforcesTenancy(t *testing.T) {
     require.NoError(t, err)
     assert.Contains(t, string(body), "missing tenant header")
 }
+
+
+
+

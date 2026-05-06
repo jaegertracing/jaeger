@@ -30,9 +30,15 @@ type getServiceMetricsHandler struct {
 }
 
 // NewGetServiceMetricsHandler creates the get_service_metrics MCP tool handler.
+// If reader is nil (e.g. metrics storage not yet wired), a disabled reader is
+// substituted so that tool invocations return a clear error instead of panicking.
 func NewGetServiceMetricsHandler(
 	reader metricstore.Reader,
 ) mcp.ToolHandlerFor[types.GetServiceMetricsInput, types.GetServiceMetricsOutput] {
+	if reader == nil {
+		r, _ := disabled.NewMetricsReader()
+		reader = r
+	}
 	h := &getServiceMetricsHandler{reader: reader}
 	return h.handle
 }
@@ -50,10 +56,16 @@ func (h *getServiceMetricsHandler) handle(
 		return nil, types.GetServiceMetricsOutput{}, errors.New("metric_type must be one of: latency, call_rate, error_rate")
 	}
 
-	// Parse time parameters.
-	endTime, err := parseTimeParam(input.EndTime)
-	if err != nil || input.EndTime == "" {
+	// Parse end time — default to now when empty, error on invalid input.
+	var endTime time.Time
+	if input.EndTime == "" {
 		endTime = time.Now()
+	} else {
+		var err error
+		endTime, err = parseTimeParam(input.EndTime)
+		if err != nil {
+			return nil, types.GetServiceMetricsOutput{}, fmt.Errorf("invalid end_time: %w", err)
+		}
 	}
 
 	lookback := parseDurationOrDefault(input.Lookback, time.Hour)
@@ -80,7 +92,10 @@ func (h *getServiceMetricsHandler) handle(
 		SpanKinds:        input.SpanKinds,
 	}
 
-	var family *openmetrics.MetricFamily
+	var (
+		family *openmetrics.MetricFamily
+		err    error
+	)
 
 	switch input.MetricType {
 	case "latency":
@@ -128,7 +143,6 @@ func convertMetricFamily(family *openmetrics.MetricFamily, metricType string) ty
 			continue
 		}
 
-		// Extract labels.
 		var serviceName, operationName, spanKind string
 		for _, lp := range m.Labels {
 			switch lp.GetName() {
@@ -141,25 +155,19 @@ func convertMetricFamily(family *openmetrics.MetricFamily, metricType string) ty
 			}
 		}
 
-		// Convert data points.
 		var dataPoints []types.MetricDataPoint
 		for _, mp := range m.MetricPoints {
 			if mp == nil {
 				continue
 			}
-
-			// Convert gogo protobuf Timestamp to Unix milliseconds manually.
 			var tsMs int64
 			if mp.Timestamp != nil {
 				tsMs = mp.Timestamp.Seconds*1000 + int64(mp.Timestamp.Nanos)/1_000_000
 			}
-
-			// GaugeValue has its own GetDoubleValue() method.
 			var val float64
 			if g := mp.GetGaugeValue(); g != nil {
 				val = g.GetDoubleValue()
 			}
-
 			dataPoints = append(dataPoints, types.MetricDataPoint{
 				TimestampMs: tsMs,
 				Value:       val,

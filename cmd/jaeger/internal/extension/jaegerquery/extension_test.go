@@ -14,7 +14,8 @@ import (
 	"go.opentelemetry.io/collector/extension"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+    "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -34,7 +35,8 @@ func (m *mockExtension) TenancyManager() *tenancy.Manager {
 }
 
 func (m *mockExtension) MetricsReader() metricstore.Reader {
-	return nil
+    r, _ := disabled.NewMetricsReader()
+    return r
 }
 
 func TestGetExtension_Success(t *testing.T) {
@@ -121,3 +123,5 @@ func (*wrongTypeComponent) Start(_ context.Context, _ component.Host) error {
 func (*wrongTypeComponent) Shutdown(_ context.Context) error {
 	return nil
 }
+
+
