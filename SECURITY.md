@@ -145,3 +145,4 @@ For more detailed security information, see:
 | [Security Architecture](docs/security/architecture.md) | TLS and cryptographic practices |
 | [Self-Assessment](docs/security/self-assessment.md) | CNCF TAG Security self-assessment |
 | [Release Verification](docs/security/verifying-releases.md) | Release signature verification |
+| [OpenSSF Gold Evidence](docs/security/openssf-gold-evidence.md) | Current OpenSSF Best Practices badge evidence |
