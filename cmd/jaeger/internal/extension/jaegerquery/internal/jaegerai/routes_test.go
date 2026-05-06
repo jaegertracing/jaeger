@@ -9,11 +9,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
 
-func TestNewHandlerStoresConfig(t *testing.T) {
+func TestNewHandlerInitialisesStore(t *testing.T) {
 	h := NewHandler(zap.NewNop(), "ws://example", "/jaeger", 1<<20)
+	require.NotNil(t, h.store, "NewHandler must allocate a ContextualToolsStore")
 	assert.Equal(t, "ws://example", h.agentURL)
 	assert.Equal(t, "/jaeger", h.basePath)
 	assert.Equal(t, int64(1<<20), h.maxRequestBodySize)
