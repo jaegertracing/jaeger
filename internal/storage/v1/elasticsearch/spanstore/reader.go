@@ -25,6 +25,7 @@ import (
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/shared/validator"
 )
 
 const (
@@ -54,19 +55,19 @@ const (
 
 var (
 	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("service Name must be set")
+	ErrServiceNameNotSet = validator.ErrServiceNameNotSet
 
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
-	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
+	ErrStartTimeMinGreaterThanMax = validator.ErrStartTimeMinGreaterThanMax
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
-	ErrDurationMinGreaterThanMax = errors.New("duration Minimum is above Maximum")
+	ErrDurationMinGreaterThanMax = validator.ErrDurationMinGreaterThanMax
 
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("malformed request object")
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
-	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
+	ErrStartAndEndTimeNotSet = validator.ErrStartAndEndTimeNotSet
 
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
 	ErrUnableToFindTraceIDAggregation = errors.New("could not find aggregation of traceIDs")
@@ -89,7 +90,8 @@ func init() {
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"),
+	)
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -491,23 +493,13 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 	legacyTraceID := strings.TrimLeft(traceIDStr, "0")
 	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
-		elastic.NewTermQuery(traceIDField, legacyTraceID))
+		elastic.NewTermQuery(traceIDField, legacyTraceID),
+	)
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
-	if p.ServiceName == "" && len(p.Tags) > 0 {
-		return ErrServiceNameNotSet
-	}
-	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
-		return ErrStartAndEndTimeNotSet
-	}
-	if p.StartTimeMax.Before(p.StartTimeMin) {
-		return ErrStartTimeMinGreaterThanMax
-	}
-	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
-		return ErrDurationMinGreaterThanMax
-	}
-	return nil
+	// Delegates to shared validator package. Will be removed in a future PR.
+	return validator.ValidateQuery(p)
 }
 
 func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceID, error) {
