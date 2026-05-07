@@ -111,3 +111,23 @@ func TestGetWarnings_EmptySpan(t *testing.T) {
 	actual := GetWarnings(span)
 	assert.Equal(t, []string{"warning-1"}, actual)
 }
+
+// TestAddWarning_NonSliceAttribute verifies that AddWarnings does not panic when
+// the WarningsAttribute already exists but is stored as a non-slice type (e.g. a
+// plain string written by Elasticsearch or another backend). The existing value
+// must be preserved as the first element of the upgraded slice.
+func TestAddWarning_NonSliceAttribute(t *testing.T) {
+	span := ptrace.NewSpan()
+	// Simulate malformed data: attribute exists but is a string, not a slice.
+	span.Attributes().PutStr(WarningsAttribute, "pre-existing string warning")
+	// Must not panic, and must preserve the existing string value.
+	require.NotPanics(t, func() {
+		AddWarnings(span, "new warning")
+	})
+	warnings, ok := span.Attributes().Get(WarningsAttribute)
+	require.True(t, ok)
+	// The existing string is upgraded to the first element; new warning appended.
+	require.Equal(t, 2, warnings.Slice().Len())
+	assert.Equal(t, "pre-existing string warning", warnings.Slice().At(0).Str())
+	assert.Equal(t, "new warning", warnings.Slice().At(1).Str())
+}
