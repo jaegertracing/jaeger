@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/ClickHouse/ch-go v0.71.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.45.0
-	github.com/apache/cassandra-gocql-driver/v2 v2.1.0
+	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/coder/acp-go-sdk v0.6.4-0.20260227160919-584abe6abe22
