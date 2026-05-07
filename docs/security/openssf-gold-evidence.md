@@ -50,6 +50,7 @@ Use the following replacements for stale badge evidence.
 | `test_invocation` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#getting-started` and `https://github.com/jaegertracing/jaeger/blob/main/Makefile` |
 | `test_continuous_integration` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-orchestrator.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md` |
 | `security_review` | Historical public audits are available at `https://github.com/jaegertracing/security-audits`; current-within-5-years evidence is tracked by issue `https://github.com/jaegertracing/jaeger/issues/8485`. |
+| `hardened_headers` | `https://github.com/jaegertracing/documentation/blob/main/netlify.toml` and verified headers for `https://www.jaegertracing.io/` via audit in issue `#8484` |
 
 ## Remaining Gold Work
 
