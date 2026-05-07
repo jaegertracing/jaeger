@@ -15,8 +15,10 @@ import (
 	"testing"
 	"time"
 
+	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -145,6 +147,16 @@ func startMockACPWebSocketServer(t *testing.T, agent *mockACPAgent) (string, fun
 	return wsURL, cleanup
 }
 
+// newAGUIRequest builds a minimal AG-UI RunAgentInput carrying a single
+// user message with the supplied prompt text. Tests that need richer
+// payloads (tools, context, thread/run ids) construct ChatRequest
+// inline.
+func newAGUIRequest(prompt string) ChatRequest {
+	return ChatRequest{
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: prompt}},
+	}
+}
+
 func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	agent := &mockACPAgent{}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
@@ -152,7 +164,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20)
 
-	reqBody, err := json.Marshal(ChatRequest{Prompt: "trace for service checkout"})
+	reqBody, err := json.Marshal(newAGUIRequest("trace for service checkout"))
 	require.NoError(t, err, "failed to marshal request")
 
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
@@ -176,16 +188,165 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
 	require.Empty(t, sessionReq.McpServers,
-		"PR1 must not advertise gateway-hosted MCP servers; contextual tools ride ACP extension methods now")
+		"PR2 must not advertise gateway-hosted MCP servers; contextual tools ride ACP extension methods now")
+	require.Empty(t, sessionReq.Meta,
+		"Meta must be omitted when the AG-UI request carries no tools")
 
 	require.EqualValues(t, "sess-test", promptReq.SessionId, "prompt sessionId mismatch")
 	require.Len(t, promptReq.Prompt, 1, "prompt content length mismatch")
 	require.NotNil(t, promptReq.Prompt[0].Text, "prompt text should not be nil")
 	require.Equal(t, "trace for service checkout", promptReq.Prompt[0].Text.Text, "prompt text mismatch")
 
-	require.Equal(t, "text/plain; charset=utf-8", rr.Header().Get("Content-Type"), "content type mismatch")
+	require.Equal(t, "text/event-stream", rr.Header().Get("Content-Type"), "content type mismatch")
 	require.Equal(t, "no-cache", rr.Header().Get("Cache-Control"), "cache-control mismatch")
 	require.Empty(t, rr.Header().Get("Connection"), "Connection is a hop-by-hop header managed by net/http")
+}
+
+func TestChatHandlerAppendsContextEntriesToPromptBlocks(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+
+	reqBody, err := json.Marshal(ChatRequest{
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "where is the latency?"}},
+		Context: []aguitypes.Context{
+			{Description: "trace_id", Value: "abc-123"},
+			{Value: "user pressed checkout"},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, _, promptReq := agent.snapshot()
+	require.NotNil(t, promptReq)
+	require.Len(t, promptReq.Prompt, 3, "expected one user-message block plus two context blocks")
+	require.Equal(t, "where is the latency?", promptReq.Prompt[0].Text.Text)
+	require.Equal(t, "trace_id:\nabc-123", promptReq.Prompt[1].Text.Text)
+	require.Equal(t, "user pressed checkout", promptReq.Prompt[2].Text.Text)
+}
+
+func TestChatHandlerAttachesContextualToolsToMetaAndStore(t *testing.T) {
+	// AG-UI tools on the request should land both on NewSessionRequest._meta
+	// (so the sidecar can register them with the LLM) and in
+	// ContextualToolsStore (so handleJaegerToolCall can resolve callbacks).
+	// Tool names must be UIToolPrefix-prefixed in both places, and the
+	// store entry must be cleared once the turn ends.
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	store := NewContextualToolsStore()
+	handler := NewChatHandler(zap.NewNop(), store, wsURL, "", 1<<20)
+
+	reqBody, err := json.Marshal(ChatRequest{
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}},
+		Tools: []aguitypes.Tool{
+			{Name: "render_chart", Description: "draw a chart", Parameters: map[string]any{"type": "object"}},
+		},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	require.NotEmpty(t, sessionReq.Meta, "Meta must be populated when the request carries tools")
+	// Meta is map[string]any, so after JSON round-trip the contextual tools
+	// payload arrives as a generic decoded shape rather than typed slices.
+	payload, ok := sessionReq.Meta[ContextualToolsMetaKey].(map[string]any)
+	require.True(t, ok, "Meta must contain the contextual tools key as a map")
+	tools, ok := payload["tools"].([]any)
+	require.True(t, ok, "Meta tools entry must decode as a JSON array")
+	require.Len(t, tools, 1)
+	first, ok := tools[0].(map[string]any)
+	require.True(t, ok, "tool entry must decode as an object")
+	assert.Equal(t, UIToolPrefix+"render_chart", first["name"],
+		"the gateway must prepend UIToolPrefix before exposing the tool")
+
+	// SetForSession was called with the same prefixed payload, and
+	// DeleteForSession must have run via defer once the turn finished.
+	assert.Nil(t, store.GetContextualToolsForSession("sess-test"),
+		"store entry should be cleared after the turn ends")
+}
+
+func TestChatHandlerOmitsMetaWhenNoTools(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), NewContextualToolsStore(), wsURL, "", 1<<20)
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	require.Empty(t, sessionReq.Meta,
+		"Meta must stay nil/empty when no tools are sent so the sidecar does not see a stale snapshot")
+}
+
+func TestChatHandlerEmitsRunFinishedWithStopReason(t *testing.T) {
+	agent := &mockACPAgent{promptStopReason: acp.StopReasonMaxTokens}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	events := parseSSEEvents(t, rr.Body.String())
+	types := eventTypes(events)
+	require.Equal(t, []string{"RUN_STARTED", "RUN_FINISHED"}, types,
+		"a turn with no streamed text should emit just the lifecycle frames")
+	assert.Equal(t, "max_tokens", events[1]["stopReason"])
+}
+
+func TestChatHandlerPropagatesThreadAndRunIDs(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+
+	reqBody, err := json.Marshal(ChatRequest{
+		ThreadID: "thread-xyz",
+		RunID:    "run-789",
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}},
+	})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	events := parseSSEEvents(t, rr.Body.String())
+	require.NotEmpty(t, events)
+	assert.Equal(t, "thread-xyz", events[0]["threadId"])
+	assert.Equal(t, "run-789", events[0]["runId"])
 }
 
 type failingFlusherResponseWriter struct {
@@ -244,7 +405,7 @@ func TestChatHandlerBadRequest(t *testing.T) {
 
 func TestChatHandlerEmptyPrompt(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "   "})
+	body, err := json.Marshal(newAGUIRequest("   "))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -255,9 +416,25 @@ func TestChatHandlerEmptyPrompt(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "prompt is required")
 }
 
+func TestChatHandlerNoUserMessage(t *testing.T) {
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
+	body, err := json.Marshal(ChatRequest{
+		Messages: []aguitypes.Message{{Role: "assistant", Content: "no user message in this run"}},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code,
+		"a RunAgentInput with no user message must fail with 400, not silently succeed")
+	require.Contains(t, rr.Body.String(), "prompt is required")
+}
+
 func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 10)
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"prompt":"this body exceeds the 10 byte limit"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"this body exceeds the 10 byte limit"}]}`))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
@@ -267,7 +444,7 @@ func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 
 func TestChatHandlerDialFailure(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -283,7 +460,7 @@ func TestChatHandlerInitializeError(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -300,7 +477,7 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -312,37 +489,32 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 }
 
 func TestChatHandlerPromptError(t *testing.T) {
+	// Once the SSE response has been committed (Content-Type set, RUN_STARTED
+	// emitted), a Prompt failure cannot rewrite the status code — instead the
+	// handler must emit a RUN_ERROR event so the AG-UI client can finalise.
 	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusBadGateway, rr.Code, "unexpected status code, body=%q", rr.Body.String())
-	require.Contains(t, rr.Body.String(), "Error starting prompt", "expected prompt error message")
-}
-
-func TestChatHandlerNonEndTurnStopReason(t *testing.T) {
-	agent := &mockACPAgent{promptStopReason: acp.StopReasonMaxTokens}
-	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
-	defer cleanup()
-
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
-	require.NoError(t, err, "failed to marshal request")
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code")
-	require.Contains(t, rr.Body.String(), "[stop_reason] max_tokens", "expected stop_reason marker in response")
+	require.Equal(t, http.StatusOK, rr.Code,
+		"SSE response is already committed by the time Prompt is called, so the handler must signal failure inline")
+	events := parseSSEEvents(t, rr.Body.String())
+	types := eventTypes(events)
+	require.Contains(t, types, "RUN_ERROR")
+	for _, e := range events {
+		if e["type"] == "RUN_ERROR" {
+			require.Contains(t, e["message"], "Error starting prompt")
+			return
+		}
+	}
 }
 
 func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
@@ -362,7 +534,7 @@ func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -371,21 +543,26 @@ func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Contains(t, rr.Body.String(), "streamed-via-notification",
-		"SessionUpdate should be flushed before Prompt() returns")
+		"streamed delta must be flushed (inside a TEXT_MESSAGE_CONTENT frame) before Prompt() returns")
 }
 
 func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
+	// When the response writer fails after headers have been committed, the
+	// handler still completes via failRun → write attempts → silent close.
+	// The recorder reports whatever status the underlying writer captured;
+	// here, Write sets it to 200 on the first call.
 	agent := &mockACPAgent{promptErr: errors.New("prompt failed")}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	w := &failingFlusherResponseWriter{}
 
 	handler.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
+	require.Equal(t, http.StatusOK, w.status,
+		"Write captures status 200 when the first SSE frame attempt fails; no later WriteHeader override is allowed")
 }

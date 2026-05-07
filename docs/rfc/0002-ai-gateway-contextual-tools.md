@@ -190,8 +190,8 @@ flowchart TB
         AGENT --> LOOP --> MCPC
     end
 
-    UI -- "POST /api/ai/chat<br>{prompt, tools}" --> handler
-    SC -- "Streaming text + tool-call relay" --> UI
+    UI -- "POST /api/ai/chat<br>(AG-UI RunAgentInput)" --> handler
+    SC -- "SSE (AG-UI events)" --> UI
     handler -- "WebSocket (ACP, incl. ext method)" --> AGENT
     MCPC -- "HTTP (MCP)" --> MCP
 ```
@@ -217,10 +217,14 @@ Routes inbound JSON-RPC from the sidecar:
 
 `handleJaegerToolCall`:
 - Strips the `ui_` prefix from the inbound tool name (see §6.5).
-- Looks the call up in `ContextualToolsStore`.
-- Relays the call to the originating browser via the open HTTP chat response stream (PR2).
-- Awaits the browser's result.
-- Returns a `CallToolResult`-shaped JSON-RPC response to the sidecar.
+- Logs the dispatch (session id, stripped name, prefixed name, raw args) for observability.
+- Returns a fire-and-forget acknowledgement (`{result: {acknowledged: true}, isError: false}`) immediately.
+
+The browser does **not** round-trip a tool result back. UI tools are
+side effects (navigate, render, set filters); the browser executes them
+locally based on the AG-UI `TOOL_CALL_*` SSE events that the streaming
+client emits in parallel with the ext_method dispatch. See §6.6 for the
+rationale.
 
 #### Sidecar (Gemini reference impl)
 
@@ -250,12 +254,13 @@ sequenceDiagram
 
     alt Built-in MCP tool
         SC->>SC: call MCP server directly
-    else Contextual tool
+    else Contextual tool (fire-and-forget)
+        SC->>UI: SessionUpdate (start_tool_call) → AG-UI TOOL_CALL_START/ARGS
         SC->>DSP: ACP _meta/jaegertracing.io/tools/call<br>{sessionId, name, args}
-        DSP->>DSP: strip ui_ prefix, lookup snapshot
-        DSP-->>UI: relay tool call via streaming response
-        UI-->>DSP: tool result
-        DSP-->>SC: CallToolResult
+        DSP->>DSP: strip ui_ prefix, log dispatch
+        DSP-->>SC: {acknowledged: true}
+        SC->>UI: SessionUpdate (update_tool_call status=completed) → AG-UI TOOL_CALL_END
+        Note over UI: browser executes side effect locally
     end
 
     SC-->>LLM: function_response
@@ -279,13 +284,95 @@ So the natural shape of "tools change when the user navigates" is already the pr
 - **Meta key `jaegertracing.io/contextual-tools`**: namespaced under our domain to avoid collision with other meta consumers.
 - **ACP method `_meta/jaegertracing.io/tools/call`**: same namespacing.
 
-### 6.6 Error and Edge-Case Handling
+### 6.6 Why Fire-and-Forget
+
+UI tools are commands, not queries. `show_flamegraph(trace_id)`,
+`highlight_span(span_id)`, `set_filter(...)` — none of these have a
+meaningful return value to feed back into the LLM. The model's job is to
+decide *when* to invoke them; the browser's job is to perform the side
+effect once it sees the call.
+
+This rules out the more obvious synchronous-round-trip design (where the
+gateway blocks on the ext_method waiting for the browser to POST a tool
+result) for several reasons:
+
+- **No genuine result data.** The browser would have nothing useful to
+  return except `{ok: true}`, which is what the gateway can emit on its own.
+- **Avoids a bidirectional back-channel.** Synchronous round-trip needs a
+  separate `POST /api/ai/tool-result` endpoint plus per-call rendezvous
+  state inside the gateway, with timeout handling and orphan cleanup.
+  Fire-and-forget needs none of that.
+- **Single-turn UX.** With acknowledgement, Gemini's agentic loop
+  continues in the same `Prompt` call and produces a final answer in one
+  SSE stream — the user sees one coherent response rather than a turn
+  ending mid-stream while waiting for browser execution.
+- **Matches AG-UI semantics in practice.** The browser receives
+  `TOOL_CALL_START/ARGS/END` SSE events and acts on them; whether or not a
+  matching result message goes back is up to the agent. We choose not to.
+
+### 6.7 Error and Edge-Case Handling
 
 - **Frontend ships invalid tool JSON**: `ContextualToolsStore.Set` skips entries that do not parse; an all-invalid set deletes any prior entry rather than persisting an empty slice.
-- **LLM calls a contextual tool name that the store has no record of**: dispatcher returns a JSON-RPC error to the sidecar; the sidecar surfaces it as a tool error to the LLM.
-- **Browser disconnects mid-tool-call**: the streaming HTTP response writer fails; the dispatcher cancels the in-flight relay and returns an error to the sidecar.
-- **Turn ends before tool result arrives**: the chat handler's `defer Delete` runs; any further extension-method invocations under that id return "no snapshot".
+- **Sidecar dispatches with empty `sessionId`/`name`**: dispatcher rejects with `InvalidParams`; the sidecar surfaces this as a tool error to the LLM.
+- **Sidecar dispatches a name that strips to empty after `ui_`**: same `InvalidParams` rejection — guards against a malformed prefix that would otherwise produce an empty tool name.
+- **Sidecar dispatches without the `ui_` prefix**: dispatcher logs a warning and passes the name through unchanged so older sidecars keep working during a phased prefix rollout.
+- **Browser disconnects mid-turn**: SSE writes start failing, the streaming client marks itself closed, but the ext_method ack is independent of the SSE stream so Gemini still completes the turn server-side. The gateway's `defer DeleteForSession` cleans up.
 - **Concurrent turns from the same tab**: each turn opens its own ACP session and gets its own session id, so store entries do not collide. The browser is responsible for not sending overlapping requests on the same chat thread.
+
+---
+
+## 7. Implementation Plan
+
+The work landed in two PRs against `jaegertracing/jaeger`:
+
+### PR1 — Contextual tools machinery (#8423, merged 2026-05-07)
+
+- New `ContextualToolsStore` keyed by ACP session id, with defensive
+  JSON validation and clone-on-set semantics.
+- New custom ACP dispatcher (`acp.NewConnection(newDispatcher(...))`) that
+  routes the standard `session/update` and `session/request_permission`
+  methods plus the new `_meta/jaegertracing.io/tools/call` extension method.
+- The ext_method handler validates the payload, strips the `ui_` prefix,
+  and returns a placeholder result. Real wiring (Meta population, store
+  writes, SSE emission) follows in PR2.
+- Sidecar (Python reference impl) reads `field_meta`, registers contextual
+  tools with Gemini, and dispatches `_meta/jaegertracing.io/tools/call`
+  back via `conn.ext_method` when the LLM picks one.
+
+### PR2 — AG-UI gateway + end-to-end wiring
+
+- Chat endpoint accepts AG-UI `RunAgentInput` (`messages`, `tools`,
+  `context`, `threadId`, `runId`) and emits AG-UI SSE events
+  (`RUN_STARTED`, `TEXT_MESSAGE_START/CONTENT/END`,
+  `TOOL_CALL_START/ARGS/RESULT/END`, `RUN_FINISHED`, `RUN_ERROR`).
+- New `translation.go` with helpers for extracting prompt text, context
+  entries, and encoding tools.
+- `streamingClient` rewritten to translate ACP `session/update` events to
+  AG-UI SSE frames; lifecycle (`startRun` / `finishRun` / `failRun`) is
+  driven by the chat handler.
+- Chat handler populates `NewSessionRequest.Meta` with the prefixed
+  contextual-tools snapshot, calls `SetForSession` after
+  `NewSessionResponse`, and `defer`s `DeleteForSession`.
+- Dispatcher's ext_method handler switches from "placeholder" to
+  fire-and-forget acknowledgement (`{result: {acknowledged: true}}`).
+
+---
+
+## 8. Open Questions
+
+- **Authentication / authorization on the chat endpoint.** PR2 reuses
+  whatever middleware the surrounding `jaeger-query` HTTP server applies.
+  A future PR may want to gate AI features behind a separate flag.
+- **Tool call observability.** The gateway currently logs each
+  ext_method dispatch. Promoting this to a structured OTel span
+  alongside the existing tracing middleware would make UI tool latency
+  visible end-to-end.
+- **Tool name validation policy.** Beyond `ui_` prefix and non-empty
+  name, the gateway does not validate user-supplied tool definitions.
+  A future PR may want to bound tool count, parameter-schema size, or
+  reject reserved characters.
+- **AG-UI client implementation.** The browser-side AG-UI client lives
+  in the `jaeger-ui` repo and is tracked separately.
 
 ---
 
@@ -331,15 +418,14 @@ So the natural shape of "tools change when the user navigates" is already the pr
 **Response payload:**
 ```jsonc
 {
-  "result": <browser-supplied result>,
+  "result": { "acknowledged": true },
   "isError": false
 }
 ```
 
-In PR1, the gateway returns a logged placeholder:
-```jsonc
-{ "result": null, "note": "tool logged, AG-UI relay not yet wired" }
-```
+The gateway always returns this fire-and-forget acknowledgement once the
+payload validates and the prefix strip succeeds. Errors during validation
+yield JSON-RPC `InvalidParams`; everything else short-circuits to the ack.
 
 ### 9.3 Constants
 
