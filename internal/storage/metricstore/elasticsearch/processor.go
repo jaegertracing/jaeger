@@ -18,23 +18,22 @@ func ScaleAndRoundLatencies(mf *metrics.MetricFamily) *metrics.MetricFamily {
 // CalculateCallRates processes raw call rate metrics by calculating rates and trimming to time range.
 func CalculateCallRates(mf *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
 	// Delegates to shared processor package. Will be removed in a future PR.
-	sharedTimeRange := processor.TimeRange{
-		StartTimeMillis:         timeRange.startTimeMillis,
-		EndTimeMillis:           timeRange.endTimeMillis,
-		ExtendedStartTimeMillis: timeRange.extendedStartTimeMillis,
-	}
-	return processor.CalculateCallRates(mf, params, sharedTimeRange)
+	return processor.CalculateCallRates(mf, params, toSharedTimeRange(timeRange))
 }
 
 // CalculateErrorRates processes error rate metrics by computing error rates from errors and calls.
 func CalculateErrorRates(rawErrors, calls *metrics.MetricFamily, params metricstore.BaseQueryParameters, timeRange TimeRange) *metrics.MetricFamily {
 	// Delegates to shared processor package. Will be removed in a future PR.
-	sharedTimeRange := processor.TimeRange{
-		StartTimeMillis:         timeRange.startTimeMillis,
-		EndTimeMillis:           timeRange.endTimeMillis,
-		ExtendedStartTimeMillis: timeRange.extendedStartTimeMillis,
+	return processor.CalculateErrorRates(rawErrors, calls, params, toSharedTimeRange(timeRange))
+}
+
+// toSharedTimeRange converts metricstore TimeRange to shared processor TimeRange.
+func toSharedTimeRange(tr TimeRange) processor.TimeRange {
+	return processor.TimeRange{
+		StartTimeMillis:         tr.startTimeMillis,
+		EndTimeMillis:           tr.endTimeMillis,
+		ExtendedStartTimeMillis: tr.extendedStartTimeMillis,
 	}
-	return processor.CalculateErrorRates(rawErrors, calls, params, sharedTimeRange)
 }
 
 // Unexported helper functions below delegate to shared package for testing purposes.
