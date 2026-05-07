@@ -36,15 +36,28 @@ type DistributedElectionParticipant struct {
 	wg           sync.WaitGroup
 }
 
-// ElectionParticipantOptions control behavior of the election participant. TODO func applyDefaults(), parameter error checking, etc.
+// ElectionParticipantOptions control behavior of the election participant.
 type ElectionParticipantOptions struct {
 	LeaderLeaseRefreshInterval   time.Duration
 	FollowerLeaseRefreshInterval time.Duration
 	Logger                       *zap.Logger
 }
 
+func (o *ElectionParticipantOptions) applyDefaults() {
+	if o.LeaderLeaseRefreshInterval == 0 {
+		o.LeaderLeaseRefreshInterval = 5 * time.Second
+	}
+	if o.FollowerLeaseRefreshInterval == 0 {
+		o.FollowerLeaseRefreshInterval = 60 * time.Second
+	}
+	if o.Logger == nil {
+		o.Logger = zap.NewNop()
+	}
+}
+
 // NewElectionParticipant returns a ElectionParticipant which attempts to become leader.
 func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) *DistributedElectionParticipant {
+	options.applyDefaults()
 	return &DistributedElectionParticipant{
 		ElectionParticipantOptions: options,
 		lock:                       lock,

@@ -95,6 +95,14 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	assert.False(t, p.IsLeader())
 }
 
+func TestOptionsDefaults(t *testing.T) {
+	opts := ElectionParticipantOptions{}
+	opts.applyDefaults()
+	assert.Equal(t, 5*time.Second, opts.LeaderLeaseRefreshInterval)
+	assert.Equal(t, 60*time.Second, opts.FollowerLeaseRefreshInterval)
+	assert.NotNil(t, opts.Logger)
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
