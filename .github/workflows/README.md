@@ -25,7 +25,7 @@ The `setup` job determines whether to use parallel execution based on these **OR
 | `merge_group` event | Merge Queue entry, high confidence |
 | PR author is an org member (`MEMBER` or `OWNER`) | Trusted maintainer |
 | PR author has 5+ merged PRs in this repo | Established contributor. Covers private org members whose `author_association` is incorrectly reported as `CONTRIBUTOR` when they lack direct team access. |
-| PR author login is `dependabot[bot]` or `renovate-bot` | Dependency automation bots |
+| PR author login is `dependabot[bot]`, `renovate-bot`, or `Copilot` | Dependency automation bots and the Copilot coding agent (`Copilot` is the `user.login` for `copilot-swe-agent[bot]`; GitHub Search API returns 422 for that login so the merged-PR fallback cannot detect it) |
 | PR has the `ci:parallel` label | Explicit opt-in |
 
 #### Stage Workflows (DRY Encapsulation)
