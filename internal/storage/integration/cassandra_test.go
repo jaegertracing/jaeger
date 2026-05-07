@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 
 	casconfig "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	cassandrav1 "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/cassandra"
@@ -30,9 +31,7 @@ type CassandraStorageIntegration struct {
 func newCassandraStorageIntegration() *CassandraStorageIntegration {
 	s := &CassandraStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			GetDependenciesReturnsSource: true,
-
-			SkipList: CassandraSkippedTests,
+			Capabilities: capabilities.Cassandra(),
 		},
 	}
 	s.CleanUp = s.cleanUp

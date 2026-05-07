@@ -5,7 +5,7 @@ BINARY ?= jaeger # Default value uses v2 binary
 
 .PHONY: build
 build: clean-jaeger
-	cd ../../ && make build-$(BINARY) GOOS=linux 
+	cd ../../ && make build-$(BINARY) GOOS=linux
 	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
 	cd ../../ && docker buildx build --target release \
 		--tag jaegertracing/$(BINARY):dev \
@@ -19,7 +19,7 @@ build: clean-jaeger
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
 dev: export JAEGER_VERSION = dev
-dev: 
+dev:
 	docker compose up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: elasticsearch
@@ -31,6 +31,11 @@ elasticsearch:
 opensearch: export JAEGER_VERSION = dev
 opensearch:
 	docker compose -f docker-compose-opensearch.yml up $(DOCKER_COMPOSE_ARGS)
+
+.PHONY: clickhouse
+clickhouse: export JAEGER_VERSION = dev
+clickhouse:
+	docker compose -f docker-compose-clickhouse.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger
 clean-jaeger:

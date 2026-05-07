@@ -20,12 +20,12 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 
 	for _, spanID := range spanIDs {
 		span, ok := spanMap[spanID]
-		if !ok || len(span.References) == 0 {
+		if !ok || span.ParentSpanID.IsEmpty() {
 			continue
 		}
 
 		// parentSpan will be undefined when its parent was dropped previously
-		parentSpan, parentExists := spanMap[span.References[0].SpanID]
+		parentSpan, parentExists := spanMap[span.ParentSpanID]
 		if !parentExists {
 			// Drop the child spans of dropped parent span
 			delete(spanMap, span.SpanID)
@@ -97,23 +97,6 @@ func removeOverflowingChildren(spanMap map[pcommon.SpanID]CPSpan) map[pcommon.Sp
 			span.StartTime = parentSpan.StartTime
 			span.Duration = parentEndTime - parentSpan.StartTime
 			spanMap[span.SpanID] = span
-		}
-	}
-
-	// Updated spanIds to ensure not to include dropped spans
-	spanIDs = make([]pcommon.SpanID, 0, len(spanMap))
-	for spanID := range spanMap {
-		spanIDs = append(spanIDs, spanID)
-	}
-
-	// Update Child Span References with updated parent span
-	for _, spanID := range spanIDs {
-		span := spanMap[spanID]
-		if len(span.References) > 0 {
-			if parentSpan, ok := spanMap[span.References[0].SpanID]; ok {
-				span.References[0].Span = &parentSpan
-				spanMap[spanID] = span
-			}
 		}
 	}
 

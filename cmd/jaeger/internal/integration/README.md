@@ -82,7 +82,7 @@ flowchart LR
         RPCR --> QueryProcess[jaeger_query]
         StorageCleaner -->|purge| StorageBackend
         QueryProcess --> StorageBackend
-        
+
 
         subgraph Integration_Test_Executable
             Test

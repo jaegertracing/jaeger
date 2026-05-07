@@ -8,7 +8,7 @@ Security fixes are given priority and might be enough to cause a new version to 
 
 ### Security Patch Policy
 
-CVEs in Jaeger code will be patched in the newest Jaeger releases. 
+CVEs in Jaeger code will be patched in the newest Jaeger releases.
 
 ### Dependency Policy
 
@@ -145,3 +145,4 @@ For more detailed security information, see:
 | [Security Architecture](docs/security/architecture.md) | TLS and cryptographic practices |
 | [Self-Assessment](docs/security/self-assessment.md) | CNCF TAG Security self-assessment |
 | [Release Verification](docs/security/verifying-releases.md) | Release signature verification |
+| [OpenSSF Gold Evidence](docs/security/openssf-gold-evidence.md) | Current OpenSSF Best Practices badge evidence |

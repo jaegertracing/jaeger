@@ -37,7 +37,7 @@ jobs:
     name: ${{ matrix.version.distribution }}-${{ matrix.version.major }} ${{ matrix.storage_test }} schema=${{ matrix.create-schema }}
     steps:
     - name: Harden Runner
-      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -52,7 +52,7 @@ jobs:
       run: bash scripts/e2e/cassandra.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.storage_test }}
       env:
         SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
-     
+
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.storage_test == 'e2e'
       with:
@@ -64,5 +64,5 @@ jobs:
       with:
         files: cover.out
         flag: cassandra-${{ matrix.version.major }}-${{ matrix.storage_test }}-${{ matrix.create-schema }}
-    
-    
+
+

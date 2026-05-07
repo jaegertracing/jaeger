@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
@@ -189,6 +190,18 @@ func initRouter(
 	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
+
+	// AI Gateway Endpoints
+	if queryOpts.AI.HasValue() {
+		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
+			if err := aiCfg.Validate(); err != nil {
+				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
+			} else {
+				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+			}
+		}
+	}
+
 	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})

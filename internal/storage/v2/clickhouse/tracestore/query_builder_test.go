@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
 
@@ -28,7 +29,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s := attrs.PutEmptySlice("bad_slice")
 		s.AppendEmpty()
 
-		reader := NewReader(&testDriver{t: t}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -40,7 +41,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m := attrs.PutEmptyMap("bad_map")
 		m.PutEmpty("key")
 
-		reader := NewReader(&testDriver{t: t}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -49,12 +50,11 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 }
 
 func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
-	td := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	td := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
-				rows: nil,
-				err:  assert.AnError,
+				Rows: nil,
+				Err:  assert.AnError,
 			},
 		},
 	}

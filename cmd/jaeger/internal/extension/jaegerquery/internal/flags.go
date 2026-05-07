@@ -5,11 +5,13 @@
 package app
 
 import (
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -22,6 +24,32 @@ type UIConfig struct {
 	AssetsPath string `mapstructure:"assets_path" valid:"optional" `
 	// LogAccess tells static handler to log access to static assets, useful in debugging.
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
+}
+
+// DefaultMaxRequestBodySize is the fallback limit applied when
+// AIConfig.MaxRequestBodySize is left unset (zero).
+const DefaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
+
+type AIConfig struct {
+	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
+	// For example, ws://localhost:16688
+	// See https://agentclientprotocol.com/
+	AgentURL string `mapstructure:"agent_url" valid:"required"`
+	// A value of 0 selects DefaultMaxRequestBodySize; negative values are rejected.
+	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
+}
+
+// Validate checks the AI config and applies DefaultMaxRequestBodySize in place
+// when MaxRequestBodySize is zero; the pointer receiver is required so the
+// default persists back to the caller's config.
+func (c *AIConfig) Validate() error {
+	if c.MaxRequestBodySize < 0 {
+		return errors.New("ai.max_request_body_size must be a non-negative integer")
+	}
+	if c.MaxRequestBodySize == 0 {
+		c.MaxRequestBodySize = DefaultMaxRequestBodySize
+	}
+	return nil
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2
@@ -45,11 +73,17 @@ type QueryOptions struct {
 	HTTP confighttp.ServerConfig `mapstructure:"http"`
 	// GRPC holds the GRPC configuration that the query service uses to serve requests.
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
+	// AI holds configuration related to Jaeger AI gateway integration.
+	AI configoptional.Optional[AIConfig] `mapstructure:"ai"`
 }
 
 func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
+		AI: configoptional.Default(AIConfig{
+			AgentURL:           "ws://localhost:16688",
+			MaxRequestBodySize: DefaultMaxRequestBodySize,
+		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
 				Endpoint:  ports.PortToHostPort(ports.QueryHTTP),

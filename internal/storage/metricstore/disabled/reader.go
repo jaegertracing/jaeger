@@ -5,7 +5,6 @@ package disabled
 
 import (
 	"context"
-	"time"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -45,9 +44,4 @@ func (*MetricsReader) GetCallRates(context.Context, *metricstore.CallRateQueryPa
 // GetErrorRates gets the error rate metrics for the given set of error rate query parameters.
 func (*MetricsReader) GetErrorRates(context.Context, *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	return nil, ErrDisabled
-}
-
-// GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
-func (*MetricsReader) GetMinStepDuration(context.Context, *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return 0, ErrDisabled
 }

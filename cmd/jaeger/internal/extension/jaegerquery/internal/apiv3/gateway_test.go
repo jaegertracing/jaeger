@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
@@ -76,7 +77,7 @@ func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	}
 	snapshot, err := os.ReadFile(snapshotFile)
 	require.NoError(t, err)
-	assert.Equal(t, string(snapshot), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+	assert.Equal(t, strings.TrimRight(string(snapshot), "\n"), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 	return body
 }
 

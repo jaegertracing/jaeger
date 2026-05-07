@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
@@ -19,7 +20,7 @@ func TestTagInsertionString(t *testing.T) {
 }
 
 func TestTraceIDString(t *testing.T) {
-	id := TraceIDFromDomain(model.NewTraceID(1, 1))
+	id := TraceID{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1}
 	assert.Equal(t, "00000000000000010000000000000001", id.String())
 }
 
@@ -399,5 +400,180 @@ func TestSortKVs_WithValue(t *testing.T) {
 	want := []string{"a", "b", "c", "d", "e"}
 	for i, kv := range kvs {
 		assert.Equal(t, want[i], kv.ValueString)
+	}
+}
+
+func TestCompareKVs(t *testing.T) {
+	tests := []struct {
+		name   string
+		a, b   []KeyValue
+		expect int
+	}{
+		{
+			name:   "equal empty",
+			a:      []KeyValue{},
+			b:      []KeyValue{},
+			expect: 0,
+		},
+		{
+			name:   "length mismatch",
+			a:      []KeyValue{{Key: "a"}},
+			b:      []KeyValue{},
+			expect: 1,
+		},
+		{
+			name:   "content mismatch",
+			a:      []KeyValue{{Key: "a"}},
+			b:      []KeyValue{{Key: "b"}},
+			expect: -1,
+		},
+		{
+			name:   "equal content",
+			a:      []KeyValue{{Key: "a", ValueType: StringType, ValueString: "v"}},
+			b:      []KeyValue{{Key: "a", ValueType: StringType, ValueString: "v"}},
+			expect: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, compareKVs(tc.a, tc.b))
+		})
+	}
+}
+
+func TestSortLogs(t *testing.T) {
+	logs := []Log{
+		{Timestamp: 2, Fields: []KeyValue{{Key: "a"}}},
+		{Timestamp: 1, Fields: []KeyValue{{Key: "b"}}},
+		{Timestamp: 2, Fields: []KeyValue{{Key: "b"}}},
+	}
+	SortLogs(logs)
+	assert.Equal(t, int64(1), logs[0].Timestamp)
+	assert.Equal(t, int64(2), logs[1].Timestamp)
+	assert.Equal(t, "a", logs[1].Fields[0].Key)
+	assert.Equal(t, int64(2), logs[2].Timestamp)
+	assert.Equal(t, "b", logs[2].Fields[0].Key)
+}
+
+func TestSortSpanRefs(t *testing.T) {
+	refs := []SpanRef{
+		{TraceID: TraceID{2}, SpanID: 1, RefType: ChildOf},
+		{TraceID: TraceID{1}, SpanID: 2, RefType: ChildOf},
+		{TraceID: TraceID{1}, SpanID: 1, RefType: FollowsFrom},
+		{TraceID: TraceID{1}, SpanID: 1, RefType: ChildOf},
+	}
+	SortSpanRefs(refs)
+	assert.Equal(t, byte(1), refs[0].TraceID[0])
+	assert.Equal(t, int64(1), refs[0].SpanID)
+	assert.Equal(t, ChildOf, refs[0].RefType)
+
+	assert.Equal(t, byte(1), refs[1].TraceID[0])
+	assert.Equal(t, int64(1), refs[1].SpanID)
+	assert.Equal(t, FollowsFrom, refs[1].RefType)
+
+	assert.Equal(t, byte(1), refs[2].TraceID[0])
+	assert.Equal(t, int64(2), refs[2].SpanID)
+
+	assert.Equal(t, byte(2), refs[3].TraceID[0])
+}
+
+func TestSpanHash(t *testing.T) {
+	kvs := []KeyValue{
+		{Key: "a", ValueType: StringType, ValueString: "a"},
+		{Key: "a", ValueType: StringType, ValueString: "a"},
+		{Key: "c", ValueType: StringType, ValueString: "c"},
+	}
+	spans := make([]Span, len(kvs))
+	codes := make([]uint64, len(kvs))
+	// create 3 spans that are only different in some KeyValues
+	for i := range kvs {
+		spans[i] = makeSpan(kvs[i])
+		hc, err := model.HashCode(spans[i])
+		require.NoError(t, err)
+		codes[i] = hc
+	}
+	assert.Equal(t, codes[0], codes[1])
+	assert.NotEqual(t, codes[0], codes[2])
+}
+
+func Test_compareInt64(t *testing.T) {
+	tests := []struct {
+		name   string
+		a, b   int64
+		expect int
+	}{
+		{
+			name:   "equal",
+			a:      1,
+			b:      1,
+			expect: 0,
+		},
+		{
+			name:   "lesser",
+			a:      1,
+			b:      2,
+			expect: -1,
+		},
+		{
+			name:   "greater",
+			a:      2,
+			b:      1,
+			expect: 1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, compareInt64(tc.a, tc.b))
+		})
+	}
+}
+
+func Test_GetSpanKind(t *testing.T) {
+	tests := []struct {
+		name     string
+		tags     []KeyValue
+		expected string
+	}{
+		{
+			name: "no span kind tag",
+			tags: []KeyValue{
+				{Key: "foo", ValueString: "bar"},
+			},
+			expected: "",
+		},
+		{
+			name: "span kind tag present",
+			tags: []KeyValue{
+				{Key: "foo", ValueString: "bar"},
+				{Key: model.SpanKindKey, ValueString: "server"},
+			},
+			expected: "server",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			span := &Span{
+				Tags: tc.tags,
+			}
+			assert.Equal(t, tc.expected, GetSpanKind(span))
+		})
+	}
+}
+
+func makeSpan(kv KeyValue) Span {
+	return Span{
+		TraceID:       TraceID{1},
+		SpanID:        1,
+		Tags:          []KeyValue{kv},
+		OperationName: "test",
+		Process: Process{
+			ServiceName: "service",
+			Tags:        []KeyValue{kv},
+		},
+		Logs: []Log{
+			{Timestamp: 2, Fields: []KeyValue{kv}},
+		},
 	}
 }

@@ -82,16 +82,16 @@ func appendNestedArrayExists(q *strings.Builder, indent int, nestedArray string,
 func appendStringAttributeFallback(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
 	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
 	appendArrayExists(q, 2, "resource", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
 	appendArrayExists(q, 2, "scope", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
 	appendNestedArrayExists(q, 2, "events", pcommon.ValueTypeStr)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
 	appendNestedArrayExists(q, 2, "links", pcommon.ValueTypeStr)
 	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
 }
@@ -221,15 +221,18 @@ func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon
 func buildSimpleAttributeCondition(q *strings.Builder, args []any, key string, valueType pcommon.ValueType, value any) []any {
 	appendArrayExists(q, 2, "", valueType)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
 	appendArrayExists(q, 2, "resource", valueType)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
+	appendArrayExists(q, 2, "scope", valueType)
+	appendNewlineAndIndent(q, 2)
+	q.WriteString("OR")
 	appendNestedArrayExists(q, 2, "events", valueType)
 	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR ")
+	q.WriteString("OR")
 	appendNestedArrayExists(q, 2, "links", valueType)
-	return append(args, key, value, key, value, key, value, key, value)
+	return append(args, key, value, key, value, key, value, key, value, key, value)
 }
 
 func buildBytesAttributeCondition(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
@@ -321,7 +324,7 @@ func buildStringAttributeCondition(
 
 			if generatedCondition {
 				appendNewlineAndIndent(q, 2)
-				q.WriteString("OR ")
+				q.WriteString("OR")
 			}
 			generatedCondition = true
 

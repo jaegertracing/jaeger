@@ -3,7 +3,7 @@ module.exports = async ({github, context, core}) => {
 
   // Determine event type
   const eventName = context.eventName;
-  
+
   // Get PR data
   let prNumber;
   let repoOwner;
@@ -35,16 +35,16 @@ module.exports = async ({github, context, core}) => {
 
   if (eventName === 'issue_comment') {
     const commenter = context.payload.comment.user.login;
-    
+
     // Logic:
     // If Maintainer comments -> Add label (if not present)
     // If Author comments -> Remove label (if present)
-    
+
     // Check if commenter is the author
     if (commenter === prAuthor) {
       core.info(`Comment by author ${commenter}. Removing label if present.`);
       await removeLabel(github, repoOwner, repoName, prNumber, LABEL_NAME, core);
-    } 
+    }
     // Check if commenter is a maintainer (has write access)
     else if (await isMaintainer(github, repoOwner, repoName, commenter, core)) {
        core.info(`Comment by maintainer ${commenter}. Adding label if missing.`);
@@ -57,7 +57,7 @@ module.exports = async ({github, context, core}) => {
     // This is the 'synchronize' event (push to PR branch)
     // Logic:
     // If Author pushes -> Remove label (UNLESS it's just an "Update branch" merge)
-    
+
     const sender = context.payload.sender.login;
     if (sender !== prAuthor) {
        core.info(`Push by ${sender}, not the PR author ${prAuthor}. Doing nothing.`);
@@ -68,10 +68,10 @@ module.exports = async ({github, context, core}) => {
     // We look at the commits in this push.
     // context.payload.before and context.payload.after give us the range of commits.
     // simpler approach: look at the head commit of the PR.
-    
+
     // Ideally we want to see if the content changed or if it was just a merge from base.
     // A heuristic is to check the commit message or parents of the head commit.
-    
+
     // We'll fetch the commit details.
     const headSha = context.payload.pull_request.head.sha;
     const { data: commit } = await github.rest.repos.getCommit({
@@ -86,10 +86,10 @@ module.exports = async ({github, context, core}) => {
     // A merge commit typically has 2 parents.
     // If it's a merge from the base branch (e.g. "Merge branch 'main' into ...")
     // Note: GitHub's "Update branch" button creates a merge commit.
-    
+
     const isMergeCommit = parents.length > 1;
     const isUpdateBranch = isMergeCommit && (
-        message.startsWith(`Merge branch '${context.payload.pull_request.base.ref}'`) || 
+        message.startsWith(`Merge branch '${context.payload.pull_request.base.ref}'`) ||
         message.startsWith(`Merge remote-tracking branch 'origin/${context.payload.pull_request.base.ref}'`)
     );
 
@@ -111,7 +111,7 @@ async function addLabel(github, owner, repo, issueNumber, label, logger) {
       repo,
       issue_number: issueNumber,
     });
-    
+
     if (labels.find(l => l.name === label)) {
       logger.info(`Label '${label}' already exists.`);
       return;
@@ -136,7 +136,7 @@ async function removeLabel(github, owner, repo, issueNumber, label, logger) {
       repo,
       issue_number: issueNumber,
     });
-    
+
     if (!labels.find(l => l.name === label)) {
       logger.info(`Label '${label}' does not exist.`);
       return;
@@ -162,7 +162,7 @@ async function isMaintainer(github, owner, repo, username, logger) {
       repo,
       username,
     });
-    
+
     // Based on gh api logic: .permissions.maintain==true or .permissions.admin==true or .permissions.push==true
     // getCollaboratorPermissionLevel returns a 'permission' field which describes the permission level.
     // Levels: 'admin', 'maintain', 'write', 'triage', 'read', 'none'

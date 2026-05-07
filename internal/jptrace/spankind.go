@@ -32,3 +32,41 @@ func SpanKindToString(sk ptrace.SpanKind) string {
 	}
 	return strings.ToLower(sk.String())
 }
+
+func ProtoSpanKindToString(s string) string {
+	switch strings.ToUpper(s) {
+	case "SPAN_KIND_UNSPECIFIED":
+		return "unspecified"
+	case "SPAN_KIND_INTERNAL":
+		return "internal"
+	case "SPAN_KIND_SERVER":
+		return "server"
+	case "SPAN_KIND_CLIENT":
+		return "client"
+	case "SPAN_KIND_PRODUCER":
+		return "producer"
+	case "SPAN_KIND_CONSUMER":
+		return "consumer"
+	default:
+		return ""
+	}
+}
+
+func StringToProtoSpanKind(s string) string {
+	switch strings.ToLower(s) {
+	case "unspecified":
+		return "SPAN_KIND_UNSPECIFIED"
+	case "internal":
+		return "SPAN_KIND_INTERNAL"
+	case "server":
+		return "SPAN_KIND_SERVER"
+	case "client":
+		return "SPAN_KIND_CLIENT"
+	case "producer":
+		return "SPAN_KIND_PRODUCER"
+	case "consumer":
+		return "SPAN_KIND_CONSUMER"
+	default:
+		return ""
+	}
+}
