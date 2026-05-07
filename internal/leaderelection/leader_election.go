@@ -44,12 +44,13 @@ type ElectionParticipantOptions struct {
 }
 
 func (o *ElectionParticipantOptions) applyDefaults() {
-	if o.LeaderLeaseRefreshInterval == 0 {
+	if o.LeaderLeaseRefreshInterval <= 0 {
 		o.LeaderLeaseRefreshInterval = 5 * time.Second
 	}
-	if o.FollowerLeaseRefreshInterval == 0 {
+	if o.FollowerLeaseRefreshInterval <= 0 {
 		o.FollowerLeaseRefreshInterval = 60 * time.Second
 	}
+
 	if o.Logger == nil {
 		o.Logger = zap.NewNop()
 	}

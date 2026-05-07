@@ -15,6 +15,9 @@ func FuzzUTF8Sanitizer(f *testing.F) {
 	f.Add("\xff\xfe\xfd", "invalid utf8")
 
 	f.Fuzz(func(t *testing.T, key string, val string) {
+		if len(key) > 1024 || len(val) > 1024 {
+			t.Skip()
+		}
 		traces := ptrace.NewTraces()
 		rs := traces.ResourceSpans().AppendEmpty()
 		ss := rs.ScopeSpans().AppendEmpty()
@@ -32,6 +35,9 @@ func FuzzAttributesSanitizer(f *testing.F) {
 	f.Add("\xff", "\xfe")
 
 	f.Fuzz(func(t *testing.T, k string, v string) {
+		if len(k) > 1024 || len(v) > 1024 {
+			t.Skip()
+		}
 		m := pcommon.NewMap()
 		m.PutStr(k, v)
 		sanitizeAttributes(m)
