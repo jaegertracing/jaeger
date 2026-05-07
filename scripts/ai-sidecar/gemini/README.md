@@ -226,9 +226,13 @@ In addition to the built-in Jaeger MCP tools, the sidecar supports
    grow unboundedly. The gateway opens one ACP session per chat request and
    never reuses the session_id, so the cleanup is unconditional.
 
-In PR1 the gateway returns a logged placeholder for the extension method;
-PR2 will round-trip the call to the AG-UI-connected browser and return the
-real result.
+The gateway treats contextual tool dispatches as **fire-and-forget side
+effects**: it acknowledges immediately with `{result: {acknowledged: true},
+isError: false}` so Gemini's agentic loop continues with a real function
+response and produces a final answer in the same turn. The browser sees the
+`TOOL_CALL_*` AG-UI events on its SSE stream and performs the side effect
+locally (navigate, render, etc.) without sending a tool-result back. UI tools
+are commands rather than queries, so this matches the natural semantic.
 
 ## End-to-End Test
 

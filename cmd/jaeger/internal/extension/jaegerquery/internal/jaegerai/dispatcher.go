@@ -28,6 +28,15 @@ const ExtMethodJaegerToolCall = "_meta/jaegertracing.io/tools/call"
 // downstream AG-UI client receives the original frontend name.
 const UIToolPrefix = "ui_"
 
+// ContextualToolsMetaKey is the namespaced key the gateway uses under
+// NewSessionRequest._meta to ship the frontend-provided AG-UI tools
+// snapshot to the sidecar. The value at this key has shape
+// {"tools": [<aguitypes.Tool>, ...]}. The sidecar (sidecar_helpers.py
+// reads this same key) registers those tools with the LLM so the model
+// can decide when to invoke them; the gateway holds the same snapshot
+// in ContextualToolsStore for any callbacks that come back.
+const ContextualToolsMetaKey = "jaegertracing.io/contextual-tools"
+
 // extToolCallRequest is the payload the sidecar sends with
 // ExtMethodJaegerToolCall. The gateway treats it as opaque except for
 // logging — Args is left as RawMessage to avoid an extra round-trip
@@ -38,13 +47,15 @@ type extToolCallRequest struct {
 	Args      json.RawMessage `json:"args,omitempty"`
 }
 
-// extToolCallResponse is what the gateway returns to the sidecar. The
-// shape mirrors MCP's CallToolResult so swapping the placeholder for a
-// real browser-relayed result in PR2 is a straight substitution.
+// extToolCallResponse is what the gateway returns to the sidecar after a
+// contextual tool dispatch. Contextual tools are fire-and-forget side
+// effects (the browser executes them, no result is round-tripped back),
+// so the gateway always returns an acknowledgement. The Result/IsError
+// shape mirrors MCP's CallToolResult so the sidecar can feed it to the
+// LLM unchanged as the function response for the dispatched call.
 type extToolCallResponse struct {
-	Result  any    `json:"result"`
-	IsError bool   `json:"isError,omitempty"`
-	Note    string `json:"note,omitempty"`
+	Result  any  `json:"result"`
+	IsError bool `json:"isError,omitempty"`
 }
 
 // newDispatcher returns an acp.MethodHandler that routes inbound
@@ -53,9 +64,14 @@ type extToolCallResponse struct {
 //     and tool-progress markers into the chat HTTP response).
 //   - session/request_permission → streamingClient.RequestPermission
 //     (always denies; we advertise no fs/terminal capability).
-//   - ExtMethodJaegerToolCall → log and return placeholder; PR2 will
-//     forward to the AG-UI client and return its result.
+//   - ExtMethodJaegerToolCall → validate the contextual tool dispatch
+//     against the per-session snapshot and acknowledge with a fire-and-
+//     forget result; the browser executes the side effect on its own.
 //   - anything else → MethodNotFound.
+//
+// store is consulted by handleJaegerToolCall to confirm the dispatched
+// tool was registered by the frontend for this session; nil store is
+// allowed for tests but rejects every contextual call as "not registered".
 //
 // The standard-method paths replicate the subset of acp_client_gen.go
 // dispatch the gateway actually needs; we cannot reuse the SDK's
@@ -63,7 +79,7 @@ type extToolCallResponse struct {
 // for our extension method. Client errors flow back through the nil-safe
 // toRequestError so the dispatcher itself stays branchless on the
 // non-malformed-params path.
-func newDispatcher(client *streamingClient, logger *zap.Logger) acp.MethodHandler {
+func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger *zap.Logger) acp.MethodHandler {
 	return func(ctx context.Context, method string, params json.RawMessage) (any, *acp.RequestError) {
 		switch method {
 		case acp.ClientMethodSessionUpdate:
@@ -82,7 +98,7 @@ func newDispatcher(client *streamingClient, logger *zap.Logger) acp.MethodHandle
 			return resp, toRequestError(err)
 
 		case ExtMethodJaegerToolCall:
-			return handleJaegerToolCall(params, logger)
+			return handleJaegerToolCall(params, store, logger)
 
 		default:
 			return nil, acp.NewMethodNotFound(method)
@@ -90,19 +106,29 @@ func newDispatcher(client *streamingClient, logger *zap.Logger) acp.MethodHandle
 	}
 }
 
-// handleJaegerToolCall logs the contextual tool call the sidecar
-// dispatched and returns a placeholder result so Gemini's agentic loop
-// can continue without treating the call as a hard failure. PR2 will
-// replace this with a real round-trip to the AG-UI-connected client.
+// handleJaegerToolCall handles contextual tool dispatches as
+// fire-and-forget side effects. The sidecar emits start_tool_call /
+// update_tool_call session_update notifications around this call, which
+// the streaming client renders as AG-UI TOOL_CALL_* SSE events for the
+// browser to react to (navigate, render, etc.). The browser is not
+// expected to return a tool result — UI tools are commands, not queries
+// — so the gateway acknowledges immediately and lets Gemini's agentic
+// loop continue with a "tool dispatched" function response.
 //
 // The tool name arrives “UIToolPrefix“-namespaced (the gateway adds
-// the prefix when populating the contextual tools meta payload — see
-// the TODO in handler.go) and is stripped back here so downstream
-// consumers see the original frontend-supplied name. Callers that
-// pre-date the prefix pass the name through unchanged and only log a
-// warning, so the strip is safe to deploy ahead of the meta-side
-// prefix-add work.
-func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (extToolCallResponse, *acp.RequestError) {
+// the prefix in handler.go before populating the contextual tools meta
+// payload) and is stripped back here so downstream consumers and logs
+// see the original frontend-supplied name. Callers that pre-date the
+// prefix pass the name through unchanged and only log a warning, so
+// the strip is safe to deploy ahead of the meta-side prefix-add work.
+//
+// After stripping, the dispatcher confirms the (unprefixed) name is
+// present in the per-session contextual tools snapshot. A miss yields
+// InvalidParams so a misbehaving sidecar or LLM cannot dispatch a tool
+// the frontend never declared. nil store rejects every call as
+// "no contextual tools registered" — useful for tests but also a safe
+// default if Set/Delete were skipped for some reason.
+func handleJaegerToolCall(params json.RawMessage, store *ContextualToolsStore, logger *zap.Logger) (extToolCallResponse, *acp.RequestError) {
 	var req extToolCallRequest
 	if err := json.Unmarshal(params, &req); err != nil {
 		return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
@@ -127,16 +153,42 @@ func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (extToolCa
 			zap.String("expected_prefix", UIToolPrefix),
 		)
 	}
-	logger.Info("contextual tool call received from sidecar (AG-UI relay pending)",
+	if !sessionHasTool(store, req.SessionID, req.Name) {
+		return extToolCallResponse{}, acp.NewInvalidParams(map[string]any{
+			"error": fmt.Sprintf("contextual tool %q not registered for session %q", req.Name, req.SessionID),
+		})
+	}
+	logger.Info("contextual tool call dispatched (fire-and-forget)",
 		zap.String("session_id", req.SessionID),
 		zap.String("tool", req.Name),
 		zap.String("prefixed_tool", originalName),
 		zap.ByteString("args", req.Args),
 	)
 	return extToolCallResponse{
-		Result: nil,
-		Note:   "tool logged, AG-UI relay not yet wired",
+		Result:  map[string]any{"acknowledged": true},
+		IsError: false,
 	}, nil
+}
+
+// sessionHasTool reports whether the contextual tools snapshot for
+// sessionID contains an entry whose `name` field equals toolName. The
+// store stores the tools un-prefixed (matching what the frontend sent),
+// so the caller passes the post-strip name. A nil store, a missing
+// session, or a snapshot with no matching entry all return false.
+func sessionHasTool(store *ContextualToolsStore, sessionID, toolName string) bool {
+	if store == nil {
+		return false
+	}
+	for _, tool := range store.GetContextualToolsForSession(sessionID) {
+		entry, ok := tool.(map[string]any)
+		if !ok {
+			continue
+		}
+		if name, ok := entry["name"].(string); ok && name == toolName {
+			return true
+		}
+	}
+	return false
 }
 
 // toRequestError converts an arbitrary client error into a
