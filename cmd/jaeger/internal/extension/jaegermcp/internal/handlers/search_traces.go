@@ -84,7 +84,10 @@ func (h *searchTracesHandler) handle(
 		}
 	}
 
-	output := types.SearchTracesOutput{Traces: summaries}
+	output := types.SearchTracesOutput{
+		TraceCount: len(summaries),
+		Traces:     summaries,
+	}
 
 	// If we encountered errors during processing, include them in the output
 	if len(processErrs) > 0 {
