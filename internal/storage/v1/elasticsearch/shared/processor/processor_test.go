@@ -84,8 +84,6 @@ func TestProcessCallRates(t *testing.T) {
 		name           string
 		input          *metrics.MetricFamily
 		expectedPoints int
-		expectedValue  float64
-		isNaN          bool
 	}{
 		{
 			name: "should calculate call rates and trim points",
@@ -97,7 +95,6 @@ func TestProcessCallRates(t *testing.T) {
 				}),
 			}),
 			expectedPoints: 2,
-			isNaN:          true,
 		},
 		{
 			name: "should handle insufficient window",
@@ -107,7 +104,6 @@ func TestProcessCallRates(t *testing.T) {
 				}),
 			}),
 			expectedPoints: 1,
-			isNaN:          true,
 		},
 	}
 
@@ -115,6 +111,7 @@ func TestProcessCallRates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CalculateCallRates(tt.input, params, timeRange)
 			assert.Len(t, result.Metrics[0].MetricPoints, tt.expectedPoints)
+			// All points should be NaN due to insufficient window for rate calculation
 			assert.True(t, math.IsNaN(result.Metrics[0].MetricPoints[0].GetGaugeValue().GetDoubleValue()))
 		})
 	}
