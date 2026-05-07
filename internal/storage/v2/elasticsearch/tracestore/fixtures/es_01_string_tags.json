@@ -7,17 +7,45 @@
     {
       "refType": "CHILD_OF",
       "traceID": "00000000000000010000000000000000",
-      "spanID": "0000000000000003"
+      "spanID": "0000000000000003",
+      "traceState": "",
+      "flags": 0
     },
     {
       "refType": "FOLLOWS_FROM",
       "traceID": "00000000000000010000000000000000",
-      "spanID": "0000000000000004"
+      "spanID": "0000000000000004",
+      "traceState": "some-link-state",
+      "flags": 1,
+      "tags": [
+        {
+          "key": "peer.service",
+          "type": "string",
+          "value": "service-y"
+        },
+        {
+          "key": "peer.ipv4",
+          "type": "int64",
+          "value": "23456"
+        },
+        {
+          "key": "blob",
+          "type": "binary",
+          "value": "00003039"
+        },
+        {
+          "key": "temperature",
+          "type": "float64",
+          "value": "72.5"
+        }
+      ]
     },
     {
       "refType": "CHILD_OF",
       "traceID": "00000000000000ff0000000000000000",
-      "spanID": "00000000000000ff"
+      "spanID": "00000000000000ff",
+      "traceState": "",
+      "flags": 0
     }
   ],
   "startTime": 1485467191639875,
@@ -96,5 +124,27 @@
         "value": "1.2.1"
       }
     ]
-  }
+  },
+  "scopeTags": [
+    {
+      "key": "peer.service",
+      "type": "string",
+      "value": "service-y"
+    },
+    {
+      "key": "peer.ipv4",
+      "type": "int64",
+      "value": "23456"
+    },
+    {
+      "key": "blob",
+      "type": "binary",
+      "value": "00003039"
+    },
+    {
+      "key": "temperature",
+      "type": "float64",
+      "value": "72.5"
+    }
+  ]
 }

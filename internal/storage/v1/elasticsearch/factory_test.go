@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -46,9 +48,7 @@ var mockEsServerResponse = []byte(`
 `)
 
 func TestElasticsearchFactoryBase(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	t.Cleanup(server.Close)
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -122,9 +122,7 @@ func TestFactoryBase_Purge(t *testing.T) {
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	t.Cleanup(server.Close)
 	cfg := escfg.Configuration{
 		Servers: []string{server.URL},
@@ -313,9 +311,7 @@ func TestCreateTemplates(t *testing.T) {
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	defer server.Close()
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -373,6 +369,10 @@ func runPasswordFromFileTest(t *testing.T) {
 		t.Logf("request to fake ES server: %v", r)
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
+		w.Header().Set("Content-Type", "application/json")
+		if WriteMockMappingResponse("", w, r) {
+			return
+		}
 		if !assert.Len(t, h, 2) {
 			return
 		}
@@ -459,9 +459,7 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 
 func TestPasswordFromFileErrors(t *testing.T) {
 	defer testutils.VerifyGoLeaksOnce(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	defer server.Close()
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
@@ -513,9 +511,7 @@ func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
 }
 
 func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	t.Cleanup(server.Close)
 
 	cfg := escfg.Configuration{
@@ -558,4 +554,268 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		return m.base.RoundTrip(req)
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+func TestVerifySpanMappingSchema(t *testing.T) {
+	templateName := "jaeger-test-jaeger-span"
+
+	tests := []struct {
+		name          string
+		createMapping bool
+		mockSetup     func(*mocks.Client, *mocks.IndicesGetTemplateService)
+		expectedError string
+	}{
+		{
+			name:          "CreateIndexTemplates is true",
+			createMapping: true,
+			expectedError: "",
+		},
+		{
+			name:          "GetTemplate error",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				s.On("Do", mock.Anything).Return(nil, errors.New("ES error"))
+			},
+			expectedError: "ES error",
+		},
+		{
+			name:          "Template not found",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				s.On("Do", mock.Anything).Return(map[string]*elastic.IndicesGetTemplateResponse{}, nil)
+			},
+			expectedError: fmt.Sprintf("template %q not found", templateName),
+		},
+		{
+			name:          "Missing properties (top level and span level)",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"not_properties": map[string]any{},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'scopeTag' field", templateName),
+		},
+		{
+			name:          "ES6 style - missing properties inside span",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"span": map[string]any{
+								"not_properties": map[string]any{},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q mapping is missing 'properties'", templateName),
+		},
+		{
+			name:          "Missing scopeTag",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"properties": map[string]any{
+								"references": map[string]any{
+									"properties": map[string]any{
+										"tags": map[string]any{},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing 'scopeTag' field", templateName),
+		},
+		{
+			name:          "Missing references",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"properties": map[string]any{
+								"scopeTag": map[string]any{},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
+		},
+		{
+			name:          "References is not a map",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"properties": map[string]any{
+								"scopeTag":   map[string]any{},
+								"references": "not a map",
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
+		},
+		{
+			name:          "Missing references.properties",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"properties": map[string]any{
+								"scopeTag": map[string]any{},
+								"references": map[string]any{
+									"not_properties": map[string]any{},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
+		},
+		{
+			name:          "Missing references.tags",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"properties": map[string]any{
+								"scopeTag": map[string]any{},
+								"references": map[string]any{
+									"properties": map[string]any{
+										"not_tags": map[string]any{},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: fmt.Sprintf("template %q is missing OTLP link fields", templateName),
+		},
+		{
+			name:          "Success ES7 style",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"properties": map[string]any{
+								"scopeTag": map[string]any{},
+								"references": map[string]any{
+									"properties": map[string]any{
+										"tags":       map[string]any{},
+										"traceState": map[string]any{},
+										"flags":      map[string]any{},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: "",
+		},
+		{
+			name:          "Success ES6 style",
+			createMapping: false,
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
+				c.On("GetTemplate", []string{templateName}).Return(s)
+				res := map[string]*elastic.IndicesGetTemplateResponse{
+					templateName: {
+						Mappings: map[string]any{
+							"span": map[string]any{
+								"properties": map[string]any{
+									"scopeTag": map[string]any{},
+									"references": map[string]any{
+										"properties": map[string]any{
+											"tags":       map[string]any{},
+											"traceState": map[string]any{},
+											"flags":      map[string]any{},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+				s.On("Do", mock.Anything).Return(res, nil)
+			},
+			expectedError: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mocks.Client{}
+			mockService := &mocks.IndicesGetTemplateService{}
+
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockClient, mockService)
+			}
+
+			cfg := &escfg.Configuration{
+				CreateIndexTemplates: tt.createMapping,
+				Indices: escfg.Indices{
+					IndexPrefix: "jaeger-test",
+				},
+			}
+			f := FactoryBase{
+				config: cfg,
+			}
+			var client es.Client = mockClient
+			f.client.Store(&client)
+			err := f.verifySpanMappingSchema(t.Context())
+			if tt.expectedError != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func mockHttpServerForFactory() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if WriteMockMappingResponse("", w, r) {
+			return
+		}
+		w.Write(mockEsServerResponse)
+	})
 }
