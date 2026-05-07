@@ -27,7 +27,7 @@ func CalculateErrorRates(rawErrors, calls *metrics.MetricFamily, params metricst
 	return processor.CalculateErrorRates(rawErrors, calls, params, toSharedTimeRange(timeRange))
 }
 
-// toSharedTimeRange converts metricstore TimeRange to shared processor TimeRange.
+// toSharedTimeRange converts elasticsearch TimeRange to shared processor TimeRange.
 func toSharedTimeRange(tr TimeRange) processor.TimeRange {
 	return processor.TimeRange{
 		StartTimeMillis:         tr.startTimeMillis,

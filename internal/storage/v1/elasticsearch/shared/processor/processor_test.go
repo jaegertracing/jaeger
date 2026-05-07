@@ -10,6 +10,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -20,8 +21,8 @@ func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
 
-// TestProcessLatencies tests the ProcessLatencies function for scaling and handling edge cases.
-func TestProcessLatencies(t *testing.T) {
+// TestScaleAndRoundLatencies tests the ScaleAndRoundLatencies function for scaling and handling edge cases.
+func TestScaleAndRoundLatencies(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    *metrics.MetricFamily
@@ -71,12 +72,14 @@ func TestProcessLatencies(t *testing.T) {
 	}
 }
 
-// TestProcessCallRates tests the ProcessCallRates function for rate calculation and trimming.
-func TestProcessCallRates(t *testing.T) {
+// TestCalculateCallRates tests the CalculateCallRates function for rate calculation and trimming.
+func TestCalculateCallRates(t *testing.T) {
 	now := time.Now()
+	step := 10 * time.Second
+	ratePer := time.Minute
 	params := metricstore.BaseQueryParameters{
-		Step:    new(time.Second * 10),
-		RatePer: new(time.Minute),
+		Step:    &step,
+		RatePer: &ratePer,
 	}
 	timeRange := TimeRange{StartTimeMillis: now.Add(-time.Minute).UnixMilli()}
 
@@ -117,8 +120,8 @@ func TestProcessCallRates(t *testing.T) {
 	}
 }
 
-// TestProcessErrorRates tests the ProcessErrorRates function for error rate calculation.
-func TestProcessErrorRates(t *testing.T) {
+// TestCalculateErrorRates tests the CalculateErrorRates function for error rate calculation.
+func TestCalculateErrorRates(t *testing.T) {
 	now := time.Now()
 	params := metricstore.BaseQueryParameters{
 		Step:    new(time.Minute),
@@ -307,8 +310,8 @@ func TestCalcErrorRates(t *testing.T) {
 		{
 			name: "call metric without matching error metric",
 			errorMetrics: &metrics.MetricFamily{
-				Name: "errors",
-				Type: metrics.MetricType_GAUGE,
+				Name:    "errors",
+				Type:    metrics.MetricType_GAUGE,
 				Metrics: []*metrics.Metric{},
 			},
 			callMetrics: &metrics.MetricFamily{
@@ -333,7 +336,7 @@ func TestCalcErrorRates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := CalcErrorRates(tt.errorMetrics, tt.callMetrics)
 			assert.NotNil(t, result)
-			assert.Equal(t, len(tt.expected), len(result.Metrics))
+			assert.Len(t, result.Metrics, len(tt.expected))
 			for _, metric := range result.Metrics {
 				labelKey := GetLabelKey(metric.Labels)
 				expectedVal, ok := tt.expected[labelKey]
@@ -440,7 +443,7 @@ func TestTimestampToKey(t *testing.T) {
 	timestamp, _ := types.TimestampProto(now)
 
 	key, err := TimestampToKey(timestamp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, now.UnixNano(), key)
 }
 
@@ -539,7 +542,7 @@ func TestApplySlidingWindow(t *testing.T) {
 	})
 
 	// Test with a simple processor that returns the sum of the window
-	sumProcessor := func(metric *metrics.Metric, window []*metrics.MetricPoint) float64 {
+	sumProcessor := func(_ *metrics.Metric, window []*metrics.MetricPoint) float64 {
 		sum := 0.0
 		for _, point := range window {
 			val := point.GetGaugeValue().GetDoubleValue()
@@ -562,14 +565,14 @@ func TestApplySlidingWindow_EmptyMetrics(t *testing.T) {
 		createMetric([]*metrics.MetricPoint{}),
 	})
 
-	processor := func(metric *metrics.Metric, window []*metrics.MetricPoint) float64 {
+	processor := func(_ *metrics.Metric, _ []*metrics.MetricPoint) float64 {
 		return 0.0
 	}
 
 	result := ApplySlidingWindow(input, 1, processor)
 	assert.NotNil(t, result)
 	assert.Len(t, result.Metrics, 1)
-	assert.Len(t, result.Metrics[0].MetricPoints, 0)
+	assert.Empty(t, result.Metrics[0].MetricPoints)
 }
 
 // createMetricFamily creates a MetricFamily with the given name and metrics.
