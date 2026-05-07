@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/ClickHouse/ch-go v0.71.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.45.0
-	github.com/apache/cassandra-gocql-driver/v2 v2.1.0
+	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v5 v5.0.3
 	github.com/coder/acp-go-sdk v0.6.4-0.20260227160919-584abe6abe22
@@ -135,7 +135,7 @@ require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
-	github.com/apache/thrift v0.22.0 // indirect
+	github.com/apache/thrift v0.23.0 // indirect
 	github.com/aws/aws-msk-iam-sasl-signer-go v1.0.4 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.5 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.14 // indirect
