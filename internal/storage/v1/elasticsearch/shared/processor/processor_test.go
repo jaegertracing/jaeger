@@ -263,6 +263,315 @@ func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
 	assert.True(t, math.IsNaN(result))
 }
 
+// TestCalcErrorRates tests the CalcErrorRates function comprehensively.
+func TestCalcErrorRates(t *testing.T) {
+	now := time.Now()
+	timestamp, _ := types.TimestampProto(now)
+
+	tests := []struct {
+		name         string
+		errorMetrics *metrics.MetricFamily
+		callMetrics  *metrics.MetricFamily
+		expected     map[string]float64 // labelKey -> expected value
+	}{
+		{
+			name: "matching labels with valid values",
+			errorMetrics: &metrics.MetricFamily{
+				Name: "errors",
+				Type: metrics.MetricType_GAUGE,
+				Metrics: []*metrics.Metric{
+					{
+						Labels: []*metrics.Label{{Name: "service", Value: "svc1"}},
+						MetricPoints: []*metrics.MetricPoint{
+							{Timestamp: timestamp, Value: toDomainMetricPointValue(5.0)},
+						},
+					},
+				},
+			},
+			callMetrics: &metrics.MetricFamily{
+				Name: "calls",
+				Type: metrics.MetricType_GAUGE,
+				Metrics: []*metrics.Metric{
+					{
+						Labels: []*metrics.Label{{Name: "service", Value: "svc1"}},
+						MetricPoints: []*metrics.MetricPoint{
+							{Timestamp: timestamp, Value: toDomainMetricPointValue(10.0)},
+						},
+					},
+				},
+			},
+			expected: map[string]float64{
+				"service=svc1": 0.5,
+			},
+		},
+		{
+			name: "call metric without matching error metric",
+			errorMetrics: &metrics.MetricFamily{
+				Name: "errors",
+				Type: metrics.MetricType_GAUGE,
+				Metrics: []*metrics.Metric{},
+			},
+			callMetrics: &metrics.MetricFamily{
+				Name: "calls",
+				Type: metrics.MetricType_GAUGE,
+				Metrics: []*metrics.Metric{
+					{
+						Labels: []*metrics.Label{{Name: "service", Value: "svc2"}},
+						MetricPoints: []*metrics.MetricPoint{
+							{Timestamp: timestamp, Value: toDomainMetricPointValue(10.0)},
+						},
+					},
+				},
+			},
+			expected: map[string]float64{
+				"service=svc2": 0.0,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalcErrorRates(tt.errorMetrics, tt.callMetrics)
+			assert.NotNil(t, result)
+			assert.Equal(t, len(tt.expected), len(result.Metrics))
+			for _, metric := range result.Metrics {
+				labelKey := GetLabelKey(metric.Labels)
+				expectedVal, ok := tt.expected[labelKey]
+				assert.True(t, ok, "unexpected label key: %s", labelKey)
+				if len(metric.MetricPoints) > 0 {
+					actualVal := metric.MetricPoints[0].GetGaugeValue().GetDoubleValue()
+					assert.InDelta(t, expectedVal, actualVal, 0.01)
+				}
+			}
+		})
+	}
+}
+
+// TestCalculateErrorRatePoints tests the CalculateErrorRatePoints function.
+func TestCalculateErrorRatePoints(t *testing.T) {
+	now := time.Now()
+	timestamp1, _ := types.TimestampProto(now)
+	timestamp2, _ := types.TimestampProto(now.Add(time.Minute))
+
+	tests := []struct {
+		name        string
+		errorPoints []*metrics.MetricPoint
+		callPoints  []*metrics.MetricPoint
+		expected    int // number of result points
+	}{
+		{
+			name: "matching timestamps",
+			errorPoints: []*metrics.MetricPoint{
+				{Timestamp: timestamp1, Value: toDomainMetricPointValue(5.0)},
+			},
+			callPoints: []*metrics.MetricPoint{
+				{Timestamp: timestamp1, Value: toDomainMetricPointValue(10.0)},
+			},
+			expected: 1,
+		},
+		{
+			name: "non-matching timestamps",
+			errorPoints: []*metrics.MetricPoint{
+				{Timestamp: timestamp1, Value: toDomainMetricPointValue(5.0)},
+			},
+			callPoints: []*metrics.MetricPoint{
+				{Timestamp: timestamp2, Value: toDomainMetricPointValue(10.0)},
+			},
+			expected: 0, // no matching timestamps, so no points
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalculateErrorRatePoints(tt.errorPoints, tt.callPoints)
+			assert.Len(t, result, tt.expected)
+		})
+	}
+}
+
+// TestGetLabelKey tests the GetLabelKey function with various label combinations.
+func TestGetLabelKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		labels   []*metrics.Label
+		expected string
+	}{
+		{
+			name: "single label",
+			labels: []*metrics.Label{
+				{Name: "service", Value: "svc1"},
+			},
+			expected: "service=svc1",
+		},
+		{
+			name: "multiple labels sorted",
+			labels: []*metrics.Label{
+				{Name: "service", Value: "svc1"},
+				{Name: "operation", Value: "op1"},
+			},
+			expected: "operation=op1,service=svc1",
+		},
+		{
+			name: "labels with same name different values",
+			labels: []*metrics.Label{
+				{Name: "tag", Value: "b"},
+				{Name: "tag", Value: "a"},
+			},
+			expected: "tag=a,tag=b",
+		},
+		{
+			name:     "empty labels",
+			labels:   []*metrics.Label{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetLabelKey(tt.labels)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestTimestampToKey tests the TimestampToKey function.
+func TestTimestampToKey(t *testing.T) {
+	now := time.Now()
+	timestamp, _ := types.TimestampProto(now)
+
+	key, err := TimestampToKey(timestamp)
+	assert.NoError(t, err)
+	assert.Equal(t, now.UnixNano(), key)
+}
+
+// TestTimestampToKey_Error tests error handling in TimestampToKey.
+func TestTimestampToKey_Error(t *testing.T) {
+	// Create an invalid timestamp
+	invalidTimestamp := &types.Timestamp{
+		Seconds: -62135596801, // Before Unix epoch minimum
+		Nanos:   0,
+	}
+
+	_, err := TimestampToKey(invalidTimestamp)
+	assert.Error(t, err)
+}
+
+// TestCalcCallRate tests the CalcCallRate function.
+func TestCalcCallRate(t *testing.T) {
+	now := time.Now()
+	params := metricstore.BaseQueryParameters{
+		Step:    new(time.Second * 10),
+		RatePer: new(time.Minute),
+	}
+
+	input := createMetricFamily("test_rate", []*metrics.Metric{
+		{
+			Labels: []*metrics.Label{{Name: "service", Value: "svc1"}},
+			MetricPoints: []*metrics.MetricPoint{
+				createMetricPoint(now.Add(-time.Minute), 100.0),
+				createMetricPoint(now.Add(-50*time.Second), 150.0),
+				createMetricPoint(now.Add(-40*time.Second), 200.0),
+				createMetricPoint(now.Add(-30*time.Second), 250.0),
+				createMetricPoint(now.Add(-20*time.Second), 300.0),
+				createMetricPoint(now.Add(-10*time.Second), 350.0),
+				createMetricPoint(now, 400.0),
+			},
+		},
+	})
+
+	result := CalcCallRate(input, params)
+	assert.NotNil(t, result)
+	assert.Len(t, result.Metrics, 1)
+	assert.Len(t, result.Metrics[0].MetricPoints, 7)
+}
+
+// TestTrimMetricPointsBefore_EdgeCases tests edge cases for TrimMetricPointsBefore.
+func TestTrimMetricPointsBefore_EdgeCases(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name           string
+		input          *metrics.MetricFamily
+		startMillis    int64
+		expectedPoints int
+	}{
+		{
+			name: "all points before threshold",
+			input: createMetricFamily("test", []*metrics.Metric{
+				createMetric([]*metrics.MetricPoint{
+					createMetricPoint(now.Add(-3*time.Minute), 10.0),
+					createMetricPoint(now.Add(-2*time.Minute), 20.0),
+				}),
+			}),
+			startMillis:    now.UnixMilli(),
+			expectedPoints: 0,
+		},
+		{
+			name: "all points after threshold",
+			input: createMetricFamily("test", []*metrics.Metric{
+				createMetric([]*metrics.MetricPoint{
+					createMetricPoint(now, 10.0),
+					createMetricPoint(now.Add(time.Minute), 20.0),
+				}),
+			}),
+			startMillis:    now.Add(-time.Minute).UnixMilli(),
+			expectedPoints: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := TrimMetricPointsBefore(tt.input, tt.startMillis)
+			assert.Len(t, result.Metrics[0].MetricPoints, tt.expectedPoints)
+		})
+	}
+}
+
+// TestApplySlidingWindow tests the ApplySlidingWindow function.
+func TestApplySlidingWindow(t *testing.T) {
+	now := time.Now()
+	input := createMetricFamily("test", []*metrics.Metric{
+		createMetric([]*metrics.MetricPoint{
+			createMetricPoint(now.Add(-2*time.Minute), 10.0),
+			createMetricPoint(now.Add(-time.Minute), 20.0),
+			createMetricPoint(now, 30.0),
+		}),
+	})
+
+	// Test with a simple processor that returns the sum of the window
+	sumProcessor := func(metric *metrics.Metric, window []*metrics.MetricPoint) float64 {
+		sum := 0.0
+		for _, point := range window {
+			val := point.GetGaugeValue().GetDoubleValue()
+			if !math.IsNaN(val) {
+				sum += val
+			}
+		}
+		return sum
+	}
+
+	result := ApplySlidingWindow(input, 2, sumProcessor)
+	assert.NotNil(t, result)
+	assert.Len(t, result.Metrics, 1)
+	assert.Len(t, result.Metrics[0].MetricPoints, 3)
+}
+
+// TestApplySlidingWindow_EmptyMetrics tests ApplySlidingWindow with empty metrics.
+func TestApplySlidingWindow_EmptyMetrics(t *testing.T) {
+	input := createMetricFamily("test", []*metrics.Metric{
+		createMetric([]*metrics.MetricPoint{}),
+	})
+
+	processor := func(metric *metrics.Metric, window []*metrics.MetricPoint) float64 {
+		return 0.0
+	}
+
+	result := ApplySlidingWindow(input, 1, processor)
+	assert.NotNil(t, result)
+	assert.Len(t, result.Metrics, 1)
+	assert.Len(t, result.Metrics[0].MetricPoints, 0)
+}
+
 // createMetricFamily creates a MetricFamily with the given name and metrics.
 func createMetricFamily(name string, m []*metrics.Metric) *metrics.MetricFamily {
 	return &metrics.MetricFamily{
