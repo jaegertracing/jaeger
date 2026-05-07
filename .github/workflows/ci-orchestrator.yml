@@ -69,9 +69,8 @@ jobs:
               # for org members without direct per-repo team access.
               #
               # Fallback: use the Search API (works with any read-only token) to count the
-              # author's merged PRs.  3+ merged PRs matches the "unlimited quota" threshold
-              # in pr-quota-manager.js and is a reliable trust signal that does not require
-              # org-scope permissions.
+              # author's merged PRs.  5+ merged PRs is a reliable trust signal that does not
+              # require org-scope permissions.
               #
               # Validate username before using it in a URL query (GitHub usernames are
               # alphanumeric + hyphens, max 39 chars; reject anything that deviates).
@@ -83,7 +82,7 @@ jobs:
               else
                 echo "Skipping merged-PR check: unexpected username format ($PR_AUTHOR)"
               fi
-              if [[ "${MERGED_COUNT:-0}" -ge 3 ]]; then
+              if [[ "${MERGED_COUNT:-0}" -ge 5 ]]; then
                 echo "Parallel: established contributor ($PR_AUTHOR, merged PRs=$MERGED_COUNT)"
                 PARALLEL=true
               else
