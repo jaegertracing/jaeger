@@ -225,7 +225,7 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	} else {
 		staticPattern = basePath + "/static/"
 	}
-	router.Handle(staticPattern, sH.loggingHandler(fileServer))
+	router.Handle(staticPattern, securityHeadersHandler(sH.loggingHandler(fileServer)))
 
 	// Register catch-all handler for SPA routing (serves index.html for all non-API routes).
 	// This must be registered last to act as a fallback.
@@ -236,7 +236,7 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	} else {
 		catchAllPattern = basePath + "/"
 	}
-	router.Handle(catchAllPattern, sH.loggingHandler(http.HandlerFunc(sH.notFound)))
+	router.Handle(catchAllPattern, securityHeadersHandler(sH.loggingHandler(http.HandlerFunc(sH.notFound))))
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, _ *http.Request) {

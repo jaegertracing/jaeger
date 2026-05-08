@@ -36,6 +36,13 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
+# All .proto files that should be checked for license headers.
+ALL_PROTO_SRC = $(shell find . -name '*.proto' \
+				   -not -path './vendor/*' \
+				   -not -path './idl/*' \
+				   -type f | \
+				sort)
+
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
@@ -134,6 +141,7 @@ nocover:
 	@scripts/lint/check-test-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
+.PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
 	@./scripts/lint/import-order-cleanup.py -o inplace -t $(ALL_SRC)
@@ -141,8 +149,8 @@ fmt: $(GOFUMPT)
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
+	@echo Running updateLicense.py on ALL_SRC, ALL_PROTO_SRC, SCRIPTS_SRC ...
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(ALL_PROTO_SRC) $(SCRIPTS_SRC)
 	@echo Running check-line-endings on all files ...
 	@./scripts/lint/check-line-endings.py -u
 
@@ -153,13 +161,13 @@ lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak
 lint-monitoring:
 	@cd ./monitoring/jaeger-mixin/generate && go run . | diff -q ../dashboard-for-grafana.json - > /dev/null || \
 		(echo "ERROR: dashboard-for-grafana.json is out of sync. Run 'make generate-dashboards'."; exit 1)
-	@echo "OK: dashboard-for-grafana.json is in sync."
 
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@./scripts/lint/updateLicense.py $(ALL_SRC) $(ALL_PROTO_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
 
 .PHONY: lint-nocommit
 lint-nocommit:

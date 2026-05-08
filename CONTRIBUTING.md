@@ -171,9 +171,11 @@ requires connection to Cassandra
 ```
 
 ## Merging PRs
-**For maintainers:** before merging a PR make sure the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
+**For maintainers:** before merging a PR make sure the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md).
 
-Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
+All pull requests MUST be reviewed and approved by at least one maintainer (other than the author) before they can be merged. For significant changes, multiple approvals may be required.
+
+Merge the PR by using "Squash and merge" option on GitHub. Avoid creating merge commits.
 After the merge make sure referenced issues were closed.
 
 ## Deprecating CLI Flags

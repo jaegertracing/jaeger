@@ -63,6 +63,8 @@ Former maintainers are recognized with an honorary _Emeritus Maintainer_ status,
 
 Maintainers will be added to the GitHub @jaegertracing/jaeger-maintainers team, and made a GitHub maintainer of that team. They will be given write permission to the Jaeger GitHub repository https://github.com/jaegertracing/jaeger.
 
+All maintainers MUST have two-factor authentication (2FA) enabled on their GitHub accounts.
+
 ## Changes in Governance
 
 All changes in Governance require a 2/3 majority vote by maintainers.

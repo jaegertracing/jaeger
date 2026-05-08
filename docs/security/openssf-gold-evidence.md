@@ -2,7 +2,7 @@
 
 This page tracks durable Jaeger evidence for the OpenSSF Best Practices badge entry at <https://www.bestpractices.dev/projects/1273>. It is maintained so badge evidence can point at current `main` branch resources instead of retired branches, old CI systems, or issue-only evidence.
 
-Last reviewed: 2026-05-06.
+Last reviewed: 2026-05-08.
 
 ## Badge Evidence Refresh
 
@@ -50,6 +50,11 @@ Use the following replacements for stale badge evidence.
 | `test_invocation` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#getting-started` and `https://github.com/jaegertracing/jaeger/blob/main/Makefile` |
 | `test_continuous_integration` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-orchestrator.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md` |
 | `security_review` | Historical public audits are available at `https://github.com/jaegertracing/security-audits`; current-within-5-years evidence is tracked by issue `https://github.com/jaegertracing/jaeger/issues/8485`. |
+| `two_factor` | `https://github.com/jaegertracing/jaeger/blob/main/GOVERNANCE.md#github-project-administration` |
+| `code_review_standards` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#merging-prs` |
+| `hardened_headers` | `https://github.com/jaegertracing/jaeger/blob/main/cmd/jaeger/internal/extension/jaegerquery/internal/security_headers_handler.go` and `https://github.com/jaegertracing/documentation/blob/main/netlify.toml` |
+| `dynamic_analysis` | Dynamic analysis is performed via the Go race detector (`make test`) and goroutine leak detection (`https://github.com/jaegertracing/jaeger/blob/main/Makefile` target `lint-goleak`). |
+| `per_file_copyright` | SPDX compliance and per-file copyright are enforced via `https://github.com/jaegertracing/jaeger/blob/main/scripts/lint/updateLicense.py` (run during `make fmt`). |
 
 ## Remaining Gold Work
 
