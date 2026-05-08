@@ -170,6 +170,20 @@ $ cat ./pkg/cassandra/config/.nocover
 requires connection to Cassandra
 ```
 
+## Code review requirements
+
+Jaeger changes are reviewed through GitHub pull requests. Reviewers are expected to evaluate whether a change is appropriate for the project, whether the implementation is correct and maintainable, and whether it is covered by suitable tests and documentation.
+
+Before approving a pull request, reviewers should check that:
+
+* the change is understandable, scoped to the stated problem, and consistent with the project's architecture and coding style,
+* new behavior has tests, bug fixes include regression coverage where feasible, and required CI checks are passing,
+* security-sensitive changes, dependency changes, authentication or authorization changes, network-facing behavior, release tooling, and configuration defaults receive extra scrutiny from maintainers familiar with the affected area,
+* generated files are not edited manually; contributors must update the source definitions and regenerate files with the documented targets,
+* the pull request title and commit history are suitable for the project's squash-merge workflow.
+
+Non-trivial pull requests should be reviewed and approved by a maintainer or knowledgeable contributor other than the author before merge. Trivial documentation, typo, formatting, or mechanical follow-up changes may be merged by a maintainer without a separate approval when the risk is low and CI is passing.
+
 ## Merging PRs
 **For maintainers:** before merging a PR make sure the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
 
