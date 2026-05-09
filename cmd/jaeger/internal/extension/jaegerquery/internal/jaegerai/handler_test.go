@@ -302,7 +302,7 @@ func TestChatHandlerOmitsMetaWhenNoTools(t *testing.T) {
 		"Meta must stay nil/empty when no tools are sent so the sidecar does not see a stale snapshot")
 }
 
-func TestChatHandlerEmitsRunFinishedWithStopReason(t *testing.T) {
+func TestChatHandlerEmitsLifecycleFramesForEmptyTurn(t *testing.T) {
 	agent := &mockACPAgent{promptStopReason: acp.StopReasonMaxTokens}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
@@ -320,7 +320,13 @@ func TestChatHandlerEmitsRunFinishedWithStopReason(t *testing.T) {
 	types := eventTypes(events)
 	require.Equal(t, []string{"RUN_STARTED", "RUN_FINISHED"}, types,
 		"a turn with no streamed text should emit just the lifecycle frames")
-	assert.Equal(t, "max_tokens", events[1]["stopReason"])
+	// stopReason intentionally not asserted: AG-UI's RUN_FINISHED schema
+	// has no stopReason field, so the typed event drops it on the wire.
+	// The sidecar's StopReason still drives whether the turn completed
+	// normally vs. errored — only the wire encoding changed.
+	_, hasStopReason := events[1]["stopReason"]
+	assert.False(t, hasStopReason,
+		"stopReason is not in the AG-UI RUN_FINISHED schema and must not be emitted")
 }
 
 func TestChatHandlerPropagatesThreadAndRunIDs(t *testing.T) {

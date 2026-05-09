@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
+	aguisse "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/encoding/sse"
 	"github.com/coder/acp-go-sdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,6 +38,8 @@ func (*errResponseWriter) WriteHeader(int) {}
 
 // parseSSEEvents extracts the JSON payloads from the `data:` frames in the
 // supplied SSE body. Each returned map corresponds to one AG-UI event.
+// Non-`data:` framing lines (`id:`, blank separators) are ignored, matching
+// how an SSE client iterates frames.
 func parseSSEEvents(t *testing.T, body string) []map[string]any {
 	t.Helper()
 	var events []map[string]any
@@ -61,54 +65,54 @@ func eventTypes(events []map[string]any) []string {
 	return types
 }
 
-func TestStreamingClientWriteWritesText(t *testing.T) {
+func TestStreamingClientEmitWritesSSEFrame(t *testing.T) {
 	rec := httptest.NewRecorder()
-	c := &streamingClient{
-		requestCtx: context.Background(),
-		w:          rec,
-	}
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 
-	c.write("hello")
+	c.emit(aguievents.NewRunStartedEvent("thread-1", "run-1"))
 
-	assert.Equal(t, "hello", rec.Body.String(), "unexpected body content")
+	body := rec.Body.String()
+	assert.Contains(t, body, "data: ", "emit should produce a data: SSE line")
+	events := parseSSEEvents(t, body)
+	require.Len(t, events, 1)
+	assert.Equal(t, "RUN_STARTED", events[0]["type"])
 }
 
-func TestStreamingClientWriteContextDoneSetsClosedFlag(t *testing.T) {
+func TestStreamingClientEmitContextDoneSetsClosedFlag(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	c := &streamingClient{
-		requestCtx: ctx,
-		w:          rec,
-	}
+	c := newStreamingClient(ctx, rec, "thread-1", "run-1")
 
-	c.write("ignored")
+	c.emit(aguievents.NewRunStartedEvent("thread-1", "run-1"))
 
-	assert.True(t, c.closed, "expected client to be closed")
-	assert.Empty(t, rec.Body.String(), "expected empty body")
+	assert.True(t, c.closed, "expected client to be closed when context is cancelled")
+	assert.Empty(t, rec.Body.String(), "expected no SSE frames after context cancellation")
 }
 
-func TestStreamingClientWriteErrorSetsClosedFlag(t *testing.T) {
+func TestStreamingClientEmitErrorSetsClosedFlag(t *testing.T) {
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          &errResponseWriter{},
+		sse:        aguisse.NewSSEWriter(),
 	}
 
-	c.write("hello")
+	c.emit(aguievents.NewRunStartedEvent("thread-1", "run-1"))
 
 	assert.True(t, c.closed, "expected client to be closed on write error")
 }
 
-func TestStreamingClientWriteNoopWhenClosed(t *testing.T) {
+func TestStreamingClientEmitNoopWhenClosed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := &streamingClient{
 		requestCtx: context.Background(),
 		w:          rec,
+		sse:        aguisse.NewSSEWriter(),
 		closed:     true,
 	}
 
-	c.write("ignored")
+	c.emit(aguievents.NewRunStartedEvent("thread-1", "run-1"))
 
 	assert.Empty(t, rec.Body.String(), "expected no writes when already closed")
 }
@@ -139,33 +143,23 @@ func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 	assert.NotEmpty(t, c.messageID, "startRun should allocate a messageID")
 }
 
-func TestStreamingClientFinishRunClosesOpenTextAndEmitsStopReason(t *testing.T) {
+func TestStreamingClientFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
 	c.startRun()
 	c.ensureTextStart()
 
+	// stopReason is accepted on the signature for caller compatibility but
+	// the AG-UI RUN_FINISHED schema has no stopReason field, so the typed
+	// event drops it on the wire.
 	c.finishRun("end_turn")
 
 	events := parseSSEEvents(t, rec.Body.String())
 	types := eventTypes(events)
 	assert.Equal(t, []string{"RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_END", "RUN_FINISHED"}, types)
-	assert.Equal(t, "end_turn", events[3]["stopReason"])
+	_, hasStopReason := events[3]["stopReason"]
+	assert.False(t, hasStopReason, "stopReason is not part of the AG-UI RUN_FINISHED schema")
 	assert.False(t, c.textOpen, "textOpen should be reset after finishRun")
-}
-
-func TestStreamingClientFinishRunOmitsStopReasonWhenEmpty(t *testing.T) {
-	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
-	c.startRun()
-
-	c.finishRun("")
-
-	events := parseSSEEvents(t, rec.Body.String())
-	require.Len(t, events, 2)
-	assert.Equal(t, "RUN_FINISHED", events[1]["type"])
-	_, hasStopReason := events[1]["stopReason"]
-	assert.False(t, hasStopReason, "stopReason key should be omitted when empty")
 }
 
 func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
@@ -180,23 +174,16 @@ func TestStreamingClientFailRunEmitsRunError(t *testing.T) {
 	types := eventTypes(events)
 	assert.Equal(t, []string{"RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_END", "RUN_ERROR"}, types)
 	assert.Equal(t, "boom", events[3]["message"])
-}
-
-func TestStreamingClientWriteSSEEventSilentlyDropsUnmarshallable(t *testing.T) {
-	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
-
-	// Channels cannot be JSON-marshalled. writeSSEEvent must swallow the
-	// error and emit nothing rather than corrupt the stream.
-	c.writeSSEEvent(map[string]any{"bad": make(chan int)})
-
-	assert.Empty(t, rec.Body.String(),
-		"writeSSEEvent must not write anything when json.Marshal fails")
+	assert.Equal(t, "run-1", events[3]["runId"], "RUN_ERROR should propagate runId so the frontend can correlate")
 }
 
 func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	// startRun would normally allocate this; set it directly so the test
+	// targets ensureTextStart only. Without a messageID the SDK rejects the
+	// event at encode time and emits nothing.
+	c.messageID = "msg-1"
 
 	c.ensureTextStart()
 	c.ensureTextStart()
@@ -254,7 +241,7 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 		Update: acp.SessionUpdate{
 			ToolCall: &acp.SessionUpdateToolCall{
 				ToolCallId: "tool-1",
-				Title:      "search traces",
+				Title:      "search_traces",
 				Kind:       acp.ToolKindSearch,
 				RawInput:   map[string]any{"service": "checkout"},
 			},
@@ -264,13 +251,45 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 
 	events := parseSSEEvents(t, rec.Body.String())
 	require.Len(t, events, 2)
-	assert.Equal(t, "TOOL_CALL_START", events[0]["type"])
-	assert.Equal(t, "tool-1", events[0]["toolCallId"])
-	assert.Equal(t, "search traces", events[0]["title"])
-	assert.Equal(t, "TOOL_CALL_ARGS", events[1]["type"])
-	args, ok := events[1]["args"].(map[string]any)
-	require.True(t, ok, "args should decode as object")
-	assert.Equal(t, "checkout", args["service"])
+
+	startEvent := events[0]
+	assert.Equal(t, "TOOL_CALL_START", startEvent["type"])
+	assert.Equal(t, "tool-1", startEvent["toolCallId"])
+	assert.Equal(t, "search_traces", startEvent["toolCallName"],
+		"AG-UI TOOL_CALL_START requires toolCallName")
+
+	argsEvent := events[1]
+	assert.Equal(t, "TOOL_CALL_ARGS", argsEvent["type"])
+	assert.Equal(t, "tool-1", argsEvent["toolCallId"])
+	// AG-UI streams args as text deltas; the whole input is emitted as one
+	// JSON-encoded delta because the sidecar delivers args atomically.
+	assert.Equal(t, `{"service":"checkout"}`, argsEvent["delta"],
+		"TOOL_CALL_ARGS.delta must be the JSON-encoded args string")
+}
+
+func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+	// Contextual UI tools are registered with the LLM under a UIToolPrefix
+	// namespace so they never collide with built-in MCP tool names. The
+	// frontend, however, registered them under their unprefixed names —
+	// TOOL_CALL_START.toolCallName must be stripped so it round-trips.
+	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+		Update: acp.SessionUpdate{
+			ToolCall: &acp.SessionUpdateToolCall{
+				ToolCallId: "tool-2",
+				Title:      UIToolPrefix + "render_chart",
+				Kind:       acp.ToolKindOther,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	events := parseSSEEvents(t, rec.Body.String())
+	require.Len(t, events, 1)
+	assert.Equal(t, "render_chart", events[0]["toolCallName"],
+		"contextual tool names must have %q stripped before being sent to the frontend", UIToolPrefix)
 }
 
 func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.T) {
@@ -293,8 +312,56 @@ func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.
 	events := parseSSEEvents(t, rec.Body.String())
 	types := eventTypes(events)
 	assert.Equal(t, []string{"TOOL_CALL_ARGS", "TOOL_CALL_RESULT", "TOOL_CALL_END"}, types)
+
+	argsEvent := events[0]
+	assert.Equal(t, `{"refined":true}`, argsEvent["delta"])
+
+	resultEvent := events[1]
+	assert.Equal(t, "tool-1", resultEvent["toolCallId"])
+	assert.Equal(t, "tool-msg-tool-1", resultEvent["messageId"],
+		"AG-UI TOOL_CALL_RESULT requires messageId")
+	assert.Equal(t, "tool", resultEvent["role"])
+	assert.Equal(t, `{"hits":42}`, resultEvent["content"],
+		"non-MCP-envelope outputs should be JSON-encoded into the content string")
+	_, hasResult := resultEvent["result"]
+	assert.False(t, hasResult, "legacy nested result field must not be present")
+
 	assert.Equal(t, "tool-1", events[2]["toolCallId"])
-	assert.Equal(t, "completed", events[2]["status"])
+}
+
+func TestStreamingClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+	completed := acp.ToolCallStatusCompleted
+	// Sidecar forwards MCP CallToolResult envelopes verbatim. The handler
+	// must concatenate the text blocks so AG-UI receives content as a string.
+	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+		Update: acp.SessionUpdate{
+			ToolCallUpdate: &acp.SessionToolCallUpdate{
+				ToolCallId: "search_traces-1",
+				RawOutput: map[string]any{
+					"content": []any{
+						map[string]any{"type": "text", "text": `{"traces":[]}`},
+					},
+					"isError":           false,
+					"structuredContent": map[string]any{"traces": []any{}},
+				},
+				Status: &completed,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	events := parseSSEEvents(t, rec.Body.String())
+	require.Len(t, events, 2, "expected TOOL_CALL_RESULT and TOOL_CALL_END")
+
+	resultEvent := events[0]
+	assert.Equal(t, "TOOL_CALL_RESULT", resultEvent["type"])
+	assert.Equal(t, `{"traces":[]}`, resultEvent["content"],
+		"MCP text block should become the top-level content string")
+	assert.Equal(t, "tool-msg-search_traces-1", resultEvent["messageId"])
+	assert.Equal(t, "tool", resultEvent["role"])
 }
 
 func TestStreamingClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *testing.T) {

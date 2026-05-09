@@ -6,9 +6,11 @@ package jaegerai
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
+	"github.com/coder/acp-go-sdk"
 )
 
 // latestUserMessageText returns the text content of the most recent user
@@ -153,4 +155,79 @@ func collectTextParts(parts []any) string {
 		}
 	}
 	return strings.Join(textParts, "\n")
+}
+
+// The helpers below cover the outbound direction: ACP / MCP session-update
+// shapes are mapped into the primitives required by AG-UI typed events.
+// Streaming lifecycle and ordering concerns live in streaming_client.go.
+
+// valueOrUnknown returns the string form of an ACP ToolCallStatus pointer,
+// or "unknown" when the sidecar omits a status. The streaming client uses
+// this to decide whether a tool call has reached a terminal state and a
+// TOOL_CALL_END frame should be emitted.
+func valueOrUnknown(v *acp.ToolCallStatus) string {
+	if v == nil {
+		return "unknown"
+	}
+	return string(*v)
+}
+
+// toolResultMessageID derives the synthetic "tool" message id that AG-UI's
+// TOOL_CALL_RESULT schema requires. Deriving from the toolCallId keeps the
+// id stable across retries of the same tool call without per-instance state.
+func toolResultMessageID(toolCallID acp.ToolCallId) string {
+	return "tool-msg-" + string(toolCallID)
+}
+
+// stripUIToolPrefix removes the contextual-tool namespace from a tool name
+// so the frontend sees the original name it registered. Non-prefixed
+// names (e.g. built-in MCP tools) are returned unchanged.
+func stripUIToolPrefix(name string) string {
+	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok {
+		return stripped
+	}
+	return name
+}
+
+// marshalToolArgsDelta serializes the sidecar's raw tool arguments to a
+// JSON string suitable for TOOL_CALL_ARGS.delta. AG-UI streams args as
+// successive deltas concatenated by the frontend; the gateway emits the
+// full payload as one delta because the sidecar delivers args atomically.
+func marshalToolArgsDelta(raw any) string {
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Sprintf("%v", raw)
+	}
+	return string(payload)
+}
+
+// flattenToolResultContent reduces the sidecar's tool output to the single
+// string AG-UI's TOOL_CALL_RESULT.content field expects. The sidecar
+// forwards MCP CallToolResult envelopes verbatim — {content:[{type:"text",
+// text:"..."}], structuredContent:{...}} — so the text blocks are
+// concatenated when present. Anything else is JSON-encoded so the frontend
+// always receives a deterministic string instead of a nested object.
+func flattenToolResultContent(raw any) string {
+	if envelope, ok := raw.(map[string]any); ok {
+		if blocks, ok := envelope["content"].([]any); ok {
+			var b strings.Builder
+			for _, block := range blocks {
+				blockMap, ok := block.(map[string]any)
+				if !ok {
+					continue
+				}
+				if text, ok := blockMap["text"].(string); ok {
+					b.WriteString(text)
+				}
+			}
+			if b.Len() > 0 {
+				return b.String()
+			}
+		}
+	}
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		return fmt.Sprintf("%v", raw)
+	}
+	return string(payload)
 }

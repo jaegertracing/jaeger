@@ -5,14 +5,14 @@ package jaegerai
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"sync"
 	"time"
 
+	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
+	aguisse "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/encoding/sse"
 	"github.com/coder/acp-go-sdk"
 )
 
@@ -20,6 +20,11 @@ var _ acp.Client = (*streamingClient)(nil)
 
 // streamingClient implements acp.Client and translates ACP session updates
 // into AG-UI SSE events written to the HTTP response.
+//
+// Events are constructed via the typed AG-UI SDK constructors so that
+// schema-required fields (toolCallName, messageId, etc.) are positional —
+// forgetting one is a compile error rather than a runtime ZodError on the
+// frontend. Framing is delegated to the SDK's SSEWriter.
 //
 // All mutable fields (closed, threadID, runID, messageID, textOpen) are
 // guarded by mu. The ACP SDK may invoke SessionUpdate on a goroutine other
@@ -29,7 +34,7 @@ var _ acp.Client = (*streamingClient)(nil)
 type streamingClient struct {
 	requestCtx context.Context
 	w          http.ResponseWriter
-	flusher    http.Flusher
+	sse        *aguisse.SSEWriter
 	mu         sync.Mutex
 	closed     bool
 	threadID   string
@@ -39,24 +44,23 @@ type streamingClient struct {
 }
 
 func newStreamingClient(ctx context.Context, w http.ResponseWriter, threadID, runID string) *streamingClient {
-	c := &streamingClient{
+	return &streamingClient{
 		requestCtx: ctx,
 		w:          w,
+		sse:        aguisse.NewSSEWriter(),
 		threadID:   threadID,
 		runID:      runID,
 	}
-	if f, ok := w.(http.Flusher); ok {
-		c.flusher = f
-	}
-	return c
 }
 
-// write emits text and flushes. Must be called with c.mu held.
-func (c *streamingClient) write(text string) {
+// emit writes a typed AG-UI event as a single SSE frame. The SDK's
+// SSEWriter handles JSON encoding, newline escaping, and flushing.
+// Must be called with c.mu held; on context cancellation or write error
+// the client is marked closed so subsequent emissions are dropped.
+func (c *streamingClient) emit(event aguievents.Event) {
 	if c.closed {
 		return
 	}
-
 	if c.requestCtx != nil {
 		select {
 		case <-c.requestCtx.Done():
@@ -65,24 +69,9 @@ func (c *streamingClient) write(text string) {
 		default:
 		}
 	}
-
-	if _, err := io.WriteString(c.w, text); err != nil {
+	if err := c.sse.WriteEvent(c.requestCtx, c.w, event); err != nil {
 		c.closed = true
-		return
 	}
-	if c.flusher != nil {
-		c.flusher.Flush()
-	}
-}
-
-// writeSSEEvent encodes event as JSON and emits it as a single SSE frame.
-// Must be called with c.mu held.
-func (c *streamingClient) writeSSEEvent(event map[string]any) {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return
-	}
-	c.write("data: " + string(payload) + "\n\n")
 }
 
 // startRun emits RUN_STARTED and allocates a message id for the assistant
@@ -101,35 +90,22 @@ func (c *streamingClient) startRun() {
 	if c.messageID == "" {
 		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
-	c.writeSSEEvent(map[string]any{
-		"type":     "RUN_STARTED",
-		"threadId": c.threadID,
-		"runId":    c.runID,
-	})
+	c.emit(aguievents.NewRunStartedEvent(c.threadID, c.runID))
 }
 
-// finishRun closes any open text message and emits RUN_FINISHED. The stop
-// reason reported by the sidecar is passed through to AG-UI consumers.
-func (c *streamingClient) finishRun(stopReason string) {
+// finishRun closes any open text message and emits RUN_FINISHED. The
+// stopReason is currently dropped because the AG-UI RUN_FINISHED schema
+// has no stopReason field; the parameter is kept on the signature so the
+// caller (chat handler) does not need to change. If the frontend later
+// needs the reason it can be passed via WithResult or a custom event.
+func (c *streamingClient) finishRun(_ string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.textOpen {
-		c.writeSSEEvent(map[string]any{
-			"type":      "TEXT_MESSAGE_END",
-			"runId":     c.runID,
-			"messageId": c.messageID,
-		})
+		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
 		c.textOpen = false
 	}
-	event := map[string]any{
-		"type":     "RUN_FINISHED",
-		"threadId": c.threadID,
-		"runId":    c.runID,
-	}
-	if stopReason != "" {
-		event["stopReason"] = stopReason
-	}
-	c.writeSSEEvent(event)
+	c.emit(aguievents.NewRunFinishedEvent(c.threadID, c.runID))
 }
 
 // failRun emits RUN_ERROR with the supplied message. It is safe to call from
@@ -139,32 +115,26 @@ func (c *streamingClient) failRun(message string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.textOpen {
-		c.writeSSEEvent(map[string]any{
-			"type":      "TEXT_MESSAGE_END",
-			"runId":     c.runID,
-			"messageId": c.messageID,
-		})
+		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
 		c.textOpen = false
 	}
-	c.writeSSEEvent(map[string]any{
-		"type":    "RUN_ERROR",
-		"runId":   c.runID,
-		"message": message,
-	})
+	c.emit(aguievents.NewRunErrorEvent(message, aguievents.WithRunID(c.runID)))
 }
 
 // ensureTextStart emits TEXT_MESSAGE_START the first time streamed assistant
 // text is observed. Subsequent chunks are emitted as TEXT_MESSAGE_CONTENT.
-// Must be called with c.mu held.
+// A messageID is allocated lazily here as well as in startRun so an
+// out-of-order SessionUpdate (no preceding startRun) still produces a
+// schema-valid event — the SDK rejects events with empty required fields
+// at encode time. Must be called with c.mu held.
 func (c *streamingClient) ensureTextStart() {
 	if c.textOpen {
 		return
 	}
-	c.writeSSEEvent(map[string]any{
-		"type":      "TEXT_MESSAGE_START",
-		"runId":     c.runID,
-		"messageId": c.messageID,
-	})
+	if c.messageID == "" {
+		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+	}
+	c.emit(aguievents.NewTextMessageStartEvent(c.messageID))
 	c.textOpen = true
 }
 
@@ -189,66 +159,45 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		content := u.AgentMessageChunk.Content
 		if content.Text != nil {
 			c.ensureTextStart()
-			c.writeSSEEvent(map[string]any{
-				"type":      "TEXT_MESSAGE_CONTENT",
-				"runId":     c.runID,
-				"messageId": c.messageID,
-				"delta":     content.Text.Text,
-			})
+			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, content.Text.Text))
 		}
 	}
 	if u.ToolCall != nil {
-		c.writeSSEEvent(map[string]any{
-			"type":       "TOOL_CALL_START",
-			"runId":      c.runID,
-			"toolCallId": u.ToolCall.ToolCallId,
-			"title":      u.ToolCall.Title,
-			"kind":       u.ToolCall.Kind,
-		})
+		// The sidecar populates ACP Title with the tool identifier (prefixed
+		// with UIToolPrefix for contextual tools). The prefix is stripped
+		// here so the frontend sees the same name it registered the tool
+		// under, regardless of the wire-level namespace.
+		c.emit(aguievents.NewToolCallStartEvent(
+			string(u.ToolCall.ToolCallId),
+			stripUIToolPrefix(u.ToolCall.Title),
+		))
 		if u.ToolCall.RawInput != nil {
-			c.writeSSEEvent(map[string]any{
-				"type":       "TOOL_CALL_ARGS",
-				"runId":      c.runID,
-				"toolCallId": u.ToolCall.ToolCallId,
-				"args":       u.ToolCall.RawInput,
-			})
+			c.emit(aguievents.NewToolCallArgsEvent(
+				string(u.ToolCall.ToolCallId),
+				marshalToolArgsDelta(u.ToolCall.RawInput),
+			))
 		}
 	}
 	if u.ToolCallUpdate != nil {
 		if u.ToolCallUpdate.RawInput != nil {
-			c.writeSSEEvent(map[string]any{
-				"type":       "TOOL_CALL_ARGS",
-				"runId":      c.runID,
-				"toolCallId": u.ToolCallUpdate.ToolCallId,
-				"args":       u.ToolCallUpdate.RawInput,
-			})
+			c.emit(aguievents.NewToolCallArgsEvent(
+				string(u.ToolCallUpdate.ToolCallId),
+				marshalToolArgsDelta(u.ToolCallUpdate.RawInput),
+			))
 		}
 		if u.ToolCallUpdate.RawOutput != nil {
-			c.writeSSEEvent(map[string]any{
-				"type":       "TOOL_CALL_RESULT",
-				"runId":      c.runID,
-				"toolCallId": u.ToolCallUpdate.ToolCallId,
-				"result":     u.ToolCallUpdate.RawOutput,
-			})
+			c.emit(aguievents.NewToolCallResultEvent(
+				toolResultMessageID(u.ToolCallUpdate.ToolCallId),
+				string(u.ToolCallUpdate.ToolCallId),
+				flattenToolResultContent(u.ToolCallUpdate.RawOutput),
+			))
 		}
 		status := valueOrUnknown(u.ToolCallUpdate.Status)
 		if status == string(acp.ToolCallStatusCompleted) || status == string(acp.ToolCallStatusFailed) {
-			c.writeSSEEvent(map[string]any{
-				"type":       "TOOL_CALL_END",
-				"runId":      c.runID,
-				"toolCallId": u.ToolCallUpdate.ToolCallId,
-				"status":     status,
-			})
+			c.emit(aguievents.NewToolCallEndEvent(string(u.ToolCallUpdate.ToolCallId)))
 		}
 	}
 	return nil
-}
-
-func valueOrUnknown(v *acp.ToolCallStatus) string {
-	if v == nil {
-		return "unknown"
-	}
-	return string(*v)
 }
 
 // The methods below implement acp.Client operations that the Jaeger gateway

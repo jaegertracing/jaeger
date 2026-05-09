@@ -157,3 +157,50 @@ func TestCollectTextPartsIgnoresUnsupportedElementTypes(t *testing.T) {
 	}
 	assert.Equal(t, "keep\nalso-keep", collectTextParts(parts))
 }
+
+func TestMarshalToolArgsDeltaJSONEncodes(t *testing.T) {
+	// Happy path: a JSON-marshallable value should round-trip through
+	// json.Marshal and become a compact JSON string for AG-UI's delta field.
+	delta := marshalToolArgsDelta(map[string]any{"service": "checkout", "limit": 10})
+	assert.JSONEq(t, `{"service":"checkout","limit":10}`, delta)
+}
+
+func TestMarshalToolArgsDeltaFallsBackOnMarshalError(t *testing.T) {
+	// channels cannot be JSON-marshalled. Rather than emit an empty delta
+	// (which the SDK would reject for failing the Validate step), the
+	// helper falls back to fmt.Sprintf so the frontend at least sees
+	// something — better than dropping the entire TOOL_CALL_ARGS frame.
+	delta := marshalToolArgsDelta(make(chan int))
+	assert.NotEmpty(t, delta,
+		"fallback must produce a non-empty string when json.Marshal fails — "+
+			"otherwise the SDK's Validate step rejects the event and the frame is dropped")
+}
+
+func TestFlattenToolResultContentSkipsNonMapBlocks(t *testing.T) {
+	// MCP envelopes are well-typed in practice, but the loop guards
+	// against stray non-map entries (e.g. a bare string sneaking into
+	// content[]) by skipping them. With no usable text blocks the helper
+	// falls through to JSON-encoding the whole envelope so the frontend
+	// still gets a deterministic string.
+	envelope := map[string]any{
+		"content": []any{
+			"a bare string that should be skipped",
+			42, // also not a map[string]any
+		},
+	}
+	got := flattenToolResultContent(envelope)
+	assert.JSONEq(t, `{"content":["a bare string that should be skipped",42]}`, got,
+		"with no concatenable text blocks the helper should JSON-encode the whole envelope")
+}
+
+func TestFlattenToolResultContentFallsBackOnMarshalError(t *testing.T) {
+	// Non-envelope inputs go straight to json.Marshal. When that fails
+	// (e.g. channels) the helper renders the value via fmt.Sprintf so the
+	// AG-UI TOOL_CALL_RESULT.content field is never empty — an empty
+	// content string would fail the SDK's Validate step and silently drop
+	// the frame.
+	got := flattenToolResultContent(make(chan int))
+	assert.NotEmpty(t, got,
+		"fallback must produce a non-empty string when json.Marshal fails — "+
+			"otherwise the SDK's Validate step rejects the event and the frame is dropped")
+}
