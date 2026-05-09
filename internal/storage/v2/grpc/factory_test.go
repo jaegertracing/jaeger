@@ -124,7 +124,8 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: ":0",
 			},
-		}, telemetry.NoopSettings())
+		}, telemetry.NoopSettings(),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 	newClientFn := func(_ component.TelemetrySettings, _ *configgrpc.ClientConfig, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {

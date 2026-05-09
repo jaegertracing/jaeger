@@ -76,7 +76,8 @@ func (s *Service) Start(v *viper.Viper) error {
 	grpclog.SetLoggerV2(zapgrpc.NewLogger(
 		logger.WithOptions(
 			zap.AddCallerSkip(5), // ensure the actual caller:lineNo is shown
-		)))
+		),
+	))
 
 	metricsBuilder := new(metricsbuilder.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")

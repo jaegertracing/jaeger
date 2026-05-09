@@ -129,7 +129,8 @@ func createGRPCServer(
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
-	grpcOpts = append(grpcOpts,
+	grpcOpts = append(
+		grpcOpts,
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
@@ -145,7 +146,8 @@ func createGRPCServer(
 			TracerProvider: telset.TracerProvider,
 			MeterProvider:  telset.MeterProvider,
 		},
-		grpcOpts...)
+		grpcOpts...,
+	)
 }
 
 type httpServer struct {
@@ -172,7 +174,8 @@ func initRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		apiHandlerOptions...)
+		apiHandlerOptions...,
+	)
 	r := http.NewServeMux()
 
 	(&apiv3.HTTPGateway{
@@ -280,7 +283,8 @@ func createHTTPServer(
 
 func (hS httpServer) Close() error {
 	var errs []error
-	errs = append(errs,
+	errs = append(
+		errs,
 		hS.Server.Close(),
 		hS.staticHandlerCloser.Close(),
 	)

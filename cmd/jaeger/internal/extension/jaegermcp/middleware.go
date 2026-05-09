@@ -50,7 +50,8 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			attrs := []attribute.KeyValue{}
 			if toolName != "" {
 				spanName = method + " " + toolName
-				attrs = append(attrs,
+				attrs = append(
+					attrs,
 					otelsemconv.GenAIOperationNameExecuteTool,
 					otelsemconv.GenAIToolName(toolName),
 				)

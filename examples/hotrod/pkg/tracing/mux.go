@@ -40,7 +40,8 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 	middleware := otelhttp.NewHandler(
 		traceResponseHandler(handler),
 		pattern,
-		otelhttp.WithTracerProvider(tm.tracer))
+		otelhttp.WithTracerProvider(tm.tracer),
+	)
 
 	tm.mux.Handle(pattern, middleware)
 }

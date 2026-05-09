@@ -243,7 +243,7 @@ func Test_ErrorCases(t *testing.T) {
 		{
 			name: "nil step params",
 			params: metricstore.BaseQueryParameters{
-				EndTime: &(endTime),
+				EndTime: &endTime,
 			},
 			wantErr: "invalid parameters",
 		},
