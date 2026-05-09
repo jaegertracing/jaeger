@@ -40,6 +40,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 ALL_PROTO_SRC = $(shell find . -name '*.proto' \
 				   -not -path './vendor/*' \
 				   -not -path './idl/*' \
+				   -not -path './internal/proto-gen/*' \
 				   -type f | \
 				sort)
 
