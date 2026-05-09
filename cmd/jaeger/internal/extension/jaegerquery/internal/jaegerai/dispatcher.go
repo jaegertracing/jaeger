@@ -16,8 +16,12 @@ import (
 
 // ExtMethodJaegerToolCall is the ACP extension method the sidecar invokes
 // when Gemini requests a contextual (frontend-supplied) tool call. The
-// gateway logs the request and returns a placeholder response; PR2 will
-// replace the placeholder with a real round-trip to the AG-UI client.
+// gateway strips the UIToolPrefix, validates the (post-strip) name against
+// the per-session contextual tools snapshot, logs the dispatch, and
+// returns an immediate `{acknowledged: true}` ack. The browser observes
+// the call via the parallel TOOL_CALL_* SSE stream and performs the side
+// effect locally — see handleJaegerToolCall for the fire-and-forget
+// rationale.
 const ExtMethodJaegerToolCall = "_meta/jaegertracing.io/tools/call"
 
 // UIToolPrefix is the namespace the gateway prepends to every contextual
@@ -60,8 +64,10 @@ type extToolCallResponse struct {
 
 // newDispatcher returns an acp.MethodHandler that routes inbound
 // JSON-RPC from the sidecar:
-//   - session/update → streamingClient.SessionUpdate (writes agent text
-//     and tool-progress markers into the chat HTTP response).
+//   - session/update → streamingClient.SessionUpdate (translates ACP
+//     updates into typed AG-UI events — TEXT_MESSAGE_* for assistant
+//     text and TOOL_CALL_* for tool-call lifecycle — and writes them as
+//     SSE frames on the chat HTTP response).
 //   - session/request_permission → streamingClient.RequestPermission
 //     (always denies; we advertise no fs/terminal capability).
 //   - ExtMethodJaegerToolCall → validate the contextual tool dispatch

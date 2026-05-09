@@ -72,7 +72,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	prompt, err := latestUserMessageText(req.Messages)
 	if err != nil {
-		http.Error(w, "prompt is required", http.StatusBadRequest)
+		http.Error(w, "messages must include a user message with text content", http.StatusBadRequest)
 		return
 	}
 

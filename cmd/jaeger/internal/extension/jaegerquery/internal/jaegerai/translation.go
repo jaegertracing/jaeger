@@ -222,7 +222,7 @@ func flattenToolResultContent(raw any) string {
 					continue
 				}
 				if text, ok := blockMap["text"].(string); ok {
-					b.WriteString(text)
+					_, _ = b.WriteString(text)
 				}
 			}
 			if b.Len() > 0 {

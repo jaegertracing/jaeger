@@ -69,12 +69,16 @@ HTTP handler registered at `POST /api/ai/chat`. Accepts AG-UI
    Dispatcher below) that handles both standard ACP methods and the
    `_meta/jaegertracing.io/tools/call` extension method.
 5. Executes the ACP handshake: `Initialize` → `NewSession` → `Prompt`. If the
-   request carries `tools`, the gateway prefixes each name with `UIToolPrefix`
-   (`ui_`) and attaches the prefixed snapshot to `NewSessionRequest.Meta` under
-   `jaegertracing.io/contextual-tools` so the sidecar can register them with
-   the LLM. The same prefixed snapshot is also written into
-   `ContextualToolsStore` keyed by the assigned ACP `SessionId`, with a
-   matching `defer DeleteForSession`.
+   request carries `tools`, the gateway builds two parallel snapshots from the
+   same input: a **prefixed** snapshot (each name is namespaced with
+   `UIToolPrefix` / `ui_`) attached to `NewSessionRequest.Meta` under
+   `jaegertracing.io/contextual-tools` so the sidecar registers the tools
+   with the LLM, and an **unprefixed** snapshot (the original frontend names)
+   stored in `ContextualToolsStore` keyed by the assigned ACP `SessionId`.
+   The unprefixed snapshot lets `handleJaegerToolCall` validate dispatches
+   against the post-strip name without leaking the transport-level prefix
+   to consumers. A matching `defer DeleteForSession` clears the snapshot
+   regardless of how the turn ends.
 6. Sets `Content-Type: text/event-stream`, emits `RUN_STARTED`, runs `Prompt`,
    and emits `RUN_FINISHED` (or `RUN_ERROR` on failure) once it returns. Any
    streamed agent text or tool-call notifications during `Prompt` are flushed
@@ -88,9 +92,12 @@ Custom ACP method router for inbound JSON-RPC from the sidecar. Routes:
   text-message and tool-call events on the SSE stream).
 - `session/request_permission` → `streamingClient.RequestPermission` (always
   denies; gateway advertises no fs/terminal capabilities).
-- `_meta/jaegertracing.io/tools/call` → `handleJaegerToolCall` — acknowledges
-  the contextual tool dispatch and returns immediately. See *Contextual Tools*
-  below for the fire-and-forget rationale.
+- `_meta/jaegertracing.io/tools/call` → `handleJaegerToolCall` — strips
+  `UIToolPrefix`, validates the post-strip name against the per-session
+  `ContextualToolsStore` snapshot (rejects with `InvalidParams` if the
+  frontend never registered the tool), logs the dispatch, and returns
+  `{acknowledged: true}` immediately. See *Contextual Tools* below for the
+  fire-and-forget rationale.
 - anything else → `MethodNotFound`.
 
 `UIToolPrefix` (`ui_`) is the namespace the gateway prepends to every
@@ -185,6 +192,8 @@ sequenceDiagram
         SC-->>UI: TOOL_CALL_START/ARGS
         Sidecar->>acpConn: _meta/jaegertracing.io/tools/call<br>{sessionId, name, args}
         acpConn->>DSP: route extension method
+        DSP->>STORE: check tool is registered for sessionId
+        STORE-->>DSP: hit
         DSP->>DSP: strip ui_ prefix, log dispatch
         DSP-->>acpConn: {acknowledged: true}
         acpConn-->>Sidecar: ack
@@ -241,9 +250,11 @@ server directly over HTTP — those calls do not flow through the gateway.
 
 - `_meta/jaegertracing.io/tools/call` — sent by the sidecar when the LLM
   requests a contextual tool. Payload: `{sessionId, name, args}`. The gateway
-  validates the payload, strips `UIToolPrefix` from the tool name, logs the
-  dispatch, and immediately returns `{result: {acknowledged: true},
-  isError: false}`.
+  strips `UIToolPrefix` from the tool name, confirms the post-strip name is
+  present in the per-session `ContextualToolsStore` snapshot (rejecting with
+  `InvalidParams` otherwise), logs the dispatch, and immediately returns
+  `{result: {acknowledged: true}, isError: false}`. A `nil` store rejects
+  every dispatch as "not registered".
 
 ## Contextual Tools
 
@@ -264,14 +275,19 @@ Lifecycle:
    `jaegertracing.io/contextual-tools` so the sidecar can register the tools
    with the LLM.
 3. Once `NewSessionResponse` returns with the assigned `SessionId`, the
-   gateway writes the same prefixed snapshot into `ContextualToolsStore`
-   keyed by that session id, then sends `Prompt`.
+   gateway writes the **unprefixed** snapshot (the original frontend names)
+   into `ContextualToolsStore` keyed by that session id, then sends
+   `Prompt`. Storing the unprefixed names lets `handleJaegerToolCall`
+   validate dispatches against the post-strip name without leaking the
+   transport-level prefix to consumers.
 4. When the LLM calls a contextual tool, the sidecar emits ACP
    `start_tool_call` / `update_tool_call` notifications around the dispatch
    (which the streaming client renders as AG-UI `TOOL_CALL_*` SSE events) and
    sends `_meta/jaegertracing.io/tools/call` with `{sessionId, name, args}`.
-5. The gateway dispatcher strips `ui_`, logs, and returns
-   `{acknowledged: true}` immediately.
+5. The gateway dispatcher strips `ui_`, validates the post-strip name
+   against the per-session store snapshot (a miss yields `InvalidParams` so
+   a misbehaving sidecar or LLM cannot dispatch a tool the frontend never
+   declared), logs, and returns `{acknowledged: true}` immediately.
 6. The sidecar feeds the acknowledgement to Gemini as the function response;
    Gemini continues and produces a final assistant message.
 7. The browser, having seen the `TOOL_CALL_*` events earlier, performs the

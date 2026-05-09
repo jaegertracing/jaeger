@@ -284,7 +284,9 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 	assert.Equal(t, "tool-1", argsEvent["toolCallId"])
 	// AG-UI streams args as text deltas; the whole input is emitted as one
 	// JSON-encoded delta because the sidecar delivers args atomically.
-	assert.Equal(t, `{"service":"checkout"}`, argsEvent["delta"],
+	delta, ok := argsEvent["delta"].(string)
+	require.True(t, ok, "TOOL_CALL_ARGS.delta must be a string")
+	assert.JSONEq(t, `{"service":"checkout"}`, delta,
 		"TOOL_CALL_ARGS.delta must be the JSON-encoded args string")
 }
 
@@ -379,7 +381,9 @@ func TestStreamingClientSessionUpdateToolCallUpdateFlattensMCPEnvelope(t *testin
 
 	resultEvent := events[0]
 	assert.Equal(t, "TOOL_CALL_RESULT", resultEvent["type"])
-	assert.Equal(t, `{"traces":[]}`, resultEvent["content"],
+	content, ok := resultEvent["content"].(string)
+	require.True(t, ok, "TOOL_CALL_RESULT.content must be a string")
+	assert.JSONEq(t, `{"traces":[]}`, content,
 		"MCP text block should become the top-level content string")
 	assert.Equal(t, "tool-msg-search_traces-1", resultEvent["messageId"])
 	assert.Equal(t, "tool", resultEvent["role"])

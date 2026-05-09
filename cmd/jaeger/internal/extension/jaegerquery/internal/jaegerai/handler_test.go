@@ -188,7 +188,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
 	require.Empty(t, sessionReq.McpServers,
-		"PR2 must not advertise gateway-hosted MCP servers; contextual tools ride ACP extension methods now")
+		"the gateway must not advertise any MCP servers in NewSession — built-in MCP tools are reached by the sidecar directly, and contextual tools ride the ACP extension method instead")
 	require.Empty(t, sessionReq.Meta,
 		"Meta must be omitted when the AG-UI request carries no tools")
 
@@ -426,7 +426,7 @@ func TestChatHandlerEmptyPrompt(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code, "unexpected status code")
-	require.Contains(t, rr.Body.String(), "prompt is required")
+	require.Contains(t, rr.Body.String(), "messages must include a user message with text content")
 }
 
 func TestChatHandlerNoUserMessage(t *testing.T) {
@@ -442,7 +442,7 @@ func TestChatHandlerNoUserMessage(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, rr.Code,
 		"a RunAgentInput with no user message must fail with 400, not silently succeed")
-	require.Contains(t, rr.Body.String(), "prompt is required")
+	require.Contains(t, rr.Body.String(), "messages must include a user message with text content")
 }
 
 func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
