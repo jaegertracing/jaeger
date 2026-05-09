@@ -122,12 +122,14 @@ func handleJaegerToolCall(params json.RawMessage, logger *zap.Logger) (extToolCa
 		}
 		req.Name = stripped
 	} else {
-		logger.Warn("contextual tool name missing UI prefix; passing through unchanged",
+		logger.Warn(
+			"contextual tool name missing UI prefix; passing through unchanged",
 			zap.String("tool", req.Name),
 			zap.String("expected_prefix", UIToolPrefix),
 		)
 	}
-	logger.Info("contextual tool call received from sidecar (AG-UI relay pending)",
+	logger.Info(
+		"contextual tool call received from sidecar (AG-UI relay pending)",
 		zap.String("session_id", req.SessionID),
 		zap.String("tool", req.Name),
 		zap.String("prefixed_tool", originalName),

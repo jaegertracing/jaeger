@@ -231,7 +231,8 @@ func (h *samplingProvider) parseStrategies(strategies *strategies) {
 		// If the service did have its own per-operation strategies, then merge them with the default ones.
 		opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
 			opS.PerOperationStrategies,
-			newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
+			newStore.defaultStrategy.OperationSampling.PerOperationStrategies,
+		)
 	}
 	h.storedStrategies.Store(newStore)
 }
@@ -291,8 +292,10 @@ func (h *samplingProvider) parseOperationStrategy(
 			fmt.Sprintf(
 				"Operation strategies only supports probabilistic sampling at the moment,"+
 					"'%s' defaulting to probabilistic sampling with probability %f",
-				strategy.Operation, parent.DefaultSamplingProbability),
-			zap.Any("strategy", strategy))
+				strategy.Operation, parent.DefaultSamplingProbability,
+			),
+			zap.Any("strategy", strategy),
+		)
 		return nil, false
 	}
 	return s, true

@@ -561,7 +561,8 @@ func noopTelemetrySettings() component.TelemetrySettings {
 func makeStorageExtension(t *testing.T, config storageconfig.Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := t.Context()
-	ext, err := extensionFactory.Create(ctx,
+	ext, err := extensionFactory.Create(
+		ctx,
 		extension.Settings{
 			ID:                ID,
 			TelemetrySettings: noopTelemetrySettings(),

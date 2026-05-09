@@ -83,7 +83,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTag
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false),
-		elastic.SetHttpClient(c))
+		elastic.SetHttpClient(c),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		rawClient.Stop()

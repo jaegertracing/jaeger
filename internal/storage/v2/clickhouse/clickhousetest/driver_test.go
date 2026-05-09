@@ -154,7 +154,7 @@ func TestRows_Err(t *testing.T) {
 func TestRows_ScanStruct(t *testing.T) {
 	r := &Rows[string]{
 		Data:   []string{"hello"},
-		ScanFn: func(dest any, src string) error { *(dest.(*string)) = src; return nil },
+		ScanFn: func(dest any, src string) error { *dest.(*string) = src; return nil },
 	}
 	r.Next()
 	var out string
