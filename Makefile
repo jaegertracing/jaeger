@@ -141,7 +141,6 @@ nocover:
 	@scripts/lint/check-test-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
-.PHONY: fmt
 fmt: $(GOFUMPT)
 	@echo Running import-order-cleanup on ALL_SRC ...
 	@./scripts/lint/import-order-cleanup.py -o inplace -t $(ALL_SRC)
