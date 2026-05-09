@@ -160,7 +160,7 @@ func TestDispatcherToolCallSkipsNonObjectEntriesInSnapshot(t *testing.T) {
 	f := freshDispatcher(t)
 	d, store := f.d, f.store
 	store.SetForSession("sess-abc", []json.RawMessage{
-		json.RawMessage(`"naked-string"`),         // decodes to string, not map
+		json.RawMessage(`"naked-string"`),          // decodes to string, not map
 		json.RawMessage(`{"name":"render_chart"}`), // valid object
 	})
 
