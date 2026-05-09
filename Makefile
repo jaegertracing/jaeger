@@ -36,15 +36,6 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
-# All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
-SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
-						-not -path './.git/*' \
-						-not -path './vendor/*' \
-						-not -path './idl/*' \
-						-not -path './jaeger-ui/*' \
-						-type f | \
-					sort)
-
 # ALL_PKGS is used with 'nocover' and 'goleak'
 ALL_PKGS = $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | grep -v '/.*-gen/' | sort -u)
 
@@ -141,8 +132,8 @@ fmt: $(GOFUMPT)
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
+	@echo Running license_headers.py on in-scope source files ...
+	@python3 scripts/lint/license_headers.py
 	@echo Running check-line-endings on all files ...
 	@./scripts/lint/check-line-endings.py -u
 
@@ -158,7 +149,7 @@ lint-monitoring:
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@python3 scripts/lint/license_headers.py --check > $(FMT_LOG) || true
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: lint-nocommit

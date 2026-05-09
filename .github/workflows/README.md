@@ -39,7 +39,7 @@ Each stage is encapsulated in a reusable "stage" workflow:
 This avoids duplication: both the sequential and parallel paths call the same stage workflows.
 
 #### Stage 1: Fast Gate (Linters only)
-- **ci-lint-checks.yaml** - Go linting, DCO checks, generated files validation, shell script linting
+- **ci-lint-checks.yaml** - Go linting, license-header checks (`make lint`), DCO checks, generated files validation, shell script linting
 
 #### Stage 2: Unit Tests
 - **ci-unit-tests.yml** - Full unit test suite with coverage

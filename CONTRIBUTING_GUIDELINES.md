@@ -176,6 +176,10 @@ make sure the year is current and the copyright says "The Jaeger Authors".
 // SPDX-License-Identifier: Apache-2.0
 ```
 
+Header scope, exclusions, and CI enforcement are documented in
+[`docs/security/license-headers-policy.md`](./docs/security/license-headers-policy.md).
+Run `make fmt` to add missing headers and `make lint` to verify compliance.
+
 **Never remove existing copyright headers**.
 
 Some files may have other copyright headers, such as:

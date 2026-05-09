@@ -31,6 +31,7 @@ Use the following replacements for stale badge evidence.
 | `external_dependencies` | `https://github.com/jaegertracing/jaeger/blob/master/Gopkg.toml` | `https://github.com/jaegertracing/jaeger/blob/main/go.mod`, `https://github.com/jaegertracing/jaeger/blob/main/go.sum`, `https://github.com/jaegertracing/jaeger/blob/main/internal/tools/go.mod`, and `https://github.com/jaegertracing/jaeger/blob/main/SECURITY.md#dependency-policy` |
 | `automated_integration_testing` | `https://travis-ci.org/jaegertracing/jaeger` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-e2e-all.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md#e2e-test-workflows` |
 | `test_statement_coverage80` | `https://codecov.io/gh/jaegertracing/jaeger/branch/master/` | `https://codecov.io/gh/jaegertracing/jaeger/branch/main/` and `https://github.com/jaegertracing/jaeger/blob/main/docs/adr/004-migrating-coverage-gating-to-github-actions.md` |
+| `copyright_per_file` | Issue-only evidence | `https://github.com/jaegertracing/jaeger/blob/main/docs/security/license-headers-policy.md`, `https://github.com/jaegertracing/jaeger/blob/main/scripts/lint/license_headers.py`, `https://github.com/jaegertracing/jaeger/blob/main/Makefile`, and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/ci-lint-checks.yaml` |
 | `crypto_used_network` | `https://github.com/jaegertracing/jaeger/blob/main/SECURITY-ARCHITECTURE.md#tls-configuration` | `https://github.com/jaegertracing/jaeger/blob/main/docs/security/architecture.md#tls-configuration` |
 | `crypto_tls12` | `https://github.com/jaegertracing/jaeger/blob/main/SECURITY-ARCHITECTURE.md#tls-version` | `https://github.com/jaegertracing/jaeger/blob/main/docs/security/architecture.md#tls-version` |
 | `crypto_certificate_verification` | `https://github.com/jaegertracing/jaeger/blob/main/SECURITY-ARCHITECTURE.md#certificate-verification` | `https://github.com/jaegertracing/jaeger/blob/main/docs/security/architecture.md#certificate-verification` |
@@ -58,7 +59,6 @@ The following criteria need more than URL refresh and are tracked by the Gold ba
 | Area | Tracking issue |
 | --- | --- |
 | Code review requirements and maintainer 2FA policy | `https://github.com/jaegertracing/jaeger/issues/8486` |
-| Per-file copyright and SPDX compliance | `https://github.com/jaegertracing/jaeger/issues/8487` |
 | Newcomer task maintenance | `https://github.com/jaegertracing/jaeger/issues/8483` |
 | Reproducible build, coverage, hardened headers, and dynamic analysis | `https://github.com/jaegertracing/jaeger/issues/8484` |
 | Current security review evidence | `https://github.com/jaegertracing/jaeger/issues/8485` |

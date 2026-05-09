@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Copyright (c) 2026 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
 
 /**
  * PR Quota Management System
