@@ -13,7 +13,6 @@ go.work.sum
 cover.html
 .envrc
 .idea/
-.vscode/
 .tmp/
 .mkdocs-virtual-env/
 vendor/
@@ -50,3 +49,7 @@ test-results.json
 .mockery.log
 build.log
 sidecar.py.orig
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
+branch_structure.json
