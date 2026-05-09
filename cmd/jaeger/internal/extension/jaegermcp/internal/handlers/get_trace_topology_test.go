@@ -598,4 +598,6 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
+	// TotalSpanCount must reflect the full trace size so callers can detect truncation.
+	assert.Equal(t, 6, output.TotalSpanCount)
 }

@@ -66,12 +66,13 @@ func (h *getTraceTopologyHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// AggregateTracesWithLimit ensures a complete trace view while bounding server-side
-	// memory to maxSpanDetailsPerRequest spans, preventing unbounded work on large traces.
-	aggregatedIter := jptrace.AggregateTracesWithLimit(tracesIter, h.maxSpanDetailsPerRequest)
+	// AggregateTraces reassembles the full trace so TotalSpanCount reflects every span.
+	// The Spans slice is capped inside the iteration loop below.
+	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Collect all spans from the trace
+	// Collect spans from the trace, capped at maxSpanDetailsPerRequest.
 	var spans []rawSpan
+	totalSpans := 0
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -81,11 +82,10 @@ func (h *getTraceTopologyHandler) handle(
 
 		traceFound = true
 
-		// Iterate through all spans in the trace and collect them
 		for pos, span := range jptrace.SpanIter(trace) {
-			spans = append(spans, extractRawSpan(pos, span))
-			if h.maxSpanDetailsPerRequest > 0 && len(spans) >= h.maxSpanDetailsPerRequest {
-				break
+			totalSpans++
+			if h.maxSpanDetailsPerRequest == 0 || len(spans) < h.maxSpanDetailsPerRequest {
+				spans = append(spans, extractRawSpan(pos, span))
 			}
 		}
 	}
@@ -96,8 +96,9 @@ func (h *getTraceTopologyHandler) handle(
 
 	// Build the flat topology list from the collected spans
 	output := types.GetTraceTopologyOutput{
-		TraceID: input.TraceID,
-		Spans:   h.buildFlatTopology(spans, input.Depth),
+		TraceID:        input.TraceID,
+		TotalSpanCount: totalSpans,
+		Spans:          h.buildFlatTopology(spans, input.Depth),
 	}
 
 	return nil, output, nil
