@@ -12,7 +12,7 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/elastic/go-elasticsearch/v9 v9.3.1
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
