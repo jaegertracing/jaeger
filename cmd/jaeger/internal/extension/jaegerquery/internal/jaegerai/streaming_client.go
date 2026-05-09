@@ -94,16 +94,23 @@ func (c *streamingClient) startRun() {
 }
 
 // finishRun closes any open text message and emits RUN_FINISHED. The
-// stopReason is currently dropped because the AG-UI RUN_FINISHED schema
-// has no stopReason field; the parameter is kept on the signature so the
-// caller (chat handler) does not need to change. If the frontend later
-// needs the reason it can be passed via WithResult or a custom event.
-func (c *streamingClient) finishRun(_ string) {
+// AG-UI schema has no top-level stopReason field, so the sidecar's stop
+// reason is forwarded via the schema-supported `result` payload as
+// `{"stopReason": "<reason>"}`. Empty stop reasons are omitted so the
+// emitted event stays compact.
+func (c *streamingClient) finishRun(stopReason string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.textOpen {
 		c.emit(aguievents.NewTextMessageEndEvent(c.messageID))
 		c.textOpen = false
+	}
+	if stopReason != "" {
+		c.emit(aguievents.NewRunFinishedEventWithOptions(
+			c.threadID, c.runID,
+			aguievents.WithResult(map[string]any{"stopReason": stopReason}),
+		))
+		return
 	}
 	c.emit(aguievents.NewRunFinishedEvent(c.threadID, c.runID))
 }

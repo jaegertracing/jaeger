@@ -115,12 +115,13 @@ func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger 
 // — so the gateway acknowledges immediately and lets Gemini's agentic
 // loop continue with a "tool dispatched" function response.
 //
-// The tool name arrives “UIToolPrefix“-namespaced (the gateway adds
+// The tool name arrives “UIToolPrefix“-namespaced — the gateway adds
 // the prefix in handler.go before populating the contextual tools meta
-// payload) and is stripped back here so downstream consumers and logs
-// see the original frontend-supplied name. Callers that pre-date the
-// prefix pass the name through unchanged and only log a warning, so
-// the strip is safe to deploy ahead of the meta-side prefix-add work.
+// payload — and is stripped back here so downstream consumers and logs
+// see the original frontend-supplied name. As a defensive compatibility
+// shim, a sidecar that omits the prefix is not rejected: the unprefixed
+// name is passed through unchanged and a warning is logged so any
+// regressions are visible without breaking dispatches.
 //
 // After stripping, the dispatcher confirms the (unprefixed) name is
 // present in the per-session contextual tools snapshot. A miss yields

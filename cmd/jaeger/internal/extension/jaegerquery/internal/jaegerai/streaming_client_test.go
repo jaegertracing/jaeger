@@ -149,17 +149,38 @@ func TestStreamingClientFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T)
 	c.startRun()
 	c.ensureTextStart()
 
-	// stopReason is accepted on the signature for caller compatibility but
-	// the AG-UI RUN_FINISHED schema has no stopReason field, so the typed
-	// event drops it on the wire.
+	// AG-UI's RUN_FINISHED schema has no top-level stopReason field, so
+	// the sidecar's stop reason is forwarded via the schema-supported
+	// `result` payload as `{"stopReason": "<reason>"}`.
 	c.finishRun("end_turn")
 
 	events := parseSSEEvents(t, rec.Body.String())
 	types := eventTypes(events)
 	assert.Equal(t, []string{"RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_END", "RUN_FINISHED"}, types)
-	_, hasStopReason := events[3]["stopReason"]
-	assert.False(t, hasStopReason, "stopReason is not part of the AG-UI RUN_FINISHED schema")
+	finishedEvent := events[3]
+	_, hasStopReasonAtRoot := finishedEvent["stopReason"]
+	assert.False(t, hasStopReasonAtRoot,
+		"stopReason must not be a top-level field — the AG-UI schema forbids extras at that level")
+	result, ok := finishedEvent["result"].(map[string]any)
+	require.True(t, ok, "stopReason must ride inside the schema-supported result payload")
+	assert.Equal(t, "end_turn", result["stopReason"])
 	assert.False(t, c.textOpen, "textOpen should be reset after finishRun")
+}
+
+func TestStreamingClientFinishRunOmitsResultWhenNoStopReason(t *testing.T) {
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c.startRun()
+
+	c.finishRun("")
+
+	events := parseSSEEvents(t, rec.Body.String())
+	require.Len(t, events, 2)
+	finishedEvent := events[1]
+	assert.Equal(t, "RUN_FINISHED", finishedEvent["type"])
+	_, hasResult := finishedEvent["result"]
+	assert.False(t, hasResult,
+		"result must be omitted when no stop reason is supplied so the event stays compact")
 }
 
 func TestStreamingClientFailRunEmitsRunError(t *testing.T) {

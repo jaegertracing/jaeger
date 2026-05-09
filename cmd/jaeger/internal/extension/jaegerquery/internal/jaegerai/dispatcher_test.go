@@ -151,6 +151,33 @@ func TestDispatcherToolCallRejectsUnknownTool(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "unknown tool should yield InvalidParams")
 }
 
+func TestDispatcherToolCallSkipsNonObjectEntriesInSnapshot(t *testing.T) {
+	// The store keeps tool snapshots as raw JSON and unmarshals them into
+	// any on lookup; a stored value that decodes to anything other than an
+	// object (string, number, etc.) cannot carry a "name" field and must
+	// be skipped silently. Pairing one bogus entry with one valid entry
+	// proves the loop continues past the bogus one and still matches.
+	f := freshDispatcher(t)
+	d, store := f.d, f.store
+	store.SetForSession("sess-abc", []json.RawMessage{
+		json.RawMessage(`"naked-string"`),         // decodes to string, not map
+		json.RawMessage(`{"name":"render_chart"}`), // valid object
+	})
+
+	params, err := json.Marshal(extToolCallRequest{
+		SessionID: "sess-abc",
+		Name:      UIToolPrefix + "render_chart",
+	})
+	require.NoError(t, err)
+
+	result, reqErr := d(t.Context(), ExtMethodJaegerToolCall, params)
+	require.Nil(t, reqErr,
+		"the non-object entry must be skipped, not abort the lookup before reaching the valid entry")
+	resp, ok := result.(extToolCallResponse)
+	require.True(t, ok)
+	assert.False(t, resp.IsError)
+}
+
 func TestDispatcherToolCallRejectsUnknownSession(t *testing.T) {
 	// No SetForSession was called for this session id (e.g. the
 	// chat handler's defer Delete already ran, or this dispatch landed

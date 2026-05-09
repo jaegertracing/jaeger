@@ -63,7 +63,11 @@ func encodeToolsAsRaw(tools []aguitypes.Tool) []json.RawMessage {
 
 // extractText collects textual content from an AG-UI message Content field.
 // The field is typed as any because AG-UI allows a plain string, a list of
-// typed parts, or an already-decoded structure.
+// typed parts, or an already-decoded structure. Each typed-decode is only
+// short-circuited when it actually yields text — a successful decode that
+// produces no usable parts (e.g. items lacking the "text" InputContent
+// type) falls through so the generic object/array fallbacks can still
+// recover the user's input.
 func extractText(content any) string {
 	if content == nil {
 		return ""
@@ -74,19 +78,20 @@ func extractText(content any) string {
 	}
 
 	if parts, ok := content.([]aguitypes.InputContent); ok {
-		return collectInputContentText(parts)
+		if text := collectInputContentText(parts); text != "" {
+			return text
+		}
 	}
 
 	raw, err := json.Marshal(content)
 	if err != nil {
 		return ""
 	}
-	if len(raw) == 0 {
-		return ""
-	}
 
 	if parts, ok := decodeInputContent(raw); ok {
-		return collectInputContentText(parts)
+		if text := collectInputContentText(parts); text != "" {
+			return text
+		}
 	}
 
 	var direct string

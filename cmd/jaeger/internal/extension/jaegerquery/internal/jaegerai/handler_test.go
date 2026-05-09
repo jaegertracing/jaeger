@@ -236,8 +236,11 @@ func TestChatHandlerAttachesContextualToolsToMetaAndStore(t *testing.T) {
 	// AG-UI tools on the request should land both on NewSessionRequest._meta
 	// (so the sidecar can register them with the LLM) and in
 	// ContextualToolsStore (so handleJaegerToolCall can resolve callbacks).
-	// Tool names must be UIToolPrefix-prefixed in both places, and the
-	// store entry must be cleared once the turn ends.
+	// Names are UIToolPrefix-prefixed in Meta — the prefix guarantees no
+	// collision with built-in MCP tool names — but the store keeps the
+	// original *unprefixed* names because handleJaegerToolCall validates
+	// the post-strip name (what the frontend registered). The store entry
+	// must be cleared once the turn ends.
 	agent := &mockACPAgent{}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
@@ -274,8 +277,9 @@ func TestChatHandlerAttachesContextualToolsToMetaAndStore(t *testing.T) {
 	assert.Equal(t, UIToolPrefix+"render_chart", first["name"],
 		"the gateway must prepend UIToolPrefix before exposing the tool")
 
-	// SetForSession was called with the same prefixed payload, and
-	// DeleteForSession must have run via defer once the turn finished.
+	// SetForSession was called with the unprefixed snapshot (so dispatch
+	// can validate by frontend name), and DeleteForSession must have run
+	// via defer once the turn finished.
 	assert.Nil(t, store.GetContextualToolsForSession("sess-test"),
 		"store entry should be cleared after the turn ends")
 }
@@ -302,7 +306,7 @@ func TestChatHandlerOmitsMetaWhenNoTools(t *testing.T) {
 		"Meta must stay nil/empty when no tools are sent so the sidecar does not see a stale snapshot")
 }
 
-func TestChatHandlerEmitsLifecycleFramesForEmptyTurn(t *testing.T) {
+func TestChatHandlerEmitsRunFinishedWithStopReasonInResult(t *testing.T) {
 	agent := &mockACPAgent{promptStopReason: acp.StopReasonMaxTokens}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
@@ -320,13 +324,16 @@ func TestChatHandlerEmitsLifecycleFramesForEmptyTurn(t *testing.T) {
 	types := eventTypes(events)
 	require.Equal(t, []string{"RUN_STARTED", "RUN_FINISHED"}, types,
 		"a turn with no streamed text should emit just the lifecycle frames")
-	// stopReason intentionally not asserted: AG-UI's RUN_FINISHED schema
-	// has no stopReason field, so the typed event drops it on the wire.
-	// The sidecar's StopReason still drives whether the turn completed
-	// normally vs. errored — only the wire encoding changed.
-	_, hasStopReason := events[1]["stopReason"]
-	assert.False(t, hasStopReason,
-		"stopReason is not in the AG-UI RUN_FINISHED schema and must not be emitted")
+	// AG-UI's RUN_FINISHED schema has no top-level stopReason field, so
+	// the sidecar's StopReason rides inside the schema-supported `result`
+	// payload. The frontend can read result.stopReason if it cares.
+	finishedEvent := events[1]
+	_, hasStopReasonAtRoot := finishedEvent["stopReason"]
+	assert.False(t, hasStopReasonAtRoot,
+		"stopReason must not be a top-level field — extras at that level are forbidden by the schema")
+	result, ok := finishedEvent["result"].(map[string]any)
+	require.True(t, ok, "stopReason must be wrapped in the schema-supported result payload")
+	assert.Equal(t, "max_tokens", result["stopReason"])
 }
 
 func TestChatHandlerPropagatesThreadAndRunIDs(t *testing.T) {
