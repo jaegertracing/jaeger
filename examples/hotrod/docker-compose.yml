@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # To run a specific version of Jaeger, use environment variable, e.g.:
 #     JAEGER_VERSION=2.0.0 HOTROD_VERSION=1.63.0 docker compose up
 

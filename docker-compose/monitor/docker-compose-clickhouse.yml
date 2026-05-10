@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:26.4.2@sha256:6d8f358747b59f7db044749eaf951e828e75cc16f9c487f855b114272c44b82c

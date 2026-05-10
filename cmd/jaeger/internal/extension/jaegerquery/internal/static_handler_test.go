@@ -5,6 +5,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -235,6 +236,12 @@ func TestLoadUIConfig(t *testing.T) {
 		expectedContent string
 	}
 
+	readJSFixture := func(name string) []byte {
+		content, err := os.ReadFile(name)
+		require.NoError(t, err)
+		return bytes.TrimSpace(content)
+	}
+
 	run := func(description string, testCase testCase) {
 		t.Run(description, func(t *testing.T) {
 			config, err := loadUIConfig(testCase.configFile)
@@ -304,11 +311,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile: "fixture/ui-config.js",
 		expected: &loadedConfig{
 			regexp: configJsPattern,
-			config: []byte(`function UIConfig(){
-  return {
-    x: "y"
-  }
-}`),
+			config: readJSFixture("fixture/ui-config.js"),
 		},
 		expectedContent: "function UIConfig()",
 	})
@@ -316,16 +319,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile: "fixture/ui-config-menu.js",
 		expected: &loadedConfig{
 			regexp: configJsPattern,
-			config: []byte(`function UIConfig(){
-  return {
-    menu: [
-      {
-        label: "GitHub",
-        url: "https://github.com/jaegertracing/jaeger"
-      }
-    ]
-  }
-}`),
+			config: readJSFixture("fixture/ui-config-menu.js"),
 		},
 		expectedContent: "function UIConfig()",
 	})
