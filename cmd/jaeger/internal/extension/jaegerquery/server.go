@@ -37,6 +37,7 @@ type server struct {
 	telset         component.TelemetrySettings
 	qs             *querysvc.QueryService
 	tenancyManager *tenancy.Manager
+	metricsReader  metricstore.Reader
 }
 
 func newServer(config *Config, otel component.TelemetrySettings) *server {
@@ -92,6 +93,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return err
 	}
+	s.metricsReader = mqs
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
@@ -195,4 +197,10 @@ func (s *server) QueryService() *querysvc.QueryService {
 // TenancyManager returns the tenancy manager used by query endpoints.
 func (s *server) TenancyManager() *tenancy.Manager {
 	return s.tenancyManager
+}
+
+// MetricsReader returns the SPM metrics reader.
+// Returns a disabled reader when metrics storage is not configured.
+func (s *server) MetricsReader() metricstore.Reader {
+	return s.metricsReader
 }
