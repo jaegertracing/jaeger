@@ -39,9 +39,10 @@ type mockACPAgent struct {
 
 	promptStopReason acp.StopReason
 
-	initializeErr error
-	newSessionErr error
-	promptErr     error
+	initializeErr   error
+	newSessionErr   error
+	promptErr       error
+	closeSessionErr error
 
 	// promptHook is called during Prompt before returning, allowing tests to
 	// send SessionUpdate notifications via asc.
@@ -79,6 +80,9 @@ func (a *mockACPAgent) CloseSession(_ context.Context, params acp.CloseSessionRe
 	defer a.mu.Unlock()
 	cp := params
 	a.closeSessionReq = &cp
+	if a.closeSessionErr != nil {
+		return acp.CloseSessionResponse{}, a.closeSessionErr
+	}
 	return acp.CloseSessionResponse{}, nil
 }
 
@@ -446,6 +450,40 @@ func TestChatHandlerSessionCloseFiresWhenAgentAdvertisesCapability(t *testing.T)
 
 	closeReq := agent.capturedCloseRequest()
 	require.NotNil(t, closeReq, "expected session/close to be issued when agent advertises the capability")
+	require.EqualValues(t, "sess-test", closeReq.SessionId, "session/close session id mismatch")
+}
+
+func TestChatHandlerSessionCloseErrorIsSwallowed(t *testing.T) {
+	// session/close is best-effort cleanup. If the agent returns an error
+	// (or the call would otherwise fail), the handler must NOT surface
+	// that to the user — the HTTP response has already been streamed by
+	// the time the defer runs. This test exercises the error branch of
+	// the cleanup hook and asserts the user-visible response is unchanged.
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Close: &acp.SessionCloseCapabilities{},
+			},
+		},
+		closeSessionErr: errors.New("close failed"),
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err, "failed to marshal request")
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "close failure must not change user-visible status")
+	require.NotContains(t, rr.Body.String(), "close failed",
+		"close failure must not leak into the response body")
+
+	closeReq := agent.capturedCloseRequest()
+	require.NotNil(t, closeReq, "session/close should still have been attempted")
 	require.EqualValues(t, "sess-test", closeReq.SessionId, "session/close session id mismatch")
 }
 
