@@ -26,9 +26,16 @@ import (
 type mockACPAgent struct {
 	mu sync.Mutex
 
-	initializeReq *acp.InitializeRequest
-	newSessionReq *acp.NewSessionRequest
-	promptReq     *acp.PromptRequest
+	initializeReq   *acp.InitializeRequest
+	newSessionReq   *acp.NewSessionRequest
+	promptReq       *acp.PromptRequest
+	closeSessionReq *acp.CloseSessionRequest
+
+	// agentCapabilities is what Initialize advertises back to the gateway.
+	// Default zero value (empty caps) matches the legacy sidecar contract;
+	// tests that exercise the capability-gated session/close path opt in
+	// by setting SessionCapabilities.Close.
+	agentCapabilities acp.AgentCapabilities
 
 	promptStopReason acp.StopReason
 
@@ -58,7 +65,7 @@ func (a *mockACPAgent) Initialize(_ context.Context, params acp.InitializeReques
 	a.initializeReq = &cp
 	return acp.InitializeResponse{
 		ProtocolVersion:   params.ProtocolVersion,
-		AgentCapabilities: acp.AgentCapabilities{},
+		AgentCapabilities: a.agentCapabilities,
 		AuthMethods:       []acp.AuthMethod{},
 	}, nil
 }
@@ -67,7 +74,11 @@ func (*mockACPAgent) Cancel(context.Context, acp.CancelNotification) error {
 	return nil
 }
 
-func (*mockACPAgent) CloseSession(context.Context, acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
+func (a *mockACPAgent) CloseSession(_ context.Context, params acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	cp := params
+	a.closeSessionReq = &cp
 	return acp.CloseSessionResponse{}, nil
 }
 
@@ -124,6 +135,12 @@ func (a *mockACPAgent) snapshot() (*acp.InitializeRequest, *acp.NewSessionReques
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.initializeReq, a.newSessionReq, a.promptReq
+}
+
+func (a *mockACPAgent) capturedCloseRequest() *acp.CloseSessionRequest {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.closeSessionReq
 }
 
 func startMockACPWebSocketServer(t *testing.T, agent *mockACPAgent) (string, func()) {
@@ -400,4 +417,54 @@ func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	handler.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusBadGateway, w.status, "unexpected status code")
+}
+
+func TestChatHandlerSessionCloseFiresWhenAgentAdvertisesCapability(t *testing.T) {
+	// Agent advertises session/close support; the gateway must issue a
+	// session/close RPC for the session it created. The defer runs
+	// synchronously inside ServeHTTP (LIFO with adapter.Close), so the
+	// captured request is observable as soon as ServeHTTP returns.
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			SessionCapabilities: acp.SessionCapabilities{
+				Close: &acp.SessionCloseCapabilities{},
+			},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err, "failed to marshal request")
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+
+	closeReq := agent.capturedCloseRequest()
+	require.NotNil(t, closeReq, "expected session/close to be issued when agent advertises the capability")
+	require.EqualValues(t, "sess-test", closeReq.SessionId, "session/close session id mismatch")
+}
+
+func TestChatHandlerSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
+	// Default agent advertises empty AgentCapabilities, so the gateway
+	// MUST NOT issue session/close — older sidecars would return
+	// MethodNotFound. This pins down the capability-gate behavior.
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	require.NoError(t, err, "failed to marshal request")
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+	require.Nil(t, agent.capturedCloseRequest(), "session/close must not fire when agent does not advertise the capability")
 }
