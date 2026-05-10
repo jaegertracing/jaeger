@@ -66,13 +66,16 @@ func (h *getTraceTopologyHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// AggregateTraces reassembles the full trace so TotalSpanCount reflects every span.
-	// The Spans slice is capped inside the iteration loop below.
+	// AggregateTraces reassembles the full trace so TotalSpanCount reflects every span
+	// and so we can build a correct DFS topology regardless of OTLP container ordering.
+	// SpanIter walks resource/scope/span order, so a root span that appears after its
+	// children would be dropped if we capped collection here, producing an incorrect
+	// tree (children promoted to roots, paths broken). Instead, we collect every span,
+	// build the full DFS-ordered topology, then truncate the resulting list — roots
+	// are emitted first by DFS, so capping the tail removes leaves rather than roots.
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Collect spans from the trace, capped at maxSpanDetailsPerRequest.
 	var spans []rawSpan
-	totalSpans := 0
 	traceFound := false
 
 	for trace, err := range aggregatedIter {
@@ -83,10 +86,7 @@ func (h *getTraceTopologyHandler) handle(
 		traceFound = true
 
 		for pos, span := range jptrace.SpanIter(trace) {
-			totalSpans++
-			if h.maxSpanDetailsPerRequest == 0 || len(spans) < h.maxSpanDetailsPerRequest {
-				spans = append(spans, extractRawSpan(pos, span))
-			}
+			spans = append(spans, extractRawSpan(pos, span))
 		}
 	}
 
@@ -94,11 +94,16 @@ func (h *getTraceTopologyHandler) handle(
 		return nil, types.GetTraceTopologyOutput{}, errors.New("trace not found")
 	}
 
-	// Build the flat topology list from the collected spans
+	totalSpans := len(spans)
+	topology := h.buildFlatTopology(spans, input.Depth)
+	if h.maxSpanDetailsPerRequest > 0 && len(topology) > h.maxSpanDetailsPerRequest {
+		topology = topology[:h.maxSpanDetailsPerRequest]
+	}
+
 	output := types.GetTraceTopologyOutput{
 		TraceID:        input.TraceID,
 		TotalSpanCount: totalSpans,
-		Spans:          h.buildFlatTopology(spans, input.Depth),
+		Spans:          topology,
 	}
 
 	return nil, output, nil
