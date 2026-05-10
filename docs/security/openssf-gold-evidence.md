@@ -2,11 +2,12 @@
 
 This page tracks durable Jaeger evidence for the OpenSSF Best Practices badge entry at <https://www.bestpractices.dev/projects/1273>. It is maintained so badge evidence can point at current `main` branch resources instead of retired branches, old CI systems, or issue-only evidence.
 
-Last reviewed: 2026-05-06.
+Last reviewed: 2026-05-08.
 
 ## Badge Evidence Refresh
 
 Use the following replacements for stale badge evidence.
+The stale-evidence refresh is tracked by `https://github.com/jaegertracing/jaeger/issues/8482` and is complete.
 
 | Badge criterion | Replace stale evidence | Current evidence |
 | --- | --- | --- |
@@ -51,15 +52,14 @@ Use the following replacements for stale badge evidence.
 | `test_continuous_integration` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-orchestrator.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md` |
 | `security_review` | Historical public audits are available at `https://github.com/jaegertracing/security-audits`; current-within-5-years evidence is tracked by issue `https://github.com/jaegertracing/jaeger/issues/8485`. |
 
-## Remaining Gold Work
+## Pending Gold Work
 
 The following criteria need more than URL refresh and are tracked by the Gold badge parent issue.
 
-| Area | Tracking issue |
-| --- | --- |
-| Code review requirements and maintainer 2FA policy | `https://github.com/jaegertracing/jaeger/issues/8486` |
-| Per-file copyright and SPDX compliance | `https://github.com/jaegertracing/jaeger/issues/8487` |
-| Newcomer task maintenance | `https://github.com/jaegertracing/jaeger/issues/8483` |
-| Reproducible build, coverage, hardened headers, and dynamic analysis | `https://github.com/jaegertracing/jaeger/issues/8484` |
-| Current security review evidence | `https://github.com/jaegertracing/jaeger/issues/8485` |
-
+| Tracking issue | Pending criteria | Evidence needed before badge update |
+| --- | --- | --- |
+| `https://github.com/jaegertracing/jaeger/issues/8486` | `require_2FA`, `secure_2FA`, `code_review_standards`, `two_person_review` | Linkable maintainer account-security policy and code-review requirements covering reviewer responsibilities, approval expectations, tests, generated files, and security-sensitive changes. |
+| `https://github.com/jaegertracing/jaeger/issues/8487` | `copyright_per_file`, `license_per_file` | In-scope source files carry copyright and SPDX license identifiers, with CI enforcement to prevent regressions. |
+| `https://github.com/jaegertracing/jaeger/issues/8483` | `small_tasks` | Active newcomer-task evidence, discoverable issue labels, and a lightweight maintainer process for keeping suitable tasks available. |
+| `https://github.com/jaegertracing/jaeger/issues/8484` | `build_reproducible`, `test_statement_coverage90`, `test_branch_coverage80`, `hardened_site`, `hardening`, `dynamic_analysis`, `dynamic_analysis_enable_assertions` | Maintained technical evidence or justified exceptions for reproducible builds, coverage, hardened headers, hardening, and release-time dynamic analysis. |
+| `https://github.com/jaegertracing/jaeger/issues/8485` | `security_review` | Current security review evidence from within the Gold five-year window, published without disclosing sensitive vulnerability details. |
