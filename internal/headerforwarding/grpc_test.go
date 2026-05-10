@@ -73,6 +73,20 @@ func TestUnaryServerInterceptor_ExtractsFromMetadata(t *testing.T) {
 	}, gotMap)
 }
 
+func TestUnaryServerInterceptor_MultiValueUsesFirst(t *testing.T) {
+	md := metadata.Pairs("x-grpc-user", "alice", "x-grpc-user", "bob")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	interceptor := headerforwarding.NewUnaryServerInterceptor(testHeaders)
+	var gotMap map[string]string
+	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+		gotMap = capturedToMap(headerforwarding.CapturedFromContext(ctx))
+		return nil, nil
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "alice", gotMap["x-user"])
+}
+
 func TestUnaryServerInterceptor_NoMetadata(t *testing.T) {
 	interceptor := headerforwarding.NewUnaryServerInterceptor(testHeaders)
 	var got []headerforwarding.CapturedHeader

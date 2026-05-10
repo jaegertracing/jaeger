@@ -27,7 +27,7 @@ func extractFromIncomingMetadata(ctx context.Context, headers []ForwardedHeader)
 	}
 	captured := make([]CapturedHeader, 0, len(headers))
 	for i := range headers {
-		if vals := md.Get(headers[i].inboundGRPCName()); len(vals) == 1 {
+		if vals := md.Get(headers[i].inboundGRPCName()); len(vals) > 0 {
 			captured = append(captured, CapturedHeader{Header: &headers[i], Value: vals[0]})
 		}
 	}
