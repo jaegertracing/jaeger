@@ -43,7 +43,8 @@ func TestMetricsByEndpoint(t *testing.T) {
 		m.RequestCountSuccess.Inc(1)
 	}
 
-	met.AssertCounterMetrics(t,
+	met.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{Name: "requests", Tags: endpointTags("abc1", "error", "false"), Value: 3},
 		metricstest.ExpectedMetric{Name: "requests", Tags: endpointTags("abc3", "error", "false"), Value: 1},
 		metricstest.ExpectedMetric{Name: "requests", Tags: endpointTags("other", "error", "false"), Value: 2},
@@ -66,7 +67,8 @@ func TestRecordHTTPStatusCode_DefaultCase(t *testing.T) {
 	metrics.recordHTTPStatusCode(404)
 	metrics.recordHTTPStatusCode(500)
 
-	met.AssertCounterMetrics(t,
+	met.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{Name: "http_requests", Tags: endpointTags("test_endpoint", "status_code", "2xx"), Value: 1},
 		metricstest.ExpectedMetric{Name: "http_requests", Tags: endpointTags("test_endpoint", "status_code", "4xx"), Value: 1},
 		metricstest.ExpectedMetric{Name: "http_requests", Tags: endpointTags("test_endpoint", "status_code", "5xx"), Value: 1},

@@ -38,7 +38,8 @@ func InitOTEL(serviceName string, exporterType string, metricsFactory metrics.Fa
 			propagation.NewCompositeTextMapPropagator(
 				propagation.TraceContext{},
 				propagation.Baggage{},
-			))
+			),
+		)
 	})
 
 	exp, err := createOtelExporter(exporterType)

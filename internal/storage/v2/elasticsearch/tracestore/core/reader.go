@@ -94,7 +94,8 @@ func init() {
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"),
+	)
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -423,7 +424,8 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 	legacyTraceID := strings.TrimLeft(traceIDStr, "0")
 	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
-		elastic.NewTermQuery(traceIDField, legacyTraceID))
+		elastic.NewTermQuery(traceIDField, legacyTraceID),
+	)
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {

@@ -458,14 +458,16 @@ func TestRequestMetaCarrier(t *testing.T) {
 	assert.Equal(t, "trace-parent", carrier.Get(traceContextMetaTraceParent))
 	assert.Equal(t, "ignored", carrier.Get("other"))
 	assert.Empty(t, carrier.Get("missing"))
-	assert.ElementsMatch(t,
+	assert.ElementsMatch(
+		t,
 		[]string{traceContextMetaTraceParent, traceContextMetaTraceState, traceContextMetaBaggage, "other"},
 		carrier.Keys(),
 	)
 
 	carrier.Set(traceContextMetaTraceState, "rojo=1")
 	assert.Equal(t, "rojo=1", meta[traceContextMetaTraceState])
-	assert.ElementsMatch(t,
+	assert.ElementsMatch(
+		t,
 		[]string{traceContextMetaTraceParent, traceContextMetaTraceState, traceContextMetaBaggage, "other"},
 		carrier.Keys(),
 	)

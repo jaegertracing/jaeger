@@ -56,11 +56,13 @@ func flags(flagSet *flag.FlagSet) *flag.FlagSet {
 	flagSet.String(
 		formatFlag,
 		formats[0],
-		fmt.Sprintf("Supported formats: %v.", formats))
+		fmt.Sprintf("Supported formats: %v.", formats),
+	)
 	flagSet.String(
 		dirFlag,
 		"./",
-		"Directory where generate the documentation.")
+		"Directory where generate the documentation.",
+	)
 	return flagSet
 }
 

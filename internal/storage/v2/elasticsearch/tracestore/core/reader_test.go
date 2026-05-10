@@ -78,7 +78,8 @@ var exampleESSpan = []byte(
 		 }
 	      ]
 	   }
-	}`)
+	}`,
+)
 
 type spanReaderTest struct {
 	client      *mocks.Client
