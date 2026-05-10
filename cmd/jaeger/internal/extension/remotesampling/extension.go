@@ -167,7 +167,8 @@ func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error 
 		DefaultSamplingProbability: fileCfg.DefaultSamplingProbability,
 	}
 
-	provider, err := file.NewProvider(opts, ext.telemetry.Logger) //nolint:contextcheck // NewProvider does not accept context
+	//nolint:contextcheck // NewProvider does not accept context
+	provider, err := file.NewProvider(opts, ext.telemetry.Logger)
 	if err != nil {
 		return fmt.Errorf("failed to create the local file strategy store: %w", err)
 	}

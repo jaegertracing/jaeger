@@ -15,7 +15,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
 )
 
-//go:embed v004-go-tmpl.cql.tmpl
+//go:embed v005-go-tmpl.cql.tmpl
 var schemaFile embed.FS
 
 type templateParams struct {
@@ -128,7 +128,7 @@ func (sc *Creator) getCassandraQueriesFromQueryStrings(queries []string) []cassa
 func (sc *Creator) contructSchemaQueries() ([]cassandra.Query, error) {
 	params := sc.constructTemplateParams()
 
-	queryFile, err := sc.getQueryFileAsBytes(`v004-go-tmpl.cql.tmpl`, params)
+	queryFile, err := sc.getQueryFileAsBytes(`v005-go-tmpl.cql.tmpl`, params)
 	if err != nil {
 		return nil, err
 	}
