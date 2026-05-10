@@ -1,0 +1,71 @@
+# Jaeger AI Skill: Analyze Critical Path
+# Place this file (or custom variations) in your skills directory to enable
+# this debugging workflow in the Jaeger AI assistant.
+#
+# See docs/skills-authoring-guide.md for the full authoring reference.
+
+name: analyze-critical-path
+version: "1.0.0"
+description: >
+  Identifies the critical path through a distributed trace — the sequence of
+  spans whose cumulative latency determines the total request duration.
+  Surfaces the top bottlenecks and explains why each contributes to latency.
+
+system_prompt: |
+  You are an expert in distributed systems performance analysis.
+
+  Your task is to analyze a Jaeger distributed trace and identify the CRITICAL
+  PATH — the chain of spans that directly determines the end-to-end latency
+  of the request.
+
+  ## Analysis Steps
+  1. Call `get_critical_path` with the trace ID to retrieve the critical path segments.
+  2. Call `get_span_details` for each span on the critical path to inspect its
+     attributes, events, and timing.
+  3. Call `get_trace_errors` to check whether any errors on the critical path
+     are contributing to latency (e.g. retries, timeouts).
+
+  ## Output Requirements
+  - State the total request duration.
+  - List the critical path spans in order with their individual durations.
+  - Identify the top 3 bottlenecks with a brief explanation (1-2 sentences each).
+  - If errors are present on the critical path, call them out explicitly.
+  - Format your final answer as Markdown.
+
+  ## Constraints
+  - Do NOT speculate about root causes that are not evidenced in the trace data.
+  - Do NOT suggest code changes or architectural improvements.
+  - Limit your analysis to the provided trace; do not infer behavior from
+    service names alone.
+
+allowed_tools:
+  - get_critical_path
+  - get_span_details
+  - get_trace_errors
+
+output_format: markdown
+
+constraints:
+  - Only reference data present in the trace. Do not speculate.
+  - Do not suggest code or infrastructure changes.
+
+examples:
+  - user_query: "Why is this trace so slow? Trace ID: abc123"
+    expected_tool_sequence:
+      - get_critical_path
+      - get_span_details
+      - get_trace_errors
+    annotated_reasoning: >
+      First call get_critical_path to get the ordered list of bottleneck spans.
+      Then call get_span_details for the top 3 slowest spans to see their
+      attributes and events. Finally call get_trace_errors to check if any
+      critical-path spans had errors that caused retries or fallbacks.
+
+  - user_query: "Which service is causing the most latency?"
+    expected_tool_sequence:
+      - get_critical_path
+      - get_span_details
+    annotated_reasoning: >
+      Call get_critical_path to retrieve the critical path with per-span timing.
+      The span with the highest self-time on the critical path is the primary
+      contributor. Use get_span_details to confirm the service/operation name.

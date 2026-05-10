@@ -219,8 +219,8 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 
 	expected := []string{
 		"health", "get_services", "get_span_names", "search_traces",
-		"get_span_details", "get_trace_errors", "get_trace_topology", "get_critical_path",
-		"get_service_dependencies",
+                "get_span_details", "get_trace_errors", "get_trace_topology", "get_critical_path",
+                "get_service_dependencies", "list_skills", "get_skill",
 	}
 	got := make(map[string]bool, len(result.Tools))
 	for _, tool := range result.Tools {
@@ -486,3 +486,4 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 	text2 := extractTextContent(t, r2.toolResult)
 	assert.Equal(t, text1, text2)
 }
+
