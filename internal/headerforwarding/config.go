@@ -36,6 +36,11 @@ func (h *ForwardedHeader) inboundGRPCName() string {
 	return h.HTTPName
 }
 
+// OutboundName returns the configured outbound metadata/header key.
+func (h *ForwardedHeader) OutboundName() string {
+	return h.outboundGRPCName()
+}
+
 // outboundGRPCName returns the metadata key to use when forwarding to storage.
 func (h *ForwardedHeader) outboundGRPCName() string {
 	if h.GRPCOutboundName != "" {

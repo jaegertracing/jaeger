@@ -25,6 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -1720,6 +1721,66 @@ func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 	return m.base.RoundTrip(req)
 }
 
+func TestGetHTTPRoundTripperWithHeaderForwarding(t *testing.T) {
+	var authSeenHeader string
+	serverSeenHeader := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		serverSeenHeader <- req.Header.Get("x-storage-user")
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := &Configuration{
+		Servers:  []string{server.URL},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+		HeaderForwarding: []headerforwarding.ForwardedHeader{
+			{HTTPName: "x-user", GRPCOutboundName: "x-storage-user", Role: headerforwarding.RoleUsername},
+		},
+	}
+	httpAuth := headerInspectingHTTPAuth{
+		inspect: func(req *http.Request) {
+			authSeenHeader = req.Header.Get("x-storage-user")
+		},
+	}
+
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), httpAuth)
+	require.NoError(t, err)
+
+	header := cfg.HeaderForwarding[0]
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: &header, Value: "alice"},
+	})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "alice", authSeenHeader)
+	assert.Equal(t, "alice", <-serverSeenHeader)
+	assert.Empty(t, req.Header.Get("x-storage-user"))
+}
+
+type headerInspectingHTTPAuth struct {
+	inspect func(*http.Request)
+}
+
+func (h headerInspectingHTTPAuth) RoundTripper(rt http.RoundTripper) (http.RoundTripper, error) {
+	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		h.inspect(req)
+		return rt.RoundTrip(req)
+	}), nil
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
 func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	mf := metricstest.NewFactory(time.Minute)
 	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
@@ -1845,6 +1906,33 @@ func TestApplyDefaultsCustomHeaders(t *testing.T) {
 			assert.Equal(t, test.expected, test.target.CustomHeaders)
 		})
 	}
+}
+
+func TestApplyDefaultsHeaderForwarding(t *testing.T) {
+	source := &Configuration{
+		HeaderForwarding: []headerforwarding.ForwardedHeader{
+			{HTTPName: "x-user", GRPCOutboundName: "x-storage-user", Role: headerforwarding.RoleUsername},
+		},
+	}
+
+	t.Run("target has no header forwarding, apply from source", func(t *testing.T) {
+		target := &Configuration{}
+
+		target.ApplyDefaults(source)
+
+		require.Len(t, target.HeaderForwarding, 1)
+		assert.Equal(t, "x-user", target.HeaderForwarding[0].HTTPName)
+		assert.Equal(t, "x-storage-user", target.HeaderForwarding[0].GRPCOutboundName)
+		assert.NotSame(t, &source.HeaderForwarding[0], &target.HeaderForwarding[0])
+	})
+
+	t.Run("target has empty header forwarding, keep empty", func(t *testing.T) {
+		target := &Configuration{HeaderForwarding: []headerforwarding.ForwardedHeader{}}
+
+		target.ApplyDefaults(source)
+
+		assert.Empty(t, target.HeaderForwarding)
+	})
 }
 
 func TestNewClientWithCustomHeaders(t *testing.T) {

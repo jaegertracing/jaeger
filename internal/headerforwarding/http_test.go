@@ -4,6 +4,7 @@
 package headerforwarding_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func TestHTTPServerMiddleware(t *testing.T) {
 	headers := []headerforwarding.ForwardedHeader{
@@ -68,4 +75,40 @@ func TestHTTPServerMiddleware(t *testing.T) {
 			assert.Equal(t, tt.wantVals, gotVals)
 		})
 	}
+}
+
+func TestHTTPRoundTripper(t *testing.T) {
+	headers := []headerforwarding.ForwardedHeader{
+		{
+			HTTPName:         "x-user",
+			GRPCOutboundName: "x-storage-user",
+			Role:             headerforwarding.RoleUsername,
+		},
+		{
+			HTTPName: "x-email",
+			Role:     headerforwarding.RoleEmail,
+		},
+	}
+
+	var gotUser, gotEmail string
+	rt := headerforwarding.NewHTTPRoundTripper(roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		gotUser = req.Header.Get("x-storage-user")
+		gotEmail = req.Header.Get("x-email")
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: &headers[0], Value: "alice"},
+		{Header: &headers[1], Value: "alice@example.com"},
+	})
+	req = req.WithContext(ctx)
+
+	resp, err := rt.RoundTrip(req)
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "alice", gotUser)
+	assert.Equal(t, "alice@example.com", gotEmail)
+	assert.Empty(t, req.Header.Get("x-storage-user"))
+	assert.Empty(t, req.Header.Get("x-email"))
 }

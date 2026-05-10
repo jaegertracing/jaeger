@@ -31,6 +31,9 @@ extensions:
       traces: some_storage
       metrics: some_storage
       traces_archive: another_storage
+    # header_forwarding:
+    #   - http_name: X-Forwarded-User
+    #     header_role: username
     ui:
       config_file: ./cmd/jaeger/config-ui.json
 
@@ -43,6 +46,9 @@ extensions:
           # custom_headers:
           #   Host: "my-opensearch-domain.us-east-1.es.amazonaws.com"
           #   X-Custom-Header: "custom-value"
+          # header_forwarding:
+          #   - http_name: X-Forwarded-User
+          #     header_role: username
           indices:
             index_prefix: "jaeger-main"
             spans:

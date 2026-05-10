@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
@@ -122,6 +123,9 @@ type Configuration struct {
 	// This is useful for scenarios like AWS SigV4 proxy authentication where specific headers
 	// (like Host) need to be set for proper request signing.
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
+	// HeaderForwarding lists request-derived headers to forward to Elasticsearch/OpenSearch.
+	// Values are captured by jaeger-query from inbound requests.
+	HeaderForwarding []headerforwarding.ForwardedHeader `mapstructure:"header_forwarding"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
 	// Version contains the major Elasticsearch version. If this field is not specified,
@@ -538,6 +542,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 		c.CustomHeaders = make(map[string]string)
 		maps.Copy(c.CustomHeaders, source.CustomHeaders)
 	}
+	if c.HeaderForwarding == nil && len(source.HeaderForwarding) > 0 {
+		c.HeaderForwarding = append([]headerforwarding.ForwardedHeader(nil), source.HeaderForwarding...)
+	}
 }
 
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency duration for the given frequency string
@@ -774,7 +781,11 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		if err != nil {
 			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)
 		}
-		return wrappedRT, nil
+		roundTripper = wrappedRT
+	}
+
+	if len(c.HeaderForwarding) > 0 {
+		roundTripper = headerforwarding.NewHTTPRoundTripper(roundTripper)
 	}
 
 	return roundTripper, nil

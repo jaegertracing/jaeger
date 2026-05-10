@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/memory"
@@ -201,6 +202,30 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.Elasticsearch)
+			},
+		},
+		{
+			name: "elasticsearch backend with header forwarding",
+			configMap: map[string]any{
+				"elasticsearch": map[string]any{
+					"header_forwarding": []map[string]any{
+						{
+							"http_name":          "X-Forwarded-User",
+							"grpc_name":          "x-forwarded-user",
+							"grpc_outbound_name": "x-storage-user",
+							"header_role":        "username",
+						},
+					},
+				},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, tb *TraceBackend) {
+				require.NotNil(t, tb.Elasticsearch)
+				require.Len(t, tb.Elasticsearch.HeaderForwarding, 1)
+				assert.Equal(t, "X-Forwarded-User", tb.Elasticsearch.HeaderForwarding[0].HTTPName)
+				assert.Equal(t, "x-forwarded-user", tb.Elasticsearch.HeaderForwarding[0].GRPCName)
+				assert.Equal(t, "x-storage-user", tb.Elasticsearch.HeaderForwarding[0].GRPCOutboundName)
+				assert.Equal(t, headerforwarding.RoleUsername, tb.Elasticsearch.HeaderForwarding[0].Role)
 			},
 		},
 		{
