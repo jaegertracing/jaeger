@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -127,6 +128,11 @@ func (f *Factory) initializeConnections(
 	if tenancyMgr := tenancy.NewManager(&f.config.Tenancy); tenancyMgr.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewClientUnaryInterceptor(tenancyMgr))
 		streamInterceptors = append(streamInterceptors, tenancy.NewClientStreamInterceptor(tenancyMgr))
+	}
+
+	if len(f.config.HeaderForwarding) > 0 {
+		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryClientInterceptor())
+		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamClientInterceptor())
 	}
 
 	baseOpts := []grpc.DialOption{

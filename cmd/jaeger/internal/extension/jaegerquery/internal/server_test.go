@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -1005,6 +1006,43 @@ func TestServerAPINotFound(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInitRouter_HeaderForwarding(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+
+	opts := DefaultQueryOptions()
+	opts.HeaderForwarding = []headerforwarding.ForwardedHeader{
+		{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
+	}
+
+	handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+	t.Cleanup(func() { require.NoError(t, closer.Close()) })
+
+	// Verify the header-forwarding middleware is active by observing the context value it injects.
+	var gotUser string
+	probe := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		for _, c := range headerforwarding.CapturedFromContext(r.Context()) {
+			if c.Header.HTTPName == "x-user" {
+				gotUser = c.Value
+			}
+		}
+	})
+	wrappedHandler := headerforwarding.HTTPServerMiddleware(opts.HeaderForwarding, probe)
+
+	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	req.Header.Set("x-user", "alice")
+	wrappedHandler.ServeHTTP(httptest.NewRecorder(), req)
+	assert.Equal(t, "alice", gotUser)
+
+	// Also confirm initRouter produces a handler that doesn't break with the header present.
+	req2 := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
+	req2.Header.Set("x-user", "alice")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req2)
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 func TestInitRouterAIHandlerRegistration(t *testing.T) {
