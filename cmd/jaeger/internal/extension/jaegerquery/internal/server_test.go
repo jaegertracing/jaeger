@@ -1010,39 +1010,37 @@ func TestServerAPINotFound(t *testing.T) {
 
 func TestInitRouter_HeaderForwarding(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
-	querySvc := makeQuerySvc()
-	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+	traceReader := &tracestoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
 
+	// Capture the context that reaches GetServices so we can assert the middleware injected the header.
+	var capturedCtx context.Context
+	traceReader.On("GetServices", mock.Anything).
+		Run(func(args mock.Arguments) { capturedCtx = args.Get(0).(context.Context) }).
+		Return([]string{"svc"}, nil)
+	qs := querysvc.NewQueryService(traceReader, dependencyReader, querysvc.QueryServiceOptions{})
+
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
 	opts := DefaultQueryOptions()
 	opts.HeaderForwarding = []headerforwarding.ForwardedHeader{
 		{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
 	}
 
-	handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+	handler, closer := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
 	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
-	// Verify the header-forwarding middleware is active by observing the context value it injects.
-	var gotUser string
-	probe := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		for _, c := range headerforwarding.CapturedFromContext(r.Context()) {
-			if c.Header.HTTPName == "x-user" {
-				gotUser = c.Value
-			}
-		}
-	})
-	wrappedHandler := headerforwarding.HTTPServerMiddleware(opts.HeaderForwarding, probe)
-
-	req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
+	req := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
 	req.Header.Set("x-user", "alice")
-	wrappedHandler.ServeHTTP(httptest.NewRecorder(), req)
-	assert.Equal(t, "alice", gotUser)
+	handler.ServeHTTP(httptest.NewRecorder(), req)
 
-	// Also confirm initRouter produces a handler that doesn't break with the header present.
-	req2 := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
-	req2.Header.Set("x-user", "alice")
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req2)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	require.NotNil(t, capturedCtx, "GetServices was not called")
+	var gotUser string
+	for _, c := range headerforwarding.CapturedFromContext(capturedCtx) {
+		if c.Header.HTTPName == "x-user" {
+			gotUser = c.Value
+		}
+	}
+	assert.Equal(t, "alice", gotUser)
 }
 
 func TestInitRouterAIHandlerRegistration(t *testing.T) {
