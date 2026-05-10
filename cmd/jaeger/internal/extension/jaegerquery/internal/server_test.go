@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
@@ -1006,6 +1007,49 @@ func TestServerAPINotFound(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestServerGRPC_HeaderForwarding(t *testing.T) {
+	traceReader := &tracestoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+
+	var capturedCtx context.Context
+	traceReader.On("GetServices", mock.Anything).
+		Run(func(args mock.Arguments) { capturedCtx = args.Get(0).(context.Context) }).
+		Return([]string{"svc"}, nil)
+	qs := querysvc.NewQueryService(traceReader, dependencyReader, querysvc.QueryServiceOptions{})
+
+	opts := &QueryOptions{
+		HeaderForwarding: []headerforwarding.ForwardedHeader{
+			{HTTPName: "x-user", GRPCName: "x-grpc-user", Role: headerforwarding.RoleUsername},
+		},
+		HTTP: confighttp.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+		GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
+	}
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	server, err := NewServer(context.Background(), qs, nil, opts, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}), telset)
+	require.NoError(t, err)
+	require.NoError(t, server.Start(context.Background()))
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ctx = metadata.NewOutgoingContext(ctx, metadata.Pairs("x-grpc-user", "alice"))
+
+	client := newGRPCClient(t, server.GRPCAddr())
+	t.Cleanup(func() { require.NoError(t, client.conn.Close()) })
+
+	_, err = client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	require.NoError(t, err)
+
+	require.NotNil(t, capturedCtx, "GetServices was not called")
+	var gotUser string
+	for _, c := range headerforwarding.CapturedFromContext(capturedCtx) {
+		if c.Header.HTTPName == "x-user" {
+			gotUser = c.Value
+		}
+	}
+	assert.Equal(t, "alice", gotUser)
 }
 
 func TestInitRouter_HeaderForwarding(t *testing.T) {
