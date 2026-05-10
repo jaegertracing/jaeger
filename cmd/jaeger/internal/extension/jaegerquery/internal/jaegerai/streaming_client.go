@@ -122,8 +122,8 @@ func (*streamingClient) CreateTerminal(context.Context, acp.CreateTerminalReques
 	return acp.CreateTerminalResponse{}, errNotSupported
 }
 
-func (*streamingClient) KillTerminalCommand(context.Context, acp.KillTerminalCommandRequest) (acp.KillTerminalCommandResponse, error) {
-	return acp.KillTerminalCommandResponse{}, errNotSupported
+func (*streamingClient) KillTerminal(context.Context, acp.KillTerminalRequest) (acp.KillTerminalResponse, error) {
+	return acp.KillTerminalResponse{}, errNotSupported
 }
 
 func (*streamingClient) ReleaseTerminal(context.Context, acp.ReleaseTerminalRequest) (acp.ReleaseTerminalResponse, error) {

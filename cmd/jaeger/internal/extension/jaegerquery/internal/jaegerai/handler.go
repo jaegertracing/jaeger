@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
@@ -89,17 +90,18 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// MethodNotFound for any extension method we add.
 	acpConn := acp.NewConnection(newDispatcher(clientImpl, h.Logger), adapter, adapter)
 
-	if _, err = acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
+	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
-			Fs:       acp.FileSystemCapability{ReadTextFile: false, WriteTextFile: false},
+			Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
 			Terminal: false,
 		},
 		ClientInfo: &acp.Implementation{
 			Name:    "jaeger-ai-gateway",
 			Version: version.Get().GitVersion,
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
 		return
 	}
@@ -114,6 +116,25 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
+	}
+
+	// Best-effort session cleanup. Gated on the agent advertising
+	// session/close support — older agents would return MethodNotFound.
+	// WithoutCancel detaches cancellation (so cleanup still runs after the
+	// request context is cancelled, e.g. on client disconnect) while
+	// preserving any context values such as tracing. Registered after
+	// defer adapter.Close so it fires first (LIFO) while the WebSocket is
+	// still open.
+	if init.AgentCapabilities.SessionCapabilities.Close != nil {
+		defer func() {
+			closeCtx, cancelClose := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancelClose()
+			if _, err := acp.SendRequest[acp.CloseSessionResponse](acpConn, closeCtx, acp.AgentMethodSessionClose, acp.CloseSessionRequest{
+				SessionId: sess.SessionId,
+			}); err != nil {
+				h.Logger.Debug("session/close failed", zap.String("session_id", string(sess.SessionId)), zap.Error(err))
+			}
+		}()
 	}
 
 	// Set streaming headers just before Prompt(), since SessionUpdate callbacks

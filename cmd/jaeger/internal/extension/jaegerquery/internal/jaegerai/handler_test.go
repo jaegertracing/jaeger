@@ -67,6 +67,18 @@ func (*mockACPAgent) Cancel(context.Context, acp.CancelNotification) error {
 	return nil
 }
 
+func (*mockACPAgent) CloseSession(context.Context, acp.CloseSessionRequest) (acp.CloseSessionResponse, error) {
+	return acp.CloseSessionResponse{}, nil
+}
+
+func (*mockACPAgent) ListSessions(context.Context, acp.ListSessionsRequest) (acp.ListSessionsResponse, error) {
+	return acp.ListSessionsResponse{}, nil
+}
+
+func (*mockACPAgent) ResumeSession(context.Context, acp.ResumeSessionRequest) (acp.ResumeSessionResponse, error) {
+	return acp.ResumeSessionResponse{}, nil
+}
+
 func (a *mockACPAgent) NewSession(_ context.Context, params acp.NewSessionRequest) (acp.NewSessionResponse, error) {
 	if a.newSessionErr != nil {
 		return acp.NewSessionResponse{}, a.newSessionErr
