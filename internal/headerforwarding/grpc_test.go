@@ -85,7 +85,6 @@ func TestUnaryServerInterceptor_NoMetadata(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-
 func TestStreamServerInterceptor_ExtractsFromMetadata(t *testing.T) {
 	md := metadata.New(map[string]string{"x-grpc-user": "alice"})
 	ctx := metadata.NewIncomingContext(context.Background(), md)
