@@ -10,8 +10,10 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/coder/acp-go-sdk"
+	"go.uber.org/zap"
 )
 
 var _ acp.Client = (*streamingClient)(nil)
@@ -136,4 +138,29 @@ func (*streamingClient) TerminalOutput(context.Context, acp.TerminalOutputReques
 
 func (*streamingClient) WaitForTerminalExit(context.Context, acp.WaitForTerminalExitRequest) (acp.WaitForTerminalExitResponse, error) {
 	return acp.WaitForTerminalExitResponse{}, errNotSupported
+}
+
+// closeACPSession is a best-effort cleanup hook: it tells the agent to
+// release the session before the gateway tears down the WebSocket. Meant
+// to be invoked via `defer` in ServeHTTP, after defer adapter.Close so it
+// fires first (LIFO) while the connection is still open.
+//
+// The capability gate ensures we never call session/close against agents
+// that don't advertise support — they would respond with MethodNotFound.
+// WithoutCancel detaches the request context's cancellation so cleanup
+// still runs after the client disconnects mid-stream, while preserving
+// values such as tracing. The 5s deadline keeps a stuck agent from
+// hanging the goroutine indefinitely. Errors are Debug-logged because the
+// HTTP response has already been streamed by the time this runs.
+func closeACPSession(ctx context.Context, conn *acp.Connection, caps acp.AgentCapabilities, sessionID acp.SessionId, logger *zap.Logger) {
+	if caps.SessionCapabilities.Close == nil {
+		return
+	}
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if _, err := acp.SendRequest[acp.CloseSessionResponse](conn, closeCtx, acp.AgentMethodSessionClose, acp.CloseSessionRequest{
+		SessionId: sessionID,
+	}); err != nil {
+		logger.Debug("session/close failed", zap.String("session_id", string(sessionID)), zap.Error(err))
+	}
 }
