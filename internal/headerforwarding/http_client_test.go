@@ -107,6 +107,43 @@ func TestHTTPClientRoundTripper_SkipsEmptyAndInvalidEntries(t *testing.T) {
 	assert.Empty(t, seen.Header.Get(""))
 }
 
+func TestHTTPClientRoundTripper_RewritesOutboundHeaderName(t *testing.T) {
+	var seen *http.Request
+	base := roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+		seen = r
+		return &http.Response{StatusCode: http.StatusOK}, nil
+	})
+	rt := headerforwarding.NewHTTPClientRoundTripper(base)
+
+	// Inbound is captured under HTTPName, but the outbound HTTP request
+	// should carry HTTPOutboundName instead.
+	rename := &headerforwarding.ForwardedHeader{
+		HTTPName:         "X-Forwarded-User",
+		HTTPOutboundName: "X-Backend-User",
+		Role:             headerforwarding.RoleUsername,
+	}
+	// No HTTPOutboundName -> falls back to HTTPName.
+	fallback := &headerforwarding.ForwardedHeader{
+		HTTPName: "X-Forwarded-Email",
+		Role:     headerforwarding.RoleEmail,
+	}
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: rename, Value: "alice"},
+		{Header: fallback, Value: "alice@example.com"},
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://example.invalid/", http.NoBody)
+	require.NoError(t, err)
+
+	_, err = rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	require.NotNil(t, seen)
+	assert.Equal(t, "alice", seen.Header.Get("X-Backend-User"))
+	assert.Empty(t, seen.Header.Get("X-Forwarded-User"))
+	assert.Equal(t, "alice@example.com", seen.Header.Get("X-Forwarded-Email"))
+}
+
 func TestHTTPClientRoundTripper_PropagatesBaseError(t *testing.T) {
 	wantErr := http.ErrHandlerTimeout
 	base := roundTripperFunc(func(*http.Request) (*http.Response, error) {
