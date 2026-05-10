@@ -7,7 +7,8 @@ import "net/http"
 
 // NewHTTPClientRoundTripper returns an http.RoundTripper that forwards header values
 // captured in the request context (via HTTPServerMiddleware or the gRPC server
-// interceptors) onto outbound HTTP requests, keyed by ForwardedHeader.HTTPName.
+// interceptors) onto outbound HTTP requests, keyed by ForwardedHeader.HTTPOutboundName
+// (falling back to HTTPName when unset).
 //
 // It is the HTTP-backend analog of NewUnaryClientInterceptor / NewStreamClientInterceptor
 // and is intended for HTTP-based storage backends such as Elasticsearch / OpenSearch.
@@ -32,10 +33,14 @@ func (rt *httpClientRoundTripper) RoundTrip(req *http.Request) (*http.Response, 
 	// RoundTripper contract: do not mutate the inbound *http.Request.
 	cloned := req.Clone(req.Context())
 	for _, c := range captured {
-		if c.Value == "" || c.Header == nil || c.Header.HTTPName == "" {
+		if c.Value == "" || c.Header == nil {
 			continue
 		}
-		cloned.Header.Set(c.Header.HTTPName, c.Value)
+		name := c.Header.outboundHTTPName()
+		if name == "" {
+			continue
+		}
+		cloned.Header.Set(name, c.Value)
 	}
 	return rt.base.RoundTrip(cloned)
 }
