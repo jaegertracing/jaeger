@@ -16,7 +16,6 @@ import (
 	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -25,6 +24,7 @@ import (
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/shared/assembly"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -90,8 +90,7 @@ func init() {
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterToVersion("v2.8.0"),
 		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"),
-	)
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"))
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -420,8 +419,7 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) elastic.Query {
 	legacyTraceID := strings.TrimLeft(traceIDStr, "0")
 	return elastic.NewBoolQuery().Should(
 		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
-		elastic.NewTermQuery(traceIDField, legacyTraceID),
-	)
+		elastic.NewTermQuery(traceIDField, legacyTraceID))
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
@@ -632,71 +630,21 @@ func (*SpanReader) buildObjectQuery(field string, k string, v string) elastic.Qu
 }
 
 func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
-	processTags := s.mergeNestedAndElevatedTags(span.Process.Tags, span.Process.Tag)
-	span.Process.Tags = processTags
-	spanTags := s.mergeNestedAndElevatedTags(span.Tags, span.Tag)
-	span.Tags = spanTags
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	assembly.MergeAllNestedAndElevatedTagsOfSpan(span, s.dotReplacer)
 }
 
 func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {
-	mergedTags := make([]dbmodel.KeyValue, 0, len(nestedTags)+len(elevatedTags))
-	mergedTags = append(mergedTags, nestedTags...)
-	for k, v := range elevatedTags {
-		kv := s.convertTagField(k, v)
-		mergedTags = append(mergedTags, kv)
-		delete(elevatedTags, k)
-	}
-	return mergedTags
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	return assembly.MergeNestedAndElevatedTags(nestedTags, elevatedTags, s.dotReplacer)
 }
 
 func (s *SpanReader) convertTagField(k string, v any) dbmodel.KeyValue {
-	dKey := s.dotReplacer.ReplaceDotReplacement(k)
-	kv := dbmodel.KeyValue{
-		Key:   dKey,
-		Value: v,
-	}
-	switch val := v.(type) {
-	case int64:
-		kv.Type = dbmodel.Int64Type
-	case float64:
-		kv.Type = dbmodel.Float64Type
-	case bool:
-		kv.Type = dbmodel.BoolType
-	case string:
-		kv.Type = dbmodel.StringType
-	// the binary is never returned, ES returns it as string with base64 encoding
-	case []byte:
-		kv.Type = dbmodel.BinaryType
-	// in spans are decoded using json.UseNumber() to preserve the type
-	// however note that float(1) will be parsed as int as ES does not store decimal point
-	case json.Number:
-		n, err := val.Int64()
-		if err == nil {
-			kv.Value = n
-			kv.Type = dbmodel.Int64Type
-		} else {
-			f, err := val.Float64()
-			if err != nil {
-				return dbmodel.KeyValue{
-					Key:   dKey,
-					Value: fmt.Sprintf("invalid tag type in %+v: %s", v, err.Error()),
-					Type:  dbmodel.StringType,
-				}
-			}
-			kv.Value = f
-			kv.Type = dbmodel.Float64Type
-		}
-	default:
-		return dbmodel.KeyValue{
-			Key:   dKey,
-			Value: fmt.Sprintf("invalid tag type in %+v", v),
-			Type:  dbmodel.StringType,
-		}
-	}
-	return kv
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	return assembly.ConvertTagField(k, v, s.dotReplacer)
 }
 
 func logErrorToSpan(span trace.Span, err error) {
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	assembly.LogErrorToSpan(span, err)
 }

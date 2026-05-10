@@ -5,7 +5,6 @@
 package core
 
 import (
-	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -16,6 +15,7 @@ import (
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/shared/assembly"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -140,12 +140,8 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
-	processNestedTags, processFieldTags := s.splitElevatedTags(span.Process.Tags)
-	span.Process.Tags = processNestedTags
-	span.Process.Tag = processFieldTags
-	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
-	span.Tags = nestedTags
-	span.Tag = fieldTags
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	assembly.ConvertNestedTagsToFieldTags(span, s.allTagsAsFields, s.tagKeysAsFields, s.tagDotReplacement)
 }
 
 // Close closes SpanWriter
@@ -154,11 +150,13 @@ func (s *SpanWriter) Close() error {
 }
 
 func keyInCache(key string, c cache.Cache) bool {
-	return c.Get(key) != nil
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	return assembly.KeyInCache(key, c)
 }
 
 func writeCache(key string, c cache.Cache) {
-	c.Put(key, key)
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	assembly.WriteCache(key, c)
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
@@ -170,23 +168,6 @@ func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) 
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
-	if !s.allTagsAsFields && len(s.tagKeysAsFields) == 0 {
-		return keyValues, nil
-	}
-	var tagsMap map[string]any
-	var kvs []dbmodel.KeyValue
-	for _, kv := range keyValues {
-		if kv.Type != dbmodel.BinaryType && (s.allTagsAsFields || s.tagKeysAsFields[kv.Key]) {
-			if tagsMap == nil {
-				tagsMap = map[string]any{}
-			}
-			tagsMap[strings.ReplaceAll(kv.Key, ".", s.tagDotReplacement)] = kv.Value
-		} else {
-			kvs = append(kvs, kv)
-		}
-	}
-	if kvs == nil {
-		kvs = make([]dbmodel.KeyValue, 0)
-	}
-	return kvs, tagsMap
+	// Delegates to shared assembly package. Will be removed in a future PR.
+	return assembly.SplitElevatedTags(keyValues, s.allTagsAsFields, s.tagKeysAsFields, s.tagDotReplacement)
 }
