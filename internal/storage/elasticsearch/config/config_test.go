@@ -1140,7 +1140,8 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 	}
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
-	mf.AssertCounterMetrics(t,
+	mf.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
 			Value: 1,
@@ -1182,7 +1183,8 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	}
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
-	mf.AssertCounterMetrics(t,
+	mf.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
 			Value: 1,
@@ -1730,7 +1732,8 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	}
 	bcb.invoke(1, []elastic.BulkableRequest{nil}, nil, assert.AnError)
 
-	mf.AssertCounterMetrics(t,
+	mf.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
 			Value: 0,

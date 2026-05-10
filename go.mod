@@ -4,16 +4,16 @@ go 1.26.0
 
 require (
 	github.com/ClickHouse/ch-go v0.71.0
-	github.com/ClickHouse/clickhouse-go/v2 v2.45.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260504200637-e182dbfab154
 	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/coder/acp-go-sdk v0.6.4-0.20260227160919-584abe6abe22
+	github.com/coder/acp-go-sdk v0.12.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/elastic/go-elasticsearch/v9 v9.3.1
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/gorilla/handlers v1.5.2
@@ -115,9 +115,9 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.28.0
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
-	golang.org/x/sys v0.43.0
-	google.golang.org/grpc v1.80.0
+	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a
+	golang.org/x/sys v0.44.0
+	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
 )
 

@@ -155,7 +155,8 @@ func handleJaegerToolCall(params json.RawMessage, store *ContextualToolsStore, l
 		}
 		req.Name = stripped
 	} else {
-		logger.Warn("contextual tool name missing UI prefix; passing through unchanged",
+		logger.Warn(
+			"contextual tool name missing UI prefix; passing through unchanged",
 			zap.String("tool", req.Name),
 			zap.String("expected_prefix", UIToolPrefix),
 		)

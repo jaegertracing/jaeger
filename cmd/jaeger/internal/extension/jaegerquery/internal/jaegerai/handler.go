@@ -111,17 +111,18 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// MethodNotFound for any extension method we add.
 	acpConn := acp.NewConnection(newDispatcher(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
 
-	if _, err = acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
+	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
-			Fs:       acp.FileSystemCapability{ReadTextFile: false, WriteTextFile: false},
+			Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
 			Terminal: false,
 		},
 		ClientInfo: &acp.Implementation{
 			Name:    "jaeger-ai-gateway",
 			Version: version.Get().GitVersion,
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		http.Error(w, fmt.Sprintf("Error initializing agent: %v", err), http.StatusBadGateway)
 		return
 	}
@@ -145,6 +146,8 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
 	}
+
+	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
 
 	// Publish the unprefixed snapshot under the assigned ACP session id so
 	// handleJaegerToolCall can confirm dispatches by their post-strip

@@ -116,14 +116,15 @@ func TestRegisterStaticHandler(t *testing.T) {
 		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
 			logger, logBuf := testutils.NewLogger()
 			r := http.NewServeMux()
-			closer := RegisterStaticHandler(r, logger, &QueryOptions{
-				UIConfig: UIConfig{
-					ConfigFile: testCase.UIConfigPath,
-					AssetsPath: "fixture",
-					LogAccess:  testCase.logAccess,
+			closer := RegisterStaticHandler(
+				r, logger, &QueryOptions{
+					UIConfig: UIConfig{
+						ConfigFile: testCase.UIConfigPath,
+						AssetsPath: "fixture",
+						LogAccess:  testCase.logAccess,
+					},
+					BasePath: testCase.basePath,
 				},
-				BasePath: testCase.basePath,
-			},
 				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
 			)
 			defer closer.Close()
