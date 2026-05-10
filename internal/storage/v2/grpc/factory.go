@@ -130,6 +130,9 @@ func (f *Factory) initializeConnections(
 		streamInterceptors = append(streamInterceptors, tenancy.NewClientStreamInterceptor(tenancyMgr))
 	}
 
+	// HeaderForwarding acts as an enable switch: header capture happens on the query
+	// server side (HTTP/gRPC server interceptors); the client interceptors here simply
+	// forward whatever was captured into outgoing metadata.
 	if len(f.config.HeaderForwarding) > 0 {
 		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryClientInterceptor())
 		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamClientInterceptor())
