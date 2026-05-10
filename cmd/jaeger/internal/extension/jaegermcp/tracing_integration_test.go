@@ -10,17 +10,24 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 func TestTracingE2E_MetaPropagation(t *testing.T) {
 	capture := newTraceCapture(t)
-	_, addr := startTestServerWithTelemetry(t, nil, telsetFromCapture(capture))
+	mockReader := &tracestoremocks.Reader{}
+	mockReader.On("GetServices", mock.Anything).Return([]string{"svc"}, nil)
+	svc := querysvc.NewQueryService(mockReader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	_, addr := startTestServerWithTelemetry(t, svc, telsetFromCapture(capture))
 	session := connectMCPClient(t, addr)
 
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -35,12 +42,12 @@ func TestTracingE2E_MetaPropagation(t *testing.T) {
 
 	result, err := session.CallTool(ctx, &mcp.CallToolParams{
 		Meta: meta,
-		Name: "health",
+		Name: "get_services",
 	})
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 
-	span := findSpanByName(t, capture, "tools/call health")
+	span := findSpanByName(t, capture, "tools/call get_services")
 	assert.Equal(t, sc.TraceID(), span.SpanContext.TraceID(),
 		"MCP middleware span should belong to the same trace as the client")
 	assert.Equal(t, sc.SpanID(), span.Parent.SpanID(),

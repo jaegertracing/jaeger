@@ -490,28 +490,6 @@ func TestNewServer(t *testing.T) {
 	assert.Nil(t, server.listener)
 }
 
-func TestHealthTool(t *testing.T) {
-	telset := componenttest.NewNopTelemetrySettings()
-	config := &Config{
-		ServerName:               "test-server",
-		ServerVersion:            "2.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-
-	server := newServer(config, telset)
-
-	// Call the healthTool directly
-	result, output, err := server.healthTool(context.Background(), nil, struct{}{})
-
-	// Verify the results
-	require.NoError(t, err)
-	assert.Nil(t, result)
-	assert.Equal(t, "ok", output.Status)
-	assert.Equal(t, "test-server", output.Server)
-	assert.Equal(t, "2.0.0", output.Version)
-}
-
 // TestSearchTracesToolIntegration tests calling the search_traces MCP tool
 // through the full HTTP stack with mocked trace data.
 func TestSearchTracesToolIntegration(t *testing.T) {

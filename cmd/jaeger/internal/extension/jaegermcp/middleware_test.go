@@ -155,7 +155,7 @@ func TestTracingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
 	parentSpanID := parentSpan.SpanContext().SpanID()
 	parentTraceID := parentSpan.SpanContext().TraceID()
 
-	_, err := wrapped(parentCtx, mcpMethodToolsCall, newToolCallRequest("health"))
+	_, err := wrapped(parentCtx, mcpMethodToolsCall, newToolCallRequest("get_services"))
 	require.NoError(t, err)
 
 	parentSpan.End()
@@ -164,7 +164,7 @@ func TestTracingMiddlewareCreatesChildSpanWhenParentExists(t *testing.T) {
 	var childSpan tracetest.SpanStub
 	foundChild := false
 	for _, span := range spans {
-		if span.Name == mcpMethodToolsCall+" health" {
+		if span.Name == mcpMethodToolsCall+" get_services" {
 			childSpan = span
 			foundChild = true
 			break
@@ -261,7 +261,7 @@ func TestContextWithRequestMetaTraceContextNilCases(t *testing.T) {
 }
 
 func TestContextWithRequestMetaTraceContextExtractsBaggage(t *testing.T) {
-	req := newToolCallRequestWithMeta("health", mcp.Meta{
+	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
 		traceContextMetaBaggage: "tenant.id=acme",
 	})
 
@@ -278,7 +278,7 @@ func TestContextWithRequestMetaTraceContextReplacesExistingBaggage(t *testing.T)
 	require.NoError(t, err)
 	baseCtx := baggageapi.ContextWithBaggage(context.Background(), baseBag)
 
-	req := newToolCallRequestWithMeta("health", mcp.Meta{
+	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
 		traceContextMetaBaggage: "env=prod",
 	})
 
@@ -303,7 +303,7 @@ func TestContextWithRequestMetaTraceContextIgnoresInvalidTraceparent(t *testing.
 	})
 	parentCtx := traceapi.ContextWithRemoteSpanContext(context.Background(), parentSC)
 
-	req := newToolCallRequestWithMeta("health", mcp.Meta{
+	req := newToolCallRequestWithMeta("get_services", mcp.Meta{
 		traceContextMetaTraceParent: "invalid-traceparent",
 	})
 	ctx := contextWithRequestMetaTraceContext(parentCtx, req)
@@ -386,19 +386,19 @@ func TestSessionIDFromRequestNilCases(t *testing.T) {
 
 	req := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
 		Session: nil,
-		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
 	}
 	assert.Empty(t, sessionIDFromRequest(req))
 
 	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
 		Session: (*mcp.ClientSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
 	}
 	assert.Empty(t, sessionIDFromRequest(clientReq))
 
 	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
 		Session: (*mcp.ServerSession)(nil),
-		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
 	}
 	assert.Empty(t, sessionIDFromRequest(serverReq))
 }
@@ -406,13 +406,13 @@ func TestSessionIDFromRequestNilCases(t *testing.T) {
 func TestSessionIDFromRequestWithNonNilSession(t *testing.T) {
 	clientReq := &mcp.ClientRequest[*mcp.CallToolParamsRaw]{
 		Session: &mcp.ClientSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
 	}
 	assert.Empty(t, sessionIDFromRequest(clientReq))
 
 	serverReq := &mcp.ServerRequest[*mcp.CallToolParamsRaw]{
 		Session: &mcp.ServerSession{},
-		Params:  &mcp.CallToolParamsRaw{Name: "health"},
+		Params:  &mcp.CallToolParamsRaw{Name: "get_services"},
 	}
 	assert.Empty(t, sessionIDFromRequest(serverReq))
 }
