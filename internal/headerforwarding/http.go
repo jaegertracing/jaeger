@@ -5,7 +5,7 @@ package headerforwarding
 
 import "net/http"
 
-// HTTPMiddleware returns an http.Handler that extracts the configured headers from
+// HTTPServerMiddleware returns an http.Handler that extracts the configured headers from
 // inbound HTTP requests and stores them in the request context for downstream propagation.
 func HTTPServerMiddleware(headers []ForwardedHeader, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
