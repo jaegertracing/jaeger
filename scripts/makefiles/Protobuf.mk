@@ -15,9 +15,13 @@
 #
 
 DOCKER=docker
-DOCKER_PROTOBUF_VERSION=0.5.0
+DOCKER_PROTOBUF_VERSION=0.5.1
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
 PROTOC := ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+
+# gnostic provides openapiv3/annotations.proto needed by api_v3 proto files.
+GNOSTIC_DIR := $(shell go list -m -f '{{.Dir}}' github.com/google/gnostic-models)
+PROTOC_WITH_GNOSTIC := ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -v"${GNOSTIC_DIR}:/gnostic/gnostic" -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 
 PROTO_GEN=internal/proto-gen
 PATCHED_OTEL_PROTO_DIR = $(PROTO_GEN)/.patched-otel-proto
@@ -36,6 +40,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types \
 		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api \
 		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
+		Mgnostic/openapiv3/annotations.proto=github.com/google/gnostic-models/openapiv3 \
 	| $(SED) 's/  */,/g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard internal/proto/metrics/*.proto)
@@ -152,7 +157,12 @@ patch-api-v3:
 
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3
-	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
+	$(call print_caption, "Processing $(API_V3_PATCHED) --> $(API_V3_PATH)")
+	$(PROTOC_WITH_GNOSTIC) \
+	  $(PROTO_INCLUDES) \
+	  -I/gnostic -I/gnostic/gnostic \
+	  --gogo_out=plugins=grpc,$(strip $(PROTO_GOGO_MAPPINGS)):$(PWD)/$(strip $(API_V3_PATH)) \
+	  -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto $(API_V3_PATCHED)
 	@echo "🏗️  replace first instance of OTEL import with internal type"
 	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
