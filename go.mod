@@ -342,3 +342,7 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 )
+
+// Block go-elasticsearch v9.4.0+ until binary size regression is fixed upstream.
+// See https://github.com/elastic/go-elasticsearch/issues/1472
+exclude github.com/elastic/go-elasticsearch/v9 v9.4.0

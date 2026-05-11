@@ -183,6 +183,11 @@
         "docker-compose/monitor/docker-compose-elasticsearch.yml"
       ],
       "allowedVersions": "9.x"
+    },
+    {
+      "matchPackageNames": ["github.com/elastic/go-elasticsearch/v9"],
+      "allowedVersions": "< 9.4.0",
+      "description": "Block v9.4.0+ until binary size regression is fixed upstream. See https://github.com/elastic/go-elasticsearch/issues/1472"
     }
   ]
 }
