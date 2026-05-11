@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
@@ -30,12 +31,11 @@ func tracesFromSpanRows(rows []*dbmodel.SpanRow) ptrace.Traces {
 }
 
 func TestWriter_Success(t *testing.T) {
-	b := &testBatch{t: t}
-	conn := &testDriver{
-		t: t,
-		batchResponses: map[string]*testBatchResponse{
+	b := &clickhousetest.Batch{}
+	conn := &clickhousetest.Driver{
+		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
-				batch: b,
+				Batch: b,
 			},
 		},
 	}
@@ -46,13 +46,13 @@ func TestWriter_Success(t *testing.T) {
 	err := w.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 
-	require.Len(t, conn.recordedQueries, 1)
-	verifyQuerySnapshot(t, conn.recordedQueries[0])
-	require.True(t, b.sendCalled)
-	require.Len(t, b.appended, len(multipleSpans))
+	require.Len(t, conn.RecordedQueries, 1)
+	verifyQuerySnapshot(t, conn.RecordedQueries[0])
+	require.True(t, b.SendCalled)
+	require.Len(t, b.Appended, len(multipleSpans))
 
 	for i, expected := range multipleSpans {
-		row := b.appended[i]
+		row := b.Appended[i]
 
 		require.Equal(t, expected.ID, row[0])                        // SpanID
 		require.Equal(t, expected.TraceID, row[1])                   // TraceID
@@ -76,46 +76,56 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.Attributes.ComplexValues, row[19]) // Complex attribute values
 		require.Equal(t, expected.EventNames, row[20])               // Event names
 		require.Equal(t, expected.EventTimestamps, row[21])          // Event timestamps
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.BoolKeys, expected.EventAttributes.BoolValues),
 			row[22],
 		) // Event bool attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.DoubleKeys, expected.EventAttributes.DoubleValues),
 			row[23],
 		) // Event double attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.IntKeys, expected.EventAttributes.IntValues),
 			row[24],
 		) // Event int attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.StrKeys, expected.EventAttributes.StrValues),
 			row[25],
 		) // Event str attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.ComplexKeys, expected.EventAttributes.ComplexValues),
 			row[26],
 		) // Event complex attributes
 		require.Equal(t, expected.LinkTraceIDs, row[27])    // Link TraceIDs
 		require.Equal(t, expected.LinkSpanIDs, row[28])     // Link SpanIDs
 		require.Equal(t, expected.LinkTraceStates, row[29]) // Link TraceStates
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.BoolKeys, expected.LinkAttributes.BoolValues),
 			row[30],
 		) // Link bool attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.DoubleKeys, expected.LinkAttributes.DoubleValues),
 			row[31],
 		) // Link double attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.IntKeys, expected.LinkAttributes.IntValues),
 			row[32],
 		) // Link int attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.StrKeys, expected.LinkAttributes.StrValues),
 			row[33],
 		) // Link str attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.ComplexKeys, expected.LinkAttributes.ComplexValues),
 			row[34],
 		) // Link complex attributes
@@ -146,12 +156,11 @@ func TestWriter_Success(t *testing.T) {
 }
 
 func TestWriter_PrepareBatchError(t *testing.T) {
-	conn := &testDriver{
-		t: t,
-		batchResponses: map[string]*testBatchResponse{
+	conn := &clickhousetest.Driver{
+		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
-				batch: nil,
-				err:   assert.AnError,
+				Batch: nil,
+				Err:   assert.AnError,
 			},
 		},
 	}
@@ -162,12 +171,11 @@ func TestWriter_PrepareBatchError(t *testing.T) {
 }
 
 func TestWriter_AppendBatchError(t *testing.T) {
-	b := &testBatch{t: t, appendErr: assert.AnError}
-	conn := &testDriver{
-		t: t,
-		batchResponses: map[string]*testBatchResponse{
+	b := &clickhousetest.Batch{AppendErr: assert.AnError}
+	conn := &clickhousetest.Driver{
+		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
-				batch: b,
+				Batch: b,
 			},
 		},
 	}
@@ -175,16 +183,15 @@ func TestWriter_AppendBatchError(t *testing.T) {
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to append span to batch")
 	require.ErrorIs(t, err, assert.AnError)
-	require.False(t, b.sendCalled)
+	require.False(t, b.SendCalled)
 }
 
 func TestWriter_SendError(t *testing.T) {
-	b := &testBatch{t: t, sendErr: assert.AnError}
-	conn := &testDriver{
-		t: t,
-		batchResponses: map[string]*testBatchResponse{
+	b := &clickhousetest.Batch{SendErr: assert.AnError}
+	conn := &clickhousetest.Driver{
+		BatchResponses: map[string]*clickhousetest.BatchResponse{
 			sql.InsertSpan: {
-				batch: b,
+				Batch: b,
 			},
 		},
 	}
@@ -192,7 +199,7 @@ func TestWriter_SendError(t *testing.T) {
 	err := w.WriteTraces(context.Background(), tracesFromSpanRows(multipleSpans))
 	require.ErrorContains(t, err, "failed to send batch")
 	require.ErrorIs(t, err, assert.AnError)
-	require.False(t, b.sendCalled)
+	require.False(t, b.SendCalled)
 }
 
 func TestToTuple(t *testing.T) {

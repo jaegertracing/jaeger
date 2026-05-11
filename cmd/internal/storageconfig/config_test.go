@@ -270,6 +270,16 @@ func TestMetricBackendUnmarshal(t *testing.T) {
 				require.NotNil(t, mb.Opensearch)
 			},
 		},
+		{
+			name: "clickhouse backend",
+			configMap: map[string]any{
+				"clickhouse": map[string]any{},
+			},
+			expectError: false,
+			validateFunc: func(t *testing.T, mb *MetricBackend) {
+				require.NotNil(t, mb.ClickHouse)
+			},
+		},
 	}
 
 	for _, tt := range tests {

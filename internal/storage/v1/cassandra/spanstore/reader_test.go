@@ -14,16 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/mocks"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -120,7 +119,7 @@ func TestSpanReaderGetOperations(t *testing.T) {
 		r.reader.operationNamesReader = func(_ tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 			return expectedOperations, nil
 		}
-		s, err := r.reader.GetOperationsV2(context.Background(),
+		s, err := r.reader.GetOperations(context.Background(),
 			tracestore.OperationQueryParams{ServiceName: "service-x", SpanKind: "server"})
 		require.NoError(t, err)
 		assert.Equal(t, expectedOperations, s)
@@ -128,27 +127,12 @@ func TestSpanReaderGetOperations(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace(t *testing.T) {
-	badScan := func() any {
-		return matchOnceWithSideEffect(func(args []any) {
-			for _, arg := range args {
-				if v, ok := arg.(*[]dbmodel.KeyValue); ok {
-					*v = []dbmodel.KeyValue{
-						{
-							ValueType: "bad",
-						},
-					}
-				}
-			}
-		})
-	}
-
 	testCases := []struct {
 		scanner     any
 		closeErr    error
 		expectedErr string
 	}{
 		{scanner: matchOnce()},
-		{scanner: badScan(), expectedErr: "invalid ValueType in"},
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
@@ -170,14 +154,14 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-				trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+				spans, err := r.reader.GetTrace(context.Background(), dbmodel.TraceID{})
 				if testCase.expectedErr == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					require.NoError(t, err)
-					assert.NotNil(t, trace)
+					assert.NotNil(t, spans)
 				} else {
 					require.ErrorContains(t, err, testCase.expectedErr)
-					assert.Nil(t, trace)
+					assert.Nil(t, spans)
 				}
 			})
 		})
@@ -196,18 +180,19 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 		r.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-		trace, err := r.reader.GetTrace(context.Background(), spanstore.GetTraceParameters{})
+		spans, err := r.reader.GetTrace(context.Background(), dbmodel.TraceID{})
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		assert.Nil(t, trace)
-		require.EqualError(t, err, "trace not found")
+		assert.Nil(t, spans)
+		require.NoError(t, err)
 	})
 }
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		_, err := r.reader.FindTraces(context.Background(), nil)
+		for _, err := range r.reader.FindTraces(context.Background(), nil) {
+			require.Error(t, err)
+		}
 		require.Empty(t, r.traceBuffer.GetSpans(), "Spans Not recorded")
-		require.Error(t, err)
 	})
 }
 
@@ -218,6 +203,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		queryTags                         bool
 		queryOperation                    bool
 		queryDuration                     bool
+		emptyTrace                        bool
 		mainQueryError                    error
 		tagsQueryError                    error
 		serviceNameAndOperationQueryError error
@@ -226,6 +212,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		expectedCount                     int
 		expectedError                     string
 		expectedLogs                      []string
+		breakIter                         bool
 	}{
 		{
 			caption:       "main query",
@@ -311,6 +298,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			},
 		},
 		{
+			caption:       "empty trace skipped",
+			emptyTrace:    true,
+			expectedCount: 0,
+		},
+		{
 			caption:        "load trace error",
 			loadQueryError: errors.New("load query error"),
 			expectedCount:  0,
@@ -321,6 +313,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				`"trace_id":"0000000000000002"`,
 			},
 		},
+		{
+			caption:       "break iter",
+			expectedCount: 1,
+			breakIter:     true,
+		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
@@ -329,8 +326,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(_ /* name */ string) any {
 					traceIDs := []dbmodel.TraceID{
-						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 1)),
-						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 2)),
+						{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+						{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2},
 					}
 					scanFunc := func(args []any) bool {
 						if len(traceIDs) == 0 {
@@ -371,7 +368,9 @@ func TestSpanReaderFindTraces(t *testing.T) {
 
 				makeLoadQuery := func() *mocks.Query {
 					loadQueryIter := &mocks.Iterator{}
-					loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					if !testCase.emptyTrace {
+						loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					}
 					loadQueryIter.On("Scan", mock.Anything).Return(false)
 					loadQueryIter.On("Close").Return(testCase.loadQueryError)
 
@@ -401,17 +400,17 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					stringMatcher("SELECT trace_id"),
 					mock.Anything).Return(makeLoadQuery())
 
-				queryParams := &spanstore.TraceQueryParameters{
+				queryParams := &tracestore.TraceQueryParams{
 					ServiceName:  "service-a",
-					NumTraces:    100,
+					SearchDepth:  100,
 					StartTimeMax: time.Now(),
 					StartTimeMin: time.Now().Add(-1 * time.Minute * 30),
+					Attributes:   pcommon.NewMap(),
 				}
 
-				queryParams.NumTraces = testCase.numTraces
+				queryParams.SearchDepth = testCase.numTraces
 				if testCase.queryTags {
-					queryParams.Tags = make(map[string]string)
-					queryParams.Tags["x"] = "y"
+					queryParams.Attributes.PutStr("x", "y")
 				}
 				if testCase.queryOperation {
 					queryParams.OperationName = "operation-b"
@@ -420,7 +419,18 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					queryParams.DurationMin = time.Minute
 					queryParams.DurationMax = time.Minute * 3
 				}
-				res, err := r.reader.FindTraces(context.Background(), queryParams)
+				var res []dbmodel.Trace
+				var err error
+				for tr, inerr := range r.reader.FindTraces(context.Background(), queryParams) {
+					if inerr != nil {
+						err = inerr
+						break
+					}
+					res = append(res, tr)
+					if testCase.breakIter {
+						break
+					}
+				}
 				if testCase.expectedError == "" {
 					require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 					require.NoError(t, err)
@@ -440,11 +450,11 @@ func TestSpanReaderFindTraces(t *testing.T) {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	tsp := &spanstore.TraceQueryParameters{
+	attr := pcommon.NewMap()
+	attr.PutStr("michael", "jackson")
+	tsp := &tracestore.TraceQueryParams{
 		ServiceName: "",
-		Tags: map[string]string{
-			"michael": "jackson",
-		},
+		Attributes:  attr,
 	}
 	err := validateQuery(tsp)
 	require.EqualError(t, err, ErrServiceNameNotSet.Error())
@@ -470,10 +480,4 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.StartTimeMax = time.Time{}
 	err = validateQuery(tsp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
-}
-
-func TestGetOperations(t *testing.T) {
-	reader := SpanReader{}
-	_, err := reader.GetOperations(context.Background(), spanstore.OperationQueryParameters{})
-	require.ErrorContains(t, err, "not implemented")
 }

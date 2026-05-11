@@ -6,12 +6,11 @@ package metricstore
 import (
 	"context"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -89,26 +88,6 @@ func TestNewMetricsReaderInvalidAddress(t *testing.T) {
 	}, logger, tracer, nil)
 	require.Error(t, err)
 	assert.Nil(t, reader)
-}
-
-func TestGetMinStepDuration(t *testing.T) {
-	params := metricstore.MinStepDurationQueryParameters{}
-	logger := zap.NewNop()
-	tracer, _, closer := tracerProvider(t)
-	defer closer()
-	listener, err := net.Listen("tcp", "localhost:")
-	require.NoError(t, err)
-	assert.NotNil(t, listener)
-
-	reader, err := NewMetricsReader(config.Configuration{
-		ServerURL:      "http://" + listener.Addr().String(),
-		ConnectTimeout: defaultTimeout,
-	}, logger, tracer, nil)
-	require.NoError(t, err)
-
-	minStep, err := reader.GetMinStepDuration(context.Background(), &params)
-	require.NoError(t, err)
-	assert.Equal(t, time.Millisecond, minStep)
 }
 
 func TestMetricsServerError(t *testing.T) {
@@ -912,7 +891,7 @@ func TestCreatePromClientWithExtraQueryParameters(t *testing.T) {
 	q := u.Query()
 
 	for k, v := range expParams {
-		sort.Strings(q[k])
+		slices.Sort(q[k])
 		require.Equal(t, v, q[k])
 	}
 }

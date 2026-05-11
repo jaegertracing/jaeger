@@ -2,11 +2,11 @@
 
 /**
  * PR Quota Management System
- * 
+ *
  * This script implements a "Waiting Room" system that limits concurrent open PRs
  * from contributors based on their merge history, automatically unlocking queued PRs
  * when quota becomes available.
- * 
+ *
  * Usage:
  *   - Via GitHub Actions (integrated with actions/github-script)
  *   - Manual execution: GITHUB_TOKEN=<token> node pr-quota-manager.js <username> [owner] [repo]
@@ -14,6 +14,16 @@
 
 const LABEL_NAME = 'pr-quota-reached';
 const LABEL_COLOR = 'CFD3D7';
+
+/**
+ * Format open/limit counts as a bullet-point status block
+ * @param {number} openCount - Number of currently open PRs
+ * @param {number} quota - Allowed quota
+ * @returns {string} Formatted status string
+ */
+function formatStatus(openCount, quota) {
+  return `  * Open: ${openCount}\n  * Limit: ${quota}`;
+}
 
 /**
  * Calculate the quota for a user based on their merged PR count
@@ -84,7 +94,7 @@ async function fetchAuthorPRs(octokit, owner, repo, author) {
 
     // Stop if we have enough merged PRs to determine unlimited quota
     if (mergedPRs.length >= MAX_MERGED_NEEDED) break;
-    
+
     if (data.length < perPage) break;
     page++;
   }
@@ -261,7 +271,7 @@ async function hasBlockingComment(octokit, owner, repo, issueNumber) {
     issue_number: issueNumber
   });
 
-  return comments.some(comment => 
+  return comments.some(comment =>
     comment.body && comment.body.includes('This PR is currently **on hold**')
   );
 }
@@ -279,8 +289,7 @@ async function postBlockingComment(octokit, owner, repo, issueNumber, author, op
   }
 
   const message = `Hi @${author}, thanks for your contribution! To ensure quality reviews, we limit how many concurrent PRs new contributors can open:
-  * Open: ${openCount}
-  * Limit: ${quota}
+${formatStatus(openCount, quota)}
 
 This PR is currently **on hold**. We will automatically move this into the review queue once your existing PRs are merged or closed.
 
@@ -303,9 +312,12 @@ Please see our [Contributing Guidelines](https://github.com/jaegertracing/jaeger
  * Always posts when called - if PR was blocked again after being unblocked, user should be notified again
  */
 async function postUnblockingComment(octokit, owner, repo, issueNumber, author, openCount, quota, logger) {
-  const message = `PR quota unlocked! @${author}, this PR has been moved out of the waiting room and into the active review queue. Thank you for your patience.
+  const message = `PR quota unlocked!
 
-**Current Status:** ${openCount}/${quota} open.`;
+@${author}, this PR has been moved out of the waiting room and into the active review queue:
+${formatStatus(openCount, quota)}
+
+Thank you for your patience.`;
 
   try {
     await octokit.rest.issues.createComment({
@@ -324,7 +336,7 @@ async function postUnblockingComment(octokit, owner, repo, issueNumber, author, 
  */
 async function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length < 1) {
     console.error('Usage: GITHUB_TOKEN=<token> node pr-quota-manager.js <username> [owner] [repo]');
     process.exit(1);
@@ -364,26 +376,26 @@ async function githubActionHandler({github, core, username, owner, repo, dryRun 
     core.setFailed('Username is required');
     return;
   }
-  
+
   if (!owner || !repo) {
     core.setFailed('Owner and repo are required');
     return;
   }
-  
+
   // Process the quota
   try {
     const result = await processQuotaForAuthor(github, owner, repo, username, console, dryRun);
-    
+
     core.info('');
     core.info('=== Summary ===');
     core.info(`Blocked: ${result.results.blocked.length} PRs`);
     core.info(`Unblocked: ${result.results.unblocked.length} PRs`);
     core.info(`Unchanged: ${result.results.unchanged.length} PRs`);
-    
+
     if (result.results.blocked.length > 0) {
       core.info(`Blocked PRs: ${result.results.blocked.join(', ')}`);
     }
-    
+
     if (result.results.unblocked.length > 0) {
       core.info(`Unblocked PRs: ${result.results.unblocked.join(', ')}`);
     }
@@ -397,8 +409,9 @@ async function githubActionHandler({github, core, username, owner, repo, dryRun 
 if (typeof module !== 'undefined' && module.exports) {
   // Default export is the GitHub Actions handler
   module.exports = githubActionHandler;
-  
+
   // Named exports for testing and direct usage
+  module.exports.formatStatus = formatStatus;
   module.exports.calculateQuota = calculateQuota;
   module.exports.fetchAuthorPRs = fetchAuthorPRs;
   module.exports.processQuotaForAuthor = processQuotaForAuthor;

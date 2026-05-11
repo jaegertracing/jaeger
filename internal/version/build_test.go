@@ -9,7 +9,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func saveBuildVars(t *testing.T) {
+	origCommitSHA := commitSHA
+	origLatestVersion := latestVersion
+	origDate := date
+	t.Cleanup(func() {
+		commitSHA = origCommitSHA
+		latestVersion = origLatestVersion
+		date = origDate
+	})
+}
+
+func TestGetDefault(t *testing.T) {
+	saveBuildVars(t)
+	// Verify that the default version is "dev" when not set via ldflags
+	info := Get()
+	assert.Equal(t, "dev", info.GitVersion)
+}
+
 func TestGet(t *testing.T) {
+	saveBuildVars(t)
+
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"
@@ -22,6 +42,8 @@ func TestGet(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
+	saveBuildVars(t)
+
 	commitSHA = "foobar"
 	latestVersion = "v1.2.3"
 	date = "2024-01-04"

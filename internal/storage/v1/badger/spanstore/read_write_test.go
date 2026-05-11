@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestWriteReadBack(t *testing.T) {
@@ -351,7 +352,7 @@ func TestMenuSeeks(t *testing.T) {
 
 		operations, err := sr.GetOperations(
 			context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "service-1"},
+			tracestore.OperationQueryParams{ServiceName: "service-1"},
 		)
 		require.NoError(t, err)
 

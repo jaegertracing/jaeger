@@ -4,8 +4,10 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,6 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -1138,7 +1141,8 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 	}
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
-	mf.AssertCounterMetrics(t,
+	mf.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
 			Value: 1,
@@ -1180,7 +1184,8 @@ func TestHandleBulkAfterCallback_MissingStartTime(t *testing.T) {
 	}
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
-	mf.AssertCounterMetrics(t,
+	mf.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
 			Value: 1,
@@ -1728,7 +1733,8 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 	}
 	bcb.invoke(1, []elastic.BulkableRequest{nil}, nil, assert.AnError)
 
-	mf.AssertCounterMetrics(t,
+	mf.AssertCounterMetrics(
+		t,
 		metricstest.ExpectedMetric{
 			Name:  "bulk_index.errors",
 			Value: 0,
@@ -1885,6 +1891,179 @@ func TestNewClientWithCustomHeaders(t *testing.T) {
 
 	err = client.Close()
 	require.NoError(t, err)
+}
+
+type recordingRoundTripper struct {
+	req *http.Request
+}
+
+func (r *recordingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.req = req
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+func TestGetBodyFixRoundTripper_SetsGetBody(t *testing.T) {
+	payload := []byte(`{"action":"index","data":"test"}`)
+	req, err := http.NewRequest(http.MethodPost, "http://localhost", http.NoBody)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(bytes.NewReader(payload))
+	req.GetBody = nil
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	require.NotNil(t, recorder.req.GetBody)
+	body, err := recorder.req.GetBody()
+	require.NoError(t, err)
+	got, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, payload, got)
+
+	sentBody, err := io.ReadAll(recorder.req.Body)
+	require.NoError(t, err)
+	assert.Equal(t, payload, sentBody)
+}
+
+func TestGetBodyFixRoundTripper_PreservesExistingGetBody(t *testing.T) {
+	original := []byte("original")
+	customGetBody := func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(original)), nil
+	}
+
+	req, err := http.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader([]byte("different")))
+	require.NoError(t, err)
+	req.GetBody = customGetBody
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	_, err = rt.RoundTrip(req)
+	require.NoError(t, err)
+
+	body, err := recorder.req.GetBody()
+	require.NoError(t, err)
+	got, err := io.ReadAll(body)
+	require.NoError(t, err)
+	assert.Equal(t, original, got)
+}
+
+func TestGetBodyFixRoundTripper_NilBody(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "http://localhost", http.NoBody)
+	require.NoError(t, err)
+	req.Body = nil
+	req.GetBody = nil
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Nil(t, recorder.req.GetBody)
+}
+
+type errReader struct{}
+
+func (*errReader) Read([]byte) (int, error) {
+	return 0, io.ErrUnexpectedEOF
+}
+
+func TestGetBodyFixRoundTripper_ReadAllError(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "http://localhost", http.NoBody)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(&errReader{})
+	req.GetBody = nil
+
+	recorder := &recordingRoundTripper{}
+	rt := &getBodyFixRoundTripper{base: recorder}
+
+	resp, err := rt.RoundTrip(req)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.Nil(t, resp)
+	assert.Nil(t, recorder.req, "base RoundTripper should not have been called")
+}
+
+// TestNewClient_ForwardsCapturedHeadersToES verifies that captured headers
+// stored on the request context (via the headerforwarding package) are
+// propagated to outbound HTTP requests issued by the Elasticsearch client.
+// The version-detection ping is the first request the client makes after
+// construction; it carries the context passed to NewClient and therefore
+// flows through the headerforwarding RoundTripper installed at the callsite.
+func TestNewClient_ForwardsCapturedHeadersToES(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		headers []http.Header
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		headers = append(headers, req.Header.Clone())
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion0)
+	}))
+	defer testServer.Close()
+
+	cfg := Configuration{
+		Servers:            []string{testServer.URL},
+		LogLevel:           "error",
+		DisableHealthCheck: true,
+		BulkProcessing:     BulkProcessing{MaxBytes: -1},
+	}
+	hUser := &headerforwarding.ForwardedHeader{HTTPName: "X-Forwarded-User", Role: headerforwarding.RoleUsername}
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: hUser, Value: "alice"},
+	})
+
+	client, err := NewClient(ctx, &cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, headers, "fake ES server should have received at least one request")
+	for i, h := range headers {
+		assert.Equalf(t, "alice", h.Get("X-Forwarded-User"), "request #%d missing forwarded header (got: %v)", i, h)
+	}
+}
+
+// TestNewClient_NoCapturedHeaders_NoForwardedHeader verifies the negative case:
+// when the inbound context carries no captured headers, the outbound ES
+// requests do not gain the forwarded header.
+func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		headers []http.Header
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		headers = append(headers, req.Header.Clone())
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion0)
+	}))
+	defer testServer.Close()
+
+	cfg := Configuration{
+		Servers:            []string{testServer.URL},
+		LogLevel:           "error",
+		DisableHealthCheck: true,
+		BulkProcessing:     BulkProcessing{MaxBytes: -1},
+	}
+
+	client, err := NewClient(context.Background(), &cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, headers, "fake ES server should have received at least one request")
+	for i, h := range headers {
+		assert.Emptyf(t, h.Get("X-Forwarded-User"), "request #%d unexpectedly carries forwarded header", i)
+	}
 }
 
 func TestMain(m *testing.M) {

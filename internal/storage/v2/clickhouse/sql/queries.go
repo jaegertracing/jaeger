@@ -206,22 +206,30 @@ FROM
 
 const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
 
-// SearchTraceIDs is the base SQL fragment used by FindTraceIDs.
+// SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
 //
 // The query begins with a no-op predicate (`WHERE 1=1`) so that additional
 // filters can be appended unconditionally using `AND` without needing to check
 // whether this is the first WHERE clause.
-//
-// The query joins with trace_id_timestamps to retrieve the start and end times
-// for each trace ID.
-const SearchTraceIDs = `
-SELECT DISTINCT
-    s.trace_id,
-    t.start,
-    t.end
+const SearchTraceIDsBase = `SELECT DISTINCT
+    s.trace_id
 FROM spans s
-LEFT JOIN trace_id_timestamps t ON s.trace_id = t.trace_id
 WHERE 1=1`
+
+// SearchTraceIDs wraps a trace ID subquery with a JOIN to
+// trace_id_timestamps to retrieve the start and end times for each trace.
+// The %s placeholder is replaced with the complete inner subquery
+// (SearchTraceIDsBase + conditions + LIMIT).
+const SearchTraceIDs = `
+SELECT
+    l.trace_id,
+    min(t.start) AS start,
+    max(t.end) AS end
+FROM (
+%s
+) l
+LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
+GROUP BY l.trace_id`
 
 const SelectServices = `
 SELECT
@@ -262,15 +270,146 @@ SELECT
 FROM
     attribute_metadata`
 
-const TruncateSpans = `TRUNCATE TABLE spans`
+const (
+	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
+	TruncateServices          = `TRUNCATE TABLE IF EXISTS services`
+	TruncateOperations        = `TRUNCATE TABLE IF EXISTS operations`
+	TruncateTraceIDTimestamps = `TRUNCATE TABLE IF EXISTS trace_id_timestamps`
+	TruncateAttributeMetadata = `TRUNCATE TABLE IF EXISTS attribute_metadata`
+	TruncateDependencies      = `TRUNCATE TABLE IF EXISTS dependencies`
+)
 
-const TruncateServices = `TRUNCATE TABLE services`
+const SelectDependencies = `
+SELECT
+    dependencies_json
+FROM
+    dependencies
+WHERE
+    timestamp >= ?
+    AND timestamp < ?`
 
-const TruncateOperations = `TRUNCATE TABLE operations`
+const InsertDependencies = `
+INSERT INTO
+    dependencies (timestamp, dependencies_json)
+VALUES
+    (?, ?)`
 
-const TruncateTraceIDTimestamps = `TRUNCATE TABLE trace_id_timestamps`
+const SelectLatencies = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    quantile(?)(duration) / 1e6 AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
 
-const TruncateAttributeMetadata = `TRUNCATE TABLE attribute_metadata`
+const SelectLatenciesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    quantile(?)(duration) / 1e6 AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
+const SelectCallRates = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    count(*) / ? AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectCallRatesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    count(*) / ? AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
+const SelectErrorRates = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    countIf(status_code = 'Error') / count(*) AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectErrorRatesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    countIf(status_code = 'Error') / count(*) AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
+//go:embed create_dependencies_table.sql
+var CreateDependenciesTable string
 
 //go:embed create_spans_table.sql
 var CreateSpansTable string

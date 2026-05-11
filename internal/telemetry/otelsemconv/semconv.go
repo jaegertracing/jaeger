@@ -5,7 +5,7 @@ package otelsemconv
 
 import (
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.39.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 )
 
 // We do not use a lot of semconv constants, and its annoying to keep
@@ -76,3 +76,22 @@ func HTTPStatusCodeAttribute(value int) attribute.KeyValue {
 
 // This var provides the original semconv function variable for creating an int attribute.
 var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
+
+// MCP + GenAI helper values/functions.
+var GenAIOperationNameExecuteTool = semconv.GenAIOperationNameExecuteTool
+
+func McpMethodName(value string) attribute.KeyValue {
+	return semconv.McpMethodNameKey.String(value)
+}
+
+func McpSessionID(value string) attribute.KeyValue {
+	return semconv.McpSessionID(value)
+}
+
+func GenAIToolName(value string) attribute.KeyValue {
+	return semconv.GenAIToolName(value)
+}
+
+func ErrorType(value string) attribute.KeyValue {
+	return semconv.ErrorTypeKey.String(value)
+}

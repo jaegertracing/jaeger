@@ -12,7 +12,6 @@ import (
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/cassandra/gocql/testutils"
 )
 
@@ -37,7 +36,7 @@ func TestDBModelUDTMarshall(t *testing.T) {
 
 	spanRef := &SpanRef{
 		RefType: "childOf",
-		TraceID: TraceIDFromDomain(model.NewTraceID(0, 1)),
+		TraceID: TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 		SpanID:  123,
 	}
 

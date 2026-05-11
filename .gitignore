@@ -48,3 +48,5 @@ resource.syso
 test-results.json
 .metrics/
 .mockery.log
+build.log
+sidecar.py.orig

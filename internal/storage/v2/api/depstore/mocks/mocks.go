@@ -223,16 +223,16 @@ func (_m *Writer) EXPECT() *Writer_Expecter {
 }
 
 // WriteDependencies provides a mock function for the type Writer
-func (_mock *Writer) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
-	ret := _mock.Called(ts, dependencies)
+func (_mock *Writer) WriteDependencies(ctx context.Context, ts time.Time, dependencies []model.DependencyLink) error {
+	ret := _mock.Called(ctx, ts, dependencies)
 
 	if len(ret) == 0 {
 		panic("no return value specified for WriteDependencies")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(time.Time, []model.DependencyLink) error); ok {
-		r0 = returnFunc(ts, dependencies)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, time.Time, []model.DependencyLink) error); ok {
+		r0 = returnFunc(ctx, ts, dependencies)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -245,25 +245,31 @@ type Writer_WriteDependencies_Call struct {
 }
 
 // WriteDependencies is a helper method to define mock.On call
+//   - ctx context.Context
 //   - ts time.Time
 //   - dependencies []model.DependencyLink
-func (_e *Writer_Expecter) WriteDependencies(ts interface{}, dependencies interface{}) *Writer_WriteDependencies_Call {
-	return &Writer_WriteDependencies_Call{Call: _e.mock.On("WriteDependencies", ts, dependencies)}
+func (_e *Writer_Expecter) WriteDependencies(ctx interface{}, ts interface{}, dependencies interface{}) *Writer_WriteDependencies_Call {
+	return &Writer_WriteDependencies_Call{Call: _e.mock.On("WriteDependencies", ctx, ts, dependencies)}
 }
 
-func (_c *Writer_WriteDependencies_Call) Run(run func(ts time.Time, dependencies []model.DependencyLink)) *Writer_WriteDependencies_Call {
+func (_c *Writer_WriteDependencies_Call) Run(run func(ctx context.Context, ts time.Time, dependencies []model.DependencyLink)) *Writer_WriteDependencies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 time.Time
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(time.Time)
+			arg0 = args[0].(context.Context)
 		}
-		var arg1 []model.DependencyLink
+		var arg1 time.Time
 		if args[1] != nil {
-			arg1 = args[1].([]model.DependencyLink)
+			arg1 = args[1].(time.Time)
+		}
+		var arg2 []model.DependencyLink
+		if args[2] != nil {
+			arg2 = args[2].([]model.DependencyLink)
 		}
 		run(
 			arg0,
 			arg1,
+			arg2,
 		)
 	})
 	return _c
@@ -274,7 +280,7 @@ func (_c *Writer_WriteDependencies_Call) Return(err error) *Writer_WriteDependen
 	return _c
 }
 
-func (_c *Writer_WriteDependencies_Call) RunAndReturn(run func(ts time.Time, dependencies []model.DependencyLink) error) *Writer_WriteDependencies_Call {
+func (_c *Writer_WriteDependencies_Call) RunAndReturn(run func(ctx context.Context, ts time.Time, dependencies []model.DependencyLink) error) *Writer_WriteDependencies_Call {
 	_c.Call.Return(run)
 	return _c
 }

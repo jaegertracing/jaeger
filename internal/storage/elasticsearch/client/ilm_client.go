@@ -36,7 +36,8 @@ func (i ILMClient) Exists(name string) (bool, error) {
 			method:   http.MethodGet,
 		})
 		if err != nil {
-			i.Logger.Warn("Retryable error while getting ILM policy",
+			i.Logger.Warn(
+				"Retryable error while getting ILM policy",
 				zap.String("name", name),
 				zap.Error(err),
 			)

@@ -28,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -149,7 +148,8 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, t
 	lis, _ := net.Listen("tcp", ":0")
 	var grpcOpts []grpc.ServerOption
 	if tenancyMgr.Enabled {
-		grpcOpts = append(grpcOpts,
+		grpcOpts = append(
+			grpcOpts,
 			grpc.StreamInterceptor(tenancy.NewGuardingStreamInterceptor(tenancyMgr)),
 			grpc.UnaryInterceptor(tenancy.NewGuardingUnaryInterceptor(tenancyMgr)),
 		)
@@ -512,7 +512,8 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 			{Name: "get", SpanKind: "client"},
 		}
 		expectedNames := []string{"", "get"}
-		server.traceReader.On("GetOperations",
+		server.traceReader.On(
+			"GetOperations",
 			mock.Anything,
 			tracestore.OperationQueryParams{ServiceName: "abc/trifle"},
 		).Return(expectedOperations, nil).Once()
@@ -532,7 +533,8 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 
 func TestGetOperationsFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.traceReader.On("GetOperations",
+		server.traceReader.On(
+			"GetOperations",
 			mock.Anything,
 			tracestore.OperationQueryParams{ServiceName: "trifle"},
 		).Return(nil, errStorageGRPC).Once()
@@ -556,7 +558,8 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 		endTs := time.Now().UTC()
-		server.depReader.On("GetDependencies",
+		server.depReader.On(
+			"GetDependencies",
 			mock.Anything, // context.Context
 			depstore.QueryParameters{
 				StartTime: endTs.Add(-defaultDependencyLookbackDuration),
@@ -576,7 +579,8 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 func TestGetDependenciesFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		endTs := time.Now().UTC()
-		server.depReader.On("GetDependencies",
+		server.depReader.On(
+			"GetDependencies",
 			mock.Anything, // context.Context
 			depstore.QueryParameters{
 				StartTime: endTs.Add(-defaultDependencyLookbackDuration),
@@ -650,7 +654,8 @@ func initializeTenantedTestServerGRPC(t *testing.T, tm *tenancy.Manager) *grpcSe
 		querysvc.QueryServiceOptions{
 			ArchiveTraceReader: archiveTraceReader,
 			ArchiveTraceWriter: archiveTraceWriter,
-		})
+		},
+	)
 
 	server, addr := newGRPCServer(t, q, zap.NewNop(), tm)
 
@@ -706,7 +711,8 @@ func TestSearchTenancyGRPC(t *testing.T) {
 			withOutgoingMetadata(t, context.Background(), tm.Header, "acme"),
 			&api_v2.GetTraceRequest{
 				TraceID: mockTraceID,
-			})
+			},
+		)
 
 		spanResChunk, _ = res.Recv()
 
@@ -894,9 +900,10 @@ func TestTenancyContextFlowGRPC(t *testing.T) {
 
 func TestNewGRPCHandlerWithEmptyOptions(t *testing.T) {
 	q := querysvc.NewQueryService(
-		v1adapter.NewTraceReader(&spanstoremocks.Reader{}),
+		&tracestoremocks.Reader{},
 		&depsmocks.Reader{},
-		querysvc.QueryServiceOptions{})
+		querysvc.QueryServiceOptions{},
+	)
 
 	handler := NewGRPCHandler(q, GRPCHandlerOptions{})
 

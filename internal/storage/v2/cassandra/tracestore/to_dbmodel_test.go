@@ -335,6 +335,56 @@ func TestEdgeCases(t *testing.T) {
 	}
 }
 
+func TestRefsSorting(t *testing.T) {
+	tests := []struct {
+		name             string
+		withParentSpanID bool
+	}{
+		{
+			name:             "without parent span id",
+			withParentSpanID: false,
+		},
+		{
+			name:             "with parent span id",
+			withParentSpanID: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			td := ptrace.NewTraces()
+			span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+			span.SetTraceID(pcommon.TraceID{1})
+			tID := pcommon.TraceID{1, 2, 3, 4, 5, 6}
+			highSpanId := pcommon.SpanID{7, 8, 9}
+			lowSpanId := pcommon.SpanID{1, 2, 3}
+			midSpanId := pcommon.SpanID{4, 5, 6}
+			if tt.withParentSpanID {
+				span.SetParentSpanID(highSpanId)
+			}
+			link1 := span.Links().AppendEmpty()
+			link1.SetSpanID(midSpanId)
+			link1.SetTraceID(tID)
+			link1.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, otelsemconv.AttributeOpentracingRefTypeChildOf)
+			link2 := span.Links().AppendEmpty()
+			link2.SetSpanID(lowSpanId)
+			link2.SetTraceID(tID)
+			link2.Attributes().PutStr(otelsemconv.AttributeOpentracingRefType, otelsemconv.AttributeOpentracingRefTypeChildOf)
+			spans := ToDBModel(td)
+			assert.Len(t, spans, 1)
+			dbSpan := spans[0]
+			assert.NotEmpty(t, dbSpan.Refs)
+			expectedLen := 2
+			if tt.withParentSpanID {
+				assert.Equal(t, spanIDToDbSpanId(highSpanId), dbSpan.Refs[0].SpanID)
+				expectedLen++
+			}
+			assert.Len(t, dbSpan.Refs, expectedLen)
+			assert.Equal(t, spanIDToDbSpanId(lowSpanId), dbSpan.Refs[expectedLen-2].SpanID)
+			assert.Equal(t, spanIDToDbSpanId(midSpanId), dbSpan.Refs[expectedLen-1].SpanID)
+		})
+	}
+}
+
 func writeActualData(t *testing.T, name string, data []byte) {
 	var prettyJson bytes.Buffer
 	err := json.Indent(&prettyJson, data, "", "  ")
@@ -364,6 +414,65 @@ func loadSpans(t *testing.T, i int) []byte {
 	spansData, err := os.ReadFile(inSpans)
 	require.NoError(t, err)
 	return spansData
+}
+
+func TestToDBModel_Stability(t *testing.T) {
+	td1 := createTracesWithSliceOrder([]int{0, 1, 2}, []int{0, 1, 2}, []int{0, 1, 2})
+	td2 := createTracesWithSliceOrder([]int{2, 1, 0}, []int{2, 1, 0}, []int{2, 1, 0})
+	spans1 := ToDBModel(td1)
+	spans2 := ToDBModel(td2)
+	require.Len(t, spans1, 1)
+	require.Len(t, spans2, 1)
+	s1 := spans1[0]
+	assert.NotZero(t, s1.SpanHash)
+	assert.Equal(t, spans1, spans2)
+}
+
+func createTracesWithSliceOrder(tagOrder, logOrder, linkOrder []int) ptrace.Traces {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	// Add tags in specified order
+	tags := []struct{ k, v string }{
+		{k: "z", v: "last"},
+		{k: "a", v: "first"},
+		{k: "m", v: "middle"},
+	}
+	for _, i := range tagOrder {
+		rs.Resource().Attributes().PutStr(tags[i].k, tags[i].v)
+	}
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	span.SetSpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8})
+	for _, i := range tagOrder {
+		span.Attributes().PutStr(tags[i].k, tags[i].v)
+	}
+	// Add logs in specified order
+	logs := []struct {
+		ts uint64
+		n  string
+	}{
+		{ts: 2000, n: "log2"},
+		{ts: 1000, n: "log1"},
+		{ts: 1500, n: "log3"},
+	}
+	for _, i := range logOrder {
+		event := span.Events().AppendEmpty()
+		event.SetTimestamp(pcommon.Timestamp(logs[i].ts))
+		event.SetName(logs[i].n)
+	}
+	// Add links in specified order
+	links := []struct{ id byte }{
+		{3},
+		{1},
+		{2},
+	}
+	for _, i := range linkOrder {
+		link := span.Links().AppendEmpty()
+		link.SetTraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		link.SetSpanID([8]byte{links[i].id})
+	}
+	return td
 }
 
 func testTraces(t *testing.T, expectedTraces []byte, actualTraces ptrace.Traces) {

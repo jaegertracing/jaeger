@@ -4,6 +4,7 @@
 
 const prQuotaManager = require('./pr-quota-manager');
 const {
+  formatStatus,
   calculateQuota,
   fetchAuthorPRs,
   processQuotaForAuthor,
@@ -22,6 +23,12 @@ const mockLogger = {
   log: jest.fn(),
   error: jest.fn()
 };
+
+describe('formatStatus', () => {
+  test('formats open count and quota as bullet points', () => {
+    expect(formatStatus(3, 5)).toBe('  * Open: 3\n  * Limit: 5');
+  });
+});
 
 describe('calculateQuota', () => {
   test('returns 1 for 0 merged PRs', () => {
@@ -212,7 +219,7 @@ describe('removeLabel', () => {
       log: jest.fn(),
       error: jest.fn()
     };
-    
+
     const mockOctokit = {
       rest: {
         issues: {
@@ -352,18 +359,18 @@ describe('processQuotaForAuthor', () => {
             // Open PRs call
             .mockResolvedValueOnce({
               data: [
-                { 
-                  number: 1, 
-                  user: { login: 'newuser' }, 
-                  state: 'open', 
+                {
+                  number: 1,
+                  user: { login: 'newuser' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-01T00:00:00Z',
                   labels: []
                 },
-                { 
-                  number: 2, 
-                  user: { login: 'newuser' }, 
-                  state: 'open', 
+                {
+                  number: 2,
+                  user: { login: 'newuser' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-02T00:00:00Z',
                   labels: []
@@ -399,18 +406,18 @@ describe('processQuotaForAuthor', () => {
             // Open PRs call
             .mockResolvedValueOnce({
               data: [
-                { 
-                  number: 1, 
-                  user: { login: 'contributor' }, 
-                  state: 'open', 
+                {
+                  number: 1,
+                  user: { login: 'contributor' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-01T00:00:00Z',
                   labels: []
                 },
-                { 
-                  number: 3, 
-                  user: { login: 'contributor' }, 
-                  state: 'open', 
+                {
+                  number: 3,
+                  user: { login: 'contributor' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-03T00:00:00Z',
                   labels: [{ name: LABEL_NAME }]
@@ -420,9 +427,9 @@ describe('processQuotaForAuthor', () => {
             // Closed PRs call (1 merged)
             .mockResolvedValueOnce({
               data: [
-                { 
-                  number: 2, 
-                  user: { login: 'contributor' }, 
+                {
+                  number: 2,
+                  user: { login: 'contributor' },
                   merged_at: '2024-01-05T00:00:00Z'
                 }
               ]
@@ -453,26 +460,26 @@ describe('processQuotaForAuthor', () => {
             // Open PRs are already sorted by creation date from the API
             .mockResolvedValueOnce({
               data: [
-                { 
-                  number: 1, 
-                  user: { login: 'user' }, 
-                  state: 'open', 
+                {
+                  number: 1,
+                  user: { login: 'user' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-01T00:00:00Z',
                   labels: []
                 },
-                { 
-                  number: 2, 
-                  user: { login: 'user' }, 
-                  state: 'open', 
+                {
+                  number: 2,
+                  user: { login: 'user' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-02T00:00:00Z',
                   labels: []
                 },
-                { 
-                  number: 3, 
-                  user: { login: 'user' }, 
-                  state: 'open', 
+                {
+                  number: 3,
+                  user: { login: 'user' },
+                  state: 'open',
                   merged_at: null,
                   created_at: '2024-01-03T00:00:00Z',
                   labels: []

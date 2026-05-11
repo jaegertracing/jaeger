@@ -6,12 +6,14 @@ package tracestore
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
 
@@ -27,7 +29,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s := attrs.PutEmptySlice("bad_slice")
 		s.AppendEmpty()
 
-		reader := NewReader(&testDriver{t: t}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -39,7 +41,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m := attrs.PutEmptyMap("bad_map")
 		m.PutEmpty("key")
 
-		reader := NewReader(&testDriver{t: t}, testReaderConfig)
+		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
 		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
 
 		require.Error(t, err)
@@ -48,12 +50,11 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 }
 
 func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
-	td := &testDriver{
-		t: t,
-		queryResponses: map[string]*testQueryResponse{
+	td := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SelectAttributeMetadata: {
-				rows: nil,
-				err:  assert.AnError,
+				Rows: nil,
+				Err:  assert.AnError,
 			},
 		},
 	}
@@ -114,6 +115,60 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "events")
 			assert.Contains(t, query, "links")
 			assert.Len(t, args, 10)
+		})
+	}
+}
+
+func TestBuildGetTracesQuery(t *testing.T) {
+	tests := []struct {
+		name         string
+		params       tracestore.GetTraceParams
+		expectedSQL  string
+		expectedArgs []any
+	}{
+		{
+			name: "without time range",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
+			expectedSQL:  sql.SelectSpansByTraceID,
+			expectedArgs: []any{traceID},
+		},
+		{
+			name: "with both start and end",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   now.Add(-1 * time.Hour),
+				End:     now,
+			},
+			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= ? AND s.start_time <= ?",
+			expectedArgs: []any{traceID, now.Add(-1 * time.Hour), now},
+		},
+		{
+			name: "with only start time",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   now.Add(-1 * time.Hour),
+			},
+			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time >= ?",
+			expectedArgs: []any{traceID, now.Add(-1 * time.Hour)},
+		},
+		{
+			name: "with only end time",
+			params: tracestore.GetTraceParams{
+				TraceID: traceID,
+				End:     now,
+			},
+			expectedSQL:  sql.SelectSpansByTraceID + " AND s.start_time <= ?",
+			expectedArgs: []any{traceID, now},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			query, args := buildGetTracesQuery(tt.params)
+			require.Equal(t, tt.expectedSQL, query)
+			require.Equal(t, tt.expectedArgs, args)
 		})
 	}
 }

@@ -5,12 +5,13 @@ package memory
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -67,8 +68,8 @@ func TestNewStore_DefaultConfig(t *testing.T) {
 			SpanKind: "consumer",
 		},
 	}
-	sort.Slice(operations, func(i, j int) bool {
-		return operations[i].Name < operations[j].Name
+	slices.SortFunc(operations, func(a, b tracestore.Operation) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 	assert.Equal(t, expectedOperations, operations)
 	expectedServices := []string{"service-x"}
@@ -197,6 +198,103 @@ func TestFindTraces_WrongQuery(t *testing.T) {
 			assert.Equal(t, 0, iterLength)
 		})
 	}
+}
+
+func TestFindTraces_ErrorAttributeStringCompatibility(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+	traceIDOK := fromString(t, "00000000000000010000000000000000")
+	traceIDError := fromString(t, "00000000000000020000000000000000")
+
+	spanOK := spans.AppendEmpty()
+	spanOK.SetTraceID(traceIDOK)
+	spanOK.Status().SetCode(ptrace.StatusCodeOk)
+
+	spanError := spans.AppendEmpty()
+	spanError.SetTraceID(traceIDError)
+	spanError.Status().SetCode(ptrace.StatusCodeError)
+
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name            string
+		queryValue      string
+		expectedTraceID pcommon.TraceID
+	}{
+		{
+			name:            "error=true",
+			queryValue:      "true",
+			expectedTraceID: traceIDError,
+		},
+		{
+			name:            "error=false",
+			queryValue:      "false",
+			expectedTraceID: traceIDOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			queryAttributes := pcommon.NewMap()
+			queryAttributes.PutStr(errorAttribute, tt.queryValue)
+			iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+				Attributes:  queryAttributes,
+				SearchDepth: 10,
+			})
+
+			iterLength := 0
+			for traces, err := range iter {
+				require.NoError(t, err)
+				iterLength++
+				assert.Len(t, traces, 1)
+				assert.Equal(t, tt.expectedTraceID, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+			}
+			assert.Equal(t, 1, iterLength)
+		})
+	}
+}
+
+func TestFindTraces_ErrorAttributeInvalidType(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	spans := rs.ScopeSpans().AppendEmpty().Spans()
+
+	spanOK := spans.AppendEmpty()
+	spanOK.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	spanOK.Status().SetCode(ptrace.StatusCodeOk)
+
+	spanError := spans.AppendEmpty()
+	spanError.SetTraceID(fromString(t, "00000000000000020000000000000000"))
+	spanError.Status().SetCode(ptrace.StatusCodeError)
+
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutInt(errorAttribute, 1)
+	iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
+	})
+
+	iterLength := 0
+	for _, err := range iter {
+		require.NoError(t, err)
+		iterLength++
+	}
+	assert.Equal(t, 0, iterLength)
 }
 
 func TestFindTracesAttributesMatching(t *testing.T) {

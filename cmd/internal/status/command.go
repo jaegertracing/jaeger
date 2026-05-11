@@ -31,7 +31,7 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			ctx, cx := context.WithTimeout(context.Background(), time.Second)
 			defer cx()
 			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
-			resp, err := http.DefaultClient.Do(req) //nolint:gosec // G704 - URL from internal config
+			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err
 			}
@@ -52,7 +52,8 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 func flags(flagSet *flag.FlagSet, adminPort int) *flag.FlagSet {
 	adminPortStr := ports.PortToHostPort(adminPort)
 	flagSet.String(statusHTTPHostPort, adminPortStr, fmt.Sprintf(
-		"The host:port (e.g. 127.0.0.1%s or %s) for the health check", adminPortStr, adminPortStr))
+		"The host:port (e.g. 127.0.0.1%s or %s) for the health check", adminPortStr, adminPortStr,
+	))
 	return flagSet
 }
 

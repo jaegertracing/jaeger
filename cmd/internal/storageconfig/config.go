@@ -46,9 +46,10 @@ type TraceBackend struct {
 
 // MetricBackend contains configuration for a single metric storage backend.
 type MetricBackend struct {
-	Prometheus    *PrometheusConfiguration `mapstructure:"prometheus"`
-	Elasticsearch *escfg.Configuration     `mapstructure:"elasticsearch"`
-	Opensearch    *escfg.Configuration     `mapstructure:"opensearch"`
+	Prometheus    *PrometheusConfiguration  `mapstructure:"prometheus"`
+	Elasticsearch *escfg.Configuration      `mapstructure:"elasticsearch"`
+	Opensearch    *escfg.Configuration      `mapstructure:"opensearch"`
+	ClickHouse    *clickhouse.Configuration `mapstructure:"clickhouse"`
 }
 
 type PrometheusConfiguration struct {
@@ -148,6 +149,9 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 		v := es.DefaultConfig()
 		cfg.Opensearch = &v
 	}
+	if conf.IsSet("clickhouse") {
+		cfg.ClickHouse = &clickhouse.Configuration{}
+	}
 	return conf.Unmarshal(cfg)
 }
 
@@ -161,6 +165,9 @@ func (cfg *MetricBackend) Validate() error {
 	}
 	if cfg.Opensearch != nil {
 		backends = append(backends, "opensearch")
+	}
+	if cfg.ClickHouse != nil {
+		backends = append(backends, "clickhouse")
 	}
 	if len(backends) == 0 {
 		return errors.New("empty configuration")

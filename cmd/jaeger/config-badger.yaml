@@ -43,6 +43,7 @@ extensions:
           ephemeral: false
           ttl:
             spans: 48h # 2 days
+          metrics_update_interval: ${env:BADGER_METRICS_UPDATE_INTERVAL:-10s}
       another_store:
         badger:
           directories:
@@ -51,6 +52,7 @@ extensions:
           ephemeral: false
           ttl:
             spans: 720h # 30 days
+          metrics_update_interval: ${env:BADGER_METRICS_UPDATE_INTERVAL:-10s}
 
 receivers:
   otlp:

@@ -5,7 +5,7 @@
 package metricstest
 
 import (
-	"sort"
+	"slices"
 )
 
 // GetKey converts name+tags into a single string of the form
@@ -16,7 +16,7 @@ func GetKey(name string, tags map[string]string, tagsSep string, tagKVSep string
 	for k := range tags {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	key := name
 	for _, k := range keys {
 		key = key + tagsSep + k + tagKVSep + tags[k]

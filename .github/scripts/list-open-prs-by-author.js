@@ -2,10 +2,10 @@
 
 /**
  * List Open PRs Grouped by Author
- * 
+ *
  * This utility script lists all open PRs in a repository grouped by author.
  * Useful for identifying which users need quota processing or backfilling.
- * 
+ *
  * Usage:
  *   GITHUB_TOKEN=<token> node list-open-prs-by-author.js [owner] [repo]
  */
@@ -72,14 +72,14 @@ function displayResults(prsByAuthor) {
   for (const [author, prs] of sortedAuthors) {
     const hasQuotaLabel = prs.some(pr => pr.labels.includes('pr-quota-reached'));
     const quotaIndicator = hasQuotaLabel ? ' 🚫' : '';
-    
+
     console.log(`\n👤 @${author} (${prs.length} open PR${prs.length > 1 ? 's' : ''})${quotaIndicator}`);
-    
+
     // Sort PRs by creation date (oldest first)
-    const sortedPRs = prs.sort((a, b) => 
+    const sortedPRs = prs.sort((a, b) =>
       new Date(a.created_at) - new Date(b.created_at)
     );
-    
+
     for (const pr of sortedPRs) {
       const date = new Date(pr.created_at).toISOString().split('T')[0];
       const quotaLabel = pr.labels.includes('pr-quota-reached') ? ' [QUOTA REACHED]' : '';
@@ -92,8 +92,8 @@ function displayResults(prsByAuthor) {
   console.log(`\n📋 Summary:`);
   console.log(`   Total authors: ${sortedAuthors.length}`);
   console.log(`   Total open PRs: ${Array.from(prsByAuthor.values()).reduce((sum, prs) => sum + prs.length, 0)}`);
-  
-  const authorsWithQuota = sortedAuthors.filter(([_, prs]) => 
+
+  const authorsWithQuota = sortedAuthors.filter(([_, prs]) =>
     prs.some(pr => pr.labels.includes('pr-quota-reached'))
   ).length;
   if (authorsWithQuota > 0) {
@@ -107,7 +107,7 @@ function displayResults(prsByAuthor) {
  */
 function displayCSV(prsByAuthor) {
   console.log('Author,PR Count,PR Numbers,Has Quota Label');
-  
+
   for (const [author, prs] of prsByAuthor.entries()) {
     const prNumbers = prs.map(pr => `#${pr.number}`).join(' ');
     const hasQuotaLabel = prs.some(pr => pr.labels.includes('pr-quota-reached'));
@@ -120,7 +120,7 @@ function displayCSV(prsByAuthor) {
  */
 async function main() {
   const args = process.argv.slice(2);
-  
+
   const owner = args[0] || process.env.GITHUB_REPOSITORY?.split('/')[0] || 'jaegertracing';
   const repo = args[1] || process.env.GITHUB_REPOSITORY?.split('/')[1] || 'jaeger';
   const format = process.env.FORMAT || 'default'; // 'default' or 'csv'
@@ -140,7 +140,7 @@ async function main() {
 
   try {
     const prsByAuthor = await fetchOpenPRsByAuthor(octokit, owner, repo);
-    
+
     if (format === 'csv') {
       displayCSV(prsByAuthor);
     } else {

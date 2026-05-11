@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -265,26 +266,26 @@ func (_c *Reader_FindTraces_Call) RunAndReturn(run func(ctx context.Context, que
 }
 
 // GetOperations provides a mock function for the type Reader
-func (_mock *Reader) GetOperations(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+func (_mock *Reader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetOperations")
 	}
 
-	var r0 []spanstore.Operation
+	var r0 []tracestore.Operation
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, spanstore.OperationQueryParameters) ([]spanstore.Operation, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) ([]tracestore.Operation, error)); ok {
 		return returnFunc(ctx, query)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, spanstore.OperationQueryParameters) []spanstore.Operation); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.OperationQueryParams) []tracestore.Operation); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]spanstore.Operation)
+			r0 = ret.Get(0).([]tracestore.Operation)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, spanstore.OperationQueryParameters) error); ok {
+	if returnFunc, ok := ret.Get(1).(func(context.Context, tracestore.OperationQueryParams) error); ok {
 		r1 = returnFunc(ctx, query)
 	} else {
 		r1 = ret.Error(1)
@@ -299,20 +300,20 @@ type Reader_GetOperations_Call struct {
 
 // GetOperations is a helper method to define mock.On call
 //   - ctx context.Context
-//   - query spanstore.OperationQueryParameters
+//   - query tracestore.OperationQueryParams
 func (_e *Reader_Expecter) GetOperations(ctx interface{}, query interface{}) *Reader_GetOperations_Call {
 	return &Reader_GetOperations_Call{Call: _e.mock.On("GetOperations", ctx, query)}
 }
 
-func (_c *Reader_GetOperations_Call) Run(run func(ctx context.Context, query spanstore.OperationQueryParameters)) *Reader_GetOperations_Call {
+func (_c *Reader_GetOperations_Call) Run(run func(ctx context.Context, query tracestore.OperationQueryParams)) *Reader_GetOperations_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 spanstore.OperationQueryParameters
+		var arg1 tracestore.OperationQueryParams
 		if args[1] != nil {
-			arg1 = args[1].(spanstore.OperationQueryParameters)
+			arg1 = args[1].(tracestore.OperationQueryParams)
 		}
 		run(
 			arg0,
@@ -322,12 +323,12 @@ func (_c *Reader_GetOperations_Call) Run(run func(ctx context.Context, query spa
 	return _c
 }
 
-func (_c *Reader_GetOperations_Call) Return(operations []spanstore.Operation, err error) *Reader_GetOperations_Call {
+func (_c *Reader_GetOperations_Call) Return(operations []tracestore.Operation, err error) *Reader_GetOperations_Call {
 	_c.Call.Return(operations, err)
 	return _c
 }
 
-func (_c *Reader_GetOperations_Call) RunAndReturn(run func(ctx context.Context, query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)) *Reader_GetOperations_Call {
+func (_c *Reader_GetOperations_Call) RunAndReturn(run func(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error)) *Reader_GetOperations_Call {
 	_c.Call.Return(run)
 	return _c
 }

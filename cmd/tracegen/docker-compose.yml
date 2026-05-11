@@ -1,12 +1,12 @@
 services:
     jaeger:
-      image: cr.jaegertracing.io/jaegertracing/jaeger:2.15.1@sha256:a7dd965687d45507072676db81e6903706ba334dfc92f0c248125cfd9a70c483
+      image: cr.jaegertracing.io/jaegertracing/jaeger:2.17.0@sha256:6266573208d665ce5c17483bce0a75d0806480d92c84766d288d0aee885ce708
       ports:
         - '16686:16686'
         - '4318:4318'
 
     tracegen:
-      image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.15.1@sha256:8149733c9c54c2b272d2141388aa4f0ae95704c814df976b434fba162752a235
+      image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.17.0@sha256:cdd78c468ce239bfb801c3e692de5e472d8e639c48e0c9c30ed5ec4d6882cf6d
       environment:
         - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
       command: ["-duration", "10s", "-workers", "3", "-pause", "250ms"]

@@ -37,6 +37,8 @@ extensions:
       traces_archive: another_store
     ui:
       config_file: ./cmd/jaeger/config-ui.json
+    ai:
+      agent_url: ws://localhost:16688
     # The maximum duration that is considered for clock skew adjustments.
     # Defaults to 0 seconds, which means it's disabled.
     max_clock_skew_adjust: 0s

@@ -29,6 +29,7 @@ extensions:
   jaeger_query:
     storage:
       traces: some-storage
+      metrics: some-metrics
     ui:
       config_file: ./cmd/jaeger/config-ui.json
   jaeger_storage:
@@ -43,6 +44,16 @@ extensions:
               username: default
               password: password
           create_schema: true
+    metric_backends:
+      some-metrics:
+        clickhouse:
+          addresses:
+            - localhost:9000
+          database: jaeger
+          auth:
+            basic:
+              username: default
+              password: password
 
 receivers:
   otlp:

@@ -27,8 +27,10 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -53,6 +55,7 @@ func NewServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -75,7 +78,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +130,14 @@ func createGRPCServer(
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
-	grpcOpts = append(grpcOpts,
+	//nolint:contextcheck // The context is handled by the interceptors
+	if len(options.HeaderForwarding) > 0 {
+		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryServerInterceptor(options.HeaderForwarding))
+		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamServerInterceptor(options.HeaderForwarding))
+	}
+
+	grpcOpts = append(
+		grpcOpts,
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
@@ -143,7 +153,8 @@ func createGRPCServer(
 			TracerProvider: telset.TracerProvider,
 			MeterProvider:  telset.MeterProvider,
 		},
-		grpcOpts...)
+		grpcOpts...,
+	)
 }
 
 type httpServer struct {
@@ -157,6 +168,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, io.Closer) {
@@ -169,7 +181,8 @@ func initRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		apiHandlerOptions...)
+		apiHandlerOptions...,
+	)
 	r := http.NewServeMux()
 
 	(&apiv3.HTTPGateway{
@@ -187,15 +200,30 @@ func initRouter(
 	if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
+
+	// AI Gateway Endpoints
+	if queryOpts.AI.HasValue() {
+		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
+			if err := aiCfg.Validate(); err != nil {
+				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
+			} else {
+				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+			}
+		}
+	}
+
 	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, querySvc.GetCapabilities())
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
+	if len(queryOpts.HeaderForwarding) > 0 {
+		handler = headerforwarding.HTTPServerMiddleware(queryOpts.HeaderForwarding, handler)
 	}
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
@@ -209,10 +237,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
+	caps querysvc.StorageCapabilities,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {
@@ -264,7 +293,8 @@ func createHTTPServer(
 
 func (hS httpServer) Close() error {
 	var errs []error
-	errs = append(errs,
+	errs = append(
+		errs,
 		hS.Server.Close(),
 		hS.staticHandlerCloser.Close(),
 	)
