@@ -29,9 +29,31 @@ def apply_index_prefix(index_prefix, name):
         return f"{index_prefix}{name}"
     return f"{index_prefix}-{name}"
 
-def update_template(es_url, index_prefix):
+def strip_system_fields(data):
+    """Recursively remove system-managed fields from a dictionary."""
+    if not isinstance(data, dict):
+        return data
+
+    system_fields = ["created_date", "last_modified_date", "managed", "_system"]
+    for field in system_fields:
+        data.pop(field, None)
+
+    for key, value in data.items():
+        if isinstance(value, dict):
+            strip_system_fields(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    strip_system_fields(item)
+    return data
+
+def update_template(es_url, index_prefix, es_version):
     template_name = apply_index_prefix(index_prefix, "jaeger-span")
-    url = f"{es_url.rstrip('/')}/_template/{template_name}"
+
+    if es_version >= 8:
+        url = f"{es_url.rstrip('/')}/_index_template/{template_name}"
+    else:
+        url = f"{es_url.rstrip('/')}/_template/{template_name}"
 
     # Security parameters from environment
     username = os.getenv('ES_USERNAME')
@@ -62,12 +84,33 @@ def update_template(es_url, index_prefix):
         print(f"[!] HTTP Request failed: {e}")
         sys.exit(1)
 
-    # ES returns { "template_name": { ... } }
     raw_data = response.json()
-    template_data = raw_data[template_name]
+    if es_version >= 8:
+        # ES8 returns { "index_templates": [ { "name": "...", "index_template": { ... } } ] }
+        templates = raw_data.get("index_templates", [])
+        raw_template = None
+        for t in templates:
+            if t.get("name") == template_name:
+                raw_template = t.get("index_template")
+                break
+        if not raw_template:
+            print(f"[!] Error: Template '{template_name}' not found in index_templates.")
+            sys.exit(1)
+
+        # Only allow specific top-level keys for Composable Templates to avoid 400 Bad Request
+        # from system-managed fields like 'created_date', 'last_modified_date', etc.
+        allowed_keys = ["index_patterns", "template", "composed_of", "priority", "version", "_meta"]
+        template_payload = {k: v for k, v in raw_template.items() if k in allowed_keys}
+
+        # In Composable templates, mappings/settings/aliases are inside "template"
+        target_root = template_payload.setdefault("template", {})
+    else:
+        # Legacy returns { "template_name": { ... } }
+        template_payload = raw_data[template_name]
+        target_root = template_payload
 
     # 2. Modify template mappings
-    mappings = template_data.get("mappings", {})
+    mappings = target_root.setdefault("mappings", {})
 
     # Handle both ES 6 (type-named) and ES 7+ (properties-first) structures
     target_mappings = mappings
@@ -143,7 +186,7 @@ def update_template(es_url, index_prefix):
     # 3. Upload the updated template
     print(f"[*] Uploading updated template '{template_name}'...")
     try:
-        put_response = requests.put(url, json=template_data, auth=auth, headers=headers, verify=ca_bundle)
+        put_response = requests.put(url, json=template_payload, auth=auth, headers=headers, verify=ca_bundle)
         put_response.raise_for_status()
         print("[+] Success: Template updated.")
     except requests.exceptions.RequestException as e:
@@ -156,6 +199,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Update Jaeger ES template with OTLP fields.")
     parser.add_argument("--index-prefix", default="", help="Jaeger index prefix")
     parser.add_argument("--es-url", required=True, help="Elasticsearch base URL")
+    parser.add_argument("--es-version", type=int, required=True, help="Elasticsearch major version (e.g. 7 or 8)")
 
     args = parser.parse_args()
-    update_template(args.es_url, args.index_prefix)
+    update_template(args.es_url, args.index_prefix, args.es_version)

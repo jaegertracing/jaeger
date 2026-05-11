@@ -13,7 +13,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/estesting"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -134,7 +134,7 @@ func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
 func mockHttpServerForFactory(prefix escfg.IndexPrefix) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if elasticsearch.WriteMockMappingResponse(prefix, w, r) {
+		if estesting.WriteMockMappingResponse(prefix, w, r) {
 			return
 		}
 		w.Write(mockEsServerResponse)

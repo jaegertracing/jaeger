@@ -7,6 +7,7 @@ package eswrapper
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -347,7 +348,7 @@ func (g GetTemplateMappingWrapperV8) Do(ctx context.Context) (map[string]any, er
 	}
 	templatesAny, ok := result["index_templates"].([]any)
 	if !ok {
-		return nil, fmt.Errorf("unexpected response format: index_templates not found or not an array")
+		return nil, errors.New("unexpected response format: index_templates not found or not an array")
 	}
 	for _, tAny := range templatesAny {
 		template, ok := tAny.(map[string]any)

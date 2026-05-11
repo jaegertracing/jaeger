@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/estesting"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
@@ -369,7 +370,7 @@ func runPasswordFromFileTest(t *testing.T) {
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
 		w.Header().Set("Content-Type", "application/json")
-		if WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse("", w, r) {
 			return
 		}
 		if !assert.Len(t, h, 2) {
@@ -576,25 +577,16 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "GetTemplateMappings error",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				s.On("Do", mock.Anything).Return(nil, errors.New("ES error"))
 			},
 			expectedError: "ES error",
 		},
 		{
-			name:          "Template not found",
-			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
-				s.On("Do", mock.Anything).Return(map[string]any{}, nil)
-			},
-			expectedError: fmt.Sprintf("template %q not found", templateName),
-		},
-		{
 			name:          "Missing properties (top level and span level)",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"not_properties": map[string]any{},
 				}
@@ -606,7 +598,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "ES6 style - missing properties inside span",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"span": map[string]any{
 						"not_properties": map[string]any{},
@@ -620,7 +612,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "Missing scopeTag",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"properties": map[string]any{
 						"references": map[string]any{
@@ -638,7 +630,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "Missing references",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"properties": map[string]any{
 						"scopeTag": map[string]any{},
@@ -652,7 +644,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "References is not a map",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"properties": map[string]any{
 						"scopeTag":   map[string]any{},
@@ -667,7 +659,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "Missing references.properties",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"properties": map[string]any{
 						"scopeTag": map[string]any{},
@@ -684,7 +676,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "Missing references.tags",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"properties": map[string]any{
 						"scopeTag": map[string]any{},
@@ -703,7 +695,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "Success ES7 style",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"properties": map[string]any{
 						"scopeTag": map[string]any{},
@@ -724,7 +716,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			name:          "Success ES6 style",
 			createMapping: false,
 			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
-				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				c.On("GetTemplateMappings", templateName).Return(s)
 				res := map[string]any{
 					"span": map[string]any{
 						"properties": map[string]any{
@@ -779,7 +771,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 func mockHttpServerForFactory() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse("", w, r) {
 			return
 		}
 		w.Write(mockEsServerResponse)

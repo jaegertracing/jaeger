@@ -25,11 +25,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/estesting"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
@@ -59,7 +59,7 @@ func (e errorFactory) Close() error {
 func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if elasticsearch.WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse("", w, r) {
 			return
 		}
 		w.WriteHeader(statusCode)
@@ -180,7 +180,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				require.NoError(t, err)
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
-					if elasticsearch.WriteMockMappingResponse("", w, r) {
+					if estesting.WriteMockMappingResponse("", w, r) {
 						return
 					}
 					w.Write(versionResponse)
