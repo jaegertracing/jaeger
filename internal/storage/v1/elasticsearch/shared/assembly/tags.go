@@ -24,6 +24,9 @@ func MergeAllNestedAndElevatedTagsOfSpan(
 }
 
 // MergeNestedAndElevatedTags merges nestedTags and elevatedTags into one slice.
+// MergeNestedAndElevatedTags merges nestedTags and elevatedTags into one slice.
+// IMPORTANT: This function modifies the elevatedTags map by deleting entries as they are merged.
+// This is intentional behavior to clear the elevated tags after merging them into the nested format.
 func MergeNestedAndElevatedTags(
 	nestedTags []dbmodel.KeyValue,
 	elevatedTags map[string]any,

@@ -11,7 +11,11 @@ import (
 )
 
 // LogErrorToSpan records an error on the given OpenTelemetry span.
+// If err is nil, this function returns early without recording anything.
 func LogErrorToSpan(span trace.Span, err error) {
+	if err == nil {
+		return
+	}
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
 }

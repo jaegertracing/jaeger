@@ -166,7 +166,7 @@ func TestMergeNestedAndElevatedTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := MergeNestedAndElevatedTags(tt.nestedTags, tt.elevatedTags, dotReplacer)
 			assert.Len(t, result, tt.expectedLen)
-			// Verify elevated tags map is cleared
+			// Verify elevated tags map is cleared (intentional side effect)
 			assert.Empty(t, tt.elevatedTags)
 		})
 	}
@@ -389,6 +389,10 @@ func TestLogErrorToSpan(t *testing.T) {
 			name: "non-nil error",
 			err:  assert.AnError,
 		},
+		{
+			name: "nil error",
+			err:  nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -397,7 +401,7 @@ func TestLogErrorToSpan(t *testing.T) {
 			tracer := noop.NewTracerProvider().Tracer("test")
 			_, span := tracer.Start(t.Context(), "test-span")
 
-			// Should not panic
+			// Should not panic for both nil and non-nil errors
 			require.NotPanics(t, func() {
 				LogErrorToSpan(span, tt.err)
 			})
@@ -423,7 +427,7 @@ func TestKeyInCache(t *testing.T) {
 		{
 			name:     "key does not exist",
 			key:      "non-existing-key",
-			setup:    func(c cache.Cache) {},
+			setup:    func(_ cache.Cache) {},
 			expected: false,
 		},
 	}
