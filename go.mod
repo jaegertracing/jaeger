@@ -11,7 +11,7 @@ require (
 	github.com/coder/acp-go-sdk v0.12.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.9.1
-	github.com/elastic/go-elasticsearch/v9 v9.3.1
+	github.com/elastic/go-elasticsearch/v9 v9.4.1
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/googleapis v1.4.1
@@ -165,7 +165,7 @@ require (
 	github.com/eapache/go-resiliency v1.7.0 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/elastic/elastic-transport-go/v8 v8.8.0 // indirect
+	github.com/elastic/elastic-transport-go/v8 v8.9.0 // indirect
 	github.com/elastic/go-grok v0.3.1 // indirect
 	github.com/elastic/lunes v0.2.0 // indirect
 	github.com/expr-lang/expr v1.17.8 // indirect
