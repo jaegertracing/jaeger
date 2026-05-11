@@ -47,7 +47,7 @@ def strip_system_fields(data):
                     strip_system_fields(item)
     return data
 
-def update_template(es_url, index_prefix, es_version):
+def update_template(es_url, index_prefix, es_version, timeout):
     template_name = apply_index_prefix(index_prefix, "jaeger-span")
 
     if es_version >= 8:
@@ -73,9 +73,9 @@ def update_template(es_url, index_prefix, es_version):
         auth = HTTPBasicAuth(username, password)
 
     # 1. Fetch existing template
-    print(f"[*] Fetching template: {template_name} from {url}")
+    print(f"[*] Fetching template: {template_name} from {url} (timeout={timeout}s)")
     try:
-        response = requests.get(url, auth=auth, headers=headers, verify=ca_bundle)
+        response = requests.get(url, auth=auth, headers=headers, verify=ca_bundle, timeout=timeout)
         if response.status_code == 404:
             print(f"[!] Error: Template '{template_name}' not found in Elasticsearch.")
             sys.exit(1)
@@ -184,9 +184,9 @@ def update_template(es_url, index_prefix, es_version):
         return
 
     # 3. Upload the updated template
-    print(f"[*] Uploading updated template '{template_name}'...")
+    print(f"[*] Uploading updated template '{template_name}'... (timeout={timeout}s)")
     try:
-        put_response = requests.put(url, json=template_payload, auth=auth, headers=headers, verify=ca_bundle)
+        put_response = requests.put(url, json=template_payload, auth=auth, headers=headers, verify=ca_bundle, timeout=timeout)
         put_response.raise_for_status()
         print("[+] Success: Template updated.")
     except requests.exceptions.RequestException as e:
@@ -200,6 +200,7 @@ if __name__ == "__main__":
     parser.add_argument("--index-prefix", default="", help="Jaeger index prefix")
     parser.add_argument("--es-url", required=True, help="Elasticsearch base URL")
     parser.add_argument("--es-version", type=int, required=True, help="Elasticsearch major version (e.g. 7 or 8)")
+    parser.add_argument("--timeout", type=int, default=30, help="HTTP request timeout in seconds (default: 30)")
 
     args = parser.parse_args()
-    update_template(args.es_url, args.index_prefix, args.es_version)
+    update_template(args.es_url, args.index_prefix, args.es_version, args.timeout)
