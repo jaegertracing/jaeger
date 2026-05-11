@@ -15,7 +15,7 @@ import (
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/shared/assembly"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/shared/assembly"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
