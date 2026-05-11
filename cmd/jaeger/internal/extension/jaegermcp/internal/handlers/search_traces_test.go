@@ -193,17 +193,17 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 
 func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	errorTrace := createTestTrace("trace666", "error-service", "/error", true)
+	okTrace := createTestTrace("trace667", "error-service", "/ok", false)
 
 	mock := &mockQueryService{
 		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
-			// Verify that error attribute filter is added
-			errorAttr, ok := query.Attributes.Get("error")
-			assert.True(t, ok)
-			assert.Equal(t, "true", errorAttr.Str())
+			// WithErrors must NOT inject an error=true attribute tag — OTel uses Status.Code, not tags
+			_, hasErrorAttr := query.Attributes.Get("error")
+			assert.False(t, hasErrorAttr, "error=true attribute must not be added to the query")
 
 			return func(yield func([]ptrace.Traces, error) bool) {
-				// Return only error traces (simulating storage filtering)
-				yield([]ptrace.Traces{errorTrace}, nil)
+				// Storage returns both traces; handler must filter by OTel status
+				yield([]ptrace.Traces{okTrace, errorTrace}, nil)
 			}
 		},
 	}
@@ -219,7 +219,52 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
-	// Only error trace should be returned
+	// Handler must filter out the ok trace; only the error trace is returned
+	require.Len(t, output.Traces, 1)
+	assert.True(t, output.Traces[0].HasErrors)
+}
+
+// TestSearchTracesHandler_Handle_WithErrorsFilter_OTelStatusOnly verifies that
+// with_errors=true returns traces whose spans carry OTel Status.Code=Error but
+// have no legacy error=true attribute tag (the original bug scenario).
+func TestSearchTracesHandler_Handle_WithErrorsFilter_OTelStatusOnly(t *testing.T) {
+	// Build a trace that uses OTel Status.Code=Error with NO error=true attribute tag.
+	otelErrorTrace := ptrace.NewTraces()
+	rs := otelErrorTrace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "genai-service")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	tid := pcommon.TraceID{}
+	copy(tid[:], "otelerrortrace00")
+	span.SetTraceID(tid)
+	span.SetSpanID(pcommon.SpanID([8]byte{1, 0, 0, 0, 0, 0, 0, 0}))
+	span.SetName("llm.completion")
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span.Status().SetCode(ptrace.StatusCodeError) // OTel error — no error=true tag
+	span.Attributes().PutStr("gen_ai.finish_reason", "content_filter")
+
+	okTrace := createTestTrace("otelerrortrace01", "genai-service", "/ok", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{okTrace, otelErrorTrace}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "genai-service",
+		WithErrors:   true,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	// The OTel error trace must be returned even though it has no error=true tag
 	require.Len(t, output.Traces, 1)
 	assert.True(t, output.Traces[0].HasErrors)
 }

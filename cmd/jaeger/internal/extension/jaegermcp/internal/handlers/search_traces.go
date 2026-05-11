@@ -78,6 +78,9 @@ func (h *searchTracesHandler) handle(
 		}
 
 		summary := buildTraceSummary(trace)
+		if input.WithErrors && !summary.HasErrors {
+			continue
+		}
 		summaries = append(summaries, summary)
 		if h.maxResults > 0 && len(summaries) >= h.maxResults {
 			break
@@ -160,11 +163,6 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	attributes := pcommon.NewMap()
 	for key, value := range input.Attributes {
 		attributes.PutStr(key, value)
-	}
-
-	// If WithErrors is requested, add error attribute filter
-	if input.WithErrors {
-		attributes.PutStr("error", "true")
 	}
 
 	return querysvc.TraceQueryParams{
