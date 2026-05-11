@@ -29,24 +29,6 @@ def apply_index_prefix(index_prefix, name):
         return f"{index_prefix}{name}"
     return f"{index_prefix}-{name}"
 
-def strip_system_fields(data):
-    """Recursively remove system-managed fields from a dictionary."""
-    if not isinstance(data, dict):
-        return data
-
-    system_fields = ["created_date", "last_modified_date", "managed", "_system"]
-    for field in system_fields:
-        data.pop(field, None)
-
-    for key, value in data.items():
-        if isinstance(value, dict):
-            strip_system_fields(value)
-        elif isinstance(value, list):
-            for item in value:
-                if isinstance(item, dict):
-                    strip_system_fields(item)
-    return data
-
 def update_template(es_url, index_prefix, es_version, timeout):
     template_name = apply_index_prefix(index_prefix, "jaeger-span")
 
