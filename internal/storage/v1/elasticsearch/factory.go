@@ -278,18 +278,12 @@ func (f *FactoryBase) verifySpanMappingSchema(ctx context.Context) error {
 		return nil
 	}
 	templateName := f.config.Indices.IndexPrefix.Apply("jaeger-span")
-	res, err := f.getClient().GetTemplate(templateName).Do(ctx)
+	maps, err := f.getClient().GetTemplateMappings(templateName).Do(ctx)
 	if err != nil {
 		return err
 	}
-	template, ok := res[templateName]
-	if !ok {
-		return fmt.Errorf("template %q not found", templateName)
-	}
-	maps := template.Mappings
 	// In ES7+, mappings have a "properties" field
-	var properties map[string]any
-	properties, ok = maps["properties"].(map[string]any)
+	properties, ok := maps["properties"].(map[string]any)
 	if !ok {
 		// It could be possible that ES Version is 6 and there properties will be wrapped inside span
 		if span, ok := maps["span"].(map[string]any); ok {

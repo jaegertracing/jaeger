@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -565,7 +564,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 	tests := []struct {
 		name          string
 		createMapping bool
-		mockSetup     func(*mocks.Client, *mocks.IndicesGetTemplateService)
+		mockSetup     func(*mocks.Client, *mocks.IndicesGetTemplateMappingService)
 		expectedError string
 	}{
 		{
@@ -574,10 +573,10 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			name:          "GetTemplate error",
+			name:          "GetTemplateMappings error",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
 				s.On("Do", mock.Anything).Return(nil, errors.New("ES error"))
 			},
 			expectedError: "ES error",
@@ -585,23 +584,19 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Template not found",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				s.On("Do", mock.Anything).Return(map[string]*elastic.IndicesGetTemplateResponse{}, nil)
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				s.On("Do", mock.Anything).Return(map[string]any{}, nil)
 			},
 			expectedError: fmt.Sprintf("template %q not found", templateName),
 		},
 		{
 			name:          "Missing properties (top level and span level)",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
-							"not_properties": map[string]any{},
-						},
-					},
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"not_properties": map[string]any{},
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
 			},
@@ -610,15 +605,11 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "ES6 style - missing properties inside span",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
-							"span": map[string]any{
-								"not_properties": map[string]any{},
-							},
-						},
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"span": map[string]any{
+						"not_properties": map[string]any{},
 					},
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
@@ -628,17 +619,13 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Missing scopeTag",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"properties": map[string]any{
+						"references": map[string]any{
 							"properties": map[string]any{
-								"references": map[string]any{
-									"properties": map[string]any{
-										"tags": map[string]any{},
-									},
-								},
+								"tags": map[string]any{},
 							},
 						},
 					},
@@ -650,15 +637,11 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Missing references",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
-							"properties": map[string]any{
-								"scopeTag": map[string]any{},
-							},
-						},
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"properties": map[string]any{
+						"scopeTag": map[string]any{},
 					},
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
@@ -668,16 +651,12 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "References is not a map",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
-							"properties": map[string]any{
-								"scopeTag":   map[string]any{},
-								"references": "not a map",
-							},
-						},
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"properties": map[string]any{
+						"scopeTag":   map[string]any{},
+						"references": "not a map",
 					},
 				}
 				s.On("Do", mock.Anything).Return(res, nil)
@@ -687,17 +666,13 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Missing references.properties",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
-							"properties": map[string]any{
-								"scopeTag": map[string]any{},
-								"references": map[string]any{
-									"not_properties": map[string]any{},
-								},
-							},
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"properties": map[string]any{
+						"scopeTag": map[string]any{},
+						"references": map[string]any{
+							"not_properties": map[string]any{},
 						},
 					},
 				}
@@ -708,18 +683,14 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Missing references.tags",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"properties": map[string]any{
+						"scopeTag": map[string]any{},
+						"references": map[string]any{
 							"properties": map[string]any{
-								"scopeTag": map[string]any{},
-								"references": map[string]any{
-									"properties": map[string]any{
-										"not_tags": map[string]any{},
-									},
-								},
+								"not_tags": map[string]any{},
 							},
 						},
 					},
@@ -731,20 +702,16 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Success ES7 style",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"properties": map[string]any{
+						"scopeTag": map[string]any{},
+						"references": map[string]any{
 							"properties": map[string]any{
-								"scopeTag": map[string]any{},
-								"references": map[string]any{
-									"properties": map[string]any{
-										"tags":       map[string]any{},
-										"traceState": map[string]any{},
-										"flags":      map[string]any{},
-									},
-								},
+								"tags":       map[string]any{},
+								"traceState": map[string]any{},
+								"flags":      map[string]any{},
 							},
 						},
 					},
@@ -756,21 +723,17 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 		{
 			name:          "Success ES6 style",
 			createMapping: false,
-			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateService) {
-				c.On("GetTemplate", []string{templateName}).Return(s)
-				res := map[string]*elastic.IndicesGetTemplateResponse{
-					templateName: {
-						Mappings: map[string]any{
-							"span": map[string]any{
+			mockSetup: func(c *mocks.Client, s *mocks.IndicesGetTemplateMappingService) {
+				c.On("GetTemplateMappings", []string{templateName}).Return(s)
+				res := map[string]any{
+					"span": map[string]any{
+						"properties": map[string]any{
+							"scopeTag": map[string]any{},
+							"references": map[string]any{
 								"properties": map[string]any{
-									"scopeTag": map[string]any{},
-									"references": map[string]any{
-										"properties": map[string]any{
-											"tags":       map[string]any{},
-											"traceState": map[string]any{},
-											"flags":      map[string]any{},
-										},
-									},
+									"tags":       map[string]any{},
+									"traceState": map[string]any{},
+									"flags":      map[string]any{},
 								},
 							},
 						},
@@ -785,7 +748,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mocks.Client{}
-			mockService := &mocks.IndicesGetTemplateService{}
+			mockService := &mocks.IndicesGetTemplateMappingService{}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockClient, mockService)
