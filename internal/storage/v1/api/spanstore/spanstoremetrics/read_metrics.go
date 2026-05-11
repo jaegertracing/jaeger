@@ -11,6 +11,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // ReadMetricsDecorator wraps a spanstore.Reader and collects metrics around each read operation.
@@ -96,8 +97,8 @@ func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error
 // GetOperations implements spanstore.Reader#GetOperations
 func (m *ReadMetricsDecorator) GetOperations(
 	ctx context.Context,
-	query spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
 	start := time.Now()
 	retMe, err := m.spanReader.GetOperations(ctx, query)
 	m.getOperationsMetrics.emit(err, time.Since(start), len(retMe))

@@ -34,7 +34,15 @@ create-fake-debugimg: prepare-docker-buildx
 prepare-docker-buildx:
 	@echo "::group:: prepare-docker-buildx"
 	docker buildx inspect jaeger-build > /dev/null || docker buildx create --use --name=jaeger-build --buildkitd-flags="--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host" --driver-opt="network=host"
-	docker inspect registry > /dev/null || docker run --rm -d -p 5000:5000 --name registry registry:2
+	docker inspect registry > /dev/null 2>&1 || \
+		{ for i in 1 2 3; do \
+		    docker pull registry:2 && break; \
+		    echo "Attempt $$i/3 to pull registry:2 failed"; \
+		    [ "$$i" -lt 3 ] && sleep 15; \
+		  done; \
+		  docker image inspect registry:2 > /dev/null 2>&1 \
+		    || { echo "ERROR: Failed to pull registry:2 after 3 attempts"; exit 1; }; \
+		  docker run --rm -d -p 5000:5000 --name registry registry:2; }
 	@echo "::endgroup::"
 
 .PHONY: clean-docker-buildx

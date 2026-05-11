@@ -12,45 +12,22 @@ import (
 // This is a simplified version of ptrace.Span to prevent mutation of the original trace.
 type CPSpan struct {
 	SpanID       pcommon.SpanID
-	StartTime    uint64 // in microseconds
-	Duration     uint64 // in microseconds
-	References   []CPSpanReference
+	ParentSpanID pcommon.SpanID // empty for the root span
+	StartTime    uint64         // in microseconds
+	Duration     uint64         // in microseconds
 	ChildSpanIDs []pcommon.SpanID
-}
-
-// CPSpanReference represents a reference between spans
-type CPSpanReference struct {
-	RefType string // "CHILD_OF" or "FOLLOWS_FROM"
-	SpanID  pcommon.SpanID
-	TraceID pcommon.TraceID
-	Span    *CPSpan // Populated during sanitization
 }
 
 // CreateCPSpan creates a CPSpan from a ptrace.Span
 func CreateCPSpan(span ptrace.Span, childSpanIDs []pcommon.SpanID) CPSpan {
 	cpSpan := CPSpan{
 		SpanID:       span.SpanID(),
+		ParentSpanID: span.ParentSpanID(),
 		StartTime:    uint64(span.StartTimestamp()) / 1000, // Convert nanoseconds to microseconds
 		Duration:     uint64(span.EndTimestamp()-span.StartTimestamp()) / 1000,
 		ChildSpanIDs: make([]pcommon.SpanID, len(childSpanIDs)),
 	}
-
-	// Copy child span IDs
 	copy(cpSpan.ChildSpanIDs, childSpanIDs)
-
-	// Convert span links to references
-	// In OTLP, parent relationship is implicit via ParentSpanID, not via links
-	// We need to handle this differently
-	if !span.ParentSpanID().IsEmpty() {
-		cpSpan.References = []CPSpanReference{
-			{
-				RefType: "CHILD_OF",
-				SpanID:  span.ParentSpanID(),
-				TraceID: span.TraceID(),
-			},
-		}
-	}
-
 	return cpSpan
 }
 

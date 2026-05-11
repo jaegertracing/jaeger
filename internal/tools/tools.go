@@ -11,6 +11,7 @@ package tools
 // This ensures that all systems use the same version of tools in addition to regular dependencies.
 
 import (
+	_ "gotest.tools/gotestsum"
 	_ "mvdan.cc/gofumpt"
 
 	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"

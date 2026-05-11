@@ -11,4 +11,4 @@ services:
       - xpack.monitoring.collection.enabled=false  # Disable monitoring features
     ports:
       - "9200:9200"
-      
+

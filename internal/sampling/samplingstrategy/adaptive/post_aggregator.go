@@ -142,7 +142,11 @@ func (p *PostAggregator) isLeader() bool {
 // trying to acquire the lock. With jitter, we can reduce the average amount of time before a
 // new leader is elected. Furthermore, jitter can be used to spread out read load on storage.
 func addJitter(jitterAmount time.Duration) time.Duration {
-	return (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
+	half := jitterAmount / 2
+	if half <= 0 {
+		return jitterAmount
+	}
+	return half + time.Duration(rand.Int63n(int64(half)))
 }
 
 func (p *PostAggregator) runCalculation() {

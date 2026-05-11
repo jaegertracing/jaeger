@@ -5,7 +5,7 @@ BINARY ?= jaeger
 
 .PHONY: build
 build: clean-jaeger
-	cd ../../ && make build-$(BINARY) GOOS=linux 
+	cd ../../ && make build-$(BINARY) GOOS=linux
 	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
 	cd ../../ && docker buildx build --target release \
 		--tag jaegertracing/$(BINARY):dev \
@@ -17,7 +17,7 @@ build: clean-jaeger
 
 .PHONY: dev
 dev: export JAEGER_VERSION = dev
-dev: build 
+dev: build
 	docker compose -f docker-compose.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: clean-jaeger

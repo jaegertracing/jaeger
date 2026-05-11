@@ -3,7 +3,7 @@
 # Copyright (c) 2025 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# OpenSearch Observability Stack Cleanup Script 
+# OpenSearch Observability Stack Cleanup Script
 
 main() {
   echo "Starting OpenSearch Observability Stack Cleanup"

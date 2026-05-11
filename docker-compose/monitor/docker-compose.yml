@@ -13,6 +13,7 @@ services:
       - SPANMETRICS_FLUSH_INTERVAL=${SPANMETRICS_FLUSH_INTERVAL:-60s}
     ports:
       - "16686:16686"
+      - "16687:16687"
       - "8888:8888"
       - "8889:8889"
       - "4317:4317"
@@ -31,11 +32,26 @@ services:
   prometheus:
     networks:
       - backend
-    image: prom/prometheus:v3.10.0@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9
+    image: prom/prometheus:v3.11.1@sha256:759ea6db49103737f2a6f420b0d1632062d8ad99dec086c76db605fd0bf23e15
     volumes:
       - "./prometheus.yml:/etc/prometheus/prometheus.yml"
     ports:
       - "9090:9090"
+
+  grafana:
+    networks:
+      - backend
+    image: grafana/grafana:12.4.2@sha256:83749231c3835e390a3144e5e940203e42b9589761f20ef3169c716e734ad505
+    volumes:
+      - "./grafana/provisioning:/etc/grafana/provisioning"
+      - "../../monitoring/jaeger-mixin/dashboard-for-grafana.json:/etc/grafana/provisioning/dashboards/jaeger.json:ro"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
 
 networks:
   backend:

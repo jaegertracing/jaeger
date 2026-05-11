@@ -14,11 +14,10 @@ import (
 
 // ReadMetricsDecorator wraps a metricstore.Reader and collects metrics around each read operation.
 type ReadMetricsDecorator struct {
-	reader                    metricstore.Reader
-	getLatenciesMetrics       *queryMetrics
-	getCallRatesMetrics       *queryMetrics
-	getErrorRatesMetrics      *queryMetrics
-	getMinStepDurationMetrics *queryMetrics
+	reader               metricstore.Reader
+	getLatenciesMetrics  *queryMetrics
+	getCallRatesMetrics  *queryMetrics
+	getErrorRatesMetrics *queryMetrics
 }
 
 type queryMetrics struct {
@@ -41,11 +40,10 @@ func (q *queryMetrics) emit(err error, latency time.Duration) {
 // NewReadMetricsDecorator returns a new ReadMetricsDecorator.
 func NewReaderDecorator(reader metricstore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
 	return &ReadMetricsDecorator{
-		reader:                    reader,
-		getLatenciesMetrics:       buildQueryMetrics("get_latencies", metricsFactory),
-		getCallRatesMetrics:       buildQueryMetrics("get_call_rates", metricsFactory),
-		getErrorRatesMetrics:      buildQueryMetrics("get_error_rates", metricsFactory),
-		getMinStepDurationMetrics: buildQueryMetrics("get_min_step_duration", metricsFactory),
+		reader:               reader,
+		getLatenciesMetrics:  buildQueryMetrics("get_latencies", metricsFactory),
+		getCallRatesMetrics:  buildQueryMetrics("get_call_rates", metricsFactory),
+		getErrorRatesMetrics: buildQueryMetrics("get_error_rates", metricsFactory),
 	}
 }
 
@@ -77,13 +75,5 @@ func (m *ReadMetricsDecorator) GetErrorRates(ctx context.Context, params *metric
 	start := time.Now()
 	retMe, err := m.reader.GetErrorRates(ctx, params)
 	m.getErrorRatesMetrics.emit(err, time.Since(start))
-	return retMe, err
-}
-
-// GetMinStepDuration implements metricstore.Reader#GetMinStepDuration
-func (m *ReadMetricsDecorator) GetMinStepDuration(ctx context.Context, params *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	start := time.Now()
-	retMe, err := m.reader.GetMinStepDuration(ctx, params)
-	m.getMinStepDurationMetrics.emit(err, time.Since(start))
 	return retMe, err
 }

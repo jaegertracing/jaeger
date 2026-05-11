@@ -5,6 +5,7 @@ package cassandra
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -111,25 +112,101 @@ func TestCreateTraceReaderError(t *testing.T) {
 }
 
 func TestCreateTraceWriterErr(t *testing.T) {
-	v1Factory := cassandra.NewFactory()
-	v1Factory.Options = &cassandra.Options{
-		Configuration: config.DefaultConfiguration(),
-		Index: cassandra.IndexConfig{
-			TagBlackList: "a,b,c",
-			TagWhiteList: "a,b,c",
+	tests := []struct {
+		name        string
+		factoryFunc func() *Factory
+		expectedErr string
+	}{
+		{
+			name: "error from writerOptions",
+			factoryFunc: func() *Factory {
+				v1Factory := cassandra.NewFactory()
+				v1Factory.Options = &cassandra.Options{
+					Configuration: config.DefaultConfiguration(),
+					Index: cassandra.IndexConfig{
+						TagBlackList: "a,b,c",
+						TagWhiteList: "a,b,c",
+					},
+				}
+				var (
+					session = &mocks.Session{}
+					query   = &mocks.Query{}
+				)
+				session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+				query.On("Exec").Return(nil)
+				cassandra.MockSession(v1Factory, session, nil)
+				require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop(), noop.NewTracerProvider()))
+				f := createFactory(t, v1Factory)
+				return f
+			},
+			expectedErr: "only one of TagIndexBlacklist and TagIndexWhitelist can be specified",
+		},
+		{
+			name: "error from NewTraceWriter",
+			factoryFunc: func() *Factory {
+				v1Factory := cassandra.NewFactory()
+				tableCheckStmt := "SELECT * from %s limit 1"
+				session := &mocks.Session{}
+				query := &mocks.Query{}
+				query.On("Exec").Return(errors.New("some error"))
+				session.On("Query",
+					fmt.Sprintf(tableCheckStmt, "operation_names"),
+					mock.Anything).Return(query)
+				session.On("Query",
+					fmt.Sprintf(tableCheckStmt, "operation_names_v2"),
+					mock.Anything).Return(query)
+				cassandra.MockSession(v1Factory, session, nil)
+				require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop(), noop.NewTracerProvider()))
+				f := createFactory(t, v1Factory)
+				return f
+			},
+			expectedErr: "neither table operation_names_v2 nor operation_names exist",
 		},
 	}
-	var (
-		session = &mocks.Session{}
-		query   = &mocks.Query{}
-	)
-	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-	query.On("Exec").Return(nil)
-	cassandra.MockSession(v1Factory, session, nil)
-	require.NoError(t, v1Factory.Initialize(metrics.NullFactory, zap.NewNop(), noop.NewTracerProvider()))
-	f := createFactory(t, v1Factory)
-	_, err := f.CreateTraceWriter()
-	require.ErrorContains(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := test.factoryFunc().CreateTraceWriter()
+			require.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
+
+func Test_writerOptionsEdgeCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		options *cassandra.Options
+	}{
+		{
+			name: "blacklist filter",
+			options: &cassandra.Options{
+				Index: cassandra.IndexConfig{
+					Logs:         true,
+					Tags:         false,
+					ProcessTags:  true,
+					TagBlackList: "tag1,tag2",
+				},
+			},
+		},
+		{
+			name: "whitelist filter",
+			options: &cassandra.Options{
+				Index: cassandra.IndexConfig{
+					Logs:         true,
+					Tags:         true,
+					ProcessTags:  true,
+					TagWhiteList: "tag1,tag2",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			opts, err := writerOptions(test.options)
+			require.NoError(t, err)
+			require.Len(t, opts, 1)
+		})
+	}
 }
 
 func createFactory(t *testing.T, v1Factory *cassandra.Factory) *Factory {

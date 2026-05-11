@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -91,4 +92,48 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultDatabase, config.Database)
 	require.Equal(t, defaultSearchDepth, config.DefaultSearchDepth)
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
+	require.Equal(t, defaultAttributeMetadataCacheTTL, config.AttributeMetadataCacheTTL)
+	require.Equal(t, defaultAttributeMetadataCacheMaxSize, config.AttributeMetadataCacheMaxSize)
+}
+
+func TestConfiguration_Validate_TTL(t *testing.T) {
+	tests := []struct {
+		name     string
+		ttl      time.Duration
+		errorMsg string
+	}{
+		{
+			name: "Zero TTL (Disabled) is valid",
+			ttl:  0,
+		},
+		{
+			name: "Positive TTL is valid",
+			ttl:  1 * time.Hour,
+		},
+		{
+			name:     "Negative TTL is invalid",
+			ttl:      -1 * time.Hour,
+			errorMsg: "ttl must be a non-negative duration",
+		},
+		{
+			name:     "Sub-second fraction TTL is invalid",
+			ttl:      1500 * time.Millisecond,
+			errorMsg: "ttl must be a whole number of seconds",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := &Configuration{
+				Addresses: []string{"localhost:9000"},
+				TTL:       test.ttl,
+			}
+			err := cfg.Validate()
+			if test.errorMsg != "" {
+				require.ErrorContains(t, err, test.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

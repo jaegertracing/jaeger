@@ -29,7 +29,7 @@ if ! current_version=$(make "echo-version"); then
 fi
 
 # removing the v so that in the line "New version: v2.13.0", v cannot be removed with backspace
-clean_version="${current_version#v}" 
+clean_version="${current_version#v}"
 
 IFS='.' read -r major minor patch <<< "$clean_version"
 

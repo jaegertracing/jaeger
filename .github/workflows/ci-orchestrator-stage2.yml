@@ -7,3 +7,7 @@ jobs:
   unit-tests:
     uses: ./.github/workflows/ci-unit-tests.yml
     secrets: inherit
+
+  ai-sidecar-gemini:
+    uses: ./.github/workflows/ci-ai-sidecar-gemini.yml
+    secrets: inherit

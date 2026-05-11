@@ -1,8 +1,7 @@
 # Migrate Coverage Gating from Codecov to GitHub Actions
 
-## Status
-
-Accepted (implemented)
+* **Status**: Accepted (implemented)
+* **Date**: 2026-03-01
 
 ## Context
 

@@ -9,17 +9,17 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 )
 
 type TraceWriter struct {
-	spanWriter spanstore.CoreSpanWriter
+	spanWriter core.Writer
 }
 
 // NewTraceWriter returns the TraceWriter for use
-func NewTraceWriter(p spanstore.SpanWriterParams) *TraceWriter {
+func NewTraceWriter(p core.SpanWriterParams) *TraceWriter {
 	return &TraceWriter{
-		spanWriter: spanstore.NewSpanWriter(p),
+		spanWriter: core.NewSpanWriter(p),
 	}
 }
 

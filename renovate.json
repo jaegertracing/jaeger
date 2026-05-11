@@ -13,12 +13,22 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "changelog:dependencies"]
+  },
   "suppressNotifications": [
     "prEditedNotification"
   ],
   "schedule": [
     "on the first day of the month"
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "on the first day of the month"
+    ]
+  },
   "packageRules": [
     {
       "matchFileNames": [

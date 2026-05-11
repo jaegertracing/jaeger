@@ -5,7 +5,7 @@ BINARY ?= jaeger # Default value uses v2 binary
 
 .PHONY: build
 build: clean-jaeger
-	cd ../../ && make build-$(BINARY) GOOS=linux 
+	cd ../../ && make build-$(BINARY) GOOS=linux
 	cd ../../ && make create-baseimg PLATFORMS=linux/$(shell go env GOARCH)
 	cd ../../ && docker buildx build --target release \
 		--tag jaegertracing/$(BINARY):dev \
@@ -19,14 +19,8 @@ build: clean-jaeger
 # Note: the jaeger "dev" image can be built with "make build".
 .PHONY: dev
 dev: export JAEGER_VERSION = dev
-dev: 
+dev:
 	docker compose up $(DOCKER_COMPOSE_ARGS)
-
-.PHONY: dev-v1
-dev-v1: export JAEGER_VERSION = dev
-dev-v1: export BINARY = all-in-one
-dev-v1: build
-	docker compose -f docker-compose-v1.yml up $(DOCKER_COMPOSE_ARGS)
 
 .PHONY: elasticsearch
 elasticsearch: export JAEGER_VERSION = dev
@@ -38,6 +32,11 @@ opensearch: export JAEGER_VERSION = dev
 opensearch:
 	docker compose -f docker-compose-opensearch.yml up $(DOCKER_COMPOSE_ARGS)
 
+.PHONY: clickhouse
+clickhouse: export JAEGER_VERSION = dev
+clickhouse:
+	docker compose -f docker-compose-clickhouse.yml up $(DOCKER_COMPOSE_ARGS)
+
 .PHONY: clean-jaeger
 clean-jaeger:
 	# Also cleans up intermediate cached containers.
@@ -45,7 +44,7 @@ clean-jaeger:
 
 .PHONY: clean-all
 clean-all: clean-jaeger
-	docker rmi -f jaegertracing/all-in-one:dev ; \
-	docker rmi -f jaegertracing/all-in-one:latest ; \
+	docker rmi -f jaegertracing/jaeger:dev ; \
+	docker rmi -f jaegertracing/jaeger:latest ; \
 	docker rmi -f otel/opentelemetry-collector-contrib:latest ; \
 	docker rmi -f prom/prometheus:latest ; \

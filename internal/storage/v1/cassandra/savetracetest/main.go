@@ -6,17 +6,19 @@ package main
 
 import (
 	"context"
+	"strconv"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jtracer"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	cascfg "github.com/jaegertracing/jaeger/internal/storage/cassandra/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra"
 	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 var logger, _ = zap.NewDevelopment()
@@ -55,23 +57,24 @@ func main() {
 		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
 	ctx := context.Background()
-	if err = spanStore.WriteSpan(ctx, getSomeSpan()); err != nil {
+	span := getSomeSpan()
+	if err = spanStore.WriteSpan(span); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))
 	} else {
-		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
+		logger.Info("Saved span", zap.String("spanID", strconv.FormatInt(span.SpanID, 10)))
 	}
-	s := getSomeSpan()
-	trace, err := spanReader.GetTrace(ctx, spanstore.GetTraceParameters{TraceID: s.TraceID})
+	spans, err := spanReader.GetTrace(ctx, span.TraceID)
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
-		logger.Info("Loaded trace", zap.Any("trace", trace))
+		logger.Info("Loaded trace", zap.Any("spans", spans))
 	}
 
-	tqp := &spanstore.TraceQueryParameters{
+	tqp := &tracestore.TraceQueryParams{
 		ServiceName:  "someServiceName",
 		StartTimeMin: time.Now().Add(time.Hour * -1),
 		StartTimeMax: time.Now().Add(time.Hour),
+		Attributes:   pcommon.NewMap(),
 	}
 	logger.Info("Check main query")
 	queryAndPrint(ctx, spanReader, tqp)
@@ -80,21 +83,27 @@ func main() {
 	logger.Info("Check query with operation")
 	queryAndPrint(ctx, spanReader, tqp)
 
-	tqp.Tags = map[string]string{
-		"someKey": "someVal",
-	}
+	tqp.Attributes.PutStr("someKey", "someVal")
 	logger.Info("Check query with operation name and tags")
 	queryAndPrint(ctx, spanReader, tqp)
 
 	tqp.DurationMin = 0
 	tqp.DurationMax = time.Hour
-	tqp.Tags = map[string]string{}
+	tqp.Attributes = pcommon.NewMap()
 	logger.Info("check query with duration")
 	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *spanstore.TraceQueryParameters) {
-	traces, err := spanReader.FindTraces(ctx, tqp)
+func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *tracestore.TraceQueryParams) {
+	var traces []dbmodel.Trace
+	var err error
+	for trace, inerr := range spanReader.FindTraces(ctx, tqp) {
+		if inerr != nil {
+			err = inerr
+			break
+		}
+		traces = append(traces, trace)
+	}
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))
 	} else {
@@ -102,56 +111,68 @@ func queryAndPrint(ctx context.Context, spanReader *cspanstore.SpanReader, tqp *
 	}
 }
 
-func getSomeProcess() *model.Process {
+func getSomeProcess() dbmodel.Process {
 	processTagVal := "indexMe"
-	return &model.Process{
+	return dbmodel.Process{
 		ServiceName: "someServiceName",
-		Tags: model.KeyValues{
-			model.String("processTagKey", processTagVal),
+		Tags: []dbmodel.KeyValue{
+			{
+				Key:         "processTagKey",
+				ValueString: processTagVal,
+				ValueType:   dbmodel.StringType,
+			},
 		},
 	}
 }
 
-func getSomeSpan() *model.Span {
-	traceID := model.NewTraceID(1, 2)
-	return &model.Span{
+func getSomeSpan() *dbmodel.Span {
+	traceID := [16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+	return &dbmodel.Span{
 		TraceID:       traceID,
-		SpanID:        model.NewSpanID(3),
+		SpanID:        3,
 		OperationName: "opName",
-		References:    model.MaybeAddParentSpanID(traceID, 4, getReferences()),
-		Flags:         model.Flags(uint32(5)),
-		StartTime:     time.Now(),
-		Duration:      50000 * time.Microsecond,
+		Refs:          getReferences(),
+		Flags:         5,
+		StartTime:     time.Now().UnixMicro(),
+		Duration:      (50000 * time.Microsecond).Microseconds(),
 		Tags:          getTags(),
 		Logs:          getLogs(),
 		Process:       getSomeProcess(),
 	}
 }
 
-func getReferences() []model.SpanRef {
-	return []model.SpanRef{
+func getReferences() []dbmodel.SpanRef {
+	return []dbmodel.SpanRef{
 		{
-			RefType: model.ChildOf,
-			TraceID: model.NewTraceID(1, 1),
-			SpanID:  model.NewSpanID(4),
+			RefType: dbmodel.ChildOf,
+			TraceID: [16]byte{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1},
+			SpanID:  4,
 		},
 	}
 }
 
-func getTags() model.KeyValues {
+func getTags() []dbmodel.KeyValue {
 	someVal := "someVal"
-	return model.KeyValues{
-		model.String("someKey", someVal),
+	return []dbmodel.KeyValue{
+		{
+			Key:         "someKey",
+			ValueString: someVal,
+			ValueType:   dbmodel.StringType,
+		},
 	}
 }
 
-func getLogs() []model.Log {
+func getLogs() []dbmodel.Log {
 	logTag := "this is a msg"
-	return []model.Log{
+	return []dbmodel.Log{
 		{
-			Timestamp: time.Now(),
-			Fields: model.KeyValues{
-				model.String("event", logTag),
+			Timestamp: time.Now().UnixMicro(),
+			Fields: []dbmodel.KeyValue{
+				{
+					Key:         "event",
+					ValueString: logTag,
+					ValueType:   dbmodel.StringType,
+				},
 			},
 		},
 	}

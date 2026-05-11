@@ -11,7 +11,7 @@ type GetTraceErrorsInput struct {
 
 // GetTraceErrorsOutput defines the output of the get_trace_errors MCP tool.
 type GetTraceErrorsOutput struct {
-	TraceID    string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
-	ErrorCount int          `json:"error_count" jsonschema:"Number of spans with error status"`
-	Spans      []SpanDetail `json:"spans,omitempty" jsonschema:"List of error span details"`
+	TraceID         string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
+	TotalErrorCount int          `json:"total_error_count" jsonschema:"Total number of error spans in the trace (may exceed the size of the spans list due to per-request limits)"`
+	Spans           []SpanDetail `json:"spans,omitempty" jsonschema:"Error span details (possibly truncated to server-configured limit)"`
 }

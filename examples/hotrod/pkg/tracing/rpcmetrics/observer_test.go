@@ -76,14 +76,16 @@ func TestObserver(t *testing.T) {
 			span.End(finishOptions)
 		}
 
-		testTracer.metrics.AssertCounterMetrics(t,
+		testTracer.metrics.AssertCounterMetrics(
+			t,
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("local_span", "error", "false"), Value: 0},
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user", "error", "false"), Value: 1},
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user", "error", "true"), Value: 1},
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user_override", "error", "false"), Value: 1},
 			u.ExpectedMetric{Name: "requests", Tags: endpointTags("get_user_client", "error", "false"), Value: 0},
 		)
-		testTracer.metrics.AssertTimerMetrics(t,
+		testTracer.metrics.AssertTimerMetrics(
+			t,
 			u.ExpectedTimerMetric{Name: "request_latency", Tags: endpointTags("get_user", "error", "false"), Percentile: "P99", Value: 50},
 			u.ExpectedTimerMetric{Name: "request_latency", Tags: endpointTags("get_user", "error", "true"), Percentile: "P99", Value: 50},
 		)

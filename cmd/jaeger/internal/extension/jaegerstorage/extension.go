@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -282,6 +283,15 @@ func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.M
 			*cfg.Opensearch,
 			osTelset,
 			httpAuth,
+		)
+
+	case cfg.ClickHouse != nil:
+		chTelset := telset
+		chTelset.Metrics = scopedMetricsFactory(name, "clickhouse", "metricstore")
+		metricStoreFactory, err = clickhouse.NewFactory(
+			context.Background(),
+			*cfg.ClickHouse,
+			chTelset,
 		)
 
 	default:

@@ -6,6 +6,7 @@ package customer
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -61,12 +62,7 @@ func (s *Server) createServeMux() http.Handler {
 func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	if err := r.ParseForm(); httperr.HandleError(w, err, http.StatusBadRequest) {
-		s.logger.For(ctx).Error("bad request", zap.Error(err))
-		return
-	}
-
-	customer := r.Form.Get("customer")
+	customer := r.URL.Query().Get("customer")
 	if customer == "" {
 		http.Error(w, "Missing required 'customer' parameter", http.StatusBadRequest)
 		return
@@ -78,6 +74,9 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := s.database.Get(ctx, customerID)
+	if errors.Is(err, ErrCustomerNotFound) {
+		err = httperr.StatusError{Code: http.StatusNotFound, Err: err}
+	}
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return
@@ -90,5 +89,5 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data) //nolint:gosec // G705 - writing JSON response
+	w.Write(data)
 }

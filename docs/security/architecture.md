@@ -10,18 +10,28 @@ Jaeger supports TLS for all its network communications, including span ingestion
 
 TLS can be configured for both clients and servers across all Jaeger components (Collector, Query, Ingester, Agent).
 
-- **Supported TLS Versions**: Jaeger can be configured to use TLS 1.2 and 1.3, and these are the only versions that should be used in production. Users should configure the minimum supported version as TLS 1.2 or higher using the `--tls.min-version` flag (or corresponding YAML configuration), with TLS 1.3 recommended where available. While TLS 1.0 and 1.1 may still be technically supported for legacy interoperability, they are deprecated, have known security weaknesses, and **must not be enabled in production environments**.
-- **Cipher Suites**: A custom list of allowed cipher suites can be configured to ensure only strong cryptographic algorithms are used.
 - **Certificate Management**:
     - **CA Certificate**: Can be provided to verify the server's or client's certificate.
     - **Server Certificate and Key**: Required for enabling TLS on servers.
     - **Client Authentication (mTLS)**: Jaeger supports mutual TLS, requiring clients to provide a valid certificate for authentication.
 - **Reloading Certificates**: Jaeger supports hot-reloading of TLS certificates and keys from the filesystem without restarting the service, controlled by a configurable reload interval.
 
+### TLS Version
+
+Jaeger can be configured to use TLS 1.2 and 1.3, and these are the only versions that should be used in production. Users should configure the minimum supported version as TLS 1.2 or higher using the `--tls.min-version` flag, or the corresponding YAML configuration, with TLS 1.3 recommended where available. While TLS 1.0 and 1.1 may still be technically supported for legacy interoperability, they are deprecated, have known security weaknesses, and **must not be enabled in production environments**.
+
+### Algorithm Support
+
+Jaeger uses Go's standard `crypto/tls` implementation for TLS. Operators can configure the allowed cipher suites to ensure only strong cryptographic algorithms are used in their deployment.
+
 ### Secure Defaults
 
 - **Certificate Verification**: When TLS is enabled, certificate verification is performed by default.
 - **Insecure Communication**: Users must explicitly set `insecure: true` or `insecure_skip_verify: true` to bypass security controls, which is strongly discouraged for production environments.
+
+### Certificate Verification
+
+Jaeger verifies TLS certificates during the TLS handshake before application data is transmitted. Certificate verification is enabled by default when TLS is configured, and operators must explicitly opt out with insecure settings such as `insecure_skip_verify`.
 
 ## Input Validation
 
@@ -59,6 +69,7 @@ Jaeger is designed to be deployed in a hardened manner.
 - **No Hardcoded Credentials**: Jaeger does not contain any hardcoded credentials. All secrets (passwords, tokens, etc.) must be provided via environment variables, command-line flags, or configuration files.
 - **Environment Variables**: Recommended for providing sensitive information in containerized environments.
 - **Secure Storage**: Users are encouraged to use secure secret management systems (like Kubernetes Secrets or HashiCorp Vault) to manage Jaeger's credentials.
+- **Credential Agility**: TLS certificates, private keys, passwords, and tokens are provided outside the compiled binary. Operators can rotate these credentials by updating referenced files, configuration, environment variables, or secret-manager entries.
 
 ## References
 

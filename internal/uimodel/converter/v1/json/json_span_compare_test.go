@@ -5,8 +5,9 @@
 package json
 
 import (
+	"cmp"
 	"encoding/json"
-	"sort"
+	"slices"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -36,24 +37,16 @@ func sortJSONSpan(span *esjson.Span) {
 	sortJSONProcess(span.Process)
 }
 
-type JSONTagByKey []esjson.KeyValue
-
-func (t JSONTagByKey) Len() int           { return len(t) }
-func (t JSONTagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONTagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
-
 func sortJSONTags(tags []esjson.KeyValue) {
-	sort.Sort(JSONTagByKey(tags))
+	slices.SortFunc(tags, func(a, b esjson.KeyValue) int {
+		return cmp.Compare(a.Key, b.Key)
+	})
 }
 
-type JSONLogByTimestamp []esjson.Log
-
-func (t JSONLogByTimestamp) Len() int           { return len(t) }
-func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
-
 func sortJSONLogs(logs []esjson.Log) {
-	sort.Sort(JSONLogByTimestamp(logs))
+	slices.SortFunc(logs, func(a, b esjson.Log) int {
+		return cmp.Compare(a.Timestamp, b.Timestamp)
+	})
 	for i := range logs {
 		sortJSONTags(logs[i].Fields)
 	}

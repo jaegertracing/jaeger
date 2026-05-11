@@ -1,8 +1,7 @@
 # Lazy Storage Factory Initialization
 
-## Status
-
-Implemented -- https://github.com/jaegertracing/jaeger/pull/7887
+* **Status**: Implemented -- https://github.com/jaegertracing/jaeger/pull/7887
+* **Date**: 2026-01-20
 
 ## Context
 

@@ -749,7 +749,8 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 	ts.traceReader.On(
 		"GetOperations",
 		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(nil, errStorage).Once()
+		mock.AnythingOfType("tracestore.OperationQueryParams"),
+	).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/operations?service=trifle", &response)
@@ -768,7 +769,8 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	ts.traceReader.On(
 		"GetOperations",
 		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(expectedOperations, nil).Once()
+		mock.AnythingOfType("tracestore.OperationQueryParams"),
+	).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
@@ -782,7 +784,8 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	ts.traceReader.On(
 		"GetOperations",
 		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(nil, errStorage).Once()
+		mock.AnythingOfType("tracestore.OperationQueryParams"),
+	).Return(nil, errStorage).Once()
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
 	require.Error(t, err)
@@ -974,13 +977,6 @@ func TestMetricsReaderError(t *testing.T) {
 			mockedResponse:             nil,
 			wantErrorMessage:           "error fetching call rates",
 		},
-		{
-			urlPath:                    "/api/metrics/minstep",
-			mockedQueryMethod:          "GetMinStepDuration",
-			mockedQueryMethodParamType: "*metricstore.MinStepDurationQueryParameters",
-			mockedResponse:             time.Duration(0),
-			wantErrorMessage:           "error fetching min step duration",
-		},
 	} {
 		t.Run(tc.wantErrorMessage, func(t *testing.T) {
 			// Prepare
@@ -1017,11 +1013,6 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
 			wantErrorMessage: "metrics querying is currently disabled",
 		},
-		{
-			name:             "metrics query disabled error returned when fetching min step duration",
-			urlPath:          "/api/metrics/minstep",
-			wantErrorMessage: "metrics querying is currently disabled",
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
@@ -1032,26 +1023,6 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			assert.ErrorContains(t, err, tc.wantErrorMessage)
 		})
 	}
-}
-
-func TestGetMinStep(t *testing.T) {
-	metricsReader := &metricsmocks.Reader{}
-	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
-	defer ts.server.Close()
-	// Prepare
-	metricsReader.On(
-		"GetMinStepDuration",
-		mock.Anything,
-		mock.AnythingOfType("*metricstore.MinStepDurationQueryParameters"),
-	).Return(5*time.Millisecond, nil).Once()
-
-	// Test
-	var response structuredResponse
-	err := getJSON(ts.server.URL+"/api/metrics/minstep", &response)
-
-	// Verify
-	require.NoError(t, err)
-	assert.InDelta(t, float64(5), response.Data, 0.01)
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
@@ -1157,7 +1128,8 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	err = getJSONCustomHeaders(
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "acme"},
-		&response)
+		&response,
+	)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
@@ -1218,7 +1190,8 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	err := getJSONCustomHeaders(
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "acme"},
-		&responseAcme)
+		&responseAcme,
+	)
 	require.NoError(t, err)
 	assert.Empty(t, responseAcme.Errors)
 	assert.Len(t, responseAcme.Data, 2)
@@ -1227,7 +1200,8 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	err = getJSONCustomHeaders(
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "megacorp"},
-		&responseMegacorp)
+		&responseMegacorp,
+	)
 	require.ErrorContains(t, err, "storage error")
 	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)

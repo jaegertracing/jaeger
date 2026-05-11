@@ -30,7 +30,7 @@ import subprocess
 def extract_metrics_with_labels(metrics, strip_prefix=None):
     result = {}
     for metric in metrics:
-        
+
         name = metric['name']
         print(name)
         if strip_prefix and name.startswith(strip_prefix):
@@ -65,7 +65,7 @@ def main():
     # Call your existing compare logic here
     print("Running metric comparison...")
     v1_metrics_path = "" #Add the path to the V1_Metrics.json file
-    v2_metrics_path = "" #Add the path to the V2_Metrics.json file      
+    v2_metrics_path = "" #Add the path to the V2_Metrics.json file
 
     with open(v1_metrics_path, 'r') as file:
        v1_metrics = json.load(file)
@@ -121,7 +121,7 @@ def main():
             subprocess.run(['python3', 'metrics-md.py'], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error running metrics_md.py: {e}")
-    
+
     # If json output is requested or no output type is provided (default is json)
     else:
         print("Output in JSON format.")

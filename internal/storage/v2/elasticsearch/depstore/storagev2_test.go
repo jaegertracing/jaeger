@@ -95,7 +95,7 @@ func TestV2WriteDependencies(t *testing.T) {
 				store: coreReader,
 			}
 			coreReader.On("WriteDependencies", mock.Anything, mock.Anything).Return(tt.returningErr)
-			err := store.WriteDependencies(time.Now(), []model.DependencyLink{})
+			err := store.WriteDependencies(t.Context(), time.Now(), []model.DependencyLink{})
 			if tt.expectedErr != "" {
 				assert.ErrorContains(t, err, tt.expectedErr)
 			} else {

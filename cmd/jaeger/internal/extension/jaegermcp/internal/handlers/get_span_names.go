@@ -4,11 +4,12 @@
 package handlers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -86,8 +87,8 @@ func (h *getSpanNamesHandler) handle(
 	}
 
 	// Sort by name for consistent results
-	sort.Slice(filteredOps, func(i, j int) bool {
-		return filteredOps[i].Name < filteredOps[j].Name
+	slices.SortFunc(filteredOps, func(a, b tracestore.Operation) int {
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	// Apply limit

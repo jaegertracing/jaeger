@@ -4,7 +4,7 @@ global:
 allInOne:
   enabled: true
   extraEnv: []
-  
+
 
 # Enable HotROD demo application
 hotrod:
@@ -31,7 +31,7 @@ hotrod:
       value: hotrod
     - name: OTEL_LOG_LEVEL
       value: debug
-  
+
 
 query:
   service:

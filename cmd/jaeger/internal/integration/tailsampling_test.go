@@ -7,7 +7,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -78,7 +78,7 @@ func (ts *TailSamplingIntegration) testTailSamplingProccessor(t *testing.T) {
 		var err error
 		actual, err = ts.TraceReader.GetServices(context.Background())
 		require.NoError(t, err)
-		sort.Strings(actual)
+		slices.Sort(actual)
 		return assert.ObjectsAreEqualValues(ts.expectedServices, actual)
 	}, 100*time.Second, 15*time.Second)
 

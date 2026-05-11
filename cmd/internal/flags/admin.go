@@ -125,20 +125,16 @@ func (s *AdminServer) serveWithListener(l net.Listener) (err error) {
 	s.server.ErrorLog = errorLog
 
 	s.logger.Info("Starting admin HTTP server")
-	var wg sync.WaitGroup
-	//nolint:revive // not the same as wg.Go() which would call Done() on exit, not on start
-	wg.Add(1)
-	s.stopped.Add(1)
-	go func() {
-		wg.Done()
-		defer s.stopped.Done()
+	started := make(chan struct{})
+	s.stopped.Go(func() {
+		close(started)
 		err := s.server.Serve(l)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.logger.Error("failed to serve", zap.Error(err))
 			s.hc.SetUnavailable()
 		}
-	}()
-	wg.Wait() // wait for the server to start listening
+	})
+	<-started // wait for the server to start listening
 	s.logger.Info("Admin server started", zap.String("http.host-port", l.Addr().String()))
 	return nil
 }

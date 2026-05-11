@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host:  shop.demo.jaegertracing.io 
+    - host:  shop.demo.jaegertracing.io
       http:
         paths:
           - path: /

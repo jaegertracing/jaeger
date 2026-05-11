@@ -4,6 +4,7 @@
 package clickhouse
 
 import (
+	"errors"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -12,10 +13,12 @@ import (
 )
 
 const (
-	defaultProtocol       = "native"
-	defaultDatabase       = "jaeger"
-	defaultSearchDepth    = 1000
-	defaultMaxSearchDepth = 10000
+	defaultProtocol                      = "native"
+	defaultDatabase                      = "jaeger"
+	defaultSearchDepth                   = 1000
+	defaultMaxSearchDepth                = 10000
+	defaultAttributeMetadataCacheTTL     = time.Hour
+	defaultAttributeMetadataCacheMaxSize = 1000
 )
 
 type Configuration struct {
@@ -39,17 +42,34 @@ type Configuration struct {
 	// MaxSearchDepth is the maximum allowed search depth for queries.
 	// This limits the number of trace IDs that can be returned when searching for traces.
 	MaxSearchDepth int `mapstructure:"max_search_depth"`
-	// TODO: add more settings
+	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
+	// Attribute metadata maps attribute keys to their stored types and levels,
+	// which is needed to build type-correct queries for querying attributes.
+	// Default is 1h.
+	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
+	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
+	// Default is 1000.
+	AttributeMetadataCacheMaxSize int `mapstructure:"attribute_metadata_cache_max_size"`
+	// TTL is the Time-To-Live for spans in the database.
+	// Data older than this will be automatically deleted. 0 means disabled.
+	TTL time.Duration `mapstructure:"ttl"`
 }
 
 type Authentication struct {
 	Basic configoptional.Optional[basicauthextension.ClientAuthSettings] `mapstructure:"basic"`
-	// TODO: add JWT
 }
 
 func (cfg *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(cfg)
-	return err
+	if _, err := govalidator.ValidateStruct(cfg); err != nil {
+		return err
+	}
+	if cfg.TTL < 0 {
+		return errors.New("ttl must be a non-negative duration")
+	}
+	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
+		return errors.New("ttl must be a whole number of seconds")
+	}
+	return nil
 }
 
 func (cfg *Configuration) applyDefaults() {
@@ -64,5 +84,11 @@ func (cfg *Configuration) applyDefaults() {
 	}
 	if cfg.MaxSearchDepth == 0 {
 		cfg.MaxSearchDepth = defaultMaxSearchDepth
+	}
+	if cfg.AttributeMetadataCacheTTL <= 0 {
+		cfg.AttributeMetadataCacheTTL = defaultAttributeMetadataCacheTTL
+	}
+	if cfg.AttributeMetadataCacheMaxSize <= 0 {
+		cfg.AttributeMetadataCacheMaxSize = defaultAttributeMetadataCacheMaxSize
 	}
 }

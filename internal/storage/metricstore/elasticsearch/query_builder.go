@@ -15,9 +15,9 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 )
 
 // These constants define the specific names of aggregations used within Elasticsearch
@@ -35,7 +35,7 @@ const (
 type QueryBuilder struct {
 	client           es.Client
 	cfg              config.Configuration
-	timeRangeIndices spanstore.TimeRangeIndexFn
+	timeRangeIndices indices.TimeRangeIndexFn
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
@@ -43,9 +43,9 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Log
 	return &QueryBuilder{
 		client: client,
 		cfg:    cfg,
-		timeRangeIndices: spanstore.LoggingTimeRangeIndexFn(
+		timeRangeIndices: indices.LoggingTimeRangeIndexFn(
 			logger,
-			spanstore.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
+			indices.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
 		),
 	}
 }
@@ -117,15 +117,15 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
 func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation, timeRange TimeRange) (*elastic.SearchResult, error) {
 	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-")
-	indices := q.timeRangeIndices(
+	idxList := q.timeRangeIndices(
 		indexName,
-		q.cfg.Indices.Services.DateLayout,
+		q.cfg.Indices.Spans.DateLayout,
 		time.UnixMilli(timeRange.extendedStartTimeMillis).UTC(),
 		time.UnixMilli(timeRange.endTimeMillis).UTC(),
-		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Services.RolloverFrequency),
+		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Spans.RolloverFrequency),
 	)
 
-	return q.client.Search(indices...).
+	return q.client.Search(idxList...).
 		IgnoreUnavailable(true).
 		Query(&boolQuery).
 		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits

@@ -175,10 +175,14 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Connection.Servers...)
 	cluster.Keyspace = c.Schema.Keyspace
 	cluster.NumConns = c.Connection.ConnectionsPerHost
-	cluster.ConnectTimeout = c.Connection.Timeout
+	if c.Connection.Timeout > 0 {
+		cluster.ConnectTimeout = c.Connection.Timeout
+	}
 	cluster.ReconnectInterval = c.Connection.ReconnectInterval
 	cluster.SocketKeepalive = c.Connection.SocketKeepAlive
-	cluster.Timeout = c.Query.Timeout
+	if c.Query.Timeout > 0 {
+		cluster.Timeout = c.Query.Timeout
+	}
 	if c.Connection.ProtoVersion > 0 {
 		cluster.ProtoVersion = c.Connection.ProtoVersion
 	}

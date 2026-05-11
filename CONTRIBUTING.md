@@ -77,7 +77,7 @@ $ go run ./cmd/jaeger --config ./cmd/jaeger/config.yaml
 
 #### What does this command do?
 
-The Jaeger binary runs with the default configuration file (config.yaml) that includes 
+The Jaeger binary runs with the default configuration file (config.yaml) that includes
 the UI configuration via the `jaeger_query` extension. The `jaeger-ui` submodule, which was added from the Pre-requisites step above, contains the source code for the UI assets (requires Node.js 24+). The assets must be compiled first with `make build-ui`, which normally downloads them from the latest UI release, but can also build them from source.
 
 ## Project Structure

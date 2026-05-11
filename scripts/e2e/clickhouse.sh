@@ -47,16 +47,25 @@ teardown_clickhouse() {
 }
 
 run_integration_test() {
+    local storage_test=${1:-e2e}
     setup_clickhouse
     trap teardown_clickhouse EXIT
     healthcheck_clickhouse
-    STORAGE=clickhouse make jaeger-v2-storage-integration-test
+    if [[ "${storage_test}" == "e2e" ]]; then
+        STORAGE=clickhouse make jaeger-v2-storage-integration-test
+    elif [[ "${storage_test}" == "direct" ]]; then
+        STORAGE=clickhouse make storage-integration-test
+    else
+        echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
+        exit 1
+    fi
     success="true"
 }
 
 main() {
-    echo "Executing ClickHouse integration tests"
-    run_integration_test
+    local storage_test=${1:-e2e}
+    echo "Executing ClickHouse ${storage_test} integration tests"
+    run_integration_test "${storage_test}"
 }
 
-main
+main "$@"

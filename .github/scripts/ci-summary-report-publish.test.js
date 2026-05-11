@@ -5,8 +5,11 @@
 
 const {
   safeNum,
+  sanitizeMetricName,
+  sanitizeSnapshots,
   computeMetrics,
   computeCoverage,
+  formatMetricsDetail,
   buildCommentBody,
   postCheckRun,
   postOrUpdateComment,
@@ -28,6 +31,190 @@ describe('safeNum', () => {
   test('returns null for non-numeric string', () => expect(safeNum('bad')).toBeNull());
 });
 
+// ── sanitizeMetricName ───────────────────────────────────────────────────────
+
+describe('sanitizeMetricName', () => {
+  test('accepts valid Prometheus metric name', () => {
+    expect(sanitizeMetricName('http_server_duration')).toBe('http_server_duration');
+  });
+  test('accepts name with colons', () => {
+    expect(sanitizeMetricName('rpc:server_duration:total')).toBe('rpc:server_duration:total');
+  });
+  test('accepts name starting with underscore', () => {
+    expect(sanitizeMetricName('_internal_metric')).toBe('_internal_metric');
+  });
+  test('rejects empty string', () => {
+    expect(sanitizeMetricName('')).toBeNull();
+  });
+  test('rejects name starting with digit', () => {
+    expect(sanitizeMetricName('0invalid')).toBeNull();
+  });
+  test('rejects name with spaces', () => {
+    expect(sanitizeMetricName('metric name')).toBeNull();
+  });
+  test('rejects markdown injection', () => {
+    expect(sanitizeMetricName('[click me](http://evil.com)')).toBeNull();
+  });
+  test('rejects HTML injection', () => {
+    expect(sanitizeMetricName('<img src=x onerror=alert(1)>')).toBeNull();
+  });
+  test('rejects name with curly braces', () => {
+    expect(sanitizeMetricName('metric{label="value"}')).toBeNull();
+  });
+  test('rejects non-string types', () => {
+    expect(sanitizeMetricName(42)).toBeNull();
+    expect(sanitizeMetricName(null)).toBeNull();
+    expect(sanitizeMetricName(undefined)).toBeNull();
+    expect(sanitizeMetricName({})).toBeNull();
+  });
+  test('rejects names exceeding 200 characters', () => {
+    expect(sanitizeMetricName('a'.repeat(201))).toBeNull();
+  });
+  test('accepts names at exactly 200 characters', () => {
+    const name = 'a'.repeat(200);
+    expect(sanitizeMetricName(name)).toBe(name);
+  });
+});
+
+// ── sanitizeSnapshots ────────────────────────────────────────────────────────
+
+describe('sanitizeSnapshots', () => {
+  test('returns null for non-array input', () => {
+    expect(sanitizeSnapshots(null)).toBeNull();
+    expect(sanitizeSnapshots(undefined)).toBeNull();
+    expect(sanitizeSnapshots('string')).toBeNull();
+    expect(sanitizeSnapshots({})).toBeNull();
+  });
+
+  test('returns null for empty array', () => {
+    expect(sanitizeSnapshots([])).toBeNull();
+  });
+
+  test('sanitizes valid snapshot entry', () => {
+    const input = [{
+      snapshot: 'metrics_snapshot_cassandra',
+      added: 2, removed: 1, modified: 0,
+      metric_names: ['http_server_duration', 'rpc_client_duration'],
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result).toHaveLength(1);
+    expect(result[0].snapshot).toBe('metrics_snapshot_cassandra');
+    expect(result[0].added).toBe(2);
+    expect(result[0].removed).toBe(1);
+    expect(result[0].modified).toBe(0);
+    expect(result[0].metric_names).toEqual(['http_server_duration', 'rpc_client_duration']);
+  });
+
+  test('drops entries with invalid snapshot names', () => {
+    const input = [
+      { snapshot: 'valid_name', added: 1, removed: 0, modified: 0, metric_names: [] },
+      { snapshot: '<script>alert(1)</script>', added: 1, removed: 0, modified: 0, metric_names: [] },
+      { snapshot: 'also.valid-name.2', added: 0, removed: 1, modified: 0, metric_names: [] },
+    ];
+    const result = sanitizeSnapshots(input);
+    expect(result).toHaveLength(2);
+    expect(result[0].snapshot).toBe('valid_name');
+    expect(result[1].snapshot).toBe('also.valid-name.2');
+  });
+
+  test('drops invalid metric names from metric_names array', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 2, removed: 0, modified: 0,
+      metric_names: ['valid_metric', '<injected>', 'another_valid'],
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].metric_names).toEqual(['valid_metric', 'another_valid']);
+  });
+
+  test('caps snapshots at 50 entries', () => {
+    const input = Array.from({ length: 60 }, (_, i) => ({
+      snapshot: `snap_${i}`,
+      added: 1, removed: 0, modified: 0,
+      metric_names: [],
+    }));
+    const result = sanitizeSnapshots(input);
+    expect(result).toHaveLength(50);
+  });
+
+  test('caps metric_names at 200 per snapshot', () => {
+    const names = Array.from({ length: 210 }, (_, i) => `metric_${i}`);
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 210, removed: 0, modified: 0,
+      metric_names: names,
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].metric_names).toHaveLength(200);
+  });
+
+  test('handles missing metric_names gracefully', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 1, removed: 0, modified: 0,
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].metric_names).toEqual([]);
+  });
+
+  test('validates counts through safeNum', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: -1, removed: 'bad', modified: Infinity,
+      metric_names: ['valid_metric'],
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].added).toBeNull();
+    expect(result[0].removed).toBeNull();
+    expect(result[0].modified).toBeNull();
+  });
+
+  test('skips null and non-object entries', () => {
+    const input = [null, 42, 'string', { snapshot: 'valid', added: 0, removed: 0, modified: 0, metric_names: [] }];
+    const result = sanitizeSnapshots(input);
+    expect(result).toHaveLength(1);
+    expect(result[0].snapshot).toBe('valid');
+  });
+
+  test('sanitizes artifact_id as a positive integer', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBe(6359406281);
+  });
+
+  test('rejects non-integer artifact_id', () => {
+    const input = [{
+      snapshot: 'test_snapshot',
+      added: 1, removed: 0, modified: 0,
+      metric_names: [],
+      artifact_id: 'evil_string',
+    }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBeNull();
+  });
+
+  test('rejects zero and negative artifact_id', () => {
+    const input = [
+      { snapshot: 'snap_a', added: 0, removed: 0, modified: 0, metric_names: [], artifact_id: 0 },
+      { snapshot: 'snap_b', added: 0, removed: 0, modified: 0, metric_names: [], artifact_id: -1 },
+    ];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBeNull();
+    expect(result[1].artifact_id).toBeNull();
+  });
+
+  test('sets artifact_id to null when absent', () => {
+    const input = [{ snapshot: 'test_snapshot', added: 1, removed: 0, modified: 0, metric_names: [] }];
+    const result = sanitizeSnapshots(input);
+    expect(result[0].artifact_id).toBeNull();
+  });
+});
+
 // ── computeMetrics ────────────────────────────────────────────────────────────
 
 describe('computeMetrics', () => {
@@ -37,6 +224,7 @@ describe('computeMetrics', () => {
     expect(r.text).toBe('✅ No significant metric changes');
     expect(r.totalChanges).toBe(0);
     expect(r.hasInfraErrors).toBe(false);
+    expect(r.snapshots).toBeNull();
   });
 
   test('failure when total changes > 0', () => {
@@ -75,6 +263,113 @@ describe('computeMetrics', () => {
   test('treats string "false" for metrics_has_infra_errors as falsy', () => {
     const r = computeMetrics({ metrics_has_infra_errors: 'false', metrics_total_changes: 0 });
     expect(r.hasInfraErrors).toBe(false);
+  });
+
+  test('includes sanitized snapshots when present', () => {
+    const r = computeMetrics({
+      metrics_has_infra_errors: false,
+      metrics_total_changes: 2,
+      metrics_snapshots: [{
+        snapshot: 'cassandra_v2',
+        added: 1, removed: 1, modified: 0,
+        metric_names: ['http_server_duration', 'rpc_client_duration'],
+      }],
+    });
+    expect(r.snapshots).toHaveLength(1);
+    expect(r.snapshots[0].snapshot).toBe('cassandra_v2');
+    expect(r.snapshots[0].metric_names).toEqual(['http_server_duration', 'rpc_client_duration']);
+  });
+
+  test('returns null snapshots when metrics_snapshots is absent', () => {
+    const r = computeMetrics({ metrics_has_infra_errors: false, metrics_total_changes: 0 });
+    expect(r.snapshots).toBeNull();
+  });
+});
+
+// ── formatMetricsDetail ──────────────────────────────────────────────────────
+
+describe('formatMetricsDetail', () => {
+  test('returns empty string for null snapshots', () => {
+    expect(formatMetricsDetail(null)).toBe('');
+  });
+
+  test('returns empty string for empty array', () => {
+    expect(formatMetricsDetail([])).toBe('');
+  });
+
+  test('renders single snapshot with metric names', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 1,
+      metric_names: ['http_server_duration', 'rpc_client_duration'],
+    }]);
+    expect(detail).toContain('<details>');
+    expect(detail).toContain('</details>');
+    expect(detail).toContain('View changed metrics');
+    expect(detail).toContain('**cassandra_v2**');
+    expect(detail).toContain('1 added, 1 modified');
+    expect(detail).toContain('- `http_server_duration`');
+    expect(detail).toContain('- `rpc_client_duration`');
+  });
+
+  test('renders multiple snapshots', () => {
+    const detail = formatMetricsDetail([
+      { snapshot: 'snap_a', added: 2, removed: 0, modified: 0, metric_names: ['metric_a'] },
+      { snapshot: 'snap_b', added: 0, removed: 3, modified: 0, metric_names: ['metric_b'] },
+    ]);
+    expect(detail).toContain('**snap_a**');
+    expect(detail).toContain('**snap_b**');
+    expect(detail).toContain('2 added');
+    expect(detail).toContain('3 removed');
+  });
+
+  test('includes link to CI run when ciRunUrl provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+    }], { ciRunUrl: 'https://github.com/org/repo/actions/runs/123' });
+    expect(detail).toContain('[CI run](https://github.com/org/repo/actions/runs/123)');
+    expect(detail).toContain('Compare metrics and generate summary');
+  });
+
+  test('omits CI run link when ciRunUrl not provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+    }]);
+    expect(detail).not.toContain('[CI run]');
+  });
+
+  test('renders per-snapshot artifact download link when artifactUrlPrefix and artifact_id provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }], { artifactUrlPrefix: 'https://github.com/org/repo/actions/runs/123/artifacts' });
+    expect(detail).toContain('[⬇️ download diff](https://github.com/org/repo/actions/runs/123/artifacts/6359406281)');
+  });
+
+  test('omits artifact download link when artifact_id is null', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: null,
+    }], { artifactUrlPrefix: 'https://github.com/org/repo/actions/runs/123/artifacts' });
+    expect(detail).not.toContain('download diff');
+  });
+
+  test('omits artifact download link when artifactUrlPrefix not provided', () => {
+    const detail = formatMetricsDetail([{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }]);
+    expect(detail).not.toContain('download diff');
   });
 });
 
@@ -177,6 +472,55 @@ describe('buildCommentBody', () => {
   test('ends with footer', () => {
     const body = buildCommentBody(metricsText, coverageText, footer);
     expect(body.endsWith(footer)).toBe(true);
+  });
+
+  test('does not include details block when no snapshots', () => {
+    const body = buildCommentBody(metricsText, coverageText, footer);
+    expect(body).not.toContain('<details>');
+  });
+
+  test('includes metrics detail when metricsSnapshots provided', () => {
+    const snapshots = [{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 1,
+      metric_names: ['http_server_duration'],
+    }];
+    const body = buildCommentBody('❌ 2 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots });
+    expect(body).toContain('<details>');
+    expect(body).toContain('**cassandra_v2**');
+    expect(body).toContain('- `http_server_duration`');
+    expect(body).toContain('</details>');
+    // Verify proper section ordering
+    const metricsPos = body.indexOf('### Metrics Comparison');
+    const detailsPos = body.indexOf('<details>');
+    const coveragePos = body.indexOf('### Code Coverage');
+    expect(metricsPos).toBeLessThan(detailsPos);
+    expect(detailsPos).toBeLessThan(coveragePos);
+  });
+
+  test('includes CI run link in metrics detail when ciRunUrl provided', () => {
+    const snapshots = [{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: null,
+    }];
+    const ciRunUrl = 'https://github.com/org/repo/actions/runs/999';
+    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, ciRunUrl });
+    expect(body).toContain(`[CI run](${ciRunUrl})`);
+    expect(body).toContain('Compare metrics and generate summary');
+  });
+
+  test('includes per-snapshot artifact download link when artifactUrlPrefix and artifact_id provided', () => {
+    const snapshots = [{
+      snapshot: 'cassandra_v2',
+      added: 1, removed: 0, modified: 0,
+      metric_names: ['http_server_duration'],
+      artifact_id: 6359406281,
+    }];
+    const artifactUrlPrefix = 'https://github.com/org/repo/actions/runs/999/artifacts';
+    const body = buildCommentBody('❌ 1 metric change(s) detected', coverageText, footer, { metricsSnapshots: snapshots, artifactUrlPrefix });
+    expect(body).toContain(`[⬇️ download diff](${artifactUrlPrefix}/6359406281)`);
   });
 });
 
