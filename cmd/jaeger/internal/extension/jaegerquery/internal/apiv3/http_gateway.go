@@ -14,8 +14,10 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
+	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -42,11 +44,13 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
+	paramLookback       = "lookback"
 
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -58,25 +62,30 @@ type HTTPGateway struct {
 }
 
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
-func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
-	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
-	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
-	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
-	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
+// The caller can create a subrouter if it needs to prepend a base path.
+func (h *HTTPGateway) RegisterRoutes(router interface {
+	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+}) {
+	h.addRoute(router, h.getTrace, routeGetTrace)
+	h.addRoute(router, h.findTraces, routeFindTraces)
+	h.addRoute(router, h.getServices, routeGetServices)
+	h.addRoute(router, h.getOperations, routeGetOperations)
+	h.addRoute(router, h.getDependencies, routeGetDependencies)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
-func (h *HTTPGateway) addRoute(
-	router *http.ServeMux,
+// This code is mostly copied from ../http_handler.
+func (*HTTPGateway) addRoute(
+	router interface {
+		HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
+	},
 	f func(http.ResponseWriter, *http.Request),
 	route string,
-	method string,
 ) {
-	if h.BasePath != "" && h.BasePath != "/" {
-		route = h.BasePath + route
-	}
-	pattern := method + " " + route
-	router.HandleFunc(pattern, f)
+	var handler http.Handler = http.HandlerFunc(f)
+	handler = otelhttp.NewHandler(handler, route)
+	handler = spanNameHandler(route, handler)
+	router.HandleFunc(route, handler.ServeHTTP)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -93,6 +102,7 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	}
 	errorResponse := api_v3.GRPCGatewayError{
 		Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
+			//nolint:gosec // G115
 			HttpCode: int32(statusCode),
 			Message:  err.Error(),
 		},
@@ -119,6 +129,7 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
+	// TODO how do we distinguish internal error from bad parameters?
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -146,12 +157,16 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 	h.returnTrace(combinedTrace, w)
 }
 
-func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
-	_ = new(jsonpb.Marshaler).Marshal(w, response)
+func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := new(jsonpb.Marshaler).Marshal(w, response); err != nil {
+		h.Logger.Error("failed to marshal response", zap.Error(err))
+	}
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
-	traceIDVar := r.PathValue(paramTraceID)
+	vars := mux.Vars(r)
+	traceIDVar := vars[paramTraceID]
 	traceID, err := model.TraceIDFromString(traceIDVar)
 	if h.tryParamError(w, err, paramTraceID) {
 		return
@@ -287,14 +302,63 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	}
 	apiOperations := make([]*api_v3.Operation, len(operations))
 	for i := range operations {
-		spanKind := operations[i].SpanKind
-		if spanKind == "" {
-			spanKind = string(model.SpanKindInternal)
-		}
 		apiOperations[i] = &api_v3.Operation{
 			Name:     operations[i].Name,
-			SpanKind: spanKind,
+			SpanKind: operations[i].SpanKind,
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	endTimeStr := q.Get(paramEndTime)
+	lookbackStr := q.Get(paramLookback)
+
+	if endTimeStr == "" || lookbackStr == "" {
+		h.tryHandleError(w, errors.New("both end_time and lookback are required"), http.StatusBadRequest)
+		return
+	}
+
+	endTime, err := time.Parse(time.RFC3339Nano, endTimeStr)
+	if h.tryParamError(w, err, paramEndTime) {
+		return
+	}
+
+	lookback, err := time.ParseDuration(lookbackStr)
+	if h.tryParamError(w, err, paramLookback) {
+		return
+	}
+	if lookback <= 0 {
+		err := fmt.Errorf("%s must be a positive duration", paramLookback)
+		h.tryHandleError(w, err, http.StatusBadRequest)
+		return
+	}
+
+	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime, lookback)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	response := &api_v3.GetDependenciesResponse{
+		Dependencies: make([]*api_v3.DependencyLink, 0, len(dependencies)),
+	}
+	for _, dep := range dependencies {
+		response.Dependencies = append(response.Dependencies, &api_v3.DependencyLink{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: dep.CallCount,
+			Source:    dep.Source,
+		})
+	}
+
+	h.marshalResponse(response, w)
+}
+
+func spanNameHandler(spanName string, handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		span := trace.SpanFromContext(r.Context())
+		span.SetName(spanName)
+		handler.ServeHTTP(w, r)
+	})
 }
