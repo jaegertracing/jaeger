@@ -227,6 +227,39 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 // TestSearchTracesHandler_Handle_WithErrorsFilter_OTelStatusOnly verifies that
 // with_errors=true returns traces whose spans carry OTel Status.Code=Error but
 // have no legacy error=true attribute tag (the original bug scenario).
+// TestSearchTracesHandler_Handle_WithErrorsFilter_SearchDepthExpanded verifies
+// that when with_errors=true and no search_depth is specified, the handler
+// uses maxResults as search depth so error traces beyond the default depth are
+// not silently missed by post-retrieval filtering.
+func TestSearchTracesHandler_Handle_WithErrorsFilter_SearchDepthExpanded(t *testing.T) {
+	errorTrace := createTestTrace("traceErr", "svc", "/error", true)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			// search_depth must equal maxResults (100), not the default 10
+			assert.Equal(t, 100, query.SearchDepth)
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{errorTrace}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "svc",
+		WithErrors:   true,
+		// SearchDepth intentionally omitted — handler must expand it
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+	assert.True(t, output.Traces[0].HasErrors)
+}
+
 func TestSearchTracesHandler_Handle_WithErrorsFilter_OTelStatusOnly(t *testing.T) {
 	// Build a trace that uses OTel Status.Code=Error with NO error=true attribute tag.
 	otelErrorTrace := ptrace.NewTraces()
@@ -270,7 +303,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter_OTelStatusOnly(t *testing.T
 }
 
 func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
-	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
+	store, err := memory.NewStore(memory.Configuration{MaxTraces: 100})
 	require.NoError(t, err)
 
 	require.NoError(t, store.WriteTraces(context.Background(), createTestTrace(
