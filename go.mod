@@ -14,10 +14,12 @@ require (
 	github.com/elastic/go-elasticsearch/v9 v9.3.1
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-logr/zapr v1.3.0
+	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
+	github.com/google/gnostic-models v0.7.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/jaegertracing/jaeger-idl v0.6.0
+	github.com/jaegertracing/jaeger-idl v0.7.0
 	github.com/kr/pretty v0.3.1
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/olivere/elastic/v7 v7.0.32
@@ -116,6 +118,7 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a
 	golang.org/x/sys v0.44.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20260406210006-6f92a3bedf2d
 	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
 )
@@ -176,7 +179,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
-	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
@@ -332,7 +334,6 @@ require (
 	golang.org/x/time v0.15.0 // indirect
 	gonum.org/v1/gonum v0.17.0 // indirect
 	google.golang.org/api v0.272.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260406210006-6f92a3bedf2d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
