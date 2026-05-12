@@ -3,7 +3,7 @@
 
 services:
   clickhouse:
-    image: clickhouse/clickhouse-server:26.4.2@sha256:6d8f358747b59f7db044749eaf951e828e75cc16f9c487f855b114272c44b82c
+    image: clickhouse/clickhouse-server:25.12.11@sha256:8a790dd3468db22b1d4e7b18a176f378ff5ff6053b9c48dd4ea1fa71a24c5ba6
     networks:
       - backend
     environment:

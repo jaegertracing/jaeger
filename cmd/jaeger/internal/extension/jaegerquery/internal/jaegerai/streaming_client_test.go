@@ -189,7 +189,7 @@ func TestStreamingClientUnsupportedOperationsReturnError(t *testing.T) {
 	_, err = c.CreateTerminal(context.Background(), acp.CreateTerminalRequest{})
 	require.ErrorIs(t, err, errNotSupported)
 
-	_, err = c.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{})
+	_, err = c.KillTerminal(context.Background(), acp.KillTerminalRequest{})
 	require.ErrorIs(t, err, errNotSupported)
 
 	_, err = c.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{})

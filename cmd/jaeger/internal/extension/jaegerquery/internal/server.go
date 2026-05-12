@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -129,6 +130,12 @@ func createGRPCServer(
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
+	//nolint:contextcheck // The context is handled by the interceptors
+	if len(options.HeaderForwarding) > 0 {
+		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryServerInterceptor(options.HeaderForwarding))
+		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamServerInterceptor(options.HeaderForwarding))
+	}
+
 	grpcOpts = append(
 		grpcOpts,
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
@@ -214,6 +221,9 @@ func initRouter(
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
+	if len(queryOpts.HeaderForwarding) > 0 {
+		handler = headerforwarding.HTTPServerMiddleware(queryOpts.HeaderForwarding, handler)
 	}
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)

@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -60,6 +61,8 @@ type QueryOptions struct {
 	UIConfig UIConfig `mapstructure:"ui"`
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage.
 	BearerTokenPropagation bool `mapstructure:"bearer_token_propagation"`
+	// HeaderForwarding lists additional request headers to extract and forward to the storage backend.
+	HeaderForwarding []headerforwarding.ForwardedHeader `mapstructure:"header_forwarding"`
 	// Tenancy holds the multi-tenancy configuration.
 	Tenancy tenancy.Options `mapstructure:"multi_tenancy"`
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span.
