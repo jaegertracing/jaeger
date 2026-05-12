@@ -15,11 +15,8 @@ set -euf -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-E2E_RP_DIR="${SCRIPT_DIR}/reverse-proxy"
-
-# Compose project currently running (reset per UC phase).
-CURRENT_PROJECT=""
-CURRENT_COMPOSE_FILE=""
+COMPOSE_FILE="${SCRIPT_DIR}/reverse-proxy/docker-compose.yml"
+COMPOSE_PROJECT="jaeger-ui-rp"
 success="false"
 
 log() {
@@ -70,12 +67,11 @@ check_body() {
   fi
 }
 
-# check_static_assets fetches index.html at BASE_URL and checks that all
-# static assets referenced in the HTML (JS bundle, CSS bundle, favicon)
-# are reachable via BASE_URL.
+# Fetch index.html at BASE_URL and verify every static/ asset it references
+# is reachable via BASE_URL (covers JS bundle, CSS bundle, and favicon).
 check_static_assets() {
   local desc="$1"
-  local base_url="$2"   # e.g. http://localhost:18080/jaeger/prefix/
+  local base_url="$2"
   local html
   html=$(curl -s "${base_url}")
   local ok=true
@@ -93,37 +89,13 @@ check_static_assets() {
   [[ "$ok" == "true" ]]
 }
 
-stack_up() {
-  local dir="$1"
-  local project="$2"
-  CURRENT_COMPOSE_FILE="${dir}/docker-compose.yml"
-  CURRENT_PROJECT="$project"
-  JAEGER_IMAGE="${JAEGER_IMAGE}" docker compose -p "$project" -f "${CURRENT_COMPOSE_FILE}" up -d
-}
-
-stack_down() {
-  local dir="$1"
-  local project="$2"
-  docker compose -p "$project" -f "${dir}/docker-compose.yml" down --volumes --remove-orphans
-  CURRENT_COMPOSE_FILE=""
-  CURRENT_PROJECT=""
-}
-
-dump_logs() {
-  if [[ -n "$CURRENT_COMPOSE_FILE" ]]; then
-    log "::group:: docker compose logs"
-    docker compose -p "${CURRENT_PROJECT}" -f "$CURRENT_COMPOSE_FILE" logs 2>&1 || true
-    log "::endgroup::"
-  fi
-}
-
 teardown() {
   if [[ "$success" == "false" ]]; then
-    dump_logs
+    log "::group:: docker compose logs"
+    docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" logs 2>&1 || true
+    log "::endgroup::"
   fi
-  if [[ -n "$CURRENT_COMPOSE_FILE" && -n "$CURRENT_PROJECT" ]]; then
-    docker compose -p "${CURRENT_PROJECT}" -f "$CURRENT_COMPOSE_FILE" down --volumes --remove-orphans 2>/dev/null || true
-  fi
+  docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" down --volumes --remove-orphans 2>/dev/null || true
 }
 
 trap teardown EXIT INT
@@ -150,6 +122,9 @@ if [[ -z "$JAEGER_IMAGE" ]]; then
 fi
 log "Using Jaeger image: ${JAEGER_IMAGE}"
 
+JAEGER_IMAGE="${JAEGER_IMAGE}" \
+  docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" up -d
+
 # ---------------------------------------------------------------------------
 # UC-1: Proxy forwards prefix unchanged
 #   Jaeger: --query.base-path=/jaeger/prefix
@@ -157,14 +132,12 @@ log "Using Jaeger image: ${JAEGER_IMAGE}"
 #   Access: http://localhost:18080/jaeger/prefix/
 # ---------------------------------------------------------------------------
 log "=== UC-1: prefix-forwarding proxy ==="
-
-stack_up "${E2E_RP_DIR}/uc1" "jaeger-ui-rp-uc1"
 wait_for_url "UC-1 proxy" "http://localhost:18080/jaeger/prefix/"
 
-check             "UC-1 index"         "http://localhost:18080/jaeger/prefix/"
-check_body        "UC-1 inline script" "http://localhost:18080/jaeger/prefix/" "knownSubPaths"
-check_static_assets "UC-1"             "http://localhost:18080/jaeger/prefix/"
-check             "UC-1 api/services"  "http://localhost:18080/jaeger/prefix/api/services"
+check               "UC-1 index"         "http://localhost:18080/jaeger/prefix/"
+check_body          "UC-1 inline script" "http://localhost:18080/jaeger/prefix/" "knownSubPaths"
+check_static_assets "UC-1"               "http://localhost:18080/jaeger/prefix/"
+check               "UC-1 api/services"  "http://localhost:18080/jaeger/prefix/api/services"
 
 TRACE_ID=$(curl -s "http://localhost:18080/jaeger/prefix/api/traces?service=jaeger&limit=1" \
   | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
@@ -175,7 +148,6 @@ else
   log "⚠ No traces found for UC-1 deep-link check (skipped)"
 fi
 
-stack_down "${E2E_RP_DIR}/uc1" "jaeger-ui-rp-uc1"
 log "✅ UC-1 PASSED"
 
 # ---------------------------------------------------------------------------
@@ -186,8 +158,6 @@ log "✅ UC-1 PASSED"
 #     ProxyPass /      → http://jaeger:16686/  (pass-through)
 # ---------------------------------------------------------------------------
 log "=== UC-2: single pod, two external prefixes ==="
-
-stack_up "${E2E_RP_DIR}/uc2" "jaeger-ui-rp-uc2"
 wait_for_url "UC-2 proxy (root)" "http://localhost:18081/"
 
 # Root prefix
@@ -213,7 +183,6 @@ if [[ -n "$TRACE_ID2" ]]; then
   check_body "UC-2 /alt/ trace deep-link script" "http://localhost:18081/alt/trace/${TRACE_ID2}" "knownSubPaths"
 fi
 
-stack_down "${E2E_RP_DIR}/uc2" "jaeger-ui-rp-uc2"
 log "✅ UC-2 PASSED"
 
 # ---------------------------------------------------------------------------
@@ -222,8 +191,6 @@ log "✅ UC-2 PASSED"
 #   httpd:  /external/ → rewrite to /internal/
 # ---------------------------------------------------------------------------
 log "=== UC-3: proxy rewrites external prefix to different internal prefix ==="
-
-stack_up "${E2E_RP_DIR}/uc3" "jaeger-ui-rp-uc3"
 wait_for_url "UC-3 proxy" "http://localhost:18082/external/"
 
 check               "UC-3 index"        "http://localhost:18082/external/"
@@ -240,7 +207,6 @@ else
   log "⚠ No traces found for UC-3 deep-link check (skipped)"
 fi
 
-stack_down "${E2E_RP_DIR}/uc3" "jaeger-ui-rp-uc3"
 log "✅ UC-3 PASSED"
 
 success="true"
