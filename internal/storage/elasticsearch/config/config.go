@@ -326,7 +326,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		c.Version = uint(esVersion)
 	}
 
-	var rawClientV8 *esv8.Client
+	var rawClientV8 *esv8.TypedClient
 	if c.Version >= 8 {
 		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
@@ -397,7 +397,7 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 	}
 }
 
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esv8.Client, error) {
+func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esv8.TypedClient, error) {
 	var options esv8.Config
 	options.Addresses = c.Servers
 	if c.Authentication.BasicAuthentication.HasValue() {
@@ -424,7 +424,7 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	// (populated by the jaeger_query header_forwarding middleware/interceptors)
 	// onto every outbound request to Elasticsearch.
 	options.Transport = headerforwarding.NewHTTPClientRoundTripper(transport)
-	return esv8.NewClient(options)
+	return esv8.NewTypedClient(options)
 }
 
 func setDefaultIndexOptions(target, source *IndexOptions) {

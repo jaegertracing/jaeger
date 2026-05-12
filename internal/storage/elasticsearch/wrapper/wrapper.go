@@ -6,12 +6,12 @@ package eswrapper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
 
 	esv8 "github.com/elastic/go-elasticsearch/v9"
-	esv8api "github.com/elastic/go-elasticsearch/v9/esapi"
+	esv8api "github.com/elastic/go-elasticsearch/v9/typedapi"
+	"github.com/elastic/go-elasticsearch/v9/typedapi/indices/putindextemplate"
 	"github.com/olivere/elastic/v7"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -24,7 +24,7 @@ type ClientWrapper struct {
 	client      *elastic.Client
 	bulkService *elastic.BulkProcessor
 	esVersion   uint
-	clientV8    *esv8.Client
+	clientV8    *esv8.TypedClient
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -33,7 +33,7 @@ func (c ClientWrapper) GetVersion() uint {
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.TypedClient) ClientWrapper {
 	return ClientWrapper{
 		client:      client,
 		bulkService: s,
@@ -173,7 +173,7 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 
 // TemplateCreatorWrapperV8 implements es.TemplateCreateService.
 type TemplateCreatorWrapperV8 struct {
-	indicesV8       *esv8api.Indices
+	indicesV8       esv8api.MethodIndices
 	templateName    string
 	templateMapping string
 }
@@ -186,13 +186,17 @@ func (c TemplateCreatorWrapperV8) Body(mapping string) es.TemplateCreateService 
 }
 
 // Do executes Put Template command.
-func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTemplateResponse, error) {
-	resp, err := c.indicesV8.PutIndexTemplate(c.templateName, strings.NewReader(c.templateMapping))
+func (c TemplateCreatorWrapperV8) Do(ctx context.Context) (*elastic.IndicesPutTemplateResponse, error) {
+	var req putindextemplate.Request
+	if err := json.Unmarshal([]byte(c.templateMapping), &req); err != nil {
+		return nil, err
+	}
+	resp, err := c.indicesV8.PutIndexTemplate(c.templateName).Request(&req).Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error creating index template %s: %w", c.templateName, err)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error creating index template %s: %s", c.templateName, resp)
+	if !resp.Acknowledged {
+		return nil, fmt.Errorf("error creating index template %s: no acknowledgment from database", c.templateName)
 	}
 	return nil, nil // no response expected by span writer
 }
