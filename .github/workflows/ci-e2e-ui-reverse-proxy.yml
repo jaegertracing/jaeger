@@ -46,6 +46,8 @@ jobs:
 
     - name: Build UI and Jaeger binary
       # TODO: remove JAEGER_UI_PR once jaeger-ui PR #3874 is merged and submodule is pinned.
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
         JAEGER_UI_PR=3874 make build-ui
         make build-jaeger GOOS=linux GOARCH=$(go env GOARCH) SKIP_DEBUG_BINARIES=1
