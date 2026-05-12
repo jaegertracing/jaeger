@@ -70,6 +70,29 @@ check_body() {
   fi
 }
 
+# check_static_assets fetches index.html at BASE_URL and checks that all
+# static assets referenced in the HTML (JS bundle, CSS bundle, favicon)
+# are reachable via BASE_URL.
+check_static_assets() {
+  local desc="$1"
+  local base_url="$2"   # e.g. http://localhost:18080/jaeger/prefix/
+  local html
+  html=$(curl -s "${base_url}")
+  local ok=true
+  while IFS= read -r rel; do
+    local url="${base_url}${rel}"
+    local code
+    code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+    if [[ "$code" == "200" ]]; then
+      log "✅ $desc static asset ${rel} -> $code"
+    else
+      log "❌ $desc static asset ${rel} -> $code (expected 200)"
+      ok=false
+    fi
+  done < <(echo "$html" | grep -o 'static/[^"'"'"' >]*' | sort -u)
+  [[ "$ok" == "true" ]]
+}
+
 stack_up() {
   local dir="$1"
   local project="$2"
@@ -138,12 +161,10 @@ log "=== UC-1: prefix-forwarding proxy ==="
 stack_up "${E2E_RP_DIR}/uc1" "jaeger-ui-rp-uc1"
 wait_for_url "UC-1 proxy" "http://localhost:18080/jaeger/prefix/"
 
-check      "UC-1 index"         "http://localhost:18080/jaeger/prefix/"
-check_body "UC-1 inline script" "http://localhost:18080/jaeger/prefix/" "knownSubPaths"
-
-ASSET=$(curl -s "http://localhost:18080/jaeger/prefix/" | grep -o 'static/[^"]*\.js' | head -1)
-check "UC-1 static asset" "http://localhost:18080/jaeger/prefix/${ASSET}"
-check "UC-1 api/services"  "http://localhost:18080/jaeger/prefix/api/services"
+check             "UC-1 index"         "http://localhost:18080/jaeger/prefix/"
+check_body        "UC-1 inline script" "http://localhost:18080/jaeger/prefix/" "knownSubPaths"
+check_static_assets "UC-1"             "http://localhost:18080/jaeger/prefix/"
+check             "UC-1 api/services"  "http://localhost:18080/jaeger/prefix/api/services"
 
 TRACE_ID=$(curl -s "http://localhost:18080/jaeger/prefix/api/traces?service=jaeger&limit=1" \
   | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
@@ -170,11 +191,10 @@ stack_up "${E2E_RP_DIR}/uc2" "jaeger-ui-rp-uc2"
 wait_for_url "UC-2 proxy (root)" "http://localhost:18081/"
 
 # Root prefix
-check      "UC-2 root index"        "http://localhost:18081/"
-check_body "UC-2 root script"       "http://localhost:18081/" "knownSubPaths"
-check      "UC-2 root api/services" "http://localhost:18081/api/services"
-ASSET2=$(curl -s "http://localhost:18081/" | grep -o 'static/[^"]*\.js' | head -1)
-check "UC-2 root static asset" "http://localhost:18081/${ASSET2}"
+check               "UC-2 root index"        "http://localhost:18081/"
+check_body          "UC-2 root script"       "http://localhost:18081/" "knownSubPaths"
+check_static_assets "UC-2 root"              "http://localhost:18081/"
+check               "UC-2 root api/services" "http://localhost:18081/api/services"
 
 TRACE_ID2=$(curl -s "http://localhost:18081/api/traces?service=jaeger&limit=1" \
   | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
@@ -184,10 +204,10 @@ if [[ -n "$TRACE_ID2" ]]; then
 fi
 
 # /alt/ prefix (same Jaeger, different external prefix)
-check      "UC-2 /alt/ index"        "http://localhost:18081/alt/"
-check_body "UC-2 /alt/ script"       "http://localhost:18081/alt/" "knownSubPaths"
-check      "UC-2 /alt/ api/services" "http://localhost:18081/alt/api/services"
-check      "UC-2 /alt/ static asset" "http://localhost:18081/alt/${ASSET2}"
+check               "UC-2 /alt/ index"        "http://localhost:18081/alt/"
+check_body          "UC-2 /alt/ script"       "http://localhost:18081/alt/" "knownSubPaths"
+check_static_assets "UC-2 /alt/"              "http://localhost:18081/alt/"
+check               "UC-2 /alt/ api/services" "http://localhost:18081/alt/api/services"
 if [[ -n "$TRACE_ID2" ]]; then
   check      "UC-2 /alt/ trace deep-link"        "http://localhost:18081/alt/trace/${TRACE_ID2}"
   check_body "UC-2 /alt/ trace deep-link script" "http://localhost:18081/alt/trace/${TRACE_ID2}" "knownSubPaths"
@@ -206,11 +226,10 @@ log "=== UC-3: proxy rewrites external prefix to different internal prefix ==="
 stack_up "${E2E_RP_DIR}/uc3" "jaeger-ui-rp-uc3"
 wait_for_url "UC-3 proxy" "http://localhost:18082/external/"
 
-check      "UC-3 index"        "http://localhost:18082/external/"
-check_body "UC-3 script"       "http://localhost:18082/external/" "knownSubPaths"
-check      "UC-3 api/services" "http://localhost:18082/external/api/services"
-ASSET3=$(curl -s "http://localhost:18082/external/" | grep -o 'static/[^"]*\.js' | head -1)
-check "UC-3 static asset" "http://localhost:18082/external/${ASSET3}"
+check               "UC-3 index"        "http://localhost:18082/external/"
+check_body          "UC-3 script"       "http://localhost:18082/external/" "knownSubPaths"
+check_static_assets "UC-3"              "http://localhost:18082/external/"
+check               "UC-3 api/services" "http://localhost:18082/external/api/services"
 
 TRACE_ID3=$(curl -s "http://localhost:18082/external/api/traces?service=jaeger&limit=1" \
   | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
