@@ -91,7 +91,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "/jaeger",
 			baseURL:                     "/jaeger/",
-			expectedBaseHTML:            `<base href="/jaeger/"`,
+			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			subroute:                    true,
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
@@ -101,7 +101,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "/metrics",
 			baseURL:                     "/metrics/",
-			expectedBaseHTML:            `<base href="/metrics/"`,
+			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			subroute:                    true,
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
@@ -169,17 +169,6 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 		Logger: zap.NewNop(),
 	})
 	require.Error(t, err)
-
-	for _, base := range []string{"x", "x/", "/x/"} {
-		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-			UIConfig: UIConfig{
-				ConfigFile: "fixture/ui-config.json",
-			},
-			BasePath: base,
-			Logger:   zap.NewNop(),
-		})
-		assert.ErrorContainsf(t, err, "invalid base path", "basePath=%s", base)
-	}
 }
 
 func TestHotReloadUIConfig(t *testing.T) {

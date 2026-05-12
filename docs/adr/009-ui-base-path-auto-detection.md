@@ -284,19 +284,78 @@ error handling; still broken if API is at a different prefix than the UI.
 
 ## Implementation Plan
 
-1. **jaeger-ui**: Add the inline script to `index.html`; verify that
-   `site-prefix.ts` requires no changes (it already reads `<base>.href`); add a
-   unit test that validates prefix extraction for every registered top-level
-   route, and for the root `/` case.
-2. **jaeger (backend)**: Remove `basePathPattern` and its `ReplaceAll` call in
-   `loadAndEnrichIndexHTML`; update `static_handler_test.go` accordingly.
-3. **Documentation**: Update `--query.base-path` help text and deployment guides
-   to reflect that the flag now only affects API route registration, not UI
-   delivery; document the proxy-rewrite pattern (UC-3).
-4. **Validation**: Test with the existing NGINX reverse-proxy example
-   (`examples/reverse-proxy/`) using both prefix-stripping and
-   prefix-forwarding configurations; test direct deep-link navigation at a
-   non-root prefix; test the UC-3 proxy-rewrite configuration.
+### Step 1 — jaeger-ui: inline script in `index.html`
+
+Replace the static `<base href="/" data-inject-target="BASE_URL" />` element in
+`packages/jaeger-ui/index.html` with an inline `<script>` that:
+
+1. Reads `window.location.pathname`.
+2. Strips any known SPA sub-path suffix to isolate the mount prefix.
+3. Writes `<base href="<prefix>">` into the document via
+   `document.currentScript.insertAdjacentHTML('afterend', ...)`.
+
+The script must appear **before** the `<link rel="shortcut icon">` and all other
+tags so that the preload scanner uses the correct base URL for every subsequent
+relative-URL reference.  The known sub-paths are the first path segment of every
+registered top-level route:
+
+| Route constant | Sub-path to strip |
+|---|---|
+| `searchPath` | `/search` |
+| `tracePath` | `/trace/` |
+| `dependenciesPath` | `/dependencies` |
+| `deepDependenciesPath` | `/deep-dependencies` |
+| `qualityMetricsPath` | `/quality-metrics` |
+| `monitorATMPath` | `/monitor` |
+| `plexusDemoPath` | `/plexus-demo` |
+
+Root navigation (`/` and `/<prefix>/`) is handled by the existing React Router
+redirects and does not require stripping.
+
+Add a new test file `packages/jaeger-ui/src/utils/detect-base-path.test.ts`
+(or inline in `prefix-url.test.js`) that validates prefix extraction for:
+- root `/`
+- each registered sub-path at root (e.g. `/search`, `/trace/abc`)
+- each registered sub-path under a prefix (e.g. `/jaeger/search`,
+  `/jaeger/trace/abc`)
+
+`site-prefix.ts` requires **no changes**: it already reads
+`document.querySelector('base').href`.
+
+### Step 2 — jaeger-ui: export the sub-path list for testing
+
+Extract the `knownSubPaths` array used in the inline script into a helper module
+(`src/utils/detect-base-path.ts`) that can be imported by tests.  The inline
+script in `index.html` uses a self-contained IIFE so it has no module
+dependencies, but the same logic lives in the testable module.
+
+### Step 3 — jaeger (backend): remove base-path injection from `static_handler.go`
+
+In `cmd/jaeger/internal/extension/jaegerquery/internal/static_handler.go`:
+
+- Delete the `basePathPattern` package-level variable.
+- In `loadAndEnrichIndexHTML`: delete the entire "replace base path" block
+  (lines 122–131 in the current code).
+- The `BasePath` field and `--query.base-path` flag are **kept** — they continue
+  to drive HTTP route registration in `RegisterRoutes`.
+- The base-path validation (`HasPrefix` / `HasSuffix` check) moves out of
+  `loadAndEnrichIndexHTML` into the `QueryOptions` validation step (or stays in
+  `RegisterRoutes`), since it is still needed for route registration correctness.
+
+### Step 4 — jaeger (backend): update `static_handler_test.go`
+
+- Remove the `expectedBaseHTML` field from test cases (or keep it but change all
+  four expected values to `<base href="/"` — the literal that now stays in the
+  HTML untouched).
+- Remove the invalid-base-path test cases from `TestNewStaticAssetsHandlerErrors`
+  that currently test the injection validation; replace with validation tests at
+  the `RegisterRoutes` / options level if the validation is moved there.
+
+### Step 5 — documentation
+
+Update `--query.base-path` help text to clarify that it controls API route
+registration only, not UI delivery.  Update deployment docs / examples to show
+the proxy-rewrite pattern (UC-3).
 
 ## References
 
