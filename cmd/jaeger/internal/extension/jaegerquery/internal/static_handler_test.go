@@ -72,7 +72,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "",
 			baseURL:                     "/",
-			expectedBaseHTML:            `<base href="/"`,
+			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			archiveStorage:              false,
 			logAccess:                   true,
 			UIConfigPath:                "",
@@ -83,7 +83,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			basePath:                    "/",
 			baseURL:                     "/",
 			archiveStorage:              false,
-			expectedBaseHTML:            `<base href="/"`,
+			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
 			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
@@ -169,6 +169,22 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 		Logger: zap.NewNop(),
 	})
 	require.Error(t, err)
+}
+
+func TestRegisterRoutesInvalidBasePath(t *testing.T) {
+	for _, basePath := range []string{"no-leading-slash", "no-leading-slash/"} {
+		t.Run(basePath, func(t *testing.T) {
+			h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+				BasePath: basePath,
+				Logger:   zap.NewNop(),
+			})
+			require.NoError(t, err)
+			defer h.Close()
+			assert.Panics(t, func() {
+				h.RegisterRoutes(http.NewServeMux())
+			})
+		})
+	}
 }
 
 func TestHotReloadUIConfig(t *testing.T) {

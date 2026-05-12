@@ -200,8 +200,13 @@ func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler
 // RegisterRoutes registers routes for this handler on the given router.
 func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	basePath := sH.options.BasePath
-	if basePath == "" {
+	if basePath == "" || basePath == "/" {
 		basePath = "/"
+	} else {
+		if !strings.HasPrefix(basePath, "/") {
+			panic(fmt.Sprintf("invalid base path %q: must start with '/'", basePath))
+		}
+		basePath = strings.TrimSuffix(basePath, "/")
 	}
 
 	fileServer := http.FileServer(sH.assetsFS)

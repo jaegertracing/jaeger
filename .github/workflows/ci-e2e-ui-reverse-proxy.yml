@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # E2E integration tests for Jaeger UI served behind a reverse proxy (ADR-009).
-# Validates three use cases in parallel:
+# Validates three use cases in a single job:
 #
 #   UC-1: proxy forwards the URL prefix unchanged to Jaeger
 #         (exercises the existing examples/reverse-proxy/ setup)
@@ -10,8 +10,6 @@
 #         simultaneously, with the proxy stripping the prefix on one path
 #   UC-3: proxy rewrites an external prefix to a different internal prefix
 #         (the case that motivated ADR-009 / issue #5157)
-#
-# Each use case runs as a separate matrix job so they execute in parallel.
 
 name: CIT UI Reverse Proxy
 
@@ -47,15 +45,16 @@ jobs:
       uses: ./.github/actions/setup-node.js
 
     - name: Build UI and Jaeger binary
+      # TODO: remove JAEGER_UI_PR once jaeger-ui PR #3874 is merged and submodule is pinned.
       run: |
-        make build-ui
+        JAEGER_UI_PR=3874 make build-ui
         make build-jaeger GOOS=linux GOARCH=$(go env GOARCH) SKIP_DEBUG_BINARIES=1
 
     - name: Build Jaeger Docker image
       run: |
         docker build \
-          --build-arg base_image=alpine:latest \
-          --build-arg debug_image=alpine:latest \
+          --build-arg base_image=alpine:3.21 \
+          --build-arg debug_image=alpine:3.21 \
           --target release \
           -t jaeger-local:e2e-ui-rp \
           -f cmd/jaeger/Dockerfile \
