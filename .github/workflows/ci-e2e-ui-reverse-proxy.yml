@@ -49,7 +49,7 @@ jobs:
     - name: Build UI and Jaeger binary
       run: |
         make build-ui
-        make build-jaeger GOOS=linux GOARCH=amd64 SKIP_DEBUG_BINARIES=1
+        make build-jaeger GOOS=linux GOARCH=$(go env GOARCH) SKIP_DEBUG_BINARIES=1
 
     - name: Build Jaeger Docker image
       run: |
@@ -57,7 +57,6 @@ jobs:
           --build-arg base_image=alpine:latest \
           --build-arg debug_image=alpine:latest \
           --target release \
-          --platform linux/amd64 \
           -t jaeger-local:e2e-ui-rp \
           -f cmd/jaeger/Dockerfile \
           cmd/jaeger/
