@@ -357,6 +357,80 @@ Update `--query.base-path` help text to clarify that it controls API route
 registration only, not UI delivery.  Update deployment docs / examples to show
 the proxy-rewrite pattern (UC-3).
 
+## Test Plan
+
+### Unit tests (automated, in CI)
+
+#### jaeger-ui: `detect-base-path`
+
+`src/utils/detect-base-path.test.ts` — covers `detectBasePath()`:
+
+| Scenario | Input pathname | Expected prefix |
+|---|---|---|
+| Root, bare slash | `/` | `/` |
+| Root, each known sub-path at root | `/search`, `/trace/abc`, `/dependencies`, … | `/` |
+| Prefixed, bare prefix | `/jaeger/` | `/jaeger/` |
+| Prefixed, each known sub-path | `/jaeger/search`, `/jaeger/trace/abc`, … | `/jaeger/` |
+| Deep prefix | `/a/b/c/search` | `/a/b/c/` |
+| Unknown path (no sub-path match) | `/jaeger/unknown-page` | `/jaeger/` |
+
+#### jaeger (backend): `static_handler_test.go`
+
+`TestRegisterStaticHandler` — verifies that for all base-path configurations
+(`""`, `"/"`, `"/jaeger"`, `"/metrics"`) the served `index.html` contains the
+inline script marker (`data-inject-target="BASE_URL"`) and that static assets are
+served at the correct route prefix.  The test no longer asserts a specific
+`<base href>` value, because the backend no longer writes one.
+
+### Integration / end-to-end tests (manual or in the reverse-proxy example)
+
+The existing `examples/reverse-proxy/` docker-compose should be used to validate
+all three use cases:
+
+#### UC-1: Direct access, `--query.base-path` matches ingress
+
+Setup:
+- Jaeger: `--query.base-path=/jaeger`
+- NGINX: forwards `/jaeger/` to Jaeger without rewriting
+
+Checks:
+1. `GET /jaeger/` → `index.html` loads, inline script detects prefix `/jaeger/`.
+2. Static assets (`/jaeger/assets/…`) return 200.
+3. API calls go to `/jaeger/api/services` → 200.
+4. Deep-link: navigate directly to `/jaeger/trace/<id>` in a fresh tab → page loads, assets 200, trace loads.
+5. Browser back/forward between `/jaeger/search` and `/jaeger/trace/<id>` works.
+
+#### UC-2: Same pod, two external prefixes
+
+Setup:
+- Jaeger: `--query.base-path=/` (root, or omitted)
+- NGINX rule A: forwards `https://host-a/` → Jaeger `/`
+- NGINX rule B: forwards `https://host-b/jaeger/` → Jaeger `/` (strips prefix)
+
+Checks:
+1. Both `https://host-a/search` and `https://host-b/jaeger/search` render correctly.
+2. Deep-links work under both prefixes.
+3. API calls from each origin go to the correct path relative to that origin.
+
+#### UC-3: Proxy rewrites external prefix to a different internal prefix
+
+Setup:
+- Jaeger: `--query.base-path=/baz`
+- Proxy: rewrites `/foo/bar/` → `/baz/` (strips `/foo/bar`, prepends `/baz`)
+
+Checks:
+1. `GET /foo/bar/` → `index.html` loads; inline script detects prefix `/foo/bar/`.
+2. Static assets at `/foo/bar/assets/…` → proxy rewrites to `/baz/assets/…` → 200.
+3. API calls: browser sends `GET /foo/bar/api/services` → proxy rewrites to `GET /baz/api/services` → 200.
+4. Deep-link `GET /foo/bar/trace/<id>` → page loads, trace renders.
+5. Repeat UC-1 checks (deep-link, back/forward) under the `/foo/bar/` external prefix.
+
+### Regression checks
+
+- `--query.base-path` omitted (root deployment): UI loads at `/`, all routes work.
+- `--query.base-path=/jaeger` with no proxy (current common case): UI loads at `/jaeger/`, all routes work — identical behaviour to before this change.
+- Hot-reload of `jaeger-ui.config.json` still works (backend still rewrites the config placeholder in `index.html`; only the `<base>` injection was removed).
+
 ## References
 
 - `jaeger-ui/packages/jaeger-ui/index.html` – `<base>` tag definition
