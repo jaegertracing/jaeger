@@ -91,9 +91,9 @@ check_static_assets() {
 
 teardown() {
   if [[ "$success" == "false" ]]; then
-    log "::group:: docker compose logs"
+    echo "::group::docker compose logs"
     docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" logs 2>&1 || true
-    log "::endgroup::"
+    echo "::endgroup::"
   fi
   docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" down --volumes --remove-orphans 2>/dev/null || true
 }
