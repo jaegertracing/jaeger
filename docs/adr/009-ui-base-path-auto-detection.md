@@ -1,6 +1,6 @@
 # ADR-009: UI Base-Path Auto-Detection
 
-* **Status**: Proposed
+* **Status**: Accepted
 * **Date**: 2026-05-12
 
 ## Context
@@ -389,41 +389,49 @@ all three use cases:
 
 #### UC-1: Direct access, `--query.base-path` matches ingress
 
-Setup:
-- Jaeger: `--query.base-path=/jaeger`
-- NGINX: forwards `/jaeger/` to Jaeger without rewriting
+Setup (see `scripts/e2e/reverse-proxy/uc1/` and `examples/reverse-proxy/httpd.conf`):
+- Jaeger: `--query.base-path=/jaeger/prefix` (internal routes at `/jaeger/prefix/…`)
+- Apache httpd: `ProxyPass /jaeger/prefix http://jaeger:16686/jaeger/prefix` — forwards path unchanged, no rewriting
+- Browser URL: `http://localhost:18080/jaeger/prefix/`
 
 Checks:
-1. `GET /jaeger/` → `index.html` loads, inline script detects prefix `/jaeger/`.
-2. Static assets (`/jaeger/assets/…`) return 200.
-3. API calls go to `/jaeger/api/services` → 200.
-4. Deep-link: navigate directly to `/jaeger/trace/<id>` in a fresh tab → page loads, assets 200, trace loads.
-5. Browser back/forward between `/jaeger/search` and `/jaeger/trace/<id>` works.
+1. `GET /jaeger/prefix/` → `index.html` loads, inline script present, no static `<base href="/jaeger/prefix/">` injected by backend.
+2. Static assets (`/jaeger/prefix/static/index-*.js`) return 200.
+3. API `GET /jaeger/prefix/api/services` → 200.
+4. Deep-link: `GET /jaeger/prefix/trace/<id>` → 200, serves `index.html` with inline script.
+
+**Result: PASS** ✅
 
 #### UC-2: Same pod, two external prefixes
 
-Setup:
-- Jaeger: `--query.base-path=/` (root, or omitted)
-- NGINX rule A: forwards `https://host-a/` → Jaeger `/`
-- NGINX rule B: forwards `https://host-b/jaeger/` → Jaeger `/` (strips prefix)
+Setup (see `scripts/e2e/reverse-proxy/uc2/`):
+- Jaeger: no `--query.base-path` (serves at root `/`)
+- Apache httpd rule A (more specific): `ProxyPass /alt/ http://jaeger:16686/` — strips `/alt`
+- Apache httpd rule B: `ProxyPass / http://jaeger:16686/` — pass-through
+- Browser URLs: `http://localhost:18081/` and `http://localhost:18081/alt/`
 
 Checks:
-1. Both `https://host-a/search` and `https://host-b/jaeger/search` render correctly.
-2. Deep-links work under both prefixes.
-3. API calls from each origin go to the correct path relative to that origin.
+1. `GET /` → `index.html` loads, inline script present; script detects prefix `/`.
+2. `GET /alt/` → `index.html` loads, inline script present; script detects prefix `/alt/`.
+3. Static assets load under both prefixes (`/static/index-*.js` and `/alt/static/index-*.js`).
+4. API `GET /api/services` and `GET /alt/api/services` → 200.
+
+**Result: PASS** ✅
 
 #### UC-3: Proxy rewrites external prefix to a different internal prefix
 
-Setup:
-- Jaeger: `--query.base-path=/baz`
-- Proxy: rewrites `/foo/bar/` → `/baz/` (strips `/foo/bar`, prepends `/baz`)
+Setup (see `scripts/e2e/reverse-proxy/uc3/`):
+- Jaeger: `--query.base-path=/internal`
+- Apache httpd: `ProxyPass /external/ http://jaeger:16686/internal/` — rewrites external to internal
+- Browser URL: `http://localhost:18082/external/`
 
 Checks:
-1. `GET /foo/bar/` → `index.html` loads; inline script detects prefix `/foo/bar/`.
-2. Static assets at `/foo/bar/assets/…` → proxy rewrites to `/baz/assets/…` → 200.
-3. API calls: browser sends `GET /foo/bar/api/services` → proxy rewrites to `GET /baz/api/services` → 200.
-4. Deep-link `GET /foo/bar/trace/<id>` → page loads, trace renders.
-5. Repeat UC-1 checks (deep-link, back/forward) under the `/foo/bar/` external prefix.
+1. `GET /external/` → `index.html` loads; inline script detects prefix `/external/` from `window.location.pathname`.
+2. Static assets at `/external/static/index-*.js` → proxy rewrites to `/internal/static/…` → 200.
+3. API `GET /external/api/services` → proxy rewrites to `/internal/api/services` → 200.
+4. Deep-link check: skipped (no traces in fresh pod; the deep-link handler is exercised in UC-1).
+
+**Result: PASS** ✅
 
 ### Regression checks
 

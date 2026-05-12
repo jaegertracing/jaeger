@@ -5,7 +5,11 @@
 
 set -euxf -o pipefail
 
-cd jaeger-ui
+# JAEGER_UI_DIR can be overridden to use a local checkout instead of the submodule:
+#   JAEGER_UI_DIR=/path/to/jaeger-ui make rebuild-ui
+JAEGER_UI_DIR="${JAEGER_UI_DIR:-jaeger-ui}"
+
+cd "${JAEGER_UI_DIR}"
 
 if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
     git fetch --unshallow
