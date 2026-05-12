@@ -25,6 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -1984,6 +1985,85 @@ func TestGetBodyFixRoundTripper_ReadAllError(t *testing.T) {
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	assert.Nil(t, resp)
 	assert.Nil(t, recorder.req, "base RoundTripper should not have been called")
+}
+
+// TestNewClient_ForwardsCapturedHeadersToES verifies that captured headers
+// stored on the request context (via the headerforwarding package) are
+// propagated to outbound HTTP requests issued by the Elasticsearch client.
+// The version-detection ping is the first request the client makes after
+// construction; it carries the context passed to NewClient and therefore
+// flows through the headerforwarding RoundTripper installed at the callsite.
+func TestNewClient_ForwardsCapturedHeadersToES(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		headers []http.Header
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		headers = append(headers, req.Header.Clone())
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion0)
+	}))
+	defer testServer.Close()
+
+	cfg := Configuration{
+		Servers:            []string{testServer.URL},
+		LogLevel:           "error",
+		DisableHealthCheck: true,
+		BulkProcessing:     BulkProcessing{MaxBytes: -1},
+	}
+	hUser := &headerforwarding.ForwardedHeader{HTTPName: "X-Forwarded-User", Role: headerforwarding.RoleUsername}
+	ctx := headerforwarding.ContextWithCaptured(context.Background(), []headerforwarding.CapturedHeader{
+		{Header: hUser, Value: "alice"},
+	})
+
+	client, err := NewClient(ctx, &cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, headers, "fake ES server should have received at least one request")
+	for i, h := range headers {
+		assert.Equalf(t, "alice", h.Get("X-Forwarded-User"), "request #%d missing forwarded header (got: %v)", i, h)
+	}
+}
+
+// TestNewClient_NoCapturedHeaders_NoForwardedHeader verifies the negative case:
+// when the inbound context carries no captured headers, the outbound ES
+// requests do not gain the forwarded header.
+func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
+	var (
+		mu      sync.Mutex
+		headers []http.Header
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		headers = append(headers, req.Header.Clone())
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+		res.Write(mockEsServerResponseWithVersion0)
+	}))
+	defer testServer.Close()
+
+	cfg := Configuration{
+		Servers:            []string{testServer.URL},
+		LogLevel:           "error",
+		DisableHealthCheck: true,
+		BulkProcessing:     BulkProcessing{MaxBytes: -1},
+	}
+
+	client, err := NewClient(context.Background(), &cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.NotEmpty(t, headers, "fake ES server should have received at least one request")
+	for i, h := range headers {
+		assert.Emptyf(t, h.Get("X-Forwarded-User"), "request #%d unexpectedly carries forwarded header", i)
+	}
 }
 
 func TestMain(m *testing.M) {

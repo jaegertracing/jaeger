@@ -26,6 +26,9 @@ type ForwardedHeader struct {
 	// GRPCOutboundName is the metadata key used when forwarding the value to the gRPC storage backend.
 	// When empty, GRPCName/HTTPName is used as the fallback (in that order).
 	GRPCOutboundName string `mapstructure:"grpc_outbound_name"`
+	// HTTPOutboundName is the header name used when forwarding the value to an HTTP storage backend.
+	// When empty, HTTPName is used as the fallback.
+	HTTPOutboundName string `mapstructure:"http_outbound_name"`
 }
 
 // inboundGRPCName returns the key to look for in incoming gRPC metadata.
@@ -42,4 +45,12 @@ func (h *ForwardedHeader) outboundGRPCName() string {
 		return h.GRPCOutboundName
 	}
 	return h.inboundGRPCName()
+}
+
+// outboundHTTPName returns the header name to use when forwarding to an HTTP storage backend.
+func (h *ForwardedHeader) outboundHTTPName() string {
+	if h.HTTPOutboundName != "" {
+		return h.HTTPOutboundName
+	}
+	return h.HTTPName
 }
