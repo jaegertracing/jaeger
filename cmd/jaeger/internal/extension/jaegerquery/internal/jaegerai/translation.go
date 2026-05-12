@@ -187,8 +187,16 @@ func toolResultMessageID(toolCallID acp.ToolCallId) string {
 // stripUIToolPrefix removes the contextual-tool namespace from a tool name
 // so the frontend sees the original name it registered. Non-prefixed
 // names (e.g. built-in MCP tools) are returned unchanged.
+//
+// A name that is exactly UIToolPrefix (e.g. "ui_") would strip to "", which
+// AG-UI tool-call events reject and which would break SSE encoding. That
+// shape is already rejected as InvalidParams by handleJaegerToolCall on the
+// ext_method path, so it should never reach the streaming client; here we
+// defend the streaming path independently by falling back to the original
+// (still non-empty) name so the run does not terminate over a malformed
+// upstream tool name.
 func stripUIToolPrefix(name string) string {
-	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok {
+	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok && stripped != "" {
 		return stripped
 	}
 	return name

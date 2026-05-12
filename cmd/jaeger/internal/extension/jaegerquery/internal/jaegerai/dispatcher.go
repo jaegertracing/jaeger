@@ -166,7 +166,8 @@ func handleJaegerToolCall(params json.RawMessage, store *ContextualToolsStore, l
 			"error": fmt.Sprintf("contextual tool %q not registered for session %q", req.Name, req.SessionID),
 		})
 	}
-	logger.Info("contextual tool call dispatched (fire-and-forget)",
+	logger.Info(
+		"contextual tool call dispatched (fire-and-forget)",
 		zap.String("session_id", req.SessionID),
 		zap.String("tool", req.Name),
 		zap.String("prefixed_tool", originalName),

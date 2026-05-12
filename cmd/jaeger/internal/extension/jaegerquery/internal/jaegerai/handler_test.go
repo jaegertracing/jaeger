@@ -629,7 +629,7 @@ func TestChatHandlerSessionCloseFiresWhenAgentAdvertisesCapability(t *testing.T)
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -661,7 +661,7 @@ func TestChatHandlerSessionCloseErrorIsSwallowed(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
@@ -686,7 +686,7 @@ func TestChatHandlerSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
 	defer cleanup()
 
 	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
-	body, err := json.Marshal(ChatRequest{Prompt: "hello"})
+	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
 	rr := httptest.NewRecorder()
