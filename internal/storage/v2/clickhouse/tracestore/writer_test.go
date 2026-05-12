@@ -76,46 +76,56 @@ func TestWriter_Success(t *testing.T) {
 		require.Equal(t, expected.Attributes.ComplexValues, row[19]) // Complex attribute values
 		require.Equal(t, expected.EventNames, row[20])               // Event names
 		require.Equal(t, expected.EventTimestamps, row[21])          // Event timestamps
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.BoolKeys, expected.EventAttributes.BoolValues),
 			row[22],
 		) // Event bool attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.DoubleKeys, expected.EventAttributes.DoubleValues),
 			row[23],
 		) // Event double attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.IntKeys, expected.EventAttributes.IntValues),
 			row[24],
 		) // Event int attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.StrKeys, expected.EventAttributes.StrValues),
 			row[25],
 		) // Event str attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.EventAttributes.ComplexKeys, expected.EventAttributes.ComplexValues),
 			row[26],
 		) // Event complex attributes
 		require.Equal(t, expected.LinkTraceIDs, row[27])    // Link TraceIDs
 		require.Equal(t, expected.LinkSpanIDs, row[28])     // Link SpanIDs
 		require.Equal(t, expected.LinkTraceStates, row[29]) // Link TraceStates
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.BoolKeys, expected.LinkAttributes.BoolValues),
 			row[30],
 		) // Link bool attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.DoubleKeys, expected.LinkAttributes.DoubleValues),
 			row[31],
 		) // Link double attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.IntKeys, expected.LinkAttributes.IntValues),
 			row[32],
 		) // Link int attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.StrKeys, expected.LinkAttributes.StrValues),
 			row[33],
 		) // Link str attributes
-		require.Equal(t,
+		require.Equal(
+			t,
 			toTuple(expected.LinkAttributes.ComplexKeys, expected.LinkAttributes.ComplexValues),
 			row[34],
 		) // Link complex attributes

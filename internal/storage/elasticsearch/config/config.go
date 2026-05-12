@@ -33,6 +33,7 @@ import (
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
@@ -419,7 +420,10 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	if err != nil {
 		return nil, err
 	}
-	options.Transport = transport
+	// Outermost wrapper: forward headers captured on the inbound request context
+	// (populated by the jaeger_query header_forwarding middleware/interceptors)
+	// onto every outbound request to Elasticsearch.
+	options.Transport = headerforwarding.NewHTTPClientRoundTripper(transport)
 	return esv8.NewClient(options)
 }
 
@@ -623,6 +627,11 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 	if err != nil {
 		return nil, err
 	}
+
+	// Outermost wrapper: forward headers captured on the inbound request context
+	// (populated by the jaeger_query header_forwarding middleware/interceptors)
+	// onto every outbound request to Elasticsearch.
+	transport = headerforwarding.NewHTTPClientRoundTripper(transport)
 
 	// HTTP client setup with timeout and transport
 	httpClient := &http.Client{

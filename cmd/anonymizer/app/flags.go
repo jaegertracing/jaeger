@@ -40,52 +40,62 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		&o.QueryGRPCHostPort,
 		queryGRPCHostPortFlag,
 		"localhost:16686",
-		"The host:port of the jaeger-query endpoint")
+		"The host:port of the jaeger-query endpoint",
+	)
 	command.Flags().StringVar(
 		&o.OutputDir,
 		outputDirFlag,
 		"/tmp",
-		"The directory to store the anonymized trace")
+		"The directory to store the anonymized trace",
+	)
 	command.Flags().StringVar(
 		&o.TraceID,
 		traceIDFlag,
 		"",
-		"The trace-id of trace to anonymize")
+		"The trace-id of trace to anonymize",
+	)
 	command.Flags().BoolVar(
 		&o.HashStandardTags,
 		hashStandardTagsFlag,
 		false,
-		"Whether to hash standard tags")
+		"Whether to hash standard tags",
+	)
 	command.Flags().BoolVar(
 		&o.HashCustomTags,
 		hashCustomTagsFlag,
 		false,
-		"Whether to hash custom tags")
+		"Whether to hash custom tags",
+	)
 	command.Flags().BoolVar(
 		&o.HashLogs,
 		hashLogsFlag,
 		false,
-		"Whether to hash logs")
+		"Whether to hash logs",
+	)
 	command.Flags().BoolVar(
 		&o.HashProcess,
 		hashProcessFlag,
 		false,
-		"Whether to hash process")
+		"Whether to hash process",
+	)
 	command.Flags().IntVar(
 		&o.MaxSpansCount,
 		maxSpansCount,
 		-1,
-		"The maximum number of spans to anonymize")
+		"The maximum number of spans to anonymize",
+	)
 	command.Flags().Int64Var(
 		&o.StartTime,
 		startTime,
 		0,
-		"The start time of time window for searching trace, timestampe in unix nanoseconds")
+		"The start time of time window for searching trace, timestampe in unix nanoseconds",
+	)
 	command.Flags().Int64Var(
 		&o.EndTime,
 		endTime,
 		0,
-		"The end time of time window for searching trace, timestampe in unix nanoseconds")
+		"The end time of time window for searching trace, timestampe in unix nanoseconds",
+	)
 
 	// mark traceid flag as mandatory
 	command.MarkFlagRequired(traceIDFlag)

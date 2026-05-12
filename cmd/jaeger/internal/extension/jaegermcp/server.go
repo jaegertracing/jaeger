@@ -148,11 +148,6 @@ func (s *server) Shutdown(ctx context.Context) error {
 // registerTools registers all MCP tools with the server.
 func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
-		Name:        "health",
-		Description: "Check if the Jaeger MCP server is running. Returns server status, name, and version.",
-	}, s.healthTool)
-
-	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name:        "get_services",
 		Description: "List service names known to Jaeger. Supports optional regex filtering via 'pattern'.",
 	}, handlers.NewGetServicesHandler(s.queryAPI))
@@ -202,25 +197,4 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
-}
-
-// HealthToolOutput is the strongly-typed output for the health tool.
-type HealthToolOutput struct {
-	Status  string `json:"status" jsonschema:"Server status (ok/error)"`
-	Server  string `json:"server" jsonschema:"Server name"`
-	Version string `json:"version" jsonschema:"Server version"`
-}
-
-// healthTool is a placeholder MCP tool that checks server health.
-// Actual MCP tools for trace querying will be implemented in Phase 2.
-func (s *server) healthTool(
-	_ context.Context,
-	_ *mcp.CallToolRequest,
-	_ struct{},
-) (*mcp.CallToolResult, HealthToolOutput, error) {
-	return nil, HealthToolOutput{
-		Status:  "ok",
-		Server:  s.config.ServerName,
-		Version: s.config.ServerVersion,
-	}, nil
 }

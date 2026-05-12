@@ -45,7 +45,10 @@ func newMockQueryExtension(svc *querysvc.QueryService) *mockQueryExtension {
 	if svc == nil {
 		svc = querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	}
-	return &mockQueryExtension{svc: svc, tm: tenancy.NewManager(&tenancy.Options{})}
+	return &mockQueryExtension{
+		svc: svc,
+		tm:  tenancy.NewManager(&tenancy.Options{}),
+	}
 }
 
 func (m *mockQueryExtension) QueryService() *querysvc.QueryService {
@@ -485,28 +488,6 @@ func TestNewServer(t *testing.T) {
 	assert.Equal(t, telset, server.telset)
 	assert.Nil(t, server.httpServer)
 	assert.Nil(t, server.listener)
-}
-
-func TestHealthTool(t *testing.T) {
-	telset := componenttest.NewNopTelemetrySettings()
-	config := &Config{
-		ServerName:               "test-server",
-		ServerVersion:            "2.0.0",
-		MaxSpanDetailsPerRequest: 20,
-		MaxSearchResults:         100,
-	}
-
-	server := newServer(config, telset)
-
-	// Call the healthTool directly
-	result, output, err := server.healthTool(context.Background(), nil, struct{}{})
-
-	// Verify the results
-	require.NoError(t, err)
-	assert.Nil(t, result)
-	assert.Equal(t, "ok", output.Status)
-	assert.Equal(t, "test-server", output.Server)
-	assert.Equal(t, "2.0.0", output.Version)
 }
 
 // TestSearchTracesToolIntegration tests calling the search_traces MCP tool

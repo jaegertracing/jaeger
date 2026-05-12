@@ -414,7 +414,8 @@ func runPasswordFromFileTest(t *testing.T) {
 		Process: dbmodel.Process{ServiceName: "foo"},
 	}
 	writer.WriteSpan(time.Now(), span1)
-	assert.Eventually(t,
+	assert.Eventually(
+		t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd1)
 			return ok && pwd == upwd1
@@ -429,7 +430,8 @@ func runPasswordFromFileTest(t *testing.T) {
 	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
 
-	assert.Eventually(t,
+	assert.Eventually(
+		t,
 		func() bool {
 			client2 := f.getClient()
 			return client1 != client2
@@ -442,7 +444,8 @@ func runPasswordFromFileTest(t *testing.T) {
 		Process: dbmodel.Process{ServiceName: "foo"},
 	}
 	writer.WriteSpan(time.Now(), span2)
-	assert.Eventually(t,
+	assert.Eventually(
+		t,
 		func() bool {
 			pwd, ok := authReceived.Load(upwd2)
 			return ok && pwd == upwd2

@@ -34,7 +34,8 @@ var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.StageAlpha,
 	featuregate.WithRegisterFromVersion("v2.18.0"),
 	featuregate.WithRegisterDescription(
-		"Enables ClickHouse as a storage backend."),
+		"Enables ClickHouse as a storage backend.",
+	),
 )
 
 var (

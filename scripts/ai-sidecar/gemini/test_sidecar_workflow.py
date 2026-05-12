@@ -156,7 +156,7 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
     stop_event = asyncio.Event()
 
     async with websockets.serve(partial(sidecar.handle_websocket, agent_factory=FakeAgent), "127.0.0.1", 0) as server:
-        port = server.sockets[0].getsockname()[1]
+        port = next(iter(server.sockets)).getsockname()[1]
         uri = f"ws://127.0.0.1:{port}"
 
         async with websockets.connect(uri) as websocket:

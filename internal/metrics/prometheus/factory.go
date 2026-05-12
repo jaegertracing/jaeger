@@ -101,8 +101,9 @@ func New(opts ...Option) *Factory {
 			normalizer: strings.NewReplacer(".", "_", "-", "_"),
 			separator:  options.separator,
 		},
-		"",  // scope
-		nil) // tags
+		"", // scope
+		nil,
+	) // tags
 }
 
 func newFactory(parent *Factory, scope string, tags map[string]string) *Factory {

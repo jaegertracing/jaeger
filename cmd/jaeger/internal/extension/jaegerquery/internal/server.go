@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -129,7 +130,14 @@ func createGRPCServer(
 		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
 	}
 
-	grpcOpts = append(grpcOpts,
+	//nolint:contextcheck // The context is handled by the interceptors
+	if len(options.HeaderForwarding) > 0 {
+		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryServerInterceptor(options.HeaderForwarding))
+		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamServerInterceptor(options.HeaderForwarding))
+	}
+
+	grpcOpts = append(
+		grpcOpts,
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
@@ -145,7 +153,8 @@ func createGRPCServer(
 			TracerProvider: telset.TracerProvider,
 			MeterProvider:  telset.MeterProvider,
 		},
-		grpcOpts...)
+		grpcOpts...,
+	)
 }
 
 type httpServer struct {
@@ -172,7 +181,8 @@ func initRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		apiHandlerOptions...)
+		apiHandlerOptions...,
+	)
 	r := http.NewServeMux()
 
 	(&apiv3.HTTPGateway{
@@ -193,15 +203,11 @@ func initRouter(
 
 	// AI Gateway Endpoints
 	if queryOpts.AI.HasValue() {
-		aiHandlerPath := "/api/ai/chat"
-		if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-			aiHandlerPath = queryOpts.BasePath + aiHandlerPath
-		}
 		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				r.HandleFunc(aiHandlerPath, jaegerai.NewChatHandler(telset.Logger, aiCfg.AgentURL, aiCfg.MaxRequestBodySize).ServeHTTP)
+				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
 			}
 		}
 	}
@@ -215,6 +221,9 @@ func initRouter(
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
+	}
+	if len(queryOpts.HeaderForwarding) > 0 {
+		handler = headerforwarding.HTTPServerMiddleware(queryOpts.HeaderForwarding, handler)
 	}
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
@@ -284,7 +293,8 @@ func createHTTPServer(
 
 func (hS httpServer) Close() error {
 	var errs []error
-	errs = append(errs,
+	errs = append(
+		errs,
 		hS.Server.Close(),
 		hS.staticHandlerCloser.Close(),
 	)

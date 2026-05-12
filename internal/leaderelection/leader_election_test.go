@@ -70,11 +70,12 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	mockLock := &lmocks.Lock{}
 	mockLock.On("Acquire", "sampling_lock", time.Duration(5*time.Millisecond)).Return(false, errTestLock)
 
-	p := NewElectionParticipant(mockLock, "sampling_lock", ElectionParticipantOptions{
-		LeaderLeaseRefreshInterval:   time.Millisecond,
-		FollowerLeaseRefreshInterval: 5 * time.Millisecond,
-		Logger:                       logger,
-	},
+	p := NewElectionParticipant(
+		mockLock, "sampling_lock", ElectionParticipantOptions{
+			LeaderLeaseRefreshInterval:   time.Millisecond,
+			FollowerLeaseRefreshInterval: 5 * time.Millisecond,
+			Logger:                       logger,
+		},
 	)
 
 	defer func() {
