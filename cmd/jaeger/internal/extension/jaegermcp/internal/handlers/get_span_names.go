@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -61,7 +62,7 @@ func (h *getSpanNamesHandler) handle(
 	// Build query parameters
 	query := tracestore.OperationQueryParams{
 		ServiceName: input.ServiceName,
-		SpanKind:    input.SpanKind,
+		SpanKind:    strings.ToLower(input.SpanKind),
 	}
 
 	// Get operations from storage

@@ -192,6 +192,27 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 	}
 }
 
+func TestGetSpanNamesHandler_SpanKindCaseNormalization(t *testing.T) {
+	// Storage backends store span kinds in lowercase; verify uppercase input is normalized.
+	var capturedQuery tracestore.OperationQueryParams
+	mock := &mockGetOperationsQueryService{
+		getOperationsFunc: func(_ context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+			capturedQuery = query
+			return []tracestore.Operation{}, nil
+		},
+	}
+
+	handler := &getSpanNamesHandler{queryService: mock}
+	input := types.GetSpanNamesInput{
+		ServiceName: "frontend",
+		SpanKind:    "SERVER",
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+	assert.Equal(t, "server", capturedQuery.SpanKind)
+}
+
 func TestNewGetSpanNamesHandler(t *testing.T) {
 	// Test that NewGetSpanNamesHandler returns a valid handler function
 	handler := NewGetSpanNamesHandler(nil)
