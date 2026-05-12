@@ -107,7 +107,7 @@ trap teardown EXIT INT
 JAEGER_IMAGE="${JAEGER_IMAGE:-}"
 if [[ -z "$JAEGER_IMAGE" ]]; then
   log "JAEGER_IMAGE not set — building jaeger-local:e2e-ui-rp from current source"
-  ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+  ARCH=$(go env GOARCH)
   make -C "${REPO_ROOT}" build-ui build-jaeger \
     GOOS=linux GOARCH="${ARCH}" \
     SKIP_DEBUG_BINARIES=1
