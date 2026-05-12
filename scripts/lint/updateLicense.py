@@ -93,10 +93,6 @@ def update_license(name, license_lines):
         replace([license_lines[0]])
         changed = True
     elif not found_spdx:
-        if not jaeger:
-            replace([license_lines[0]])
-            changed = True
-
         insert_at = 1 if shebang_match else 0
         copyright_index = None
         for i, line in enumerate(lines[:min(len(lines), header_end + 1)]):
