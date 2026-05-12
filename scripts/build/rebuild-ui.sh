@@ -48,5 +48,6 @@ if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
 fi
 
 # do a regular full build
-nvm use
+# nvm is only available in local environments; CI uses actions/setup-node instead.
+if type nvm &>/dev/null 2>&1; then nvm use; fi
 npm ci && cd packages/jaeger-ui && npm run build
