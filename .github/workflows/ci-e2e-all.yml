@@ -45,3 +45,6 @@ jobs:
 
   tailsampling:
     uses: ./.github/workflows/ci-e2e-tailsampling.yml
+
+  ui-reverse-proxy:
+    uses: ./.github/workflows/ci-e2e-ui-reverse-proxy.yml

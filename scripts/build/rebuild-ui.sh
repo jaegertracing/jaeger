@@ -5,7 +5,11 @@
 
 set -euxf -o pipefail
 
-cd jaeger-ui
+# JAEGER_UI_DIR can be overridden to use a local checkout instead of the submodule:
+#   JAEGER_UI_DIR=/path/to/jaeger-ui make rebuild-ui
+JAEGER_UI_DIR="${JAEGER_UI_DIR:-jaeger-ui}"
+
+cd "${JAEGER_UI_DIR}"
 
 if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
     git fetch --unshallow
@@ -35,5 +39,6 @@ if [[ "$last_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]];  then
 fi
 
 # do a regular full build
-nvm use
+# nvm is only available in local environments; CI uses actions/setup-node instead.
+if type nvm &>/dev/null 2>&1; then nvm use; fi
 npm ci && cd packages/jaeger-ui && npm run build
