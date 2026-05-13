@@ -6,8 +6,8 @@
 ## Context
 
 Jaeger UI can be served at a URL prefix (e.g. `/jaeger/`) instead of the root `/`.
-Today that prefix must be configured in the Jaeger backend via `extensions.jaeger_query.base_path`
-(v1 flag: `--query.base-path`). As of v2.17.0 the backend then did two things at startup:
+Today that prefix must be configured in the Jaeger backend via `extensions.jaeger_query.base_path`.
+As of v2.17.0 the backend then did two things at startup:
 
 1. **Rewrite `index.html`** – replace the literal string `<base href="/"` with
    `<base href="/jaeger/"` using a regular-expression substitution
