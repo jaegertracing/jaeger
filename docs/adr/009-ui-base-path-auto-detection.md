@@ -6,38 +6,38 @@
 ## Context
 
 Jaeger UI can be served at a URL prefix (e.g. `/jaeger/`) instead of the root `/`.
-Today that prefix must be configured in the Jaeger backend via `extensions.jaeger_query.base_path`.
-As of v2.17.0 the backend then did two things at startup:
+Prior to this change, that prefix had to be configured in the Jaeger backend via
+`extensions.jaeger_query.base_path`. The backend did two things at startup:
 
 1. **Rewrite `index.html`** – replace the literal string `<base href="/"` with
    `<base href="/jaeger/"` using a regular-expression substitution
    (`static_handler.go:basePathPattern`).
 2. **Register all HTTP routes with the prefix** – API routes such as
-   `/api/traces` are registered as `/jaeger/api/traces`.
+   `/api/traces` were registered as `/jaeger/api/traces`.
 
-The UI reads the `<base>` element's `href` at runtime (`site-prefix.ts`) and
-uses it as the authoritative path prefix for both asset loading and API calls
+The UI read the `<base>` element's `href` at runtime (`site-prefix.ts`) and
+used it as the authoritative path prefix for both asset loading and API calls
 (`prefix-url.ts`).  Because the build uses relative paths (`"homepage": "."` in
-`package.json`, `base: './'` in Vite config), static assets already load
-correctly regardless of the prefix.  The `<base>` tag is the only piece of
-information the UI actually needs from the backend.
+`package.json`, `base: './'` in Vite config), static assets already loaded
+correctly regardless of the prefix.  The `<base>` tag was the only piece of
+information the UI actually needed from the backend.
 
 ### Use Cases
 
 #### UC-1: Single prefix, same internal and external
 
-The common case today: browser and internal cluster traffic both reach Jaeger at
-the same path (e.g. `/jaeger/`).  `extensions.jaeger_query.base_path: /jaeger` is set once and
-everything works.
+The common case: browser and internal cluster traffic both reach Jaeger at
+the same path (e.g. `/jaeger/`).  `extensions.jaeger_query.base_path: /jaeger` was set once and
+everything worked.
 
 #### UC-2: Single pod, multiple external prefixes
 
 A single Jaeger deployment must be reachable under **different URL prefixes from
 different domains or ingress rules** (e.g. `https://team-a.example.com/jaeger/`
-and `https://team-b.example.com/metrics/`).  Because `index.html` is baked with
-one static `<base href>`, only the one matching `base_path` works; the
-other shows a blank page or 404s on static assets.  This is the core limitation
-this ADR addresses.
+and `https://team-b.example.com/metrics/`).  Because `index.html` was baked with
+one static `<base href>`, only the one matching `base_path` worked; the
+other showed a blank page or 404s on static assets.  This was the core limitation
+this ADR addressed.
 
 #### UC-3: Proxy rewrites the external prefix (issue #5157 / PR #5219)
 
@@ -56,8 +56,8 @@ inject a different value into `<base href>` than the one used for API route
 registration.  That PR was never merged because it still had static-asset loading
 bugs caused by the same fundamental issue: the correct value for `<base href>` is
 the *external* URL, which Jaeger itself never sees (the proxy has already
-rewritten it).  The backend cannot reliably inject the right value because it
-does not know the external prefix.
+rewritten it).  The backend could not reliably inject the right value because it
+did not know the external prefix.
 
 ### Why `<base href>` Is Required
 
@@ -80,7 +80,7 @@ to fix the base URL for all relative references to a stable mount point,
 regardless of the current page path.
 
 Switching to absolute asset paths (e.g. `/jaeger/assets/index.js`) would avoid
-the need for `<base href>`, but it would require the prefix to be known at build
+the need for `<base href>`, but would require the prefix to be known at build
 time or injected into every `<link>`/`<script>` tag at serve time — the same
 backend-dependency problem, just spread across many tags instead of one.
 
@@ -98,7 +98,7 @@ Setting `window.__webpack_public_path__` (or Vite's equivalent) from JavaScript
 only controls dynamically-imported chunks loaded later; it cannot fix the initial
 `<link>` and `<script>` tags.
 
-This is why the inline script is placed **before all asset tags** in `index.html`.
+This is why the inline script must be placed **before all asset tags** in `index.html`.
 
 ### Key Insight: the Browser Knows the External Prefix
 
@@ -106,13 +106,13 @@ When a browser requests `https://example.com/jaeger/search` and receives an
 `index.html` whose `<base href="/">` points to the root, the browser resolves
 relative asset URLs against `https://example.com/`, breaking static file loading.
 
-But if an inline `<script>` runs *synchronously before any `<link>` or `<script
-type="module">` tags*, it can read `window.location.pathname` — which is the
+An inline `<script>` that runs *synchronously before any `<link>` or `<script
+type="module">` tags* can read `window.location.pathname` — which is the
 *external* URL as seen by the browser — and write the correct `<base href>` into
 the document before the browser fetches any assets.  This works regardless of
 what the proxy did on the way in.
 
-Critically, this also solves UC-3: the browser at `/foo/bar/search` will compute
+This also solves UC-3: the browser at `/foo/bar/search` computes
 the prefix `/foo/bar/` entirely from its own URL, with no input from Jaeger.
 
 ## Decision
