@@ -46,7 +46,7 @@ func (cfg *Config) Validate() error {
 			// The value had duplicate slashes or traversal segments beyond a
 			// single trailing slash — reject it so callers don't silently get
 			// a different path than they intended.
-			return fmt.Errorf("invalid base_path %q: must not contain path traversal or duplicate slashes (normalized: %q)", bp, clean)
+			return fmt.Errorf("invalid base_path %q: must not contain dot segments, path traversal, or duplicate slashes (normalized: %q)", bp, clean)
 		}
 		cfg.BasePath = clean
 	}

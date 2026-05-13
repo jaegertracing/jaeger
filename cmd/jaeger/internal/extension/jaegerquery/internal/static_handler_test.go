@@ -145,7 +145,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"dev","buildDate":""};`, "actual: %v", html)
 			// Verify the inline base-path script marker is present and the backend
 			// did not rewrite <base href> to a path-specific value (ADR-009).
-			assert.Contains(t, html, `data-inject-target="BASE_URL"`, "inline base-path script must be present")
+			assert.Contains(t, html, `data-inject-target="BASE_URL"`, "<base> tag must carry data-inject-target marker for client-side base-path detection")
 			if testCase.basePath != "" && testCase.basePath != "/" {
 				assert.NotContains(t, html, `<base href="`+testCase.baseURL+`"`, "backend must not inject path-specific <base href>")
 			}
