@@ -293,5 +293,8 @@ jobs:
     name: CI Summary Report
     needs: [ci-success]
     if: always() && needs.ci-success.result == 'success'
+    permissions:
+      contents: read
+      actions: write
     uses: ./.github/workflows/ci-summary-report.yml
     secrets: inherit
