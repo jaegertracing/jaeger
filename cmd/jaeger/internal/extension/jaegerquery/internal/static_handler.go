@@ -72,6 +72,10 @@ type loadedConfig struct {
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
+	if bp := options.BasePath; bp != "" && bp != "/" && !strings.HasPrefix(bp, "/") {
+		return nil, fmt.Errorf("invalid base path %q: must start with '/'", bp)
+	}
+
 	assetsFS := ui.GetStaticFiles(options.Logger)
 	if staticAssetsRoot != "" {
 		assetsFS = http.Dir(staticAssetsRoot)
@@ -203,9 +207,6 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	if basePath == "" || basePath == "/" {
 		basePath = "/"
 	} else {
-		if !strings.HasPrefix(basePath, "/") {
-			panic(fmt.Sprintf("invalid base path %q: must start with '/'", basePath))
-		}
 		basePath = strings.TrimRight(basePath, "/")
 	}
 

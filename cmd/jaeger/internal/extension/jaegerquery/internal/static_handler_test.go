@@ -174,15 +174,12 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 func TestRegisterRoutesInvalidBasePath(t *testing.T) {
 	for _, basePath := range []string{"no-leading-slash", "no-leading-slash/"} {
 		t.Run(basePath, func(t *testing.T) {
-			h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
 				BasePath: basePath,
 				Logger:   zap.NewNop(),
 			})
-			require.NoError(t, err)
-			defer h.Close()
-			assert.Panics(t, func() {
-				h.RegisterRoutes(http.NewServeMux())
-			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "must start with '/'")
 		})
 	}
 }
@@ -197,9 +194,7 @@ func TestRegisterRoutesTrailingSlashNormalization(t *testing.T) {
 			require.NoError(t, err)
 			defer h.Close()
 			mux := http.NewServeMux()
-			assert.NotPanics(t, func() {
-				h.RegisterRoutes(mux)
-			})
+			h.RegisterRoutes(mux)
 			// Verify routes are registered under /jaeger/, not /jaeger//
 			srv := httptest.NewServer(mux)
 			defer srv.Close()
