@@ -44,20 +44,5 @@ jobs:
     - name: Setup Node.js version
       uses: ./.github/actions/setup-node.js
 
-    - name: Build UI and Jaeger binary
-      run: |
-        make build-ui
-        make build-jaeger GOOS=linux GOARCH=$(go env GOARCH) SKIP_DEBUG_BINARIES=1
-
-    - name: Build Jaeger Docker image
-      run: |
-        docker build \
-          --build-arg base_image=alpine:3.21 \
-          --build-arg debug_image=alpine:3.21 \
-          --target release \
-          -t jaeger-local:e2e-ui-rp \
-          -f cmd/jaeger/Dockerfile \
-          cmd/jaeger/
-
     - name: Run UI reverse-proxy integration tests (UC-1, UC-2, UC-3)
-      run: JAEGER_IMAGE=jaeger-local:e2e-ui-rp bash scripts/e2e/ui-reverse-proxy.sh
+      run: bash scripts/e2e/ui-reverse-proxy.sh
