@@ -15,7 +15,7 @@ set -euf -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-COMPOSE_FILE="${SCRIPT_DIR}/reverse-proxy/docker-compose.yml"
+COMPOSE_FILE="${REPO_ROOT}/examples/reverse-proxy/docker-compose.yml"
 COMPOSE_PROJECT="jaeger-ui-rp"
 success="false"
 
@@ -112,8 +112,8 @@ if [[ -z "$JAEGER_IMAGE" ]]; then
     GOOS=linux GOARCH="${ARCH}" \
     SKIP_DEBUG_BINARIES=1
   docker build \
-    --build-arg base_image=alpine:latest \
-    --build-arg debug_image=alpine:latest \
+    --build-arg base_image=alpine:3.21 \
+    --build-arg debug_image=alpine:3.21 \
     --target release \
     -t jaeger-local:e2e-ui-rp \
     -f "${REPO_ROOT}/cmd/jaeger/Dockerfile" \
