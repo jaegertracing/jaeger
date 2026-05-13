@@ -187,6 +187,30 @@ func TestRegisterRoutesInvalidBasePath(t *testing.T) {
 	}
 }
 
+func TestRegisterRoutesTrailingSlashNormalization(t *testing.T) {
+	for _, basePath := range []string{"/jaeger/", "/jaeger//", "/jaeger///"} {
+		t.Run(basePath, func(t *testing.T) {
+			h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+				BasePath: basePath,
+				Logger:   zap.NewNop(),
+			})
+			require.NoError(t, err)
+			defer h.Close()
+			mux := http.NewServeMux()
+			assert.NotPanics(t, func() {
+				h.RegisterRoutes(mux)
+			})
+			// Verify routes are registered under /jaeger/, not /jaeger//
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+			resp, err := http.Get(srv.URL + "/jaeger/static/")
+			require.NoError(t, err)
+			resp.Body.Close()
+			assert.NotEqual(t, http.StatusNotFound, resp.StatusCode, "static route should be reachable at /jaeger/static/")
+		})
+	}
+}
+
 func TestHotReloadUIConfig(t *testing.T) {
 	dir := t.TempDir()
 

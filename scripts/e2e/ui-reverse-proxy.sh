@@ -10,7 +10,10 @@
 #   UC-2: single Jaeger pod served under two different external prefixes simultaneously
 #   UC-3: proxy rewrites an external prefix to a different internal prefix
 
-# run with PAUSE=true env var to pause for user input before existing / cleaning up.
+# Environment parameters:
+# - PAUSE=true -- to pause for user input before exiting / cleaning up.
+# - JAEGER_IMAGE -- if not set the image is re-built.
+# - JAEGER_UI_DIR -- if rebuilding Jaeger image use this for UI build, otherwise use submodule.
 
 set -euf -o pipefail
 
@@ -77,7 +80,9 @@ check_static_assets() {
   local html
   html=$(curl -s "${base_url}")
   local ok=true
+  local count=0
   while IFS= read -r rel; do
+    count=$((count + 1))
     local url="${base_url}${rel}"
     local code
     code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
@@ -88,6 +93,10 @@ check_static_assets() {
       ok=false
     fi
   done < <(echo "$html" | grep -o 'static/[^"'"'"' >]*' | sort -u)
+  if [[ "$count" -eq 0 ]]; then
+    log "❌ $desc: no static/ assets found in index.html"
+    return 1
+  fi
   [[ "$ok" == "true" ]]
 }
 
@@ -144,14 +153,9 @@ check               "UC-1 api/services"  "http://localhost:18080/jaeger/prefix/a
 check               "UC-1 api/operations" "http://localhost:18080/jaeger/prefix/api/operations?service=jaeger"
 check_body          "UC-1 unknown route"  "http://localhost:18080/jaeger/prefix/unknown-page" "did not load"
 
-TRACE_ID=$(curl -s "http://localhost:18080/jaeger/prefix/api/traces?service=jaeger&limit=1" \
-  | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-if [[ -n "$TRACE_ID" ]]; then
-  check      "UC-1 trace deep-link"        "http://localhost:18080/jaeger/prefix/trace/${TRACE_ID}"
-  check_body "UC-1 trace deep-link script" "http://localhost:18080/jaeger/prefix/trace/${TRACE_ID}" "knownSubPaths"
-else
-  log "⚠ No traces found for UC-1 deep-link check (skipped)"
-fi
+DUMMY_TRACE="0000000000000000ffffffffffffffff"
+check      "UC-1 trace deep-link"        "http://localhost:18080/jaeger/prefix/trace/${DUMMY_TRACE}"
+check_body "UC-1 trace deep-link script" "http://localhost:18080/jaeger/prefix/trace/${DUMMY_TRACE}" "knownSubPaths"
 
 log "✅ UC-1 PASSED"
 
@@ -173,12 +177,9 @@ check               "UC-2 root api/services"  "http://localhost:18081/api/servic
 check               "UC-2 root api/operations" "http://localhost:18081/api/operations?service=jaeger"
 check_body          "UC-2 root unknown route" "http://localhost:18081/unknown-page" "did not load"
 
-TRACE_ID2=$(curl -s "http://localhost:18081/api/traces?service=jaeger&limit=1" \
-  | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-if [[ -n "$TRACE_ID2" ]]; then
-  check      "UC-2 root trace deep-link"        "http://localhost:18081/trace/${TRACE_ID2}"
-  check_body "UC-2 root trace deep-link script" "http://localhost:18081/trace/${TRACE_ID2}" "knownSubPaths"
-fi
+DUMMY_TRACE2="0000000000000000ffffffffffffffff"
+check      "UC-2 root trace deep-link"        "http://localhost:18081/trace/${DUMMY_TRACE2}"
+check_body "UC-2 root trace deep-link script" "http://localhost:18081/trace/${DUMMY_TRACE2}" "knownSubPaths"
 
 # /alt/ prefix (same Jaeger, different external prefix)
 check               "UC-2 /alt/ index"         "http://localhost:18081/alt/"
@@ -187,10 +188,8 @@ check_static_assets "UC-2 /alt/"               "http://localhost:18081/alt/"
 check               "UC-2 /alt/ api/services"  "http://localhost:18081/alt/api/services"
 check               "UC-2 /alt/ api/operations" "http://localhost:18081/alt/api/operations?service=jaeger"
 check_body          "UC-2 /alt/ unknown route" "http://localhost:18081/alt/unknown-page" "did not load"
-if [[ -n "$TRACE_ID2" ]]; then
-  check      "UC-2 /alt/ trace deep-link"        "http://localhost:18081/alt/trace/${TRACE_ID2}"
-  check_body "UC-2 /alt/ trace deep-link script" "http://localhost:18081/alt/trace/${TRACE_ID2}" "knownSubPaths"
-fi
+check      "UC-2 /alt/ trace deep-link"        "http://localhost:18081/alt/trace/${DUMMY_TRACE2}"
+check_body "UC-2 /alt/ trace deep-link script" "http://localhost:18081/alt/trace/${DUMMY_TRACE2}" "knownSubPaths"
 
 log "✅ UC-2 PASSED"
 
@@ -210,14 +209,9 @@ check               "UC-3 api/services"   "http://localhost:18082/external/api/s
 check               "UC-3 api/operations" "http://localhost:18082/external/api/operations?service=jaeger"
 check_body          "UC-3 unknown route"  "http://localhost:18082/external/unknown-page" "did not load"
 
-TRACE_ID3=$(curl -s "http://localhost:18082/external/api/traces?service=jaeger&limit=1" \
-  | grep -o '"traceID":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-if [[ -n "$TRACE_ID3" ]]; then
-  check      "UC-3 trace deep-link"        "http://localhost:18082/external/trace/${TRACE_ID3}"
-  check_body "UC-3 trace deep-link script" "http://localhost:18082/external/trace/${TRACE_ID3}" "knownSubPaths"
-else
-  log "⚠ No traces found for UC-3 deep-link check (skipped)"
-fi
+DUMMY_TRACE3="0000000000000000ffffffffffffffff"
+check      "UC-3 trace deep-link"        "http://localhost:18082/external/trace/${DUMMY_TRACE3}"
+check_body "UC-3 trace deep-link script" "http://localhost:18082/external/trace/${DUMMY_TRACE3}" "knownSubPaths"
 
 log "✅ UC-3 PASSED"
 

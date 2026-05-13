@@ -28,7 +28,7 @@ services:
         aliases: [jaeger]
 
   httpd-uc1:
-    image: httpd:latest
+    image: httpd:2.4.67
     ports: ["18080:80"]
     volumes:
       - "./httpd.conf:/usr/local/apache2/conf/httpd.conf"
@@ -45,7 +45,7 @@ services:
         aliases: [jaeger]
 
   httpd-uc2:
-    image: httpd:latest
+    image: httpd:2.4.67
     ports: ["18081:80"]
     volumes:
       - "./httpd-uc2.conf:/usr/local/apache2/conf/httpd.conf"
@@ -63,7 +63,7 @@ services:
         aliases: [jaeger]
 
   httpd-uc3:
-    image: httpd:latest
+    image: httpd:2.4.67
     ports: ["18082:80"]
     volumes:
       - "./httpd-uc3.conf:/usr/local/apache2/conf/httpd.conf"

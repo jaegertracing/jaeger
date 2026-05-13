@@ -33,10 +33,10 @@ build-ui: cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.htm
 cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz: $(JAEGER_UI_DIR)/packages/jaeger-ui/build/index.html
 	# do not delete dot-files
 	rm -rf cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/*
-	cp -r $(JAEGER_UI_DIR)/packages/jaeger-ui/build/* cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
+	cp -r "$(JAEGER_UI_DIR)/packages/jaeger-ui/build/"* cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
 	find cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual -type f | grep -v .gitignore | xargs gzip --no-name
 	# copy the timestamp for index.html.gz from the original file
-	touch -t $$(date -r $(JAEGER_UI_DIR)/packages/jaeger-ui/build/index.html '+%Y%m%d%H%M.%S') cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
+	touch -t $$(date -r "$(JAEGER_UI_DIR)/packages/jaeger-ui/build/index.html" '+%Y%m%d%H%M.%S') cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
 	ls -lF cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/
 
 $(JAEGER_UI_DIR)/packages/jaeger-ui/build/index.html:
@@ -45,7 +45,7 @@ $(JAEGER_UI_DIR)/packages/jaeger-ui/build/index.html:
 .PHONY: rebuild-ui
 rebuild-ui:
 	@echo "::group::rebuild-ui logs"
-	JAEGER_UI_DIR=$(JAEGER_UI_DIR) bash ./scripts/build/rebuild-ui.sh
+	JAEGER_UI_DIR="$(JAEGER_UI_DIR)" bash ./scripts/build/rebuild-ui.sh
 	@echo "NOTE: This target only rebuilds the UI assets inside $(JAEGER_UI_DIR)/packages/jaeger-ui/build/."
 	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 	@echo "::endgroup::"

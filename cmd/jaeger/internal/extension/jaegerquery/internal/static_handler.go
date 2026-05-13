@@ -206,7 +206,7 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 		if !strings.HasPrefix(basePath, "/") {
 			panic(fmt.Sprintf("invalid base path %q: must start with '/'", basePath))
 		}
-		basePath = strings.TrimSuffix(basePath, "/")
+		basePath = strings.TrimRight(basePath, "/")
 	}
 
 	fileServer := http.FileServer(sH.assetsFS)

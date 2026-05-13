@@ -9,16 +9,7 @@ set -euxf -o pipefail
 #   JAEGER_UI_DIR=/path/to/jaeger-ui make rebuild-ui
 JAEGER_UI_DIR="${JAEGER_UI_DIR:-jaeger-ui}"
 
-# JAEGER_UI_PR: if set, check out that jaeger-ui PR before building.
-# Temporary mechanism to build from an unmerged UI PR; remove once merged and submodule is pinned.
-#   JAEGER_UI_PR=3874 make rebuild-ui
-JAEGER_UI_PR="${JAEGER_UI_PR:-}"
-
 cd "${JAEGER_UI_DIR}"
-
-if [[ -n "${JAEGER_UI_PR}" ]]; then
-    gh pr checkout "${JAEGER_UI_PR}" --repo jaegertracing/jaeger-ui
-fi
 
 if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
     git fetch --unshallow
