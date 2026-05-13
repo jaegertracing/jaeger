@@ -44,11 +44,35 @@ func Test_Validate(t *testing.T) {
 		{
 			name: "BasePath trailing slash normalized",
 			config: &Config{
-				QueryOptions: queryapp.QueryOptions{BasePath: "/jaeger//"},
+				QueryOptions: queryapp.QueryOptions{BasePath: "/jaeger/"},
 				Storage:      Storage{TracesPrimary: "some-storage"},
 			},
 			expectedErr:      "",
 			expectedBasePath: "/jaeger",
+		},
+		{
+			name: "BasePath duplicate slashes rejected",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{BasePath: "/jaeger//foo"},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "invalid base_path",
+		},
+		{
+			name: "BasePath double leading slash rejected",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{BasePath: "//jaeger"},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "invalid base_path",
+		},
+		{
+			name: "BasePath path traversal rejected",
+			config: &Config{
+				QueryOptions: queryapp.QueryOptions{BasePath: "/jaeger/../other"},
+				Storage:      Storage{TracesPrimary: "some-storage"},
+			},
+			expectedErr: "invalid base_path",
 		},
 	}
 

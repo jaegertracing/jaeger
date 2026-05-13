@@ -5,6 +5,7 @@ package jaegerquery
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/asaskevich/govalidator"
@@ -38,7 +39,16 @@ func (cfg *Config) Validate() error {
 		if !strings.HasPrefix(bp, "/") {
 			return fmt.Errorf("invalid base_path %q: must start with '/'", bp)
 		}
-		cfg.BasePath = strings.TrimRight(bp, "/")
+		// path.Clean collapses duplicate slashes and resolves . / .. segments,
+		// producing a canonical path without a trailing slash.
+		clean := path.Clean(bp)
+		if clean != bp && clean+"/" != bp {
+			// The value had duplicate slashes or traversal segments beyond a
+			// single trailing slash — reject it so callers don't silently get
+			// a different path than they intended.
+			return fmt.Errorf("invalid base_path %q: must not contain path traversal or duplicate slashes (normalized: %q)", bp, clean)
+		}
+		cfg.BasePath = clean
 	}
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
