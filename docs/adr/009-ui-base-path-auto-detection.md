@@ -1,6 +1,6 @@
 # ADR-009: UI Base-Path Auto-Detection
 
-* **Status**: Accepted
+* **Status**: Implemented
 * **Date**: 2026-05-12
 
 ## Context
@@ -98,8 +98,7 @@ Setting `window.__webpack_public_path__` (or Vite's equivalent) from JavaScript
 only controls dynamically-imported chunks loaded later; it cannot fix the initial
 `<link>` and `<script>` tags.
 
-This is why the proposed inline script must be placed **before all asset tags**
-in `index.html`.
+This is why the inline script is placed **before all asset tags** in `index.html`.
 
 ### Key Insight: the Browser Knows the External Prefix
 
@@ -171,11 +170,10 @@ handler.
 
 ### Development Mode
 
-The Vite dev-server plugin (`vite.config.mts:jaegerUiConfigPlugin`) already
-simulates backend behavior for local development.  Because the inline script
-reads `window.location` directly, it works in the browser-based dev server
-without any changes.  The `jaegerUiConfigPlugin` can be simplified to remove the
-`<base>` injection it currently performs for dev mode.
+The Vite dev-server plugin (`vite.config.mts:jaegerUiConfigPlugin`) simulates
+backend behavior for local development.  Because the inline script reads
+`window.location` directly, it works in the browser-based dev server without any
+changes.  The `jaegerUiConfigPlugin` no longer injects a `<base>` tag.
 
 ## Alternatives Considered
 
@@ -256,9 +254,10 @@ error handling; still broken if API is at a different prefix than the UI.
 
 ### Unit tests (automated, in CI)
 
-#### jaeger-ui: `detect-base-path`
+#### jaeger-ui: inline script
 
-`src/utils/detect-base-path.test.ts` — covers `detectBasePath()`:
+`packages/jaeger-ui/index.test.ts` — exercises the inline script from `index.html`
+by extracting and evaluating it against a mock document object:
 
 | Scenario | Input pathname | Expected prefix |
 |---|---|---|
@@ -324,7 +323,7 @@ Checks:
 1. `GET /external/` → `index.html` loads; inline script detects prefix `/external/` from `window.location.pathname`.
 2. Static assets at `/external/static/index-*.js` → proxy rewrites to `/internal/static/…` → 200.
 3. API `GET /external/api/services` → proxy rewrites to `/internal/api/services` → 200.
-4. Deep-link check: skipped (no traces in fresh pod; the deep-link handler is exercised in UC-1).
+4. Deep-link: `GET /external/trace/<dummy-id>` → 200, serves `index.html` with inline script.
 
 **Result: PASS** ✅
 
@@ -336,10 +335,10 @@ Checks:
 
 ## References
 
-- `jaeger-ui/packages/jaeger-ui/index.html` – `<base>` tag definition
+- `jaeger-ui/packages/jaeger-ui/index.html` – inline base-path detection script
 - `jaeger-ui/packages/jaeger-ui/src/site-prefix.ts` – runtime prefix detection
 - `jaeger-ui/packages/jaeger-ui/src/utils/prefix-url.ts` – prefix application to URLs
-- `cmd/jaeger/internal/extension/jaegerquery/internal/static_handler.go` – backend injection
+- `cmd/jaeger/internal/extension/jaegerquery/internal/static_handler.go` – API route registration and index.html serving
 - [jaeger-ui issue #42](https://github.com/jaegertracing/jaeger-ui/issues/42) – original motivation for `<base>` + relative paths
 - [jaeger issue #5157](https://github.com/jaegertracing/jaeger/issues/5157) – feature request: support external URL prefix (proxy rewrite case)
 - [jaeger PR #5219](https://github.com/jaegertracing/jaeger/pull/5219) – attempted `--query.ui-base-path` implementation (not merged)
