@@ -72,10 +72,6 @@ type loadedConfig struct {
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
-	if bp := options.BasePath; bp != "" && bp != "/" && !strings.HasPrefix(bp, "/") {
-		return nil, fmt.Errorf("invalid base path %q: must start with '/'", bp)
-	}
-
 	assetsFS := ui.GetStaticFiles(options.Logger)
 	if staticAssetsRoot != "" {
 		assetsFS = http.Dir(staticAssetsRoot)
@@ -204,10 +200,8 @@ func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler
 // RegisterRoutes registers routes for this handler on the given router.
 func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	basePath := sH.options.BasePath
-	if basePath == "" || basePath == "/" {
+	if basePath == "" {
 		basePath = "/"
-	} else {
-		basePath = strings.TrimRight(basePath, "/")
 	}
 
 	fileServer := http.FileServer(sH.assetsFS)

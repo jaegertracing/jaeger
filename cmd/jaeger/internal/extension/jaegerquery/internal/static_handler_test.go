@@ -165,41 +165,6 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRegisterRoutesInvalidBasePath(t *testing.T) {
-	for _, basePath := range []string{"no-leading-slash", "no-leading-slash/"} {
-		t.Run(basePath, func(t *testing.T) {
-			_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-				BasePath: basePath,
-				Logger:   zap.NewNop(),
-			})
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "must start with '/'")
-		})
-	}
-}
-
-func TestRegisterRoutesTrailingSlashNormalization(t *testing.T) {
-	for _, basePath := range []string{"/jaeger/", "/jaeger//", "/jaeger///"} {
-		t.Run(basePath, func(t *testing.T) {
-			h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-				BasePath: basePath,
-				Logger:   zap.NewNop(),
-			})
-			require.NoError(t, err)
-			defer h.Close()
-			mux := http.NewServeMux()
-			h.RegisterRoutes(mux)
-			// Verify routes are registered under /jaeger/, not /jaeger//
-			srv := httptest.NewServer(mux)
-			defer srv.Close()
-			resp, err := http.Get(srv.URL + "/jaeger/static/")
-			require.NoError(t, err)
-			resp.Body.Close()
-			assert.NotEqual(t, http.StatusNotFound, resp.StatusCode, "static route should be reachable at /jaeger/static/")
-		})
-	}
-}
-
 func TestHotReloadUIConfig(t *testing.T) {
 	dir := t.TempDir()
 

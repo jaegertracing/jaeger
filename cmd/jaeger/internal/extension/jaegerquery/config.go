@@ -4,6 +4,9 @@
 package jaegerquery
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/asaskevich/govalidator"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
@@ -29,6 +32,14 @@ type Storage struct {
 }
 
 func (cfg *Config) Validate() error {
+	// Normalize BasePath once so all downstream consumers see a clean value.
+	bp := cfg.BasePath
+	if bp != "" && bp != "/" {
+		if !strings.HasPrefix(bp, "/") {
+			return fmt.Errorf("invalid base_path %q: must start with '/'", bp)
+		}
+		cfg.BasePath = strings.TrimRight(bp, "/")
+	}
 	_, err := govalidator.ValidateStruct(cfg)
 	return err
 }
