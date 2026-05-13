@@ -34,7 +34,7 @@ everything worked.
 
 A single Jaeger deployment must be reachable under **different URL prefixes from
 different domains or ingress rules** (e.g. `https://team-a.example.com/jaeger/`
-and `https://team-b.example.com/metrics/`).  Because `index.html` was baked with
+and `https://team-b.example.com/traces/`).  Because `index.html` was baked with
 one static `<base href>`, only the one matching `base_path` worked; the
 other showed a blank page or 404s on static assets.  This was the core limitation
 this ADR addressed.
