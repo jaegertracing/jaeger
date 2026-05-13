@@ -39,6 +39,7 @@ const (
 	paramTimeMin        = "query.start_time_min"
 	paramTimeMax        = "query.start_time_max"
 	paramNumTraces      = "query.num_traces"
+	paramAttributes     = "query.attributes"
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
@@ -208,8 +209,17 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
-			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
+			Attributes:    pcommon.NewMap(),
 		},
+	}
+
+	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
+		var attrsMap map[string]string
+		if err := json.Unmarshal([]byte(attrsParam), &attrsMap); err != nil {
+			h.tryParamError(w, err, paramAttributes)
+			return nil, true
+		}
+		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
 	}
 
 	timeMin := q.Get(paramTimeMin)
