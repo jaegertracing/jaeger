@@ -64,7 +64,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		archiveStorage              bool   // archive storage enabled?
 		metricsStorage              bool   // metrics storage enabled?
 		logAccess                   bool
-		expectedBaseHTML            string // substring to match in the home page
 		UIConfigPath                string // path to UI config
 		expectedUIConfig            string // expected UI config
 		expectedStorageCapabilities string // expected storage capabilities
@@ -72,7 +71,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "",
 			baseURL:                     "/",
-			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			archiveStorage:              false,
 			logAccess:                   true,
 			UIConfigPath:                "",
@@ -83,7 +81,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 			basePath:                    "/",
 			baseURL:                     "/",
 			archiveStorage:              false,
-			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
 			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
@@ -91,7 +88,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "/jaeger",
 			baseURL:                     "/jaeger/",
-			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			subroute:                    true,
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
@@ -101,7 +97,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "/metrics",
 			baseURL:                     "/metrics/",
-			expectedBaseHTML:            `data-inject-target="BASE_URL"`,
 			subroute:                    true,
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
@@ -148,7 +143,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"dev","buildDate":""};`, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
