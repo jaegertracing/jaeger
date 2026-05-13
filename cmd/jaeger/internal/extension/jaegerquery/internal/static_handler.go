@@ -30,7 +30,6 @@ var (
 	configJsPattern    = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
 	versionPattern     = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
 	compabilityPattern = regexp.MustCompile("JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;")
-	basePathPattern    = regexp.MustCompile(`<base href="/"`) // Note: tag is not closed
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
@@ -119,16 +118,8 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
 	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
-	// replace base path
-	if sH.options.BasePath == "" {
-		sH.options.BasePath = "/"
-	}
-	if sH.options.BasePath != "/" {
-		if !strings.HasPrefix(sH.options.BasePath, "/") || strings.HasSuffix(sH.options.BasePath, "/") {
-			return nil, fmt.Errorf("invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'", sH.options.BasePath)
-		}
-		indexBytes = basePathPattern.ReplaceAll(indexBytes, fmt.Appendf(nil, `<base href="%s/"`, sH.options.BasePath))
-	}
+	// The <base href> is no longer injected here. The UI detects its own mount-point
+	// prefix at page-load time via an inline script in index.html (see ADR-009).
 
 	return indexBytes, nil
 }

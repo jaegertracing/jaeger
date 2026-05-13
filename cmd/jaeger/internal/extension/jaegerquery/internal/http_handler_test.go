@@ -749,7 +749,8 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 	ts.traceReader.On(
 		"GetOperations",
 		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(nil, errStorage).Once()
+		mock.AnythingOfType("tracestore.OperationQueryParams"),
+	).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/operations?service=trifle", &response)
@@ -768,7 +769,8 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	ts.traceReader.On(
 		"GetOperations",
 		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(expectedOperations, nil).Once()
+		mock.AnythingOfType("tracestore.OperationQueryParams"),
+	).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/abc%2Ftrifle/operations", &response)
@@ -782,7 +784,8 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	ts.traceReader.On(
 		"GetOperations",
 		mock.Anything,
-		mock.AnythingOfType("tracestore.OperationQueryParams")).Return(nil, errStorage).Once()
+		mock.AnythingOfType("tracestore.OperationQueryParams"),
+	).Return(nil, errStorage).Once()
 	var response structuredResponse
 	err := getJSON(ts.server.URL+"/api/services/trifle/operations", &response)
 	require.Error(t, err)
@@ -1125,7 +1128,8 @@ func TestSearchTenancyHTTP(t *testing.T) {
 	err = getJSONCustomHeaders(
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "acme"},
-		&response)
+		&response,
+	)
 	require.NoError(t, err)
 	assert.Empty(t, response.Errors)
 	assert.Len(t, response.Data, 2)
@@ -1186,7 +1190,8 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	err := getJSONCustomHeaders(
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "acme"},
-		&responseAcme)
+		&responseAcme,
+	)
 	require.NoError(t, err)
 	assert.Empty(t, responseAcme.Errors)
 	assert.Len(t, responseAcme.Data, 2)
@@ -1195,7 +1200,8 @@ func TestSearchTenancyFlowTenantHTTP(t *testing.T) {
 	err = getJSONCustomHeaders(
 		ts.server.URL+`/api/traces?traceID=1&traceID=2`,
 		map[string]string{"x-tenant": "megacorp"},
-		&responseMegacorp)
+		&responseMegacorp,
+	)
 	require.ErrorContains(t, err, "storage error")
 	assert.Empty(t, responseMegacorp.Errors)
 	assert.Nil(t, responseMegacorp.Data)

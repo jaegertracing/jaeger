@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -117,6 +118,28 @@ func TestFactory(t *testing.T) {
 	})
 }
 
+func TestNewFactory_WithHeaderForwarding(t *testing.T) {
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err, "failed to listen")
+	t.Cleanup(func() { require.NoError(t, lis.Close()) })
+
+	cfg := Config{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: lis.Addr().String(),
+		},
+		TimeoutConfig: exporterhelper.TimeoutConfig{
+			Timeout: 1 * time.Second,
+		},
+		HeaderForwarding: []headerforwarding.ForwardedHeader{
+			{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
+		},
+	}
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+	require.Equal(t, lis.Addr().String(), f.readerConn.Target())
+}
+
 func TestInitializeConnections_ClientError(t *testing.T) {
 	f, err := NewFactory(
 		context.Background(),
@@ -124,7 +147,8 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 			ClientConfig: configgrpc.ClientConfig{
 				Endpoint: ":0",
 			},
-		}, telemetry.NoopSettings())
+		}, telemetry.NoopSettings(),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 	newClientFn := func(_ component.TelemetrySettings, _ *configgrpc.ClientConfig, _ ...grpc.DialOption) (conn *grpc.ClientConn, err error) {

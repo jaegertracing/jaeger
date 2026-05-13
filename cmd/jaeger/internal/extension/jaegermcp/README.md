@@ -29,7 +29,7 @@ See [ADR-002](/docs/adr/002-mcp-server.md) for full design details.
 * `get_trace_errors`
 * `get_span_details`
 * `get_critical_path`
-* `health`
+* `get_service_dependencies`
 
 ## Configuration
 

@@ -35,7 +35,8 @@ func DialWsAdapter(ctx context.Context, url string, logger *zap.Logger) (*WsRead
 	if err != nil {
 		if resp != nil {
 			body, _ := io.ReadAll(resp.Body)
-			logger.Error("WebSocket dial failed",
+			logger.Error(
+				"WebSocket dial failed",
 				zap.Int("status", resp.StatusCode),
 				zap.String("body", string(body)),
 				zap.Error(err),
