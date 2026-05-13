@@ -333,6 +333,37 @@ Checks:
 - `extensions.jaeger_query.base_path: /jaeger` with no proxy (current common case): UI loads at `/jaeger/`, all routes work — identical behaviour to before this change.
 - Hot-reload of `jaeger-ui.config.json` still works (backend still rewrites the config placeholder in `index.html`; only the `<base>` injection was removed).
 
+## Future Improvements
+
+### Proxy-Hint via `X-Forwarded-Prefix` Header
+
+The pathname-based detection has one known ambiguity: a URL like `/a/search/`
+cannot be distinguished from a Jaeger instance mounted at `/a/search/` vs. one
+mounted at `/a/` with the `search` sub-path.  Current heuristics resolve most
+real-world cases, but a more reliable mechanism is possible.
+
+Many reverse proxies (Traefik, nginx, etc.) already emit an `X-Forwarded-Prefix`
+header carrying the external prefix they stripped before forwarding
+(e.g. `X-Forwarded-Prefix: /external/`).  The browser cannot read response
+headers directly, but Jaeger's backend already injects dynamic values into
+`index.html` (config, version, storage capabilities).  It could read this header
+from the incoming request and embed it as a `<meta>` tag or a small inline
+variable before the detection script runs:
+
+```html
+<meta name="jaeger-base-path" content="/external/" />
+```
+
+The inline script would check for this hint first and fall back to pathname
+detection only when absent.  This would:
+
+* Eliminate the ambiguity for proxies that advertise the prefix explicitly.
+* Require no browser-side configuration — the proxy provides the hint automatically.
+* Degrade gracefully: deployments without the header continue to use the current detection.
+
+This is left as a future improvement for deployments that need exact prefix
+detection on ambiguous routes.
+
 ## References
 
 - `jaeger-ui/packages/jaeger-ui/index.html` – inline base-path detection script
