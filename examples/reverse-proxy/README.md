@@ -8,17 +8,17 @@ Jaeger UI auto-detects its mount-point prefix from `window.location.pathname` at
 
 ### UC-1: Proxy forwards the prefix unchanged
 
-The most common setup. The external URL prefix and the internal URL prefix are the same. `--query.base-path` tells Jaeger which prefix to register API routes under.
+The most common setup. The external URL prefix and the internal URL prefix are the same. `extensions.jaeger_query.base_path` tells Jaeger which prefix to register API routes under.
 
 ```
 browser → /jaeger/prefix/... → proxy → http://jaeger:16686/jaeger/prefix/...
 ```
 
-Jaeger is started with `--query.base-path=/jaeger/prefix`.
+Jaeger is started with `--set extensions.jaeger_query.base_path=/jaeger/prefix`.
 
 ### UC-2: Single pod served under two external prefixes
 
-One Jaeger instance (no `--query.base-path`) is reachable at both `/` and `/alt/`. The proxy strips the `/alt/` prefix before forwarding, so Jaeger always receives requests at its root. The UI detects the correct external prefix from the browser URL in each case.
+One Jaeger instance (no `base_path` configured) is reachable at both `/` and `/alt/`. The proxy strips the `/alt/` prefix before forwarding, so Jaeger always receives requests at its root. The UI detects the correct external prefix from the browser URL in each case.
 
 ```
 browser → /...        → proxy → http://jaeger:16686/...       (pass-through)
@@ -33,7 +33,7 @@ The external prefix visible to the browser (`/external/`) differs from the inter
 browser → /external/... → proxy → http://jaeger:16686/internal/...
 ```
 
-Jaeger is started with `--query.base-path=/internal`.
+Jaeger is started with `--set extensions.jaeger_query.base_path=/internal`.
 
 ## Running the Example
 

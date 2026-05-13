@@ -6,13 +6,13 @@
 ## Context
 
 Jaeger UI can be served at a URL prefix (e.g. `/jaeger/`) instead of the root `/`.
-Today that prefix must be configured in the Jaeger backend via `--query.base-path`.
-The backend then does two things at startup:
+Today that prefix must be configured in the Jaeger backend via `extensions.jaeger_query.base_path`
+(v1 flag: `--query.base-path`). As of v2.17.0 the backend then did two things at startup:
 
-1. **Rewrites `index.html`** – replaces the literal string `<base href="/"` with
+1. **Rewrite `index.html`** – replace the literal string `<base href="/"` with
    `<base href="/jaeger/"` using a regular-expression substitution
    (`static_handler.go:basePathPattern`).
-2. **Registers all HTTP routes with the prefix** – API routes such as
+2. **Register all HTTP routes with the prefix** – API routes such as
    `/api/traces` are registered as `/jaeger/api/traces`.
 
 The UI reads the `<base>` element's `href` at runtime (`site-prefix.ts`) and
@@ -27,7 +27,7 @@ information the UI actually needs from the backend.
 #### UC-1: Single prefix, same internal and external
 
 The common case today: browser and internal cluster traffic both reach Jaeger at
-the same path (e.g. `/jaeger/`).  `--query.base-path=/jaeger` is set once and
+the same path (e.g. `/jaeger/`).  `extensions.jaeger_query.base_path: /jaeger` is set once and
 everything works.
 
 #### UC-2: Single pod, multiple external prefixes
@@ -35,7 +35,7 @@ everything works.
 A single Jaeger deployment must be reachable under **different URL prefixes from
 different domains or ingress rules** (e.g. `https://team-a.example.com/jaeger/`
 and `https://team-b.example.com/metrics/`).  Because `index.html` is baked with
-one static `<base href>`, only the one matching `--query.base-path` works; the
+one static `<base href>`, only the one matching `base_path` works; the
 other shows a blank page or 404s on static assets.  This is the core limitation
 this ADR addresses.
 
@@ -126,35 +126,7 @@ page-load time using an inline script.
 
 Replace the static `<base href="/" …>` in `index.html` with a `<base>` element
 whose `href` is set by an inline script that executes before any other resource
-is fetched:
-
-```html
-<!-- Auto-detect the base path from the current URL.
-     index.html is always served for every UI route, so window.location.pathname
-     gives us the full prefix (e.g. "/jaeger/trace/abc123") from which we can
-     derive the mount point ("/jaeger/"). -->
-<script>
-  (function() {
-    // The backend re-serves index.html for all SPA deep-links under the prefix.
-    // Strip any known SPA sub-path to isolate the mount point.
-    var knownSubPaths = ['/search', '/trace/', '/monitor', '/dependencies', '/api/'];
-    var path = window.location.pathname;
-    var prefix = path;
-    for (var i = 0; i < knownSubPaths.length; i++) {
-      var idx = path.indexOf(knownSubPaths[i]);
-      if (idx !== -1) {
-        prefix = path.slice(0, idx + 1); // keep trailing slash
-        break;
-      }
-    }
-    if (prefix[prefix.length - 1] !== '/') prefix += '/';
-    document.currentScript.insertAdjacentHTML(
-      'afterend',
-      '<base href="' + prefix + '" data-inject-target="BASE_URL" />'
-    );
-  })();
-</script>
-```
+is fetched.
 
 `site-prefix.ts` already reads `document.querySelector('base').href`, so the
 rest of the UI stack (`prefix-url.ts`, API calls, React Router `basename`)
@@ -166,7 +138,7 @@ After the inline script runs, the UI builds API URLs by prepending the detected
 prefix, e.g. `prefixUrl('/api/traces')` → `/foo/bar/api/traces`.  The browser
 sends `GET /foo/bar/api/traces` to the proxy, which rewrites to `GET
 /baz/api/traces` before forwarding to Jaeger.  Jaeger's route for `/baz/api/traces`
-(registered via `--query.base-path=/baz`) matches correctly.
+(registered via `extensions.jaeger_query.base_path: /baz`) matches correctly.
 
 This means UC-3 works without any new backend flag:
 
@@ -174,7 +146,7 @@ This means UC-3 works without any new backend flag:
 |---|---|
 | Browser | accesses `/foo/bar/` — no config needed |
 | Proxy | rewrites `/foo/bar/` → `/baz/` |
-| Jaeger backend | `--query.base-path=/baz` |
+| Jaeger backend | `extensions.jaeger_query.base_path: /baz` |
 
 The previously proposed `--query.ui-base-path` flag is **not needed**.
 
@@ -184,12 +156,11 @@ The previously proposed `--query.ui-base-path` flag is **not needed**.
    (`loadAndEnrichIndexHTML`).  The `basePathPattern` regexp and the replacement
    logic are deleted.
 
-2. **Keep `--query.base-path` for API route registration only.**
-   The flag still controls at which prefix the backend registers HTTP routes
+2. **Keep `extensions.jaeger_query.base_path` for API route registration only.**
+   This setting still controls at which prefix the backend registers HTTP routes
    (e.g. `/baz/api/traces`).  Operators who use a non-root prefix must continue
-   to set this flag so that API calls land on the correct handler.  For
-   deployments where the ingress strips the prefix before forwarding, the flag is
-   not needed at all.
+   to set it so that API calls land on the correct handler.  For deployments
+   where the ingress strips the prefix before forwarding, it is not needed at all.
 
 ### Handling Deep-Link Requests
 
@@ -226,7 +197,7 @@ A new flag injects a different value into `<base href>` than the API route prefi
 URLs — this was the root bug in PR #5219 (assets loaded from the wrong path).
 UC-2 (multiple external prefixes from one pod) remains unsupported.
 Adds a new flag that operators must keep in sync with both the proxy and
-`--query.base-path`.
+`extensions.jaeger_query.base_path`.
 
 ### C. Inline Script with Known Sub-Paths (Proposed)
 
@@ -267,9 +238,8 @@ error handling; still broken if API is at a different prefix than the UI.
   ingress disagree.
 * Reduces operator burden: ingress-level prefix stripping requires no additional
   backend flag.
-* Backwards-compatible: existing deployments that set `--query.base-path`
-  continue to work because API routes are still registered at the configured
-  prefix.
+* Backwards-compatible: existing deployments that set `extensions.jaeger_query.base_path`
+  continue to work because API routes are still registered at the configured prefix.
 * The previously proposed `--query.ui-base-path` flag is no longer needed.
 
 ### Negative
@@ -278,84 +248,9 @@ error handling; still broken if API is at a different prefix than the UI.
   routes must be added to both the router configuration and this list.
 * The inline script is imperative JavaScript in `index.html`, which slightly
   complicates the HTML template.
-* `--query.base-path` becomes partially redundant (needed only for API route
-  registration, not UI delivery), which may confuse operators.  Clear
-  documentation and a future deprecation path are required.
-
-## Implementation Plan
-
-### Step 1 — jaeger-ui: inline script in `index.html`
-
-Replace the static `<base href="/" data-inject-target="BASE_URL" />` element in
-`packages/jaeger-ui/index.html` with an inline `<script>` that:
-
-1. Reads `window.location.pathname`.
-2. Strips any known SPA sub-path suffix to isolate the mount prefix.
-3. Writes `<base href="<prefix>">` into the document via
-   `document.currentScript.insertAdjacentHTML('afterend', ...)`.
-
-The script must appear **before** the `<link rel="shortcut icon">` and all other
-tags so that the preload scanner uses the correct base URL for every subsequent
-relative-URL reference.  The known sub-paths are the first path segment of every
-registered top-level route:
-
-| Route constant | Sub-path to strip |
-|---|---|
-| `searchPath` | `/search` |
-| `tracePath` | `/trace/` |
-| `dependenciesPath` | `/dependencies` |
-| `deepDependenciesPath` | `/deep-dependencies` |
-| `qualityMetricsPath` | `/quality-metrics` |
-| `monitorATMPath` | `/monitor` |
-| `plexusDemoPath` | `/plexus-demo` |
-
-Root navigation (`/` and `/<prefix>/`) is handled by the existing React Router
-redirects and does not require stripping.
-
-Add a new test file `packages/jaeger-ui/src/utils/detect-base-path.test.ts`
-(or inline in `prefix-url.test.js`) that validates prefix extraction for:
-- root `/`
-- each registered sub-path at root (e.g. `/search`, `/trace/abc`)
-- each registered sub-path under a prefix (e.g. `/jaeger/search`,
-  `/jaeger/trace/abc`)
-
-`site-prefix.ts` requires **no changes**: it already reads
-`document.querySelector('base').href`.
-
-### Step 2 — jaeger-ui: export the sub-path list for testing
-
-Extract the `knownSubPaths` array used in the inline script into a helper module
-(`src/utils/detect-base-path.ts`) that can be imported by tests.  The inline
-script in `index.html` uses a self-contained IIFE so it has no module
-dependencies, but the same logic lives in the testable module.
-
-### Step 3 — jaeger (backend): remove base-path injection from `static_handler.go`
-
-In `cmd/jaeger/internal/extension/jaegerquery/internal/static_handler.go`:
-
-- Delete the `basePathPattern` package-level variable.
-- In `loadAndEnrichIndexHTML`: delete the entire "replace base path" block
-  (lines 122–131 in the current code).
-- The `BasePath` field and `--query.base-path` flag are **kept** — they continue
-  to drive HTTP route registration in `RegisterRoutes`.
-- The base-path validation (`HasPrefix` / `HasSuffix` check) moves out of
-  `loadAndEnrichIndexHTML` into the `QueryOptions` validation step (or stays in
-  `RegisterRoutes`), since it is still needed for route registration correctness.
-
-### Step 4 — jaeger (backend): update `static_handler_test.go`
-
-- Remove the `expectedBaseHTML` field from test cases (or keep it but change all
-  four expected values to `<base href="/"` — the literal that now stays in the
-  HTML untouched).
-- Remove the invalid-base-path test cases from `TestNewStaticAssetsHandlerErrors`
-  that currently test the injection validation; replace with validation tests at
-  the `RegisterRoutes` / options level if the validation is moved there.
-
-### Step 5 — documentation
-
-Update `--query.base-path` help text to clarify that it controls API route
-registration only, not UI delivery.  Update deployment docs / examples to show
-the proxy-rewrite pattern (UC-3).
+* `extensions.jaeger_query.base_path` becomes partially redundant (needed only
+  for API route registration, not UI delivery), which may confuse operators.
+  Clear documentation and a future deprecation path are required.
 
 ## Test Plan
 
@@ -387,10 +282,10 @@ served at the correct route prefix.  The test no longer asserts a specific
 The existing `examples/reverse-proxy/` docker-compose should be used to validate
 all three use cases:
 
-#### UC-1: Direct access, `--query.base-path` matches ingress
+#### UC-1: Direct access, `base_path` matches ingress
 
-Setup (see `scripts/e2e/reverse-proxy/uc1/` and `examples/reverse-proxy/httpd.conf`):
-- Jaeger: `--query.base-path=/jaeger/prefix` (internal routes at `/jaeger/prefix/…`)
+Setup (see `examples/reverse-proxy/httpd.conf`):
+- Jaeger: `extensions.jaeger_query.base_path: /jaeger/prefix` (internal routes at `/jaeger/prefix/…`)
 - Apache httpd: `ProxyPass /jaeger/prefix http://jaeger:16686/jaeger/prefix` — forwards path unchanged, no rewriting
 - Browser URL: `http://localhost:18080/jaeger/prefix/`
 
@@ -404,8 +299,8 @@ Checks:
 
 #### UC-2: Same pod, two external prefixes
 
-Setup (see `scripts/e2e/reverse-proxy/uc2/`):
-- Jaeger: no `--query.base-path` (serves at root `/`)
+Setup (see `examples/reverse-proxy/httpd-uc2.conf`):
+- Jaeger: no `base_path` configured (serves at root `/`)
 - Apache httpd rule A (more specific): `ProxyPass /alt/ http://jaeger:16686/` — strips `/alt`
 - Apache httpd rule B: `ProxyPass / http://jaeger:16686/` — pass-through
 - Browser URLs: `http://localhost:18081/` and `http://localhost:18081/alt/`
@@ -420,8 +315,8 @@ Checks:
 
 #### UC-3: Proxy rewrites external prefix to a different internal prefix
 
-Setup (see `scripts/e2e/reverse-proxy/uc3/`):
-- Jaeger: `--query.base-path=/internal`
+Setup (see `examples/reverse-proxy/httpd-uc3.conf`):
+- Jaeger: `extensions.jaeger_query.base_path: /internal`
 - Apache httpd: `ProxyPass /external/ http://jaeger:16686/internal/` — rewrites external to internal
 - Browser URL: `http://localhost:18082/external/`
 
@@ -435,8 +330,8 @@ Checks:
 
 ### Regression checks
 
-- `--query.base-path` omitted (root deployment): UI loads at `/`, all routes work.
-- `--query.base-path=/jaeger` with no proxy (current common case): UI loads at `/jaeger/`, all routes work — identical behaviour to before this change.
+- `base_path` omitted (root deployment): UI loads at `/`, all routes work.
+- `extensions.jaeger_query.base_path: /jaeger` with no proxy (current common case): UI loads at `/jaeger/`, all routes work — identical behaviour to before this change.
 - Hot-reload of `jaeger-ui.config.json` still works (backend still rewrites the config placeholder in `index.html`; only the `<base>` injection was removed).
 
 ## References

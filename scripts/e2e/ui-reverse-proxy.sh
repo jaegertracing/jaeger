@@ -138,7 +138,7 @@ JAEGER_IMAGE="${JAEGER_IMAGE}" \
 
 # ---------------------------------------------------------------------------
 # UC-1: Proxy forwards prefix unchanged
-#   Jaeger: --query.base-path=/jaeger/prefix
+#   Jaeger: extensions.jaeger_query.base_path=/jaeger/prefix
 #   httpd:  ProxyPass /jaeger/prefix → http://jaeger:16686/jaeger/prefix  (no rewrite)
 #   Access: http://localhost:18080/jaeger/prefix/
 # ---------------------------------------------------------------------------
@@ -161,7 +161,7 @@ log "✅ UC-1 PASSED"
 
 # ---------------------------------------------------------------------------
 # UC-2: Single pod, two external prefixes
-#   Jaeger: no --query.base-path (serves at root /)
+#   Jaeger: no base_path configured (serves at root /)
 #   httpd:
 #     ProxyPass /alt/  → http://jaeger:16686/  (strips /alt)
 #     ProxyPass /      → http://jaeger:16686/  (pass-through)
@@ -195,7 +195,7 @@ log "✅ UC-2 PASSED"
 
 # ---------------------------------------------------------------------------
 # UC-3: Proxy rewrites external prefix to a different internal prefix
-#   Jaeger: --query.base-path=/internal
+#   Jaeger: extensions.jaeger_query.base_path=/internal
 #   httpd:  /external/ → rewrite to /internal/
 # ---------------------------------------------------------------------------
 log "=== UC-3: proxy rewrites external prefix to different internal prefix ==="
