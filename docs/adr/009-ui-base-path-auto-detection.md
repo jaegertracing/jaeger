@@ -342,27 +342,42 @@ cannot be distinguished from a Jaeger instance mounted at `/a/search/` vs. one
 mounted at `/a/` with the `search` sub-path.  Current heuristics resolve most
 real-world cases, but a more reliable mechanism is possible.
 
-Many reverse proxies (Traefik, nginx, etc.) already emit an `X-Forwarded-Prefix`
+Many reverse proxies (Traefik, nginx, etc.) can emit an `X-Forwarded-Prefix`
 header carrying the external prefix they stripped before forwarding
 (e.g. `X-Forwarded-Prefix: /external/`).  The browser cannot read response
 headers directly, but Jaeger's backend already injects dynamic values into
 `index.html` (config, version, storage capabilities).  It could read this header
-from the incoming request and embed it as a `<meta>` tag or a small inline
-variable before the detection script runs:
+from the incoming request and embed it as a `<meta>` tag or inline variable
+before the detection script runs, eliminating the sub-path heuristics entirely.
 
-```html
-<meta name="jaeger-base-path" content="/external/" />
-```
+However this approach has significant drawbacks that prevented it from being
+adopted here:
 
-The inline script would check for this hint first and fall back to pathname
-detection only when absent.  This would:
+* **Injection risk.** `X-Forwarded-Prefix` is a request header — any client can
+  send it directly, bypassing the proxy.  Embedding an unsanitised value into
+  HTML would be a stored-XSS vector.  Strict sanitisation (allowlist `[a-zA-Z0-9/_-]`)
+  is necessary but not sufficient; a trusted-proxy allowlist (by IP or network)
+  is also required to prevent spoofing — the same operational burden as
+  `X-Forwarded-For`.
 
-* Eliminate the ambiguity for proxies that advertise the prefix explicitly.
-* Require no browser-side configuration — the proxy provides the hint automatically.
-* Degrade gracefully: deployments without the header continue to use the current detection.
+* **Per-request HTML generation.** The current backend caches `index.html` at
+  startup.  Reading a per-request header would require generating a fresh
+  response body on every page load, adding latency and complexity.
 
-This is left as a future improvement for deployments that need exact prefix
-detection on ambiguous routes.
+* **Not universally supported.** Apache httpd does not emit `X-Forwarded-Prefix`
+  automatically; it requires an explicit `RequestHeader set X-Forwarded-Prefix`
+  directive per proxy rule.  Operators who forget it get a silent regression to
+  broken behavior.
+
+* **Operational complexity.** Every proxy rule must be updated, trusted-proxy
+  lists must be maintained, and the security posture must be audited — trading a
+  maintained list of SPA route segments for a new class of infrastructure and
+  security concerns.
+
+The inline-script approach has none of these requirements and zero security
+surface.  The `X-Forwarded-Prefix` path remains a theoretical option for
+deployments that genuinely cannot tolerate the sub-path list, but the costs
+outweigh the benefit for the common case.
 
 ## References
 
