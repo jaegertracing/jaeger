@@ -182,6 +182,7 @@ check      "UC-2 root trace deep-link"        "http://localhost:18081/trace/${DU
 check_body "UC-2 root trace deep-link script" "http://localhost:18081/trace/${DUMMY_TRACE2}" "knownSubPaths"
 
 # /alt/ prefix (same Jaeger, different external prefix)
+check               "UC-2 /alt/ redirect"      "http://localhost:18081/alt" 301
 check               "UC-2 /alt/ index"         "http://localhost:18081/alt/"
 check_body          "UC-2 /alt/ script"        "http://localhost:18081/alt/" "knownSubPaths"
 check_static_assets "UC-2 /alt/"               "http://localhost:18081/alt/"
