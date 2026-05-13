@@ -3,6 +3,9 @@ name: "CI Orchestrator: Stage 1 (Linters)"
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   lint-checks:
     uses: ./.github/workflows/ci-lint-checks.yaml

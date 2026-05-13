@@ -3,6 +3,10 @@ name: "CI Orchestrator: Stage 2 (Unit Tests)"
 on:
   workflow_call:
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   unit-tests:
     uses: ./.github/workflows/ci-unit-tests.yml
