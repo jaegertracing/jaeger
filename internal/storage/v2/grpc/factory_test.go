@@ -5,6 +5,7 @@ package grpc
 
 import (
 	"context"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -22,6 +23,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+func TestNewFactory_InvalidMaxRecvMsgSize(t *testing.T) {
+	for _, v := range []int{-1, math.MaxInt} {
+		cfg := &Config{MaxRecvMsgSizeMiB: v}
+		_, err := NewFactory(context.Background(), *cfg, telemetry.NoopSettings())
+		require.ErrorContains(t, err, "max_recv_msg_size_mib must be between 0 and")
+	}
+}
 
 func TestNewFactory_NonEmptyAuthenticator(t *testing.T) {
 	cfg := &Config{
@@ -138,6 +147,32 @@ func TestNewFactory_WithHeaderForwarding(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 	require.Equal(t, lis.Addr().String(), f.readerConn.Target())
+}
+
+func TestNewFactory_MaxRecvMsgSize(t *testing.T) {
+	capture := func(cfg Config) []grpc.DialOption {
+		var captured []grpc.DialOption
+		f := &Factory{config: cfg}
+		noopTelset := telemetry.NoopSettings().ToOtelComponent()
+		_ = f.initializeConnections(
+			noopTelset, noopTelset,
+			&cfg.ClientConfig, &cfg.ClientConfig,
+			func(_ component.TelemetrySettings, _ *configgrpc.ClientConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				captured = opts
+				return nil, assert.AnError // stop after first capture; error is ignored by caller
+			},
+		)
+		return captured
+	}
+
+	base := Config{ClientConfig: configgrpc.ClientConfig{Endpoint: "localhost:0"}}
+	withSize := base
+	withSize.MaxRecvMsgSizeMiB = 16
+
+	optsBase := capture(base)
+	optsWithSize := capture(withSize)
+
+	assert.Greater(t, len(optsWithSize), len(optsBase), "MaxRecvMsgSizeMiB > 0 should add a WithDefaultCallOptions dial option")
 }
 
 func TestInitializeConnections_ClientError(t *testing.T) {
