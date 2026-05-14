@@ -30,6 +30,7 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 		{
 			spanID:       "span002",
 			operation:    "/api/error1",
+			kind:         ptrace.SpanKindClient,
 			hasError:     true,
 			errorMessage: "First error",
 			attributes: map[string]string{
@@ -72,12 +73,15 @@ func TestGetTraceErrorsHandler_Handle_Success(t *testing.T) {
 
 	// Verify both error operations are present
 	operations := make(map[string]bool)
+	spanKinds := make(map[string]string)
 	for _, span := range output.Spans {
 		operations[span.SpanName] = true
+		spanKinds[span.SpanName] = span.SpanKind
 	}
 	assert.True(t, operations["/api/error1"])
 	assert.True(t, operations["/api/error2"])
 	assert.False(t, operations["/api/ok"]) // OK span should not be included
+	assert.Equal(t, "Client", spanKinds["/api/error1"])
 }
 
 func TestGetTraceErrorsHandler_Handle_NoErrors(t *testing.T) {

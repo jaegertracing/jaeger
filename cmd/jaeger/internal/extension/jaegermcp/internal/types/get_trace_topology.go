@@ -37,5 +37,6 @@ type TopologySpan struct {
 	StartTime         string `json:"start_time"                   jsonschema:"Span start time in RFC3339 format"`
 	DurationUs        int64  `json:"duration_us"                  jsonschema:"Span duration in microseconds"`
 	Status            string `json:"status"                       jsonschema:"Span status (Unset Ok Error)"`
+	SpanKind          string `json:"span_kind,omitempty"          jsonschema:"Span kind (SERVER CLIENT PRODUCER CONSUMER INTERNAL)"`
 	TruncatedChildren int    `json:"truncated_children,omitempty" jsonschema:"Number of direct children excluded due to depth limit"`
 }
