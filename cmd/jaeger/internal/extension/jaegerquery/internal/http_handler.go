@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"slices"
 	"strconv"
 	"time"
 
@@ -34,6 +36,11 @@ import (
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 	uiconv "github.com/jaegertracing/jaeger/internal/uimodel/converter/v1/json"
 )
+
+// filterValueRegex restricts free-text filter values when a Dimension's Values
+// set is empty. It rejects control chars, double-quotes and backslashes — the
+// PromQL-string-literal escape characters — and caps length at 256.
+var filterValueRegex = regexp.MustCompile(`^[^\x00-\x1f"\\]{1,256}$`)
 
 const (
 	traceIDParam          = "traceID"
@@ -119,6 +126,7 @@ func (aH *APIHandler) RegisterRoutes(router *http.ServeMux) {
 	aH.handleFunc(router, aH.latencies, http.MethodGet, "/metrics/latencies")
 	aH.handleFunc(router, aH.calls, http.MethodGet, "/metrics/calls")
 	aH.handleFunc(router, aH.errors, http.MethodGet, "/metrics/errors")
+	aH.handleFunc(router, aH.dimensions, http.MethodGet, "/metrics/dimensions")
 	aH.handleFunc(router, aH.getQualityMetrics, http.MethodGet, "/quality-metrics")
 }
 
@@ -383,11 +391,70 @@ func (aH *APIHandler) metrics(w http.ResponseWriter, r *http.Request, getMetrics
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
+	if err := aH.validateMetricFilters(r.Context(), requestParams.Filters); err != nil {
+		aH.handleError(w, err, http.StatusBadRequest)
+		return
+	}
 	m, err := getMetrics(r.Context(), requestParams)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	aH.writeJSON(w, r, m)
+}
+
+// dimensions returns the configured set of filterable dimensions for the SPM UI.
+// Backends without dimension support return an empty array; the disabled backend
+// returns ErrDisabled which maps to 501 via handleError.
+func (aH *APIHandler) dimensions(w http.ResponseWriter, r *http.Request) {
+	dims, err := aH.metricsQueryService.GetDimensions(r.Context())
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	if dims == nil {
+		dims = []metricstore.Dimension{}
+	}
+	aH.writeJSON(w, r, dims)
+}
+
+// validateMetricFilters checks the requested filter keys against the configured
+// dimensions and (when configured) their allowed values. Returns nil if filters
+// is empty. Backends that return ErrDisabled from GetDimensions surface that
+// error here so it maps to 501 instead of 400.
+func (aH *APIHandler) validateMetricFilters(ctx context.Context, filters map[string]string) error {
+	if len(filters) == 0 {
+		return nil
+	}
+	dims, err := aH.metricsQueryService.GetDimensions(ctx)
+	if err != nil {
+		return err
+	}
+	if len(dims) == 0 {
+		return errors.New("metric filtering is not supported by this backend (no dimensions configured)")
+	}
+	byName := make(map[string]metricstore.Dimension, len(dims))
+	for _, d := range dims {
+		byName[d.Name] = d
+	}
+	for k, v := range filters {
+		d, ok := byName[k]
+		if !ok {
+			names := make([]string, 0, len(byName))
+			for n := range byName {
+				names = append(names, n)
+			}
+			return fmt.Errorf("unknown filter dimension %q; configured: %v", k, names)
+		}
+		if len(d.Values) > 0 {
+			if !slices.Contains(d.Values, v) {
+				return fmt.Errorf("value %q not allowed for filter %q; allowed: %v", v, k, d.Values)
+			}
+			continue
+		}
+		if !filterValueRegex.MatchString(v) {
+			return fmt.Errorf("invalid value for filter %q (control characters, quotes, and backslashes are not allowed)", k)
+		}
+	}
+	return nil
 }
 
 func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) []ui.DependencyLink {
