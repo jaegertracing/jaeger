@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -143,8 +144,14 @@ func (f *Factory) initializeConnections(
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
 	}
 	if f.config.MaxRecvMsgSizeMiB > 0 {
+		// Compute in int64 to avoid overflow on 32-bit platforms, then clamp
+		// to math.MaxInt since grpc.MaxCallRecvMsgSize accepts an int.
+		size64 := int64(f.config.MaxRecvMsgSizeMiB) * 1024 * 1024
+		if size64 > math.MaxInt {
+			size64 = math.MaxInt
+		}
 		baseOpts = append(baseOpts, grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(f.config.MaxRecvMsgSizeMiB*1024*1024),
+			grpc.MaxCallRecvMsgSize(int(size64)),
 		))
 	}
 
