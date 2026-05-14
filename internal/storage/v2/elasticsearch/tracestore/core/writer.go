@@ -14,8 +14,8 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/shared/assembly"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -165,9 +165,4 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
 	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
-}
-
-func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {
-	// Delegates to shared assembly package. Will be removed in a future PR.
-	return assembly.SplitElevatedTags(keyValues, s.allTagsAsFields, s.tagKeysAsFields, s.tagDotReplacement)
 }

@@ -636,16 +636,6 @@ func (s *SpanReader) mergeAllNestedAndElevatedTagsOfSpan(span *dbmodel.Span) {
 	assembly.MergeAllNestedAndElevatedTagsOfSpan(span, s.dotReplacer)
 }
 
-func (s *SpanReader) mergeNestedAndElevatedTags(nestedTags []dbmodel.KeyValue, elevatedTags map[string]any) []dbmodel.KeyValue {
-	// Delegates to shared assembly package. Will be removed in a future PR.
-	return assembly.MergeNestedAndElevatedTags(nestedTags, elevatedTags, s.dotReplacer)
-}
-
-func (s *SpanReader) convertTagField(k string, v any) dbmodel.KeyValue {
-	// Delegates to shared assembly package. Will be removed in a future PR.
-	return assembly.ConvertTagField(k, v, s.dotReplacer)
-}
-
 func logErrorToSpan(span trace.Span, err error) {
 	// Delegates to shared assembly package. Will be removed in a future PR.
 	assembly.LogErrorToSpan(span, err)
