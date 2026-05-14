@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -121,4 +122,37 @@ func TestWriteTraces(t *testing.T) {
 	assert.Equal(t, "NoServiceName3", thirdChunkResource.Resource().Attributes().AsRaw()["service.name"])
 	thirdChunkScope := thirdChunkResource.ScopeSpans().At(0)
 	assert.Equal(t, "span5", thirdChunkScope.Spans().At(0).Name())
+}
+
+func TestWriteTracesReturnsIntermediateChunkError(t *testing.T) {
+	td := ptrace.NewTraces()
+	resource := td.ResourceSpans().AppendEmpty()
+	scope := resource.ScopeSpans().AppendEmpty()
+	for i := 1; i <= 3; i++ {
+		span := scope.Spans().AppendEmpty()
+		span.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, byte(i)}))
+		span.SetName(fmt.Sprintf("span%d", i))
+	}
+
+	expectedErr := errors.New("send failed")
+	mockExporter := &MockExporter{}
+	mockExporter.On("ConsumeTraces", mock.Anything, mock.Anything).Return(expectedErr).Once()
+	tw := &traceWriter{
+		logger:   zaptest.NewLogger(t),
+		exporter: mockExporter,
+	}
+
+	origMaxChunkSize := MaxChunkSize
+	MaxChunkSize = 2
+	defer func() {
+		MaxChunkSize = origMaxChunkSize
+	}()
+
+	err := tw.WriteTraces(context.Background(), td)
+
+	require.ErrorIs(t, err, expectedErr)
+	mockExporter.AssertNumberOfCalls(t, "ConsumeTraces", 1)
+	mockExporter.AssertExpectations(t)
+	require.Len(t, mockExporter.chunks, 1)
+	assert.Equal(t, 2, mockExporter.chunks[0].SpanCount())
 }
