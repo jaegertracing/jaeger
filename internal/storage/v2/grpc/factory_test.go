@@ -140,6 +140,32 @@ func TestNewFactory_WithHeaderForwarding(t *testing.T) {
 	require.Equal(t, lis.Addr().String(), f.readerConn.Target())
 }
 
+func TestNewFactory_MaxRecvMsgSize(t *testing.T) {
+	capture := func(cfg Config) []grpc.DialOption {
+		var captured []grpc.DialOption
+		f := &Factory{config: cfg}
+		noopTelset := telemetry.NoopSettings().ToOtelComponent()
+		_ = f.initializeConnections(
+			noopTelset, noopTelset,
+			&cfg.ClientConfig, &cfg.ClientConfig,
+			func(_ component.TelemetrySettings, _ *configgrpc.ClientConfig, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+				captured = opts
+				return nil, assert.AnError // stop after first capture; error is ignored by caller
+			},
+		)
+		return captured
+	}
+
+	base := Config{ClientConfig: configgrpc.ClientConfig{Endpoint: "localhost:0"}}
+	withSize := base
+	withSize.MaxRecvMsgSizeMiB = 16
+
+	optsBase := capture(base)
+	optsWithSize := capture(withSize)
+
+	assert.Greater(t, len(optsWithSize), len(optsBase), "MaxRecvMsgSizeMiB > 0 should add a WithDefaultCallOptions dial option")
+}
+
 func TestInitializeConnections_ClientError(t *testing.T) {
 	f, err := NewFactory(
 		context.Background(),

@@ -142,6 +142,11 @@ func (f *Factory) initializeConnections(
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
 	}
+	if f.config.MaxRecvMsgSizeMiB > 0 {
+		baseOpts = append(baseOpts, grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(f.config.MaxRecvMsgSizeMiB*1024*1024),
+		))
+	}
 
 	createConn := func(telset component.TelemetrySettings, gcs *configgrpc.ClientConfig) (*grpc.ClientConn, error) {
 		opts := append(baseOpts, grpc.WithStatsHandler(
