@@ -5,6 +5,7 @@ package grpc
 
 import (
 	"context"
+	"math"
 	"net"
 	"testing"
 	"time"
@@ -22,6 +23,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
+
+func TestNewFactory_InvalidMaxRecvMsgSize(t *testing.T) {
+	for _, v := range []int{-1, math.MaxInt} {
+		cfg := &Config{MaxRecvMsgSizeMiB: v}
+		_, err := NewFactory(context.Background(), *cfg, telemetry.NoopSettings())
+		require.ErrorContains(t, err, "max_recv_msg_size_mib must be between 0 and")
+	}
+}
 
 func TestNewFactory_NonEmptyAuthenticator(t *testing.T) {
 	cfg := &Config{

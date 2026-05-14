@@ -122,6 +122,10 @@ func (f *Factory) initializeConnections(
 	if f.config.Auth.HasValue() {
 		return errors.New("authenticator is not supported")
 	}
+	const maxRecvMsgSizeMiB = math.MaxInt / (1024 * 1024)
+	if f.config.MaxRecvMsgSizeMiB < 0 || f.config.MaxRecvMsgSizeMiB > maxRecvMsgSizeMiB {
+		return fmt.Errorf("max_recv_msg_size_mib must be between 0 and %d, got %d", maxRecvMsgSizeMiB, f.config.MaxRecvMsgSizeMiB)
+	}
 
 	unaryInterceptors := []grpc.UnaryClientInterceptor{bearertoken.NewUnaryClientInterceptor()}
 	streamInterceptors := []grpc.StreamClientInterceptor{bearertoken.NewStreamClientInterceptor()}
@@ -144,14 +148,8 @@ func (f *Factory) initializeConnections(
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
 	}
 	if f.config.MaxRecvMsgSizeMiB > 0 {
-		// Compute in int64 to avoid overflow on 32-bit platforms, then clamp
-		// to math.MaxInt since grpc.MaxCallRecvMsgSize accepts an int.
-		size64 := int64(f.config.MaxRecvMsgSizeMiB) * 1024 * 1024
-		if size64 > math.MaxInt {
-			size64 = math.MaxInt
-		}
 		baseOpts = append(baseOpts, grpc.WithDefaultCallOptions(
-			grpc.MaxCallRecvMsgSize(int(size64)),
+			grpc.MaxCallRecvMsgSize(f.config.MaxRecvMsgSizeMiB*1024*1024),
 		))
 	}
 
