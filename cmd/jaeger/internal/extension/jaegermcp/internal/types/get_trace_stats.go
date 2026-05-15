@@ -24,8 +24,8 @@ type GetTraceStatsInput struct {
 	// Attributes contains key-value pairs to match against span/resource attributes (optional).
 	Attributes map[string]string `json:"attributes,omitempty" jsonschema:"Key-value pairs to match against span/resource attributes"`
 
-	// WithErrors filters to only analyse traces containing error spans (optional).
-	WithErrors bool `json:"with_errors,omitempty" jsonschema:"If true only analyse traces containing error spans"`
+	// WithErrors filters to only analyze traces containing error spans (optional).
+	WithErrors bool `json:"with_errors,omitempty" jsonschema:"If true only analyze traces containing error spans"`
 
 	// DurationMin is the minimum trace duration filter (optional, e.g., "2s", "100ms").
 	DurationMin string `json:"duration_min,omitempty" jsonschema:"Minimum duration filter (e.g. 2s 100ms)"`
@@ -33,15 +33,15 @@ type GetTraceStatsInput struct {
 	// DurationMax is the maximum trace duration filter (optional).
 	DurationMax string `json:"duration_max,omitempty" jsonschema:"Maximum duration filter (e.g. 10s 1m)"`
 
-	// SearchDepth defines the maximum number of traces to analyse for statistics.
+	// SearchDepth defines the maximum number of traces to analyze for statistics.
 	// Default: 10, maximum is controlled by server configuration (MaxSearchResults).
-	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum number of traces to analyse (default: 10, max controlled by server config)"`
+	SearchDepth int `json:"search_depth,omitempty" jsonschema:"Maximum number of traces to analyze (default: 10, max controlled by server config)"`
 }
 
 // GetTraceStatsOutput defines the output of the get_trace_stats MCP tool.
 type GetTraceStatsOutput struct {
-	// TraceCount is the total number of traces analysed.
-	TraceCount int `json:"trace_count" jsonschema:"Total number of traces analysed"`
+	// TraceCount is the total number of traces analyzed.
+	TraceCount int `json:"trace_count" jsonschema:"Total number of traces analyzed"`
 
 	// ErrorCount is the number of traces that contain at least one error span.
 	ErrorCount int `json:"error_count" jsonschema:"Number of traces containing at least one error span"`
@@ -49,13 +49,13 @@ type GetTraceStatsOutput struct {
 	// ErrorRate is the fraction of traces with errors, expressed as a value between 0 and 1.
 	ErrorRate float64 `json:"error_rate" jsonschema:"Fraction of traces with errors (0.0-1.0)"`
 
-	// DurationStats contains latency percentile statistics across all analysed traces (in microseconds).
-	DurationStats DurationStats `json:"duration_stats" jsonschema:"Latency statistics across all analysed traces"`
+	// DurationStats contains latency percentile statistics across all analyzed traces (in microseconds).
+	DurationStats DurationStats `json:"duration_stats" jsonschema:"Latency statistics across all analyzed traces"`
 
-	// SpanStats contains statistics about span counts across all analysed traces.
-	SpanStats SpanStats `json:"span_stats" jsonschema:"Span count statistics across all analysed traces"`
+	// SpanStats contains statistics about span counts across all analyzed traces.
+	SpanStats SpanStats `json:"span_stats" jsonschema:"Span count statistics across all analyzed traces"`
 
-	// TopServices lists the services that appear most frequently across the analysed traces,
+	// TopServices lists the services that appear most frequently across the analyzed traces,
 	// ordered by descending occurrence count.
 	TopServices []ServiceCount `json:"top_services" jsonschema:"Services ordered by descending occurrence count across traces"`
 }
@@ -72,13 +72,13 @@ type DurationStats struct {
 
 // SpanStats holds statistics about span counts per trace.
 type SpanStats struct {
-	MinSpans  int     `json:"min_spans"  jsonschema:"Minimum span count across all analysed traces"`
-	MaxSpans  int     `json:"max_spans"  jsonschema:"Maximum span count across all analysed traces"`
-	MeanSpans float64 `json:"mean_spans" jsonschema:"Mean span count across all analysed traces"`
+	MinSpans  int     `json:"min_spans"  jsonschema:"Minimum span count across all analyzed traces"`
+	MaxSpans  int     `json:"max_spans"  jsonschema:"Maximum span count across all analyzed traces"`
+	MeanSpans float64 `json:"mean_spans" jsonschema:"Mean span count across all analyzed traces"`
 }
 
 // ServiceCount pairs a service name with the number of traces it participated in.
 type ServiceCount struct {
 	Service    string `json:"service"     jsonschema:"Service name"`
-	TraceCount int    `json:"trace_count" jsonschema:"Number of analysed traces this service participated in"`
+	TraceCount int    `json:"trace_count" jsonschema:"Number of analyzed traces this service participated in"`
 }

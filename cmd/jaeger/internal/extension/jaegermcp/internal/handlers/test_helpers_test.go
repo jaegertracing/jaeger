@@ -146,7 +146,8 @@ func createTestTrace(traceID string, serviceName string, spanName string, hasErr
 	if b, err := hex.DecodeString(traceID); err == nil && len(b) == 16 {
 		copy(tid[:], b)
 	} else {
-		// Fallback for legacy callers passing non-hex strings (e.g. testTraceID).
+		// Fallback for callers passing non-hex strings or values with the
+		// wrong decoded length.
 		copy(tid[:], traceID)
 	}
 	span.SetTraceID(tid)
