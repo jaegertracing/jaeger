@@ -48,17 +48,20 @@ The stale-evidence refresh is tracked by `https://github.com/jaegertracing/jaege
 | `bus_factor` | `https://github.com/jaegertracing/jaeger/blob/main/MAINTAINERS.md` and `https://github.com/jaegertracing/jaeger/blob/main/GOVERNANCE.md` |
 | `contributors_unassociated` | GitHub contributors and maintainers from multiple organizations; use `https://github.com/jaegertracing/jaeger/graphs/contributors`, `https://github.com/jaegertracing/jaeger/blob/main/MAINTAINERS.md`, and CNCF project governance evidence. |
 | `small_tasks` | `https://github.com/jaegertracing/jaeger/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22good%20first%20issue%22` and `https://github.com/jaegertracing/jaeger/issues?q=is%3Aopen%20is%3Aissue%20label%3A%22help%20wanted%22` |
+| `require_2FA` | `https://github.com/jaegertracing/jaeger/blob/main/GOVERNANCE.md#maintainer-account-security` |
+| `secure_2FA` | `https://github.com/jaegertracing/jaeger/blob/main/GOVERNANCE.md#maintainer-account-security` |
+| `code_review_standards` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#code-review-requirements` |
+| `two_person_review` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#code-review-requirements` |
 | `test_invocation` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#getting-started` and `https://github.com/jaegertracing/jaeger/blob/main/Makefile` |
 | `test_continuous_integration` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-orchestrator.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md` |
 | `security_review` | Historical public audits are available at `https://github.com/jaegertracing/security-audits`; current-within-5-years evidence is tracked by issue `https://github.com/jaegertracing/jaeger/issues/8485`. |
 
-## Pending Gold Work
+## Remaining Gold Work
 
 The following criteria need more than URL refresh and are tracked by the Gold badge parent issue.
 
 | Tracking issue | Pending criteria | Evidence needed before badge update |
 | --- | --- | --- |
-| `https://github.com/jaegertracing/jaeger/issues/8486` | `require_2FA`, `secure_2FA`, `code_review_standards`, `two_person_review` | Linkable maintainer account-security policy and code-review requirements covering reviewer responsibilities, approval expectations, tests, generated files, and security-sensitive changes. |
 | `https://github.com/jaegertracing/jaeger/issues/8487` | `copyright_per_file`, `license_per_file` | In-scope source files carry copyright and SPDX license identifiers, with CI enforcement to prevent regressions. |
 | `https://github.com/jaegertracing/jaeger/issues/8483` | `small_tasks` | Active newcomer-task evidence, discoverable issue labels, and a lightweight maintainer process for keeping suitable tasks available. |
 | `https://github.com/jaegertracing/jaeger/issues/8484` | `build_reproducible`, `test_statement_coverage90`, `test_branch_coverage80`, `hardened_site`, `hardening`, `dynamic_analysis`, `dynamic_analysis_enable_assertions` | Maintained technical evidence or justified exceptions for reproducible builds, coverage, hardened headers, hardening, and release-time dynamic analysis. |

@@ -47,3 +47,9 @@ index-rollover-integration-test: docker-images-elastic
 .PHONY: tail-sampling-integration-test
 tail-sampling-integration-test:
 	SAMPLING=tail $(MAKE) jaeger-v2-storage-integration-test
+
+# UI reverse-proxy integration tests (UC-1, UC-2, UC-3 from ADR-009).
+# Builds a local Docker image from the current source unless JAEGER_IMAGE is set.
+.PHONY: ui-reverse-proxy-integration-test
+ui-reverse-proxy-integration-test:
+	bash ./scripts/e2e/ui-reverse-proxy.sh
