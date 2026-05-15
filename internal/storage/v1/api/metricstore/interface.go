@@ -37,15 +37,15 @@ type Dimension struct {
 	// Name is the OTel attribute name as declared in the spanmetrics connector
 	// (e.g. "deployment.environment"). Dots are converted to underscores when
 	// constructing PromQL label selectors.
-	Name string `json:"name"`
+	Name string `json:"name" mapstructure:"name"`
 	// DisplayName is the user-facing label shown in the UI dropdown.
 	// Defaults to Name when empty.
-	DisplayName string `json:"displayName,omitempty"`
+	DisplayName string `json:"displayName,omitempty" mapstructure:"display_name"`
 	// Values is the closed set of allowed values shown in the UI dropdown
 	// and enforced by the API. An empty slice means the UI may render a
 	// free-text input; the API will still validate values against a small
 	// set of PromQL-safe characters server-side.
-	Values []string `json:"values,omitempty"`
+	Values []string `json:"values,omitempty" mapstructure:"values"`
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
