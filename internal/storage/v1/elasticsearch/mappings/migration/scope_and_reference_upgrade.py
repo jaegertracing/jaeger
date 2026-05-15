@@ -181,7 +181,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Update Jaeger ES template with OTLP fields.")
     parser.add_argument("--index-prefix", default="", help="Jaeger index prefix")
     parser.add_argument("--es-url", required=True, help="Elasticsearch base URL")
-    parser.add_argument("--es-version", type=int, required=True, help="Elasticsearch major version (e.g. 7 or 8)")
+    parser.add_argument("--es-version", type=int, required=True, default=7, help="Elasticsearch major version (e.g. 7 or 8). If using Opensearch then give 7")
     parser.add_argument("--timeout", type=int, default=30, help="HTTP request timeout in seconds (default: 30)")
 
     args = parser.parse_args()

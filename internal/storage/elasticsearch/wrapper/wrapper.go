@@ -6,8 +6,6 @@ package eswrapper
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -93,10 +91,7 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 
 func (c ClientWrapper) GetTemplateMappings(name string) es.IndicesGetTemplateMappingService {
 	if c.esVersion >= 8 {
-		return GetTemplateMappingWrapperV8{
-			indicesV8:    c.clientV8.Indices,
-			templateName: name,
-		}
+		return WrapESIndicesGetIndexTemplateMappingService(c.client.IndexGetIndexTemplate(name), name)
 	}
 	return WrapESIndicesGetIndexTemplateService(c.client.IndexGetTemplate(name), name)
 }
@@ -304,6 +299,7 @@ func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearch
 	return s.multiSearchService.Do(ctx)
 }
 
+// IndicesGetTemplateMappingService fetches the legacy template mappings from _template url required for ES < 8
 type IndicesGetTemplateMappingService struct {
 	indicesGetTemplateService *elastic.IndicesGetTemplateService
 	templateName              string
@@ -325,46 +321,25 @@ func (i IndicesGetTemplateMappingService) Do(ctx context.Context) (map[string]an
 	return res.Mappings, nil
 }
 
-type GetTemplateMappingWrapperV8 struct {
-	indicesV8    *esv8api.Indices
-	templateName string
+// IndicesGetIndexTemplateMappingService fetches the template mappings from
+// _index_template url required for ES version >= 8
+type IndicesGetIndexTemplateMappingService struct {
+	indicesGetIndexTemplateService *elastic.IndicesGetIndexTemplateService
+	templateName                   string
 }
 
-func (g GetTemplateMappingWrapperV8) Do(ctx context.Context) (map[string]any, error) {
-	res, err := g.indicesV8.GetIndexTemplate(
-		g.indicesV8.GetIndexTemplate.WithContext(ctx),
-		g.indicesV8.GetIndexTemplate.WithName(g.templateName),
-	)
+func WrapESIndicesGetIndexTemplateMappingService(service *elastic.IndicesGetIndexTemplateService, templateName string) IndicesGetIndexTemplateMappingService {
+	return IndicesGetIndexTemplateMappingService{indicesGetIndexTemplateService: service, templateName: templateName}
+}
+
+func (i IndicesGetIndexTemplateMappingService) Do(ctx context.Context) (map[string]any, error) {
+	templates, err := i.indicesGetIndexTemplateService.Do(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
-	if res.IsError() {
-		return nil, fmt.Errorf("error getting index template %s: %s", g.templateName, res.String())
-	}
-	var result map[string]any
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-	templatesAny, ok := result["index_templates"].([]any)
+	template, ok := templates.IndexTemplates.ByName(i.templateName)
 	if !ok {
-		return nil, errors.New("unexpected response format: index_templates not found or not an array")
+		return nil, fmt.Errorf("template %s not found", i.templateName)
 	}
-	for _, tAny := range templatesAny {
-		template, ok := tAny.(map[string]any)
-		if !ok {
-			continue
-		}
-		name := template["name"].(string)
-		if name == g.templateName {
-			if it, ok := template["index_template"].(map[string]any); ok {
-				if inner, ok := it["template"].(map[string]any); ok {
-					if mappings, ok := inner["mappings"].(map[string]any); ok {
-						return mappings, nil
-					}
-				}
-			}
-		}
-	}
-	return nil, fmt.Errorf("template %s not found", g.templateName)
+	return template.IndexTemplate.Template.Mappings, nil
 }
