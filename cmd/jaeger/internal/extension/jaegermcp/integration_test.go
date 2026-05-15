@@ -221,7 +221,7 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 	expected := []string{
 		"get_services", "get_span_names", "search_traces",
 		"get_span_details", "get_trace_errors", "get_trace_topology", "get_critical_path",
-		"get_service_dependencies",
+		"get_service_dependencies", "get_trace_stats",
 	}
 	got := make(map[string]bool, len(result.Tools))
 	for _, tool := range result.Tools {

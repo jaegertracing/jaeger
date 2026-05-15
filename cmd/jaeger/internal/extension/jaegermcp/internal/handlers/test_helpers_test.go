@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"time"
 
@@ -16,6 +17,21 @@ import (
 
 // testTraceID is a common trace ID used across tests
 const testTraceID = "12345678901234567890123456789012"
+
+// uniqueTraceIDs returns n distinct 32-hex-char trace ID strings.
+// Used by FindTraces-based tests where each trace must have a unique ID so
+// that AggregateTraces does not merge them together.
+// The IDs differ in the first byte so that copy(tid[:], id) produces distinct
+// pcommon.TraceID values (copy only reads the first 16 bytes of the string).
+func uniqueTraceIDs(n int) []string {
+	ids := make([]string, n)
+	for i := range ids {
+		// Put the index in the first 8 bytes (big-endian hex) so the 16-byte
+		// copy captures the difference.
+		ids[i] = fmt.Sprintf("%016x%016x", i+1, i+1)
+	}
+	return ids
+}
 
 // spanConfig defines the configuration for creating a test span
 type spanConfig struct {
@@ -94,12 +110,18 @@ func newMockYieldingEmpty() *mockQueryService {
 	}
 }
 
-// newMockFindTraces creates a mock for FindTraces calls that yields the given traces
+// newMockFindTraces creates a mock for FindTraces calls that yields each trace
+// individually (one per iteration step) so that AggregateTraces treats them as
+// separate traces even when they share the same trace ID.
 func newMockFindTraces(traces ...ptrace.Traces) *mockQueryService {
 	return &mockQueryService{
 		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
-				yield(traces, nil)
+				for _, t := range traces {
+					if !yield([]ptrace.Traces{t}, nil) {
+						return
+					}
+				}
 			}
 		},
 	}
@@ -219,4 +241,15 @@ func spanIDToHex(spanID string) string {
 	sid := pcommon.SpanID{}
 	copy(sid[:], spanID)
 	return sid.String()
+}
+
+// newMockFindTracesError creates a mock for FindTraces calls that yields an error
+func newMockFindTracesError(err error) *mockQueryService {
+	return &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield(nil, err)
+			}
+		},
+	}
 }

@@ -118,7 +118,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		handler,
 	)
 	if err != nil {
-		s.listener.Close()
+		if closeErr := s.listener.Close(); closeErr != nil {
+			s.telset.Logger.Warn("failed to close listener", zap.Error(closeErr))
+		}
 		return fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
@@ -197,4 +199,13 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "get_trace_stats",
+		Description: "Compute aggregate statistics (count, error rate, latency percentiles p50/p95/p99, " +
+			"span counts, top services) across traces matching the given filters. " +
+			"Accepts the same filters as search_traces. " +
+			"Use this tool to understand the overall health and performance of a service " +
+			"before drilling into individual traces.",
+	}, handlers.NewGetTraceStatsHandler(s.queryAPI, s.config.MaxSearchResults))
 }
