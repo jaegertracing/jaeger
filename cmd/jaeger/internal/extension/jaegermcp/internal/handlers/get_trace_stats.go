@@ -102,9 +102,10 @@ func (h *getTraceStatsHandler) handle(
 }
 
 // buildStatsQuery converts GetTraceStatsInput to querysvc.TraceQueryParams.
-// It reuses the same parsing helpers as search_traces for consistency.
+// It reuses buildTraceQueryParams, the same standalone helper used by search_traces,
+// ensuring consistent filter parsing across both tools.
 func buildStatsQuery(input types.GetTraceStatsInput, maxResults int) (querysvc.TraceQueryParams, error) {
-	searchInput := types.SearchTracesInput{
+	return buildTraceQueryParams(types.SearchTracesInput{
 		StartTimeMin: input.StartTimeMin,
 		StartTimeMax: input.StartTimeMax,
 		ServiceName:  input.ServiceName,
@@ -114,9 +115,7 @@ func buildStatsQuery(input types.GetTraceStatsInput, maxResults int) (querysvc.T
 		DurationMin:  input.DurationMin,
 		DurationMax:  input.DurationMax,
 		SearchDepth:  input.SearchDepth,
-	}
-	tmp := &searchTracesHandler{maxResults: maxResults}
-	return tmp.buildQuery(searchInput)
+	}, maxResults)
 }
 
 // computeDurationStats calculates min, max, mean, p50, p95, and p99 over a
@@ -202,8 +201,11 @@ func buildTopServices(serviceCounts map[string]int) []types.ServiceCount {
 	}
 
 	slices.SortStableFunc(result, func(a, b types.ServiceCount) int {
-		if b.TraceCount != a.TraceCount {
-			return b.TraceCount - a.TraceCount
+		if a.TraceCount > b.TraceCount {
+			return -1
+		}
+		if a.TraceCount < b.TraceCount {
+			return 1
 		}
 		if a.Service < b.Service {
 			return -1

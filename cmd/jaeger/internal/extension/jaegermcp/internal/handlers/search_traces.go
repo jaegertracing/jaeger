@@ -96,6 +96,13 @@ func (h *searchTracesHandler) handle(
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
 func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+	return buildTraceQueryParams(input, h.maxResults)
+}
+
+// buildTraceQueryParams is a standalone helper that converts SearchTracesInput to
+// querysvc.TraceQueryParams. It is shared by searchTracesHandler and getTraceStatsHandler
+// to avoid coupling the stats handler to searchTracesHandler internals.
+func buildTraceQueryParams(input types.SearchTracesInput, maxResults int) (querysvc.TraceQueryParams, error) {
 	// Use default start time if not provided
 	startTimeMinInput := input.StartTimeMin
 	if startTimeMinInput == "" {
@@ -152,8 +159,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	if searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > h.maxResults {
-		searchDepth = h.maxResults
+	if searchDepth > maxResults {
+		searchDepth = maxResults
 	}
 
 	// Convert attributes map to pcommon.Map

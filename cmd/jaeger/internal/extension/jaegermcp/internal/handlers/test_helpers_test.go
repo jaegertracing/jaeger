@@ -19,8 +19,9 @@ import (
 const testTraceID = "12345678901234567890123456789012"
 
 // uniqueTraceIDs returns n distinct 32-hex-char trace ID strings.
-// Used by FindTraces-based tests where each trace must have a unique ID so
-// that AggregateTraces does not merge them together.
+// Used by FindTraces-based tests that expect separate aggregated traces:
+// AggregateTraces merges spans that share the same trace ID, regardless of
+// how they are yielded by the mock.
 // The IDs differ within the first 16 characters so that copy(tid[:], id)
 // produces distinct pcommon.TraceID values (copy reads the first 16 bytes of
 // the string, not decoded hex bytes).
@@ -112,8 +113,9 @@ func newMockYieldingEmpty() *mockQueryService {
 }
 
 // newMockFindTraces creates a mock for FindTraces calls that yields each trace
-// individually (one per iteration step) so that AggregateTraces treats them as
-// separate traces even when they share the same trace ID.
+// individually (one per iteration step). This controls how results are emitted,
+// but traces with the same trace ID may still be merged by AggregateTraces, so
+// tests that require distinct aggregated traces should use unique trace IDs.
 func newMockFindTraces(traces ...ptrace.Traces) *mockQueryService {
 	return &mockQueryService{
 		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
