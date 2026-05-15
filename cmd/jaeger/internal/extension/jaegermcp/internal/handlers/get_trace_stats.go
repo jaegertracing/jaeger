@@ -110,6 +110,9 @@ func buildStatsQuery(input types.GetTraceStatsInput, maxResults int) (querysvc.T
 		ServiceName:  input.ServiceName,
 		SpanName:     input.SpanName,
 		Attributes:   input.Attributes,
+		WithErrors:   input.WithErrors,
+		DurationMin:  input.DurationMin,
+		DurationMax:  input.DurationMax,
 		SearchDepth:  input.SearchDepth,
 	}
 	tmp := &searchTracesHandler{maxResults: maxResults}

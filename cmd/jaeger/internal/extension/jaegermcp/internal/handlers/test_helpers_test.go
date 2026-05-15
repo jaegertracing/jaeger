@@ -21,13 +21,14 @@ const testTraceID = "12345678901234567890123456789012"
 // uniqueTraceIDs returns n distinct 32-hex-char trace ID strings.
 // Used by FindTraces-based tests where each trace must have a unique ID so
 // that AggregateTraces does not merge them together.
-// The IDs differ in the first byte so that copy(tid[:], id) produces distinct
-// pcommon.TraceID values (copy only reads the first 16 bytes of the string).
+// The IDs differ within the first 16 characters so that copy(tid[:], id)
+// produces distinct pcommon.TraceID values (copy reads the first 16 bytes of
+// the string, not decoded hex bytes).
 func uniqueTraceIDs(n int) []string {
 	ids := make([]string, n)
 	for i := range ids {
-		// Put the index in the first 8 bytes (big-endian hex) so the 16-byte
-		// copy captures the difference.
+		// Put the index in the first 16 characters (as big-endian hex) so the
+		// 16-byte string copy captures the difference.
 		ids[i] = fmt.Sprintf("%016x%016x", i+1, i+1)
 	}
 	return ids
@@ -248,7 +249,9 @@ func newMockFindTracesError(err error) *mockQueryService {
 	return &mockQueryService{
 		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
-				yield(nil, err)
+				if !yield(nil, err) {
+					return
+				}
 			}
 		},
 	}
