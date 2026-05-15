@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"iter"
 	"time"
@@ -18,19 +19,16 @@ import (
 // testTraceID is a common trace ID used across tests
 const testTraceID = "12345678901234567890123456789012"
 
-// uniqueTraceIDs returns n distinct 32-hex-char trace ID strings.
+// uniqueTraceIDs returns n distinct pcommon.TraceID-compatible hex strings.
 // Used by FindTraces-based tests that expect separate aggregated traces:
 // AggregateTraces merges spans that share the same trace ID, regardless of
 // how they are yielded by the mock.
-// The IDs differ within the first 16 characters so that copy(tid[:], id)
-// produces distinct pcommon.TraceID values (copy reads the first 16 bytes of
-// the string, not decoded hex bytes).
+// Each string is a valid 32-char lowercase hex trace ID so that
+// hex.DecodeString produces a unique 16-byte pcommon.TraceID.
 func uniqueTraceIDs(n int) []string {
 	ids := make([]string, n)
 	for i := range ids {
-		// Put the index in the first 16 characters (as big-endian hex) so the
-		// 16-byte string copy captures the difference.
-		ids[i] = fmt.Sprintf("%016x%016x", i+1, i+1)
+		ids[i] = fmt.Sprintf("%032x", i+1)
 	}
 	return ids
 }
@@ -130,7 +128,8 @@ func newMockFindTraces(traces ...ptrace.Traces) *mockQueryService {
 	}
 }
 
-// createTestTrace creates a simple trace with a single span for testing
+// createTestTrace creates a simple trace with a single span for testing.
+// traceID must be a 32-char lowercase hex string (e.g. from uniqueTraceIDs or testTraceID).
 func createTestTrace(traceID string, serviceName string, spanName string, hasError bool) ptrace.Traces {
 	traces := ptrace.NewTraces()
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
@@ -141,9 +140,15 @@ func createTestTrace(traceID string, serviceName string, spanName string, hasErr
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	span := scopeSpans.Spans().AppendEmpty()
 
-	// Set trace ID
-	tid := pcommon.TraceID{}
-	copy(tid[:], traceID)
+	// Hex-decode the trace ID string into a pcommon.TraceID so the resulting
+	// TraceID bytes match what a real trace would produce.
+	var tid pcommon.TraceID
+	if b, err := hex.DecodeString(traceID); err == nil && len(b) == 16 {
+		copy(tid[:], b)
+	} else {
+		// Fallback for legacy callers passing non-hex strings (e.g. testTraceID).
+		copy(tid[:], traceID)
+	}
 	span.SetTraceID(tid)
 
 	// Set span ID (root span has empty parent)

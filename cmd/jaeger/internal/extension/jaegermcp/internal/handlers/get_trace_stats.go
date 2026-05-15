@@ -59,8 +59,13 @@ func (h *getTraceStatsHandler) handle(
 	tracesIter := h.queryService.FindTraces(ctx, query)
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
+	// Pre-allocate with capacity to avoid repeated reallocations during iteration.
 	var durations []int64
 	var spanCounts []int
+	if effectiveLimit > 0 {
+		durations = make([]int64, 0, effectiveLimit)
+		spanCounts = make([]int, 0, effectiveLimit)
+	}
 	serviceCounts := make(map[string]int)
 	errorCount := 0
 

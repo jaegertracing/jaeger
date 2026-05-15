@@ -203,7 +203,7 @@ func (s *server) registerTools() {
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_trace_stats",
 		Description: "Compute aggregate statistics (count, error rate, latency percentiles p50/p95/p99, " +
-			"span counts, top services) across traces matching the given filters. " +
+			"span counts, top services) over up to search_depth traces matching the given filters. " +
 			"Accepts the same filters as search_traces. " +
 			"Use this tool to understand the overall health and performance of a service " +
 			"before drilling into individual traces.",
