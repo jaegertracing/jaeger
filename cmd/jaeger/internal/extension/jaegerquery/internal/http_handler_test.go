@@ -1139,6 +1139,26 @@ func TestMetricsFilterHappyPath(t *testing.T) {
 	))
 }
 
+func TestMetricsFilterGetDimensionsError(t *testing.T) {
+	// When GetDimensions returns a non-nil error (other than ErrDisabled)
+	// during filter validation, the error must surface to the client as 400
+	// via the validateMetricFilters error path.
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+	metricsReader.
+		On("GetDimensions", mock.Anything).
+		Return(nil, assert.AnError).
+		Once()
+
+	resp, err := http.Get(ts.server.URL + "/api/metrics/calls?service=svc&filter=k8s.cluster:foo")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), assert.AnError.Error())
+}
+
 func TestMetricsFilterRequestOnBackendWithoutDimensions(t *testing.T) {
 	// A backend that advertises no dimensions must reject filter requests
 	// with 400; otherwise the operator would silently get an unfiltered

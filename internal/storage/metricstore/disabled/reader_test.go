@@ -48,3 +48,14 @@ func TestGetErrorRates(t *testing.T) {
 	require.ErrorIs(t, err, ErrDisabled)
 	require.EqualError(t, err, ErrDisabled.Error())
 }
+
+func TestGetDimensions(t *testing.T) {
+	reader, err := NewMetricsReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
+
+	dims, err := reader.GetDimensions(context.Background())
+	assert.Nil(t, dims)
+	require.ErrorIs(t, err, ErrDisabled)
+	require.EqualError(t, err, ErrDisabled.Error())
+}
