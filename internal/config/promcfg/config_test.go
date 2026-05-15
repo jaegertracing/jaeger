@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -86,6 +87,29 @@ func TestValidateExtraDimensions(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
+}
+
+// TestExtraDimensionsConfmapDecode locks in the mapstructure tags on
+// metricstore.Dimension. Without them, OTel's confmap strict-decode rejects
+// the snake_case YAML keys (display_name, etc.) so operator configs fail to
+// load.
+func TestExtraDimensionsConfmapDecode(t *testing.T) {
+	conf := confmap.NewFromStringMap(map[string]any{
+		"endpoint": "http://prom:9090",
+		"extra_dimensions": []any{
+			map[string]any{
+				"name":         "deployment.environment",
+				"display_name": "Environment",
+				"values":       []any{"prod", "staging"},
+			},
+		},
+	})
+	var cfg Configuration
+	require.NoError(t, conf.Unmarshal(&cfg))
+	require.Len(t, cfg.ExtraDimensions, 1)
+	assert.Equal(t, "deployment.environment", cfg.ExtraDimensions[0].Name)
+	assert.Equal(t, "Environment", cfg.ExtraDimensions[0].DisplayName)
+	assert.Equal(t, []string{"prod", "staging"}, cfg.ExtraDimensions[0].Values)
 }
 
 func TestMain(m *testing.M) {
