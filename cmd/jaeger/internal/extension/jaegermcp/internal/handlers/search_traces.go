@@ -159,7 +159,7 @@ func buildTraceQueryParams(input types.SearchTracesInput, maxResults int) (query
 	if searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > maxResults {
+	if maxResults > 0 && searchDepth > maxResults {
 		searchDepth = maxResults
 	}
 

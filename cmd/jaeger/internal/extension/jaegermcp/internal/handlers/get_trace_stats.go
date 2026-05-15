@@ -52,6 +52,10 @@ func (h *getTraceStatsHandler) handle(
 		return nil, types.GetTraceStatsOutput{}, err
 	}
 
+	// Use the effective search depth computed by buildStatsQuery (already clamped
+	// to maxResults and defaulted) as the loop limit for deterministic behaviour.
+	effectiveLimit := query.TraceQueryParams.SearchDepth
+
 	tracesIter := h.queryService.FindTraces(ctx, query)
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
@@ -78,7 +82,7 @@ func (h *getTraceStatsHandler) handle(
 			serviceCounts[svc]++
 		}
 
-		if h.maxResults > 0 && len(durations) >= h.maxResults {
+		if effectiveLimit > 0 && len(durations) >= effectiveLimit {
 			break
 		}
 	}
