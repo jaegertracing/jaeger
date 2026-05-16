@@ -28,11 +28,12 @@ import (
 )
 
 const (
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeFindSummaries = "/api/v3/trace-summaries"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeFindSummaries   = "/api/v3/trace-summaries"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -50,6 +51,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
+	h.addRoute(router, h.getDependencies, routeGetDependencies, http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -206,6 +208,36 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	}, w)
 }
 
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	startTimeStr := query.Get(paramStartTime)
+	endTimeStr := query.Get(paramEndTime)
+	if startTimeStr == "" || endTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("%s and %s are required", paramStartTime, paramEndTime), http.StatusBadRequest)
+		return
+	}
+	startTime, err := time.Parse(time.RFC3339Nano, startTimeStr)
+	if h.tryParamError(w, err, paramStartTime) {
+		return
+	}
+	endTime, err := time.Parse(time.RFC3339Nano, endTimeStr)
+	if h.tryParamError(w, err, paramEndTime) {
+		return
+	}
+	deps, err := h.QueryService.GetDependencies(r.Context(), endTime, endTime.Sub(startTime))
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	apiDeps := make([]*api_v3.Dependency, len(deps))
+	for i, d := range deps {
+		apiDeps[i] = &api_v3.Dependency{
+			Parent:    d.Parent,
+			Child:     d.Child,
+			CallCount: uint64(d.CallCount),
+		}
+	}
+	h.marshalResponse(&api_v3.DependenciesResponse{Dependencies: apiDeps}, w)
+}
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 	services, err := h.QueryService.GetServices(r.Context())
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
