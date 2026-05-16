@@ -2,7 +2,7 @@
 
 This page tracks durable Jaeger evidence for the OpenSSF Best Practices badge entry at <https://www.bestpractices.dev/projects/1273>. It is maintained so badge evidence can point at current `main` branch resources instead of retired branches, old CI systems, or issue-only evidence.
 
-Last reviewed: 2026-05-08.
+Last reviewed: 2026-05-10.
 
 ## Badge Evidence Refresh
 
@@ -54,6 +54,8 @@ The stale-evidence refresh is tracked by `https://github.com/jaegertracing/jaege
 | `two_person_review` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#code-review-requirements` |
 | `test_invocation` | `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING.md#getting-started` and `https://github.com/jaegertracing/jaeger/blob/main/Makefile` |
 | `test_continuous_integration` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-orchestrator.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md` |
+| `copyright_per_file` | Header policy: `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#copyright-header`; automated repair and lint enforcement: `https://github.com/jaegertracing/jaeger/blob/main/scripts/lint/updateLicense.py`, `https://github.com/jaegertracing/jaeger/blob/main/Makefile`, and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/ci-lint-checks.yaml`. |
+| `license_per_file` | SPDX header policy: `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#copyright-header`; automated repair and lint enforcement: `https://github.com/jaegertracing/jaeger/blob/main/scripts/lint/updateLicense.py`, `https://github.com/jaegertracing/jaeger/blob/main/Makefile`, and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/ci-lint-checks.yaml`. |
 | `security_review` | Historical public audits are available at `https://github.com/jaegertracing/security-audits`; current-within-5-years evidence is tracked by issue `https://github.com/jaegertracing/jaeger/issues/8485`. |
 
 ## Remaining Gold Work
@@ -62,7 +64,6 @@ The following criteria need more than URL refresh and are tracked by the Gold ba
 
 | Tracking issue | Pending criteria | Evidence needed before badge update |
 | --- | --- | --- |
-| `https://github.com/jaegertracing/jaeger/issues/8487` | `copyright_per_file`, `license_per_file` | In-scope source files carry copyright and SPDX license identifiers, with CI enforcement to prevent regressions. |
 | `https://github.com/jaegertracing/jaeger/issues/8483` | `small_tasks` | Active newcomer-task evidence, discoverable issue labels, and a lightweight maintainer process for keeping suitable tasks available. |
 | `https://github.com/jaegertracing/jaeger/issues/8484` | `build_reproducible`, `test_statement_coverage90`, `test_branch_coverage80`, `hardened_site`, `hardening`, `dynamic_analysis`, `dynamic_analysis_enable_assertions` | Maintained technical evidence or justified exceptions for reproducible builds, coverage, hardened headers, hardening, and release-time dynamic analysis. |
 | `https://github.com/jaegertracing/jaeger/issues/8485` | `security_review` | Current security review evidence from within the Gold five-year window, published without disclosing sensitive vulnerability details. |
