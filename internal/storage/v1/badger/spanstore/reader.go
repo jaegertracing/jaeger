@@ -248,7 +248,7 @@ func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	return r.cache.GetOperations(query)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
@@ -654,10 +654,17 @@ func (r *TraceReader) preloadOperations(service string) {
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
-			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
-			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
-			keyTTL := it.Item().ExpiresAt()
-			r.cache.AddOperation(service, operationName, keyTTL)
+			item := it.Item()
+			timestampStartIndex := len(item.Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
+			operationName := string(item.Key()[len(serviceKey):timestampStartIndex])
+			keyTTL := item.ExpiresAt()
+			// The value holds the span kind stored by the writer (empty string if not set).
+			var spanKind string
+			_ = item.Value(func(val []byte) error {
+				spanKind = string(val)
+				return nil
+			})
+			r.cache.AddOperation(service, operationName, spanKind, keyTTL)
 		}
 		return nil
 	})
