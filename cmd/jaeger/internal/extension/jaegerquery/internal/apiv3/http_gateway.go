@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -41,7 +42,8 @@ const (
 	paramNumTraces      = "query.num_traces"
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
-	paramQueryRawTraces = "query.raw_traces"
+	paramQueryRawTraces     = "query.raw_traces"
+	paramAttributesPrefix   = "query.attributes["
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
@@ -204,11 +206,20 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+	attrs := pcommon.NewMap()
+	for param, vals := range q {
+		if strings.HasPrefix(param, paramAttributesPrefix) && strings.HasSuffix(param, "]") {
+			key := param[len(paramAttributesPrefix) : len(param)-1]
+			if key != "" {
+				attrs.PutStr(key, vals[0])
+			}
+		}
+	}
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   q.Get(paramServiceName),
 			OperationName: q.Get(paramOperationName),
-			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
+			Attributes:    attrs,
 		},
 	}
 
