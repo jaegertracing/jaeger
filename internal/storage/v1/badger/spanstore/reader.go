@@ -660,10 +660,12 @@ func (r *TraceReader) preloadOperations(service string) {
 			keyTTL := item.ExpiresAt()
 			// The value holds the span kind stored by the writer (empty string if not set).
 			var spanKind string
-			_ = item.Value(func(val []byte) error {
+			if err := item.Value(func(val []byte) error {
 				spanKind = string(val)
 				return nil
-			})
+			}); err != nil {
+				spanKind = "" // value unreadable; cache operation without span kind
+			}
 			r.cache.AddOperation(service, operationName, spanKind, keyTTL)
 		}
 		return nil

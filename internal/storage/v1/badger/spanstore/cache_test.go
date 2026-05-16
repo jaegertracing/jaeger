@@ -78,6 +78,26 @@ func TestSpanKindFiltering(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, clients, 1)
 		assert.Equal(t, "op2", clients[0].Name)
+
+		// Empty SpanKind matches all operations regardless of their span kind.
+		allViaEmpty, err := cache.GetOperations(tracestore.OperationQueryParams{ServiceName: "svc", SpanKind: ""})
+		require.NoError(t, err)
+		assert.Len(t, allViaEmpty, 3, "empty SpanKind should return all operations")
+
+		// Non-existent span kind returns empty slice.
+		none, err := cache.GetOperations(tracestore.OperationQueryParams{ServiceName: "svc", SpanKind: "producer"})
+		require.NoError(t, err)
+		assert.Empty(t, none, "unknown SpanKind should return no operations")
+	})
+}
+
+func TestGetOperationsUnknownService(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, time.Hour)
+
+		ops, err := cache.GetOperations(tracestore.OperationQueryParams{ServiceName: "nonexistent"})
+		require.NoError(t, err)
+		assert.Empty(t, ops, "unknown service should return empty operations slice")
 	})
 }
 

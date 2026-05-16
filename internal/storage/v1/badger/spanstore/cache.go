@@ -4,7 +4,9 @@
 package spanstore
 
 import (
+	"cmp"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,13 +85,15 @@ func (c *CacheStore) GetOperations(query tracestore.OperationQueryParams) ([]tra
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 
-	if v, ok := c.services[query.ServiceName]; ok {
-		if v < t {
-			// Expired, remove
-			delete(c.services, query.ServiceName)
-			delete(c.operations, query.ServiceName)
-			return []tracestore.Operation{}, nil // empty slice rather than nil
-		}
+	v, ok := c.services[query.ServiceName]
+	if !ok {
+		return []tracestore.Operation{}, nil
+	}
+	if v < t {
+		// Expired, remove
+		delete(c.services, query.ServiceName)
+		delete(c.operations, query.ServiceName)
+		return []tracestore.Operation{}, nil
 	}
 
 	var result []tracestore.Operation
@@ -104,19 +108,7 @@ func (c *CacheStore) GetOperations(query tracestore.OperationQueryParams) ([]tra
 	}
 
 	slices.SortFunc(result, func(a, b tracestore.Operation) int {
-		if a.Name != b.Name {
-			if a.Name < b.Name {
-				return -1
-			}
-			return 1
-		}
-		if a.SpanKind < b.SpanKind {
-			return -1
-		}
-		if a.SpanKind > b.SpanKind {
-			return 1
-		}
-		return 0
+		return cmp.Or(strings.Compare(a.Name, b.Name), strings.Compare(a.SpanKind, b.SpanKind))
 	})
 
 	return result, nil
