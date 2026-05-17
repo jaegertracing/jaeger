@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
@@ -300,4 +302,34 @@ func TestGetOperationsStorageError(t *testing.T) {
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.ErrorContains(t, err, assert.AnError.Error())
 	assert.Nil(t, response)
+}
+
+func TestGetTraceTraceIDErrorStatusCode(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{
+		TraceId: "not-a-valid-trace-id",
+	})
+	require.NoError(t, err)
+	_, err = getTraceStream.Recv()
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok, "expected gRPC status error")
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "malformed trace ID")
+}
+
+func TestFindTracesMissingStartTimeStatusCode(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{},
+	})
+	require.NoError(t, err)
+	_, err = responseStream.Recv()
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok, "expected gRPC status error")
+	assert.Equal(t, codes.InvalidArgument, st.Code())
+	assert.Contains(t, st.Message(), "start time min and max are required")
 }
