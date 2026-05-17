@@ -82,14 +82,22 @@ func (c *streamingClient) emit(event aguievents.Event) {
 func (c *streamingClient) startRun() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// Capture a single nanosecond and derive all three IDs from it. Three
+	// separate time.Now() calls can yield identical values on systems
+	// with coarse clock resolution (some VMs, older Windows), which would
+	// produce duplicate or unrelated-looking IDs. Sharing one stem also
+	// makes the trio visibly correlated in logs/traces: thread-N, run-N,
+	// msg-N all from the same nanosecond N tell a debugger they're from
+	// the same run startup at a glance.
+	now := time.Now().UnixNano()
 	if c.threadID == "" {
-		c.threadID = fmt.Sprintf("thread-%d", time.Now().UnixNano())
+		c.threadID = fmt.Sprintf("thread-%d", now)
 	}
 	if c.runID == "" {
-		c.runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
+		c.runID = fmt.Sprintf("run-%d", now)
 	}
 	if c.messageID == "" {
-		c.messageID = fmt.Sprintf("msg-%d", time.Now().UnixNano())
+		c.messageID = fmt.Sprintf("msg-%d", now)
 	}
 	c.emit(aguievents.NewRunStartedEvent(c.threadID, c.runID))
 }

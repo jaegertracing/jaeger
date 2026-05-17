@@ -176,6 +176,37 @@ func TestMarshalToolArgsDeltaFallsBackOnMarshalError(t *testing.T) {
 			"otherwise the SDK's Validate step rejects the event and the frame is dropped")
 }
 
+func TestFlattenToolResultContentJoinsMultipleTextBlocksWithNewline(t *testing.T) {
+	// MCP CallToolResult envelopes can carry several text blocks — agents
+	// often emit one block per paragraph/segment. Concatenating with no
+	// delimiter would mash distinct lines into a run-on string and lose
+	// the agent's intended structure; joining with "\n" preserves block
+	// boundaries while still satisfying AG-UI's single-string contract.
+	envelope := map[string]any{
+		"content": []any{
+			map[string]any{"type": "text", "text": "Found 3 services."},
+			map[string]any{"type": "text", "text": "Top latency: 1.2s on checkout."},
+		},
+	}
+	got := flattenToolResultContent(envelope)
+	assert.Equal(t, "Found 3 services.\nTop latency: 1.2s on checkout.", got,
+		"multiple MCP text blocks must be separated by a newline so frontends can render them as distinct lines")
+}
+
+func TestFlattenToolResultContentPassesSingleBlockThrough(t *testing.T) {
+	// A single text block emits exactly that text — no leading/trailing
+	// newline. This is the common single-paragraph case and ensures the
+	// join helper doesn't add a separator when there's nothing to separate.
+	envelope := map[string]any{
+		"content": []any{
+			map[string]any{"type": "text", "text": `{"traces":[]}`},
+		},
+	}
+	got := flattenToolResultContent(envelope)
+	assert.JSONEq(t, `{"traces":[]}`, got,
+		"a single block must surface verbatim with no surrounding delimiters")
+}
+
 func TestFlattenToolResultContentSkipsNonMapBlocks(t *testing.T) {
 	// MCP envelopes are well-typed in practice, but the loop guards
 	// against stray non-map entries (e.g. a bare string sneaking into
@@ -223,4 +254,48 @@ func TestStripUIToolPrefixFallsBackOnEmptyStrip(t *testing.T) {
 	// name must not terminate the run.
 	assert.Equal(t, UIToolPrefix, stripUIToolPrefix(UIToolPrefix),
 		"a name that is exactly the prefix must NOT strip to empty — fall back to the original")
+}
+
+func TestValidateContextualToolNamesAcceptsEmptyAndValidSlices(t *testing.T) {
+	// A request with no tools is the common case (no contextual tools
+	// declared) — validate must accept it without trying to read the
+	// nil slice. An all-valid slice must also pass through cleanly so
+	// the happy path is never gated on this check.
+	assert.NoError(t, validateContextualToolNames(nil),
+		"nil/empty tool list must not be flagged")
+	assert.NoError(t, validateContextualToolNames([]aguitypes.Tool{
+		{Name: "render_chart"},
+		{Name: "show_flamegraph", Description: "open flamegraph view"},
+	}), "an all-valid slice must pass validation")
+}
+
+func TestValidateContextualToolNamesRejectsEmptyName(t *testing.T) {
+	err := validateContextualToolNames([]aguitypes.Tool{{Name: ""}})
+	require.Error(t, err, "empty name must be rejected — would prefix to a bare 'ui_'")
+	assert.Contains(t, err.Error(), "tools[0].name")
+}
+
+func TestValidateContextualToolNamesRejectsWhitespaceName(t *testing.T) {
+	// strings.TrimSpace covers ASCII spaces, tabs, newlines, and the
+	// other Unicode whitespace categories — any of which would slip past
+	// a naive `name == ""` check and produce 'ui_   ' style entries
+	// downstream.
+	err := validateContextualToolNames([]aguitypes.Tool{{Name: "  \t\n  "}})
+	require.Error(t, err, "whitespace-only name must be rejected")
+	assert.Contains(t, err.Error(), "tools[0].name")
+}
+
+func TestValidateContextualToolNamesReportsFirstOffendingIndex(t *testing.T) {
+	// The error message must point at the first bad entry's index, not
+	// just say "some tool was invalid" — that's what makes the 400
+	// useful to a frontend developer debugging a typo in the tools array.
+	err := validateContextualToolNames([]aguitypes.Tool{
+		{Name: "ok-first"},
+		{Name: "ok-second"},
+		{Name: ""},
+		{Name: "would-also-be-bad"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tools[2].name",
+		"the index of the first invalid tool must be in the error so frontend devs can locate it")
 }

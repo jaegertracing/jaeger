@@ -141,6 +141,33 @@ func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 	assert.NotEmpty(t, c.threadID, "startRun should allocate a threadID when none was provided")
 	assert.NotEmpty(t, c.runID, "startRun should allocate a runID when none was provided")
 	assert.NotEmpty(t, c.messageID, "startRun should allocate a messageID")
+
+	// Pin the single-nanosecond stem: when all three IDs are allocated by
+	// the same startRun call, they must share the suffix so a debugger
+	// can see at a glance they came from the same run. Independent
+	// time.Now() calls could produce identical values on coarse-clock
+	// systems and unrelated-looking values on fast clocks; sharing the
+	// stem covers both ends.
+	threadSuffix := strings.TrimPrefix(c.threadID, "thread-")
+	runSuffix := strings.TrimPrefix(c.runID, "run-")
+	msgSuffix := strings.TrimPrefix(c.messageID, "msg-")
+	assert.Equal(t, threadSuffix, runSuffix, "threadID and runID must share the nanosecond stem")
+	assert.Equal(t, threadSuffix, msgSuffix, "threadID and messageID must share the nanosecond stem")
+}
+
+func TestStreamingClientStartRunDoesNotOverwriteSuppliedIDs(t *testing.T) {
+	// When the caller already supplies threadID/runID, startRun must keep
+	// them as-is and only allocate the missing messageID. The caller's
+	// IDs come from the AG-UI RunAgentInput and are what the frontend
+	// uses to correlate the run — overwriting them would orphan events.
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-from-frontend", "run-from-frontend")
+
+	c.startRun()
+
+	assert.Equal(t, "thread-from-frontend", c.threadID, "caller-supplied threadID must survive startRun")
+	assert.Equal(t, "run-from-frontend", c.runID, "caller-supplied runID must survive startRun")
+	assert.NotEmpty(t, c.messageID, "missing messageID must still be allocated")
 }
 
 func TestStreamingClientFinishRunClosesOpenTextAndEmitsRunFinished(t *testing.T) {

@@ -46,6 +46,48 @@ func contextTextEntries(entries []aguitypes.Context) []string {
 	return result
 }
 
+// validateContextualToolNames rejects requests carrying tools with empty
+// or whitespace-only names. Such names would prefix to "ui_" / "ui_   ",
+// which the dispatcher's handleJaegerToolCall later rejects as
+// InvalidParams and which would land in both NewSessionRequest.Meta and
+// ContextualToolsStore as unusable entries. Returning a 400 from the
+// caller (handler.go) keeps both data structures clean and surfaces
+// frontend bugs immediately instead of allowing them to fail mid-turn
+// after a sidecar round-trip.
+//
+// The reported error names the first offending tool index so the
+// frontend developer can locate the broken declaration; it does not
+// reveal any user content from the rest of the request.
+func validateContextualToolNames(tools []aguitypes.Tool) error {
+	for i, tool := range tools {
+		if strings.TrimSpace(tool.Name) == "" {
+			return fmt.Errorf("tools[%d].name is empty or whitespace", i)
+		}
+	}
+	return nil
+}
+
+// prefixContextualTools returns a copy of the supplied tools with each
+// name prefixed by UIToolPrefix. The original slice is not mutated so the
+// caller can keep it for logging/inspection. Empty input returns nil so
+// callers can branch on the length to decide whether to attach Meta and
+// SetForSession at all.
+//
+// Callers must invoke validateContextualToolNames first to guarantee no
+// blank names slip through. This function does not re-validate so a stray
+// caller cannot accidentally bypass the boundary check.
+func prefixContextualTools(tools []aguitypes.Tool) []aguitypes.Tool {
+	if len(tools) == 0 {
+		return nil
+	}
+	out := make([]aguitypes.Tool, len(tools))
+	for i, tool := range tools {
+		out[i] = tool
+		out[i].Name = UIToolPrefix + tool.Name
+	}
+	return out
+}
+
 // encodeToolsAsRaw marshals each AG-UI tool into its JSON representation so
 // that it can be forwarded verbatim to downstream consumers (the per-session
 // contextual tools store and the NewSessionRequest.Meta payload).
@@ -217,24 +259,27 @@ func marshalToolArgsDelta(raw any) string {
 // flattenToolResultContent reduces the sidecar's tool output to the single
 // string AG-UI's TOOL_CALL_RESULT.content field expects. The sidecar
 // forwards MCP CallToolResult envelopes verbatim — {content:[{type:"text",
-// text:"..."}], structuredContent:{...}} — so the text blocks are
-// concatenated when present. Anything else is JSON-encoded so the frontend
-// always receives a deterministic string instead of a nested object.
+// text:"..."}, ...], structuredContent:{...}} — so each text block is
+// collected and the result is joined with "\n" to keep block boundaries
+// readable (concatenating with no delimiter would mash distinct paragraphs
+// like "Found 3 services" + "Top latency: 1.2s" into one run-on string).
+// Anything else is JSON-encoded so the frontend always receives a
+// deterministic string instead of a nested object.
 func flattenToolResultContent(raw any) string {
 	if envelope, ok := raw.(map[string]any); ok {
 		if blocks, ok := envelope["content"].([]any); ok {
-			var b strings.Builder
+			texts := make([]string, 0, len(blocks))
 			for _, block := range blocks {
 				blockMap, ok := block.(map[string]any)
 				if !ok {
 					continue
 				}
 				if text, ok := blockMap["text"].(string); ok {
-					_, _ = b.WriteString(text)
+					texts = append(texts, text)
 				}
 			}
-			if b.Len() > 0 {
-				return b.String()
+			if len(texts) > 0 {
+				return strings.Join(texts, "\n")
 			}
 		}
 	}

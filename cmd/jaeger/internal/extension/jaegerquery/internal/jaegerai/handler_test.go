@@ -478,6 +478,37 @@ func TestChatHandlerNoUserMessage(t *testing.T) {
 	require.Contains(t, rr.Body.String(), "messages must include a user message with text content")
 }
 
+func TestChatHandlerRejectsBlankContextualToolName(t *testing.T) {
+	// End-to-end check: a tools array carrying a blank name must short-
+	// circuit at the gateway boundary with a 400 — the request must
+	// never reach the sidecar (no ACP dial) and must never write a
+	// poisoned entry into ContextualToolsStore. The unit tests on
+	// validateContextualToolNames pin the function-level contract; this
+	// test pins that the handler wires the contract into the HTTP path.
+	store := NewContextualToolsStore()
+	handler := NewChatHandler(zap.NewNop(), store, "ws://127.0.0.1:1", "", 1<<20)
+
+	body, err := json.Marshal(ChatRequest{
+		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hi"}},
+		Tools: []aguitypes.Tool{
+			{Name: "good_tool"},
+			{Name: "   "}, // blank — would prefix to "ui_   "
+		},
+	})
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusBadRequest, rr.Code,
+		"a blank tool name must fail validation before any sidecar work happens")
+	assert.Contains(t, rr.Body.String(), "tools[1].name",
+		"the 400 body must identify the offending tool index so the frontend can fix it")
+	assert.Nil(t, store.GetContextualToolsForSession("sess-test"),
+		"the store must not have been written — validation runs before SetForSession")
+}
+
 func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 10)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"this body exceeds the 10 byte limit"}]}`))

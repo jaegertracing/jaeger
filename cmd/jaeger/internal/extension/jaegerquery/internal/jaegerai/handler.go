@@ -76,6 +76,17 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject blank tool names up front. Empty or whitespace-only names
+	// would prefix to "ui_" (or "ui_   "), which the dispatcher later
+	// rejects as InvalidParams and which would also pollute both the Meta
+	// payload and the ContextualToolsStore snapshot with unusable entries.
+	// Failing fast here keeps both gateway-side data structures clean and
+	// surfaces frontend bugs as a 400 rather than a silent mid-turn error.
+	if err := validateContextualToolNames(req.Tools); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	promptBlocks := []acp.ContentBlock{acp.TextBlock(prompt)}
 	for _, ctxText := range contextTextEntries(req.Context) {
 		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
@@ -182,21 +193,4 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientImpl.finishRun(string(promptResp.StopReason))
-}
-
-// prefixContextualTools returns a copy of the supplied tools with each
-// name prefixed by UIToolPrefix. The original slice is not mutated so the
-// caller can keep it for logging/inspection. Empty input returns nil so
-// callers can branch on the length to decide whether to attach Meta and
-// SetForSession at all.
-func prefixContextualTools(tools []aguitypes.Tool) []aguitypes.Tool {
-	if len(tools) == 0 {
-		return nil
-	}
-	out := make([]aguitypes.Tool, len(tools))
-	for i, tool := range tools {
-		out[i] = tool
-		out[i].Name = UIToolPrefix + tool.Name
-	}
-	return out
 }
