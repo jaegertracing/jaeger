@@ -15,8 +15,9 @@ repository.
 | Field | Value |
 | --- | --- |
 | Review date | 2026-05-17 |
-| Reviewed branch | Jaeger `main` branch |
+| Reviewed branch | `main` |
 | Review type | Public project security review |
+| Reviewers | Jaeger maintainers (led by [@jkowall](https://github.com/jkowall)), with public review by the [jaegertracing/jaeger-maintainers](https://github.com/orgs/jaegertracing/teams/jaeger-maintainers) team on the tracking pull request. |
 | Tracking issue | <https://github.com/jaegertracing/jaeger/issues/8485> |
 | Parent tracker | <https://github.com/jaegertracing/jaeger/issues/8481> |
 | Sensitive findings | Not disclosed in this document; report and handle them through [SECURITY.md](../../SECURITY.md). |
@@ -31,10 +32,17 @@ repository.
   verification, input validation, hardening, and credential management.
 - [Security Assurance Case](assurance-case.md), including security goals,
   design principles, weakness mitigations, and controls.
+- [CNCF TAG Security Self-Assessment](self-assessment.md), including project
+  scope, security goals, and self-assessed weaknesses.
 - [Release Verification](verifying-releases.md), including artifact and
   signature verification guidance.
 - Current OpenSSF Best Practices Gold evidence in
   [OpenSSF Best Practices Gold Evidence](openssf-gold-evidence.md).
+- Security-relevant CI workflows, including
+  [`codeql.yml`](../../.github/workflows/codeql.yml),
+  [`dependency-review.yml`](../../.github/workflows/dependency-review.yml),
+  [`scorecard.yml`](../../.github/workflows/scorecard.yml), and
+  [`fossa.yml`](../../.github/workflows/fossa.yml).
 
 ## Security Requirements Considered
 
@@ -43,12 +51,12 @@ repository.
 | Trace data confidentiality | Jaeger may process sensitive trace data. Operators are expected to enable TLS or mTLS on external and internal communication paths, configure access control for Query/UI, and avoid tracing secrets or personally identifiable information. |
 | Trace data integrity | TLS/mTLS, certificate verification, structured OTLP/protobuf inputs, and authenticated storage connections protect trace data in transit and reduce tampering risk across component boundaries. |
 | Availability | The threat model identifies span flooding and storage pressure as availability risks. Sampling, rate limiting, buffering, storage isolation, and deployment-level quotas remain the primary mitigations. |
-| Access control | Query/UI access depends on operator-configured authentication and authorization mechanisms such as bearer tokens, OAuth2, Kerberos, and RBAC-capable deployments. Storage credentials should be scoped to the minimum privileges needed by each component. |
+| Access control | Query/UI access depends on operator-configured authentication mechanisms such as bearer tokens, OAuth2, and Kerberos, with authorization enforced at the deployment layer (for example, RBAC in Kubernetes or reverse-proxy policy). Storage credentials should be scoped to the minimum privileges needed by each component. |
 | Secure transport and cryptography | Jaeger supports TLS 1.2 and TLS 1.3. Certificate verification is enabled when TLS is configured, and insecure modes require explicit operator configuration. |
 | Input validation | Jaeger uses structured protocols such as OTLP, gRPC, HTTP, and protobuf. Message-size limits, schema-aware parsing, and storage-client query construction reduce injection and resource-exhaustion risk. |
 | Credential handling | Credentials, TLS keys, certificates, tokens, and storage passwords are supplied through configuration, environment variables, or external secret-management systems rather than hardcoded in the binary. |
-| Vulnerability handling | Vulnerabilities are reported privately through GitHub Security Advisories or encrypted public channels. Public scanner reports are expected to be analyzed for applicability before disclosure. |
-| Supply-chain and release integrity | The project uses code review, DCO, CI, dependency scanning, hardened GitHub Actions workflows, signed releases, SBOM generation, and documented release-verification procedures. |
+| Vulnerability handling | Vulnerabilities are reported privately through GitHub Security Advisories or encrypted public channels. Continuous code scanning is performed by [`codeql.yml`](../../.github/workflows/codeql.yml), and public scanner reports are expected to be analyzed for applicability before disclosure. |
+| Supply-chain and release integrity | The project uses code review, DCO, CI, dependency scanning ([`dependency-review.yml`](../../.github/workflows/dependency-review.yml), [`scorecard.yml`](../../.github/workflows/scorecard.yml), and [`fossa.yml`](../../.github/workflows/fossa.yml)), hardened GitHub Actions workflows, signed releases, SBOM generation, and documented release-verification procedures. |
 
 ## Security Boundary Considered
 
