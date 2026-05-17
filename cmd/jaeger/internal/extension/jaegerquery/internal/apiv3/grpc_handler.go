@@ -108,6 +108,28 @@ func (h *Handler) GetServices(ctx context.Context, _ *api_v3.GetServicesRequest)
 	}, nil
 }
 
+// GetDependencies implements api_v3.QueryServiceServer's GetDependencies
+func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDependenciesRequest) (*api_v3.DependenciesResponse, error) {
+	startTime := request.GetStartTime()
+	endTime := request.GetEndTime()
+	if startTime.IsZero() || endTime.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "start_time and end_time are required")
+	}
+	deps, err := h.QueryService.GetDependencies(ctx, endTime, endTime.Sub(startTime))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
+	}
+	apiDeps := make([]*api_v3.Dependency, len(deps))
+	for i, d := range deps {
+		apiDeps[i] = &api_v3.Dependency{
+			Parent:    d.Parent,
+			Child:     d.Child,
+			CallCount: uint64(d.CallCount),
+		}
+	}
+	return &api_v3.DependenciesResponse{Dependencies: apiDeps}, nil
+}
+
 // GetOperations implements api_v3.QueryService's GetOperations
 func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperationsRequest) (*api_v3.GetOperationsResponse, error) {
 	operations, err := h.QueryService.GetOperations(ctx, tracestore.OperationQueryParams{
