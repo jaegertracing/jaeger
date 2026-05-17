@@ -40,14 +40,23 @@ func (*errResponseWriter) WriteHeader(int) {}
 // supplied SSE body. Each returned map corresponds to one AG-UI event.
 // Non-`data:` framing lines (`id:`, blank separators) are ignored, matching
 // how an SSE client iterates frames.
+//
+// Per the SSE spec the colon may be followed by one optional space; both
+// `data: {...}` and `data:{...}` are valid frames a server may emit. We
+// accept either so the tests do not regress if the AG-UI SDK ever changes
+// its framing whitespace.
 func parseSSEEvents(t *testing.T, body string) []map[string]any {
 	t.Helper()
 	var events []map[string]any
 	for _, line := range strings.Split(body, "\n") {
-		data, ok := strings.CutPrefix(line, "data: ")
+		data, ok := strings.CutPrefix(line, "data:")
 		if !ok {
 			continue
 		}
+		// The SSE spec allows exactly one optional space after `data:`
+		// — strip it if present so the JSON parser sees the payload
+		// regardless of which framing variant the writer chose.
+		data = strings.TrimPrefix(data, " ")
 		var event map[string]any
 		require.NoError(t, json.Unmarshal([]byte(data), &event), "could not parse SSE frame %q", data)
 		events = append(events, event)
@@ -63,6 +72,21 @@ func eventTypes(events []map[string]any) []string {
 		}
 	}
 	return types
+}
+
+func TestParseSSEEventsAcceptsDataPrefixWithOrWithoutSpace(t *testing.T) {
+	// Per the SSE spec, the colon may be followed by exactly one optional
+	// space. AG-UI's SDK writer currently emits "data: {...}\n\n" but the
+	// parser must tolerate the no-space variant so the tests do not
+	// regress if the SDK ever switches framing whitespace.
+	body := "data: {\"type\":\"RUN_STARTED\",\"runId\":\"r1\"}\n\n" +
+		"data:{\"type\":\"RUN_FINISHED\",\"runId\":\"r2\"}\n\n"
+
+	events := parseSSEEvents(t, body)
+	require.Len(t, events, 2,
+		"both `data:` and `data: ` framing variants must be recognised by the parser")
+	assert.Equal(t, "RUN_STARTED", events[0]["type"])
+	assert.Equal(t, "RUN_FINISHED", events[1]["type"])
 }
 
 func TestStreamingClientEmitWritesSSEFrame(t *testing.T) {
@@ -153,6 +177,25 @@ func TestStreamingClientStartRunGeneratesIdsWhenEmpty(t *testing.T) {
 	msgSuffix := strings.TrimPrefix(c.messageID, "msg-")
 	assert.Equal(t, threadSuffix, runSuffix, "threadID and runID must share the nanosecond stem")
 	assert.Equal(t, threadSuffix, msgSuffix, "threadID and messageID must share the nanosecond stem")
+}
+
+func TestStreamingClientStartRunMintsUniqueStemsAcrossCalls(t *testing.T) {
+	// The process-wide atomic counter is the guarantee against coarse-clock
+	// collisions: two streamingClients constructed and startRun-ed in the
+	// same nanosecond must still get distinct stems. Calling startRun
+	// twice in rapid succession in a single goroutine is the simplest way
+	// to exercise that — the timestamp may or may not increment between
+	// calls, but the counter must.
+	a := newStreamingClient(context.Background(), httptest.NewRecorder(), "", "")
+	b := newStreamingClient(context.Background(), httptest.NewRecorder(), "", "")
+
+	a.startRun()
+	b.startRun()
+
+	assert.NotEqual(t, a.threadID, b.threadID,
+		"two consecutive startRuns must produce different stems even on coarse-clock systems — the seq counter is the safety net")
+	assert.NotEqual(t, a.runID, b.runID, "runIDs must be distinct too")
+	assert.NotEqual(t, a.messageID, b.messageID, "messageIDs must be distinct too")
 }
 
 func TestStreamingClientStartRunDoesNotOverwriteSuppliedIDs(t *testing.T) {

@@ -185,11 +185,23 @@ func handleJaegerToolCall(params json.RawMessage, store *ContextualToolsStore, l
 			"error": fmt.Sprintf("contextual tool %q not registered for session %q", req.Name, req.SessionID),
 		})
 	}
+	// args is dropped from the Info-level record so logs don't carry
+	// arbitrary user-provided payloads (potential PII, oversize entries,
+	// noisy operator logs). The size is kept at Info for observability
+	// — a "this tool was dispatched with N bytes of arguments" record is
+	// useful and non-leaky. Full args are emitted only at Debug, where
+	// operators must explicitly opt in.
 	logger.Info(
 		"contextual tool call dispatched (fire-and-forget)",
 		zap.String("session_id", req.SessionID),
 		zap.String("tool", req.Name),
 		zap.String("prefixed_tool", originalName),
+		zap.Int("args_size_bytes", len(req.Args)),
+	)
+	logger.Debug(
+		"contextual tool call args",
+		zap.String("session_id", req.SessionID),
+		zap.String("tool", req.Name),
 		zap.ByteString("args", req.Args),
 	)
 	return extToolCallResponse{

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	aguievents "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
@@ -16,6 +17,15 @@ import (
 	"github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
 )
+
+// streamingClientIDSeq is a process-wide monotonic counter appended to the
+// time-derived stem when startRun allocates IDs. Even on systems with
+// coarse clock resolution (some VMs, older Windows) or two streamingClients
+// constructed within the same nanosecond, the counter guarantees no two
+// runs in this process share a stem. The combination (nanos-seq) is also
+// time-sortable across processes, which keeps logs from a single Jaeger
+// instance well-ordered.
+var streamingClientIDSeq atomic.Uint64
 
 var _ acp.Client = (*streamingClient)(nil)
 
@@ -82,22 +92,23 @@ func (c *streamingClient) emit(event aguievents.Event) {
 func (c *streamingClient) startRun() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// Capture a single nanosecond and derive all three IDs from it. Three
-	// separate time.Now() calls can yield identical values on systems
-	// with coarse clock resolution (some VMs, older Windows), which would
-	// produce duplicate or unrelated-looking IDs. Sharing one stem also
-	// makes the trio visibly correlated in logs/traces: thread-N, run-N,
-	// msg-N all from the same nanosecond N tell a debugger they're from
-	// the same run startup at a glance.
-	now := time.Now().UnixNano()
+	// Allocate one stem per startRun and derive all three IDs from it.
+	// The stem is "<nanos>-<seq>": the nanosecond is time-sortable across
+	// processes, and the process-wide atomic counter guarantees no two
+	// runs in this process collide even on coarse-clock systems where
+	// two startRun calls might land in the same nanosecond. Sharing the
+	// stem also makes the trio visibly correlated in logs/traces — a
+	// thread-N-K, run-N-K, msg-N-K triplet tells a debugger at a glance
+	// they came from the same run startup.
+	stem := fmt.Sprintf("%d-%d", time.Now().UnixNano(), streamingClientIDSeq.Add(1))
 	if c.threadID == "" {
-		c.threadID = fmt.Sprintf("thread-%d", now)
+		c.threadID = "thread-" + stem
 	}
 	if c.runID == "" {
-		c.runID = fmt.Sprintf("run-%d", now)
+		c.runID = "run-" + stem
 	}
 	if c.messageID == "" {
-		c.messageID = fmt.Sprintf("msg-%d", now)
+		c.messageID = "msg-" + stem
 	}
 	c.emit(aguievents.NewRunStartedEvent(c.threadID, c.runID))
 }

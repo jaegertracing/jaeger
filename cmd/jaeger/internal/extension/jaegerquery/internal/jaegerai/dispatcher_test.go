@@ -105,6 +105,17 @@ func TestDispatcherToolCallStripsUIPrefixAndLogsBoth(t *testing.T) {
 	assert.Equal(t, "render_chart", fields["tool"], "stripped name should be logged under 'tool'")
 	assert.Equal(t, UIToolPrefix+"render_chart", fields["prefixed_tool"])
 
+	// args must NOT appear in the Info record — they may contain user
+	// data, PII, or oversized payloads. Only a size field is emitted at
+	// Info; the full payload is reserved for Debug. This assertion pins
+	// that contract so a future "let's just log it for debugging"
+	// refactor can't quietly regress it.
+	_, hasArgs := fields["args"]
+	assert.False(t, hasArgs,
+		"raw args must not appear in the Info-level record — Debug only, to avoid leaking user data")
+	assert.EqualValues(t, len(`{"kind":"flame"}`), fields["args_size_bytes"],
+		"the Info record should carry the args size for observability without exposing the payload")
+
 	// Stripping happens silently — no warning when the prefix is present.
 	require.Empty(t, logs.FilterMessage("contextual tool name missing UI prefix; passing through unchanged").All())
 }
