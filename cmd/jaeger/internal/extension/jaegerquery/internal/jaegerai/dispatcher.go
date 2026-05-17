@@ -113,13 +113,32 @@ func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger 
 }
 
 // handleJaegerToolCall handles contextual tool dispatches as
-// fire-and-forget side effects. The sidecar emits start_tool_call /
+// fire-and-forget today: the sidecar emits start_tool_call /
 // update_tool_call session_update notifications around this call, which
 // the streaming client renders as AG-UI TOOL_CALL_* SSE events for the
-// browser to react to (navigate, render, etc.). The browser is not
-// expected to return a tool result — UI tools are commands, not queries
-// — so the gateway acknowledges immediately and lets Gemini's agentic
-// loop continue with a "tool dispatched" function response.
+// browser, and the gateway acknowledges the ext_method immediately so
+// Gemini's agentic loop continues with a "tool dispatched" function
+// response.
+//
+// This is a transport-driven simplification, NOT a principled "results
+// aren't useful" stance. Real tool results would be valuable — the LLM
+// could use them in subsequent reasoning, and permission-style tools
+// genuinely need a user answer fed back. The reason we don't carry them
+// today is that the chat endpoint is HTTP+SSE, and SSE is
+// unidirectional (server→client only): once the response stream is
+// open, the browser has no in-band channel to push a tool result back
+// while the ext_method waits.
+//
+// The full-fidelity fix is to switch the browser ↔ gateway transport
+// to WebSocket, which gives bidirectional framing without inventing a
+// non-AG-UI side endpoint. That's a larger change because WS adds
+// infrastructure cost everywhere it lands — reverse proxies, load
+// balancers, sticky-session routing across multiple Jaeger instances,
+// idle timeouts, keepalive — none of which HTTP+SSE forces on the
+// deployment. Switching is a follow-up tracked in the AI-gateway RFC;
+// until then the fire-and-forget ack keeps the single-turn UX intact
+// for command-shaped UI tools, which is the only category the current
+// frontend exposes.
 //
 // The tool name arrives “UIToolPrefix“-namespaced — the gateway adds
 // the prefix in handler.go before populating the contextual tools meta

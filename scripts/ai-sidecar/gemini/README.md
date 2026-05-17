@@ -232,7 +232,7 @@ isError: false}` so Gemini's agentic loop continues with a real function
 response and produces a final answer in the same turn. The browser sees the
 `TOOL_CALL_*` AG-UI events on its SSE stream and performs the side effect
 locally (navigate, render, etc.) without sending a tool-result back. UI tools
-are commands rather than queries, so this matches the natural semantic.
+are commands rather than queries, so this matches the natural semantics.
 
 ## End-to-End Test
 
