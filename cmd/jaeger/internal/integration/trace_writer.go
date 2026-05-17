@@ -94,7 +94,9 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 		)
 
 		if spanCount == MaxChunkSize {
-			err = w.exporter.ConsumeTraces(ctx, currentChunk)
+			if err = w.exporter.ConsumeTraces(ctx, currentChunk); err != nil {
+				return false
+			}
 			currentChunk = ptrace.NewTraces()
 			spanCount = 0
 			currentResourceIndex = -1
@@ -123,10 +125,13 @@ func (w *traceWriter) WriteTraces(ctx context.Context, td ptrace.Traces) error {
 
 		return true
 	})
+	if err != nil {
+		return err
+	}
 
 	// write the last chunk if it has any spans
 	if spanCount > 0 {
-		err = w.exporter.ConsumeTraces(ctx, currentChunk)
+		return w.exporter.ConsumeTraces(ctx, currentChunk)
 	}
-	return err
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -121,6 +122,10 @@ func (f *Factory) initializeConnections(
 	if f.config.Auth.HasValue() {
 		return errors.New("authenticator is not supported")
 	}
+	const maxRecvMsgSizeMiB = math.MaxInt / (1024 * 1024)
+	if f.config.MaxRecvMsgSizeMiB < 0 || f.config.MaxRecvMsgSizeMiB > maxRecvMsgSizeMiB {
+		return fmt.Errorf("max_recv_msg_size_mib must be between 0 and %d, got %d", maxRecvMsgSizeMiB, f.config.MaxRecvMsgSizeMiB)
+	}
 
 	unaryInterceptors := []grpc.UnaryClientInterceptor{bearertoken.NewUnaryClientInterceptor()}
 	streamInterceptors := []grpc.StreamClientInterceptor{bearertoken.NewStreamClientInterceptor()}
@@ -141,6 +146,11 @@ func (f *Factory) initializeConnections(
 	baseOpts := []grpc.DialOption{
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
+	}
+	if f.config.MaxRecvMsgSizeMiB > 0 {
+		baseOpts = append(baseOpts, grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(f.config.MaxRecvMsgSizeMiB*1024*1024),
+		))
 	}
 
 	createConn := func(telset component.TelemetrySettings, gcs *configgrpc.ClientConfig) (*grpc.ClientConn, error) {
