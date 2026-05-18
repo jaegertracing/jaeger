@@ -67,5 +67,7 @@ type TraceQueryParameters struct {
 	StartTimeMax  time.Time
 	DurationMin   time.Duration
 	DurationMax   time.Duration
+	// NumTraces specifies the maximum number of traces to return.
+	// If set to 0, defaults to 100.
 	NumTraces     int
 }
