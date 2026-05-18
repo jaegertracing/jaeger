@@ -55,7 +55,7 @@ graph TD
     end
 ```
 
-Jaeger is a distributed tracing platform created by [Uber Technologies](https://eng.uber.com/distributed-tracing/) and donated to [Cloud Native Computing Foundation](https://cncf.io).
+Jaeger is a distributed tracing platform created by [Uber Technologies](https://eng.uber.com/distributed-tracing/) and donated to the [Cloud Native Computing Foundation](https://cncf.io).
 
 See Jaeger [documentation][doc] for getting started, operational details, and other information.
 
@@ -67,7 +67,7 @@ Jaeger is an open source project with open governance. We welcome contributions 
 
 ## Version Compatibility Guarantees
 
-Since Jaeger uses many components from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector/) we try to maintain configuration compatibility between Jaeger releases. Occasionally, configuration options in Jaeger (or in Jaeger v1 CLI flags) can be deprecated due to usability improvements, new functionality, or changes in our dependencies.
+Since Jaeger uses many components from the [OpenTelemetry Collector](https://github.com/open-telemetry/opentelemetry-collector/) we try to maintain configuration compatibility between Jaeger releases. Occasionally, configuration options in Jaeger (or in Jaeger v1 CLI flags) may be deprecated due to usability improvements, new functionality, or changes in our dependencies.
 In such situations, developers introducing the deprecation are required to follow [these guidelines](./CONTRIBUTING.md#deprecating-cli-flags).
 
 In short, for a deprecated configuration option, you should expect to see the following message in the documentation or release notes:
@@ -114,7 +114,7 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
-Thanks to all the people who already contributed!
+Thanks to everyone who has already contributed!
 
 <a href="https://github.com/jaegertracing/jaeger/graphs/contributors">
   <img src="https://contributors-img.web.app/image?repo=jaegertracing/jaeger" />
