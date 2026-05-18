@@ -33,14 +33,13 @@ const (
 	// V2 is used when the dependency table is NOT SASI indexed.
 	V2
 	versionEnumEnd
+	defaultTSBucket      = 24 * time.Hour
+	maxDependencyBuckets = 10000
 
 	depsInsertStmtV1 = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
 	depsInsertStmtV2 = "INSERT INTO dependencies_v2(ts, ts_bucket, dependencies) VALUES (?, ?, ?)"
 	depsSelectStmtV1 = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
 	depsSelectStmtV2 = "SELECT ts, dependencies FROM dependencies_v2 WHERE ts_bucket IN ? AND ts >= ? AND ts < ?"
-
-	// TODO: Make this customizable.
-	tsBucket = 24 * time.Hour
 )
 
 var errInvalidVersion = errors.New("invalid version")
@@ -51,6 +50,7 @@ type DependencyStore struct {
 	dependenciesTableMetrics *casmetrics.Table
 	logger                   *zap.Logger
 	version                  Version
+	tsBucket                 time.Duration
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -59,15 +59,20 @@ func NewDependencyStore(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	version Version,
+	tsBucket time.Duration,
 ) (*DependencyStore, error) {
 	if !version.IsValid() {
 		return nil, errInvalidVersion
+	}
+	if tsBucket <= 0 {
+		tsBucket = defaultTSBucket
 	}
 	return &DependencyStore{
 		session:                  session,
 		dependenciesTableMetrics: casmetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
 		version:                  version,
+		tsBucket:                 tsBucket,
 	}, nil
 }
 
@@ -89,7 +94,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	case V1:
 		query = s.session.Query(depsInsertStmtV1, ts, ts, deps)
 	case V2:
-		query = s.session.Query(depsInsertStmtV2, ts, ts.Truncate(tsBucket), deps)
+		query = s.session.Query(depsInsertStmtV2, ts, ts.Truncate(s.tsBucket), deps)
 	default:
 		return fmt.Errorf("unsupported schema version: %v", s.version)
 	}
@@ -104,7 +109,7 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 	case V1:
 		query = s.session.Query(depsSelectStmtV1, startTs, endTs)
 	case V2:
-		query = s.session.Query(depsSelectStmtV2, getBuckets(startTs, endTs), startTs, endTs)
+		query = s.session.Query(depsSelectStmtV2, s.getBuckets(startTs, endTs), startTs, endTs)
 	default:
 		return nil, fmt.Errorf("unsupported schema version: %v", s.version)
 	}
@@ -133,10 +138,41 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 	return mDependency, nil
 }
 
-func getBuckets(startTs time.Time, endTs time.Time) []time.Time {
-	// TODO: Preallocate the array using some maths and maybe use a pool? This endpoint probably isn't used enough to warrant this.
-	var tsBuckets []time.Time
-	for ts := startTs.Truncate(tsBucket); ts.Before(endTs); ts = ts.Add(tsBucket) {
+func (s *DependencyStore) getBuckets(startTs time.Time, endTs time.Time) []time.Time {
+	// Handle invalid time range
+	if !endTs.After(startTs) {
+		return []time.Time{}
+	}
+
+	// Validate bucket size
+	if s.tsBucket <= 0 {
+		s.logger.Warn("invalid dependency bucket size", zap.Duration("tsBucket", s.tsBucket))
+		return []time.Time{}
+	}
+
+	// Calculate from truncated start to avoid underestimating bucket count
+	startBucket := startTs.Truncate(s.tsBucket)
+	duration := endTs.Sub(startBucket)
+	bucketCount := duration / s.tsBucket
+
+	// Guard against pathological configurations
+	if bucketCount >= time.Duration(maxDependencyBuckets) {
+		s.logger.Warn(
+			"dependency query exceeds maximum bucket count",
+			zap.Time("startTs", startTs),
+			zap.Time("endTs", endTs),
+			zap.Duration("tsBucket", s.tsBucket),
+			zap.Int("maxBuckets", maxDependencyBuckets),
+		)
+		return []time.Time{}
+	}
+
+	numBuckets := int(bucketCount) + 1
+
+	// Preallocate slice with exact capacity
+	tsBuckets := make([]time.Time, 0, numBuckets)
+
+	for ts := startBucket; ts.Before(endTs); ts = ts.Add(s.tsBucket) {
 		tsBuckets = append(tsBuckets, ts)
 	}
 	return tsBuckets

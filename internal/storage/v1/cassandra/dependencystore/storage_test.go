@@ -37,7 +37,7 @@ func withDepStore(version Version, fn func(s *depStorageTest)) {
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
-	store, _ := NewDependencyStore(session, metricsFactory, logger, version)
+	store, _ := NewDependencyStore(session, metricsFactory, logger, version, 24*time.Hour)
 	s := &depStorageTest{
 		session:   session,
 		logger:    logger,
@@ -59,7 +59,7 @@ func TestVersionIsValid(t *testing.T) {
 }
 
 func TestInvalidVersion(t *testing.T) {
-	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
+	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd, 24*time.Hour)
 	require.Error(t, err)
 }
 
@@ -253,7 +253,8 @@ func TestGetBuckets(t *testing.T) {
 			time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
 		}
 	)
-	assert.Equal(t, expected, getBuckets(start, end))
+	store := &DependencyStore{tsBucket: 24 * time.Hour}
+	assert.Equal(t, expected, store.getBuckets(start, end))
 }
 
 func matchEverything() any {
