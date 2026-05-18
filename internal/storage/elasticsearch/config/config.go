@@ -36,7 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/eswrapper"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
