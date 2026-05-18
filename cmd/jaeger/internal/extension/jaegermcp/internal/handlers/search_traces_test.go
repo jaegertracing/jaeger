@@ -379,18 +379,34 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 	assert.Contains(t, output.Error, "temporary failure")
 }
 
-func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
+func TestSearchTracesHandler_Handle_CrossServiceSearch(t *testing.T) {
+	// service_name is optional — omitting it should search across all services.
+	traceA := createTestTrace("traceA", "frontend", "/checkout", false)
+	traceB := createTestTrace("traceB", "payment", "/charge", false)
+
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			// Empty service name must be passed through to storage unchanged.
+			assert.Equal(t, "", query.ServiceName)
+			return func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{traceA}, nil)
+				yield([]ptrace.Traces{traceB}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
-		// Missing ServiceName
+		// ServiceName intentionally omitted
 	}
 
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service_name is required")
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 2)
+	assert.Empty(t, output.Error)
 }
 
 func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {
