@@ -604,7 +604,7 @@ func TestShutdownWithProviderError(t *testing.T) {
 			telemetry: componenttest.NewNopTelemetrySettings(),
 		}
 
-		ext.strategyProvider = &mockFailingProvider{}
+		ext.provider = &mockFailingProvider{}
 
 		err := ext.Shutdown(context.Background())
 		require.Error(t, err)
