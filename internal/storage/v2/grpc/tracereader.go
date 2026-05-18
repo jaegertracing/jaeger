@@ -133,7 +133,11 @@ func (tr *TraceReader) FindTraceIDs(
 		foundTraceIDs := make([]tracestore.FoundTraceID, len(resp.TraceIds))
 		for i, foundTraceID := range resp.TraceIds {
 			var sizedTraceID [16]byte
-			copy(sizedTraceID[:], foundTraceID.TraceId)
+			if len(foundTraceID.TraceId) == 8 {
+				copy(sizedTraceID[8:], foundTraceID.TraceId)
+			} else {
+				copy(sizedTraceID[:], foundTraceID.TraceId)
+			}
 
 			foundTraceIDs[i] = tracestore.FoundTraceID{
 				TraceID: pcommon.TraceID(sizedTraceID),
