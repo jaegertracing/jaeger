@@ -369,11 +369,12 @@ func TestValidateTraceQueryBounds(t *testing.T) {
 		urlStr string
 		errMsg string
 	}{
-		{"limit_zero", "x?service=svc&start=0&end=0&limit=0", "'limit' must be greater than 0"},
-		{"limit_negative", "x?service=svc&start=0&end=0&limit=-1", "'limit' must be greater than 0"},
-		{"start_after_end", "x?service=svc&start=200&end=100", "'start' must not be after 'end'"},
-		{"valid_range", "x?service=svc&start=100&end=200&limit=5", ""},
-		{"missing_service_and_traceid", "x", "parameter 'service' is required"},
+			{"limit_zero", "x?service=svc&start=100&end=200&limit=0", "'limit' must be greater than 0"},
+			{"limit_negative", "x?service=svc&start=100&end=200&limit=-1", "'limit' must be greater than 0"},
+			{"default_limit_when_omitted", "x?service=svc&start=100&end=200", ""},
+			{"start_after_end", "x?service=svc&start=200&end=100", "'start' must not be after 'end'"},
+			{"valid_range", "x?service=svc&start=100&end=200&limit=5", ""},
+			{"missing_service_and_traceid", "x", "parameter 'service' is required"},
 	}
 
 	for _, tc := range tests {

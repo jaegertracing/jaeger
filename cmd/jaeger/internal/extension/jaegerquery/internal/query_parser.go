@@ -38,12 +38,12 @@ const (
 )
 
 var (
-	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
+	errMaxDurationGreaterThanMin = errors.New("'" + maxDurationParam + "' should be greater than '" + minDurationParam + "'")
 
 	// errServiceParameterRequired occurs when no service name is defined.
-	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
-	errSearchDepthMustBePositive = fmt.Errorf("'%s' must be greater than 0", limitParam)
-	errStartAfterEnd            = fmt.Errorf("'%s' must not be after '%s'", startTimeParam, endTimeParam)
+	errServiceParameterRequired = errors.New("parameter '" + serviceParam + "' is required")
+	errSearchDepthMustBePositive = errors.New("'" + limitParam + "' must be greater than 0")
+	errStartAfterEnd            = errors.New("'" + startTimeParam + "' must not be after '" + endTimeParam + "'")
 )
 
 type (
