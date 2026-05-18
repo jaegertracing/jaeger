@@ -63,3 +63,10 @@ func (handlerOptions) MetricsQueryService(mqs metricstore.Reader) HandlerOption 
 		apiHandler.metricsQueryService = mqs
 	}
 }
+
+// AIService creates a HandlerOption that sets the AI service for trace analysis.
+func (handlerOptions) AIService(aiService *AIService) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.aiService = aiService
+	}
+}
