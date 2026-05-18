@@ -101,6 +101,61 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 	assert.Equal(t, "error_event", span2.Events[0].Name)
 }
 
+func TestGetSpanDetailsHandler_Handle_SpanKind(t *testing.T) {
+	tests := []struct {
+		name     string
+		spanKind ptrace.SpanKind
+		expected string
+	}{
+		{
+			name:     "server span",
+			spanKind: ptrace.SpanKindServer,
+			expected: ptrace.SpanKindServer.String(),
+		},
+		{
+			name:     "client span",
+			spanKind: ptrace.SpanKindClient,
+			expected: ptrace.SpanKindClient.String(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			traceID := testTraceID
+			spanID := "span001"
+
+			spanConfigs := []spanConfig{
+				{
+					spanID:    spanID,
+					operation: "/api/test",
+					spanKind:  tt.spanKind,
+					attributes: map[string]string{
+						"http.method": "GET",
+					},
+				},
+			}
+
+			testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+			mock := newMockYieldingTraces(testTrace)
+			handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+
+			input := types.GetSpanDetailsInput{
+				TraceID: traceID,
+				SpanIDs: []string{spanIDToHex(spanID)},
+			}
+
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			require.Len(t, output.Spans, 1)
+			assert.Equal(t, tt.expected, output.Spans[0].SpanKind)
+			assert.Equal(t, "/api/test", output.Spans[0].SpanName)
+			assert.Equal(t, "Ok", output.Spans[0].Status.Code)
+			assert.Equal(t, "GET", output.Spans[0].Attributes["http.method"])
+		})
+	}
+}
+
 func TestGetSpanDetailsHandler_Handle_SingleSpan(t *testing.T) {
 	traceID := testTraceID
 	spanID := "span001"
