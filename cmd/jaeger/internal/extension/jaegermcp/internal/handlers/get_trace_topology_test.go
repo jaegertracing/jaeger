@@ -598,4 +598,45 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
+	// TotalSpanCount must reflect the full trace size so callers can detect truncation.
+	assert.Equal(t, 6, output.TotalSpanCount)
+	// The root must be emitted first; truncation should drop trailing leaves, not the root.
+	assert.Equal(t, "root", output.Spans[0].SpanName)
+}
+
+// TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast verifies that
+// when the root span is appended after its children in OTLP iteration order,
+// the topology builder still rooted the tree correctly and the root is the
+// first span in the truncated output.
+func TestGetTraceTopologyHandler_Handle_LimitPreservesRootWhenLast(t *testing.T) {
+	traceID := testTraceID
+
+	// Children appear before the root in iteration order — a real-world case
+	// when traces are reassembled from multiple resource/scope batches.
+	spanConfigs := []spanConfig{
+		{spanID: "child001", parentSpanID: "root001", operation: "child1"},
+		{spanID: "child002", parentSpanID: "root001", operation: "child2"},
+		{spanID: "child003", parentSpanID: "root001", operation: "child3"},
+		{spanID: "child004", parentSpanID: "root001", operation: "child4"},
+		{spanID: "root001", operation: "root"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 3,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 3)
+	assert.Equal(t, 5, output.TotalSpanCount)
+	// Root must come first in DFS order even though it was appended last in the trace.
+	assert.Equal(t, "root", output.Spans[0].SpanName)
+	// Path of the root span is just its own ID, no orphan parent prefix.
+	assert.NotContains(t, output.Spans[0].Path, "/")
 }
