@@ -66,6 +66,8 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, traceID, output.TraceID)
 	require.Len(t, output.Spans, 3)
+	assert.Equal(t, 3, output.TotalSpanCount)
+	assert.Equal(t, 3, output.ReturnedSpanCount)
 
 	root := findSpanByName(output.Spans, "/api/checkout")
 	require.NotNil(t, root)
@@ -105,6 +107,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 		dontExpectNames      []string
 		expectRootTruncated  int
 		expectChildTruncated int
+		expectReturnedCount  int
 	}{
 		{
 			name:                 "depth 0 returns full tree",
@@ -112,6 +115,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			expectSpanNames:      []string{"/api/checkout", "getCart", "queryDB"},
 			expectRootTruncated:  0,
 			expectChildTruncated: 0,
+			expectReturnedCount:  3,
 		},
 		{
 			name:                 "depth 1 returns only root",
@@ -120,6 +124,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			dontExpectNames:      []string{"getCart", "queryDB"},
 			expectRootTruncated:  1, // 1 child truncated at root
 			expectChildTruncated: 0,
+			expectReturnedCount:  1,
 		},
 		{
 			name:                 "depth 2 returns root and children",
@@ -128,6 +133,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			dontExpectNames:      []string{"queryDB"},
 			expectRootTruncated:  0,
 			expectChildTruncated: 1, // 1 grandchild truncated at child level
+			expectReturnedCount:  2,
 		},
 		{
 			name:                 "depth 3 returns full tree",
@@ -135,6 +141,7 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			expectSpanNames:      []string{"/api/checkout", "getCart", "queryDB"},
 			expectRootTruncated:  0,
 			expectChildTruncated: 0,
+			expectReturnedCount:  3,
 		},
 	}
 
@@ -143,6 +150,12 @@ func TestGetTraceTopologyHandler_Handle_DepthLimit(t *testing.T) {
 			input := types.GetTraceTopologyInput{TraceID: traceID, Depth: tt.depth}
 			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 			require.NoError(t, err)
+
+			// TotalSpanCount always reflects the full trace
+			assert.Equal(t, 3, output.TotalSpanCount)
+			// ReturnedSpanCount reflects spans after depth filtering
+			assert.Equal(t, tt.expectReturnedCount, output.ReturnedSpanCount)
+			assert.Len(t, output.Spans, tt.expectReturnedCount)
 
 			byName := make(map[string]types.TopologySpan)
 			for _, s := range output.Spans {
@@ -598,4 +611,31 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
+	// Truncation metadata must report the full trace size
+	assert.Equal(t, 6, output.TotalSpanCount)
+	assert.Equal(t, 3, output.ReturnedSpanCount)
+}
+
+func TestGetTraceTopologyHandler_Handle_NoLimitReportsEqualCounts(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "root001", operation: "root"},
+		{spanID: "span002", parentSpanID: "root001", operation: "child1"},
+		{spanID: "span003", parentSpanID: "root001", operation: "child2"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// No limit (0 means unlimited)
+	handler := &getTraceTopologyHandler{queryService: mock}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 3)
+	assert.Equal(t, 3, output.TotalSpanCount)
+	assert.Equal(t, 3, output.ReturnedSpanCount)
 }
