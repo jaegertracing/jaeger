@@ -103,13 +103,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	s.server, err = queryapp.NewServer(
 		ctx,
-		// TODO propagate healthcheck updates up to the collector's runtime
 		qs,
 		mqs,
 		&s.config.QueryOptions,
 		caps,
 		tm,
 		telset,
+		host,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
