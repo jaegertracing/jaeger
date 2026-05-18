@@ -108,6 +108,7 @@ func TestSearchTracesHandler_Handle_FullWorkflow(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 	assert.Equal(t, "cart-service", output.Traces[0].RootService)
 	assert.Equal(t, "/get-cart", output.Traces[0].RootSpanName)
@@ -129,6 +130,7 @@ func TestSearchTracesHandler_Handle_WithStartTimeMax(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 }
 
@@ -157,6 +159,7 @@ func TestSearchTracesHandler_Handle_WithDurations(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 }
 
@@ -188,6 +191,7 @@ func TestSearchTracesHandler_Handle_WithAttributes(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 }
 
@@ -220,6 +224,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 
 	require.NoError(t, err)
 	// Only error trace should be returned
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 	assert.True(t, output.Traces[0].HasErrors)
 }
@@ -255,6 +260,7 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 	assert.True(t, output.Traces[0].HasErrors)
 	assert.Equal(t, "test", output.Traces[0].RootService)
@@ -335,6 +341,7 @@ func TestSearchTracesHandler_Handle_QueryError(t *testing.T) {
 
 	// Should not return an error - instead returns partial results with Error field
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	assert.Len(t, output.Traces, 1)
 	assert.NotEmpty(t, output.Error)
 	assert.Contains(t, output.Error, "partial results")
@@ -373,10 +380,34 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 	// Should not return an error - instead returns partial results with Error field
 	require.NoError(t, err)
 	// Should have all 3 traces since we continue processing after error
+	assert.Equal(t, 3, output.TraceCount)
 	assert.Len(t, output.Traces, 3)
 	assert.NotEmpty(t, output.Error)
 	assert.Contains(t, output.Error, "partial results")
 	assert.Contains(t, output.Error, "temporary failure")
+}
+
+func TestSearchTracesHandler_Handle_EmptyResults(t *testing.T) {
+	mock := &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(_ func([]ptrace.Traces, error) bool) {
+				// No traces yielded
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "nonexistent",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, output.TraceCount)
+	assert.Empty(t, output.Traces)
 }
 
 func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
@@ -564,6 +595,7 @@ func TestSearchTracesHandler_Handle_DefaultStartTime(t *testing.T) {
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.NoError(t, err)
+	assert.Equal(t, 1, output.TraceCount)
 	require.Len(t, output.Traces, 1)
 }
 
@@ -601,5 +633,6 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 
 	require.NoError(t, err)
 	// Returned traces are capped at exactly the limit (5 traces, limit=3 → exactly 3 traces)
+	assert.Equal(t, 3, output.TraceCount)
 	assert.Len(t, output.Traces, 3)
 }
