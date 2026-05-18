@@ -625,47 +625,51 @@ func TestDbProcessToResource(t *testing.T) {
 	}
 }
 
-func TestGetTraceStateFromAttrs(t *testing.T) {
+func TestGetTraceStateFromSpanTags(t *testing.T) {
 	tests := []struct {
 		name               string
-		attrs              map[string]any
+		tags               []dbmodel.KeyValue
 		expectedTraceState string
-		expectedAttrCount  int
 		description        string
 	}{
 		{
-			name: "attrs with w3c trace state",
-			attrs: map[string]any{
-				tagW3CTraceState: "vendor1=value1,vendor2=value2",
-				"other-attr":     "other-value",
+			name: "span with w3c trace state tag",
+			tags: []dbmodel.KeyValue{
+				{Key: tagW3CTraceState, Value: "vendor1=value1,vendor2=value2", Type: dbmodel.StringType},
+				{Key: "other-attr", Value: "other-value", Type: dbmodel.StringType},
 			},
 			expectedTraceState: "vendor1=value1,vendor2=value2",
-			expectedAttrCount:  1,
-			description:        "Should extract and remove W3C trace state",
+			description:        "Should extract W3C trace state from tags and set on span",
 		},
 		{
-			name: "attrs without w3c trace state",
-			attrs: map[string]any{
-				"other-attr": "other-value",
+			name: "span without w3c trace state tag",
+			tags: []dbmodel.KeyValue{
+				{Key: "other-attr", Value: "other-value", Type: dbmodel.StringType},
 			},
 			expectedTraceState: "",
-			expectedAttrCount:  1,
-			description:        "Should return empty string when no trace state",
+			description:        "Should have empty trace state when no w3c tag present",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			attrs := pcommon.NewMap()
-			require.NoError(t, attrs.FromRaw(tt.attrs))
-			traceState := getTraceStateFromAttrs(attrs)
-			assert.Equal(t, tt.expectedTraceState, traceState, tt.description)
-			assert.Equal(t, tt.expectedAttrCount, attrs.Len(), "Attribute count should match expected")
+			dbSpan := &dbmodel.Span{
+				TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:  dbmodel.SpanID("0123456789abcdef"),
+				Tags:    tt.tags,
+			}
+			span := ptrace.NewSpan()
+			err := dbSpanToSpan(dbSpan, span)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedTraceState, span.TraceState().AsRaw(), tt.description)
+			// Verify w3c.tracestate was NOT added to attributes
+			_, exists := span.Attributes().Get(tagW3CTraceState)
+			assert.False(t, exists, "w3c.tracestate should not appear in attributes")
 		})
 	}
 }
 
-func TestSetInternalSpanStatus(t *testing.T) {
+func TestResolveSpanStatus(t *testing.T) {
 	okStatus := ptrace.NewStatus()
 	okStatus.SetCode(ptrace.StatusCodeOk)
 	errorStatus := ptrace.NewStatus()
@@ -679,88 +683,87 @@ func TestSetInternalSpanStatus(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		attrs            map[string]any
+		tags             []dbmodel.KeyValue
 		status           ptrace.Status
-		kind             ptrace.SpanKind
-		attrsModifiedLen int // Length of attributes map after dropping converted fields
+		attrsModifiedLen int
 	}{
 		{
 			name: "status.code is set as string",
-			attrs: map[string]any{
-				conventions.OtelStatusCode: statusOk,
+			tags: []dbmodel.KeyValue{
+				{Key: conventions.OtelStatusCode, Value: statusOk, Type: dbmodel.StringType},
 			},
 			status:           okStatus,
 			attrsModifiedLen: 0,
 		},
 		{
 			name: "status.code, status.message and error tags are set",
-			attrs: map[string]any{
-				conventions.OtelStatusCode:        statusError,
-				conventions.OtelStatusDescription: "Error: Invalid argument",
+			tags: []dbmodel.KeyValue{
+				{Key: conventions.OtelStatusCode, Value: statusError, Type: dbmodel.StringType},
+				{Key: conventions.OtelStatusDescription, Value: "Error: Invalid argument", Type: dbmodel.StringType},
 			},
 			status:           errorStatusWithMessage,
 			attrsModifiedLen: 0,
 		},
 		{
 			name: "http.status_code tag is set as string",
-			attrs: map[string]any{
-				conventions.HTTPResponseStatusCodeKey: "404",
+			tags: []dbmodel.KeyValue{
+				{Key: string(conventions.HTTPResponseStatusCodeKey), Value: "404", Type: dbmodel.StringType},
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 1,
 		},
 		{
 			name: "http.status_code, http.status_message and error tags are set",
-			attrs: map[string]any{
-				conventions.HTTPResponseStatusCodeKey: 404,
-				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
+			tags: []dbmodel.KeyValue{
+				{Key: string(conventions.HTTPResponseStatusCodeKey), Value: int64(404), Type: dbmodel.Int64Type},
+				{Key: tagHTTPStatusMsg, Value: "HTTP 404: Not Found", Type: dbmodel.StringType},
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,
 		},
 		{
-			name: "status.code has precedence over http.status_code.",
-			attrs: map[string]any{
-				conventions.OtelStatusCode:            statusOk,
-				conventions.HTTPResponseStatusCodeKey: 500,
-				tagHTTPStatusMsg:                      "Server Error",
+			name: "status.code has precedence over http.status_code",
+			tags: []dbmodel.KeyValue{
+				{Key: conventions.OtelStatusCode, Value: statusOk, Type: dbmodel.StringType},
+				{Key: string(conventions.HTTPResponseStatusCodeKey), Value: int64(500), Type: dbmodel.Int64Type},
+				{Key: tagHTTPStatusMsg, Value: "Server Error", Type: dbmodel.StringType},
 			},
 			status:           okStatus,
 			attrsModifiedLen: 2,
 		},
 		{
-			name: "status.error has precedence over http.status_error.",
-			attrs: map[string]any{
-				conventions.OtelStatusCode:            statusError,
-				conventions.HTTPResponseStatusCodeKey: 500,
-				tagHTTPStatusMsg:                      "Server Error",
+			name: "status.error has precedence over http.status_error",
+			tags: []dbmodel.KeyValue{
+				{Key: conventions.OtelStatusCode, Value: statusError, Type: dbmodel.StringType},
+				{Key: string(conventions.HTTPResponseStatusCodeKey), Value: int64(500), Type: dbmodel.Int64Type},
+				{Key: tagHTTPStatusMsg, Value: "Server Error", Type: dbmodel.StringType},
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 2,
 		},
 		{
 			name: "whether tagHttpStatusMsg is set as string",
-			attrs: map[string]any{
-				conventions.HTTPResponseStatusCodeKey: 404,
-				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
+			tags: []dbmodel.KeyValue{
+				{Key: string(conventions.HTTPResponseStatusCodeKey), Value: int64(404), Type: dbmodel.Int64Type},
+				{Key: tagHTTPStatusMsg, Value: "HTTP 404: Not Found", Type: dbmodel.StringType},
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,
 		},
 		{
 			name: "error tag set and message present",
-			attrs: map[string]any{
-				tagError:                          true,
-				conventions.OtelStatusDescription: "Error: Invalid argument",
+			tags: []dbmodel.KeyValue{
+				{Key: tagError, Value: true, Type: dbmodel.BoolType},
+				{Key: conventions.OtelStatusDescription, Value: "Error: Invalid argument", Type: dbmodel.StringType},
 			},
 			status:           errorStatusWithMessage,
 			attrsModifiedLen: 0,
 		},
 		{
 			name: "error tag set and http tag message present",
-			attrs: map[string]any{
-				tagError:         true,
-				tagHTTPStatusMsg: "HTTP 404: Not Found",
+			tags: []dbmodel.KeyValue{
+				{Key: tagError, Value: true, Type: dbmodel.BoolType},
+				{Key: tagHTTPStatusMsg, Value: "HTTP 404: Not Found", Type: dbmodel.StringType},
 			},
 			status:           errorStatusWith404Message,
 			attrsModifiedLen: 1,
@@ -769,14 +772,16 @@ func TestSetInternalSpanStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			dbSpan := &dbmodel.Span{
+				TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+				SpanID:  dbmodel.SpanID("0123456789abcdef"),
+				Tags:    test.tags,
+			}
 			span := ptrace.NewSpan()
-			span.SetKind(test.kind)
-			status := span.Status()
-			attrs := pcommon.NewMap()
-			require.NoError(t, attrs.FromRaw(test.attrs))
-			setSpanStatus(attrs, span)
-			assert.Equal(t, test.status, status)
-			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
+			err := dbSpanToSpan(dbSpan, span)
+			require.NoError(t, err)
+			assert.Equal(t, test.status, span.Status())
+			assert.Equal(t, test.attrsModifiedLen, span.Attributes().Len())
 		})
 	}
 }
@@ -830,17 +835,19 @@ func TestDbSpanKindToOTELSpanKind_DefaultCase(t *testing.T) {
 	assert.Equal(t, ptrace.SpanKindUnspecified, result)
 }
 
-func TestSetInternalSpanStatus_DefaultCase(t *testing.T) {
+func TestResolveSpanStatus_DefaultCase(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:  dbmodel.SpanID("0123456789abcdef"),
+		Tags: []dbmodel.KeyValue{
+			{Key: conventions.OtelStatusCode, Value: "UNKNOWN_STATUS", Type: dbmodel.StringType},
+		},
+	}
 	span := ptrace.NewSpan()
-	status := span.Status()
-	attrs := pcommon.NewMap()
-
-	attrs.PutStr(conventions.OtelStatusCode, "UNKNOWN_STATUS")
-
-	setSpanStatus(attrs, span)
-
-	assert.Equal(t, ptrace.StatusCodeUnset, status.Code())
-	assert.Empty(t, status.Message())
+	err := dbSpanToSpan(dbSpan, span)
+	require.NoError(t, err)
+	assert.Equal(t, ptrace.StatusCodeUnset, span.Status().Code())
+	assert.Empty(t, span.Status().Message())
 }
 
 func TestFromDbModel_Fixtures(t *testing.T) {
