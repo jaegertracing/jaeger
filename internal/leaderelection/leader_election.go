@@ -51,23 +51,29 @@ type ElectionParticipantOptions struct {
 // NewElectionParticipant returns a ElectionParticipant which attempts to become leader.
 // Invalid duration values (zero or negative) will be replaced with sensible defaults and a warning will be logged.
 func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) *DistributedElectionParticipant {
+	defaultDuration := func(optionName string, currentValue, defaultValue time.Duration) time.Duration {
+		if currentValue <= 0 {
+			if options.Logger != nil {
+				options.Logger.Warn(optionName+" is invalid, using default",
+					zap.Duration("invalid_value", currentValue),
+					zap.Duration("default_value", defaultValue))
+			}
+			return defaultValue
+		}
+		return currentValue
+	}
+
 	// Set sensible defaults if durations are zero or negative
-	if options.LeaderLeaseRefreshInterval <= 0 {
-		if options.Logger != nil {
-			options.Logger.Warn("LeaderLeaseRefreshInterval is invalid, using default",
-				zap.Duration("invalid_value", options.LeaderLeaseRefreshInterval),
-				zap.Duration("default_value", defaultLeaderLeaseRefreshInterval))
-		}
-		options.LeaderLeaseRefreshInterval = defaultLeaderLeaseRefreshInterval
-	}
-	if options.FollowerLeaseRefreshInterval <= 0 {
-		if options.Logger != nil {
-			options.Logger.Warn("FollowerLeaseRefreshInterval is invalid, using default",
-				zap.Duration("invalid_value", options.FollowerLeaseRefreshInterval),
-				zap.Duration("default_value", defaultFollowerLeaseRefreshInterval))
-		}
-		options.FollowerLeaseRefreshInterval = defaultFollowerLeaseRefreshInterval
-	}
+	options.LeaderLeaseRefreshInterval = defaultDuration(
+		"LeaderLeaseRefreshInterval",
+		options.LeaderLeaseRefreshInterval,
+		defaultLeaderLeaseRefreshInterval,
+	)
+	options.FollowerLeaseRefreshInterval = defaultDuration(
+		"FollowerLeaseRefreshInterval",
+		options.FollowerLeaseRefreshInterval,
+		defaultFollowerLeaseRefreshInterval,
+	)
 
 	return &DistributedElectionParticipant{
 		ElectionParticipantOptions: options,
