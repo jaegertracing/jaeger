@@ -11,8 +11,11 @@ class SidecarConfig:
     mcp_discovery_timeout_sec: float
     otlp_endpoint: str
     otlp_insecure: bool
+    demo_mode: bool = False
 
     def validate(self) -> None:
+        if self.demo_mode:
+            return
         if not self.gemini_api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY must be provided via --gemini-api-key or environment variable"
