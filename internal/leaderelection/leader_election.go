@@ -15,7 +15,9 @@ import (
 )
 
 const (
-	acquireLockErrMsg = "Failed to acquire lock"
+	acquireLockErrMsg                   = "Failed to acquire lock"
+	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
+	defaultFollowerLeaseRefreshInterval = 10 * time.Second
 )
 
 // ElectionParticipant partakes in leader election to become leader.
@@ -36,7 +38,10 @@ type DistributedElectionParticipant struct {
 	wg           sync.WaitGroup
 }
 
-// ElectionParticipantOptions control behavior of the election participant. TODO func applyDefaults(), parameter error checking, etc.
+// ElectionParticipantOptions control behavior of the election participant.
+// If LeaderLeaseRefreshInterval or FollowerLeaseRefreshInterval are zero or negative,
+// they will be replaced with sensible defaults (5 seconds and 10 seconds, respectively).
+// A warning will be logged when this occurs to help detect configuration issues.
 type ElectionParticipantOptions struct {
 	LeaderLeaseRefreshInterval   time.Duration
 	FollowerLeaseRefreshInterval time.Duration
@@ -44,7 +49,26 @@ type ElectionParticipantOptions struct {
 }
 
 // NewElectionParticipant returns a ElectionParticipant which attempts to become leader.
+// Invalid duration values (zero or negative) will be replaced with sensible defaults and a warning will be logged.
 func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) *DistributedElectionParticipant {
+	// Set sensible defaults if durations are zero or negative
+	if options.LeaderLeaseRefreshInterval <= 0 {
+		if options.Logger != nil {
+			options.Logger.Warn("LeaderLeaseRefreshInterval is invalid, using default",
+				zap.Duration("invalid_value", options.LeaderLeaseRefreshInterval),
+				zap.Duration("default_value", defaultLeaderLeaseRefreshInterval))
+		}
+		options.LeaderLeaseRefreshInterval = defaultLeaderLeaseRefreshInterval
+	}
+	if options.FollowerLeaseRefreshInterval <= 0 {
+		if options.Logger != nil {
+			options.Logger.Warn("FollowerLeaseRefreshInterval is invalid, using default",
+				zap.Duration("invalid_value", options.FollowerLeaseRefreshInterval),
+				zap.Duration("default_value", defaultFollowerLeaseRefreshInterval))
+		}
+		options.FollowerLeaseRefreshInterval = defaultFollowerLeaseRefreshInterval
+	}
+
 	return &DistributedElectionParticipant{
 		ElectionParticipantOptions: options,
 		lock:                       lock,
