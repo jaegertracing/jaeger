@@ -34,6 +34,9 @@ func ValidateDefinitions(defs []Definition) error {
 // ValidateDefinition validates a single skill definition.
 func ValidateDefinition(def Definition) error {
 	name := strings.TrimSpace(def.Name)
+	if def.Name != name {
+		return fmt.Errorf("name %q must not contain leading or trailing whitespace", def.Name)
+	}
 	if name == "" {
 		return errors.New("name is required")
 	}
