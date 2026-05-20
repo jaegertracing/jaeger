@@ -15,7 +15,7 @@ var skillNamePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]*$`)
 // ValidateDefinitions validates a full set of parsed skill definitions.
 func ValidateDefinitions(defs []Definition) error {
 	if len(defs) == 0 {
-		return errors.New("no skills definitions provided")
+		return errors.New("no skill definitions provided")
 	}
 
 	seen := make(map[string]struct{}, len(defs))
