@@ -23,6 +23,7 @@ type FSWatcher struct {
 	fileHashContentMap map[string]string
 	onChange           func()
 	mu                 sync.RWMutex
+	wg                 sync.WaitGroup
 }
 
 // FSWatcher waits for notifications of changes in the watched directories
@@ -64,7 +65,11 @@ func New(filepaths []string, onChange func(), logger *zap.Logger) (*FSWatcher, e
 		return nil, err
 	}
 
-	go w.watch()
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.watch()
+	}()
 
 	return w, nil
 }
@@ -127,9 +132,11 @@ func (w *FSWatcher) watch() {
 	}
 }
 
-// Close closes the watcher.
+// Close closes the watcher and waits for the watch goroutine to finish.
 func (w *FSWatcher) Close() error {
-	return w.watcher.Close()
+	err := w.watcher.Close()
+	w.wg.Wait()
+	return err
 }
 
 // isModified returns true if the file has been modified since the last check.
