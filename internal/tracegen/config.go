@@ -30,6 +30,7 @@ type Config struct {
 	Duration      time.Duration
 	Service       string
 	TraceExporter string
+	Scenario      string
 }
 
 // Flags registers config flags.
@@ -47,6 +48,7 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Service, "service", "tracegen", "Service name prefix to use")
 	fs.IntVar(&c.Services, "services", 1, "Number of unique suffixes to add to service name when generating traces, e.g. tracegen-01 (but only one service per trace)")
 	fs.StringVar(&c.TraceExporter, "trace-exporter", "otlp-http", "Trace exporter (otlp/otlp-http|otlp-grpc|stdout). Exporters can be additionally configured via environment variables, see https://github.com/jaegertracing/jaeger/blob/main/cmd/tracegen/README.md")
+	fs.StringVar(&c.Scenario, "scenario", "default", "Trace scenario to generate. 'default' emits basic client/server spans. 'genai' emits spans following OpenTelemetry GenAI semantic conventions (gen_ai.*).")
 }
 
 // Run executes the test scenario.
