@@ -60,10 +60,16 @@ func main() {
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	jaegerclientenv2otel.MapJaegerToOtelEnvVars(logger)
 
+	if err := run(cfg, logger); err != nil {
+		logger.Fatal("trace generation failed", zap.Error(err))
+	}
+}
+
+func run(cfg *tracegen.Config, logger *zap.Logger) error {
 	tracers, shutdown := createTracers(cfg, logger)
 	defer shutdown(context.Background())
 
-	tracegen.Run(cfg, tracers, logger)
+	return tracegen.Run(cfg, tracers, logger)
 }
 
 func createTracers(cfg *tracegen.Config, logger *zap.Logger) ([]trace.Tracer, func(context.Context) error) {
