@@ -56,7 +56,7 @@ The stale-evidence refresh is tracked by `https://github.com/jaegertracing/jaege
 | `test_continuous_integration` | `https://github.com/jaegertracing/jaeger/actions/workflows/ci-orchestrator.yml?query=branch%3Amain` and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/README.md` |
 | `copyright_per_file` | Header policy: `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#copyright-header`; automated repair and lint enforcement: `https://github.com/jaegertracing/jaeger/blob/main/scripts/lint/updateLicense.py`, `https://github.com/jaegertracing/jaeger/blob/main/Makefile`, and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/ci-lint-checks.yaml`. |
 | `license_per_file` | SPDX header policy: `https://github.com/jaegertracing/jaeger/blob/main/CONTRIBUTING_GUIDELINES.md#copyright-header`; automated repair and lint enforcement: `https://github.com/jaegertracing/jaeger/blob/main/scripts/lint/updateLicense.py`, `https://github.com/jaegertracing/jaeger/blob/main/Makefile`, and `https://github.com/jaegertracing/jaeger/blob/main/.github/workflows/ci-lint-checks.yaml`. |
-| `security_review` | Historical public audits are available at `https://github.com/jaegertracing/security-audits`; current-within-5-years evidence is tracked by issue `https://github.com/jaegertracing/jaeger/issues/8485`. |
+| `security_review` | Current security review: `https://github.com/jaegertracing/jaeger/blob/main/docs/security/security-review-2026.md`; historical public audits are available at `https://github.com/jaegertracing/security-audits`. |
 
 ## Hard-Evidence Criteria
 
@@ -80,4 +80,3 @@ The following criteria need more than URL refresh and are tracked by the Gold ba
 | --- | --- | --- |
 | `https://github.com/jaegertracing/jaeger/issues/8483` | `small_tasks` | Active newcomer-task evidence, discoverable issue labels, and a lightweight maintainer process for keeping suitable tasks available. |
 | `https://github.com/jaegertracing/jaeger/issues/8484` | `test_branch_coverage80`, `hardened_site` | Hard-evidence criteria are documented above. Remaining follow-up is to record the branch-coverage N/A rationale in BadgeApp if accepted and either add the missing website hardening headers in website hosting or document the hosting constraint in BadgeApp. |
-| `https://github.com/jaegertracing/jaeger/issues/8485` | `security_review` | Current security review evidence from within the Gold five-year window, published without disclosing sensitive vulnerability details. |
