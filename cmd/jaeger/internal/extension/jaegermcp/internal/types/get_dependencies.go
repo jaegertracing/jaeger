@@ -16,6 +16,7 @@ type GetDependenciesInput struct {
 
 // GetDependenciesOutput defines the output of the get_service_dependencies MCP tool.
 type GetDependenciesOutput struct {
+	SkillMetadata
 	Dependencies []DependencyLink `json:"dependencies" jsonschema:"Service-to-service dependency edges with call counts"`
 }
 

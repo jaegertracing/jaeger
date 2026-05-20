@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -94,10 +95,21 @@ func (h *getTraceTopologyHandler) handle(
 		return nil, types.GetTraceTopologyOutput{}, errors.New("trace not found")
 	}
 
+	outputSpans := h.buildFlatTopology(spans, input.Depth)
+	evidenceSpans := make([]string, len(outputSpans))
+	for i, s := range outputSpans {
+		parts := strings.Split(s.Path, "/")
+		evidenceSpans[i] = parts[len(parts)-1]
+	}
+
 	// Build the flat topology list from the collected spans
 	output := types.GetTraceTopologyOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName:     "get_trace_topology",
+			EvidenceSpans: evidenceSpans,
+		},
 		TraceID: input.TraceID,
-		Spans:   h.buildFlatTopology(spans, input.Depth),
+		Spans:   outputSpans,
 	}
 
 	return nil, output, nil

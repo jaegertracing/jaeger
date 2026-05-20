@@ -18,6 +18,7 @@ type GetTraceTopologyInput struct {
 // the tree structure as a slash-delimited sequence of span IDs from the root to
 // that span (e.g. "rootID/parentID/spanID").
 type GetTraceTopologyOutput struct {
+	SkillMetadata
 	TraceID string         `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	Spans   []TopologySpan `json:"spans"    jsonschema:"Flat depth-first list of spans; Path encodes parent-child relationships"`
 }

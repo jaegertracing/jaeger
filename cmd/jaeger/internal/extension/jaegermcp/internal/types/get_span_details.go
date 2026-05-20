@@ -15,6 +15,7 @@ type GetSpanDetailsInput struct {
 
 // GetSpanDetailsOutput defines the output of the get_span_details MCP tool.
 type GetSpanDetailsOutput struct {
+	SkillMetadata
 	TraceID string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	Spans   []SpanDetail `json:"spans,omitempty" jsonschema:"List of span details"`
 	Error   string       `json:"error,omitempty" jsonschema:"Error message if some spans were not found"`

@@ -20,6 +20,7 @@ type GetSpanNamesInput struct {
 
 // GetSpanNamesOutput defines the output of the get_span_names MCP tool.
 type GetSpanNamesOutput struct {
+	SkillMetadata
 	SpanNames []SpanNameInfo `json:"span_names" jsonschema:"List of span names for the service"`
 }
 
