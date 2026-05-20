@@ -38,12 +38,12 @@ const (
 )
 
 var (
-	errMaxDurationGreaterThanMin = errors.New("'" + maxDurationParam + "' should be greater than '" + minDurationParam + "'")
+	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
 
 	// errServiceParameterRequired occurs when no service name is defined.
-	errServiceParameterRequired = errors.New("parameter '" + serviceParam + "' is required")
-	errSearchDepthMustBePositive = errors.New("'" + limitParam + "' must be greater than 0")
-	errStartAfterEnd            = errors.New("'" + startTimeParam + "' must not be after '" + endTimeParam + "'")
+	errServiceParameterRequired  = fmt.Errorf("parameter '%s' is required", serviceParam)
+	errSearchDepthMustBePositive = fmt.Errorf("'%s' must be greater than 0", limitParam)
+	errStartAfterEnd             = fmt.Errorf("'%s' must not be after '%s'", startTimeParam, endTimeParam)
 )
 
 type (
@@ -127,12 +127,15 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		return nil, err
 	}
 
-	limitParam := r.URL.Query().Get(limitParam)
+	limitStr := r.URL.Query().Get(limitParam)
 	limit := defaultQueryLimit
-	if limitParam != "" {
-		limitParsed, err := strconv.ParseInt(limitParam, 10, 32)
+	if limitStr != "" {
+		limitParsed, err := strconv.ParseInt(limitStr, 10, 32)
 		if err != nil {
 			return nil, err
+		}
+		if limitParsed <= 0 {
+			return nil, errSearchDepthMustBePositive
 		}
 		limit = int(limitParsed)
 	}
@@ -364,7 +367,7 @@ func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
 	}
-	if traceQuery.SearchDepth <= 0 {
+	if traceQuery.SearchDepth < 0 {
 		return errSearchDepthMustBePositive
 	}
 	if traceQuery.StartTimeMin.After(traceQuery.StartTimeMax) {
