@@ -23,7 +23,7 @@ services:
       - "4318:4318"
     restart: on-failure
     healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:16686/ || exit 1" ]
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:16686/ || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -54,7 +54,7 @@ services:
       - "9090:9090"
     restart: on-failure
     healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/ready || exit 1" ]
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:9090/-/ready || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -75,7 +75,7 @@ services:
       - "3000:3000"
     restart: on-failure
     healthcheck:
-      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1" ]
+      test: [ "CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 12
