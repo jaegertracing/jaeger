@@ -3,10 +3,7 @@
 
 package skills
 
-import (
-	"context"
-	"os"
-)
+import "context"
 
 // SkillDefinition describes a single skill loaded from static config.
 type SkillDefinition struct {
@@ -67,11 +64,6 @@ func DefaultExecutorConfig() ExecutorConfig {
 		},
 	}
 
-	if os.Getenv("OPENAI_API_KEY") == "" && os.Getenv("ANTHROPIC_API_KEY") == "" {
-		return cfg
-	}
-
-	// Keep local as the default even if cloud keys exist.
 	return cfg
 }
 

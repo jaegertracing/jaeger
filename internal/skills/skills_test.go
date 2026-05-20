@@ -154,3 +154,70 @@ func TestValidateSkill(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateDefinitions(t *testing.T) {
+	t.Parallel()
+
+	validSkill := Definition{
+		Name:          "trace_explainer",
+		Version:       "1.0.0",
+		SystemPrompt:  "Explain a trace execution path.",
+		AllowedTools:  []string{"query_traces"},
+		MaxIterations: 3,
+		OutputContract: OutputContract{
+			Fields:    []string{"summary", "actions"},
+			MaxTokens: 512,
+			Format:    "json",
+		},
+	}
+
+	tests := []struct {
+		name    string
+		defs    []Definition
+		wantErr bool
+	}{
+		{
+			name:    "duplicate skill names",
+			defs:    []Definition{validSkill, validSkill},
+			wantErr: true,
+		},
+		{
+			name: "name with leading whitespace",
+			defs: []Definition{{
+				Name:           " trace_explainer",
+				Version:        validSkill.Version,
+				SystemPrompt:   validSkill.SystemPrompt,
+				AllowedTools:   validSkill.AllowedTools,
+				MaxIterations:  validSkill.MaxIterations,
+				OutputContract: validSkill.OutputContract,
+			}},
+			wantErr: true,
+		},
+		{
+			name: "name with trailing whitespace",
+			defs: []Definition{{
+				Name:           "trace_explainer ",
+				Version:        validSkill.Version,
+				SystemPrompt:   validSkill.SystemPrompt,
+				AllowedTools:   validSkill.AllowedTools,
+				MaxIterations:  validSkill.MaxIterations,
+				OutputContract: validSkill.OutputContract,
+			}},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateDefinitions(tt.defs)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected validation error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("expected no validation error, got %v", err)
+			}
+		})
+	}
+}
