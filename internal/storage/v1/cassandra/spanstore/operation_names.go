@@ -116,13 +116,15 @@ func NewOperationNamesStorage(
 			&cache.Options{
 				TTL:             writeCacheTTL,
 				InitialCapacity: 10000,
-			}),
+			},
+		),
 	}, nil
 }
 
 // Write saves Operation and Service name tuples
 func (s *OperationNamesStorage) Write(operation dbmodel.Operation) error {
-	key := fmt.Sprintf("%s|%s|%s",
+	key := fmt.Sprintf(
+		"%s|%s|%s",
 		operation.ServiceName,
 		operation.SpanKind,
 		operation.OperationName,

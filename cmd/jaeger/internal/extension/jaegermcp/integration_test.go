@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"iter"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ func (s *mcpSession) callTool(t *testing.T, name string, args map[string]any) st
 // connectMCPSession starts a test server backed by the given mock reader,
 // connects an MCP SDK client, and returns the session with a 5s context.
 // Pass nil for tests that only exercise protocol-level operations (initialize,
-// tools/list, health) which do not hit storage. Passing nil creates a
+// tools/list) which do not hit storage. Passing nil creates a
 // QueryService backed by empty mocks that will panic on unexpected storage calls.
 func connectMCPSession(t *testing.T, mockReader *tracestoremocks.Reader) *mcpSession {
 	t.Helper()
@@ -218,7 +219,7 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []string{
-		"health", "get_services", "get_span_names", "search_traces",
+		"get_services", "get_span_names", "search_traces",
 		"get_span_details", "get_trace_errors", "get_trace_topology", "get_critical_path",
 		"get_service_dependencies",
 	}
@@ -233,17 +234,6 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 }
 
 // --- Tool invocation tests ---
-
-func TestMCPClientHealthTool(t *testing.T) {
-	s := connectMCPSession(t, nil)
-	text := s.callTool(t, "health", nil)
-
-	var health HealthToolOutput
-	require.NoError(t, json.Unmarshal([]byte(text), &health))
-	assert.Equal(t, "ok", health.Status)
-	assert.Equal(t, "jaeger", health.Server)
-	assert.Equal(t, "1.0.0", health.Version)
-}
 
 func TestMCPClientGetServices(t *testing.T) {
 	mockReader := &tracestoremocks.Reader{}
@@ -461,20 +451,20 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	type callResult struct {
-		toolResult *mcp.CallToolResult
-		err        error
+	type listResult struct {
+		result *mcp.ListToolsResult
+		err    error
 	}
-	ch1 := make(chan callResult, 1)
-	ch2 := make(chan callResult, 1)
+	ch1 := make(chan listResult, 1)
+	ch2 := make(chan listResult, 1)
 
 	go func() {
-		r, err := session1.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
-		ch1 <- callResult{toolResult: r, err: err}
+		r, err := session1.ListTools(ctx, nil)
+		ch1 <- listResult{result: r, err: err}
 	}()
 	go func() {
-		r, err := session2.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
-		ch2 <- callResult{toolResult: r, err: err}
+		r, err := session2.ListTools(ctx, nil)
+		ch2 <- listResult{result: r, err: err}
 	}()
 
 	r1 := <-ch1
@@ -482,7 +472,17 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 
 	require.NoError(t, r1.err)
 	require.NoError(t, r2.err)
-	text1 := extractTextContent(t, r1.toolResult)
-	text2 := extractTextContent(t, r2.toolResult)
-	assert.Equal(t, text1, text2)
+	require.Len(t, r1.result.Tools, len(r2.result.Tools))
+	names1 := toolNamesFromList(r1.result.Tools)
+	names2 := toolNamesFromList(r2.result.Tools)
+	assert.Equal(t, names1, names2)
+}
+
+func toolNamesFromList(tools []*mcp.Tool) []string {
+	names := make([]string, len(tools))
+	for i, tool := range tools {
+		names[i] = tool.Name
+	}
+	slices.Sort(names)
+	return names
 }

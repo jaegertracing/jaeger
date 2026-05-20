@@ -50,7 +50,8 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 			attrs := []attribute.KeyValue{}
 			if toolName != "" {
 				spanName = method + " " + toolName
-				attrs = append(attrs,
+				attrs = append(
+					attrs,
 					otelsemconv.GenAIOperationNameExecuteTool,
 					otelsemconv.GenAIToolName(toolName),
 				)
@@ -181,7 +182,7 @@ func isNil(value any) bool {
 	}
 	reflectValue := reflect.ValueOf(value)
 	switch reflectValue.Kind() {
-	case reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
+	case reflect.Pointer, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan, reflect.Interface:
 		return reflectValue.IsNil()
 	default:
 		return false

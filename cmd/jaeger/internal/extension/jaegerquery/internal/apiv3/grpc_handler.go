@@ -23,6 +23,7 @@ import (
 
 // Handler implements api_v3.QueryServiceServer
 type Handler struct {
+	api_v3.UnimplementedQueryServiceServer
 	QueryService *querysvc.QueryService
 }
 

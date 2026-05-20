@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 global:
 
   # Set low scrape and evaluation intervals to speed up e2e test

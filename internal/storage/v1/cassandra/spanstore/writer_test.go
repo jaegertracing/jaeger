@@ -280,7 +280,8 @@ func TestSpanWriterSaveServiceNameAndOperationName(t *testing.T) {
 				dbmodel.Operation{
 					ServiceName:   "service",
 					OperationName: "operation",
-				})
+				},
+			)
 			if testCase.expectedError == "" {
 				require.NoError(t, err)
 			} else {

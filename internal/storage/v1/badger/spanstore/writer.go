@@ -67,7 +67,8 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return err
 	}
 
-	entriesToStore = append(entriesToStore,
+	entriesToStore = append(
+		entriesToStore,
 		trace,
 		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
 		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
