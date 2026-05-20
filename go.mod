@@ -9,7 +9,7 @@ require (
 	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/coder/acp-go-sdk v0.12.2
+	github.com/coder/acp-go-sdk v0.13.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/dgraph-io/badger/v4 v4.9.1
 	github.com/elastic/go-elasticsearch/v9 v9.4.1
@@ -20,7 +20,7 @@ require (
 	github.com/google/gnostic-models v0.7.1
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/jaegertracing/jaeger-idl v0.7.0
+	github.com/jaegertracing/jaeger-idl v0.7.1
 	github.com/kr/pretty v0.3.1
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/olivere/elastic/v7 v7.0.32
