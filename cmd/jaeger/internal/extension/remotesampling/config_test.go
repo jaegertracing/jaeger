@@ -5,14 +5,23 @@ package remotesampling
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/confmap"
+
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
 )
 
 func Test_Validate(t *testing.T) {
+	defaultAdaptiveOptions := adaptive.DefaultOptions()
+	zeroLeaderLeaseOptions := adaptive.DefaultOptions()
+	zeroLeaderLeaseOptions.LeaderLeaseRefreshInterval = 0
+	negativeFollowerLeaseOptions := adaptive.DefaultOptions()
+	negativeFollowerLeaseOptions.FollowerLeaseRefreshInterval = -time.Second
+
 	tests := []struct {
 		name        string
 		config      *Config
@@ -41,7 +50,10 @@ func Test_Validate(t *testing.T) {
 		{
 			name: "Only Adaptive provider specified",
 			config: &Config{
-				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: "test-store"}),
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       defaultAdaptiveOptions,
+				}),
 			},
 			expectedErr: "",
 		},
@@ -76,9 +88,32 @@ func Test_Validate(t *testing.T) {
 		{
 			name: "Invalid Adaptive provider",
 			config: &Config{
-				Adaptive: configoptional.Some(AdaptiveConfig{SamplingStore: ""}),
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "",
+					Options:       defaultAdaptiveOptions,
+				}),
 			},
 			expectedErr: "SamplingStore: non zero value required",
+		},
+		{
+			name: "Adaptive provider has zero leader lease refresh interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       zeroLeaderLeaseOptions,
+				}),
+			},
+			expectedErr: "leader lease refresh interval must be a positive value",
+		},
+		{
+			name: "Adaptive provider has negative follower lease refresh interval",
+			config: &Config{
+				Adaptive: configoptional.Some(AdaptiveConfig{
+					SamplingStore: "test-store",
+					Options:       negativeFollowerLeaseOptions,
+				}),
+			},
+			expectedErr: "follower lease refresh interval must be a positive value",
 		},
 	}
 
