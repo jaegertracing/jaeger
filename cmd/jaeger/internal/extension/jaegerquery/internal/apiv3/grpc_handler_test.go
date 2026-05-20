@@ -204,6 +204,7 @@ func TestFindTracesSendError(t *testing.T) {
 			Query: &api_v3.TraceQueryParameters{
 				StartTimeMin: time.Now().Add(-2 * time.Hour),
 				StartTimeMax: time.Now(),
+				SearchDepth:  10,
 			},
 		},
 		/* streamSend= */ func(*jptrace.TracesData) error {
@@ -242,6 +243,7 @@ func TestFindTracesStorageError(t *testing.T) {
 		Query: &api_v3.TraceQueryParameters{
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
+			SearchDepth:  10,
 		},
 	})
 	require.NoError(t, err)

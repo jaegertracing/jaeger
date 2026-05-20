@@ -362,6 +362,14 @@ func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
 	}
+	if traceQuery.SearchDepth <= 0 {
+		return fmt.Errorf("invalid parameter: %s must be greater than 0", limitParam)
+	}
+	if !traceQuery.StartTimeMin.IsZero() && !traceQuery.StartTimeMax.IsZero() {
+		if traceQuery.StartTimeMin.After(traceQuery.StartTimeMax) {
+			return fmt.Errorf("invalid parameter: %s time must be before %s time", startTimeParam, endTimeParam)
+		}
+	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
 		if traceQuery.DurationMax < traceQuery.DurationMin {
 			return errMaxDurationGreaterThanMin
