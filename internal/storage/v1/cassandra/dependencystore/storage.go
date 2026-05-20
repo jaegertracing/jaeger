@@ -134,8 +134,13 @@ func (s *DependencyStore) GetDependencies(_ context.Context, endTs time.Time, lo
 }
 
 func getBuckets(startTs time.Time, endTs time.Time) []time.Time {
-	// TODO: Preallocate the array using some maths and maybe use a pool? This endpoint probably isn't used enough to warrant this.
-	var tsBuckets []time.Time
+	// Calculate number of buckets needed to avoid reallocations
+	duration := endTs.Sub(startTs)
+	numBuckets := int(duration/tsBucket) + 1
+	
+	// Preallocate slice with exact capacity
+	tsBuckets := make([]time.Time, 0, numBuckets)
+	
 	for ts := startTs.Truncate(tsBucket); ts.Before(endTs); ts = ts.Add(tsBucket) {
 		tsBuckets = append(tsBuckets, ts)
 	}
