@@ -429,3 +429,57 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
 	gw.reader.AssertExpectations(t)
 }
+
+func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
+	time1 := time.Now().UTC().Truncate(time.Nanosecond)
+	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+
+	attrs := pcommon.NewMap()
+	attrs.PutStr("http.method", "GET")
+	attrs.PutStr("status", "error")
+
+	expectedParams := tracestore.TraceQueryParams{
+		ServiceName:   "svc",
+		OperationName: "op",
+		Attributes:    attrs,
+		StartTimeMin:  time1,
+		StartTimeMax:  time2,
+		SearchDepth:   5,
+	}
+
+	q := url.Values{}
+	q.Set(paramServiceName, "svc")
+	q.Set(paramOperationName, "op")
+	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	q.Set(paramNumTraces, "5")
+	q["query.attributes[http.method]"] = []string{"GET"}
+	q["query.attributes[status]"] = []string{"error"}
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, mock.MatchedBy(func(qp tracestore.TraceQueryParams) bool {
+			return qp.ServiceName == expectedParams.ServiceName &&
+				qp.OperationName == expectedParams.OperationName &&
+				qp.SearchDepth == expectedParams.SearchDepth &&
+				qp.Attributes.Len() == 2 &&
+				func() bool {
+					v, ok := qp.Attributes.Get("http.method")
+					return ok && v.AsString() == "GET"
+				}() &&
+				func() bool {
+					v, ok := qp.Attributes.Get("status")
+					return ok && v.AsString() == "error"
+				}()
+		})).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}
