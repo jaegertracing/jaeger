@@ -15,8 +15,10 @@ row for each trace (see `ResultItem.tsx` and `transformTraceData()`):
 * Total span count
 * Total error span count (spans with OTEL `StatusCode.ERROR`)
 * Per-service breakdown: for each distinct service name, the number of spans belonging
-  to that service and whether any of those spans has an error — rendered as a coloured
-  tag with an optional error icon, e.g. `frontend (12) ⚠`
+  to that service and the count of those spans that carry `StatusCode.ERROR` — rendered
+  as a coloured tag with an optional error icon when `error_span_count > 0`,
+  e.g. `frontend (12) ⚠`. Only spans directly owned by the service are counted; there
+  is no error propagation from child spans of other services.
 * Trace start time (absolute + relative)
 
 The scatter plot in the search header also uses span count (bubble size) and the
@@ -65,8 +67,11 @@ message ServiceSummary {
   // Number of spans attributed to this service in the trace.
   int32 span_count = 2;
 
-  // True if at least one span from this service has OTEL StatusCode = ERROR.
-  bool has_errors = 3;
+  // Number of spans from this service that carry OTEL StatusCode = ERROR.
+  // The UI renders an error icon when this value is > 0.
+  // Only spans explicitly owned by this service are counted; there is no
+  // error propagation from child spans of other services.
+  int32 error_span_count = 3;
 }
 
 // TraceSummary contains lightweight summary information about a trace,
@@ -140,9 +145,9 @@ no new query-parameter parsing is needed.
 // ServiceSummary and TraceSummary mirror the definitions in api_v3 but live
 // in the storage package to avoid a cross-package proto dependency.
 message ServiceSummary {
-  string name       = 1;
-  int32  span_count = 2;
-  bool   has_errors = 3;
+  string name             = 1;
+  int32  span_count       = 2;
+  int32  error_span_count = 3;
 }
 
 message TraceSummary {
@@ -190,9 +195,9 @@ type SummaryReader interface {
 
 // ServiceSummary holds per-service statistics for a single trace.
 type ServiceSummary struct {
-    Name      string
-    SpanCount int
-    HasErrors bool
+    Name           string
+    SpanCount      int
+    ErrorSpanCount int
 }
 
 // TraceSummary mirrors TraceSummary in jaeger.api_v3 but uses Go types.
@@ -292,7 +297,7 @@ New TypeScript types are introduced:
 export type ServiceSummary = {
   name: string;
   spanCount: number;
-  hasErrors: boolean;
+  errorSpanCount: number;
 };
 
 export type TraceSummary = {
