@@ -99,9 +99,13 @@ message TraceSummary {
   // (OTEL StatusCode = ERROR).
   int32 error_span_count = 7;
 
+  // Number of spans whose parent span ID is not present in this trace.
+  // A non-zero value indicates an incomplete or partial trace.
+  int32 orphan_span_count = 9;
+
   // Per-service breakdown, one entry per distinct service name observed
-  // across all spans.  Matches the coloured service tags shown in the
-  // search results row (name, span count, error indicator).
+  // across all spans, sorted by name.  Matches the coloured service tags
+  // shown in the search results row (name, span count, error indicator).
   repeated ServiceSummary services = 8;
 }
 
@@ -110,7 +114,9 @@ message FindTraceSummariesRequest {
   TraceQueryParameters query = 1;
 }
 
-// Response for FindTraceSummaries.
+// Response chunk for FindTraceSummaries.  A single RPC call may yield multiple
+// chunks, each carrying one or more summaries, mirroring the chunked streaming
+// used by FindTraces / GetTrace.
 message FindTraceSummariesResponse {
   repeated TraceSummary summaries = 1;
 }
@@ -124,10 +130,11 @@ message FindTraceSummariesResponse {
 service QueryService {
   // ... existing RPCs ...
 
-  // FindTraceSummaries searches for traces matching the given query and returns
-  // lightweight summary information for each matching trace.  Use this instead
-  // of FindTraces when full span data is not required (e.g. search results page).
-  rpc FindTraceSummaries(FindTraceSummariesRequest) returns (FindTraceSummariesResponse) {
+  // FindTraceSummaries searches for traces matching the given query and streams
+  // back lightweight summary information for each matching trace.  Each response
+  // chunk may contain one or more summaries.  Use this instead of FindTraces when
+  // full span data is not required (e.g. search results page).
+  rpc FindTraceSummaries(FindTraceSummariesRequest) returns (stream FindTraceSummariesResponse) {
     option (google.api.http) = {
       get: "/api/v3/trace-summaries"
       additional_bindings {
@@ -162,14 +169,17 @@ message TraceSummary {
   google.protobuf.Timestamp start_time = 4;
   google.protobuf.Duration  duration   = 5;
   int32  span_count          = 6;
-  int32  error_span_count         = 7;
+  int32  error_span_count    = 7;
   repeated ServiceSummary services = 8;
+  int32  orphan_span_count   = 9;
 }
 
 message FindTraceSummariesRequest {
   TraceQueryParameters query = 1;
 }
 
+// Response chunk for FindTraceSummaries.  Mirrors the chunked streaming
+// contract of GetTraces / FindTraces: each chunk carries one or more summaries.
 message FindTraceSummariesResponse {
   repeated TraceSummary summaries = 1;
 }
@@ -177,10 +187,10 @@ message FindTraceSummariesResponse {
 service TraceReader {
   // ... existing RPCs ...
 
-  // FindTraceSummaries is an optional RPC. If a remote storage backend does
-  // not implement it, it MUST return gRPC status UNIMPLEMENTED so that the
+  // FindTraceSummaries is an optional streaming RPC. If a remote storage backend
+  // does not implement it, it MUST return gRPC status UNIMPLEMENTED so that the
   // caller can fall back to FindTraces + client-side aggregation.
-  rpc FindTraceSummaries(FindTraceSummariesRequest) returns (FindTraceSummariesResponse) {}
+  rpc FindTraceSummaries(FindTraceSummariesRequest) returns (stream FindTraceSummariesResponse) {}
 }
 ```
 
@@ -198,8 +208,12 @@ existing storage implementations), a new **optional** interface is introduced:
 // SummaryReader is an optional extension to tracestore.Reader that allows
 // storage backends to compute trace summaries natively.  Backends that do not
 // implement this interface will fall back to FindTraces + client-side aggregation.
+//
+// The iterator contract mirrors FindTraces: each yielded batch may contain one
+// or more summaries, and implementations may yield results incrementally as the
+// underlying query executes rather than buffering all results first.
 type SummaryReader interface {
-    FindTraceSummaries(ctx context.Context, query TraceQueryParams) ([]TraceSummary, error)
+    FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 }
 
 // ServiceSummary holds per-service statistics for a single trace.
@@ -217,7 +231,11 @@ type TraceSummary struct {
     StartTime         time.Time
     Duration          time.Duration
     SpanCount         int
-    ErrorSpanCount        int
+    ErrorSpanCount    int
+    // OrphanSpanCount is the number of spans whose parent span ID is not
+    // present in this trace (indicates an incomplete / partial trace).
+    OrphanSpanCount   int
+    // Services contains one entry per distinct service name, sorted by name.
     Services          []ServiceSummary
 }
 ```
@@ -233,21 +251,26 @@ expressed as separate interfaces (e.g. `spanstore.Writer` vs `spanstore.WriteFla
 func (qs *QueryService) FindTraceSummaries(
     ctx context.Context,
     query tracestore.TraceQueryParams,
-) ([]tracestore.TraceSummary, error)
+) iter.Seq2[[]tracestore.TraceSummary, error]
 ```
+
+The return type is an iterator, consistent with `FindTraces` and `FindTraceIDs`, allowing
+summaries to be streamed incrementally to the caller rather than buffered in memory.
 
 **Implementation logic:**
 
 ```
 if reader implements tracestore.SummaryReader:
-    return reader.FindTraceSummaries(ctx, query)
+    return reader.FindTraceSummaries(ctx, query)   // native streaming path
 else:
-    traces = collect all from reader.FindTraces(ctx, query)
-    return computeSummaries(traces)   // client-side aggregation
+    // fallback: aggregate full traces into summaries via jptrace.AggregateTraces,
+    // applying the clock-skew adjuster before summarizing each assembled trace
+    return computeSummaries(reader.FindTraces(ctx, query), adjuster)
 ```
 
-`computeSummaries` iterates the `ptrace.Traces` iterator and accumulates the required
-statistics without retaining the full span data.
+`computeSummaries` uses `jptrace.AggregateTraces` to reassemble multi-chunk traces
+before computing each summary, ensuring a trace split across consecutive `ptrace.Traces`
+chunks always produces exactly one `TraceSummary`.
 
 ### 6. Remote Storage Adapter — Fallback on UNIMPLEMENTED
 
@@ -257,34 +280,50 @@ and, if the server returns `codes.Unimplemented`, falls back to calling
 `FindTraces` and computing summaries client-side:
 
 ```go
-func (r *grpcReader) FindTraceSummaries(ctx, query) ([]TraceSummary, error) {
-    resp, err := r.client.FindTraceSummaries(ctx, req)
-    if status.Code(err) == codes.Unimplemented {
-        return r.findTraceSummariesFallback(ctx, query)
+func (r *grpcReader) FindTraceSummaries(ctx, query) iter.Seq2[[]TraceSummary, error] {
+    return func(yield func([]TraceSummary, error) bool) {
+        stream, err := r.client.FindTraceSummaries(ctx, req)
+        if status.Code(err) == codes.Unimplemented {
+            // delegate to fallback iterator
+            computeSummaries(r.FindTraces(ctx, query), r.adjuster)(yield)
+            return
+        }
+        for {
+            resp, err := stream.Recv()
+            if err == io.EOF { return }
+            if !yield(convert(resp.Summaries), err) { return }
+        }
     }
-    return convert(resp.Summaries), err
 }
 ```
 
 ### 7. gRPC and HTTP Handlers
 
-**gRPC handler** (`apiv3/grpc_handler.go`):
+**gRPC handler** (`apiv3/grpc_handler.go`) streams response chunks back to the client:
 
 ```go
 func (h *Handler) FindTraceSummaries(
-    ctx context.Context,
     req *api_v3.FindTraceSummariesRequest,
-) (*api_v3.FindTraceSummariesResponse, error) {
+    stream api_v3.QueryService_FindTraceSummariesServer,
+) error {
     params := convert(req.Query)
-    summaries, err := h.queryService.FindTraceSummaries(ctx, params)
-    // convert []tracestore.TraceSummary → []api_v3.TraceSummary
-    ...
+    h.queryService.FindTraceSummaries(stream.Context(), params)(
+        func(batch []tracestore.TraceSummary, err error) bool {
+            if err != nil { /* handle */ return false }
+            return stream.Send(&api_v3.FindTraceSummariesResponse{
+                Summaries: convert(batch),
+            }) == nil
+        },
+    )
+    return nil
 }
 ```
 
 **HTTP gateway** (`apiv3/http_gateway.go`): registers `GET /api/v3/trace-summaries`
-via the existing grpc-gateway mechanism, using the same query-parameter parsing as
-`FindTraces`.
+using the same query-parameter parsing as `FindTraces`. The HTTP handler collects the
+full iterator via `jiter.FlattenWithErrors` before writing the JSON response (HTTP/1.1
+does not support true streaming for this use case; HTTP/2 streaming can be added later
+if needed).
 
 ### 8. Jaeger UI Changes
 
@@ -317,8 +356,10 @@ export type TraceSummary = {
   duration: number;    // microseconds
   spanCount: number;
   errorSpanCount: number;
-  // One entry per distinct service, matching the coloured tags in the
-  // search results row (name, span count, error indicator).
+  // Number of spans whose parent span ID is not present in this trace.
+  orphanSpanCount: number;
+  // One entry per distinct service, sorted by name, matching the coloured
+  // tags in the search results row (name, span count, error indicator).
   services: ServiceSummary[];
 };
 ```
@@ -394,8 +435,8 @@ the HTTP contract before touching other repositories.
    `SummaryReader` dispatch yet).
 4. Add `FindTraceSummaries` to the HTTP gateway (`apiv3/http_gateway.go`) at
    `GET /api/v3/trace-summaries`, reusing the existing query-parameter parser.
-   Response is a simple JSON object (not a gRPC-gateway streaming wrapper) since
-   the result is not a stream.
+   Response is a simple JSON object; the HTTP handler collects the full iterator
+   via `jiter.FlattenWithErrors` (the gRPC streaming wrapper is added in Milestone 3).
 5. Unit tests: `computeSummaries` with table-driven fixtures (single-span, multi-service,
    error spans, empty); handler test verifying query parsing and response shape.
 
