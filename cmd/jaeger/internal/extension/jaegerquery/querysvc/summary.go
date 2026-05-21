@@ -42,8 +42,8 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		rootServiceName   string
 		rootOperationName string
 		rootFound         bool
-		startTime         time.Time
-		endTime           time.Time
+		minStartTime      time.Time
+		maxEndTime        time.Time
 		totalSpans        int
 		totalErrors       int
 	)
@@ -77,11 +77,11 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 
 		spanStart := span.StartTimestamp().AsTime()
 		spanEnd := span.EndTimestamp().AsTime()
-		if startTime.IsZero() || spanStart.Before(startTime) {
-			startTime = spanStart
+		if minStartTime.IsZero() || spanStart.Before(minStartTime) {
+			minStartTime = spanStart
 		}
-		if endTime.IsZero() || spanEnd.After(endTime) {
-			endTime = spanEnd
+		if maxEndTime.IsZero() || spanEnd.After(maxEndTime) {
+			maxEndTime = spanEnd
 		}
 
 		parentID := span.ParentSpanID()
@@ -96,11 +96,6 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		}
 		return true
 	})
-
-	var duration time.Duration
-	if !startTime.IsZero() {
-		duration = endTime.Sub(startTime)
-	}
 
 	svcSummaries := make([]tracestore.ServiceSummary, 0, len(services))
 	for name, svcStats := range services {
@@ -124,8 +119,8 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		TraceID:           jptrace.GetTraceID(traces),
 		RootServiceName:   rootServiceName,
 		RootOperationName: rootOperationName,
-		StartTime:         startTime,
-		Duration:          duration,
+		MinStartTime:      minStartTime,
+		MaxEndTime:        maxEndTime,
 		SpanCount:         totalSpans,
 		ErrorSpanCount:    totalErrors,
 		OrphanSpanCount:   orphanSpans,

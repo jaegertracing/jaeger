@@ -24,10 +24,12 @@ type TraceSummary struct {
 	TraceID           pcommon.TraceID
 	RootServiceName   string
 	RootOperationName string
-	StartTime         time.Time
-	Duration          time.Duration
-	SpanCount         int
-	ErrorSpanCount    int
+	// MinStartTime is the start timestamp of the earliest span in the trace.
+	MinStartTime time.Time
+	// MaxEndTime is the end timestamp of the latest span in the trace.
+	MaxEndTime     time.Time
+	SpanCount      int
+	ErrorSpanCount int
 	// OrphanSpanCount is the number of spans that have a parent span ID that
 	// is not present in this trace (i.e. the trace is incomplete).
 	OrphanSpanCount int

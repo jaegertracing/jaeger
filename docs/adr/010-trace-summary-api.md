@@ -86,11 +86,13 @@ message TraceSummary {
   // Operation name of the root span.
   string root_operation_name = 3;
 
-  // Start time of the earliest span in the trace.
-  google.protobuf.Timestamp start_time = 4;
+  // Start timestamp of the earliest span in the trace (Unix nanoseconds).
+  // Named to match the OTLP convention (e.g. startTimeUnixNano in OTLP span JSON).
+  fixed64 min_start_time_unix_nano = 4;
 
-  // End-to-end duration: latest span end time minus earliest span start time.
-  google.protobuf.Duration duration = 5;
+  // End timestamp of the latest span in the trace (Unix nanoseconds).
+  // The UI may compute duration as max_end_time_unix_nano - min_start_time_unix_nano.
+  fixed64 max_end_time_unix_nano = 5;
 
   // Total number of spans in the trace.
   int32 span_count = 6;
@@ -168,10 +170,12 @@ message TraceSummary {
   string root_operation_name = 3;
   google.protobuf.Timestamp start_time = 4;
   google.protobuf.Duration  duration   = 5;
-  int32  span_count          = 6;
-  int32  error_span_count    = 7;
+  fixed64 min_start_time_unix_nano = 4;
+  fixed64 max_end_time_unix_nano   = 5;
+  int32   span_count               = 6;
+  int32   error_span_count         = 7;
   repeated ServiceSummary services = 8;
-  int32  orphan_span_count   = 9;
+  int32   orphan_span_count        = 9;
 }
 
 message FindTraceSummariesRequest {
@@ -228,8 +232,11 @@ type TraceSummary struct {
     TraceID           pcommon.TraceID
     RootServiceName   string
     RootOperationName string
-    StartTime         time.Time
-    Duration          time.Duration
+    // MinStartTime is the start timestamp of the earliest span in the trace.
+    MinStartTime time.Time
+    // MaxEndTime is the end timestamp of the latest span in the trace.
+    // Duration is intentionally not pre-computed; callers derive it as MaxEndTime - MinStartTime.
+    MaxEndTime        time.Time
     SpanCount         int
     ErrorSpanCount    int
     // OrphanSpanCount is the number of spans whose parent span ID is not
@@ -270,7 +277,9 @@ else:
 
 `computeSummaries` uses `jptrace.AggregateTraces` to reassemble multi-chunk traces
 before computing each summary, ensuring a trace split across consecutive `ptrace.Traces`
-chunks always produces exactly one `TraceSummary`.
+chunks always produces exactly one `TraceSummary`. The summary records `MinStartTime`
+and `MaxEndTime` as raw `time.Time` values; duration is intentionally omitted and left
+for callers to derive.
 
 ### 6. Remote Storage Adapter — Fallback on UNIMPLEMENTED
 
@@ -358,6 +367,9 @@ export type TraceSummary = {
   errorSpanCount: number;
   // Number of spans whose parent span ID is not present in this trace.
   orphanSpanCount: number;
+  // Unix nanoseconds, consistent with OTLP startTimeUnixNano.
+  minStartTimeUnixNano: number;
+  maxEndTimeUnixNano: number;
   // One entry per distinct service, sorted by name, matching the coloured
   // tags in the search results row (name, span count, error indicator).
   services: ServiceSummary[];

@@ -228,20 +228,23 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 				ErrorSpanCount: svc.ErrorSpanCount,
 			}
 		}
-		var startTimeUnixUs int64
-		if !s.StartTime.IsZero() {
-			startTimeUnixUs = s.StartTime.UnixMicro()
+		var minStartNano, maxEndNano int64
+		if !s.MinStartTime.IsZero() {
+			minStartNano = s.MinStartTime.UnixNano()
+		}
+		if !s.MaxEndTime.IsZero() {
+			maxEndNano = s.MaxEndTime.UnixNano()
 		}
 		response.Summaries[i] = traceSummaryJSON{
-			TraceID:           s.TraceID.String(),
-			RootServiceName:   s.RootServiceName,
-			RootOperationName: s.RootOperationName,
-			StartTimeUnixUs:   startTimeUnixUs,
-			DurationUs:        s.Duration.Microseconds(),
-			SpanCount:         s.SpanCount,
-			ErrorSpanCount:    s.ErrorSpanCount,
-			OrphanSpanCount:   s.OrphanSpanCount,
-			Services:          svcJSON,
+			TraceID:              s.TraceID.String(),
+			RootServiceName:      s.RootServiceName,
+			RootOperationName:    s.RootOperationName,
+			MinStartTimeUnixNano: minStartNano,
+			MaxEndTimeUnixNano:   maxEndNano,
+			SpanCount:            s.SpanCount,
+			ErrorSpanCount:       s.ErrorSpanCount,
+			OrphanSpanCount:      s.OrphanSpanCount,
+			Services:             svcJSON,
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
