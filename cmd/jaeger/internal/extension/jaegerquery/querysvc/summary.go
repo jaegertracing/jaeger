@@ -19,14 +19,16 @@ import (
 
 func computeSummaries(seq iter.Seq2[[]ptrace.Traces, error], adj adjuster.Adjuster) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		jptrace.AggregateTraces(seq)(func(traces ptrace.Traces, err error) bool {
+		for traces, err := range jptrace.AggregateTraces(seq) {
 			if err != nil {
 				yield(nil, err)
-				return false
+				return
 			}
 			adj.Adjust(traces)
-			return yield([]tracestore.TraceSummary{summarizeTrace(traces)}, nil)
-		})
+			if !yield([]tracestore.TraceSummary{summarizeTrace(traces)}, nil) {
+				return
+			}
+		}
 	}
 }
 
@@ -59,7 +61,7 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 
 	// Second pass: compute statistics.
 	var orphanSpans int
-	jptrace.SpanIter(traces)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
+	for pos, span := range jptrace.SpanIter(traces) {
 		svcName := ""
 		if v, ok := pos.Resource.Resource().Attributes().Get(otelsemconv.ServiceNameKey); ok {
 			svcName = v.Str()
@@ -98,8 +100,7 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		} else if _, ok := spanIDs[parentID]; !ok {
 			orphanSpans++
 		}
-		return true
-	})
+	}
 
 	svcSummaries := make([]tracestore.ServiceSummary, 0, len(services))
 	for name, svcStats := range services {
