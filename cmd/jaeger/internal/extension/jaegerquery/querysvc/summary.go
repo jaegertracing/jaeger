@@ -4,6 +4,7 @@
 package querysvc
 
 import (
+	"cmp"
 	"iter"
 	"slices"
 	"time"
@@ -107,13 +108,7 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		})
 	}
 	slices.SortFunc(svcSummaries, func(a, b tracestore.ServiceSummary) int {
-		if a.Name < b.Name {
-			return -1
-		}
-		if a.Name > b.Name {
-			return 1
-		}
-		return 0
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return tracestore.TraceSummary{
