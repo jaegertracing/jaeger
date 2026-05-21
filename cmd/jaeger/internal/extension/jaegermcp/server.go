@@ -105,6 +105,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		"jaeger_mcp",
 		otelhttp.WithTracerProvider(s.telset.TracerProvider),
 	)
+	handler = mcpExposeHeadersMiddleware(handler)
 
 	s.listener, err = s.config.HTTP.ToListener(ctx)
 	if err != nil {
@@ -197,4 +198,15 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+}
+
+// mcpExposeHeadersMiddleware adds the Access-Control-Expose-Headers header
+// for MCP protocol headers. confighttp's CORSConfig does not expose this
+// rs/cors option, so we handle it in a thin middleware.
+// Add (not Set) to avoid clobbering any value set by confighttp's CORS handling.
+func mcpExposeHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Access-Control-Expose-Headers", "Mcp-Session-Id")
+		next.ServeHTTP(w, r)
+	})
 }
