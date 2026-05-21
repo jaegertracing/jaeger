@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -60,7 +61,7 @@ func makeMultiServiceTrace() ptrace.Traces {
 }
 
 func TestComputeSummaries_Empty(t *testing.T) {
-	summaries, err := computeSummaries(func(_ func([]ptrace.Traces, error) bool) {})
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(func(_ func([]ptrace.Traces, error) bool) {}))
 	require.NoError(t, err)
 	assert.Empty(t, summaries)
 }
@@ -69,7 +70,7 @@ func TestComputeSummaries_Error(t *testing.T) {
 	seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield(nil, assert.AnError)
 	})
-	summaries, err := computeSummaries(seq)
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq))
 	require.ErrorIs(t, err, assert.AnError)
 	assert.Empty(t, summaries)
 }
@@ -78,7 +79,7 @@ func TestComputeSummaries_MultiService(t *testing.T) {
 	seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeMultiServiceTrace()}, nil)
 	})
-	summaries, err := computeSummaries(seq)
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq))
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
 
@@ -115,9 +116,9 @@ func TestFindTraceSummaries_Fallback(t *testing.T) {
 			yield([]ptrace.Traces{makeMultiServiceTrace()}, nil)
 		})).Once()
 
-	summaries, err := tqs.queryService.FindTraceSummaries(context.Background(), TraceQueryParams{
+	summaries, err := jiter.FlattenWithErrors(tqs.queryService.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: qp,
-	})
+	}))
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
 	assert.Equal(t, "frontend", summaries[0].RootServiceName)
@@ -130,8 +131,16 @@ type mockSummaryReader struct {
 	err       error
 }
 
-func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) ([]tracestore.TraceSummary, error) {
-	return m.summaries, m.err
+func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		if m.err != nil {
+			yield(nil, m.err)
+			return
+		}
+		if len(m.summaries) > 0 {
+			yield(m.summaries, nil)
+		}
+	}
 }
 
 func TestFindTraceSummaries_NativePath(t *testing.T) {
@@ -141,9 +150,9 @@ func TestFindTraceSummaries_NativePath(t *testing.T) {
 	depsMock := initializeTestService().depsReader
 	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
 
-	got, err := qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	})
+	}))
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 	// FindTraces should NOT have been called on the native reader.

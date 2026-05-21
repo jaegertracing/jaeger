@@ -15,34 +15,35 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
-// FindTraceSummaries searches for traces matching the query and returns lightweight
-// summary information for each matching trace. If the underlying storage implements
+// FindTraceSummaries searches for traces matching the query and returns an iterator
+// of lightweight summary information. If the underlying storage implements
 // tracestore.SummaryReader, it delegates to that; otherwise it falls back to
 // FindTraces and computes summaries from the full trace data.
+// The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
 	ctx context.Context,
 	query TraceQueryParams,
-) ([]tracestore.TraceSummary, error) {
+) iter.Seq2[[]tracestore.TraceSummary, error] {
 	if sr, ok := qs.traceReader.(tracestore.SummaryReader); ok {
 		return sr.FindTraceSummaries(ctx, query.TraceQueryParams)
 	}
 	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 }
 
-func computeSummaries(seq iter.Seq2[[]ptrace.Traces, error]) ([]tracestore.TraceSummary, error) {
-	var summaries []tracestore.TraceSummary
-	var retErr error
-	seq(func(batch []ptrace.Traces, err error) bool {
-		if err != nil {
-			retErr = err
-			return false
-		}
-		for _, traces := range batch {
-			summaries = append(summaries, summarizeTrace(traces))
-		}
-		return true
-	})
-	return summaries, retErr
+func computeSummaries(seq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		seq(func(batch []ptrace.Traces, err error) bool {
+			if err != nil {
+				yield(nil, err)
+				return false
+			}
+			summaries := make([]tracestore.TraceSummary, len(batch))
+			for i, traces := range batch {
+				summaries[i] = summarizeTrace(traces)
+			}
+			return yield(summaries, nil)
+		})
+	}
 }
 
 func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {

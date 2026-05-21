@@ -5,6 +5,7 @@ package tracestore
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -34,6 +35,10 @@ type TraceSummary struct {
 // SummaryReader is an optional extension to tracestore.Reader that allows
 // storage backends to compute trace summaries natively. Backends that do not
 // implement this interface fall back to FindTraces + client-side aggregation.
+//
+// The iterator contract mirrors FindTraceIDs: each yielded batch may contain
+// one or more summaries, and implementations may yield results incrementally
+// as the underlying query executes rather than buffering all results first.
 type SummaryReader interface {
-	FindTraceSummaries(ctx context.Context, query TraceQueryParams) ([]TraceSummary, error)
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 }

@@ -293,7 +293,8 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	if shouldReturn {
 		return
 	}
-	summaries, err := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summaries, err := jiter.FlattenWithErrors(summariesIter)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
