@@ -51,12 +51,8 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 	)
 
 	// First pass: collect all span IDs present in the trace.
-	for _, rs := range traces.ResourceSpans().All() {
-		for _, ss := range rs.ScopeSpans().All() {
-			for _, span := range ss.Spans().All() {
-				spanIDs[span.SpanID()] = struct{}{}
-			}
-		}
+	for _, span := range jptrace.SpanIter(traces) {
+		spanIDs[span.SpanID()] = struct{}{}
 	}
 
 	// Second pass: compute statistics.
