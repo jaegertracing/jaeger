@@ -91,6 +91,12 @@ func TestComputeSummaries_MultiService(t *testing.T) {
 	assert.Equal(t, time.Second, s.Duration)
 	assert.Equal(t, 3, s.SpanCount)
 	assert.Equal(t, 1, s.ErrorSpanCount)
+	assert.Equal(t, 0, s.OrphanSpanCount)
+
+	// Services must be sorted by name.
+	require.Len(t, s.Services, 2)
+	assert.Equal(t, "backend", s.Services[0].Name)
+	assert.Equal(t, "frontend", s.Services[1].Name)
 
 	svcByName := make(map[string]tracestore.ServiceSummary)
 	for _, svc := range s.Services {
@@ -102,6 +108,57 @@ func TestComputeSummaries_MultiService(t *testing.T) {
 	assert.Equal(t, 1, svcByName["frontend"].ErrorSpanCount)
 	assert.Equal(t, 1, svcByName["backend"].SpanCount)
 	assert.Equal(t, 0, svcByName["backend"].ErrorSpanCount)
+}
+
+// TestComputeSummaries_MultiChunk verifies that a single trace split across
+// multiple consecutive ptrace.Traces chunks produces exactly one summary.
+func TestComputeSummaries_MultiChunk(t *testing.T) {
+	// chunk 1: root span
+	chunk1 := ptrace.NewTraces()
+	rs1 := chunk1.ResourceSpans().AppendEmpty()
+	rs1.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "svc")
+	span1 := rs1.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span1.SetTraceID(testTraceID)
+	span1.SetSpanID(pcommon.SpanID([8]byte{1}))
+	span1.SetName("root")
+
+	// chunk 2: child span, same trace ID
+	chunk2 := ptrace.NewTraces()
+	rs2 := chunk2.ResourceSpans().AppendEmpty()
+	rs2.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "svc")
+	span2 := rs2.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span2.SetTraceID(testTraceID)
+	span2.SetSpanID(pcommon.SpanID([8]byte{2}))
+	span2.SetParentSpanID(pcommon.SpanID([8]byte{1}))
+
+	seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+		yield([]ptrace.Traces{chunk1, chunk2}, nil)
+	})
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq))
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	assert.Equal(t, 2, summaries[0].SpanCount)
+	assert.Equal(t, "root", summaries[0].RootOperationName)
+}
+
+func TestSummarizeTrace_OrphanSpans(t *testing.T) {
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, "svc")
+	scope := rs.ScopeSpans().AppendEmpty()
+
+	root := scope.Spans().AppendEmpty()
+	root.SetSpanID(pcommon.SpanID([8]byte{1}))
+	// no parent → root
+
+	// span with a parent not present in this trace → orphan
+	orphan := scope.Spans().AppendEmpty()
+	orphan.SetSpanID(pcommon.SpanID([8]byte{2}))
+	orphan.SetParentSpanID(pcommon.SpanID([8]byte{0xFF}))
+
+	summary := summarizeTrace(td)
+	assert.Equal(t, 2, summary.SpanCount)
+	assert.Equal(t, 1, summary.OrphanSpanCount)
 }
 
 func TestFindTraceSummaries_Fallback(t *testing.T) {

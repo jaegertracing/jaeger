@@ -28,7 +28,11 @@ type TraceSummary struct {
 	Duration          time.Duration
 	SpanCount         int
 	ErrorSpanCount    int
+	// OrphanSpanCount is the number of spans that have a parent span ID that
+	// is not present in this trace (i.e. the trace is incomplete).
+	OrphanSpanCount int
 	// Services contains one entry per distinct service name observed across all spans.
+	// Entries are sorted by service name.
 	Services []ServiceSummary
 }
 

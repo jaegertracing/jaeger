@@ -264,68 +264,6 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	return queryParams, false
 }
 
-// serviceSummaryJSON is the JSON representation of a per-service summary.
-type serviceSummaryJSON struct {
-	Name           string `json:"name"`
-	SpanCount      int    `json:"spanCount"`
-	ErrorSpanCount int    `json:"errorSpanCount"`
-}
-
-// traceSummaryJSON is the JSON representation of a trace summary.
-type traceSummaryJSON struct {
-	TraceID           string               `json:"traceID"`
-	RootServiceName   string               `json:"rootServiceName"`
-	RootOperationName string               `json:"rootOperationName"`
-	StartTimeUnixUs   int64                `json:"startTimeUnixUs"`
-	DurationUs        int64                `json:"durationUs"`
-	SpanCount         int                  `json:"spanCount"`
-	ErrorSpanCount    int                  `json:"errorSpanCount"`
-	Services          []serviceSummaryJSON `json:"services"`
-}
-
-// findTraceSummariesResponseJSON is the JSON envelope for the FindTraceSummaries response.
-type findTraceSummariesResponseJSON struct {
-	Summaries []traceSummaryJSON `json:"summaries"`
-}
-
-func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
-	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
-	if shouldReturn {
-		return
-	}
-	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
-	summaries, err := jiter.FlattenWithErrors(summariesIter)
-	if h.tryHandleError(w, err, http.StatusInternalServerError) {
-		return
-	}
-	response := findTraceSummariesResponseJSON{
-		Summaries: make([]traceSummaryJSON, len(summaries)),
-	}
-	for i, s := range summaries {
-		svcJSON := make([]serviceSummaryJSON, len(s.Services))
-		for j, svc := range s.Services {
-			svcJSON[j] = serviceSummaryJSON{
-				Name:           svc.Name,
-				SpanCount:      svc.SpanCount,
-				ErrorSpanCount: svc.ErrorSpanCount,
-			}
-		}
-		traceIDHex := s.TraceID.String()
-		response.Summaries[i] = traceSummaryJSON{
-			TraceID:           traceIDHex,
-			RootServiceName:   s.RootServiceName,
-			RootOperationName: s.RootOperationName,
-			StartTimeUnixUs:   s.StartTime.UnixMicro(),
-			DurationUs:        s.Duration.Microseconds(),
-			SpanCount:         s.SpanCount,
-			ErrorSpanCount:    s.ErrorSpanCount,
-			Services:          svcJSON,
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
-}
-
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 	services, err := h.QueryService.GetServices(r.Context())
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {

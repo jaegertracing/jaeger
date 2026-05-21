@@ -6,8 +6,10 @@ package querysvc
 import (
 	"context"
 	"iter"
+	"slices"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -32,16 +34,12 @@ func (qs QueryService) FindTraceSummaries(
 
 func computeSummaries(seq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		seq(func(batch []ptrace.Traces, err error) bool {
+		jptrace.AggregateTraces(seq)(func(traces ptrace.Traces, err error) bool {
 			if err != nil {
 				yield(nil, err)
 				return false
 			}
-			summaries := make([]tracestore.TraceSummary, len(batch))
-			for i, traces := range batch {
-				summaries[i] = summarizeTrace(traces)
-			}
-			return yield(summaries, nil)
+			return yield([]tracestore.TraceSummary{summarizeTrace(traces)}, nil)
 		})
 	}
 }
@@ -52,6 +50,7 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		errorSpanCount int
 	}
 	services := make(map[string]*svcStats)
+	spanIDs := make(map[pcommon.SpanID]struct{})
 
 	var (
 		rootServiceName   string
@@ -63,6 +62,14 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		totalErrors       int
 	)
 
+	// First pass: collect all span IDs present in the trace.
+	jptrace.SpanIter(traces)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
+		spanIDs[span.SpanID()] = struct{}{}
+		return true
+	})
+
+	// Second pass: compute statistics.
+	var orphanSpans int
 	jptrace.SpanIter(traces)(func(pos jptrace.SpanIterPos, span ptrace.Span) bool {
 		svcName := ""
 		if v, ok := pos.Resource.Resource().Attributes().Get(otelsemconv.ServiceNameKey); ok {
@@ -91,10 +98,15 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 			endTime = spanEnd
 		}
 
-		if !rootFound && span.ParentSpanID().IsEmpty() {
-			rootServiceName = svcName
-			rootOperationName = span.Name()
-			rootFound = true
+		parentID := span.ParentSpanID()
+		if parentID.IsEmpty() {
+			if !rootFound {
+				rootServiceName = svcName
+				rootOperationName = span.Name()
+				rootFound = true
+			}
+		} else if _, ok := spanIDs[parentID]; !ok {
+			orphanSpans++
 		}
 		return true
 	})
@@ -112,6 +124,15 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 			ErrorSpanCount: stats.errorSpanCount,
 		})
 	}
+	slices.SortFunc(svcSummaries, func(a, b tracestore.ServiceSummary) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
 
 	return tracestore.TraceSummary{
 		TraceID:           jptrace.GetTraceID(traces),
@@ -121,6 +142,7 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 		Duration:          duration,
 		SpanCount:         totalSpans,
 		ErrorSpanCount:    totalErrors,
+		OrphanSpanCount:   orphanSpans,
 		Services:          svcSummaries,
 	}
 }
