@@ -8,13 +8,19 @@
 The Jaeger UI search screen calls `GET /api/traces` (or `/api/v3/traces`) to display a
 list of matching traces. The response today contains **full trace data** — every span with
 all its attributes. The UI then post-processes that data locally to render a compact result
-row for each trace:
+row for each trace (see `ResultItem.tsx` and `transformTraceData()`):
 
-* Root service name and operation name
-* Trace duration (max end time − min start time)
-* Span count
-* Error count / error indicator
-* Distinct service names
+* Root service name and operation name (derived from the root span)
+* Trace duration (latest span end time − earliest span start time)
+* Total span count
+* Total error span count (spans with OTEL `StatusCode.ERROR`)
+* Per-service breakdown: for each distinct service name, the number of spans belonging
+  to that service and whether any of those spans has an error — rendered as a coloured
+  tag with an optional error icon, e.g. `frontend (12) ⚠`
+* Trace start time (absolute + relative)
+
+The scatter plot in the search header also uses span count (bubble size) and the
+presence of any error (bubble colour).
 
 Returning full traces just to display a handful of summary fields makes the protocol
 unnecessarily heavy. A trace with hundreds of spans may be tens of kilobytes of JSON, yet
@@ -50,6 +56,19 @@ individual span payloads.
 **Proto (added to `jaeger-idl/proto/api_v3/query_service.proto`):**
 
 ```protobuf
+// ServiceSummary contains per-service statistics for a trace, matching
+// what the UI renders as a coloured tag in the search results row.
+message ServiceSummary {
+  // Name of the service.
+  string name = 1;
+
+  // Number of spans attributed to this service in the trace.
+  int32 span_count = 2;
+
+  // True if at least one span from this service has OTEL StatusCode = ERROR.
+  bool has_errors = 3;
+}
+
 // TraceSummary contains lightweight summary information about a trace,
 // suitable for display in search result lists.
 message TraceSummary {
@@ -72,11 +91,13 @@ message TraceSummary {
   int32 span_count = 6;
 
   // Number of spans that carry an error indicator
-  // (OTEL status code = ERROR, or a "error"=true attribute).
+  // (OTEL StatusCode = ERROR).
   int32 error_count = 7;
 
-  // Distinct service names observed across all spans.
-  repeated string service_names = 8;
+  // Per-service breakdown, one entry per distinct service name observed
+  // across all spans.  Matches the coloured service tags shown in the
+  // search results row (name, span count, error indicator).
+  repeated ServiceSummary services = 8;
 }
 
 // Response for FindTraceSummaries.
@@ -116,8 +137,14 @@ no new query-parameter parsing is needed.
 **Added to `TraceReader` in `jaeger-idl/proto/storage/v2/trace_storage.proto`:**
 
 ```protobuf
-// TraceSummary mirrors the definition in api_v3 but is in the storage package
-// to avoid a cross-package dependency in the proto graph.
+// ServiceSummary and TraceSummary mirror the definitions in api_v3 but live
+// in the storage package to avoid a cross-package proto dependency.
+message ServiceSummary {
+  string name       = 1;
+  int32  span_count = 2;
+  bool   has_errors = 3;
+}
+
 message TraceSummary {
   bytes  trace_id            = 1;  // 16-byte binary trace ID
   string root_service_name   = 2;
@@ -126,7 +153,7 @@ message TraceSummary {
   google.protobuf.Duration  duration   = 5;
   int32  span_count          = 6;
   int32  error_count         = 7;
-  repeated string service_names = 8;
+  repeated ServiceSummary services = 8;
 }
 
 message FindTraceSummariesResponse {
@@ -161,6 +188,13 @@ type SummaryReader interface {
     FindTraceSummaries(ctx context.Context, query TraceQueryParams) ([]TraceSummary, error)
 }
 
+// ServiceSummary holds per-service statistics for a single trace.
+type ServiceSummary struct {
+    Name      string
+    SpanCount int
+    HasErrors bool
+}
+
 // TraceSummary mirrors TraceSummary in jaeger.api_v3 but uses Go types.
 type TraceSummary struct {
     TraceID           pcommon.TraceID
@@ -170,7 +204,7 @@ type TraceSummary struct {
     Duration          time.Duration
     SpanCount         int
     ErrorCount        int
-    ServiceNames      []string
+    Services          []ServiceSummary
 }
 ```
 
@@ -252,18 +286,26 @@ The search screen (`src/components/SearchTracePage/`) is updated to call
 `findTraceSummaries` instead of `searchTraces` and bind the result directly to the
 `TraceSummary` shape, eliminating the client-side aggregation step.
 
-A `TraceSummary` TypeScript type is introduced:
+New TypeScript types are introduced:
 
 ```typescript
+export type ServiceSummary = {
+  name: string;
+  spanCount: number;
+  hasErrors: boolean;
+};
+
 export type TraceSummary = {
   traceID: string;
   rootServiceName: string;
   rootOperationName: string;
-  startTime: number;       // Unix microseconds
-  duration: number;        // microseconds
+  startTime: number;   // Unix microseconds
+  duration: number;    // microseconds
   spanCount: number;
   errorCount: number;
-  serviceNames: string[];
+  // One entry per distinct service, matching the coloured tags in the
+  // search results row (name, span count, error indicator).
+  services: ServiceSummary[];
 };
 ```
 
