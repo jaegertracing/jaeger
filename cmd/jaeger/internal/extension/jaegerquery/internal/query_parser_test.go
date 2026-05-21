@@ -362,3 +362,33 @@ func TestParameterErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateTraceQueryBounds(t *testing.T) {
+	tests := []struct {
+		name   string
+		urlStr string
+		errMsg string
+	}{
+		{"limit_zero", "x?service=svc&start=100&end=200&limit=0", "'limit' must be greater than 0"},
+		{"limit_negative", "x?service=svc&start=100&end=200&limit=-1", "'limit' must be greater than 0"},
+		{"default_limit_when_omitted", "x?service=svc&start=100&end=200", ""},
+		{"start_after_end", "x?service=svc&start=200&end=100", "'start' must not be after 'end'"},
+		{"valid_range", "x?service=svc&start=100&end=200&limit=5", ""},
+		{"missing_service_and_traceid", "x", "parameter 'service' is required"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, tc.urlStr, http.NoBody)
+			require.NoError(t, err)
+			parser := &queryParser{timeNow: time.Now}
+			_, err = parser.parseTraceQueryParams(req)
+			if tc.errMsg == "" {
+				require.NoError(t, err)
+			} else {
+				// Use substring match for error messages
+				assert.ErrorContains(t, err, tc.errMsg)
+			}
+		})
+	}
+}
