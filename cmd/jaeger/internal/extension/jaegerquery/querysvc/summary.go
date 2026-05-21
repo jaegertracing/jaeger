@@ -41,7 +41,7 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 	var (
 		rootServiceName   string
 		rootOperationName string
-		rootFound         bool
+		rootStartTime     time.Time
 		minStartTime      time.Time
 		maxEndTime        time.Time
 		totalSpans        int
@@ -49,10 +49,13 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 	)
 
 	// First pass: collect all span IDs present in the trace.
-	jptrace.SpanIter(traces)(func(_ jptrace.SpanIterPos, span ptrace.Span) bool {
-		spanIDs[span.SpanID()] = struct{}{}
-		return true
-	})
+	for _, rs := range traces.ResourceSpans().All() {
+		for _, ss := range rs.ScopeSpans().All() {
+			for _, span := range ss.Spans().All() {
+				spanIDs[span.SpanID()] = struct{}{}
+			}
+		}
+	}
 
 	// Second pass: compute statistics.
 	var orphanSpans int
@@ -86,10 +89,11 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 
 		parentID := span.ParentSpanID()
 		if parentID.IsEmpty() {
-			if !rootFound {
+			// Among spans with no parent, pick the one with the earliest start time.
+			if rootStartTime.IsZero() || spanStart.Before(rootStartTime) {
 				rootServiceName = svcName
 				rootOperationName = span.Name()
-				rootFound = true
+				rootStartTime = spanStart
 			}
 		} else if _, ok := spanIDs[parentID]; !ok {
 			orphanSpans++

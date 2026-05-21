@@ -168,10 +168,8 @@ message TraceSummary {
   bytes  trace_id            = 1;  // 16-byte binary trace ID
   string root_service_name   = 2;
   string root_operation_name = 3;
-  google.protobuf.Timestamp start_time = 4;
-  google.protobuf.Duration  duration   = 5;
-  fixed64 min_start_time_unix_nano = 4;
-  fixed64 max_end_time_unix_nano   = 5;
+  fixed64 min_start_time_unix_nano = 4;  // Unix nanoseconds; 0 if unknown
+  fixed64 max_end_time_unix_nano   = 5;  // Unix nanoseconds; 0 if unknown
   int32   span_count               = 6;
   int32   error_span_count         = 7;
   repeated ServiceSummary services = 8;
@@ -229,21 +227,25 @@ type ServiceSummary struct {
 
 // TraceSummary mirrors TraceSummary in jaeger.api_v3 but uses Go types.
 type TraceSummary struct {
-    TraceID           pcommon.TraceID
+    TraceID pcommon.TraceID
+    // RootServiceName is the service name of the root span — the span with no
+    // parent span ID. If multiple such spans exist, the one with the earliest
+    // start timestamp is chosen.
     RootServiceName   string
     RootOperationName string
     // MinStartTime is the start timestamp of the earliest span in the trace.
     MinStartTime time.Time
-    // MaxEndTime is the end timestamp of the latest span in the trace.
-    // Duration is intentionally not pre-computed; callers derive it as MaxEndTime - MinStartTime.
-    MaxEndTime        time.Time
-    SpanCount         int
-    ErrorSpanCount    int
+    // MaxEndTime is the maximum end timestamp across all spans in the trace.
+    // Duration can be derived as MaxEndTime - MinStartTime.
+    MaxEndTime     time.Time
+    SpanCount      int
+    ErrorSpanCount int
     // OrphanSpanCount is the number of spans whose parent span ID is not
     // present in this trace (indicates an incomplete / partial trace).
-    OrphanSpanCount   int
-    // Services contains one entry per distinct service name, sorted by name.
-    Services          []ServiceSummary
+    OrphanSpanCount int
+    // Services contains one entry per distinct service name observed across all
+    // spans, including the root service. Entries are sorted by name.
+    Services []ServiceSummary
 }
 ```
 
@@ -285,26 +287,9 @@ for callers to derive.
 
 The gRPC-based remote storage adapter (`plugin/storage/grpc/`) wraps the remote
 `TraceReader` gRPC client. Its `FindTraceSummaries` implementation calls the remote RPC
-and, if the server returns `codes.Unimplemented`, falls back to calling
-`FindTraces` and computing summaries client-side:
-
-```go
-func (r *grpcReader) FindTraceSummaries(ctx, query) iter.Seq2[[]TraceSummary, error] {
-    return func(yield func([]TraceSummary, error) bool) {
-        stream, err := r.client.FindTraceSummaries(ctx, req)
-        if status.Code(err) == codes.Unimplemented {
-            // delegate to fallback iterator
-            computeSummaries(r.FindTraces(ctx, query), r.adjuster)(yield)
-            return
-        }
-        for {
-            resp, err := stream.Recv()
-            if err == io.EOF { return }
-            if !yield(convert(resp.Summaries), err) { return }
-        }
-    }
-}
-```
+and, if the server returns `codes.Unimplemented`, falls back to calling `FindTraces`
+and computing summaries client-side. This makes the feature work transparently with
+existing remote storage plugins that have not yet implemented the new RPC.
 
 ### 7. gRPC and HTTP Handlers
 
@@ -359,17 +344,18 @@ export type ServiceSummary = {
 
 export type TraceSummary = {
   traceID: string;
+  // rootServiceName is the service of the span with no parent (earliest start
+  // time wins when multiple root candidates exist).
   rootServiceName: string;
   rootOperationName: string;
-  startTime: number;   // Unix microseconds
-  duration: number;    // microseconds
+  // Unix nanoseconds, consistent with OTLP startTimeUnixNano / endTimeUnixNano.
+  // 0 when unknown. Duration can be derived as maxEndTimeUnixNano - minStartTimeUnixNano.
+  minStartTimeUnixNano: number;
+  maxEndTimeUnixNano: number;
   spanCount: number;
   errorSpanCount: number;
   // Number of spans whose parent span ID is not present in this trace.
   orphanSpanCount: number;
-  // Unix nanoseconds, consistent with OTLP startTimeUnixNano.
-  minStartTimeUnixNano: number;
-  maxEndTimeUnixNano: number;
   // One entry per distinct service, sorted by name, matching the coloured
   // tags in the search results row (name, span count, error indicator).
   services: ServiceSummary[];

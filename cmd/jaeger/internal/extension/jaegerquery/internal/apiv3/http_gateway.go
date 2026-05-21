@@ -210,6 +210,8 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	if shouldReturn {
 		return
 	}
+	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
+	queryParams.RawTraces = false
 	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
 	summaries, err := jiter.FlattenWithErrors(summariesIter)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
