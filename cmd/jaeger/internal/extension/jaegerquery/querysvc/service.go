@@ -158,6 +158,21 @@ func (qs QueryService) FindTraces(
 	}
 }
 
+// FindTraceSummaries searches for traces matching the query and returns an iterator
+// of lightweight summary information. If the underlying storage implements
+// tracestore.SummaryReader, it delegates to that; otherwise it falls back to
+// FindTraces and computes summaries from the full trace data.
+// The iterator is single-use: once consumed, it cannot be used again.
+func (qs QueryService) FindTraceSummaries(
+	ctx context.Context,
+	query TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	if sr, ok := qs.traceReader.(tracestore.SummaryReader); ok {
+		return sr.FindTraceSummaries(ctx, query.TraceQueryParams)
+	}
+	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
+}
+
 // ArchiveTrace archives a trace specified by the given query parameters.
 // If the ArchiveTraceWriter is not configured, it returns
 // an error indicating that there is no archive span storage available.

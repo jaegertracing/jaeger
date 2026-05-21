@@ -4,7 +4,6 @@
 package querysvc
 
 import (
-	"context"
 	"iter"
 	"slices"
 	"time"
@@ -12,44 +11,31 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
-// FindTraceSummaries searches for traces matching the query and returns an iterator
-// of lightweight summary information. If the underlying storage implements
-// tracestore.SummaryReader, it delegates to that; otherwise it falls back to
-// FindTraces and computes summaries from the full trace data.
-// The iterator is single-use: once consumed, it cannot be used again.
-func (qs QueryService) FindTraceSummaries(
-	ctx context.Context,
-	query TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
-	if sr, ok := qs.traceReader.(tracestore.SummaryReader); ok {
-		return sr.FindTraceSummaries(ctx, query.TraceQueryParams)
-	}
-	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
-}
-
-func computeSummaries(seq iter.Seq2[[]ptrace.Traces, error]) iter.Seq2[[]tracestore.TraceSummary, error] {
+func computeSummaries(seq iter.Seq2[[]ptrace.Traces, error], adj adjuster.Adjuster) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		jptrace.AggregateTraces(seq)(func(traces ptrace.Traces, err error) bool {
 			if err != nil {
 				yield(nil, err)
 				return false
 			}
+			adj.Adjust(traces)
 			return yield([]tracestore.TraceSummary{summarizeTrace(traces)}, nil)
 		})
 	}
 }
 
 func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
-	type svcStats struct {
+	type perSvcStats struct {
 		spanCount      int
 		errorSpanCount int
 	}
-	services := make(map[string]*svcStats)
+	services := make(map[string]*perSvcStats)
 	spanIDs := make(map[pcommon.SpanID]struct{})
 
 	var (
@@ -76,16 +62,16 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 			svcName = v.Str()
 		}
 
-		stats := services[svcName]
-		if stats == nil {
-			stats = &svcStats{}
-			services[svcName] = stats
+		svcStats := services[svcName]
+		if svcStats == nil {
+			svcStats = &perSvcStats{}
+			services[svcName] = svcStats
 		}
-		stats.spanCount++
+		svcStats.spanCount++
 		totalSpans++
 
 		if span.Status().Code() == ptrace.StatusCodeError {
-			stats.errorSpanCount++
+			svcStats.errorSpanCount++
 			totalErrors++
 		}
 
@@ -117,11 +103,11 @@ func summarizeTrace(traces ptrace.Traces) tracestore.TraceSummary {
 	}
 
 	svcSummaries := make([]tracestore.ServiceSummary, 0, len(services))
-	for name, stats := range services {
+	for name, svcStats := range services {
 		svcSummaries = append(svcSummaries, tracestore.ServiceSummary{
 			Name:           name,
-			SpanCount:      stats.spanCount,
-			ErrorSpanCount: stats.errorSpanCount,
+			SpanCount:      svcStats.spanCount,
+			ErrorSpanCount: svcStats.errorSpanCount,
 		})
 	}
 	slices.SortFunc(svcSummaries, func(a, b tracestore.ServiceSummary) int {

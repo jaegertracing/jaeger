@@ -15,11 +15,14 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
+
+var noopAdjuster = adjuster.Sequence()
 
 func makeMultiServiceTrace() ptrace.Traces {
 	td := ptrace.NewTraces()
@@ -61,7 +64,7 @@ func makeMultiServiceTrace() ptrace.Traces {
 }
 
 func TestComputeSummaries_Empty(t *testing.T) {
-	summaries, err := jiter.FlattenWithErrors(computeSummaries(func(_ func([]ptrace.Traces, error) bool) {}))
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(func(_ func([]ptrace.Traces, error) bool) {}, noopAdjuster))
 	require.NoError(t, err)
 	assert.Empty(t, summaries)
 }
@@ -70,7 +73,7 @@ func TestComputeSummaries_Error(t *testing.T) {
 	seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield(nil, assert.AnError)
 	})
-	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq))
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq, noopAdjuster))
 	require.ErrorIs(t, err, assert.AnError)
 	assert.Empty(t, summaries)
 }
@@ -79,7 +82,7 @@ func TestComputeSummaries_MultiService(t *testing.T) {
 	seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{makeMultiServiceTrace()}, nil)
 	})
-	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq))
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq, noopAdjuster))
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
 
@@ -134,7 +137,7 @@ func TestComputeSummaries_MultiChunk(t *testing.T) {
 	seq := iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 		yield([]ptrace.Traces{chunk1, chunk2}, nil)
 	})
-	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq))
+	summaries, err := jiter.FlattenWithErrors(computeSummaries(seq, noopAdjuster))
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
 	assert.Equal(t, 2, summaries[0].SpanCount)

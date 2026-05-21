@@ -205,6 +205,49 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnTraces(traces, err, w)
 }
 
+func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
+	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	if shouldReturn {
+		return
+	}
+	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summaries, err := jiter.FlattenWithErrors(summariesIter)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	response := findTraceSummariesResponseJSON{
+		Summaries: make([]traceSummaryJSON, len(summaries)),
+	}
+	for i := range summaries {
+		s := &summaries[i]
+		svcJSON := make([]serviceSummaryJSON, len(s.Services))
+		for j, svc := range s.Services {
+			svcJSON[j] = serviceSummaryJSON{
+				Name:           svc.Name,
+				SpanCount:      svc.SpanCount,
+				ErrorSpanCount: svc.ErrorSpanCount,
+			}
+		}
+		var startTimeUnixUs int64
+		if !s.StartTime.IsZero() {
+			startTimeUnixUs = s.StartTime.UnixMicro()
+		}
+		response.Summaries[i] = traceSummaryJSON{
+			TraceID:           s.TraceID.String(),
+			RootServiceName:   s.RootServiceName,
+			RootOperationName: s.RootOperationName,
+			StartTimeUnixUs:   startTimeUnixUs,
+			DurationUs:        s.Duration.Microseconds(),
+			SpanCount:         s.SpanCount,
+			ErrorSpanCount:    s.ErrorSpanCount,
+			OrphanSpanCount:   s.OrphanSpanCount,
+			Services:          svcJSON,
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
+}
+
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
