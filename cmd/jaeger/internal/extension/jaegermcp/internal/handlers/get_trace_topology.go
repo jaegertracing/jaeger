@@ -46,6 +46,7 @@ type rawSpan struct {
 	parentID   string // empty string if this is a root span
 	service    string
 	spanName   string
+	spanKind   string
 	startTime  string
 	durationUs int64
 	status     string
@@ -145,6 +146,7 @@ func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
 		parentID:   parentSpanID,
 		service:    serviceName,
 		spanName:   span.Name(),
+		spanKind:   span.Kind().String(),
 		startTime:  span.StartTimestamp().AsTime().Format(time.RFC3339Nano),
 		durationUs: duration.Microseconds(),
 		status:     span.Status().Code().String(),
@@ -228,6 +230,7 @@ func (h *getTraceTopologyHandler) dfs(
 		StartTime:         span.startTime,
 		DurationUs:        span.durationUs,
 		Status:            span.status,
+		SpanKind:          span.spanKind,
 		TruncatedChildren: truncated,
 	})
 
