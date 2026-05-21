@@ -59,19 +59,19 @@ func (h *searchTracesHandler) handle(
 	var summaries []types.TraceSummary
 	var processErrs []error
 
-	h.queryService.FindTraceSummaries(ctx, query)(func(batch []tracestore.TraceSummary, err error) bool {
+outer:
+	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
 			processErrs = append(processErrs, err)
-			return false
+			break
 		}
 		for i := range batch {
 			summaries = append(summaries, toMCPTraceSummary(batch[i]))
 			if h.maxResults > 0 && len(summaries) >= h.maxResults {
-				return false
+				break outer
 			}
 		}
-		return true
-	})
+	}
 
 	output := types.SearchTracesOutput{Traces: summaries}
 	if len(processErrs) > 0 {
