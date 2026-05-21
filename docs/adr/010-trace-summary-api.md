@@ -484,11 +484,10 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
 **Changes:**
 1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
    `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`. Bump the IDL version.
-   Also rename `FindTracesRequest` → `FindTracesRequest` is already the right name for
-   `FindTraces`, but `FindTraceIDs` in `storage/v2/trace_storage.proto` currently reuses
-   `FindTracesRequest` instead of having its own type — fix that inconsistency here by
-   introducing a dedicated `FindTraceIDsRequest` (same field layout, wire-compatible
-   rename, source-breaking — requires a coordinated update in `jaeger/`).
+   Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.
+   Currently `FindTraceIDs` reuses `FindTracesRequest`, but it should have its own type for
+   clarity and to allow independent evolution. This is a wire-compatible change (same field
+   layout) but source-breaking — requires a coordinated update in `jaeger/`.
 2. **`jaeger`**: Regenerate Go bindings. Implement the gRPC handler method
    (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated
    binding instead of the hand-written handler from Milestone 1. Update any references
