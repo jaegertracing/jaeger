@@ -45,6 +45,7 @@ const (
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
+	routeFindSummaries = "/api/v3/trace-summaries"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
 )
@@ -61,6 +62,7 @@ type HTTPGateway struct {
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
+	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -260,6 +262,67 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		queryParams.RawTraces = rawTraces
 	}
 	return queryParams, false
+}
+
+// serviceSummaryJSON is the JSON representation of a per-service summary.
+type serviceSummaryJSON struct {
+	Name           string `json:"name"`
+	SpanCount      int    `json:"spanCount"`
+	ErrorSpanCount int    `json:"errorSpanCount"`
+}
+
+// traceSummaryJSON is the JSON representation of a trace summary.
+type traceSummaryJSON struct {
+	TraceID           string               `json:"traceID"`
+	RootServiceName   string               `json:"rootServiceName"`
+	RootOperationName string               `json:"rootOperationName"`
+	StartTimeUnixUs   int64                `json:"startTimeUnixUs"`
+	DurationUs        int64                `json:"durationUs"`
+	SpanCount         int                  `json:"spanCount"`
+	ErrorSpanCount    int                  `json:"errorSpanCount"`
+	Services          []serviceSummaryJSON `json:"services"`
+}
+
+// findTraceSummariesResponseJSON is the JSON envelope for the FindTraceSummaries response.
+type findTraceSummariesResponseJSON struct {
+	Summaries []traceSummaryJSON `json:"summaries"`
+}
+
+func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
+	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	if shouldReturn {
+		return
+	}
+	summaries, err := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	response := findTraceSummariesResponseJSON{
+		Summaries: make([]traceSummaryJSON, len(summaries)),
+	}
+	for i, s := range summaries {
+		svcJSON := make([]serviceSummaryJSON, len(s.Services))
+		for j, svc := range s.Services {
+			svcJSON[j] = serviceSummaryJSON{
+				Name:           svc.Name,
+				SpanCount:      svc.SpanCount,
+				ErrorSpanCount: svc.ErrorSpanCount,
+			}
+		}
+		traceIDHex := s.TraceID.String()
+		response.Summaries[i] = traceSummaryJSON{
+			TraceID:           traceIDHex,
+			RootServiceName:   s.RootServiceName,
+			RootOperationName: s.RootOperationName,
+			StartTimeUnixUs:   s.StartTime.UnixMicro(),
+			DurationUs:        s.Duration.Microseconds(),
+			SpanCount:         s.SpanCount,
+			ErrorSpanCount:    s.ErrorSpanCount,
+			Services:          svcJSON,
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
