@@ -97,7 +97,7 @@ message TraceSummary {
 
   // Number of spans that carry an error indicator
   // (OTEL StatusCode = ERROR).
-  int32 error_count = 7;
+  int32 error_span_count = 7;
 
   // Per-service breakdown, one entry per distinct service name observed
   // across all spans.  Matches the coloured service tags shown in the
@@ -157,7 +157,7 @@ message TraceSummary {
   google.protobuf.Timestamp start_time = 4;
   google.protobuf.Duration  duration   = 5;
   int32  span_count          = 6;
-  int32  error_count         = 7;
+  int32  error_span_count         = 7;
   repeated ServiceSummary services = 8;
 }
 
@@ -208,7 +208,7 @@ type TraceSummary struct {
     StartTime         time.Time
     Duration          time.Duration
     SpanCount         int
-    ErrorCount        int
+    ErrorSpanCount        int
     Services          []ServiceSummary
 }
 ```
@@ -307,7 +307,7 @@ export type TraceSummary = {
   startTime: number;   // Unix microseconds
   duration: number;    // microseconds
   spanCount: number;
-  errorCount: number;
+  errorSpanCount: number;
   // One entry per distinct service, matching the coloured tags in the
   // search results row (name, span count, error indicator).
   services: ServiceSummary[];
