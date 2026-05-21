@@ -105,6 +105,11 @@ message TraceSummary {
   repeated ServiceSummary services = 8;
 }
 
+// Request object for FindTraceSummaries.
+message FindTraceSummariesRequest {
+  TraceQueryParameters query = 1;
+}
+
 // Response for FindTraceSummaries.
 message FindTraceSummariesResponse {
   repeated TraceSummary summaries = 1;
@@ -122,7 +127,7 @@ service QueryService {
   // FindTraceSummaries searches for traces matching the given query and returns
   // lightweight summary information for each matching trace.  Use this instead
   // of FindTraces when full span data is not required (e.g. search results page).
-  rpc FindTraceSummaries(FindTracesRequest) returns (FindTraceSummariesResponse) {
+  rpc FindTraceSummaries(FindTraceSummariesRequest) returns (FindTraceSummariesResponse) {
     option (google.api.http) = {
       get: "/api/v3/trace-summaries"
       additional_bindings {
@@ -134,8 +139,8 @@ service QueryService {
 }
 ```
 
-The request reuses the existing `FindTracesRequest` / `TraceQueryParameters` types so
-no new query-parameter parsing is needed.
+`FindTraceSummariesRequest` embeds the same `TraceQueryParameters` inner type as
+`FindTracesRequest`, so no new query-parameter parsing is needed.
 
 ### 3. Storage v2 Remote API — Optional RPC
 
@@ -161,6 +166,10 @@ message TraceSummary {
   repeated ServiceSummary services = 8;
 }
 
+message FindTraceSummariesRequest {
+  TraceQueryParameters query = 1;
+}
+
 message FindTraceSummariesResponse {
   repeated TraceSummary summaries = 1;
 }
@@ -171,7 +180,7 @@ service TraceReader {
   // FindTraceSummaries is an optional RPC. If a remote storage backend does
   // not implement it, it MUST return gRPC status UNIMPLEMENTED so that the
   // caller can fall back to FindTraces + client-side aggregation.
-  rpc FindTraceSummaries(FindTracesRequest) returns (FindTraceSummariesResponse) {}
+  rpc FindTraceSummaries(FindTraceSummariesRequest) returns (FindTraceSummariesResponse) {}
 }
 ```
 
@@ -264,7 +273,7 @@ func (r *grpcReader) FindTraceSummaries(ctx, query) ([]TraceSummary, error) {
 ```go
 func (h *Handler) FindTraceSummaries(
     ctx context.Context,
-    req *api_v3.FindTracesRequest,
+    req *api_v3.FindTraceSummariesRequest,
 ) (*api_v3.FindTraceSummariesResponse, error) {
     params := convert(req.Query)
     summaries, err := h.queryService.FindTraceSummaries(ctx, params)
@@ -434,8 +443,8 @@ gRPC RPC defined in the IDL, now that the data model has been validated by real 
 usage. This also makes the endpoint accessible to gRPC clients and code-generated SDKs.
 
 **Changes:**
-1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesResponse`,
-   and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`. Bump the IDL version.
+1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
+   `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`. Bump the IDL version.
 2. **`jaeger`**: Regenerate Go bindings. Implement the gRPC handler method
    (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated
    binding instead of the hand-written handler from Milestone 1.
@@ -455,8 +464,8 @@ The adapter falls back transparently when they do not, so existing plugins requi
 changes.
 
 **Changes:**
-1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesResponse`,
-   and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.
+1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
+   `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.
 2. **`jaeger`**: Implement `FindTraceSummaries` in the gRPC storage reader
    (`plugin/storage/grpc/`), falling back to `FindTraces` + `computeSummaries` on
    `codes.Unimplemented`.
