@@ -96,6 +96,13 @@ func (h *searchTracesHandler) handle(
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
 func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
+	return buildTraceQueryParams(input, h.maxResults)
+}
+
+// buildTraceQueryParams is a standalone helper that converts SearchTracesInput to
+// querysvc.TraceQueryParams. It is shared by searchTracesHandler and getTraceStatsHandler
+// to avoid coupling the stats handler to searchTracesHandler internals.
+func buildTraceQueryParams(input types.SearchTracesInput, maxResults int) (querysvc.TraceQueryParams, error) {
 	// Use default start time if not provided
 	startTimeMinInput := input.StartTimeMin
 	if startTimeMinInput == "" {
@@ -127,22 +134,22 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	}
 
 	// Parse duration parameters
-	var durationMin, durationMax time.Duration
+	var minDuration, maxDuration time.Duration
 	if input.DurationMin != "" {
-		durationMin, err = time.ParseDuration(input.DurationMin)
+		minDuration, err = time.ParseDuration(input.DurationMin)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_min: %w", err)
 		}
 	}
 	if input.DurationMax != "" {
-		durationMax, err = time.ParseDuration(input.DurationMax)
+		maxDuration, err = time.ParseDuration(input.DurationMax)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_max: %w", err)
 		}
 	}
 
 	// Validate duration range
-	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
+	if minDuration > 0 && maxDuration > 0 && maxDuration < minDuration {
 		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
 	}
 
@@ -152,8 +159,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	if searchDepth <= 0 {
 		searchDepth = defaultSearchDepth
 	}
-	if searchDepth > h.maxResults {
-		searchDepth = h.maxResults
+	if maxResults > 0 && searchDepth > maxResults {
+		searchDepth = maxResults
 	}
 
 	// Convert attributes map to pcommon.Map
@@ -174,8 +181,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 			Attributes:    attributes,
 			StartTimeMin:  minStartTime,
 			StartTimeMax:  maxStartTime,
-			DurationMin:   durationMin,
-			DurationMax:   durationMax,
+			DurationMin:   minDuration,
+			DurationMax:   maxDuration,
 			SearchDepth:   searchDepth,
 		},
 		RawTraces: false, // We want adjusted traces

@@ -5,6 +5,8 @@ package handlers
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"iter"
 	"time"
 
@@ -16,6 +18,20 @@ import (
 
 // testTraceID is a common trace ID used across tests
 const testTraceID = "12345678901234567890123456789012"
+
+// uniqueTraceIDs returns n distinct pcommon.TraceID-compatible hex strings.
+// Used by FindTraces-based tests that expect separate aggregated traces:
+// AggregateTraces merges spans that share the same trace ID, regardless of
+// how they are yielded by the mock.
+// Each string is a valid 32-char lowercase hex trace ID so that
+// hex.DecodeString produces a unique 16-byte pcommon.TraceID.
+func uniqueTraceIDs(n int) []string {
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("%032x", i+1)
+	}
+	return ids
+}
 
 // spanConfig defines the configuration for creating a test span
 type spanConfig struct {
@@ -94,18 +110,26 @@ func newMockYieldingEmpty() *mockQueryService {
 	}
 }
 
-// newMockFindTraces creates a mock for FindTraces calls that yields the given traces
+// newMockFindTraces creates a mock for FindTraces calls that yields each trace
+// individually (one per iteration step). This controls how results are emitted,
+// but traces with the same trace ID may still be merged by AggregateTraces, so
+// tests that require distinct aggregated traces should use unique trace IDs.
 func newMockFindTraces(traces ...ptrace.Traces) *mockQueryService {
 	return &mockQueryService{
 		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 			return func(yield func([]ptrace.Traces, error) bool) {
-				yield(traces, nil)
+				for _, t := range traces {
+					if !yield([]ptrace.Traces{t}, nil) {
+						return
+					}
+				}
 			}
 		},
 	}
 }
 
-// createTestTrace creates a simple trace with a single span for testing
+// createTestTrace creates a simple trace with a single span for testing.
+// traceID must be a 32-char lowercase hex string (e.g. from uniqueTraceIDs or testTraceID).
 func createTestTrace(traceID string, serviceName string, spanName string, hasError bool) ptrace.Traces {
 	traces := ptrace.NewTraces()
 	resourceSpans := traces.ResourceSpans().AppendEmpty()
@@ -116,9 +140,16 @@ func createTestTrace(traceID string, serviceName string, spanName string, hasErr
 	scopeSpans := resourceSpans.ScopeSpans().AppendEmpty()
 	span := scopeSpans.Spans().AppendEmpty()
 
-	// Set trace ID
-	tid := pcommon.TraceID{}
-	copy(tid[:], traceID)
+	// Hex-decode the trace ID string into a pcommon.TraceID so the resulting
+	// TraceID bytes match what a real trace would produce.
+	var tid pcommon.TraceID
+	if b, err := hex.DecodeString(traceID); err == nil && len(b) == 16 {
+		copy(tid[:], b)
+	} else {
+		// Fallback for callers passing non-hex strings or values with the
+		// wrong decoded length.
+		copy(tid[:], traceID)
+	}
 	span.SetTraceID(tid)
 
 	// Set span ID (root span has empty parent)
@@ -219,4 +250,17 @@ func spanIDToHex(spanID string) string {
 	sid := pcommon.SpanID{}
 	copy(sid[:], spanID)
 	return sid.String()
+}
+
+// newMockFindTracesError creates a mock for FindTraces calls that yields an error
+func newMockFindTracesError(err error) *mockQueryService {
+	return &mockQueryService{
+		findTracesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+			return func(yield func([]ptrace.Traces, error) bool) {
+				if !yield(nil, err) {
+					return
+				}
+			}
+		},
+	}
 }
