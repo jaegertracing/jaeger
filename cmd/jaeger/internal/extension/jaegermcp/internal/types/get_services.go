@@ -15,5 +15,6 @@ type GetServicesInput struct {
 
 // GetServicesOutput defines the output of the get_services MCP tool.
 type GetServicesOutput struct {
+	SkillMetadata
 	Services []string `json:"services" jsonschema:"List of service names"`
 }

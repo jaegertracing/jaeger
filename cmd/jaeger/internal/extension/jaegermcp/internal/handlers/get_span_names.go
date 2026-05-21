@@ -110,5 +110,10 @@ func (h *getSpanNamesHandler) handle(
 		})
 	}
 
-	return nil, types.GetSpanNamesOutput{SpanNames: spanNames}, nil
+	return nil, types.GetSpanNamesOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName: "get_span_names",
+		},
+		SpanNames: spanNames,
+	}, nil
 }

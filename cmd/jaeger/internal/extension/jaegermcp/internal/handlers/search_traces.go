@@ -84,7 +84,12 @@ func (h *searchTracesHandler) handle(
 		}
 	}
 
-	output := types.SearchTracesOutput{Traces: summaries}
+	output := types.SearchTracesOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName: "search_traces",
+		},
+		Traces: summaries,
+	}
 
 	// If we encountered errors during processing, include them in the output
 	if len(processErrs) > 0 {

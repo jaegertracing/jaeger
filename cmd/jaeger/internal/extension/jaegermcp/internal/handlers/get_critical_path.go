@@ -176,7 +176,16 @@ func (*getCriticalPathHandler) buildOutput(
 		})
 	}
 
+	evidenceSpans := make([]string, len(segments))
+	for i, seg := range segments {
+		evidenceSpans[i] = seg.SpanID
+	}
+
 	return types.GetCriticalPathOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName:     "get_critical_path",
+			EvidenceSpans: evidenceSpans,
+		},
 		TraceID:                traceIDStr,
 		TotalDurationUs:        traceEndTime - traceStartTime,
 		CriticalPathDurationUs: criticalPathDuration,

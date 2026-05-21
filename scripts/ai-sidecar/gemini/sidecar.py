@@ -282,6 +282,8 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_REQUEST_MODEL: "gemini-2.5-flash",
         }):
             logger.info("Starting agentic Gemini loop for session %s", session_id)
+            skills_used = set()
+            evidence_spans = set()
             system_instruction = (
                 "You are Jaeger AI, an assistant for distributed tracing investigations. "
                 "You will be given telemetry information from MCP tool results; treat that data as your source of truth. "
@@ -329,20 +331,40 @@ class JaegerSidecarAgent(Agent):
                 function_calls = response.function_calls
                 if not function_calls:
                     logger.info("No function calls in Gemini response, returning final text")
-                    return response.text or ""
+
+                    final_text = response.text or ""
+                    if skills_used or evidence_spans:
+                        import json
+                        meta_json = json.dumps({
+                            "skill_used": ", ".join(sorted(skills_used)),
+                            "evidence_spans": sorted(evidence_spans)
+                        })
+                        final_text += f"\n\n[metadata] {meta_json}\n"
+
+                    return final_text
 
                 function_responses = []
 
                 for function_call in function_calls:
-                    name = function_call.name or ""
-                    args = function_call.args or dict[str, Any]()
+                    name = function_call.nam                 args = function_call.args or dict[str, Any]()
                     call_id = function_call.id or self._new_tool_call_id(name or "unnamed")
+                    
                     if name in contextual_tool_names:
                         logger.info("Gemini requested contextual tool call: %s (call_id=%s)", name, call_id)
                         tool_output = await self._execute_contextual_tool(session_id, name, args, call_id)
                     else:
                         logger.info("Gemini requested MCP tool call: %s (call_id=%s)", name, call_id)
                         tool_output = await self._execute_tool(session_id, name, args, call_id)
+
+                    # Extract metadata if available
+                    if isinstance(tool_output, dict):
+                        skill_name = tool_output.get("_skill_name")
+                        if skill_name:
+                            skills_used.add(skill_name)
+                        spans = tool_output.get("_evidence_spans")
+                        if isinstance(spans, list):
+                            evidence_spans.update(spans)
+
                     function_responses.append(
                         types.Part.from_function_response(name=name, response={"result": tool_output})
                     )

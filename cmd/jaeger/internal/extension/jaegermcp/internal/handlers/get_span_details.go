@@ -100,7 +100,16 @@ func (h *getSpanDetailsHandler) handle(
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace not found")
 	}
 
+	evidenceSpans := make([]string, len(spanDetails))
+	for i, sd := range spanDetails {
+		evidenceSpans[i] = sd.SpanID
+	}
+
 	output := types.GetSpanDetailsOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName:     "get_span_details",
+			EvidenceSpans: evidenceSpans,
+		},
 		TraceID: input.TraceID,
 		Spans:   spanDetails,
 	}

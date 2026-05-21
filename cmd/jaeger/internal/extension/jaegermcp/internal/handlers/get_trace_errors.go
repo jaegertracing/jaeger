@@ -85,7 +85,16 @@ func (h *getTraceErrorsHandler) handle(
 		return nil, types.GetTraceErrorsOutput{}, errors.New("trace not found")
 	}
 
+	evidenceSpans := make([]string, len(errorSpans))
+	for i, sd := range errorSpans {
+		evidenceSpans[i] = sd.SpanID
+	}
+
 	output := types.GetTraceErrorsOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName:     "get_trace_errors",
+			EvidenceSpans: evidenceSpans,
+		},
 		TraceID:         input.TraceID,
 		TotalErrorCount: totalErrors,
 		Spans:           errorSpans,

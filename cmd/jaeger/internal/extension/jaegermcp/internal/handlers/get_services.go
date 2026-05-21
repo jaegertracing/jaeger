@@ -79,6 +79,9 @@ func (h *getServicesHandler) handle(
 	}
 
 	return nil, types.GetServicesOutput{
+		SkillMetadata: types.SkillMetadata{
+			SkillName: "get_services",
+		},
 		Services: services,
 	}, nil
 }

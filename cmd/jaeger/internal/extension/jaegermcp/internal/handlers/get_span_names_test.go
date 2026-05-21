@@ -49,6 +49,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "POST /api/checkout", SpanKind: "SERVER"},
 			},
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: []types.SpanNameInfo{
 					{Name: "GET /api/orders", SpanKind: "SERVER"},
 					{Name: "GET /api/users", SpanKind: "SERVER"},
@@ -75,6 +76,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "POST /api/checkout", SpanKind: "SERVER"},
 			},
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: []types.SpanNameInfo{
 					{Name: "GET /api/orders", SpanKind: "SERVER"},
 					{Name: "GET /api/users", SpanKind: "SERVER"},
@@ -92,6 +94,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "call-database", SpanKind: "CLIENT"},
 			},
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: []types.SpanNameInfo{
 					{Name: "call-backend", SpanKind: "CLIENT"},
 					{Name: "call-database", SpanKind: "CLIENT"},
@@ -111,6 +114,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "op4", SpanKind: "SERVER"},
 			},
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: []types.SpanNameInfo{
 					{Name: "op1", SpanKind: "SERVER"},
 					{Name: "op2", SpanKind: "SERVER"},
@@ -124,6 +128,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			},
 			mockOps: generateOperations(150),
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: generateSpanNameInfos(100),
 			},
 		},
@@ -151,6 +156,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			},
 			mockOps: []tracestore.Operation{},
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: []types.SpanNameInfo{},
 			},
 		},
@@ -164,6 +170,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 				{Name: "GET /api/users", SpanKind: "SERVER"},
 			},
 			expectedOutput: types.GetSpanNamesOutput{
+				SkillMetadata: types.SkillMetadata{SkillName: "get_span_names"},
 				SpanNames: []types.SpanNameInfo{},
 			},
 		},

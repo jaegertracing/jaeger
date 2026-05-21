@@ -41,6 +41,7 @@ type SearchTracesInput struct {
 
 // SearchTracesOutput defines the output of the search_traces MCP tool.
 type SearchTracesOutput struct {
+	SkillMetadata
 	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
 	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
 }

@@ -11,6 +11,7 @@ type GetCriticalPathInput struct {
 
 // GetCriticalPathOutput defines the output of the get_critical_path MCP tool.
 type GetCriticalPathOutput struct {
+	SkillMetadata
 	TraceID                string                `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	TotalDurationUs        uint64                `json:"total_duration_us" jsonschema:"Total trace duration in microseconds"`
 	CriticalPathDurationUs uint64                `json:"critical_path_duration_us" jsonschema:"Total duration of critical path in microseconds"`
