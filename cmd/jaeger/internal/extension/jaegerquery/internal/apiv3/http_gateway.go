@@ -45,6 +45,7 @@ const (
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
+	routeFindSummaries = "/api/v3/trace-summaries"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
 )
@@ -61,6 +62,7 @@ type HTTPGateway struct {
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
+	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -201,6 +203,54 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
 	traces, err := jiter.FlattenWithErrors(findTracesIter)
 	h.returnTraces(traces, err, w)
+}
+
+func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
+	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	if shouldReturn {
+		return
+	}
+	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
+	queryParams.RawTraces = false
+	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summaries, err := jiter.FlattenWithErrors(summariesIter)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	response := findTraceSummariesResponseJSON{
+		Summaries: make([]traceSummaryJSON, len(summaries)),
+	}
+	for i := range summaries {
+		s := &summaries[i]
+		svcJSON := make([]serviceSummaryJSON, len(s.Services))
+		for j, svc := range s.Services {
+			svcJSON[j] = serviceSummaryJSON{
+				Name:           svc.Name,
+				SpanCount:      svc.SpanCount,
+				ErrorSpanCount: svc.ErrorSpanCount,
+			}
+		}
+		var minStartNano, maxEndNano int64
+		if !s.MinStartTime.IsZero() {
+			minStartNano = s.MinStartTime.UnixNano()
+		}
+		if !s.MaxEndTime.IsZero() {
+			maxEndNano = s.MaxEndTime.UnixNano()
+		}
+		response.Summaries[i] = traceSummaryJSON{
+			TraceID:              s.TraceID.String(),
+			RootServiceName:      s.RootServiceName,
+			RootOperationName:    s.RootOperationName,
+			MinStartTimeUnixNano: minStartNano,
+			MaxEndTimeUnixNano:   maxEndNano,
+			SpanCount:            s.SpanCount,
+			ErrorSpanCount:       s.ErrorSpanCount,
+			OrphanSpanCount:      s.OrphanSpanCount,
+			Services:             svcJSON,
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
