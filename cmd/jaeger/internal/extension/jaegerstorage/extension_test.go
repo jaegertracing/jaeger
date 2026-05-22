@@ -59,7 +59,7 @@ func (e errorFactory) Close() error {
 func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if estesting.WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse(w, r) {
 			return
 		}
 		w.WriteHeader(statusCode)
@@ -180,7 +180,7 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 				require.NoError(t, err)
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
-					if estesting.WriteMockMappingResponse("", w, r) {
+					if estesting.WriteMockMappingResponse(w, r) {
 						return
 					}
 					w.Write(versionResponse)

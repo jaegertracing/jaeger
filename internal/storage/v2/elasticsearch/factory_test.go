@@ -44,7 +44,7 @@ var mockEsServerResponse = []byte(`
 // }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(mockHttpServerForFactory(""))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	defer server.Close()
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
@@ -70,7 +70,7 @@ func TestESStorageFactoryErr(t *testing.T) {
 
 func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	// Set up mock Elasticsearch server
-	server := httptest.NewServer(mockHttpServerForFactory(""))
+	server := httptest.NewServer(mockHttpServerForFactory())
 	defer server.Close()
 
 	tests := []struct {
@@ -131,10 +131,10 @@ func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
 	require.Equal(t, expectedCfg, result)
 }
 
-func mockHttpServerForFactory(prefix escfg.IndexPrefix) http.Handler {
+func mockHttpServerForFactory() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if estesting.WriteMockMappingResponse(prefix, w, r) {
+		if estesting.WriteMockMappingResponse(w, r) {
 			return
 		}
 		w.Write(mockEsServerResponse)

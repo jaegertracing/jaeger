@@ -34,7 +34,7 @@ func getTelemetrySettings() telemetry.Settings {
 func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if estesting.WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse(w, r) {
 			return
 		}
 		w.WriteHeader(statusCode)

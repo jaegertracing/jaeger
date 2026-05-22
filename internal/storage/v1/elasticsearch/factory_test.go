@@ -370,7 +370,7 @@ func runPasswordFromFileTest(t *testing.T) {
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
 		w.Header().Set("Content-Type", "application/json")
-		if estesting.WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse(w, r) {
 			return
 		}
 		if !assert.Len(t, h, 2) {
@@ -771,7 +771,7 @@ func TestVerifySpanMappingSchema(t *testing.T) {
 func mockHttpServerForFactory() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if estesting.WriteMockMappingResponse("", w, r) {
+		if estesting.WriteMockMappingResponse(w, r) {
 			return
 		}
 		w.Write(mockEsServerResponse)
