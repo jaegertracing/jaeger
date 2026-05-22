@@ -30,14 +30,17 @@ import (
 )
 
 const (
-	paramTraceID        = "trace_id" // get trace by ID
-	paramStartTime      = "start_time"
-	paramEndTime        = "end_time"
-	paramRawTraces      = "raw_traces"
-	paramServiceName    = "query.service_name" // find traces
-	paramOperationName  = "query.operation_name"
-	paramTimeMin        = "query.start_time_min"
-	paramTimeMax        = "query.start_time_max"
+	paramTraceID       = "trace_id" // get trace by ID
+	paramStartTime     = "start_time"
+	paramEndTime       = "end_time"
+	paramRawTraces     = "raw_traces"
+	paramServiceName   = "query.service_name" // find traces
+	paramOperationName = "query.operation_name"
+	paramTimeMin       = "query.start_time_min"
+	paramTimeMax       = "query.start_time_max"
+	// paramSearchDepth is the canonical name matching the proto field and the future gRPC-gateway generated binding.
+	paramSearchDepth = "query.search_depth"
+	// paramNumTraces is a deprecated alias for paramSearchDepth kept for backwards compatibility.
 	paramNumTraces      = "query.num_traces"
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
@@ -280,9 +283,15 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
-	if n := q.Get(paramNumTraces); n != "" {
+	searchDepthParam := paramSearchDepth
+	n := q.Get(paramSearchDepth)
+	if n == "" {
+		n = q.Get(paramNumTraces)
+		searchDepthParam = paramNumTraces
+	}
+	if n != "" {
 		numTraces, err := strconv.Atoi(n)
-		if h.tryParamError(w, err, paramNumTraces) {
+		if h.tryParamError(w, err, searchDepthParam) {
 			return nil, true
 		}
 		queryParams.SearchDepth = numTraces

@@ -184,6 +184,29 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
+// TestHTTPGatewayFindTracesDeprecatedNumTraces verifies that the deprecated
+// query.num_traces alias is accepted as a fallback for query.search_depth.
+func TestHTTPGatewayFindTracesDeprecatedNumTraces(t *testing.T) {
+	q, qp := mockFindQueries()
+	// Replace canonical search_depth with the deprecated num_traces alias.
+	q.Del(paramSearchDepth)
+	q.Set(paramNumTraces, "10")
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 	testCases := []struct {
 		name          string
@@ -256,7 +279,7 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
 	q.Set(paramDurationMin, "1s")
 	q.Set(paramDurationMax, "2s")
-	q.Set(paramNumTraces, "10")
+	q.Set(paramSearchDepth, "10")
 
 	return q, tracestore.TraceQueryParams{
 		ServiceName:   "foo",
@@ -305,7 +328,12 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: paramTimeMax,
 		},
 		{
-			name:   "bad num_traces",
+			name:   "bad search_depth",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepth: "NaN"},
+			expErr: paramSearchDepth,
+		},
+		{
+			name:   "bad num_traces (deprecated alias)",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "NaN"},
 			expErr: paramNumTraces,
 		},
