@@ -30,27 +30,53 @@ import (
 )
 
 const (
-	paramTraceID       = "trace_id" // get trace by ID
-	paramStartTime     = "start_time"
-	paramEndTime       = "end_time"
-	paramRawTraces     = "raw_traces"
-	paramServiceName   = "query.service_name" // find traces
-	paramOperationName = "query.operation_name"
-	paramTimeMin       = "query.start_time_min"
-	paramTimeMax       = "query.start_time_max"
-	// paramSearchDepth is the canonical name matching the proto field and the future gRPC-gateway generated binding.
-	paramSearchDepth = "query.search_depth"
-	// paramNumTraces is a deprecated alias for paramSearchDepth kept for backwards compatibility.
-	paramNumTraces      = "query.num_traces"
-	paramDurationMin    = "query.duration_min"
-	paramDurationMax    = "query.duration_max"
-	paramQueryRawTraces = "query.raw_traces"
+	paramTraceID = "trace_id" // get trace by ID (path param, not a query param)
+
+	// Canonical query parameter names use camelCase, matching
+	// the proto3 JSON encoding convention and the OpenAPI spec.
+	paramStartTime      = "startTime"
+	paramEndTime        = "endTime"
+	paramRawTraces      = "rawTraces"
+	paramServiceName    = "query.serviceName"
+	paramOperationName  = "query.operationName"
+	paramTimeMin        = "query.startTimeMin"
+	paramTimeMax        = "query.startTimeMax"
+	paramSearchDepth    = "query.searchDepth"
+	paramDurationMin    = "query.durationMin"
+	paramDurationMax    = "query.durationMax"
+	paramQueryRawTraces = "query.rawTraces"
+	paramSpanKind       = "spanKind"
+
+	// Deprecated snake_case aliases kept for backwards compatibility.
+	// These will be removed in a future release.
+	deprecatedParamStartTime      = "start_time"
+	deprecatedParamEndTime        = "end_time"
+	deprecatedParamRawTraces      = "raw_traces"
+	deprecatedParamServiceName    = "query.service_name"
+	deprecatedParamOperationName  = "query.operation_name"
+	deprecatedParamTimeMin        = "query.start_time_min"
+	deprecatedParamTimeMax        = "query.start_time_max"
+	deprecatedParamSearchDepth    = "query.search_depth"
+	deprecatedParamNumTraces      = "query.num_traces"
+	deprecatedParamDurationMin    = "query.duration_min"
+	deprecatedParamDurationMax    = "query.duration_max"
+	deprecatedParamQueryRawTraces = "query.raw_traces"
+	deprecatedParamSpanKind       = "span_kind"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
 )
+
+// getQueryParam retrieves a query parameter by its canonical (camelCase) name,
+// falling back to the deprecated (snake_case) name for backwards compatibility.
+func getQueryParam(q url.Values, canonical, deprecated string) string {
+	if v := q.Get(canonical); v != "" {
+		return v
+	}
+	return q.Get(deprecated)
+}
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
@@ -167,7 +193,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	http_query := r.URL.Query()
-	startTime := http_query.Get(paramStartTime)
+	startTime := getQueryParam(http_query, paramStartTime, deprecatedParamStartTime)
 	if startTime != "" {
 		timeParsed, err := time.Parse(time.RFC3339Nano, startTime)
 		if h.tryParamError(w, err, paramStartTime) {
@@ -175,7 +201,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		}
 		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
-	endTime := http_query.Get(paramEndTime)
+	endTime := getQueryParam(http_query, paramEndTime, deprecatedParamEndTime)
 	if endTime != "" {
 		timeParsed, err := time.Parse(time.RFC3339Nano, endTime)
 		if h.tryParamError(w, err, paramEndTime) {
@@ -183,7 +209,7 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 		}
 		request.TraceIDs[0].End = timeParsed.UTC()
 	}
-	if r := http_query.Get(paramRawTraces); r != "" {
+	if r := getQueryParam(http_query, paramRawTraces, deprecatedParamRawTraces); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
 		if h.tryParamError(w, err, paramRawTraces) {
 			return
@@ -209,14 +235,14 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   q.Get(paramServiceName),
-			OperationName: q.Get(paramOperationName),
+			ServiceName:   getQueryParam(q, paramServiceName, deprecatedParamServiceName),
+			OperationName: getQueryParam(q, paramOperationName, deprecatedParamOperationName),
 			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
 		},
 	}
 
-	timeMin := q.Get(paramTimeMin)
-	timeMax := q.Get(paramTimeMax)
+	timeMin := getQueryParam(q, paramTimeMin, deprecatedParamTimeMin)
+	timeMax := getQueryParam(q, paramTimeMax, deprecatedParamTimeMax)
 	if timeMin == "" || timeMax == "" {
 		err := fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
 		h.tryHandleError(w, err, http.StatusBadRequest)
@@ -234,10 +260,10 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	queryParams.StartTimeMax = timeMaxParsed
 
 	searchDepthParam := paramSearchDepth
-	n := q.Get(paramSearchDepth)
+	n := getQueryParam(q, paramSearchDepth, deprecatedParamSearchDepth)
 	if n == "" {
-		n = q.Get(paramNumTraces)
-		searchDepthParam = paramNumTraces
+		n = q.Get(deprecatedParamNumTraces)
+		searchDepthParam = deprecatedParamNumTraces
 	}
 	if n != "" {
 		searchDepth, err := strconv.Atoi(n)
@@ -247,21 +273,21 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		queryParams.SearchDepth = searchDepth
 	}
 
-	if d := q.Get(paramDurationMin); d != "" {
+	if d := getQueryParam(q, paramDurationMin, deprecatedParamDurationMin); d != "" {
 		dur, err := time.ParseDuration(d)
 		if h.tryParamError(w, err, paramDurationMin) {
 			return nil, true
 		}
 		queryParams.DurationMin = dur
 	}
-	if d := q.Get(paramDurationMax); d != "" {
+	if d := getQueryParam(q, paramDurationMax, deprecatedParamDurationMax); d != "" {
 		dur, err := time.ParseDuration(d)
 		if h.tryParamError(w, err, paramDurationMax) {
 			return nil, true
 		}
 		queryParams.DurationMax = dur
 	}
-	if r := q.Get(paramQueryRawTraces); r != "" {
+	if r := getQueryParam(q, paramQueryRawTraces, deprecatedParamQueryRawTraces); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
 		if h.tryParamError(w, err, paramQueryRawTraces) {
 			return nil, true
@@ -288,7 +314,7 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	queryParams := tracestore.OperationQueryParams{
 		ServiceName: query.Get("service"),
-		SpanKind:    query.Get("span_kind"),
+		SpanKind:    getQueryParam(query, paramSpanKind, deprecatedParamSpanKind),
 	}
 	operations, err := h.QueryService.GetOperations(r.Context(), queryParams)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
