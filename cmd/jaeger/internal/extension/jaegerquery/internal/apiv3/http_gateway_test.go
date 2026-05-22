@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -181,6 +182,44 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
+func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
+	q, qp := mockFindQueries()
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	trace := ptrace.NewTraces()
+	resource := trace.ResourceSpans().AppendEmpty()
+	resource.Resource().Attributes().PutStr("service.name", "frontend")
+	span := resource.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(traceID)
+	span.SetSpanID(pcommon.SpanID([8]byte{1}))
+	span.SetName("GET /api")
+	start := time.Date(2026, time.May, 22, 10, 0, 0, 0, time.UTC)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(15 * time.Millisecond)))
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var response traceSummariesResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	require.Len(t, response.Summaries, 1)
+	assert.Equal(t, traceID.String(), response.Summaries[0].TraceID)
+	assert.Equal(t, "frontend", response.Summaries[0].RootServiceName)
+	assert.Equal(t, "GET /api", response.Summaries[0].RootOperationName)
+	assert.Equal(t, uint64(start.UnixNano()), response.Summaries[0].MinStartTimeUnixNano)
+	assert.Equal(t, uint64(start.Add(15*time.Millisecond).UnixNano()), response.Summaries[0].MaxEndTimeUnixNano)
+	assert.Equal(t, 1, response.Summaries[0].SpanCount)
 }
 
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {

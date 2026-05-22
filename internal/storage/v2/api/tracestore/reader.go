@@ -62,6 +62,15 @@ type Reader interface {
 	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]FoundTraceID, error]
 }
 
+// SummaryReader is an optional extension implemented by storage backends that
+// can compute trace summaries without loading full trace payloads.
+type SummaryReader interface {
+	// FindTraceSummaries returns lightweight summaries for traces matching query
+	// parameters. It must preserve the same filtering and ordering semantics as
+	// Reader.FindTraces.
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+}
+
 // GetTraceParams contains single-trace parameters for a GetTraces request.
 // Some storage backends (e.g. Tempo) perform GetTraces much more efficiently
 // if they know the approximate time range of the trace.
@@ -100,6 +109,26 @@ type FoundTraceID struct {
 	TraceID pcommon.TraceID
 	Start   time.Time
 	End     time.Time
+}
+
+// TraceSummary is a compact search-result representation of a trace.
+type TraceSummary struct {
+	TraceID           pcommon.TraceID  `json:"traceID"`
+	RootServiceName   string           `json:"rootServiceName"`
+	RootOperationName string           `json:"rootOperationName"`
+	MinStartTime      time.Time        `json:"minStartTime"`
+	MaxEndTime        time.Time        `json:"maxEndTime"`
+	SpanCount         int              `json:"spanCount"`
+	ErrorSpanCount    int              `json:"errorSpanCount"`
+	OrphanSpanCount   int              `json:"orphanSpanCount"`
+	Services          []ServiceSummary `json:"services"`
+}
+
+// ServiceSummary contains span and error counts for one service in a trace.
+type ServiceSummary struct {
+	Name           string `json:"name"`
+	SpanCount      int    `json:"spanCount"`
+	ErrorSpanCount int    `json:"errorSpanCount"`
 }
 
 // OperationQueryParams contains parameters of query operations, empty spanKind means get operations for all kinds of span.

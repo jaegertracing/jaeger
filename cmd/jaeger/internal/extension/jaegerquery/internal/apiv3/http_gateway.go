@@ -43,10 +43,11 @@ const (
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
 
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace       = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces     = "/api/v3/traces"
+	routeTraceSummaries = "/api/v3/trace-summaries"
+	routeGetServices    = "/api/v3/services"
+	routeGetOperations  = "/api/v3/operations"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -61,6 +62,7 @@ type HTTPGateway struct {
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
+	h.addRoute(router, h.findTraceSummaries, routeTraceSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -203,6 +205,23 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnTraces(traces, err, w)
 }
 
+func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
+	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	if shouldReturn {
+		return
+	}
+
+	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summaries, err := jiter.FlattenWithErrors(summariesIter)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	if summaries == nil {
+		summaries = []tracestore.TraceSummary{}
+	}
+	h.writeJSON(newTraceSummariesResponse(summaries), w)
+}
+
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
@@ -260,6 +279,72 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		queryParams.RawTraces = rawTraces
 	}
 	return queryParams, false
+}
+
+type traceSummariesResponse struct {
+	Summaries []traceSummary `json:"summaries"`
+}
+
+type traceSummary struct {
+	TraceID              string           `json:"traceID"`
+	RootServiceName      string           `json:"rootServiceName"`
+	RootOperationName    string           `json:"rootOperationName"`
+	MinStartTimeUnixNano uint64           `json:"minStartTimeUnixNano"`
+	MaxEndTimeUnixNano   uint64           `json:"maxEndTimeUnixNano"`
+	SpanCount            int              `json:"spanCount"`
+	ErrorSpanCount       int              `json:"errorSpanCount"`
+	OrphanSpanCount      int              `json:"orphanSpanCount"`
+	Services             []serviceSummary `json:"services"`
+}
+
+type serviceSummary struct {
+	Name           string `json:"name"`
+	SpanCount      int    `json:"spanCount"`
+	ErrorSpanCount int    `json:"errorSpanCount"`
+}
+
+func newTraceSummariesResponse(summaries []tracestore.TraceSummary) traceSummariesResponse {
+	response := traceSummariesResponse{
+		Summaries: make([]traceSummary, len(summaries)),
+	}
+	for i := range summaries {
+		response.Summaries[i] = newTraceSummary(summaries[i])
+	}
+	return response
+}
+
+func newTraceSummary(summary tracestore.TraceSummary) traceSummary {
+	services := make([]serviceSummary, len(summary.Services))
+	for i := range summary.Services {
+		services[i] = serviceSummary{
+			Name:           summary.Services[i].Name,
+			SpanCount:      summary.Services[i].SpanCount,
+			ErrorSpanCount: summary.Services[i].ErrorSpanCount,
+		}
+	}
+	return traceSummary{
+		TraceID:              summary.TraceID.String(),
+		RootServiceName:      summary.RootServiceName,
+		RootOperationName:    summary.RootOperationName,
+		MinStartTimeUnixNano: unixNano(summary.MinStartTime),
+		MaxEndTimeUnixNano:   unixNano(summary.MaxEndTime),
+		SpanCount:            summary.SpanCount,
+		ErrorSpanCount:       summary.ErrorSpanCount,
+		OrphanSpanCount:      summary.OrphanSpanCount,
+		Services:             services,
+	}
+}
+
+func unixNano(t time.Time) uint64 {
+	if t.IsZero() {
+		return 0
+	}
+	return uint64(t.UnixNano())
+}
+
+func (*HTTPGateway) writeJSON(response any, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
