@@ -377,7 +377,12 @@ func TestTagMap(t *testing.T) {
 			Type:  dbmodel.Int64Type,
 		},
 	}
-	dbSpan := dbmodel.Span{Tags: tags, Process: dbmodel.Process{Tags: tags}}
+	dbSpan := dbmodel.Span{
+		Tags:       tags,
+		Process:    dbmodel.Process{Tags: tags},
+		ScopeTags:  tags,
+		References: []dbmodel.Reference{{Tags: tags}},
+	}
 	converter := NewSpanWriter(SpanWriterParams{
 		Logger:            zap.NewNop(),
 		MetricsFactory:    metrics.NullFactory,
@@ -391,12 +396,15 @@ func TestTagMap(t *testing.T) {
 	assert.Equal(t, "foo", dbSpan.Tags[0].Key)
 	assert.Len(t, dbSpan.Process.Tags, 1)
 	assert.Equal(t, "foo", dbSpan.Process.Tags[0].Key)
+	assert.Len(t, dbSpan.ScopeTags, 1)
+	assert.Equal(t, "foo", dbSpan.ScopeTags[0].Key)
 
 	tagsMap := map[string]any{}
 	tagsMap["a"] = true
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
+	assert.Equal(t, tagsMap, dbSpan.ScopeTag)
 }
 
 func TestNewSpanTags(t *testing.T) {

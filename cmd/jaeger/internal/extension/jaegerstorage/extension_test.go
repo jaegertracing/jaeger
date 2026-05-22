@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/internal/storageconfig"
 	"github.com/jaegertracing/jaeger/internal/config/promcfg"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/estesting"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -56,8 +57,11 @@ func (e errorFactory) Close() error {
 }
 
 func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Server {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if estesting.WriteMockMappingResponse(w, r) {
+			return
+		}
 		w.WriteHeader(statusCode)
 		w.Write(response)
 	}))
@@ -174,7 +178,11 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 					},
 				})
 				require.NoError(t, err)
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					if estesting.WriteMockMappingResponse(w, r) {
+						return
+					}
 					w.Write(versionResponse)
 				}))
 				t.Cleanup(func() { server.Close() })
