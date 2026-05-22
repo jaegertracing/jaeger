@@ -240,11 +240,11 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 		searchDepthParam = paramNumTraces
 	}
 	if n != "" {
-		numTraces, err := strconv.Atoi(n)
+		searchDepth, err := strconv.Atoi(n)
 		if h.tryParamError(w, err, searchDepthParam) {
 			return nil, true
 		}
-		queryParams.SearchDepth = numTraces
+		queryParams.SearchDepth = searchDepth
 	}
 
 	if d := q.Get(paramDurationMin); d != "" {
