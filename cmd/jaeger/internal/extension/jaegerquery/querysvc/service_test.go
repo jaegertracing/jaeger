@@ -618,6 +618,91 @@ func TestFindTraces_WithRawTraces_PerformsAggregation(t *testing.T) {
 	}
 }
 
+func TestFindTraceSummaries_UsesNativeSummaryReader(t *testing.T) {
+	queryParams := tracestore.TraceQueryParams{ServiceName: "service"}
+	expected := []tracestore.TraceSummary{{TraceID: testTraceID, SpanCount: 2}}
+	reader := &nativeSummaryReader{
+		Reader: &tracestoremocks.Reader{},
+		iter: iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(expected, nil)
+		}),
+	}
+	qs := NewQueryService(reader, &depstoremocks.Reader{}, QueryServiceOptions{})
+
+	summaries, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		TraceQueryParams: queryParams,
+	}))
+
+	require.NoError(t, err)
+	assert.Equal(t, expected, summaries)
+	assert.Equal(t, queryParams, reader.query)
+	reader.AssertNotCalled(t, "FindTraces", mock.Anything, mock.Anything)
+}
+
+func TestFindTraceSummaries_FallbackAggregatesRawTraceChunks(t *testing.T) {
+	tqs := initializeTestService()
+	traceChunk1 := ptrace.NewTraces()
+	span1 := traceChunk1.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span1.SetTraceID(testTraceID)
+	span1.SetSpanID(pcommon.SpanID([8]byte{1}))
+	traceChunk2 := ptrace.NewTraces()
+	span2 := traceChunk2.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span2.SetTraceID(testTraceID)
+	span2.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+	tqs.traceReader.On("FindTraces", mock.Anything, tracestore.TraceQueryParams{}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{traceChunk1, traceChunk2}, nil)
+		})).Once()
+
+	summaries, err := jiter.FlattenWithErrors(tqs.queryService.FindTraceSummaries(context.Background(), TraceQueryParams{
+		RawTraces: true,
+	}))
+
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	assert.Equal(t, 2, summaries[0].SpanCount)
+}
+
+func TestFindTraceSummaries_FindsNativeSummaryReaderBehindWrapper(t *testing.T) {
+	expected := []tracestore.TraceSummary{{TraceID: testTraceID, SpanCount: 1}}
+	reader := &nativeSummaryReader{
+		Reader: &tracestoremocks.Reader{},
+		iter: iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(expected, nil)
+		}),
+	}
+	qs := NewQueryService(wrappedTraceReader{Reader: &tracestoremocks.Reader{}, wrapped: reader}, nil, QueryServiceOptions{})
+
+	summaries, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{}))
+
+	require.NoError(t, err)
+	assert.Equal(t, expected, summaries)
+}
+
+type wrappedTraceReader struct {
+	*tracestoremocks.Reader
+	wrapped tracestore.Reader
+}
+
+func (w wrappedTraceReader) Unwrap() tracestore.Reader {
+	return w.wrapped
+}
+
+type nativeSummaryReader struct {
+	*tracestoremocks.Reader
+	query tracestore.TraceQueryParams
+	iter  iter.Seq2[[]tracestore.TraceSummary, error]
+}
+
+func (r *nativeSummaryReader) FindTraceSummaries(
+	_ context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	r.query = query
+	return r.iter
+}
+
 func TestArchiveTrace(t *testing.T) {
 	paramsTraceIDs := []tracestore.GetTraceParams{{TraceID: testTraceID}}
 	tests := []struct {

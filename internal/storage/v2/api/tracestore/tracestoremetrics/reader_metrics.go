@@ -64,6 +64,11 @@ func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryM
 	return qMetrics
 }
 
+// Unwrap returns the underlying reader for optional interface discovery.
+func (m *ReadMetricsDecorator) Unwrap() tracestore.Reader {
+	return m.traceReader
+}
+
 // FindTraces implements tracestore.Reader#FindTraces
 func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {

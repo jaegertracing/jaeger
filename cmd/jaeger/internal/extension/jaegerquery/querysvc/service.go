@@ -18,6 +18,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/tracesummary"
 )
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
@@ -156,6 +157,59 @@ func (qs QueryService) FindTraces(
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
+}
+
+// FindTraceSummaries searches for traces matching the query parameters and
+// returns compact summaries. Storage backends that implement
+// tracestore.SummaryReader can provide native summaries; all other backends
+// fall back to deriving summaries from complete traces.
+func (qs QueryService) FindTraceSummaries(
+	ctx context.Context,
+	query TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	query.RawTraces = false
+	if summaryReader, ok := findSummaryReader(qs.traceReader); ok {
+		return summaryReader.FindTraceSummaries(ctx, query.TraceQueryParams)
+	}
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		for traces, err := range qs.FindTraces(ctx, query) {
+			if err != nil {
+				if !yield(nil, err) {
+					return
+				}
+				continue
+			}
+			summaries := make([]tracestore.TraceSummary, 0, len(traces))
+			for _, trace := range traces {
+				summary := tracesummary.FromTrace(trace)
+				if summary.SpanCount == 0 {
+					continue
+				}
+				summaries = append(summaries, summary)
+			}
+			if !yield(summaries, nil) {
+				return
+			}
+		}
+	}
+}
+
+type traceReaderUnwrapper interface {
+	Unwrap() tracestore.Reader
+}
+
+func findSummaryReader(reader tracestore.Reader) (tracestore.SummaryReader, bool) {
+	for reader != nil {
+		if summaryReader, ok := reader.(tracestore.SummaryReader); ok {
+			return summaryReader, true
+		}
+		unwrapper, ok := reader.(traceReaderUnwrapper)
+		if !ok {
+			return nil, false
+		}
+		reader = unwrapper.Unwrap()
+	}
+	return nil, false
 }
 
 // ArchiveTrace archives a trace specified by the given query parameters.
