@@ -123,7 +123,7 @@ func (tr *TraceReader) FindTraceIDs(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTracesRequest{
+		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{
 			Query: toProtoQueryParameters(params),
 		})
 		if err != nil {

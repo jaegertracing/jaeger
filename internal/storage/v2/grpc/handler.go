@@ -133,7 +133,7 @@ func (h *Handler) FindTraces(
 
 func (h *Handler) FindTraceIDs(
 	ctx context.Context,
-	req *storage.FindTracesRequest,
+	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
 	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {
