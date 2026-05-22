@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricsmocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -1013,6 +1014,11 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
 			wantErrorMessage: "metrics querying is currently disabled",
 		},
+		{
+			name:             "dimensions endpoint on disabled backend returns 501",
+			urlPath:          "/api/metrics/dimensions",
+			wantErrorMessage: "metrics querying is currently disabled",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test
@@ -1023,6 +1029,151 @@ func TestMetricsQueryDisabled(t *testing.T) {
 			assert.ErrorContains(t, err, tc.wantErrorMessage)
 		})
 	}
+}
+
+func TestGetDimensionsEndpoint(t *testing.T) {
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+
+	configured := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster"},
+	}
+	metricsReader.On("GetDimensions", mock.Anything).Return(configured, nil).Once()
+
+	var got []metricstore.Dimension
+	require.NoError(t, getJSON(ts.server.URL+"/api/metrics/dimensions", &got))
+	assert.Equal(t, configured, got)
+}
+
+func TestGetDimensionsEndpointEmpty(t *testing.T) {
+	// Backends without dimension support return nil/empty; the handler must
+	// emit a JSON array (not null) so the UI can iterate without a nil-guard.
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+	metricsReader.On("GetDimensions", mock.Anything).Return(nil, nil).Once()
+
+	resp, err := http.Get(ts.server.URL + "/api/metrics/dimensions")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "[]", string(bytes.TrimSpace(body)))
+}
+
+func TestMetricsFilterValidation(t *testing.T) {
+	configured := []metricstore.Dimension{
+		{Name: "deployment.environment", DisplayName: "Environment", Values: []string{"prod", "staging"}},
+		{Name: "k8s.cluster"}, // free-text dimension
+	}
+	// Note: assertions match against JSON-encoded response bodies, where double
+	// quotes are escaped as \". Use substrings that survive that escaping.
+	for _, tc := range []struct {
+		name     string
+		urlPath  string
+		wantCode int
+		wantMsg  string
+	}{
+		{
+			name:     "unknown filter key returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=unknown.key:v",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `unknown filter dimension`,
+		},
+		{
+			name:     "value not in declared set returns 400",
+			urlPath:  "/api/metrics/calls?service=svc&filter=deployment.environment:notInSet",
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `not allowed for filter`,
+		},
+		{
+			name:     "free-text value with double-quote returns 400",
+			urlPath:  `/api/metrics/calls?service=svc&filter=k8s.cluster:bad"value`,
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `invalid value for filter`,
+		},
+		{
+			name:     "free-text value with backslash returns 400",
+			urlPath:  `/api/metrics/calls?service=svc&filter=k8s.cluster:bad\value`,
+			wantCode: http.StatusBadRequest,
+			wantMsg:  `invalid value for filter`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			metricsReader := &metricsmocks.Reader{}
+			ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+			metricsReader.On("GetDimensions", mock.Anything).Return(configured, nil).Once()
+
+			resp, err := http.Get(ts.server.URL + tc.urlPath)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, tc.wantCode, resp.StatusCode)
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(body), tc.wantMsg)
+		})
+	}
+}
+
+func TestMetricsFilterHappyPath(t *testing.T) {
+	configured := []metricstore.Dimension{
+		{Name: "deployment.environment", Values: []string{"prod", "staging"}},
+	}
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+
+	metricsReader.On("GetDimensions", mock.Anything).Return(configured, nil).Once()
+	metricsReader.On(
+		"GetCallRates",
+		mock.Anything,
+		mock.MatchedBy(func(p *metricstore.CallRateQueryParameters) bool {
+			return p.Filters["deployment.environment"] == "prod"
+		}),
+	).Return(&metrics.MetricFamily{}, nil).Once()
+
+	var response metrics.MetricFamily
+	require.NoError(t, getJSON(
+		ts.server.URL+"/api/metrics/calls?service=svc&filter=deployment.environment:prod",
+		&response,
+	))
+}
+
+func TestMetricsFilterGetDimensionsError(t *testing.T) {
+	// When GetDimensions returns a non-nil error (other than ErrDisabled)
+	// during filter validation, the error must surface to the client as 400
+	// via the validateMetricFilters error path.
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+	metricsReader.
+		On("GetDimensions", mock.Anything).
+		Return(nil, assert.AnError).
+		Once()
+
+	resp, err := http.Get(ts.server.URL + "/api/metrics/calls?service=svc&filter=k8s.cluster:foo")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), assert.AnError.Error())
+}
+
+func TestMetricsFilterRequestOnBackendWithoutDimensions(t *testing.T) {
+	// A backend that advertises no dimensions must reject filter requests
+	// with 400; otherwise the operator would silently get an unfiltered
+	// response when they intended to filter.
+	metricsReader := &metricsmocks.Reader{}
+	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(metricsReader))
+	metricsReader.On("GetDimensions", mock.Anything).Return(nil, nil).Once()
+
+	resp, err := http.Get(ts.server.URL + "/api/metrics/calls?service=svc&filter=anything:x")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "metric filtering is not supported by this backend")
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET

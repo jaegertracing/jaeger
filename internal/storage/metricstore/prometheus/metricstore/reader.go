@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -41,13 +42,20 @@ type (
 		latencyMetricName string
 		callsMetricName   string
 		operationLabel    string // name of the attribute that contains span name / operation
+
+		// dimensions holds the configured filterable dimensions, in the order
+		// declared by the operator, for GetDimensions.
+		dimensions []metricstore.Dimension
+		// dimensionByName indexes dimensions by Name for O(1) lookup during
+		// PromQL construction.
+		dimensionByName map[string]metricstore.Dimension
 	}
 
 	promQueryParams struct {
-		groupBy        string
-		spanKindFilter string
-		serviceFilter  string
-		rate           string
+		groupBy       string
+		extraSelector string // joined non-empty extra label selectors (span_kind + pre-configured filters)
+		serviceFilter string
+		rate          string
 	}
 
 	metricsQueryParams struct {
@@ -108,6 +116,12 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		return nil, err
 	}
 
+	dimensions := append([]metricstore.Dimension(nil), cfg.ExtraDimensions...)
+	dimensionByName := make(map[string]metricstore.Dimension, len(dimensions))
+	for _, d := range dimensions {
+		dimensionByName[d.Name] = d
+	}
+
 	mr := &MetricsReader{
 		client: promapi.NewAPI(promClient),
 		logger: logger,
@@ -117,10 +131,23 @@ func NewMetricsReader(cfg config.Configuration, logger *zap.Logger, tracer trace
 		callsMetricName:   buildFullCallsMetricName(cfg),
 		latencyMetricName: buildFullLatencyMetricName(cfg),
 		operationLabel:    operationLabel,
+
+		dimensions:      dimensions,
+		dimensionByName: dimensionByName,
 	}
 
 	logger.Info("Prometheus reader initialized", zap.String("addr", cfg.ServerURL))
 	return mr, nil
+}
+
+// GetDimensions returns the configured set of pre-configured filterable dimensions.
+func (m MetricsReader) GetDimensions(_ context.Context) ([]metricstore.Dimension, error) {
+	if len(m.dimensions) == 0 {
+		return nil, nil
+	}
+	out := make([]metricstore.Dimension, len(m.dimensions))
+	copy(out, m.dimensions)
+	return out, nil
 }
 
 // GetLatencies gets the latency metrics for the given set of latency query parameters.
@@ -132,12 +159,12 @@ func (m MetricsReader) GetLatencies(ctx context.Context, requestParams *metricst
 		metricDesc:          fmt.Sprintf("%.2fth quantile latency, grouped by service", requestParams.Quantile),
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
-				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
+				// Note: p.extraSelector can be ""; trailing commas are okay within a timeseries selection.
 				`histogram_quantile(%.2f, sum(rate(%s_bucket{service_name =~ %q, %s}[%s])) by (%s))`,
 				requestParams.Quantile,
 				m.latencyMetricName,
 				p.serviceFilter,
-				p.spanKindFilter,
+				p.extraSelector,
 				p.rate,
 				p.groupBy,
 			)
@@ -175,11 +202,11 @@ func (m MetricsReader) GetCallRates(ctx context.Context, requestParams *metricst
 		metricDesc:          "calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
-				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
+				// Note: p.extraSelector can be ""; trailing commas are okay within a timeseries selection.
 				`sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
 				m.callsMetricName,
 				p.serviceFilter,
-				p.spanKindFilter,
+				p.extraSelector,
 				p.rate,
 				p.groupBy,
 			)
@@ -209,10 +236,11 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 		metricDesc:          "error rate, computed as a fraction of errors/sec over calls/sec, grouped by service",
 		buildPromQuery: func(p promQueryParams) string {
 			return fmt.Sprintf(
-				// Note: p.spanKindFilter can be ""; trailing commas are okay within a timeseries selection.
+				// Note: p.extraSelector can be ""; trailing commas are okay within a timeseries selection.
+				// extraSelector is injected into both numerator and denominator so the filter applies uniformly.
 				`sum(rate(%s{service_name =~ %q, status_code = "STATUS_CODE_ERROR", %s}[%s])) by (%s) / sum(rate(%s{service_name =~ %q, %s}[%s])) by (%s)`,
-				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
-				m.callsMetricName, p.serviceFilter, p.spanKindFilter, p.rate, p.groupBy,
+				m.callsMetricName, p.serviceFilter, p.extraSelector, p.rate, p.groupBy,
+				m.callsMetricName, p.serviceFilter, p.extraSelector, p.rate, p.groupBy,
 			)
 		},
 	}
@@ -296,17 +324,49 @@ func (m MetricsReader) buildPromQuery(metricsParams metricsQueryParams) string {
 		groupBy = append(groupBy, "le")
 	}
 
-	spanKindFilter := ""
+	selectors := make([]string, 0, 1+len(metricsParams.Filters))
 	if len(metricsParams.SpanKinds) > 0 {
-		spanKindFilter = fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|"))
+		selectors = append(selectors, fmt.Sprintf(`span_kind =~ %q`, strings.Join(metricsParams.SpanKinds, "|")))
 	}
+	selectors = append(selectors, m.buildExtraFilterSelectors(metricsParams.Filters)...)
+
 	promParams := promQueryParams{
-		serviceFilter:  strings.Join(metricsParams.ServiceNames, "|"),
-		spanKindFilter: spanKindFilter,
-		rate:           promqlDurationString(metricsParams.RatePer),
-		groupBy:        strings.Join(groupBy, ","),
+		serviceFilter: strings.Join(metricsParams.ServiceNames, "|"),
+		extraSelector: strings.Join(selectors, ", "),
+		rate:          promqlDurationString(metricsParams.RatePer),
+		groupBy:       strings.Join(groupBy, ","),
 	}
 	return metricsParams.buildPromQuery(promParams)
+}
+
+// buildExtraFilterSelectors converts the pre-configured Filters map into
+// PromQL label selectors in deterministic alphabetical order, e.g.
+// `deployment_environment="prod"`. Keys that don't match a configured
+// dimension are skipped (the HTTP handler is the authoritative validator;
+// this is a defensive guard against direct/in-process callers).
+func (m MetricsReader) buildExtraFilterSelectors(filters map[string]string) []string {
+	if len(filters) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(filters))
+	for k := range filters {
+		if _, ok := m.dimensionByName[k]; !ok {
+			m.logger.Warn("skipping unknown metric filter key",
+				zap.String("key", k))
+			continue
+		}
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		// OTel attribute names use dots; Prometheus label names use underscores.
+		// The OTel→Prometheus translator at metric-ingest time performs the same
+		// substitution, so the label as stored is the underscore form.
+		promLabel := strings.ReplaceAll(k, ".", "_")
+		out = append(out, fmt.Sprintf(`%s=%q`, promLabel, filters[k]))
+	}
+	return out
 }
 
 // promqlDurationString formats the duration string to be promQL-compliant.

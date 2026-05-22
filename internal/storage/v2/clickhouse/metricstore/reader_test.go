@@ -311,6 +311,13 @@ func TestStepSeconds(t *testing.T) {
 	}
 }
 
+func TestGetDimensions(t *testing.T) {
+	r := NewReader(nil)
+	dims, err := r.GetDimensions(t.Context())
+	require.NoError(t, err)
+	assert.Nil(t, dims)
+}
+
 func TestConvertSpanKinds(t *testing.T) {
 	tests := []struct {
 		name  string

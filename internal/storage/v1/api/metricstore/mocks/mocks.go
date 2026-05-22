@@ -112,6 +112,68 @@ func (_c *Reader_GetCallRates_Call) RunAndReturn(run func(ctx context.Context, p
 	return _c
 }
 
+// GetDimensions provides a mock function for the type Reader
+func (_mock *Reader) GetDimensions(ctx context.Context) ([]metricstore.Dimension, error) {
+	ret := _mock.Called(ctx)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetDimensions")
+	}
+
+	var r0 []metricstore.Dimension
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context) ([]metricstore.Dimension, error)); ok {
+		return returnFunc(ctx)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context) []metricstore.Dimension); ok {
+		r0 = returnFunc(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]metricstore.Dimension)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(ctx)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Reader_GetDimensions_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetDimensions'
+type Reader_GetDimensions_Call struct {
+	*mock.Call
+}
+
+// GetDimensions is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *Reader_Expecter) GetDimensions(ctx interface{}) *Reader_GetDimensions_Call {
+	return &Reader_GetDimensions_Call{Call: _e.mock.On("GetDimensions", ctx)}
+}
+
+func (_c *Reader_GetDimensions_Call) Run(run func(ctx context.Context)) *Reader_GetDimensions_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *Reader_GetDimensions_Call) Return(dimensions []metricstore.Dimension, err error) *Reader_GetDimensions_Call {
+	_c.Call.Return(dimensions, err)
+	return _c
+}
+
+func (_c *Reader_GetDimensions_Call) RunAndReturn(run func(ctx context.Context) ([]metricstore.Dimension, error)) *Reader_GetDimensions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetErrorRates provides a mock function for the type Reader
 func (_mock *Reader) GetErrorRates(ctx context.Context, params *metricstore.ErrorRateQueryParameters) (*metrics.MetricFamily, error) {
 	ret := _mock.Called(ctx, params)
