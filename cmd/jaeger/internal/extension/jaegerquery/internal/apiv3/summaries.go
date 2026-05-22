@@ -14,14 +14,16 @@ type serviceSummaryJSON struct {
 }
 
 // traceSummaryJSON is the JSON representation of a trace summary.
-// Timestamps use Unix nanoseconds, consistent with OTLP (e.g. startTimeUnixNano
-// in the OTLP span JSON returned by GET /api/v3/traces).
+// Timestamps are Unix nanoseconds encoded as decimal strings, consistent with
+// OTLP proto3 JSON encoding (e.g. startTimeUnixNano in the OTLP span JSON
+// returned by GET /api/v3/traces). String encoding avoids float64 precision
+// loss in JavaScript for nanosecond values above 2^53.
 type traceSummaryJSON struct {
 	TraceID              string               `json:"traceID"`
 	RootServiceName      string               `json:"rootServiceName"`
 	RootOperationName    string               `json:"rootOperationName"`
-	MinStartTimeUnixNano int64                `json:"minStartTimeUnixNano,omitempty"`
-	MaxEndTimeUnixNano   int64                `json:"maxEndTimeUnixNano,omitempty"`
+	MinStartTimeUnixNano string               `json:"minStartTimeUnixNano,omitempty"`
+	MaxEndTimeUnixNano   string               `json:"maxEndTimeUnixNano,omitempty"`
 	SpanCount            int                  `json:"spanCount"`
 	ErrorSpanCount       int                  `json:"errorSpanCount"`
 	OrphanSpanCount      int                  `json:"orphanSpanCount"`

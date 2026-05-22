@@ -230,12 +230,12 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 				ErrorSpanCount: svc.ErrorSpanCount,
 			}
 		}
-		var minStartNano, maxEndNano int64
+		var minStartNano, maxEndNano string
 		if !s.MinStartTime.IsZero() {
-			minStartNano = s.MinStartTime.UnixNano()
+			minStartNano = strconv.FormatInt(s.MinStartTime.UnixNano(), 10)
 		}
 		if !s.MaxEndTime.IsZero() {
-			maxEndNano = s.MaxEndTime.UnixNano()
+			maxEndNano = strconv.FormatInt(s.MaxEndTime.UnixNano(), 10)
 		}
 		response.Summaries[i] = traceSummaryJSON{
 			TraceID:              s.TraceID.String(),
