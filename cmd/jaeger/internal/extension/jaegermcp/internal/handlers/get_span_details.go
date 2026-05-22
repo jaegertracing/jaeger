@@ -129,7 +129,7 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 	}
 
 	// Validate span count against configured limit
-	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
+	if h.maxSpanDetailsPerRequest > 0 && len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
 		return querysvc.GetTraceParams{}, fmt.Errorf(
 			"span_ids exceeds maximum limit: requested %d, max allowed %d",
 			len(input.SpanIDs),

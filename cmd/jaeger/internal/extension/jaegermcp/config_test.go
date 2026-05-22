@@ -6,6 +6,7 @@ package jaegermcp
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,4 +55,14 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigValidation(t *testing.T) {
+	cfg := Config{
+		ServerVersion:            "1.0.0",
+		MaxSpanDetailsPerRequest: 0,
+		MaxSearchResults:         100,
+	}
+	err := cfg.Validate()
+	assert.NoError(t, err)
 }
