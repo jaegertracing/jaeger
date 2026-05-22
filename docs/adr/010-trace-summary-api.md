@@ -88,10 +88,14 @@ message TraceSummary {
 
   // Start timestamp of the earliest span in the trace (Unix nanoseconds).
   // Named to match the OTLP convention (e.g. startTimeUnixNano in OTLP span JSON).
+  // proto3 JSON encoding rule: fixed64/uint64/int64 fields are serialised as
+  // decimal strings (not numbers) to avoid float64 precision loss in JavaScript
+  // for values above 2^53.  The existing OTLP startTimeUnixNano field on Span
+  // already follows this convention.
   fixed64 min_start_time_unix_nano = 4;
 
   // End timestamp of the latest span in the trace (Unix nanoseconds).
-  // The UI may compute duration as max_end_time_unix_nano - min_start_time_unix_nano.
+  // The UI may compute duration as BigInt(maxEndTimeUnixNano) - BigInt(minStartTimeUnixNano).
   fixed64 max_end_time_unix_nano = 5;
 
   // Total number of spans in the trace.
@@ -348,10 +352,12 @@ export type TraceSummary = {
   // time wins when multiple root candidates exist).
   rootServiceName: string;
   rootOperationName: string;
-  // Unix nanoseconds, consistent with OTLP startTimeUnixNano / endTimeUnixNano.
-  // 0 when unknown. Duration can be derived as maxEndTimeUnixNano - minStartTimeUnixNano.
-  minStartTimeUnixNano: number;
-  maxEndTimeUnixNano: number;
+  // Unix nanoseconds encoded as decimal strings (per proto3 JSON convention);
+  // use BigInt() to do arithmetic. Consistent with OTLP startTimeUnixNano /
+  // endTimeUnixNano on Span which are also string-encoded in the JSON wire format.
+  // Empty string when unknown.
+  minStartTimeUnixNano: string;
+  maxEndTimeUnixNano: string;
   spanCount: number;
   errorSpanCount: number;
   // Number of spans whose parent span ID is not present in this trace.
@@ -361,6 +367,24 @@ export type TraceSummary = {
   services: ServiceSummary[];
 };
 ```
+
+#### Proto → OpenAPI → Zod pipeline for timestamp fields (Milestone 3)
+
+When the proto is formalized in Milestone 3, the toolchain propagates the string
+encoding automatically with no special handling:
+
+1. **Proto (`fixed64`)** — gnostic `protoc-gen-openapi` maps `fixed64` (and `uint64`/`int64`)
+   to `type: string` in the generated OpenAPI YAML, following the proto3 JSON mapping spec.
+   This is the same mapping that already exists for `startTimeUnixNano`/`endTimeUnixNano`
+   on the OTLP `Span` type in the current `query_service.openapi.yaml`.
+2. **OpenAPI (`type: string`)** → `openapi-zod-client` generates `z.string()`.
+   The existing `generated-client.ts` already contains `startTimeUnixNano: z.string()` and
+   `endTimeUnixNano: z.string()` for OTLP spans, confirming the pipeline is correct.
+3. **UI code** — schema validation and type inference automatically treat the fields as
+   strings; arithmetic uses `BigInt(minStartTimeUnixNano)`.
+
+Until Milestone 3, the Milestone 1 HTTP handler encodes the fields manually via
+`strconv.FormatInt(t.UnixNano(), 10)`, replicating what proto3 JSON marshalling would do.
 
 ---
 
