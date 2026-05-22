@@ -386,6 +386,46 @@ encoding automatically with no special handling:
 Until Milestone 3, the Milestone 1 HTTP handler encodes the fields manually via
 `strconv.FormatInt(t.UnixNano(), 10)`, replicating what proto3 JSON marshalling would do.
 
+#### Validation gap: `z.string()` does not enforce numeric content
+
+`z.string()` accepts any string, including non-numeric values like `"abc"` or `""`.
+The application code that parses the fields (e.g. `BigInt(minStartTimeUnixNano)` for
+duration, or truncation to microseconds) will throw at runtime on bad input, but that
+is after schema validation has already passed.
+
+**Fix for Milestone 3:** add a `pattern` constraint to the proto field via the gnostic
+OpenAPI annotation:
+
+```protobuf
+import "openapiv3/annotations.proto";
+
+fixed64 min_start_time_unix_nano = 4 [
+  (openapi.v3.property) = {pattern: "^[0-9]+$"},
+  ...
+];
+```
+
+This flows through the pipeline as:
+
+```yaml
+# generated OpenAPI
+min_start_time_unix_nano:
+  type: string
+  pattern: "^[0-9]+$"
+```
+
+```typescript
+// generated Zod
+minStartTimeUnixNano: z.string().regex(/^[0-9]+$/)
+```
+
+The same annotation should be applied to `max_end_time_unix_nano`.
+
+During Milestone 2 (hand-written TypeScript types), the validation gap exists but is
+benign in practice: the server always emits well-formed numeric strings via
+`strconv.FormatInt`, so a conforming backend never produces invalid values. The gap
+matters only if a non-conforming or mocked backend is used in tests.
+
 ---
 
 ## Alternatives Considered
