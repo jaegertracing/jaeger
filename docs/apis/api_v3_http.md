@@ -27,7 +27,7 @@ API v3 HTTP endpoints use **camelCase** query parameter names aligned with the [
 When deprecated parameters are used, responses include:
 
 - `Deprecation: true`
-- `Sunset: Mon, 01 Nov 2026 00:00:00 GMT` (target removal in Jaeger v2.20.0)
+- `Sunset: Sun, 01 Nov 2026 00:00:00 UTC` (target removal in Jaeger v2.20.0)
 - `Link: <.../docs/apis/api_v3_http.md>; rel="deprecation"`
 - `Deprecated-Params: <comma-separated names>`
 

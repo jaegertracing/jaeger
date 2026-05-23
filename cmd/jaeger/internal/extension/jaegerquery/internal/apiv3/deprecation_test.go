@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/testutils"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestApplyDeprecationHeaders_presentWhenDeprecatedUsed(t *testing.T) {
@@ -16,7 +17,7 @@ func TestApplyDeprecationHeaders_presentWhenDeprecatedUsed(t *testing.T) {
 	applyDeprecationHeaders(w, []string{paramStartTimeDeprecated})
 
 	assert.Equal(t, "true", w.Header().Get("Deprecation"))
-	assert.Equal(t, deprecatedParamsSunset, w.Header().Get("Sunset"))
+	assert.Equal(t, sunsetHeader(), w.Header().Get("Sunset"))
 	assert.Contains(t, w.Header().Get("Link"), "rel=\"deprecation\"")
 	assert.Equal(t, paramStartTimeDeprecated, w.Header().Get("Deprecated-Params"))
 }

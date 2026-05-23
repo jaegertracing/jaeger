@@ -6,17 +6,18 @@ package apiv3
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"go.uber.org/zap"
 )
 
-const (
-	// deprecatedParamsSunset is the RFC 1123 Sunset header value for removal of
-	// snake_case query parameter aliases (Jaeger v2.20.0 target).
-	deprecatedParamsSunset = "Mon, 01 Nov 2026 00:00:00 GMT"
+const deprecatedParamsMigrationURL = "https://github.com/jaegertracing/jaeger/blob/main/docs/apis/api_v3_http.md"
 
-	deprecatedParamsMigrationURL = "https://github.com/jaegertracing/jaeger/blob/main/docs/apis/api_v3_http.md"
-)
+// sunsetHeader returns the RFC 1123 Sunset header value for removal of
+// snake_case query parameter aliases (Jaeger v2.20.0 target).
+func sunsetHeader() string {
+	return time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC1123)
+}
 
 // applyDeprecationHeaders sets RFC 8594 / draft deprecation headers when deprecated
 // query parameters were used. No-op when deprecated is nil or empty.
@@ -25,7 +26,7 @@ func applyDeprecationHeaders(w http.ResponseWriter, deprecated []string) {
 		return
 	}
 	w.Header().Set("Deprecation", "true")
-	w.Header().Set("Sunset", deprecatedParamsSunset)
+	w.Header().Set("Sunset", sunsetHeader())
 	w.Header().Set("Link", "<"+deprecatedParamsMigrationURL+">; rel=\"deprecation\"")
 	w.Header().Set("Deprecated-Params", strings.Join(deprecated, ","))
 }
