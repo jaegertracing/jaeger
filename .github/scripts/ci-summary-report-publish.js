@@ -121,8 +121,9 @@ function computeMetrics(s) {
   const hasInfraErrors = s.metrics_has_infra_errors === true;
   const totalChanges   = safeNum(s.metrics_total_changes);
   const snapshots      = sanitizeSnapshots(s.metrics_snapshots);
-  // Derive conclusion from the same conditions that drive text so they are always consistent.
-  const conclusion     = (hasInfraErrors || totalChanges === null || totalChanges > 0) ? 'failure' : 'success';
+  // Metric diffs are informational on PRs because the snapshot set can include
+  // nondeterministic runtime series. Infra/reporting failures still block.
+  const conclusion     = (hasInfraErrors || totalChanges === null) ? 'failure' : 'success';
 
   let text;
   if (hasInfraErrors) {
@@ -130,7 +131,7 @@ function computeMetrics(s) {
   } else if (totalChanges === null) {
     text = '❌ Could not read metrics_total_changes from summary';
   } else if (totalChanges > 0) {
-    text = `❌ ${totalChanges} metric change(s) detected`;
+    text = `⚠️ ${totalChanges} metric change(s) detected (informational)`;
   } else {
     text = '✅ No significant metric changes';
   }

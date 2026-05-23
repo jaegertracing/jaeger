@@ -71,7 +71,7 @@ func (ts *testServer) FindTraces(
 
 func (ts *testServer) FindTraceIDs(
 	context.Context,
-	*storage.FindTracesRequest,
+	*storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
 		TraceIds: ts.traceIDs,
