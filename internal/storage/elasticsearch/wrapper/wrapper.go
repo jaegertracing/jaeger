@@ -89,6 +89,13 @@ func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	return WrapESMultiSearchService(multiSearchService)
 }
 
+func (c ClientWrapper) GetTemplateMappings(name string) es.IndicesGetTemplateMappingService {
+	if c.esVersion >= 8 {
+		return WrapESIndicesGetIndexTemplateMappingService(c.client.IndexGetIndexTemplate(name), name)
+	}
+	return WrapESIndicesGetIndexTemplateService(c.client.IndexGetTemplate(name), name)
+}
+
 // Close closes ESClient and flushes all data to the storage.
 func (c ClientWrapper) Close() error {
 	c.client.Stop()
@@ -290,4 +297,49 @@ func (s MultiSearchServiceWrapper) Index(indices ...string) es.MultiSearchServic
 // Do calls this function to internal service.
 func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearchResult, error) {
 	return s.multiSearchService.Do(ctx)
+}
+
+// IndicesGetTemplateMappingService fetches the legacy template mappings from _template url required for ES < 8
+type IndicesGetTemplateMappingService struct {
+	indicesGetTemplateService *elastic.IndicesGetTemplateService
+	templateName              string
+}
+
+func WrapESIndicesGetIndexTemplateService(indicesGetTemplateService *elastic.IndicesGetTemplateService, templateName string) IndicesGetTemplateMappingService {
+	return IndicesGetTemplateMappingService{indicesGetTemplateService: indicesGetTemplateService, templateName: templateName}
+}
+
+func (i IndicesGetTemplateMappingService) Do(ctx context.Context) (map[string]any, error) {
+	templates, err := i.indicesGetTemplateService.Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	res, ok := templates[i.templateName]
+	if !ok {
+		return nil, fmt.Errorf("template %s not found", i.templateName)
+	}
+	return res.Mappings, nil
+}
+
+// IndicesGetIndexTemplateMappingService fetches the template mappings from
+// _index_template url required for ES version >= 8
+type IndicesGetIndexTemplateMappingService struct {
+	indicesGetIndexTemplateService *elastic.IndicesGetIndexTemplateService
+	templateName                   string
+}
+
+func WrapESIndicesGetIndexTemplateMappingService(service *elastic.IndicesGetIndexTemplateService, templateName string) IndicesGetIndexTemplateMappingService {
+	return IndicesGetIndexTemplateMappingService{indicesGetIndexTemplateService: service, templateName: templateName}
+}
+
+func (i IndicesGetIndexTemplateMappingService) Do(ctx context.Context) (map[string]any, error) {
+	templates, err := i.indicesGetIndexTemplateService.Do(ctx)
+	if err != nil {
+		return nil, err
+	}
+	template, ok := templates.IndexTemplates.ByName(i.templateName)
+	if !ok {
+		return nil, fmt.Errorf("template %s not found", i.templateName)
+	}
+	return template.IndexTemplate.Template.Mappings, nil
 }
