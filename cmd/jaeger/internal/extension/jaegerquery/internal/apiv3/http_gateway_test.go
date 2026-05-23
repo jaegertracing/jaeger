@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"errors"
-	"fmt"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -110,8 +109,8 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		{
 			name: "camelCase time window",
 			params: map[string]string{
-				paramStartTime: "2000-01-02T12:30:08.999999998Z",
-				paramEndTime:   "2000-04-05T21:55:16.999999992+08:00",
+				"startTime": "2000-01-02T12:30:08.999999998Z",
+				"endTime":   "2000-04-05T21:55:16.999999992+08:00",
 			},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
@@ -122,8 +121,8 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		{
 			name: "deprecated snake_case time window",
 			params: map[string]string{
-				paramStartTimeDeprecated: "2000-01-02T12:30:08.999999998Z",
-				paramEndTimeDeprecated:   "2000-04-05T21:55:16.999999992+08:00",
+				"start_time": "2000-01-02T12:30:08.999999998Z",
+				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
 			},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
@@ -203,13 +202,13 @@ func TestHTTPGatewayFindTracesDeprecatedParams(t *testing.T) {
 	time1 := qp.StartTimeMin
 	time2 := qp.StartTimeMax
 	q := url.Values{}
-	q.Set(paramServiceNameDeprecated, "foo")
-	q.Set(paramOperationNameDeprecated, "bar")
-	q.Set(paramTimeMinDeprecated, time1.Format(time.RFC3339Nano))
-	q.Set(paramTimeMaxDeprecated, time2.Format(time.RFC3339Nano))
-	q.Set(paramDurationMinDeprecated, "1s")
-	q.Set(paramDurationMaxDeprecated, "2s")
-	q.Set(paramSearchDepthDeprecated, "10")
+	q.Set("query.service_name", "foo")
+	q.Set("query.operation_name", "bar")
+	q.Set("query.start_time_min", time1.Format(time.RFC3339Nano))
+	q.Set("query.start_time_max", time2.Format(time.RFC3339Nano))
+	q.Set("query.duration_min", "1s")
+	q.Set("query.duration_max", "2s")
+	q.Set("query.search_depth", "10")
 
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 	require.NoError(t, err)
@@ -232,8 +231,8 @@ func TestHTTPGatewayFindTracesDeprecatedParams(t *testing.T) {
 func TestHTTPGatewayFindTracesDeprecatedNumTraces(t *testing.T) {
 	q, qp := mockFindQueries()
 	// Replace canonical searchDepth with the deprecated num_traces alias.
-	q.Del(paramSearchDepth)
-	q.Set(paramNumTraces, "10")
+	q.Del("query.searchDepth")
+	q.Set("query.num_traces", "10")
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
@@ -331,13 +330,13 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	time1 := time.Now().UTC().Truncate(time.Nanosecond)
 	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
 	q := url.Values{}
-	q.Set(paramServiceName, "foo")
-	q.Set(paramOperationName, "bar")
-	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
-	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
-	q.Set(paramDurationMin, "1s")
-	q.Set(paramDurationMax, "2s")
-	q.Set(paramSearchDepth, "10")
+	q.Set("query.serviceName", "foo")
+	q.Set("query.operationName", "bar")
+	q.Set("query.startTimeMin", time1.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", time2.Format(time.RFC3339Nano))
+	q.Set("query.durationMin", "1s")
+	q.Set("query.durationMax", "2s")
+	q.Set("query.searchDepth", "10")
 
 	return q, tracestore.TraceQueryParams{
 		ServiceName:   "foo",
@@ -355,7 +354,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	goodTimeV := time.Now()
 	goodTime := goodTimeV.Format(time.RFC3339Nano)
 	goodDuration := "1s"
-	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
+	timeRangeErr := "query.startTimeMin and query.startTimeMax are required"
 	testCases := []struct {
 		name   string
 		params map[string]string
@@ -367,88 +366,88 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		},
 		{
 			name:   "no max time",
-			params: map[string]string{paramTimeMin: goodTime},
+			params: map[string]string{"query.startTimeMin": goodTime},
 			expErr: timeRangeErr,
 		},
 		{
 			name:   "no min time",
-			params: map[string]string{paramTimeMax: goodTime},
+			params: map[string]string{"query.startTimeMax": goodTime},
 			expErr: timeRangeErr,
 		},
 		{
 			name:   "bad startTimeMin (canonical)",
-			params: map[string]string{paramTimeMin: "NaN", paramTimeMax: goodTime},
-			expErr: paramTimeMin,
+			params: map[string]string{"query.startTimeMin": "NaN", "query.startTimeMax": goodTime},
+			expErr: "query.startTimeMin",
 		},
 		{
 			name:   "bad start_time_min (deprecated)",
-			params: map[string]string{paramTimeMinDeprecated: "NaN", paramTimeMaxDeprecated: goodTime},
-			expErr: paramTimeMinDeprecated,
+			params: map[string]string{"query.start_time_min": "NaN", "query.start_time_max": goodTime},
+			expErr: "query.start_time_min",
 		},
 		{
 			name:   "bad startTimeMax (canonical)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: "NaN"},
-			expErr: paramTimeMax,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": "NaN"},
+			expErr: "query.startTimeMax",
 		},
 		{
 			name:   "bad start_time_max (deprecated)",
-			params: map[string]string{paramTimeMinDeprecated: goodTime, paramTimeMaxDeprecated: "NaN"},
-			expErr: paramTimeMaxDeprecated,
+			params: map[string]string{"query.start_time_min": goodTime, "query.start_time_max": "NaN"},
+			expErr: "query.start_time_max",
 		},
 		{
 			name:   "bad searchDepth (canonical)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepth: "NaN"},
-			expErr: paramSearchDepth,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.searchDepth": "NaN"},
+			expErr: "query.searchDepth",
 		},
 		{
 			name:   "bad search_depth (deprecated)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepthDeprecated: "NaN"},
-			expErr: paramSearchDepthDeprecated,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.search_depth": "NaN"},
+			expErr: "query.search_depth",
 		},
 		{
 			name:   "bad num_traces (deprecated alias)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "NaN"},
-			expErr: paramNumTraces,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.num_traces": "NaN"},
+			expErr: "query.num_traces",
 		},
 		{
 			name:   "bad durationMin (canonical)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMin: "NaN"},
-			expErr: paramDurationMin,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMin": "NaN"},
+			expErr: "query.durationMin",
 		},
 		{
 			name:   "bad duration_min (deprecated)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMinDeprecated: "NaN"},
-			expErr: paramDurationMinDeprecated,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_min": "NaN"},
+			expErr: "query.duration_min",
 		},
 		{
 			name:   "bad durationMax (canonical)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMax: "NaN"},
-			expErr: paramDurationMax,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMax": "NaN"},
+			expErr: "query.durationMax",
 		},
 		{
 			name:   "bad duration_max (deprecated)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMaxDeprecated: "NaN"},
-			expErr: paramDurationMaxDeprecated,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_max": "NaN"},
+			expErr: "query.duration_max",
 		},
 		{
 			name: "bad rawTraces (canonical)",
 			params: map[string]string{
-				paramTimeMin:        goodTime,
-				paramTimeMax:        goodTime,
-				paramDurationMax:    goodDuration,
-				paramQueryRawTraces: "foobar",
+				"query.startTimeMin": goodTime,
+				"query.startTimeMax": goodTime,
+				"query.durationMax":  goodDuration,
+				"query.rawTraces":    "foobar",
 			},
-			expErr: paramQueryRawTraces,
+			expErr: "query.rawTraces",
 		},
 		{
 			name: "bad raw_traces (deprecated)",
 			params: map[string]string{
-				paramTimeMin:                  goodTime,
-				paramTimeMax:                  goodTime,
-				paramDurationMaxDeprecated:    goodDuration,
-				paramQueryRawTracesDeprecated: "foobar",
+				"query.startTimeMin": goodTime,
+				"query.startTimeMax": goodTime,
+				"query.duration_max": goodDuration,
+				"query.raw_traces":   "foobar",
 			},
-			expErr: paramQueryRawTracesDeprecated,
+			expErr: "query.raw_traces",
 		},
 	}
 	for _, tc := range testCases {
