@@ -199,7 +199,8 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 			// Verify that error attribute filter is added
 			errorAttr, ok := query.Attributes.Get("error")
 			assert.True(t, ok)
-			assert.Equal(t, "true", errorAttr.Str())
+			assert.Equal(t, pcommon.ValueTypeBool, errorAttr.Type())
+			assert.True(t, errorAttr.Bool())
 
 			return func(yield func([]ptrace.Traces, error) bool) {
 				// Return only error traces (simulating storage filtering)
