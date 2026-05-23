@@ -131,7 +131,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 		On("GetOperations", matchContext, qp).
 		Return([]tracestore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).Once()
 
-	body, statusCode := gw.execRequest(t, "/api/v3/operations?service=foo&span_kind=server")
+	body, statusCode := gw.execRequest(t, "/api/v3/operations?service=foo&spanKind=server")
 	require.Equal(t, http.StatusOK, statusCode)
 	body = gw.verifySnapshot(t, body)
 
