@@ -29,8 +29,9 @@ var (
 
 // Config contains configuration(s) for Jaeger trace storage.
 type Config struct {
-	TraceBackends  map[string]TraceBackend  `mapstructure:"backends"`
-	MetricBackends map[string]MetricBackend `mapstructure:"metric_backends"`
+	TraceBackends          map[string]TraceBackend  `mapstructure:"backends"`
+	MetricBackends         map[string]MetricBackend `mapstructure:"metric_backends"`
+	MaxAttributeValueBytes int                      `mapstructure:"max_attribute_value_bytes" json:"max_attribute_value_bytes"`
 }
 
 // TraceBackend contains configuration for a single trace storage backend.

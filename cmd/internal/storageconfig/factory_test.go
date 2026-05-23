@@ -62,6 +62,7 @@ func TestCreateTraceStorageFactory_Memory(t *testing.T) {
 		context.Background(),
 		"memory-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -88,6 +89,7 @@ func TestCreateTraceStorageFactory_Badger(t *testing.T) {
 		context.Background(),
 		"badger-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -114,6 +116,7 @@ func TestCreateTraceStorageFactory_GRPC(t *testing.T) {
 		context.Background(),
 		"grpc-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -136,6 +139,7 @@ func TestCreateTraceStorageFactory_Cassandra(t *testing.T) {
 		context.Background(),
 		"cassandra-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -158,6 +162,7 @@ func TestCreateTraceStorageFactory_Elasticsearch(t *testing.T) {
 		context.Background(),
 		"es-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -188,6 +193,7 @@ func TestCreateTraceStorageFactory_ElasticsearchWithAuthResolver(t *testing.T) {
 		context.Background(),
 		"es-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		authResolver,
 	)
@@ -218,6 +224,7 @@ func TestCreateTraceStorageFactory_ElasticsearchAuthResolverError(t *testing.T) 
 		context.Background(),
 		"es-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		authResolver,
 	)
@@ -239,6 +246,7 @@ func TestCreateTraceStorageFactory_Opensearch(t *testing.T) {
 		context.Background(),
 		"os-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -269,6 +277,7 @@ func TestCreateTraceStorageFactory_OpensearchWithAuthResolver(t *testing.T) {
 		context.Background(),
 		"os-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		authResolver,
 	)
@@ -299,6 +308,7 @@ func TestCreateTraceStorageFactory_OpensearchAuthResolverError(t *testing.T) {
 		context.Background(),
 		"os-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		authResolver,
 	)
@@ -324,6 +334,7 @@ func TestCreateTraceStorageFactory_ClickHouse(t *testing.T) {
 		context.Background(),
 		"clickhouse-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -346,6 +357,7 @@ func TestCreateTraceStorageFactory_ClickHouseError(t *testing.T) {
 		context.Background(),
 		"clickhouse-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
@@ -362,6 +374,7 @@ func TestCreateTraceStorageFactory_EmptyBackend(t *testing.T) {
 		context.Background(),
 		"empty-test",
 		backend,
+		0,
 		getTelemetrySettings(),
 		nil,
 	)
