@@ -101,17 +101,29 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		expectedQuery tracestore.GetTraceParams
 	}{
 		{
-			name:   "TestGetTrace",
+			name:   "no params",
 			params: map[string]string{},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
 			},
 		},
 		{
-			name: "TestGetTraceWithTimeWindow",
+			name: "camelCase time window",
 			params: map[string]string{
-				"start_time": "2000-01-02T12:30:08.999999998Z",
-				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
+				paramStartTime: "2000-01-02T12:30:08.999999998Z",
+				paramEndTime:   "2000-04-05T21:55:16.999999992+08:00",
+			},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   time.Date(2000, time.January, 2, 12, 30, 8, 999999998, time.UTC),
+				End:     time.Date(2000, time.April, 5, 13, 55, 16, 999999992, time.UTC),
+			},
+		},
+		{
+			name: "deprecated snake_case time window",
+			params: map[string]string{
+				paramStartTimeDeprecated: "2000-01-02T12:30:08.999999998Z",
+				paramEndTimeDeprecated:   "2000-04-05T21:55:16.999999992+08:00",
 			},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
@@ -183,11 +195,43 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
+// TestHTTPGatewayFindTracesDeprecatedParams verifies that deprecated snake_case query params
+// are accepted as fallbacks for the canonical camelCase params.
+func TestHTTPGatewayFindTracesDeprecatedParams(t *testing.T) {
+	_, qp := mockFindQueries()
+	// Build query using deprecated snake_case param names.
+	time1 := qp.StartTimeMin
+	time2 := qp.StartTimeMax
+	q := url.Values{}
+	q.Set(paramServiceNameDeprecated, "foo")
+	q.Set(paramOperationNameDeprecated, "bar")
+	q.Set(paramTimeMinDeprecated, time1.Format(time.RFC3339Nano))
+	q.Set(paramTimeMaxDeprecated, time2.Format(time.RFC3339Nano))
+	q.Set(paramDurationMinDeprecated, "1s")
+	q.Set(paramDurationMaxDeprecated, "2s")
+	q.Set(paramSearchDepthDeprecated, "10")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
 // TestHTTPGatewayFindTracesDeprecatedNumTraces verifies that the deprecated
-// query.num_traces alias is accepted as a fallback for query.search_depth.
+// query.num_traces alias is accepted as a fallback for query.searchDepth.
 func TestHTTPGatewayFindTracesDeprecatedNumTraces(t *testing.T) {
 	q, qp := mockFindQueries()
-	// Replace canonical search_depth with the deprecated num_traces alias.
+	// Replace canonical searchDepth with the deprecated num_traces alias.
 	q.Del(paramSearchDepth)
 	q.Set(paramNumTraces, "10")
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
@@ -213,22 +257,37 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:          "TestGetTrace",
+			name:          "bad trace ID",
 			requestUrl:    "/api/v3/traces/xyz",
 			expectedError: "malformed parameter trace_id",
 		},
 		{
-			name:          "TestGetTraceWithInvalidStartTime",
+			name:          "invalid startTime (canonical)",
+			requestUrl:    "/api/v3/traces/1?startTime=abc",
+			expectedError: "malformed parameter startTime",
+		},
+		{
+			name:          "invalid start_time (deprecated)",
 			requestUrl:    "/api/v3/traces/1?start_time=abc",
 			expectedError: "malformed parameter start_time",
 		},
 		{
-			name:          "TestGetTraceWithInvalidEndTime",
+			name:          "invalid endTime (canonical)",
+			requestUrl:    "/api/v3/traces/1?endTime=xyz",
+			expectedError: "malformed parameter endTime",
+		},
+		{
+			name:          "invalid end_time (deprecated)",
 			requestUrl:    "/api/v3/traces/1?end_time=xyz",
 			expectedError: "malformed parameter end_time",
 		},
 		{
-			name:          "TestGetTraceWithInvalidRawTraces",
+			name:          "invalid rawTraces (canonical)",
+			requestUrl:    "/api/v3/traces/1?rawTraces=foobar",
+			expectedError: "malformed parameter rawTraces",
+		},
+		{
+			name:          "invalid raw_traces (deprecated)",
 			requestUrl:    "/api/v3/traces/1?raw_traces=foobar",
 			expectedError: "malformed parameter raw_traces",
 		},
@@ -317,19 +376,34 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: timeRangeErr,
 		},
 		{
-			name:   "bax min time",
+			name:   "bad startTimeMin (canonical)",
 			params: map[string]string{paramTimeMin: "NaN", paramTimeMax: goodTime},
 			expErr: paramTimeMin,
 		},
 		{
-			name:   "bax max time",
+			name:   "bad start_time_min (deprecated)",
+			params: map[string]string{paramTimeMinDeprecated: "NaN", paramTimeMaxDeprecated: goodTime},
+			expErr: paramTimeMinDeprecated,
+		},
+		{
+			name:   "bad startTimeMax (canonical)",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: "NaN"},
 			expErr: paramTimeMax,
 		},
 		{
-			name:   "bad search_depth",
+			name:   "bad start_time_max (deprecated)",
+			params: map[string]string{paramTimeMinDeprecated: goodTime, paramTimeMaxDeprecated: "NaN"},
+			expErr: paramTimeMaxDeprecated,
+		},
+		{
+			name:   "bad searchDepth (canonical)",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepth: "NaN"},
 			expErr: paramSearchDepth,
+		},
+		{
+			name:   "bad search_depth (deprecated)",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepthDeprecated: "NaN"},
+			expErr: paramSearchDepthDeprecated,
 		},
 		{
 			name:   "bad num_traces (deprecated alias)",
@@ -337,17 +411,27 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: paramNumTraces,
 		},
 		{
-			name:   "bad min duration",
+			name:   "bad durationMin (canonical)",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMin: "NaN"},
 			expErr: paramDurationMin,
 		},
 		{
-			name:   "bad max duration",
+			name:   "bad duration_min (deprecated)",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMinDeprecated: "NaN"},
+			expErr: paramDurationMinDeprecated,
+		},
+		{
+			name:   "bad durationMax (canonical)",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMax: "NaN"},
 			expErr: paramDurationMax,
 		},
 		{
-			name: "bad raw traces",
+			name:   "bad duration_max (deprecated)",
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMaxDeprecated: "NaN"},
+			expErr: paramDurationMaxDeprecated,
+		},
+		{
+			name: "bad rawTraces (canonical)",
 			params: map[string]string{
 				paramTimeMin:        goodTime,
 				paramTimeMax:        goodTime,
@@ -355,6 +439,16 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 				paramQueryRawTraces: "foobar",
 			},
 			expErr: paramQueryRawTraces,
+		},
+		{
+			name: "bad raw_traces (deprecated)",
+			params: map[string]string{
+				paramTimeMin:                  goodTime,
+				paramTimeMax:                  goodTime,
+				paramDurationMaxDeprecated:    goodDuration,
+				paramQueryRawTracesDeprecated: "foobar",
+			},
+			expErr: paramQueryRawTracesDeprecated,
 		},
 	}
 	for _, tc := range testCases {
@@ -434,11 +528,19 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	qp := tracestore.OperationQueryParams{ServiceName: "foo", SpanKind: "server"}
 	gw.reader.
 		On("GetOperations", matchContext, qp).
-		Return(nil, assert.AnError).Once()
+		Return(nil, assert.AnError).Twice()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", http.NoBody)
+	// canonical camelCase
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&spanKind=server", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+
+	// deprecated snake_case
+	r, err = http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", http.NoBody)
+	require.NoError(t, err)
+	w = httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
