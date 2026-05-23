@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -29,28 +28,91 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+// API v3 HTTP query parameter names MUST use camelCase to match the proto3 JSON encoding
+// specification (https://protobuf.dev/programming-guides/proto3/#json) and the OpenAPI spec
+// (jaeger-idl/swagger/api_v3/query_service.openapi.yaml, generated with naming=json).
+//
+// DO NOT add new snake_case parameters. New parameters must use the camelCase form of the
+// proto field name (e.g., proto field "service_name" → HTTP param "serviceName").
+//
+// Snake_case forms of existing parameters are preserved below as deprecated aliases.
+// Deprecated aliases will be removed in v2.20. See: https://github.com/jaegertracing/jaeger/issues/8619
+
 const (
-	paramTraceID       = "trace_id" // get trace by ID
-	paramStartTime     = "start_time"
-	paramEndTime       = "end_time"
-	paramRawTraces     = "raw_traces"
-	paramServiceName   = "query.service_name" // find traces
-	paramOperationName = "query.operation_name"
-	paramTimeMin       = "query.start_time_min"
-	paramTimeMax       = "query.start_time_max"
-	// paramSearchDepth is the canonical name matching the proto field and the future gRPC-gateway generated binding.
-	paramSearchDepth = "query.search_depth"
-	// paramNumTraces is a deprecated alias for paramSearchDepth kept for backwards compatibility.
-	paramNumTraces      = "query.num_traces"
-	paramDurationMin    = "query.duration_min"
-	paramDurationMax    = "query.duration_max"
-	paramQueryRawTraces = "query.raw_traces"
+	// Path variable name for GetTrace (matches google.api.http path template).
+	paramTraceID = "trace_id"
+
+	// GetTrace query parameters (canonical).
+	paramStartTime = "startTime"
+	paramEndTime   = "endTime"
+	paramRawTraces = "rawTraces"
+
+	// Deprecated: use startTime. Will be removed in v2.20.
+	paramStartTimeDeprecated = "start_time"
+	// Deprecated: use endTime. Will be removed in v2.20.
+	paramEndTimeDeprecated = "end_time"
+	// Deprecated: use rawTraces. Will be removed in v2.20.
+	paramRawTracesDeprecated = "raw_traces"
+
+	// FindTraces query parameters (canonical).
+	paramServiceName    = "query.serviceName"
+	paramOperationName  = "query.operationName"
+	paramTimeMin        = "query.startTimeMin"
+	paramTimeMax        = "query.startTimeMax"
+	paramSearchDepth    = "query.searchDepth"
+	paramDurationMin    = "query.durationMin"
+	paramDurationMax    = "query.durationMax"
+	paramQueryRawTraces = "query.rawTraces"
+
+	// Deprecated: use query.serviceName. Will be removed in v2.20.
+	paramServiceNameDeprecated = "query.service_name"
+	// Deprecated: use query.operationName. Will be removed in v2.20.
+	paramOperationNameDeprecated = "query.operation_name"
+	// Deprecated: use query.startTimeMin. Will be removed in v2.20.
+	paramTimeMinDeprecated = "query.start_time_min"
+	// Deprecated: use query.startTimeMax. Will be removed in v2.20.
+	paramTimeMaxDeprecated = "query.start_time_max"
+	// Deprecated: use query.searchDepth. Will be removed in v2.20.
+	// query.num_traces is a semantic rename from API v2, not a naming-convention alias.
+	paramNumTracesDeprecated = "query.num_traces"
+	// Deprecated: use query.searchDepth. Will be removed in v2.20.
+	paramSearchDepthDeprecated = "query.search_depth"
+	// Deprecated: use query.durationMin. Will be removed in v2.20.
+	paramDurationMinDeprecated = "query.duration_min"
+	// Deprecated: use query.durationMax. Will be removed in v2.20.
+	paramDurationMaxDeprecated = "query.duration_max"
+	// Deprecated: use query.rawTraces. Will be removed in v2.20.
+	paramQueryRawTracesDeprecated = "query.raw_traces"
+
+	// GetOperations query parameters (canonical).
+	paramSpanKind = "spanKind"
+
+	// Deprecated: use spanKind. Will be removed in v2.20.
+	paramSpanKindDeprecated = "span_kind"
 
 	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces    = "/api/v3/traces"
 	routeGetServices   = "/api/v3/services"
 	routeGetOperations = "/api/v3/operations"
 )
+
+// canonicalQueryParams lists every canonical query parameter name accepted by the HTTP gateway.
+// Used by the OpenAPI conformance test.
+var canonicalQueryParams = map[string]struct{}{
+	paramStartTime:      {},
+	paramEndTime:        {},
+	paramRawTraces:      {},
+	paramServiceName:    {},
+	paramOperationName:  {},
+	paramTimeMin:        {},
+	paramTimeMax:        {},
+	paramSearchDepth:    {},
+	paramDurationMin:    {},
+	paramDurationMax:    {},
+	paramQueryRawTraces: {},
+	paramSpanKind:       {},
+	"service":           {}, // GetOperations required param (proto field name is "service")
+}
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
@@ -80,6 +142,17 @@ func (h *HTTPGateway) addRoute(
 	}
 	pattern := method + " " + route
 	router.HandleFunc(pattern, f)
+}
+
+// emitDeprecation applies deprecation response headers and structured WARN logs when
+// deprecated query parameters were used on this request.
+func (h *HTTPGateway) emitDeprecation(w http.ResponseWriter, r *http.Request, resolver *paramResolver) {
+	if resolver == nil {
+		return
+	}
+	deprecated := resolver.DeprecatedParamsUsed()
+	applyDeprecationHeaders(w, deprecated)
+	logDeprecatedParams(h.Logger, r.RemoteAddr, deprecated)
 }
 
 // tryHandleError checks if the passed error is not nil and handles it by writing
@@ -154,6 +227,8 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
+	resolver := newParamResolver(r)
+
 	traceIDVar := r.PathValue(paramTraceID)
 	traceID, err := model.TraceIDFromString(traceIDVar)
 	if h.tryParamError(w, err, paramTraceID) {
@@ -166,104 +241,107 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
-	http_query := r.URL.Query()
-	startTime := http_query.Get(paramStartTime)
-	if startTime != "" {
+	if startTime, name, ok := resolver.Resolve(paramStartTime, paramStartTimeDeprecated); ok {
 		timeParsed, err := time.Parse(time.RFC3339Nano, startTime)
-		if h.tryParamError(w, err, paramStartTime) {
+		if h.tryParamError(w, err, name) {
+			h.emitDeprecation(w, r, resolver)
 			return
 		}
 		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
-	endTime := http_query.Get(paramEndTime)
-	if endTime != "" {
+	if endTime, name, ok := resolver.Resolve(paramEndTime, paramEndTimeDeprecated); ok {
 		timeParsed, err := time.Parse(time.RFC3339Nano, endTime)
-		if h.tryParamError(w, err, paramEndTime) {
+		if h.tryParamError(w, err, name) {
+			h.emitDeprecation(w, r, resolver)
 			return
 		}
 		request.TraceIDs[0].End = timeParsed.UTC()
 	}
-	if r := http_query.Get(paramRawTraces); r != "" {
-		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramRawTraces) {
+	if raw, name, ok := resolver.Resolve(paramRawTraces, paramRawTracesDeprecated); ok {
+		rawTraces, err := strconv.ParseBool(raw)
+		if h.tryParamError(w, err, name) {
+			h.emitDeprecation(w, r, resolver)
 			return
 		}
 		request.RawTraces = rawTraces
 	}
+	h.emitDeprecation(w, r, resolver)
 	getTracesIter := h.QueryService.GetTraces(r.Context(), request)
 	trc, err := jiter.FlattenWithErrors(getTracesIter)
 	h.returnTraces(trc, err, w)
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
-	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	resolver := newParamResolver(r)
+	queryParams, shouldReturn := h.parseFindTracesQuery(resolver, w)
 	if shouldReturn {
+		h.emitDeprecation(w, r, resolver)
 		return
 	}
+	h.emitDeprecation(w, r, resolver)
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
 	traces, err := jiter.FlattenWithErrors(findTracesIter)
 	h.returnTraces(traces, err, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+func (h *HTTPGateway) parseFindTracesQuery(resolver *paramResolver, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+	serviceName, _, _ := resolver.Resolve(paramServiceName, paramServiceNameDeprecated)
+	operationName, _, _ := resolver.Resolve(paramOperationName, paramOperationNameDeprecated)
+
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   q.Get(paramServiceName),
-			OperationName: q.Get(paramOperationName),
+			ServiceName:   serviceName,
+			OperationName: operationName,
 			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
 		},
 	}
 
-	timeMin := q.Get(paramTimeMin)
-	timeMax := q.Get(paramTimeMax)
-	if timeMin == "" || timeMax == "" {
+	timeMin, timeMinName, timeMinOK := resolver.Resolve(paramTimeMin, paramTimeMinDeprecated)
+	timeMax, timeMaxName, timeMaxOK := resolver.Resolve(paramTimeMax, paramTimeMaxDeprecated)
+	if !timeMinOK || !timeMaxOK {
 		err := fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
 		h.tryHandleError(w, err, http.StatusBadRequest)
 		return nil, true
 	}
 	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMin)
-	if h.tryParamError(w, err, paramTimeMin) {
+	if h.tryParamError(w, err, timeMinName) {
 		return nil, true
 	}
 	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMax)
-	if h.tryParamError(w, err, paramTimeMax) {
+	if h.tryParamError(w, err, timeMaxName) {
 		return nil, true
 	}
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
-	searchDepthParam := paramSearchDepth
-	n := q.Get(paramSearchDepth)
-	if n == "" {
-		n = q.Get(paramNumTraces)
-		searchDepthParam = paramNumTraces
-	}
-	if n != "" {
+	// searchDepth: canonical query.searchDepth; deprecated query.num_traces (v2 semantic)
+	// and query.search_depth (snake_case proto field name).
+	if n, name, ok := resolver.Resolve(paramSearchDepth, paramNumTracesDeprecated, paramSearchDepthDeprecated); ok {
 		searchDepth, err := strconv.Atoi(n)
-		if h.tryParamError(w, err, searchDepthParam) {
+		if h.tryParamError(w, err, name) {
 			return nil, true
 		}
 		queryParams.SearchDepth = searchDepth
 	}
 
-	if d := q.Get(paramDurationMin); d != "" {
+	if d, name, ok := resolver.Resolve(paramDurationMin, paramDurationMinDeprecated); ok {
 		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramDurationMin) {
+		if h.tryParamError(w, err, name) {
 			return nil, true
 		}
 		queryParams.DurationMin = dur
 	}
-	if d := q.Get(paramDurationMax); d != "" {
+	if d, name, ok := resolver.Resolve(paramDurationMax, paramDurationMaxDeprecated); ok {
 		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramDurationMax) {
+		if h.tryParamError(w, err, name) {
 			return nil, true
 		}
 		queryParams.DurationMax = dur
 	}
-	if r := q.Get(paramQueryRawTraces); r != "" {
-		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramQueryRawTraces) {
+	if raw, name, ok := resolver.Resolve(paramQueryRawTraces, paramQueryRawTracesDeprecated); ok {
+		rawTraces, err := strconv.ParseBool(raw)
+		if h.tryParamError(w, err, name) {
 			return nil, true
 		}
 		queryParams.RawTraces = rawTraces
@@ -285,24 +363,27 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
+	resolver := newParamResolver(r)
+	spanKind, _, _ := resolver.Resolve(paramSpanKind, paramSpanKindDeprecated)
 	queryParams := tracestore.OperationQueryParams{
-		ServiceName: query.Get("service"),
-		SpanKind:    query.Get("span_kind"),
+		ServiceName: resolver.values.Get("service"),
+		SpanKind:    spanKind,
 	}
 	operations, err := h.QueryService.GetOperations(r.Context(), queryParams)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		h.emitDeprecation(w, r, resolver)
 		return
 	}
+	h.emitDeprecation(w, r, resolver)
 	apiOperations := make([]*api_v3.Operation, len(operations))
 	for i := range operations {
-		spanKind := operations[i].SpanKind
-		if spanKind == "" {
-			spanKind = string(model.SpanKindInternal)
+		sk := operations[i].SpanKind
+		if sk == "" {
+			sk = string(model.SpanKindInternal)
 		}
 		apiOperations[i] = &api_v3.Operation{
 			Name:     operations[i].Name,
-			SpanKind: spanKind,
+			SpanKind: sk,
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)

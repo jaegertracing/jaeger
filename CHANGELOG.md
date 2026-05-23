@@ -13,7 +13,12 @@ vX.Y.Z (yyyy-mm-dd)
 
 ### Backend Changes
 
-run `make changelog` to generate content
+#### ⚠️ Deprecations
+
+* Align API v3 HTTP query parameter names with proto3 JSON camelCase ([#8619](https://github.com/jaegertracing/jaeger/issues/8619))
+  * Canonical query parameters now use camelCase (e.g. `startTime`, `query.serviceName`, `spanKind`).
+  * Previous snake_case names remain supported as deprecated aliases until Jaeger v2.20.0.
+  * See [docs/apis/api_v3_http.md](./docs/apis/api_v3_http.md) for the migration table.
 
 ### 📊 UI Changes
 

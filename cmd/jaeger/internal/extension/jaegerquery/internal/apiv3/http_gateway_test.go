@@ -110,8 +110,8 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		{
 			name: "TestGetTraceWithTimeWindow",
 			params: map[string]string{
-				"start_time": "2000-01-02T12:30:08.999999998Z",
-				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
+				paramStartTime: "2000-01-02T12:30:08.999999998Z",
+				paramEndTime:   "2000-04-05T21:55:16.999999992+08:00",
 			},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
@@ -189,7 +189,7 @@ func TestHTTPGatewayFindTracesDeprecatedNumTraces(t *testing.T) {
 	q, qp := mockFindQueries()
 	// Replace canonical search_depth with the deprecated num_traces alias.
 	q.Del(paramSearchDepth)
-	q.Set(paramNumTraces, "10")
+	q.Set(paramNumTracesDeprecated, "10")
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
@@ -219,18 +219,23 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		},
 		{
 			name:          "TestGetTraceWithInvalidStartTime",
-			requestUrl:    "/api/v3/traces/1?start_time=abc",
-			expectedError: "malformed parameter start_time",
+			requestUrl:    "/api/v3/traces/1?" + paramStartTime + "=abc",
+			expectedError: "malformed parameter " + paramStartTime,
 		},
 		{
 			name:          "TestGetTraceWithInvalidEndTime",
-			requestUrl:    "/api/v3/traces/1?end_time=xyz",
-			expectedError: "malformed parameter end_time",
+			requestUrl:    "/api/v3/traces/1?" + paramEndTime + "=xyz",
+			expectedError: "malformed parameter " + paramEndTime,
 		},
 		{
 			name:          "TestGetTraceWithInvalidRawTraces",
-			requestUrl:    "/api/v3/traces/1?raw_traces=foobar",
-			expectedError: "malformed parameter raw_traces",
+			requestUrl:    "/api/v3/traces/1?" + paramRawTraces + "=foobar",
+			expectedError: "malformed parameter " + paramRawTraces,
+		},
+		{
+			name:          "TestGetTraceWithInvalidStartTimeDeprecated",
+			requestUrl:    "/api/v3/traces/1?" + paramStartTimeDeprecated + "=abc",
+			expectedError: "malformed parameter " + paramStartTimeDeprecated,
 		},
 	}
 
@@ -327,14 +332,14 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 			expErr: paramTimeMax,
 		},
 		{
-			name:   "bad search_depth",
+			name:   "bad searchDepth",
 			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepth: "NaN"},
 			expErr: paramSearchDepth,
 		},
 		{
 			name:   "bad num_traces (deprecated alias)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "NaN"},
-			expErr: paramNumTraces,
+			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTracesDeprecated: "NaN"},
+			expErr: paramNumTracesDeprecated,
 		},
 		{
 			name:   "bad min duration",
@@ -436,7 +441,7 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 		On("GetOperations", matchContext, qp).
 		Return(nil, assert.AnError).Once()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", http.NoBody)
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&"+paramSpanKind+"=server", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
