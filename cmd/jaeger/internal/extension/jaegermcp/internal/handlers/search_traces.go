@@ -22,6 +22,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+const (
+	genAISystemKey       = "gen_ai.system"
+	genAIRequestModelKey = "gen_ai.request.model"
+	genAIAgentNameKey    = "gen_ai.agent.name"
+	genAIInputTokensKey  = "gen_ai.usage.input_tokens"
+	genAIOutputTokensKey = "gen_ai.usage.output_tokens"
+)
+
 // queryServiceInterface defines the interface we need from QueryService for testing
 type queryServiceInterface interface {
 	FindTraces(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
@@ -192,6 +200,11 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 	hasErrors := false
 	var minStartTime, maxEndTime time.Time
 	spanCount := 0
+	isGenai := false
+	modelName := ""
+	agentName := ""
+	totalInputTokens := 0
+	totalOutputTokens := 0
 
 	// Iterate through all spans in the trace
 	for pos, span := range jptrace.SpanIter(trace) {
@@ -201,6 +214,26 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 		// Track unique services from resource attributes
 		if serviceName, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
 			services[serviceName.Str()] = struct{}{}
+		}
+
+		if _, ok := span.Attributes().Get(genAISystemKey); ok {
+			isGenai = true
+		}
+
+		if val, ok := span.Attributes().Get(genAIRequestModelKey); ok {
+			modelName = val.Str()
+		}
+
+		if val, ok := span.Attributes().Get(genAIAgentNameKey); ok {
+			agentName = val.Str()
+		}
+
+		if val, ok := span.Attributes().Get(genAIInputTokensKey); ok {
+			totalInputTokens += int(val.Int())
+		}
+
+		if val, ok := span.Attributes().Get(genAIOutputTokensKey); ok {
+			totalOutputTokens += int(val.Int())
 		}
 
 		// Find root span (span with no parent)
@@ -254,6 +287,11 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 	summary.ServiceCount = len(services)
 	summary.Services = serviceNames
 	summary.HasErrors = hasErrors
+	summary.IsGenai = isGenai
+	summary.AgentName = agentName
+	summary.ModelName = modelName
+	summary.TotalInputTokens = totalInputTokens
+	summary.TotalOutputTokens = totalOutputTokens
 
 	return summary
 }
