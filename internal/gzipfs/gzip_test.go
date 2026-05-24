@@ -54,8 +54,8 @@ func TestFS(t *testing.T) {
 			path:            "testdata/foobar",
 			expectedMode:    0o444,
 			expectedName:    "foobar",
-			expectedSize:    11,
-			expectedContent: "hello world",
+			expectedSize:    12,
+			expectedContent: "hello world\n",
 			expectedModTime: time.Date(1, 1, 1, 0, 0, 0, 0 /* nanos */, time.UTC),
 		},
 		{

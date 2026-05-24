@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/prometheus"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -48,14 +49,7 @@ func getStorageFactory(name string, host component.Host) (tracestore.Factory, er
 	if err != nil {
 		return nil, err
 	}
-	f, err := ext.TraceStorageFactory(name)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"cannot find definition of storage '%s' in the configuration for extension '%s': %w",
-			name, componentType, err,
-		)
-	}
-	return f, nil
+	return ext.TraceStorageFactory(name)
 }
 
 // GetMetricStorageFactory locates the extension in Host and retrieves
@@ -65,14 +59,7 @@ func GetMetricStorageFactory(name string, host component.Host) (storage.MetricSt
 	if err != nil {
 		return nil, err
 	}
-	mf, err := ext.MetricStorageFactory(name)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"cannot find metric storage '%s' declared by '%s' extension: %w",
-			name, componentType, err,
-		)
-	}
-	return mf, nil
+	return ext.MetricStorageFactory(name)
 }
 
 func GetTraceStoreFactory(name string, host component.Host) (tracestore.Factory, error) {
@@ -282,6 +269,15 @@ func (s *storageExt) createMetricStorageFactory(name string, cfg storageconfig.M
 			*cfg.Opensearch,
 			osTelset,
 			httpAuth,
+		)
+
+	case cfg.ClickHouse != nil:
+		chTelset := telset
+		chTelset.Metrics = scopedMetricsFactory(name, "clickhouse", "metricstore")
+		metricStoreFactory, err = clickhouse.NewFactory(
+			context.Background(),
+			*cfg.ClickHouse,
+			chTelset,
 		)
 
 	default:

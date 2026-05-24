@@ -202,7 +202,8 @@ func putAttributes(
 			if err != nil {
 				jptrace.AddWarnings(
 					spanForWarnings,
-					fmt.Sprintf("failed to unmarshal map attribute %q: %s",
+					fmt.Sprintf(
+						"failed to unmarshal map attribute %q: %s",
 						storedAttrs.ComplexKeys[i],
 						err.Error(),
 					),

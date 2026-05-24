@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -53,7 +55,7 @@ func TestFactory(t *testing.T) {
 				},
 			}
 
-			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
 			require.NotNil(t, f)
 
@@ -69,6 +71,10 @@ func TestFactory(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, dr)
 
+			mr, err := f.CreateMetricsReader()
+			require.NoError(t, err)
+			require.NotNil(t, mr)
+
 			err = f.Purge(context.Background())
 			require.NoError(t, err)
 
@@ -78,6 +84,12 @@ func TestFactory(t *testing.T) {
 }
 
 func TestNewFactory_Errors(t *testing.T) {
+	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
+	require.NoError(t, err)
+
+	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name          string
 		failureConfig clickhousetest.FailureConfig
@@ -93,7 +105,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "spans table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateSpansTable: assert.AnError,
+				createSpansTableQuery: assert.AnError,
 			},
 			expectedError: "failed to create spans table",
 		},
@@ -128,7 +140,7 @@ func TestNewFactory_Errors(t *testing.T) {
 		{
 			name: "trace id timestamps table creation error",
 			failureConfig: clickhousetest.FailureConfig{
-				sql.CreateTraceIDTimestampsTable: assert.AnError,
+				createTraceIDTsTableQuery: assert.AnError,
 			},
 			expectedError: "failed to create trace id timestamps table",
 		},
@@ -167,6 +179,13 @@ func TestNewFactory_Errors(t *testing.T) {
 			},
 			expectedError: "failed to create link attribute metadata materialized view",
 		},
+		{
+			name: "dependencies table creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.CreateDependenciesTable: assert.AnError,
+			},
+			expectedError: "failed to create dependencies table",
+		},
 	}
 
 	for _, tt := range tests {
@@ -183,7 +202,7 @@ func TestNewFactory_Errors(t *testing.T) {
 				CreateSchema: true,
 			}
 
-			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.ErrorContains(t, err, tt.expectedError)
 			require.Nil(t, f)
 		})
@@ -231,6 +250,13 @@ func TestPurge(t *testing.T) {
 			},
 			expectedError: "failed to purge attribute_metadata",
 		},
+		{
+			name: "truncate dependencies table error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.TruncateDependencies: assert.AnError,
+			},
+			expectedError: "failed to purge dependencies",
+		},
 	}
 
 	for _, tt := range tests {
@@ -247,7 +273,7 @@ func TestPurge(t *testing.T) {
 				CreateSchema: true,
 			}
 
-			f, err := NewFactory(context.Background(), cfg, telemetry.Settings{})
+			f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				require.NoError(t, f.Close())
@@ -288,4 +314,128 @@ func TestGetProtocol(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestNewFactory_FeatureGateDisabled(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), true))
+	})
+	f, err := NewFactory(context.Background(), Configuration{}, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "must be explicitly enabled")
+	require.Nil(t, f)
+}
+
+func TestNewSchemaBuilder_Errors(t *testing.T) {
+	originalLoadTemplate := loadTemplate
+	t.Cleanup(func() { loadTemplate = originalLoadTemplate })
+
+	tests := []struct {
+		name          string
+		mockFn        func(name, tmplBody string, data any) (string, error)
+		expectedError string
+	}{
+		{
+			name: "first loadTemplate call fails",
+			mockFn: func(_, _ string, _ any) (string, error) {
+				return "", errors.New("mock template error")
+			},
+			expectedError: "mock template error",
+		},
+		{
+			name: "second loadTemplate call fails",
+			mockFn: func() func(name, tmplBody string, data any) (string, error) {
+				calls := 0
+				return func(name, tmplBody string, data any) (string, error) {
+					calls++
+					if calls >= 2 {
+						return "", errors.New("mock template error")
+					}
+					return loadTemplateImpl(name, tmplBody, data)
+				}
+			}(),
+			expectedError: "mock template error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loadTemplate = tt.mockFn
+			_, err := NewFactory(
+				context.Background(),
+				Configuration{CreateSchema: true},
+				telemetry.NoopSettings(),
+			)
+			require.ErrorContains(t, err, tt.expectedError)
+		})
+	}
+}
+
+func TestLoadTemplate(t *testing.T) {
+	tests := []struct {
+		name     string
+		tmplBody string
+		data     any
+		expected string
+		errorMsg string
+	}{
+		{
+			name:     "valid template",
+			tmplBody: "Hello {{ .Name }}",
+			data:     struct{ Name string }{Name: "Jaeger"},
+			expected: "Hello Jaeger",
+		},
+		{
+			name:     "parse error",
+			tmplBody: "{{ bad syntax",
+			data:     nil,
+			errorMsg: "failed to parse",
+		},
+		{
+			name:     "execution error",
+			tmplBody: "Hello {{ .Name.Invalid }}",
+			data:     struct{ Name string }{Name: "Jaeger"},
+			errorMsg: "failed to execute",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := loadTemplate("test_tmpl", tt.tmplBody, tt.data)
+			if tt.errorMsg != "" {
+				require.ErrorContains(t, err, tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, res)
+			}
+		})
+	}
+}
+
+func TestCreateSpansTableTemplate(t *testing.T) {
+	t.Run("without TTL", func(t *testing.T) {
+		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
+		require.NoError(t, err)
+		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
+	})
+
+	t.Run("with TTL", func(t *testing.T) {
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400})
+		require.NoError(t, err)
+		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
+	})
+}
+
+func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
+	t.Run("without TTL", func(t *testing.T) {
+		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
+		require.NoError(t, err)
+		assert.NotContains(t, queryWithoutTTL, "TTL end")
+	})
+
+	t.Run("with TTL", func(t *testing.T) {
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400})
+		require.NoError(t, err)
+		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
+	})
 }

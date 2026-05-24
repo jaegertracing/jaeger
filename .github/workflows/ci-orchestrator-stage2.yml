@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: "CI Orchestrator: Stage 2 (Unit Tests)"
 
 on:
@@ -6,4 +9,8 @@ on:
 jobs:
   unit-tests:
     uses: ./.github/workflows/ci-unit-tests.yml
+    secrets: inherit
+
+  ai-sidecar-gemini:
+    uses: ./.github/workflows/ci-ai-sidecar-gemini.yml
     secrets: inherit

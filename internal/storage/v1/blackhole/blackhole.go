@@ -10,6 +10,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // Store is a blackhole. It creates an artificial micro-singularity
@@ -48,9 +49,9 @@ func (*Store) GetServices(context.Context) ([]string, error) {
 // GetOperations returns nothing.
 func (*Store) GetOperations(
 	context.Context,
-	spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
-	return []spanstore.Operation{}, nil
+	tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
+	return []tracestore.Operation{}, nil
 }
 
 // FindTraces returns nothing.

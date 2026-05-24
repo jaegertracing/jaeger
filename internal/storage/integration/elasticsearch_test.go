@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -82,7 +83,8 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTag
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false),
-		elastic.SetHttpClient(c))
+		elastic.SetHttpClient(c),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		rawClient.Stop()
@@ -168,10 +170,8 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			Fixtures: LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			// TODO: remove this flag after ES supports returning spanKind
-			//  Issue https://github.com/jaegertracing/jaeger/issues/1923
-			GetOperationsMissingSpanKind: true,
+			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.Elasticsearch(),
 		},
 	}
 	s.initializeES(t, c, allTagsAsFields)

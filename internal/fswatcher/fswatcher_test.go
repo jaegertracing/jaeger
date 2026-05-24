@@ -218,7 +218,8 @@ func (df delayedFormat) String() string {
 }
 
 func assertLogs(t *testing.T, f func() bool, errorMsg string, logObserver *observer.ObservedLogs) {
-	assert.Eventuallyf(t, f,
+	assert.Eventuallyf(
+		t, f,
 		10*time.Second, 10*time.Millisecond,
 		errorMsg,
 		delayedFormat{

@@ -47,7 +47,8 @@ func onInitialize() {
 		zap.AddCallerSkip(1),
 	}
 	if !verbose {
-		zapOptions = append(zapOptions,
+		zapOptions = append(
+			zapOptions,
 			zap.IncreaseLevel(zap.LevelEnablerFunc(func(l zapcore.Level) bool { return l != zapcore.DebugLevel })),
 		)
 	}

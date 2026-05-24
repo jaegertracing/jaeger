@@ -207,16 +207,19 @@ func TestClockSkewAdjuster(t *testing.T) {
 				// compare values as int because assert.Equal prints uint64 as hex
 				assert.Equal(
 					t, toTime(proto.adjusted).UTC(), span.StartTimestamp().AsTime(),
-					"adjusted start time of span[ID = %d]", id)
+					"adjusted start time of span[ID = %d]", id,
+				)
 
 				assert.Equal(
 					t, toTime(proto.adjusted+proto.duration).UTC(), span.EndTimestamp().AsTime(),
-					"adjusted end time of span[ID = %d]", id)
+					"adjusted end time of span[ID = %d]", id,
+				)
 
 				for i, logTs := range proto.adjustedEvents {
 					assert.Equal(
 						t, toTime(logTs).UTC(), span.Events().At(i).Timestamp().AsTime(),
-						"adjusted log timestamp of span[ID = %d], log[%d]", id, i)
+						"adjusted log timestamp of span[ID = %d], log[%d]", id, i,
+					)
 				}
 			}
 			assert.Equal(t, testCase.err, gotErr)

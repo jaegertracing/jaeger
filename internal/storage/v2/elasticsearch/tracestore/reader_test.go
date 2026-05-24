@@ -18,14 +18,14 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/mocks"
 )
 
 func TestTraceReader_GetServices(t *testing.T) {
-	coreReader := &mocks.CoreSpanReader{}
+	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
 	services := []string{"service1", "service2"}
 	coreReader.On("GetServices", mock.Anything).Return(services, nil)
@@ -35,7 +35,7 @@ func TestTraceReader_GetServices(t *testing.T) {
 }
 
 func TestTraceReader_GetOperations(t *testing.T) {
-	coreReader := &mocks.CoreSpanReader{}
+	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
 	operations := []dbmodel.Operation{
 		{
@@ -64,7 +64,7 @@ func TestTraceReader_GetOperations(t *testing.T) {
 }
 
 func TestTraceReader_GetOperations_Error(t *testing.T) {
-	coreReader := &mocks.CoreSpanReader{}
+	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
 	coreReader.On("GetOperations", mock.Anything, mock.Anything).Return(nil, errors.New("error"))
 	operations, err := reader.GetOperations(context.Background(), tracestore.OperationQueryParams{})
@@ -73,7 +73,7 @@ func TestTraceReader_GetOperations_Error(t *testing.T) {
 }
 
 func TestTraceReader_GetTraces(t *testing.T) {
-	coreReader := &mocks.CoreSpanReader{}
+	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
 	tracesStr, spanStr := loadFixtures(t, 1)
 	var span dbmodel.Span
@@ -95,18 +95,18 @@ func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, a
 	tests := []struct {
 		name        string
 		expectedErr string
-		mockFxn     func(m *mocks.CoreSpanReader)
+		mockFxn     func(m *mocks.Reader)
 	}{
 		{
 			name:        "some error from core reader",
 			expectedErr: "some error",
-			mockFxn: func(m *mocks.CoreSpanReader) {
+			mockFxn: func(m *mocks.Reader) {
 				m.On(fxnName, mock.Anything, mock.Anything).Return(nil, errors.New("some error"))
 			},
 		},
 		{
 			name: "conversion error",
-			mockFxn: func(m *mocks.CoreSpanReader) {
+			mockFxn: func(m *mocks.Reader) {
 				dbTraces := []dbmodel.Trace{
 					{
 						Spans: []dbmodel.Span{
@@ -123,7 +123,7 @@ func testTraceReaderGetTracesAndFindTracesErrors(t *testing.T, fxnName string, a
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			coreReader := &mocks.CoreSpanReader{}
+			coreReader := &mocks.Reader{}
 			reader := TraceReader{spanReader: coreReader}
 			tt.mockFxn(coreReader)
 			traces := actualTraces(reader)
@@ -142,7 +142,7 @@ func TestTraceReader_GetTraces_Errors(t *testing.T) {
 }
 
 func TestTraceReader_FindTraces(t *testing.T) {
-	coreReader := &mocks.CoreSpanReader{}
+	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
 	tracesStr, spanStr := loadFixtures(t, 1)
 	var span dbmodel.Span
@@ -171,7 +171,7 @@ func TestTraceReader_FindTraces_Errors(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceIDs(t *testing.T) {
-	coreReader := &mocks.CoreSpanReader{}
+	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}
 	dbTraceIDs := []dbmodel.TraceID{
 		"00000000000000010000000000000000",
@@ -211,7 +211,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			coreReader := &mocks.CoreSpanReader{}
+			coreReader := &mocks.Reader{}
 			attrs := pcommon.NewMap()
 			attrs.PutStr("key1", "val1")
 			ts := time.Now()
@@ -246,10 +246,10 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 }
 
 func Test_NewTraceReader(t *testing.T) {
-	reader := NewTraceReader(spanstore.SpanReaderParams{
+	reader := NewTraceReader(core.SpanReaderParams{
 		Logger: zap.NewNop(),
 	})
-	assert.IsType(t, &spanstore.SpanReader{}, reader.spanReader)
+	assert.IsType(t, &core.SpanReader{}, reader.spanReader)
 }
 
 func fromDBTraceId(t *testing.T, traceID dbmodel.TraceID) tracestore.FoundTraceID {

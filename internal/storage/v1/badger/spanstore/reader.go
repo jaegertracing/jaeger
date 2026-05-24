@@ -18,6 +18,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 // Most of these errors are common with the ES and Cassandra backends. Each backend has slightly different validation rules.
@@ -245,8 +246,8 @@ func (r *TraceReader) GetServices(context.Context) ([]string, error) {
 // GetOperations fetches operations in the service and empty slice if service does not exists
 func (r *TraceReader) GetOperations(
 	_ context.Context,
-	query spanstore.OperationQueryParameters,
-) ([]spanstore.Operation, error) {
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
 	return r.cache.GetOperations(query.ServiceName)
 }
 

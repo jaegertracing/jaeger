@@ -1,10 +1,13 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 global:
   imageRegistry: docker.io
 
 allInOne:
   enabled: true
   extraEnv: []
-  
+
 
 # Enable HotROD demo application
 hotrod:
@@ -31,7 +34,7 @@ hotrod:
       value: hotrod
     - name: OTEL_LOG_LEVEL
       value: debug
-  
+
 
 query:
   service:

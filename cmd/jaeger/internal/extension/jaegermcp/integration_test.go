@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"iter"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	model "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -58,7 +60,7 @@ func (s *mcpSession) callTool(t *testing.T, name string, args map[string]any) st
 // connectMCPSession starts a test server backed by the given mock reader,
 // connects an MCP SDK client, and returns the session with a 5s context.
 // Pass nil for tests that only exercise protocol-level operations (initialize,
-// tools/list, health) which do not hit storage. Passing nil creates a
+// tools/list) which do not hit storage. Passing nil creates a
 // QueryService backed by empty mocks that will panic on unexpected storage calls.
 func connectMCPSession(t *testing.T, mockReader *tracestoremocks.Reader) *mcpSession {
 	t.Helper()
@@ -72,6 +74,17 @@ func connectMCPSession(t *testing.T, mockReader *tracestoremocks.Reader) *mcpSes
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 
+	return &mcpSession{ClientSession: session, ctx: ctx}
+}
+
+// connectMCPSessionWithQueryService is like connectMCPSession but accepts a
+// pre-built QueryService, allowing custom dep/trace reader mocks.
+func connectMCPSessionWithQueryService(t *testing.T, svc *querysvc.QueryService) *mcpSession {
+	t.Helper()
+	_, addr := startTestServerWithQueryService(t, svc, nil)
+	session := connectMCPClient(t, addr)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
 	return &mcpSession{ClientSession: session, ctx: ctx}
 }
 
@@ -206,8 +219,9 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 	require.NoError(t, err)
 
 	expected := []string{
-		"health", "get_services", "get_span_names", "search_traces",
+		"get_services", "get_span_names", "search_traces",
 		"get_span_details", "get_trace_errors", "get_trace_topology", "get_critical_path",
+		"get_service_dependencies",
 	}
 	got := make(map[string]bool, len(result.Tools))
 	for _, tool := range result.Tools {
@@ -220,17 +234,6 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 }
 
 // --- Tool invocation tests ---
-
-func TestMCPClientHealthTool(t *testing.T) {
-	s := connectMCPSession(t, nil)
-	text := s.callTool(t, "health", nil)
-
-	var health HealthToolOutput
-	require.NoError(t, json.Unmarshal([]byte(text), &health))
-	assert.Equal(t, "ok", health.Status)
-	assert.Equal(t, "jaeger", health.Server)
-	assert.Equal(t, "1.0.0", health.Version)
-}
 
 func TestMCPClientGetServices(t *testing.T) {
 	mockReader := &tracestoremocks.Reader{}
@@ -333,6 +336,37 @@ func TestMCPClientGetCriticalPath(t *testing.T) {
 	assert.NotEmpty(t, output.Segments)
 }
 
+func TestMCPClientGetServiceDependencies(t *testing.T) {
+	mockDepReader := &depstoremocks.Reader{}
+	mockDepReader.On("GetDependencies", mock.Anything, mock.Anything).Return(
+		[]model.DependencyLink{
+			{Parent: "frontend", Child: "backend", CallCount: 100},
+			{Parent: "backend", Child: "database", CallCount: 50},
+		}, nil,
+	)
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, mockDepReader, querysvc.QueryServiceOptions{})
+	s := connectMCPSessionWithQueryService(t, svc)
+
+	text := s.callTool(t, "get_service_dependencies", nil)
+
+	var output struct {
+		Dependencies []struct {
+			Caller    string `json:"caller"`
+			Callee    string `json:"callee"`
+			CallCount uint64 `json:"call_count"`
+		} `json:"dependencies"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(text), &output))
+	require.Len(t, output.Dependencies, 2)
+	// Sorted by caller then callee: backend->database before frontend->backend
+	assert.Equal(t, "backend", output.Dependencies[0].Caller)
+	assert.Equal(t, "database", output.Dependencies[0].Callee)
+	assert.Equal(t, uint64(50), output.Dependencies[0].CallCount)
+	assert.Equal(t, "frontend", output.Dependencies[1].Caller)
+	assert.Equal(t, "backend", output.Dependencies[1].Callee)
+	assert.Equal(t, uint64(100), output.Dependencies[1].CallCount)
+}
+
 // --- End-to-end workflow test ---
 
 // TestMCPClientProgressiveDisclosure exercises the intended LLM interaction
@@ -383,12 +417,13 @@ func TestMCPClientInvalidToolCall(t *testing.T) {
 
 func TestMCPClientSearchTracesMissingRequiredField(t *testing.T) {
 	s := connectMCPSession(t, nil)
-	_, err := s.CallTool(s.ctx, &mcp.CallToolParams{
+	result, err := s.CallTool(s.ctx, &mcp.CallToolParams{
 		Name:      "search_traces",
 		Arguments: map[string]any{"start_time_min": "-1h"},
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service_name")
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, extractTextContent(t, result), "service_name")
 }
 
 func TestMCPClientSearchTracesEmptyResults(t *testing.T) {
@@ -416,20 +451,20 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	type callResult struct {
-		toolResult *mcp.CallToolResult
-		err        error
+	type listResult struct {
+		result *mcp.ListToolsResult
+		err    error
 	}
-	ch1 := make(chan callResult, 1)
-	ch2 := make(chan callResult, 1)
+	ch1 := make(chan listResult, 1)
+	ch2 := make(chan listResult, 1)
 
 	go func() {
-		r, err := session1.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
-		ch1 <- callResult{toolResult: r, err: err}
+		r, err := session1.ListTools(ctx, nil)
+		ch1 <- listResult{result: r, err: err}
 	}()
 	go func() {
-		r, err := session2.CallTool(ctx, &mcp.CallToolParams{Name: "health"})
-		ch2 <- callResult{toolResult: r, err: err}
+		r, err := session2.ListTools(ctx, nil)
+		ch2 <- listResult{result: r, err: err}
 	}()
 
 	r1 := <-ch1
@@ -437,7 +472,17 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 
 	require.NoError(t, r1.err)
 	require.NoError(t, r2.err)
-	text1 := extractTextContent(t, r1.toolResult)
-	text2 := extractTextContent(t, r2.toolResult)
-	assert.Equal(t, text1, text2)
+	require.Len(t, r1.result.Tools, len(r2.result.Tools))
+	names1 := toolNamesFromList(r1.result.Tools)
+	names2 := toolNamesFromList(r2.result.Tools)
+	assert.Equal(t, names1, names2)
+}
+
+func toolNamesFromList(tools []*mcp.Tool) []string {
+	names := make([]string, len(tools))
+	for i, tool := range tools {
+		names[i] = tool.Name
+	}
+	slices.Sort(names)
+	return names
 }

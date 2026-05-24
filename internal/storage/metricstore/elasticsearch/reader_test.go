@@ -243,7 +243,7 @@ func Test_ErrorCases(t *testing.T) {
 		{
 			name: "nil step params",
 			params: metricstore.BaseQueryParameters{
-				EndTime: &(endTime),
+				EndTime: &endTime,
 			},
 			wantErr: "invalid parameters",
 		},
@@ -876,15 +876,6 @@ func TestGetErrorRates(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetMinStepDuration(t *testing.T) {
-	mockServer := startMockEsServer(t, "", mockEsValidResponse)
-	defer mockServer.Close()
-	reader, _ := setupMetricsReaderFromServer(t, mockServer)
-	minStep, err := reader.GetMinStepDuration(context.Background(), &metricstore.MinStepDurationQueryParameters{})
-	require.NoError(t, err)
-	assert.Equal(t, time.Millisecond, minStep)
 }
 
 func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {

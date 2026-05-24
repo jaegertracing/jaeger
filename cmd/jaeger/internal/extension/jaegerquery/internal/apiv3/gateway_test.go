@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
@@ -76,7 +77,7 @@ func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	}
 	snapshot, err := os.ReadFile(snapshotFile)
 	require.NoError(t, err)
-	assert.Equal(t, string(snapshot), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+	assert.Equal(t, strings.TrimRight(string(snapshot), "\n"), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 	return body
 }
 
@@ -130,7 +131,7 @@ func (gw *testGateway) runGatewayGetOperations(t *testing.T) {
 		On("GetOperations", matchContext, qp).
 		Return([]tracestore.Operation{{Name: "get_users", SpanKind: "server"}}, nil).Once()
 
-	body, statusCode := gw.execRequest(t, "/api/v3/operations?service=foo&span_kind=server")
+	body, statusCode := gw.execRequest(t, "/api/v3/operations?service=foo&spanKind=server")
 	require.Equal(t, http.StatusOK, statusCode)
 	body = gw.verifySnapshot(t, body)
 

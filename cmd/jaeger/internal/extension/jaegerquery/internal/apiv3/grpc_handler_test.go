@@ -198,7 +198,8 @@ func TestFindTracesSendError(t *testing.T) {
 			querysvc.QueryServiceOptions{},
 		),
 	}
-	err := h.internalFindTraces(context.Background(),
+	err := h.internalFindTraces(
+		context.Background(),
 		&api_v3.FindTracesRequest{
 			Query: &api_v3.TraceQueryParameters{
 				StartTimeMin: time.Now().Add(-2 * time.Hour),
@@ -252,7 +253,8 @@ func TestFindTracesStorageError(t *testing.T) {
 func TestGetServices(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetServices", matchContext).Return(
-		[]string{"foo"}, nil).Once()
+		[]string{"foo"}, nil,
+	).Once()
 
 	response, err := tsc.client.GetServices(context.Background(), &api_v3.GetServicesRequest{})
 	require.NoError(t, err)
@@ -262,7 +264,8 @@ func TestGetServices(t *testing.T) {
 func TestGetServicesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetServices", matchContext).Return(
-		nil, assert.AnError).Once()
+		nil, assert.AnError,
+	).Once()
 
 	response, err := tsc.client.GetServices(context.Background(), &api_v3.GetServicesRequest{})
 	require.ErrorContains(t, err, assert.AnError.Error())
@@ -276,7 +279,8 @@ func TestGetOperations(t *testing.T) {
 			{
 				Name: "get_users",
 			},
-		}, nil).Once()
+		}, nil,
+	).Once()
 
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.NoError(t, err)
@@ -290,7 +294,8 @@ func TestGetOperations(t *testing.T) {
 func TestGetOperationsStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetOperations", matchContext, mock.AnythingOfType("tracestore.OperationQueryParams")).Return(
-		nil, assert.AnError).Once()
+		nil, assert.AnError,
+	).Once()
 
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.ErrorContains(t, err, assert.AnError.Error())

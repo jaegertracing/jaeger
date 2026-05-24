@@ -14,6 +14,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func withBlackhole(f func(store *Store)) {
@@ -55,7 +56,7 @@ func TestStoreGetAllOperations(t *testing.T) {
 	withBlackhole(func(store *Store) {
 		operations, err := store.GetOperations(
 			context.Background(),
-			spanstore.OperationQueryParameters{},
+			tracestore.OperationQueryParams{},
 		)
 		require.NoError(t, err)
 		assert.Empty(t, operations)

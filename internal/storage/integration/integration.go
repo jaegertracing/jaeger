@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"regexp"
 	"slices"
@@ -26,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -50,16 +52,7 @@ type StorageIntegration struct {
 	DependencyReader depstore.Reader
 	SamplingStore    samplingstore.Store
 	Fixtures         []*QueryFixtures
-
-	// TODO: remove this after all storage backends return spanKind from GetOperations
-	GetOperationsMissingSpanKind bool
-
-	// TODO: remove this after all storage backends return Source column from GetDependencies
-
-	GetDependenciesReturnsSource bool
-
-	// List of tests which has to be skipped, it can be regex too.
-	SkipList []string
+	Capabilities     capabilities.Capabilities
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
@@ -88,7 +81,12 @@ func (q *Query) ToTraceQueryParams(t *testing.T) *tracestore.TraceQueryParams {
 		case int:
 			attributes.PutInt(k, int64(v))
 		case float64:
-			attributes.PutDouble(k, v)
+			// JSON numbers are always float64 in Go; detect integers.
+			if v == math.Trunc(v) && !math.IsInf(v, 0) && !math.IsNaN(v) {
+				attributes.PutInt(k, int64(v))
+			} else {
+				attributes.PutDouble(k, v)
+			}
 		case bool:
 			attributes.PutBool(k, v)
 		default:
@@ -134,19 +132,8 @@ func SkipUnlessEnv(t *testing.T, storage ...string) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
 }
 
-var CassandraSkippedTests = []string{
-	"Tags_+_Operation_name_+_Duration_range",
-	"Tags_+_Duration_range",
-	"Tags_+_Operation_name_+_max_Duration",
-	"Tags_+_max_Duration",
-	"Operation_name_+_Duration_range",
-	"Duration_range",
-	"max_Duration",
-	"Multiple_Traces",
-}
-
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
-	for _, pat := range s.SkipList {
+	for _, pat := range s.Capabilities.SkipList() {
 		escapedPat := regexp.QuoteMeta(pat)
 		ok, err := regexp.MatchString(escapedPat, t.Name())
 		require.NoError(t, err)
@@ -283,7 +270,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
 	var expected []tracestore.Operation
-	if s.GetOperationsMissingSpanKind {
+	if s.Capabilities.GetOperationsMissingSpanKind() {
 		expected = []tracestore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
@@ -535,7 +522,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	defer s.cleanUp(t)
 
 	source := model.JaegerDependencyLinkSource
-	if !s.GetDependenciesReturnsSource {
+	if !s.Capabilities.GetDependenciesMissingSource() {
 		source = ""
 	}
 
@@ -554,7 +541,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 		},
 	}
 	startTime := time.Now()
-	require.NoError(t, s.DependencyWriter.WriteDependencies(startTime, expected))
+	require.NoError(t, s.DependencyWriter.WriteDependencies(t.Context(), startTime, expected))
 
 	var actual []model.DependencyLink
 	found := s.waitForCondition(t, func(t *testing.T) bool {

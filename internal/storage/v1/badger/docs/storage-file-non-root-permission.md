@@ -19,7 +19,7 @@ services:
     environment:
       - SPAN_STORAGE_TYPE=badger
     # Mount host directory "jaeger_badger_data" as "/badger" inside the container.
-    # The actual data directory will be "/badger/data", 
+    # The actual data directory will be "/badger/data",
     # since we cannot change permissions on the mount.
     volumes:
       - jaeger_badger_data:/badger

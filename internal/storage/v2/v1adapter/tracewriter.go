@@ -63,6 +63,6 @@ func NewDependencyWriter(writer dependencystore.Writer) *DependencyWriter {
 	}
 }
 
-func (dw *DependencyWriter) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+func (dw *DependencyWriter) WriteDependencies(_ context.Context, ts time.Time, dependencies []model.DependencyLink) error {
 	return dw.writer.WriteDependencies(ts, dependencies)
 }

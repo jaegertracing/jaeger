@@ -79,7 +79,7 @@ teardown() {
   else
     docker compose -f "$docker_compose_file" down
   fi
-  
+
   echo "::endgroup::"
 }
 trap teardown EXIT
@@ -113,10 +113,10 @@ if [[ "${runtime}" == "k8s" ]]; then
 
   echo '::group:: run on Kubernetes'
   echo '::group:: Loading images into Kind cluster'
-  
+
   docker pull localhost:5000/jaegertracing/jaeger:"${GITHUB_SHA}"
   docker pull localhost:5000/jaegertracing/example-hotrod:"${GITHUB_SHA}"
-  
+
   # Get the actual cluster name
   CLUSTER_NAME=$(kind get clusters | head -n1)
   if [[ -n "$CLUSTER_NAME" ]]; then
@@ -127,7 +127,7 @@ if [[ "${runtime}" == "k8s" ]]; then
     echo "No Kind clusters found!"
     exit 1
   fi
-  
+
   bash ./examples/oci/deploy-all.sh local "${GITHUB_SHA}"
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger-hotrod
   kubectl wait --for=condition=available --timeout=180s deployment/jaeger

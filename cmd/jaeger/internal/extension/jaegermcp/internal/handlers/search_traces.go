@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -115,6 +116,10 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		}
 	} else {
 		maxStartTime = time.Now()
+	}
+
+	if !maxStartTime.IsZero() && maxStartTime.Before(minStartTime) {
+		return querysvc.TraceQueryParams{}, errors.New("start_time_max must be after start_time_min")
 	}
 
 	if input.ServiceName == "" {
@@ -235,12 +240,19 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 		summary.RootService = rootServiceName
 	}
 
+	serviceNames := make([]string, 0, len(services))
+	for svc := range services {
+		serviceNames = append(serviceNames, svc)
+	}
+	slices.Sort(serviceNames)
+
 	// Build summary
 	summary.TraceID = traceID.String()
 	summary.StartTime = minStartTime.Format(time.RFC3339)
 	summary.DurationUs = duration.Microseconds()
 	summary.SpanCount = spanCount
 	summary.ServiceCount = len(services)
+	summary.Services = serviceNames
 	summary.HasErrors = hasErrors
 
 	return summary

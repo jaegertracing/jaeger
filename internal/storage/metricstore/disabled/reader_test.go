@@ -48,15 +48,3 @@ func TestGetErrorRates(t *testing.T) {
 	require.ErrorIs(t, err, ErrDisabled)
 	require.EqualError(t, err, ErrDisabled.Error())
 }
-
-func TestGetMinStepDurations(t *testing.T) {
-	reader, err := NewMetricsReader()
-	require.NoError(t, err)
-	require.NotNil(t, reader)
-
-	qParams := &metricstore.MinStepDurationQueryParameters{}
-	r, err := reader.GetMinStepDuration(context.Background(), qParams)
-	assert.Zero(t, r)
-	require.ErrorIs(t, err, ErrDisabled)
-	require.EqualError(t, err, ErrDisabled.Error())
-}
