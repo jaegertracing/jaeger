@@ -27,6 +27,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+const (
+	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces    = "/api/v3/traces"
+	routeFindSummaries = "/api/v3/trace-summaries"
+	routeGetServices   = "/api/v3/services"
+	routeGetOperations = "/api/v3/operations"
+)
+
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
 	QueryService *querysvc.QueryService
