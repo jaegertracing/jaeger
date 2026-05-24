@@ -128,8 +128,10 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 }
 
 // dbSpanTagsToSpanFields processes span tags in a single loop, mapping special
-// tag keys directly to OTEL Span fields (span kind, trace state) and routing
-// status-related tags to a dedicated map. All remaining tags are added to attrs.
+// tag keys directly to OTEL Span fields (span kind, trace state) and storing
+// status-related tags in a temporary map for status computation. Tags that are
+// not status-related are added to attrs immediately, and any status tags not
+// consumed by setSpanStatus are later merged back into attrs by the caller.
 // Returns the status attrs map for the caller to pass to setSpanStatus.
 func dbSpanTagsToSpanFields(tags []dbmodel.KeyValue, span ptrace.Span, attrs pcommon.Map) pcommon.Map {
 	statusAttrs := pcommon.NewMap()
