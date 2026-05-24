@@ -78,6 +78,9 @@ func (h *searchTracesHandler) handle(
 		}
 
 		summary := buildTraceSummary(trace)
+		if input.WithErrors && !summary.HasErrors {
+			continue
+		}
 		summaries = append(summaries, summary)
 		if h.maxResults > 0 && len(summaries) >= h.maxResults {
 			break
@@ -146,11 +149,19 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
 	}
 
-	// Set default and max search depth
+	// Set default and max search depth.
+	// When with_errors=true and the caller did not specify search_depth, default
+	// to maxResults so post-retrieval error filtering has the widest candidate
+	// set — a small default depth would silently return zero results when error
+	// traces exist beyond the first N storage results.
 	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
 	if searchDepth <= 0 {
-		searchDepth = defaultSearchDepth
+		if input.WithErrors {
+			searchDepth = h.maxResults
+		} else {
+			searchDepth = defaultSearchDepth
+		}
 	}
 	if searchDepth > h.maxResults {
 		searchDepth = h.maxResults
@@ -160,11 +171,6 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 	attributes := pcommon.NewMap()
 	for key, value := range input.Attributes {
 		attributes.PutStr(key, value)
-	}
-
-	// If WithErrors is requested, add error attribute filter
-	if input.WithErrors {
-		attributes.PutStr("error", "true")
 	}
 
 	return querysvc.TraceQueryParams{
