@@ -15,7 +15,7 @@ func timeToUnixNano(t time.Time) uint64 {
 	if nano < 0 {
 		return 0
 	}
-	return uint64(nano) //nolint:gosec // G115: guarded above
+	return uint64(nano)
 }
 
 // TODO: the JSON types below are temporary scaffolding until the FindTraceSummaries
