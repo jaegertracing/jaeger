@@ -48,7 +48,6 @@ var fixtures embed.FS
 type StorageIntegration struct {
 	TraceWriter      tracestore.Writer
 	TraceReader      tracestore.Reader
-	SummaryReader    tracestore.SummaryReader
 	DependencyWriter depstore.Writer
 	DependencyReader depstore.Reader
 	SamplingStore    samplingstore.Store
@@ -381,6 +380,11 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
+	sr, ok := s.TraceReader.(tracestore.SummaryReader)
+	if !ok {
+		t.Skip("TraceReader does not implement tracestore.SummaryReader")
+	}
+
 	trace := s.loadParseAndWriteExampleTrace(t)
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
@@ -416,7 +420,7 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 
 	var summaries []tracestore.TraceSummary
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		seqIter, err := s.SummaryReader.FindTraceSummaries(context.Background(), query)
+		seqIter, err := sr.FindTraceSummaries(context.Background(), query)
 		if err != nil {
 			t.Log(err)
 			return false
@@ -723,7 +727,5 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
-	if s.SummaryReader != nil {
-		t.Run("FindTraceSummaries", s.testFindTraceSummaries)
-	}
+	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
 }

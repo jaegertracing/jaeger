@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -13,13 +14,13 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -178,12 +179,11 @@ func (r *traceReader) FindTraceSummaries(
 			}
 			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
 			for i, ps := range resp.GetSummaries() {
-				modelID, parseErr := model.TraceIDFromString(ps.GetTraceId())
+				traceID, parseErr := traceIDFromHex(ps.GetTraceId())
 				if parseErr != nil {
 					yield(nil, parseErr)
 					return
 				}
-				traceID := v1adapter.FromV1TraceID(modelID)
 				svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
 				for j, ss := range ps.GetServices() {
 					svcs[j] = tracestore.ServiceSummary{
@@ -265,4 +265,16 @@ func unixNanoToTime(nano uint64) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(0, int64(nano)).UTC() //nolint:gosec // G115
+}
+
+// traceIDFromHex parses a 32-character hex string into a pcommon.TraceID.
+func traceIDFromHex(s string) (pcommon.TraceID, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return pcommon.TraceID{}, fmt.Errorf("invalid trace ID %q: %w", s, err)
+	}
+	if len(b) != 16 {
+		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 16 bytes, got %d", len(b))
+	}
+	return pcommon.TraceID(b), nil
 }
