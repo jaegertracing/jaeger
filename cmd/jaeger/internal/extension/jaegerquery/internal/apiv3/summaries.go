@@ -3,6 +3,21 @@
 
 package apiv3
 
+import "time"
+
+// timeToUnixNano converts t to Unix nanoseconds as uint64.
+// Returns 0 for zero or pre-epoch times to match the proto3 default (field omitted).
+func timeToUnixNano(t time.Time) uint64 {
+	if t.IsZero() {
+		return 0
+	}
+	nano := t.UnixNano()
+	if nano < 0 {
+		return 0
+	}
+	return uint64(nano) //nolint:gosec // G115: guarded above
+}
+
 // TODO: the JSON types below are temporary scaffolding until the FindTraceSummaries
 // RPC is added to jaeger-idl and proto-generated types replace them (ADR-010, Milestone 3).
 

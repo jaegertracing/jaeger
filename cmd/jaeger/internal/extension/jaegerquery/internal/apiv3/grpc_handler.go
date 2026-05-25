@@ -122,8 +122,8 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 				TraceId:              s.TraceID.String(),
 				RootServiceName:      s.RootServiceName,
 				RootOperationName:    s.RootOperationName,
-				MinStartTimeUnixNano: uint64(s.MinStartTime.UnixNano()),
-				MaxEndTimeUnixNano:   uint64(s.MaxEndTime.UnixNano()),
+				MinStartTimeUnixNano: timeToUnixNano(s.MinStartTime),
+				MaxEndTimeUnixNano:   timeToUnixNano(s.MaxEndTime),
 				SpanCount:            int32(s.SpanCount),       //nolint:gosec // G115
 				ErrorSpanCount:       int32(s.ErrorSpanCount),  //nolint:gosec // G115
 				OrphanSpanCount:      int32(s.OrphanSpanCount), //nolint:gosec // G115
