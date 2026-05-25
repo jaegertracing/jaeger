@@ -163,10 +163,9 @@ func (qs QueryService) FindTraces(
 // tracestore.SummaryReader, it delegates to that; otherwise it falls back to
 // FindTraces and computes summaries from the full trace data.
 //
-// A SummaryReader implementation may discover at runtime that the capability is
-// not available (e.g. a remote storage backend that has not implemented the RPC).
-// In that case it should yield an error wrapping errors.ErrUnsupported, which
-// causes FindTraceSummaries to fall back transparently to computeSummaries.
+// A SummaryReader implementation that does not support the operation should return
+// errors.ErrUnsupported (wrapped with %w) as the direct error, which causes
+// FindTraceSummaries to fall back transparently to computeSummaries.
 //
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
@@ -174,22 +173,16 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	if sr := findSummaryReader(qs.traceReader); sr != nil {
-		return func(yield func([]tracestore.TraceSummary, error) bool) {
-			for summaries, err := range sr.FindTraceSummaries(ctx, query.TraceQueryParams) {
-				if errors.Is(err, errors.ErrUnsupported) {
-					// Native path not available; fall back to full-trace aggregation.
-					for s, e := range computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster) {
-						if !yield(s, e) {
-							return
-						}
-					}
-					return
-				}
-				if !yield(summaries, err) {
-					return
-				}
+		seqIter, err := sr.FindTraceSummaries(ctx, query.TraceQueryParams)
+		if err == nil {
+			return seqIter
+		}
+		if !errors.Is(err, errors.ErrUnsupported) {
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield(nil, err)
 			}
 		}
+		// ErrUnsupported — fall through to computeSummaries
 	}
 	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
 }

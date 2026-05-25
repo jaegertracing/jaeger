@@ -412,7 +412,12 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 
 	var summaries []tracestore.TraceSummary
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		batches, err := jiter.CollectWithErrors(s.SummaryReader.FindTraceSummaries(context.Background(), query))
+		seqIter, err := s.SummaryReader.FindTraceSummaries(context.Background(), query)
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		batches, err := jiter.CollectWithErrors(seqIter)
 		if err != nil {
 			t.Log(err)
 			return false

@@ -48,9 +48,14 @@ type TraceSummary struct {
 // storage backends to compute trace summaries natively. Backends that do not
 // implement this interface fall back to FindTraces + client-side aggregation.
 //
-// The iterator contract mirrors FindTraceIDs: each yielded batch may contain
-// one or more summaries, and implementations may yield results incrementally
-// as the underlying query executes rather than buffering all results first.
+// FindTraceSummaries returns a direct error when the capability is unavailable
+// (e.g. a remote backend returns codes.Unimplemented) so the caller can fall
+// back immediately without starting the iterator. Use errors.ErrUnsupported
+// (wrapped with %w) as the sentinel for "not supported".
+//
+// When err is nil, the returned iterator streams result batches. Each yielded
+// batch may contain one or more summaries; implementations may yield
+// incrementally rather than buffering all results first.
 type SummaryReader interface {
-	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) (iter.Seq2[[]TraceSummary, error], error)
 }
