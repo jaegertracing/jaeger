@@ -1,6 +1,6 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: In progress (Milestones 1 and 2 complete; Milestones 3–5 pending)
+* **Status**: In progress (✅ Milestones 1 and 2 complete; ⏳ Milestones 3–5 pending)
 * **Date**: 2026-05-21
 * **Last updated**: 2026-05-25
 
@@ -484,7 +484,7 @@ end-to-end in `jaeger/` and `jaeger-ui/`.
 
 ### Milestone 1 — Working backend endpoint with fallback aggregation (`jaeger/` only)
 
-> **Status: Complete**
+> **Status: ✅ Complete**
 >
 > - [jaegertracing/jaeger#8604](https://github.com/jaegertracing/jaeger/pull/8604) — main implementation
 > - [jaegertracing/jaeger#8618](https://github.com/jaegertracing/jaeger/pull/8618) — rename `query.num_traces` → `query.search_depth`
@@ -509,7 +509,7 @@ the HTTP contract before touching other repositories.
 
 ### Milestone 2 — UI migration to the new endpoint (`jaeger-ui/` only)
 
-> **Status: Complete**
+> **Status: ✅ Complete**
 >
 > - [jaegertracing/jaeger-ui#3941](https://github.com/jaegertracing/jaeger-ui/pull/3941) — introduce `TraceSummary` type
 > - [jaegertracing/jaeger-ui#3943](https://github.com/jaegertracing/jaeger-ui/pull/3943) — migrate search to `/api/v3/trace-summaries` (phase 2b)
@@ -533,7 +533,7 @@ the `TraceSummary` shape is complete and correct for all search-results renderin
 
 ### Milestone 3 — Formalise the API in `jaeger-idl`
 
-> **Status: Pending**
+> **Status: ⏳ Pending**
 
 **Goal:** Promote the endpoint from an internal HTTP-only contract to a first-class
 gRPC RPC defined in the IDL, now that the data model has been validated by real UI
@@ -561,7 +561,7 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
 
 ### Milestone 4 — Remote Storage gRPC adapter with fallback (`jaeger-idl` + `jaeger/`)
 
-> **Status: Pending** (depends on Milestone 3)
+> **Status: ⏳ Pending** (depends on Milestone 3)
 
 **Goal:** Remote storage backends can optionally implement native summary computation.
 The adapter falls back transparently when they do not, so existing plugins require no
@@ -589,7 +589,7 @@ changes.
 
 ### Milestone 5 — Native summary support in one storage backend
 
-> **Status: Pending** (depends on Milestone 4)
+> **Status: ⏳ Pending** (depends on Milestone 4)
 
 **Goal:** Demonstrate the full performance benefit of the `SummaryReader` interface with
 a native implementation in one backend, serving as a reference for other backends.
