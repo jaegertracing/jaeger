@@ -403,6 +403,10 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 		}
 	}
 
+	require.NotEmpty(t, serviceName, "service name must be present in trace fixture")
+	require.False(t, minStart.IsZero(), "min start time must be present in trace fixture")
+	require.False(t, maxEnd.IsZero(), "max end time must be present in trace fixture")
+
 	query := tracestore.TraceQueryParams{
 		ServiceName:  serviceName,
 		StartTimeMin: minStart.Add(-time.Minute),
