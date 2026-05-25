@@ -467,15 +467,17 @@ did not previously cover the `FindTraceSummaries` endpoint.
 - `traceReader` in `cmd/jaeger/internal/integration/trace_reader.go` implements
   `tracestore.SummaryReader` by calling the `api_v3.QueryService.FindTraceSummaries` gRPC RPC
   and converting `api_v3.TraceSummary` proto messages to `tracestore.TraceSummary`.
-- `StorageIntegration` in `internal/storage/integration/integration.go` gains an optional
-  `SummaryReader tracestore.SummaryReader` field. When set, `RunSpanStoreTests` includes a
-  `FindTraceSummaries` sub-test that:
+- `StorageIntegration` in `internal/storage/integration/integration.go` always runs a
+  `FindTraceSummaries` sub-test via `RunSpanStoreTests`. The test casts `TraceReader` to
+  `tracestore.SummaryReader` and fails loudly if the cast does not succeed. Storage backends
+  that do not yet implement `SummaryReader` opt out by adding `"FindTraceSummaries"` to their
+  `Capabilities.SkipList`. The sub-test:
   1. Writes the `example_trace` fixture via the trace writer.
   2. Queries summaries with a time window covering the trace.
   3. Asserts the returned summary matches the expected trace ID, span count, and non-zero timestamps.
-- `E2EStorageIntegration.e2eInitialize` populates `SummaryReader` from the same `traceReader`
-  that already implements `TraceReader`, so the integration test automatically gains
-  `FindTraceSummaries` coverage with no separate binary or config needed.
+- `traceReader` already implements both `tracestore.Reader` and `tracestore.SummaryReader`,
+  so the e2e integration test gains `FindTraceSummaries` coverage automatically — no extra
+  field wiring or separate binary needed.
 
 This exercises the complete path:
 `HTTP/gRPC handler → QueryService (fallback aggregation) → gRPC remote storage reader → memory backend`
