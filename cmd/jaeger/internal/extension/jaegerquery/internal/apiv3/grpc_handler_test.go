@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
@@ -220,6 +222,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
 	require.ErrorContains(t, err, "missing query")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 
 	responseStream, err = tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -228,6 +231,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
 	require.ErrorContains(t, err, "start time min and max are required parameters")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
 
@@ -318,6 +322,7 @@ func TestFindTraceSummariesQueryNil(t *testing.T) {
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
 	require.ErrorContains(t, err, "missing query")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 
 	responseStream, err = tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
@@ -326,6 +331,7 @@ func TestFindTraceSummariesQueryNil(t *testing.T) {
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
 	require.ErrorContains(t, err, "start time min and max are required parameters")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
 

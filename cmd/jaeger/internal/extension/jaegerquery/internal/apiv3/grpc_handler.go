@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 
@@ -78,7 +77,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
 	}
 	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
-		return querysvc.TraceQueryParams{}, errors.New("start time min and max are required parameters")
+		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
