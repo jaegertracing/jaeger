@@ -788,7 +788,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
-			NumTraces:    1,
+			SearchDepth:  1,
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
@@ -1272,7 +1272,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
-			NumTraces:    2,
+			SearchDepth:  2,
 		}
 
 		services, err := r.reader.FindTraces(context.Background(), traceQuery)
