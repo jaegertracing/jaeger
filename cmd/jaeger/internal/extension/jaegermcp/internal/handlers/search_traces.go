@@ -170,7 +170,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		attributes.PutStr(key, value)
 	}
 	if input.WithErrors {
-		attributes.PutStr("error", "true")
+		attributes.PutBool("error", true)
 	}
 
 	return querysvc.TraceQueryParams{

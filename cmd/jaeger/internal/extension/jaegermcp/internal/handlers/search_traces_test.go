@@ -201,9 +201,11 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 			errorAttr, ok := query.Attributes.Get("error")
 			assert.True(t, ok)
-			assert.Equal(t, "true", errorAttr.Str())
-			return func(yield func([]tracestore.TraceSummary, error) bool) {
-				yield([]tracestore.TraceSummary{errSummary}, nil)
+      assert.Equal(t, pcommon.ValueTypeBool, errorAttr.Type())
+      assert.True(t, errorAttr.Bool())
+
+        return func(yield func([]tracestore.TraceSummary, error) bool) {
+            yield([]tracestore.TraceSummary{errSummary}, nil)
 			}
 		},
 	}
