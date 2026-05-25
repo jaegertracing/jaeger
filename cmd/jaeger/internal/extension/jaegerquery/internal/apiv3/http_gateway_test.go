@@ -4,8 +4,8 @@
 package apiv3
 
 import (
+	"encoding/json"
 	"errors"
-	"fmt"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -101,14 +101,26 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 		expectedQuery tracestore.GetTraceParams
 	}{
 		{
-			name:   "TestGetTrace",
+			name:   "no params",
 			params: map[string]string{},
 			expectedQuery: tracestore.GetTraceParams{
 				TraceID: traceID,
 			},
 		},
 		{
-			name: "TestGetTraceWithTimeWindow",
+			name: "camelCase time window",
+			params: map[string]string{
+				"startTime": "2000-01-02T12:30:08.999999998Z",
+				"endTime":   "2000-04-05T21:55:16.999999992+08:00",
+			},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
+				Start:   time.Date(2000, time.January, 2, 12, 30, 8, 999999998, time.UTC),
+				End:     time.Date(2000, time.April, 5, 13, 55, 16, 999999992, time.UTC),
+			},
+		},
+		{
+			name: "deprecated snake_case time window",
 			params: map[string]string{
 				"start_time": "2000-01-02T12:30:08.999999998Z",
 				"end_time":   "2000-04-05T21:55:16.999999992+08:00",
@@ -183,13 +195,45 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
+// TestHTTPGatewayFindTracesDeprecatedParams verifies that deprecated snake_case query params
+// are accepted as fallbacks for the canonical camelCase params.
+func TestHTTPGatewayFindTracesDeprecatedParams(t *testing.T) {
+	_, qp := mockFindQueries()
+	// Build query using deprecated snake_case param names.
+	time1 := qp.StartTimeMin
+	time2 := qp.StartTimeMax
+	q := url.Values{}
+	q.Set("query.service_name", "foo")
+	q.Set("query.operation_name", "bar")
+	q.Set("query.start_time_min", time1.Format(time.RFC3339Nano))
+	q.Set("query.start_time_max", time2.Format(time.RFC3339Nano))
+	q.Set("query.duration_min", "1s")
+	q.Set("query.duration_max", "2s")
+	q.Set("query.search_depth", "10")
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Contains(t, w.Body.String(), "No traces found")
+}
+
 // TestHTTPGatewayFindTracesDeprecatedNumTraces verifies that the deprecated
-// query.num_traces alias is accepted as a fallback for query.search_depth.
+// query.num_traces alias is accepted as a fallback for query.searchDepth.
 func TestHTTPGatewayFindTracesDeprecatedNumTraces(t *testing.T) {
 	q, qp := mockFindQueries()
-	// Replace canonical search_depth with the deprecated num_traces alias.
-	q.Del(paramSearchDepth)
-	q.Set(paramNumTraces, "10")
+	// Replace canonical searchDepth with the deprecated num_traces alias.
+	q.Del("query.searchDepth")
+	q.Set("query.num_traces", "10")
 	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
@@ -213,22 +257,37 @@ func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:          "TestGetTrace",
+			name:          "bad trace ID",
 			requestUrl:    "/api/v3/traces/xyz",
 			expectedError: "malformed parameter trace_id",
 		},
 		{
-			name:          "TestGetTraceWithInvalidStartTime",
+			name:          "invalid startTime (canonical)",
+			requestUrl:    "/api/v3/traces/1?startTime=abc",
+			expectedError: "malformed parameter startTime",
+		},
+		{
+			name:          "invalid start_time (deprecated)",
 			requestUrl:    "/api/v3/traces/1?start_time=abc",
 			expectedError: "malformed parameter start_time",
 		},
 		{
-			name:          "TestGetTraceWithInvalidEndTime",
+			name:          "invalid endTime (canonical)",
+			requestUrl:    "/api/v3/traces/1?endTime=xyz",
+			expectedError: "malformed parameter endTime",
+		},
+		{
+			name:          "invalid end_time (deprecated)",
 			requestUrl:    "/api/v3/traces/1?end_time=xyz",
 			expectedError: "malformed parameter end_time",
 		},
 		{
-			name:          "TestGetTraceWithInvalidRawTraces",
+			name:          "invalid rawTraces (canonical)",
+			requestUrl:    "/api/v3/traces/1?rawTraces=foobar",
+			expectedError: "malformed parameter rawTraces",
+		},
+		{
+			name:          "invalid raw_traces (deprecated)",
 			requestUrl:    "/api/v3/traces/1?raw_traces=foobar",
 			expectedError: "malformed parameter raw_traces",
 		},
@@ -272,13 +331,13 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 	time1 := time.Now().UTC().Truncate(time.Nanosecond)
 	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
 	q := url.Values{}
-	q.Set(paramServiceName, "foo")
-	q.Set(paramOperationName, "bar")
-	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
-	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
-	q.Set(paramDurationMin, "1s")
-	q.Set(paramDurationMax, "2s")
-	q.Set(paramSearchDepth, "10")
+	q.Set("query.serviceName", "foo")
+	q.Set("query.operationName", "bar")
+	q.Set("query.startTimeMin", time1.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", time2.Format(time.RFC3339Nano))
+	q.Set("query.durationMin", "1s")
+	q.Set("query.durationMax", "2s")
+	q.Set("query.searchDepth", "10")
 
 	return q, tracestore.TraceQueryParams{
 		ServiceName:   "foo",
@@ -296,7 +355,7 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 	goodTimeV := time.Now()
 	goodTime := goodTimeV.Format(time.RFC3339Nano)
 	goodDuration := "1s"
-	timeRangeErr := fmt.Sprintf("%s and %s are required", paramTimeMin, paramTimeMax)
+	timeRangeErr := "query.startTimeMin and query.startTimeMax are required"
 	testCases := []struct {
 		name   string
 		params map[string]string
@@ -308,53 +367,88 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		},
 		{
 			name:   "no max time",
-			params: map[string]string{paramTimeMin: goodTime},
+			params: map[string]string{"query.startTimeMin": goodTime},
 			expErr: timeRangeErr,
 		},
 		{
 			name:   "no min time",
-			params: map[string]string{paramTimeMax: goodTime},
+			params: map[string]string{"query.startTimeMax": goodTime},
 			expErr: timeRangeErr,
 		},
 		{
-			name:   "bax min time",
-			params: map[string]string{paramTimeMin: "NaN", paramTimeMax: goodTime},
-			expErr: paramTimeMin,
+			name:   "bad startTimeMin (canonical)",
+			params: map[string]string{"query.startTimeMin": "NaN", "query.startTimeMax": goodTime},
+			expErr: "query.startTimeMin",
 		},
 		{
-			name:   "bax max time",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: "NaN"},
-			expErr: paramTimeMax,
+			name:   "bad start_time_min (deprecated)",
+			params: map[string]string{"query.start_time_min": "NaN", "query.start_time_max": goodTime},
+			expErr: "query.start_time_min",
 		},
 		{
-			name:   "bad search_depth",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramSearchDepth: "NaN"},
-			expErr: paramSearchDepth,
+			name:   "bad startTimeMax (canonical)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": "NaN"},
+			expErr: "query.startTimeMax",
+		},
+		{
+			name:   "bad start_time_max (deprecated)",
+			params: map[string]string{"query.start_time_min": goodTime, "query.start_time_max": "NaN"},
+			expErr: "query.start_time_max",
+		},
+		{
+			name:   "bad searchDepth (canonical)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.searchDepth": "NaN"},
+			expErr: "query.searchDepth",
+		},
+		{
+			name:   "bad search_depth (deprecated)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.search_depth": "NaN"},
+			expErr: "query.search_depth",
 		},
 		{
 			name:   "bad num_traces (deprecated alias)",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramNumTraces: "NaN"},
-			expErr: paramNumTraces,
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.num_traces": "NaN"},
+			expErr: "query.num_traces",
 		},
 		{
-			name:   "bad min duration",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMin: "NaN"},
-			expErr: paramDurationMin,
+			name:   "bad durationMin (canonical)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMin": "NaN"},
+			expErr: "query.durationMin",
 		},
 		{
-			name:   "bad max duration",
-			params: map[string]string{paramTimeMin: goodTime, paramTimeMax: goodTime, paramDurationMax: "NaN"},
-			expErr: paramDurationMax,
+			name:   "bad duration_min (deprecated)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_min": "NaN"},
+			expErr: "query.duration_min",
 		},
 		{
-			name: "bad raw traces",
+			name:   "bad durationMax (canonical)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMax": "NaN"},
+			expErr: "query.durationMax",
+		},
+		{
+			name:   "bad duration_max (deprecated)",
+			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_max": "NaN"},
+			expErr: "query.duration_max",
+		},
+		{
+			name: "bad rawTraces (canonical)",
 			params: map[string]string{
-				paramTimeMin:        goodTime,
-				paramTimeMax:        goodTime,
-				paramDurationMax:    goodDuration,
-				paramQueryRawTraces: "foobar",
+				"query.startTimeMin": goodTime,
+				"query.startTimeMax": goodTime,
+				"query.durationMax":  goodDuration,
+				"query.rawTraces":    "foobar",
 			},
-			expErr: paramQueryRawTraces,
+			expErr: "query.rawTraces",
+		},
+		{
+			name: "bad raw_traces (deprecated)",
+			params: map[string]string{
+				"query.startTimeMin": goodTime,
+				"query.startTimeMax": goodTime,
+				"query.duration_max": goodDuration,
+				"query.raw_traces":   "foobar",
+			},
+			expErr: "query.raw_traces",
 		},
 	}
 	for _, tc := range testCases {
@@ -434,11 +528,19 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	qp := tracestore.OperationQueryParams{ServiceName: "foo", SpanKind: "server"}
 	gw.reader.
 		On("GetOperations", matchContext, qp).
-		Return(nil, assert.AnError).Once()
+		Return(nil, assert.AnError).Twice()
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", http.NoBody)
+	// canonical camelCase
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&spanKind=server", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+
+	// deprecated snake_case
+	r, err = http.NewRequest(http.MethodGet, "/api/v3/operations?service=foo&span_kind=server", http.NoBody)
+	require.NoError(t, err)
+	w = httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
@@ -456,4 +558,54 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
 	gw.reader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
+	q, qp := mockFindQueries()
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace := makeTestTrace()
+	// Ensure the trace has a root span (no parent) so summarizeTrace populates root fields.
+	rs := trace.ResourceSpans().At(0)
+	rs.Resource().Attributes().PutStr("service.name", "frontend")
+	span := rs.ScopeSpans().At(0).Spans().At(0)
+	span.SetName("HTTP GET /")
+	span.SetParentSpanID(pcommon.SpanID{}) // explicit root
+
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp findTraceSummariesResponseJSON
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	require.Len(t, resp.Summaries, 1)
+	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
+	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
+	assert.Equal(t, 1, resp.Summaries[0].SpanCount)
+}
+
+func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
+	q, qp := mockFindQueries()
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
