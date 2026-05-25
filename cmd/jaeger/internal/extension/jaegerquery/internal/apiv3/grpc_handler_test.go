@@ -291,6 +291,63 @@ func TestGetOperations(t *testing.T) {
 	}, response.GetOperations())
 }
 
+func TestFindTraceSummaries(t *testing.T) {
+	tsc := newTestServerClient(t)
+	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	require.Len(t, recv.GetSummaries(), 1)
+	assert.Equal(t, traceID.String(), recv.GetSummaries()[0].GetTraceId())
+}
+
+func TestFindTraceSummariesQueryNil(t *testing.T) {
+	tsc := newTestServerClient(t)
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.ErrorContains(t, err, "missing query")
+	assert.Nil(t, recv)
+
+	responseStream, err = tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{},
+	})
+	require.NoError(t, err)
+	recv, err = responseStream.Recv()
+	require.ErrorContains(t, err, "start time min and max are required parameters")
+	assert.Nil(t, recv)
+}
+
+func TestFindTraceSummariesStorageError(t *testing.T) {
+	tsc := newTestServerClient(t)
+	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.ErrorContains(t, err, assert.AnError.Error())
+	assert.Nil(t, recv)
+}
+
 func TestGetOperationsStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetOperations", matchContext, mock.AnythingOfType("tracestore.OperationQueryParams")).Return(
