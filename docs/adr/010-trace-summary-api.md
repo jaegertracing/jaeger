@@ -347,7 +347,7 @@ export type ServiceSummary = {
 };
 
 export type TraceSummary = {
-  traceID: string;
+  traceId: string;
   // rootServiceName is the service of the span with no parent (earliest start
   // time wins when multiple root candidates exist).
   rootServiceName: string;
