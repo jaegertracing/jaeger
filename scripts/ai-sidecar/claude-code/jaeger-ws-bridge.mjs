@@ -24,7 +24,7 @@ import { createInterface } from "node:readline";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 
 const require = createRequire(import.meta.url);
 
@@ -89,7 +89,7 @@ wss.on("connection", (ws) => {
   lines.on("line", (line) => {
     if (line.length === 0) return;
     if (DEBUG) console.error(`[bridge:${childPid}] →ws: ${line}`);
-    if (ws.readyState === ws.OPEN) ws.send(line + "\n");
+    if (ws.readyState === WebSocket.OPEN) ws.send(line + "\n");
   });
 
   ws.on("message", (data) => {
@@ -144,21 +144,56 @@ wss.on("connection", (ws) => {
     console.error(
       `[bridge:${childPid}] agent exited code=${code === null ? "null" : code} signal=${signal === null ? "null" : signal}`,
     );
-    if (ws.readyState === ws.OPEN) ws.close();
+    if (ws.readyState === WebSocket.OPEN) ws.close();
   });
 
   agent.on("error", (err) => {
     console.error(`[bridge:${childPid}] failed to spawn agent: ${err.message}`);
-    if (ws.readyState === ws.OPEN) ws.close();
+    if (ws.readyState === WebSocket.OPEN) ws.close();
   });
 });
 
-// Graceful shutdown closes the WS listener first so accept() stops and
-// existing connections see their `close` event, which triggers the
-// per-connection SIGTERM to each child agent.
+// Hard cap on graceful shutdown. wss.close() alone only stops accepting
+// new connections; existing clients have to disconnect on their own
+// before the callback fires. We actively close each open client below,
+// which makes our per-connection `ws.on("close")` handler fire and end
+// the child agent's stdin — but if a child is wedged, this timer
+// guarantees the bridge process still exits instead of hanging forever.
+const SHUTDOWN_TIMEOUT_MS = 7000;
+
+let shuttingDown = false;
 const stopAll = () => {
-  console.error("[bridge] shutting down");
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.error(
+    `[bridge] shutting down; closing ${wss.clients.size} open connection(s)`,
+  );
+
+  // wss.close() refuses new connections but waits for existing ones to
+  // disconnect before its callback. Iterate clients explicitly so each
+  // socket actually closes — that's what triggers our per-connection
+  // shutdown(), which ends the child's stdin and lets it exit cleanly.
+  for (const client of wss.clients) {
+    try {
+      client.close(1001, "bridge shutting down");
+    } catch {
+      // Best-effort; fall through to the timeout backstop below.
+    }
+  }
+
   wss.close(() => process.exit(0));
+
+  // Backstop: if any child agent hangs past the grace window, force exit
+  // so a stuck conversation can't keep the bridge process alive
+  // indefinitely. .unref() would let the loop exit early if everything
+  // closed cleanly first; here we WANT to keep the timer holding the
+  // process up just long enough for graceful shutdown to complete.
+  setTimeout(() => {
+    console.error(
+      `[bridge] shutdown grace exceeded (${SHUTDOWN_TIMEOUT_MS}ms); forcing exit`,
+    );
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
 };
 process.on("SIGTERM", stopAll);
 process.on("SIGINT", stopAll);
