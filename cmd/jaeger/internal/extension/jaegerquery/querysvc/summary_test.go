@@ -193,16 +193,15 @@ type mockSummaryReader struct {
 	err       error
 }
 
-func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
+	if m.err != nil {
+		return nil, m.err
+	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if m.err != nil {
-			yield(nil, m.err)
-			return
-		}
 		if len(m.summaries) > 0 {
 			yield(m.summaries, nil)
 		}
-	}
+	}, nil
 }
 
 func TestFindTraceSummaries_NativePath(t *testing.T) {

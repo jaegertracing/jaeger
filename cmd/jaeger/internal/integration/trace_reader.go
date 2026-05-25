@@ -147,28 +147,26 @@ func (*traceReader) FindTraceIDs(
 func (r *traceReader) FindTraceSummaries(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
-) iter.Seq2[[]tracestore.TraceSummary, error] {
+) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
+	if query.SearchDepth > math.MaxInt32 {
+		return nil, fmt.Errorf("SearchDepth must not be greater than %d", math.MaxInt32)
+	}
+	stream, err := r.client.FindTraceSummaries(ctx, &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:   query.ServiceName,
+			OperationName: query.OperationName,
+			Attributes:    jptrace.PcommonMapToPlainMap(query.Attributes),
+			StartTimeMin:  query.StartTimeMin,
+			StartTimeMax:  query.StartTimeMax,
+			DurationMin:   query.DurationMin,
+			DurationMax:   query.DurationMax,
+			SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if query.SearchDepth > math.MaxInt32 {
-			yield(nil, fmt.Errorf("SearchDepth must not be greater than %d", math.MaxInt32))
-			return
-		}
-		stream, err := r.client.FindTraceSummaries(ctx, &api_v3.FindTraceSummariesRequest{
-			Query: &api_v3.TraceQueryParameters{
-				ServiceName:   query.ServiceName,
-				OperationName: query.OperationName,
-				Attributes:    jptrace.PcommonMapToPlainMap(query.Attributes),
-				StartTimeMin:  query.StartTimeMin,
-				StartTimeMax:  query.StartTimeMax,
-				DurationMin:   query.DurationMin,
-				DurationMax:   query.DurationMax,
-				SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
-			},
-		})
-		if err != nil {
-			yield(nil, err)
-			return
-		}
 		for {
 			resp, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
@@ -210,7 +208,7 @@ func (r *traceReader) FindTraceSummaries(
 				return
 			}
 		}
-	}
+	}, nil
 }
 
 type traceStream interface {
