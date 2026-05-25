@@ -27,7 +27,7 @@ func RolloverIndices(archive bool, skipDependencies bool, adaptiveSampling bool,
 		return []IndexOption{
 			{
 				prefix:    prefix,
-				indexType: "jaeger-span-archive",
+				indexType: "jaeger-span",
 				Mapping:   "jaeger-span",
 			},
 		}
