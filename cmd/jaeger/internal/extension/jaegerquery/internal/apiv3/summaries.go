@@ -19,7 +19,7 @@ type serviceSummaryJSON struct {
 // returned by GET /api/v3/traces). String encoding avoids float64 precision
 // loss in JavaScript for nanosecond values above 2^53.
 type traceSummaryJSON struct {
-	TraceID              string               `json:"traceID"`
+	TraceID              string               `json:"traceId"`
 	RootServiceName      string               `json:"rootServiceName"`
 	RootOperationName    string               `json:"rootOperationName"`
 	MinStartTimeUnixNano string               `json:"minStartTimeUnixNano,omitempty"`

@@ -1,7 +1,8 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: Proposed
+* **Status**: In progress (✅ Milestones 1 and 2 complete; ⏳ Milestones 3–5 pending)
 * **Date**: 2026-05-21
+* **Last updated**: 2026-05-26
 
 ## Context
 
@@ -347,7 +348,7 @@ export type ServiceSummary = {
 };
 
 export type TraceSummary = {
-  traceID: string;
+  traceId: string;
   // rootServiceName is the service of the span with no parent (earliest start
   // time wins when multiple root candidates exist).
   rootServiceName: string;
@@ -483,79 +484,70 @@ end-to-end in `jaeger/` and `jaeger-ui/`.
 
 ### Milestone 1 — Working backend endpoint with fallback aggregation (`jaeger/` only)
 
+> **Status: ✅ Complete**
+>
+> - [jaegertracing/jaeger#8604](https://github.com/jaegertracing/jaeger/pull/8604) — main implementation
+> - [jaegertracing/jaeger#8618](https://github.com/jaegertracing/jaeger/pull/8618) — rename `query.num_traces` → `query.search_depth`
+> - [jaegertracing/jaeger#8633](https://github.com/jaegertracing/jaeger/pull/8633) — fix `traceId` JSON field name casing
+
 **Goal:** Ship a functional `GET /api/v3/trace-summaries` HTTP endpoint backed entirely
 by the fallback path (load full traces, compute summaries server-side). No changes to
 `jaeger-idl` or `jaeger-ui`. This validates the data model, the aggregation logic, and
 the HTTP contract before touching other repositories.
 
-**Changes (`jaeger/` only):**
-1. Add `tracestore.ServiceSummary`, `tracestore.TraceSummary`, and the optional
-   `tracestore.SummaryReader` interface to `internal/storage/v2/api/tracestore/`.
-2. Implement `computeSummaries(iter.Seq2[[]ptrace.Traces, error]) ([]TraceSummary, error)`
-   — the fallback aggregation function.
-3. Add `querysvc.QueryService.FindTraceSummaries` with the fallback path only (no
-   `SummaryReader` dispatch yet).
-4. Add `FindTraceSummaries` to the HTTP gateway (`apiv3/http_gateway.go`) at
-   `GET /api/v3/trace-summaries`, reusing the existing query-parameter parser.
-   Response is a simple JSON object; the HTTP handler collects the full iterator
-   via `jiter.FlattenWithErrors` (the gRPC streaming wrapper is added in Milestone 3).
-5. Unit tests: `computeSummaries` with table-driven fixtures (single-span, multi-service,
-   error spans, empty); handler test verifying query parsing and response shape.
-
-**Success criteria:**
-- `make test` and `make lint` pass.
-- `curl` against a running Jaeger-all-in-one returns well-formed JSON summaries whose
-  fields match what `transformTraceData()` would compute from the same traces.
-- The golden test confirms the fallback output is identical to the UI's current
-  client-side aggregation for the same input data.
-- No changes outside `jaeger/`.
+**Delivered:**
+1. `tracestore.ServiceSummary`, `tracestore.TraceSummary`, and the optional `tracestore.SummaryReader` interface (`internal/storage/v2/api/tracestore/summary.go`).
+2. `computeSummaries` fallback aggregation in `querysvc/summary.go`, using `jptrace.AggregateTraces` to reassemble multi-chunk traces before summarizing.
+3. `querysvc.QueryService.FindTraceSummaries` with both the `SummaryReader` native path and the fallback path. The `SummaryReader` discovery uses a chain-walker (`findSummaryReader`) that traverses `Unwrap()` on decorator types (e.g. `ReadMetricsDecorator`).
+4. `GET /api/v3/trace-summaries` in the HTTP gateway, reusing `parseFindTracesQuery`. Response is plain JSON; timestamps encoded as decimal strings per proto3 JSON convention.
+5. `query.search_depth` is the canonical query parameter (matching the proto field); `query.num_traces` is accepted as a deprecated alias (jaegertracing/jaeger#8617). Defaults to 100 when omitted.
+6. Unit tests for `computeSummaries` (empty, error, multi-service, multi-chunk, orphan spans), `FindTraceSummaries` (fallback path, native `SummaryReader`, `SummaryReader` through decorator chain), HTTP handler (success, storage error, deprecated alias).
 
 ---
 
 ### Milestone 2 — UI migration to the new endpoint (`jaeger-ui/` only)
 
+> **Status: ✅ Complete**
+>
+> - [jaegertracing/jaeger-ui#3941](https://github.com/jaegertracing/jaeger-ui/pull/3941) — introduce `TraceSummary` type
+> - [jaegertracing/jaeger-ui#3943](https://github.com/jaegertracing/jaeger-ui/pull/3943) — migrate search to `/api/v3/trace-summaries` (phase 2b)
+> - [jaegertracing/jaeger-ui#3947](https://github.com/jaegertracing/jaeger-ui/pull/3947) — v3 trace-summaries API client and sort model
+> - [jaegertracing/jaeger-ui#3964](https://github.com/jaegertracing/jaeger-ui/pull/3964) — use `/api/v3/trace-summaries` for search results
+> - [jaegertracing/jaeger-ui#3966](https://github.com/jaegertracing/jaeger-ui/pull/3966) — complete phase 2c discovery query keys
+
 **Goal:** The search screen calls `GET /api/v3/trace-summaries` instead of
 `GET /api/traces`, delivering the network-size reduction to users and validating that
 the `TraceSummary` shape is complete and correct for all search-results rendering.
 
-**Changes (`jaeger-ui/` only):**
-1. Add `ServiceSummary` and `TraceSummary` TypeScript types to `src/types/`.
-2. Add `findTraceSummaries` to the API client (`src/api/jaeger.ts`), with a 404
-   fallback to `searchTraces` for compatibility with older backends.
-3. Update the search Redux action/selector to use `findTraceSummaries` and bind
-   the response directly to the `TraceSummary` shape, removing the client-side
-   `transformTraceData` aggregation step from the search path (it is still needed
-   for the trace detail page).
+**Delivered:**
+1. `ServiceSummary` and `TraceSummary` types in `src/types/trace-summary.ts`; the internal `TraceSummary` uses `traceID` (uppercase D) and `startTime`/`duration` in microseconds to match the legacy `ITrace`-based rendering code.
+2. `fetchTraceSummaries` in `src/api/v3/client.ts` calls `GET /api/v3/trace-summaries` with camelCase query parameters (`query.search_depth`, etc.) and maps the wire response (nanosecond strings, `traceId`) to the internal type. Zod schemas in `src/api/v3/schemas.ts` add format constraints (hex regex for `traceId`, decimal-string pattern for timestamp fields).
+3. `useSearchTraces` React Query hook in `src/hooks/useTraceDiscovery.ts` replaces the Redux `searchTraces` action for the search results path. The search page (`SearchTracePage`) uses this hook directly.
+4. `transformTraceData` aggregation is no longer called on the search path; it is still used on the trace detail page.
 
-**Success criteria:**
-- Existing search UI tests pass against mock `findTraceSummaries` responses.
-- Manual QA: result rows render correct service name, operation, duration, span count,
-  error indicator, and per-service tags (name + count + error icon).
-- Network tab shows response size reduced by ≥ 80% for traces with ≥ 50 spans against
-  a test dataset.
-- Fallback to `searchTraces` works when pointed at an older backend (Milestone 1 not
-  deployed).
-- No regression on the trace detail page.
+**Deviation from plan:** No `searchTraces` v1 fallback was implemented. The UI unconditionally calls the v3 endpoint. Deployments using a Jaeger backend older than Milestone 1 will see search fail rather than fall back gracefully. This was accepted as a trade-off given the controlled rollout.
 
 ---
 
 ### Milestone 3 — Formalise the API in `jaeger-idl`
+
+> **Status: ⏳ Pending (IDL work ✅ already merged in `jaeger-idl`; `jaeger/` Go work remains)**
+>
+> IDL commits on `jaeger-idl` main (not yet imported into the `jaeger/` submodule):
+> - [jaeger-idl#203](https://github.com/jaegertracing/jaeger-idl/pull/203) (`8c84d89`) — Add `FindTraceSummaries` RPC to `api_v3` and `storage/v2`
+> - [jaeger-idl#200](https://github.com/jaegertracing/jaeger-idl/pull/200) (`c4f36ba`) — Give `FindTraceIDs` its own request type in `storage/v2`
+> - [jaeger-idl#202](https://github.com/jaegertracing/jaeger-idl/pull/202) (`2543795`) — Fix JSON naming in OpenAPI spec
+> - [jaeger-idl#204](https://github.com/jaegertracing/jaeger-idl/pull/204) (`0daa719`) — Mark `trace_id` and `ServiceSummary.name` as REQUIRED
 
 **Goal:** Promote the endpoint from an internal HTTP-only contract to a first-class
 gRPC RPC defined in the IDL, now that the data model has been validated by real UI
 usage. This also makes the endpoint accessible to gRPC clients and code-generated SDKs.
 
 **Changes:**
-1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
-   `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`. Bump the IDL version.
-   Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.
-   Currently `FindTraceIDs` reuses `FindTracesRequest`, but it should have its own type for
-   clarity and to allow independent evolution. This is a wire-compatible change (same field
-   layout) but source-breaking — requires a coordinated update in `jaeger/`.
-2. **`jaeger`**: Regenerate Go bindings. Implement the gRPC handler method
-   (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated
-   binding instead of the hand-written handler from Milestone 1. Update any references
-   to the renamed `FindTraceIDsRequest`.
+1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
+   `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`.
+   Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main — see commits above.
+2. **`jaeger`**: Bump the `idl/` submodule to latest `jaeger-idl` main. Regenerate Go bindings. Implement the gRPC handler method (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated binding instead of the hand-written handler from Milestone 1. Update any references to the renamed `FindTraceIDsRequest`.
 
 **Success criteria:**
 - Proto files pass `buf lint` and `buf breaking` against the previous IDL version.
@@ -567,19 +559,20 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
 
 ### Milestone 4 — Remote Storage gRPC adapter with fallback (`jaeger-idl` + `jaeger/`)
 
+> **Status: ⏳ Pending** (depends on Milestone 3; IDL work ✅ already merged — see Milestone 3 IDL commits)
+
 **Goal:** Remote storage backends can optionally implement native summary computation.
 The adapter falls back transparently when they do not, so existing plugins require no
 changes.
 
 **Changes:**
-1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
-   `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.
-2. **`jaeger`**: Implement `FindTraceSummaries` in the gRPC storage reader
+1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
+   `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main (same PR #203).
+2. **`jaeger`**: Implement `SummaryReader` in the gRPC storage reader
    (`plugin/storage/grpc/`), falling back to `FindTraces` + `computeSummaries` on
-   `codes.Unimplemented`.
-3. **`jaeger`**: Wire `SummaryReader` dispatch into `QueryService.FindTraceSummaries`
-   (the type-assert that was deferred from Milestone 1).
-4. Integration test: a test gRPC server that alternately returns summaries natively and
+   `codes.Unimplemented`. `QueryService` picks up the new implementation automatically via
+   the existing `findSummaryReader` chain-walker (already shipped in Milestone 1).
+3. Integration test: a test gRPC server that alternately returns summaries natively and
    returns `Unimplemented`; verify both paths produce identical output.
 
 **Success criteria:**
@@ -592,6 +585,8 @@ changes.
 ---
 
 ### Milestone 5 — Native summary support in one storage backend
+
+> **Status: ⏳ Pending** (depends on Milestone 4)
 
 **Goal:** Demonstrate the full performance benefit of the `SummaryReader` interface with
 a native implementation in one backend, serving as a reference for other backends.
@@ -608,6 +603,22 @@ naturally as a single query).
 - Native implementation passes the same golden tests used for the fallback.
 - Benchmark shows ≥ 50% reduction in backend CPU time and/or bytes read from storage
   compared to the fallback path.
+
+---
+
+## Remaining Work — Suggested PR Sequence
+
+A concise breakdown for contributors picking up Milestones 3–5. Each PR is
+independently reviewable and leaves `main` in a working state.
+
+| # | Repo | Description | Notes |
+|---|------|-------------|-------|
+| A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | Required before B–D |
+| B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | Milestone 3 |
+| C | `jaeger/` | Switch HTTP gateway to the gRPC-gateway generated binding; delete the hand-written handler from Milestone 1 | Milestone 3 |
+| D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`plugin/storage/grpc/`) with `UNIMPLEMENTED` fallback; `QueryService` picks it up automatically via the existing `findSummaryReader` chain-walker | Milestone 4 |
+| F | `jaeger-ui/` | Regenerate Zod schemas from the updated OpenAPI spec; add `pattern` constraint for timestamp fields | Milestone 3 / tech-debt |
+| G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | Milestone 5, optional |
 
 ---
 
