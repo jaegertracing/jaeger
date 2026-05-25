@@ -47,11 +47,6 @@ const (
 	paramDurationMaxDeprecated    = "query.duration_max"
 	paramQueryRawTracesDeprecated = "query.raw_traces"
 	paramSpanKindDeprecated       = "span_kind"
-
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
 )
 
 // getQueryParam returns the value and effective param name, preferring the canonical name
