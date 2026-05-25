@@ -19,7 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	v1 "github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -180,7 +180,7 @@ func (r *traceReader) FindTraceSummaries(
 			}
 			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
 			for i, ps := range resp.GetSummaries() {
-				modelID, parseErr := v1.TraceIDFromString(ps.GetTraceId())
+				modelID, parseErr := model.TraceIDFromString(ps.GetTraceId())
 				if parseErr != nil {
 					yield(nil, parseErr)
 					return
