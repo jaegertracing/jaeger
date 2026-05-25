@@ -568,12 +568,11 @@ changes.
 **Changes:**
 1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
    `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main (same PR #203).
-2. **`jaeger`**: Implement `FindTraceSummaries` in the gRPC storage reader
+2. **`jaeger`**: Implement `SummaryReader` in the gRPC storage reader
    (`plugin/storage/grpc/`), falling back to `FindTraces` + `computeSummaries` on
-   `codes.Unimplemented`.
-3. **`jaeger`**: Wire `SummaryReader` dispatch into `QueryService.FindTraceSummaries`
-   (the type-assert that was deferred from Milestone 1).
-4. Integration test: a test gRPC server that alternately returns summaries natively and
+   `codes.Unimplemented`. `QueryService` picks up the new implementation automatically via
+   the existing `findSummaryReader` chain-walker (already shipped in Milestone 1).
+3. Integration test: a test gRPC server that alternately returns summaries natively and
    returns `Unimplemented`; verify both paths produce identical output.
 
 **Success criteria:**
@@ -617,8 +616,7 @@ independently reviewable and leaves `main` in a working state.
 | A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | Required before B–D |
 | B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | Milestone 3 |
 | C | `jaeger/` | Switch HTTP gateway to the gRPC-gateway generated binding; delete the hand-written handler from Milestone 1 | Milestone 3 |
-| D | `jaeger/` | Implement `FindTraceSummaries` in the gRPC remote storage adapter (`plugin/storage/grpc/`) with `UNIMPLEMENTED` fallback | Milestone 4 |
-| E | `jaeger/` | Wire `SummaryReader` dispatch for the remote adapter into `QueryService.FindTraceSummaries` | Milestone 4 |
+| D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`plugin/storage/grpc/`) with `UNIMPLEMENTED` fallback; `QueryService` picks it up automatically via the existing `findSummaryReader` chain-walker | Milestone 4 |
 | F | `jaeger-ui/` | Regenerate Zod schemas from the updated OpenAPI spec; add `pattern` constraint for timestamp fields | Milestone 3 / tech-debt |
 | G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | Milestone 5, optional |
 
