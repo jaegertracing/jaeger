@@ -1,6 +1,6 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: In progress (✅ Milestones 1 and 2 complete; ⏳ Milestones 3–5 pending)
+* **Status**: In progress (✅ Milestones 1 and 2 complete; ⏳ Milestone 3 in progress; ⏳ Milestones 4–5 pending)
 * **Date**: 2026-05-21
 * **Last updated**: 2026-05-26
 
@@ -531,7 +531,7 @@ the `TraceSummary` shape is complete and correct for all search-results renderin
 
 ### Milestone 3 — Formalise the API in `jaeger-idl`
 
-> **Status: ⏳ Pending (IDL work ✅ already merged in `jaeger-idl`; `jaeger/` Go work remains)**
+> **Status: ⏳ In progress (IDL work ✅ merged; submodule bump + gRPC handler ✅ [#8634](https://github.com/jaegertracing/jaeger/pull/8634); HTTP gateway migration + OpenAPI regeneration pending)**
 >
 > IDL commits on `jaeger-idl` main (not yet imported into the `jaeger/` submodule):
 > - [jaeger-idl#203](https://github.com/jaegertracing/jaeger-idl/pull/203) (`8c84d89`) — Add `FindTraceSummaries` RPC to `api_v3` and `storage/v2`
@@ -547,7 +547,8 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
 1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
    `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`.
    Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main — see commits above.
-2. **`jaeger`**: Bump the `idl/` submodule to latest `jaeger-idl` main. Regenerate Go bindings. Implement the gRPC handler method (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated binding instead of the hand-written handler from Milestone 1. Update any references to the renamed `FindTraceIDsRequest`.
+2. ✅ **`jaeger`**: Bump the `idl/` submodule to latest `jaeger-idl` main (`0daa719`). Regenerate Go bindings. Implement the gRPC handler method (`apiv3/grpc_handler.go`). ([#8634](https://github.com/jaegertracing/jaeger/pull/8634))
+3. **`jaeger`**: Switch the HTTP gateway to use the gRPC-gateway generated binding instead of the hand-written handler from Milestone 1.
 
 **Success criteria:**
 - Proto files pass `buf lint` and `buf breaking` against the previous IDL version.
@@ -613,8 +614,8 @@ independently reviewable and leaves `main` in a working state.
 
 | # | Repo | Description | Notes |
 |---|------|-------------|-------|
-| A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | Required before B–D |
-| B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | Milestone 3 |
+| ✅ A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
+| ✅ B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
 | C | `jaeger/` | Switch HTTP gateway to the gRPC-gateway generated binding; delete the hand-written handler from Milestone 1 | Milestone 3 |
 | D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`plugin/storage/grpc/`) with `UNIMPLEMENTED` fallback; `QueryService` picks it up automatically via the existing `findSummaryReader` chain-walker | Milestone 4 |
 | F | `jaeger-ui/` | Regenerate Zod schemas from the updated OpenAPI spec; add `pattern` constraint for timestamp fields | Milestone 3 / tech-debt |
