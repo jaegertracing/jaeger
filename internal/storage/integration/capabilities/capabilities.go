@@ -34,6 +34,13 @@ func (c Capabilities) SkipList() []string {
 	return c.skipList
 }
 
+// Memory returns the capabilities for the in-process memory storage backend.
+func Memory() Capabilities {
+	return Capabilities{
+		skipList: []string{FindTraceSummariesTest},
+	}
+}
+
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{

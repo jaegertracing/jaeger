@@ -411,6 +411,7 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 
 	query := tracestore.TraceQueryParams{
 		ServiceName:  serviceName,
+		Attributes:   pcommon.NewMap(),
 		StartTimeMin: minStart.Add(-time.Minute),
 		StartTimeMax: maxEnd.Add(time.Minute),
 		SearchDepth:  10,
