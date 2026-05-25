@@ -484,7 +484,11 @@ end-to-end in `jaeger/` and `jaeger-ui/`.
 
 ### Milestone 1 — Working backend endpoint with fallback aggregation (`jaeger/` only)
 
-> **Status: Complete** — jaegertracing/jaeger#8604
+> **Status: Complete**
+>
+> - [jaegertracing/jaeger#8604](https://github.com/jaegertracing/jaeger/pull/8604) — main implementation
+> - [jaegertracing/jaeger#8618](https://github.com/jaegertracing/jaeger/pull/8618) — rename `query.num_traces` → `query.search_depth`
+> - [jaegertracing/jaeger#8633](https://github.com/jaegertracing/jaeger/pull/8633) — fix `traceId` JSON field name casing
 
 **Goal:** Ship a functional `GET /api/v3/trace-summaries` HTTP endpoint backed entirely
 by the fallback path (load full traces, compute summaries server-side). No changes to
@@ -496,16 +500,22 @@ the HTTP contract before touching other repositories.
 2. `computeSummaries` fallback aggregation in `querysvc/summary.go`, using `jptrace.AggregateTraces` to reassemble multi-chunk traces before summarizing.
 3. `querysvc.QueryService.FindTraceSummaries` with both the `SummaryReader` native path and the fallback path. The `SummaryReader` discovery uses a chain-walker (`findSummaryReader`) that traverses `Unwrap()` on decorator types (e.g. `ReadMetricsDecorator`).
 4. `GET /api/v3/trace-summaries` in the HTTP gateway, reusing `parseFindTracesQuery`. Response is plain JSON; timestamps encoded as decimal strings per proto3 JSON convention.
-5. `query.search_depth` is the canonical query parameter (matching the proto field); `query.num_traces` is accepted as a deprecated alias (jaegertracing/jaeger#8617, #8618).
+5. `query.search_depth` is the canonical query parameter (matching the proto field); `query.num_traces` is accepted as a deprecated alias (jaegertracing/jaeger#8617).
 6. Unit tests for `computeSummaries` (empty, error, multi-service, multi-chunk, orphan spans), `FindTraceSummaries` (fallback path, native `SummaryReader`, `SummaryReader` through decorator chain), HTTP handler (success, storage error, deprecated alias).
 
-**Known gap (to fix before Milestone 3):** `parseFindTracesQuery` does not apply a default for `SearchDepth=0`, which causes a 500 from the memory backend when `query.search_depth` is omitted. The v1 HTTP handler defaults to 100. Tracked in jaegertracing/jaeger#8617.
+**Known gap (to fix before Milestone 3):** `parseFindTracesQuery` does not apply a default for `SearchDepth=0`, which causes a 500 from the memory backend when `query.search_depth` is omitted. The v1 HTTP handler defaults to 100. Tracked in [jaegertracing/jaeger#8617](https://github.com/jaegertracing/jaeger/issues/8617).
 
 ---
 
 ### Milestone 2 — UI migration to the new endpoint (`jaeger-ui/` only)
 
-> **Status: Complete** — jaegertracing/jaeger-ui#3941, #3943, #3947, #3964, #3966
+> **Status: Complete**
+>
+> - [jaegertracing/jaeger-ui#3941](https://github.com/jaegertracing/jaeger-ui/pull/3941) — introduce `TraceSummary` type
+> - [jaegertracing/jaeger-ui#3943](https://github.com/jaegertracing/jaeger-ui/pull/3943) — migrate search to `/api/v3/trace-summaries` (phase 2b)
+> - [jaegertracing/jaeger-ui#3947](https://github.com/jaegertracing/jaeger-ui/pull/3947) — v3 trace-summaries API client and sort model
+> - [jaegertracing/jaeger-ui#3964](https://github.com/jaegertracing/jaeger-ui/pull/3964) — use `/api/v3/trace-summaries` for search results
+> - [jaegertracing/jaeger-ui#3966](https://github.com/jaegertracing/jaeger-ui/pull/3966) — complete phase 2c discovery query keys
 
 **Goal:** The search screen calls `GET /api/v3/trace-summaries` instead of
 `GET /api/traces`, delivering the network-size reduction to users and validating that
