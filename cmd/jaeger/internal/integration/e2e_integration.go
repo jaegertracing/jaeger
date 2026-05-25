@@ -115,9 +115,8 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	s.TraceWriter, err = createTraceWriter(logger, otlpPort)
 	require.NoError(t, err)
 
-	reader, err := createTraceReader(logger, ports.QueryGRPC)
+	s.TraceReader, err = createTraceReader(logger, ports.QueryGRPC)
 	require.NoError(t, err)
-	s.TraceReader = reader
 
 	t.Cleanup(func() {
 		s.scrapeMetrics(t, storage)
