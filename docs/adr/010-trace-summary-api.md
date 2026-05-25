@@ -220,7 +220,7 @@ existing storage implementations), a new **optional** interface is introduced:
 // or more summaries, and implementations may yield results incrementally as the
 // underlying query executes rather than buffering all results first.
 type SummaryReader interface {
-    FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+    FindTraceSummaries(ctx context.Context, query TraceQueryParams) (iter.Seq2[[]TraceSummary, error], error)
 }
 
 // ServiceSummary holds per-service statistics for a single trace.
@@ -292,30 +292,33 @@ for callers to derive.
 
 The gRPC-based remote storage adapter (`plugin/storage/grpc/`) wraps the remote
 `TraceReader` gRPC client. Its `FindTraceSummaries` implementation calls the remote RPC
-and, if the server returns `codes.Unimplemented`, yields an error wrapping
-`errors.ErrUnsupported` and terminates the iterator. This makes the feature work
-transparently with existing remote storage plugins that have not yet implemented the new
-RPC.
+and, if the server returns `codes.Unimplemented`, returns an error wrapping
+`errors.ErrUnsupported` directly (before returning an iterator). This makes the feature
+work transparently with existing remote storage plugins that have not yet implemented the
+new RPC.
 
-`QueryService.FindTraceSummaries` checks for `errors.ErrUnsupported` from the first
-error the `SummaryReader` iterator yields, and if found, transparently falls back to
-`FindTraces` + `computeSummaries`. This keeps the fallback logic in `QueryService`,
-where it belongs, rather than duplicating `computeSummaries` inside the adapter.
+`SummaryReader.FindTraceSummaries` returns a direct error (not via the iterator) when
+the capability is unavailable, using `errors.ErrUnsupported` (Go 1.21 standard sentinel)
+as the sentinel value. `QueryService.FindTraceSummaries` checks this direct error and
+falls back to `FindTraces` + `computeSummaries` when it wraps `ErrUnsupported`. This
+design lets the caller detect "not supported" immediately — before starting any iteration
+— avoiding unnecessary work.
 
-Using `errors.ErrUnsupported` (Go 1.21 standard sentinel) rather than a Jaeger-specific
-sentinel keeps the interface clean: any `SummaryReader` implementation can signal "not
-available" without importing internal packages.
+Using `errors.ErrUnsupported` rather than a Jaeger-specific sentinel keeps the interface
+clean: any `SummaryReader` implementation can signal "not available" without importing
+internal packages.
 
 ```go
 // In QueryService.FindTraceSummaries (simplified):
 if sr := findSummaryReader(qs.traceReader); sr != nil {
-    for summaries, err := range sr.FindTraceSummaries(ctx, query) {
-        if errors.Is(err, errors.ErrUnsupported) {
-            // Native path unavailable — fall back to full-trace aggregation.
-            return computeSummaries(qs.traceReader.FindTraces(ctx, query), qs.adjuster)
-        }
-        // ... yield summaries normally
+    seqIter, err := sr.FindTraceSummaries(ctx, query)
+    if err == nil {
+        return seqIter
     }
+    if !errors.Is(err, errors.ErrUnsupported) {
+        return func(yield func([]tracestore.TraceSummary, error) bool) { yield(nil, err) }
+    }
+    // ErrUnsupported — fall through to computeSummaries
 }
 return computeSummaries(qs.traceReader.FindTraces(ctx, query), qs.adjuster)
 ```

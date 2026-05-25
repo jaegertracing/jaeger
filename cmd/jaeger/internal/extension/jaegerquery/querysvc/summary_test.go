@@ -245,9 +245,9 @@ func TestFindTraceSummaries_NativePath_ThroughWrapper(t *testing.T) {
 	wrapped.AssertNotCalled(t, "FindTraces")
 }
 
-// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader yields
-// errors.ErrUnsupported, QueryService transparently falls back to FindTraces +
-// computeSummaries rather than propagating the error to the caller.
+// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader returns
+// errors.ErrUnsupported as the direct error, QueryService transparently falls back
+// to FindTraces + computeSummaries rather than propagating the error to the caller.
 func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	unsupportedReader := &mockSummaryReader{
 		err: fmt.Errorf("remote storage does not support FindTraceSummaries: %w", errors.ErrUnsupported),
