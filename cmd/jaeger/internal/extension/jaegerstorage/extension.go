@@ -199,6 +199,7 @@ func (s *storageExt) TraceStorageFactory(name string) (tracestore.Factory, error
 		context.Background(),
 		name,
 		cfg,
+		s.config.MaxAttributeValueBytes,
 		s.telset,
 		func(authCfg config.Authentication, backendType, backendName string) (extensionauth.HTTPClient, error) {
 			return s.resolveAuthenticator(s.telset.Host, authCfg, backendType, backendName)

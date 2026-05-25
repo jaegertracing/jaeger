@@ -33,6 +33,7 @@ func CreateTraceStorageFactory(
 	ctx context.Context,
 	name string,
 	backend TraceBackend,
+	maxAttributeValueBytes int,
 	telset telemetry.Settings,
 	authResolver AuthResolver,
 ) (tracestore.Factory, error) {
@@ -87,5 +88,5 @@ func CreateTraceStorageFactory(
 		return nil, fmt.Errorf("failed to initialize storage '%s': %w", name, err)
 	}
 
-	return factory, nil
+	return tracestore.NewTruncatingFactory(factory, maxAttributeValueBytes), nil
 }
