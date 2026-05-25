@@ -21,7 +21,8 @@ type Config struct {
 	ServerVersion string `mapstructure:"server_version" valid:"required"`
 
 	// MaxSpanDetailsPerRequest limits the number of spans that can be fetched in a single request.
-	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"range(1|100)"`
+	// Set to 0 for unlimited mode.
+	MaxSpanDetailsPerRequest int `mapstructure:"max_span_details_per_request" valid:"range(0|100)"`
 
 	// MaxSearchResults limits the number of trace search results.
 	MaxSearchResults int `mapstructure:"max_search_results" valid:"range(1|1000)"`
