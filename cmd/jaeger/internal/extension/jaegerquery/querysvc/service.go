@@ -162,13 +162,34 @@ func (qs QueryService) FindTraces(
 // of lightweight summary information. If the underlying storage implements
 // tracestore.SummaryReader, it delegates to that; otherwise it falls back to
 // FindTraces and computes summaries from the full trace data.
+//
+// A SummaryReader implementation may discover at runtime that the capability is
+// not available (e.g. a remote storage backend that has not implemented the RPC).
+// In that case it should yield an error wrapping errors.ErrUnsupported, which
+// causes FindTraceSummaries to fall back transparently to computeSummaries.
+//
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
 	ctx context.Context,
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	if sr := findSummaryReader(qs.traceReader); sr != nil {
-		return sr.FindTraceSummaries(ctx, query.TraceQueryParams)
+		return func(yield func([]tracestore.TraceSummary, error) bool) {
+			for summaries, err := range sr.FindTraceSummaries(ctx, query.TraceQueryParams) {
+				if errors.Is(err, errors.ErrUnsupported) {
+					// Native path not available; fall back to full-trace aggregation.
+					for s, e := range computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster) {
+						if !yield(s, e) {
+							return
+						}
+					}
+					return
+				}
+				if !yield(summaries, err) {
+					return
+				}
+			}
+		}
 	}
 	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
 }

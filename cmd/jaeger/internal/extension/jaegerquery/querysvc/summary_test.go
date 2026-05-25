@@ -5,6 +5,8 @@ package querysvc
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"testing"
 	"time"
@@ -242,4 +244,29 @@ func TestFindTraceSummaries_NativePath_ThroughWrapper(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, want, got)
 	wrapped.AssertNotCalled(t, "FindTraces")
+}
+
+// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader yields
+// errors.ErrUnsupported, QueryService transparently falls back to FindTraces +
+// computeSummaries rather than propagating the error to the caller.
+func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
+	unsupportedReader := &mockSummaryReader{
+		err: fmt.Errorf("remote storage does not support FindTraceSummaries: %w", errors.ErrUnsupported),
+	}
+	trace := makeTestTrace()
+	unsupportedReader.On("FindTraces", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	depsMock := initializeTestService().depsReader
+	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
+
+	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+	}))
+	require.NoError(t, err)
+	require.Len(t, got, 1, "expected one summary from fallback aggregation")
+	// Verify the fallback produced a real summary from the trace data.
+	assert.Equal(t, trace.SpanCount(), got[0].SpanCount)
 }
