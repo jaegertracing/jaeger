@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 
@@ -34,7 +33,7 @@ var _ api_v3.QueryServiceServer = (*Handler)(nil)
 func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryService_GetTraceServer) error {
 	traceID, err := model.TraceIDFromString(request.GetTraceId())
 	if err != nil {
-		return fmt.Errorf("malform trace ID: %w", err)
+		return status.Errorf(codes.InvalidArgument, "malformed trace ID: %v", err)
 	}
 
 	query := querysvc.GetTraceParams{
@@ -68,7 +67,7 @@ func (h *Handler) internalFindTraces(
 	}
 	if query.GetStartTimeMin().IsZero() ||
 		query.GetStartTimeMax().IsZero() {
-		return errors.New("start time min and max are required parameters")
+		return status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
 
 	queryParams := querysvc.TraceQueryParams{
