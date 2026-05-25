@@ -11,6 +11,7 @@ import (
 	"iter"
 	"math"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	v1 "github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -27,8 +29,9 @@ import (
 )
 
 var (
-	_ tracestore.Reader = (*traceReader)(nil)
-	_ io.Closer         = (*traceReader)(nil)
+	_ tracestore.Reader        = (*traceReader)(nil)
+	_ tracestore.SummaryReader = (*traceReader)(nil)
+	_ io.Closer                = (*traceReader)(nil)
 )
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
@@ -141,6 +144,75 @@ func (*traceReader) FindTraceIDs(
 	panic("not implemented")
 }
 
+func (r *traceReader) FindTraceSummaries(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		if query.SearchDepth > math.MaxInt32 {
+			yield(nil, fmt.Errorf("SearchDepth must not be greater than %d", math.MaxInt32))
+			return
+		}
+		stream, err := r.client.FindTraceSummaries(ctx, &api_v3.FindTraceSummariesRequest{
+			Query: &api_v3.TraceQueryParameters{
+				ServiceName:   query.ServiceName,
+				OperationName: query.OperationName,
+				Attributes:    jptrace.PcommonMapToPlainMap(query.Attributes),
+				StartTimeMin:  query.StartTimeMin,
+				StartTimeMax:  query.StartTimeMax,
+				DurationMin:   query.DurationMin,
+				DurationMax:   query.DurationMax,
+				SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+			},
+		})
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
+			for i, ps := range resp.GetSummaries() {
+				modelID, parseErr := v1.TraceIDFromString(ps.GetTraceId())
+				if parseErr != nil {
+					yield(nil, parseErr)
+					return
+				}
+				traceID := v1adapter.FromV1TraceID(modelID)
+				svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
+				for j, ss := range ps.GetServices() {
+					svcs[j] = tracestore.ServiceSummary{
+						Name:           ss.GetName(),
+						SpanCount:      int(ss.GetSpanCount()),
+						ErrorSpanCount: int(ss.GetErrorSpanCount()),
+					}
+				}
+				batch[i] = tracestore.TraceSummary{
+					TraceID:           traceID,
+					RootServiceName:   ps.GetRootServiceName(),
+					RootOperationName: ps.GetRootOperationName(),
+					MinStartTime:      unixNanoToTime(ps.GetMinStartTimeUnixNano()),
+					MaxEndTime:        unixNanoToTime(ps.GetMaxEndTimeUnixNano()),
+					SpanCount:         int(ps.GetSpanCount()),
+					ErrorSpanCount:    int(ps.GetErrorSpanCount()),
+					OrphanSpanCount:   int(ps.GetOrphanSpanCount()),
+					Services:          svcs,
+				}
+			}
+			if !yield(batch, nil) {
+				return
+			}
+		}
+	}
+}
+
 type traceStream interface {
 	Recv() (*jptrace.TracesData, error)
 }
@@ -186,4 +258,13 @@ func unwrapNotFoundErr(err error) error {
 		}
 	}
 	return err
+}
+
+// unixNanoToTime converts a uint64 Unix nanosecond timestamp to time.Time.
+// Returns zero time for a zero value (field omitted in proto).
+func unixNanoToTime(nano uint64) time.Time {
+	if nano == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, int64(nano)).UTC() //nolint:gosec // G115
 }
