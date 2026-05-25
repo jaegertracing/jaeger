@@ -2,7 +2,7 @@
 
 * **Status**: In progress (✅ Milestones 1 and 2 complete; ⏳ Milestones 3–5 pending)
 * **Date**: 2026-05-21
-* **Last updated**: 2026-05-25
+* **Last updated**: 2026-05-26
 
 ## Context
 
@@ -500,10 +500,8 @@ the HTTP contract before touching other repositories.
 2. `computeSummaries` fallback aggregation in `querysvc/summary.go`, using `jptrace.AggregateTraces` to reassemble multi-chunk traces before summarizing.
 3. `querysvc.QueryService.FindTraceSummaries` with both the `SummaryReader` native path and the fallback path. The `SummaryReader` discovery uses a chain-walker (`findSummaryReader`) that traverses `Unwrap()` on decorator types (e.g. `ReadMetricsDecorator`).
 4. `GET /api/v3/trace-summaries` in the HTTP gateway, reusing `parseFindTracesQuery`. Response is plain JSON; timestamps encoded as decimal strings per proto3 JSON convention.
-5. `query.search_depth` is the canonical query parameter (matching the proto field); `query.num_traces` is accepted as a deprecated alias (jaegertracing/jaeger#8617).
+5. `query.search_depth` is the canonical query parameter (matching the proto field); `query.num_traces` is accepted as a deprecated alias (jaegertracing/jaeger#8617). Defaults to 100 when omitted.
 6. Unit tests for `computeSummaries` (empty, error, multi-service, multi-chunk, orphan spans), `FindTraceSummaries` (fallback path, native `SummaryReader`, `SummaryReader` through decorator chain), HTTP handler (success, storage error, deprecated alias).
-
-**Known gap (to fix before Milestone 3):** `parseFindTracesQuery` does not apply a default for `SearchDepth=0`, which causes a 500 from the memory backend when `query.search_depth` is omitted. The v1 HTTP handler defaults to 100. Tracked in [jaegertracing/jaeger#8617](https://github.com/jaegertracing/jaeger/issues/8617).
 
 ---
 
@@ -533,23 +531,23 @@ the `TraceSummary` shape is complete and correct for all search-results renderin
 
 ### Milestone 3 — Formalise the API in `jaeger-idl`
 
-> **Status: ⏳ Pending**
+> **Status: ⏳ Pending (IDL work ✅ already merged in `jaeger-idl`; `jaeger/` Go work remains)**
+>
+> IDL commits on `jaeger-idl` main (not yet imported into the `jaeger/` submodule):
+> - [jaeger-idl#203](https://github.com/jaegertracing/jaeger-idl/pull/203) (`8c84d89`) — Add `FindTraceSummaries` RPC to `api_v3` and `storage/v2`
+> - [jaeger-idl#200](https://github.com/jaegertracing/jaeger-idl/pull/200) (`c4f36ba`) — Give `FindTraceIDs` its own request type in `storage/v2`
+> - [jaeger-idl#202](https://github.com/jaegertracing/jaeger-idl/pull/202) (`2543795`) — Fix JSON naming in OpenAPI spec
+> - [jaeger-idl#204](https://github.com/jaegertracing/jaeger-idl/pull/204) (`0daa719`) — Mark `trace_id` and `ServiceSummary.name` as REQUIRED
 
 **Goal:** Promote the endpoint from an internal HTTP-only contract to a first-class
 gRPC RPC defined in the IDL, now that the data model has been validated by real UI
 usage. This also makes the endpoint accessible to gRPC clients and code-generated SDKs.
 
 **Changes:**
-1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
-   `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`. Bump the IDL version.
-   Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.
-   Currently `FindTraceIDs` reuses `FindTracesRequest`, but it should have its own type for
-   clarity and to allow independent evolution. This is a wire-compatible change (same field
-   layout) but source-breaking — requires a coordinated update in `jaeger/`.
-2. **`jaeger`**: Regenerate Go bindings. Implement the gRPC handler method
-   (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated
-   binding instead of the hand-written handler from Milestone 1. Update any references
-   to the renamed `FindTraceIDsRequest`.
+1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
+   `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`.
+   Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main — see commits above.
+2. **`jaeger`**: Bump the `idl/` submodule to latest `jaeger-idl` main. Regenerate Go bindings. Implement the gRPC handler method (`apiv3/grpc_handler.go`). Switch the HTTP gateway to use the gRPC-gateway generated binding instead of the hand-written handler from Milestone 1. Update any references to the renamed `FindTraceIDsRequest`.
 
 **Success criteria:**
 - Proto files pass `buf lint` and `buf breaking` against the previous IDL version.
@@ -561,15 +559,15 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
 
 ### Milestone 4 — Remote Storage gRPC adapter with fallback (`jaeger-idl` + `jaeger/`)
 
-> **Status: ⏳ Pending** (depends on Milestone 3)
+> **Status: ⏳ Pending** (depends on Milestone 3; IDL work ✅ already merged — see Milestone 3 IDL commits)
 
 **Goal:** Remote storage backends can optionally implement native summary computation.
 The adapter falls back transparently when they do not, so existing plugins require no
 changes.
 
 **Changes:**
-1. **`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
-   `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.
+1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
+   `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main (same PR #203).
 2. **`jaeger`**: Implement `FindTraceSummaries` in the gRPC storage reader
    (`plugin/storage/grpc/`), falling back to `FindTraces` + `computeSummaries` on
    `codes.Unimplemented`.
@@ -606,6 +604,23 @@ naturally as a single query).
 - Native implementation passes the same golden tests used for the fallback.
 - Benchmark shows ≥ 50% reduction in backend CPU time and/or bytes read from storage
   compared to the fallback path.
+
+---
+
+## Remaining Work — Suggested PR Sequence
+
+A concise breakdown for contributors picking up Milestones 3–5. Each PR is
+independently reviewable and leaves `main` in a working state.
+
+| # | Repo | Description | Notes |
+|---|------|-------------|-------|
+| A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | Required before B–D |
+| B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | Milestone 3 |
+| C | `jaeger/` | Switch HTTP gateway to the gRPC-gateway generated binding; delete the hand-written handler from Milestone 1 | Milestone 3 |
+| D | `jaeger/` | Implement `FindTraceSummaries` in the gRPC remote storage adapter (`plugin/storage/grpc/`) with `UNIMPLEMENTED` fallback | Milestone 4 |
+| E | `jaeger/` | Wire `SummaryReader` dispatch for the remote adapter into `QueryService.FindTraceSummaries` | Milestone 4 |
+| F | `jaeger-ui/` | Regenerate Zod schemas from the updated OpenAPI spec; add `pattern` constraint for timestamp fields | Milestone 3 / tech-debt |
+| G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | Milestone 5, optional |
 
 ---
 
