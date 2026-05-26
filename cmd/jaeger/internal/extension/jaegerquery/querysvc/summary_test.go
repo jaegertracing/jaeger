@@ -245,6 +245,22 @@ func TestFindTraceSummaries_NativePath_ThroughWrapper(t *testing.T) {
 	wrapped.AssertNotCalled(t, "FindTraces")
 }
 
+// TestFindTraceSummaries_NativeError verifies that a non-ErrUnsupported direct error
+// from SummaryReader is propagated to the caller without falling back to FindTraces.
+func TestFindTraceSummaries_NativeError(t *testing.T) {
+	errReader := &mockSummaryReader{
+		err: assert.AnError,
+	}
+	depsMock := initializeTestService().depsReader
+	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{})
+
+	_, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+	}))
+	require.ErrorIs(t, err, assert.AnError)
+	errReader.AssertNotCalled(t, "FindTraces")
+}
+
 // TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader returns
 // errors.ErrUnsupported as the direct error, QueryService transparently falls back
 // to FindTraces + computeSummaries rather than propagating the error to the caller.
