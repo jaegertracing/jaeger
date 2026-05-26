@@ -526,7 +526,7 @@ func (_m *SummaryReader) EXPECT() *SummaryReader_Expecter {
 }
 
 // FindTraceSummaries provides a mock function for the type SummaryReader
-func (_mock *SummaryReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (_mock *SummaryReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
 	ret := _mock.Called(ctx, query)
 
 	if len(ret) == 0 {
@@ -534,6 +534,10 @@ func (_mock *SummaryReader) FindTraceSummaries(ctx context.Context, query traces
 	}
 
 	var r0 iter.Seq2[[]tracestore.TraceSummary, error]
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error)); ok {
+		return returnFunc(ctx, query)
+	}
 	if returnFunc, ok := ret.Get(0).(func(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]); ok {
 		r0 = returnFunc(ctx, query)
 	} else {
@@ -541,7 +545,12 @@ func (_mock *SummaryReader) FindTraceSummaries(ctx context.Context, query traces
 			r0 = ret.Get(0).(iter.Seq2[[]tracestore.TraceSummary, error])
 		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func(context.Context, tracestore.TraceQueryParams) error); ok {
+		r1 = returnFunc(ctx, query)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
 }
 
 // SummaryReader_FindTraceSummaries_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraceSummaries'
@@ -574,12 +583,12 @@ func (_c *SummaryReader_FindTraceSummaries_Call) Run(run func(ctx context.Contex
 	return _c
 }
 
-func (_c *SummaryReader_FindTraceSummaries_Call) Return(seq2 iter.Seq2[[]tracestore.TraceSummary, error]) *SummaryReader_FindTraceSummaries_Call {
-	_c.Call.Return(seq2)
+func (_c *SummaryReader_FindTraceSummaries_Call) Return(seq2 iter.Seq2[[]tracestore.TraceSummary, error], err error) *SummaryReader_FindTraceSummaries_Call {
+	_c.Call.Return(seq2, err)
 	return _c
 }
 
-func (_c *SummaryReader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]) *SummaryReader_FindTraceSummaries_Call {
+func (_c *SummaryReader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, query tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error)) *SummaryReader_FindTraceSummaries_Call {
 	_c.Call.Return(run)
 	return _c
 }
