@@ -83,6 +83,11 @@ func (r *Reader) GetTraces(
 					break
 				}
 			}
+			if err := rows.Err(); err != nil {
+				yield(nil, fmt.Errorf("failed to read span rows: %w", err))
+				rows.Close()
+				return
+			}
 
 			if err := rows.Close(); err != nil {
 				yield(nil, fmt.Errorf("failed to close rows: %w", err))
@@ -110,6 +115,9 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		services = append(services, service.Name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read service rows: %w", err)
 	}
 	return services, nil
 }
@@ -141,6 +149,9 @@ func (r *Reader) GetOperations(
 			SpanKind: operation.SpanKind,
 		}
 		operations = append(operations, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read operation rows: %w", err)
 	}
 	return operations, nil
 }
@@ -175,6 +186,9 @@ func (r *Reader) FindTraces(
 			if !yield([]ptrace.Traces{trace}, nil) {
 				break
 			}
+		}
+		if err := rows.Err(); err != nil {
+			yield(nil, fmt.Errorf("failed to read span rows: %w", err))
 		}
 	}
 }
@@ -231,6 +245,9 @@ func (r *Reader) FindTraceIDs(
 			if !yield(traceID, err) {
 				return
 			}
+		}
+		if err := rows.Err(); err != nil {
+			yield(nil, fmt.Errorf("failed to read trace ID rows: %w", err))
 		}
 	}
 }

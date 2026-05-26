@@ -333,6 +333,24 @@ func TestGetTraces_ErrorCases(t *testing.T) {
 	}
 }
 
+func TestGetTraces_RowsError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectSpansByTraceID: {
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					RowsErr: assert.AnError,
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: traceID,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to read span rows")
+}
+
 func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	scanCalled := 0
 
@@ -463,6 +481,19 @@ func TestGetServices(t *testing.T) {
 				},
 			},
 			expectError: "failed to scan row",
+		},
+		{
+			name: "rows error",
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SelectServices: {
+						Rows: &clickhousetest.Rows[dbmodel.Service]{
+							RowsErr: assert.AnError,
+						},
+					},
+				},
+			},
+			expectError: "failed to read service rows",
 		},
 	}
 
@@ -604,6 +635,19 @@ func TestGetOperations(t *testing.T) {
 				},
 			},
 			expectError: "failed to scan row",
+		},
+		{
+			name: "rows error",
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SelectOperationsAllKinds: {
+						Rows: &clickhousetest.Rows[dbmodel.Operation]{
+							RowsErr: assert.AnError,
+						},
+					},
+				},
+			},
+			expectError: "failed to read operation rows",
 		},
 	}
 
@@ -817,6 +861,19 @@ func TestFindTraces_ErrorCases(t *testing.T) {
 				},
 			},
 			expectedErr: "failed to scan span row",
+		},
+		{
+			name: "RowsError",
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SelectSpansQuery: {
+						Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+							RowsErr: assert.AnError,
+						},
+					},
+				},
+			},
+			expectedErr: "failed to read span rows",
 		},
 	}
 
@@ -1119,6 +1176,19 @@ func TestFindTraceIDs_ErrorCases(t *testing.T) {
 				},
 			},
 			expectedErr: "failed to decode trace ID",
+		},
+		{
+			name: "RowsError",
+			driver: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SearchTraceIDsBase: {
+						Rows: &clickhousetest.Rows[[]any]{
+							RowsErr: assert.AnError,
+						},
+					},
+				},
+			},
+			expectedErr: "failed to read trace ID rows",
 		},
 	}
 

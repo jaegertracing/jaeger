@@ -69,6 +69,7 @@ func TestDriver_PrepareBatch_Match(t *testing.T) {
 	}
 	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)")
 	require.NoError(t, err)
+	defer got.Close()
 	assert.Equal(t, batch, got)
 	assert.Equal(t, []string{"INSERT INTO spans VALUES (?)"}, d.RecordedQueries)
 }
