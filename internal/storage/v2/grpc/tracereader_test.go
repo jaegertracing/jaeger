@@ -765,7 +765,7 @@ func TestTraceReader_FindTraceSummaries_StreamError(t *testing.T) {
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
-	// The error is surfaced as a direct return because the priming recv fires it.
+	// Stream priming surfaces the RPC-level error as a direct return.
 	_, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})

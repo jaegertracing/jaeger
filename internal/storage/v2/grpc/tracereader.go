@@ -164,9 +164,12 @@ func (tr *TraceReader) FindTraceSummaries(
 		}
 		return nil, fmt.Errorf("failed to execute FindTraceSummaries: %w", err)
 	}
-	// Prime the stream: receive the first response eagerly so that a
-	// codes.Unimplemented error (which gRPC delivers via Recv, not the
-	// initial call) is surfaced as a direct error rather than in the iterator.
+	// For server-streaming RPCs, gRPC delivers the server's RPC-level error
+	// (including codes.Unimplemented) via the first Recv(), not the initial call.
+	// We prime the stream here so callers receive ErrUnsupported as a direct error
+	// and can trigger fallback logic without starting iteration.
+	// Per our server contract (Handler.FindTraceSummaries), codes.Unimplemented is
+	// always an RPC-level error, never a streamed chunk, so it always appears first.
 	firstResp, firstErr := stream.Recv()
 	if firstErr != nil && !errors.Is(firstErr, io.EOF) {
 		if status.Code(firstErr) == codes.Unimplemented {
@@ -175,9 +178,8 @@ func (tr *TraceReader) FindTraceSummaries(
 		return nil, fmt.Errorf("received error from grpc stream: %w", firstErr)
 	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		// Yield the primed response first (may be nil on immediate EOF).
 		if firstResp != nil {
-			if batch := convertSummaryBatch(firstResp.GetSummaries()); !yield(batch, nil) {
+			if !yield(convertSummaryBatch(firstResp.GetSummaries()), nil) {
 				return
 			}
 		}
