@@ -271,32 +271,6 @@ func (qs *QueryService) FindTraceSummaries(
 The return type is an iterator, consistent with `FindTraces` and `FindTraceIDs`, allowing
 summaries to be streamed incrementally to the caller rather than buffered in memory.
 
-**Implementation logic:**
-
-```
-if reader implements tracestore.SummaryReader:
-    return reader.FindTraceSummaries(ctx, query)   // native streaming path
-else:
-    // fallback: aggregate full traces into summaries via jptrace.AggregateTraces,
-    // applying the clock-skew adjuster before summarizing each assembled trace
-    return computeSummaries(reader.FindTraces(ctx, query), adjuster)
-```
-
-`computeSummaries` uses `jptrace.AggregateTraces` to reassemble multi-chunk traces
-before computing each summary, ensuring a trace split across consecutive `ptrace.Traces`
-chunks always produces exactly one `TraceSummary`. The summary records `MinStartTime`
-and `MaxEndTime` as raw `time.Time` values; duration is intentionally omitted and left
-for callers to derive.
-
-### 6. Remote Storage Adapter — Fallback on UNIMPLEMENTED
-
-The gRPC-based remote storage adapter (`plugin/storage/grpc/`) wraps the remote
-`TraceReader` gRPC client. Its `FindTraceSummaries` implementation calls the remote RPC
-and, if the server returns `codes.Unimplemented`, returns an error wrapping
-`errors.ErrUnsupported` directly (before returning an iterator). This makes the feature
-work transparently with existing remote storage plugins that have not yet implemented the
-new RPC.
-
 `SummaryReader.FindTraceSummaries` returns a direct error (not via the iterator) when
 the capability is unavailable, using `errors.ErrUnsupported` (Go 1.21 standard sentinel)
 as the sentinel value. `QueryService.FindTraceSummaries` checks this direct error and
@@ -307,6 +281,8 @@ design lets the caller detect "not supported" immediately — before starting an
 Using `errors.ErrUnsupported` rather than a Jaeger-specific sentinel keeps the interface
 clean: any `SummaryReader` implementation can signal "not available" without importing
 internal packages.
+
+**Implementation logic:**
 
 ```go
 // In QueryService.FindTraceSummaries (simplified):
@@ -320,8 +296,26 @@ if sr := findSummaryReader(qs.traceReader); sr != nil {
     }
     // ErrUnsupported — fall through to computeSummaries
 }
+// fallback: aggregate full traces into summaries via jptrace.AggregateTraces,
+// applying the clock-skew adjuster before summarizing each assembled trace
 return computeSummaries(qs.traceReader.FindTraces(ctx, query), qs.adjuster)
 ```
+
+`computeSummaries` uses `jptrace.AggregateTraces` to reassemble multi-chunk traces
+before computing each summary, ensuring a trace split across consecutive `ptrace.Traces`
+chunks always produces exactly one `TraceSummary`. The summary records `MinStartTime`
+and `MaxEndTime` as raw `time.Time` values; duration is intentionally omitted and left
+for callers to derive.
+
+### 6. Remote Storage Adapter — Fallback on UNIMPLEMENTED
+
+The gRPC-based remote storage adapter wraps the remote `TraceReader` gRPC client. Its
+`FindTraceSummaries` implementation calls the remote RPC and, if the server returns
+`codes.Unimplemented`, translates it to an error wrapping `errors.ErrUnsupported` before
+returning. This translation happens before an iterator is returned, so `QueryService`
+detects the unsupported case immediately and falls back to `FindTraces` + `computeSummaries`.
+The feature therefore works transparently with existing remote storage plugins that have
+not yet implemented the new RPC.
 
 ### 7. gRPC and HTTP Handlers
 

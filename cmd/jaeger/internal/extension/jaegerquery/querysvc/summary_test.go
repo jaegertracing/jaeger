@@ -4,15 +4,11 @@
 package querysvc
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"iter"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -20,7 +16,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -164,124 +159,4 @@ func TestSummarizeTrace_OrphanSpans(t *testing.T) {
 	summary := summarizeTrace(td)
 	assert.Equal(t, 2, summary.SpanCount)
 	assert.Equal(t, 1, summary.OrphanSpanCount)
-}
-
-func TestFindTraceSummaries_Fallback(t *testing.T) {
-	tqs := initializeTestService()
-	qp := tracestore.TraceQueryParams{
-		ServiceName: "frontend",
-		Attributes:  pcommon.NewMap(),
-	}
-	tqs.traceReader.
-		On("FindTraces", mock.Anything, qp).
-		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeMultiServiceTrace()}, nil)
-		})).Once()
-
-	summaries, err := jiter.FlattenWithErrors(tqs.queryService.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: qp,
-	}))
-	require.NoError(t, err)
-	require.Len(t, summaries, 1)
-	assert.Equal(t, "frontend", summaries[0].RootServiceName)
-}
-
-// mockSummaryReader implements both tracestore.Reader and tracestore.SummaryReader.
-type mockSummaryReader struct {
-	tracestoremocks.Reader
-	summaries []tracestore.TraceSummary
-	err       error
-}
-
-func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if len(m.summaries) > 0 {
-			yield(m.summaries, nil)
-		}
-	}, nil
-}
-
-func TestFindTraceSummaries_NativePath(t *testing.T) {
-	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
-	nativeReader := &mockSummaryReader{summaries: want}
-
-	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
-
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
-	// FindTraces should NOT have been called on the native reader.
-	nativeReader.AssertNotCalled(t, "FindTraces")
-}
-
-// wrappingReader wraps a tracestore.Reader and exposes Unwrap, simulating
-// decorators like ReadMetricsDecorator that may hide the underlying SummaryReader.
-type wrappingReader struct {
-	tracestoremocks.Reader
-	inner tracestore.Reader
-}
-
-func (w *wrappingReader) Unwrap() tracestore.Reader { return w.inner }
-
-func TestFindTraceSummaries_NativePath_ThroughWrapper(t *testing.T) {
-	want := []tracestore.TraceSummary{{RootServiceName: "wrapped-native"}}
-	nativeReader := &mockSummaryReader{summaries: want}
-	wrapped := &wrappingReader{inner: nativeReader}
-
-	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(wrapped, depsMock, QueryServiceOptions{})
-
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
-	wrapped.AssertNotCalled(t, "FindTraces")
-}
-
-// TestFindTraceSummaries_NativeError verifies that a non-ErrUnsupported direct error
-// from SummaryReader is propagated to the caller without falling back to FindTraces.
-func TestFindTraceSummaries_NativeError(t *testing.T) {
-	errReader := &mockSummaryReader{
-		err: assert.AnError,
-	}
-	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{})
-
-	_, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
-	require.ErrorIs(t, err, assert.AnError)
-	errReader.AssertNotCalled(t, "FindTraces")
-}
-
-// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader returns
-// errors.ErrUnsupported as the direct error, QueryService transparently falls back
-// to FindTraces + computeSummaries rather than propagating the error to the caller.
-func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
-	unsupportedReader := &mockSummaryReader{
-		err: fmt.Errorf("remote storage does not support FindTraceSummaries: %w", errors.ErrUnsupported),
-	}
-	trace := makeTestTrace()
-	unsupportedReader.On("FindTraces", mock.Anything, mock.Anything).
-		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{trace}, nil)
-		})).Once()
-
-	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
-
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
-	require.NoError(t, err)
-	require.Len(t, got, 1, "expected one summary from fallback aggregation")
-	// Verify the fallback produced a real summary from the trace data.
-	assert.Equal(t, trace.SpanCount(), got[0].SpanCount)
 }

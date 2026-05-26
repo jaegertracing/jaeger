@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
@@ -165,6 +166,9 @@ func (r *traceReader) FindTraceSummaries(
 		},
 	})
 	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
+		}
 		return nil, err
 	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
