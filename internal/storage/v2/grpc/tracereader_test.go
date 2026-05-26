@@ -757,6 +757,34 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	assert.Equal(t, "frontend", got[0].Services[0].Name)
 }
 
+func TestTraceReader_FindTraceSummaries_GRPCClientError(t *testing.T) {
+	conn, err := grpc.NewClient(":0", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() { conn.Close() })
+	reader := NewTraceReader(conn)
+
+	_, err = jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	}))
+	require.ErrorContains(t, err, "failed to execute FindTraceSummaries")
+}
+
+func TestTraceReader_FindTraceSummaries_YieldStopsIteration(t *testing.T) {
+	ts := &testServer{summaries: []*storage.TraceSummary{{TraceId: []byte{1}}}}
+	conn := startTestServer(t, ts)
+	reader := NewTraceReader(conn)
+
+	var count int
+	for _, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	}) {
+		require.NoError(t, err)
+		count++
+		break // stop after first batch
+	}
+	assert.Equal(t, 1, count)
+}
+
 func TestTraceReader_FindTraceSummaries_StreamError(t *testing.T) {
 	ts := &testServer{err: assert.AnError}
 	conn := startTestServer(t, ts)

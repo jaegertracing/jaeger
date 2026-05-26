@@ -160,10 +160,6 @@ func (tr *TraceReader) FindTraceSummaries(
 			Query: toProtoQueryParameters(params),
 		})
 		if err != nil {
-			if status.Code(err) == codes.Unimplemented {
-				yield(nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported))
-				return
-			}
 			yield(nil, fmt.Errorf("failed to execute FindTraceSummaries: %w", err))
 			return
 		}

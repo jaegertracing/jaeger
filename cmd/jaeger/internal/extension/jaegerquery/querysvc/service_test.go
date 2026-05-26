@@ -981,3 +981,45 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	// Verify the fallback produced a real summary from the trace data.
 	assert.Equal(t, trace.SpanCount(), got[0].SpanCount)
 }
+
+func TestFindTraceSummaries_NativePath_YieldStopsIteration(t *testing.T) {
+	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
+	nativeReader := &mockSummaryReader{summaries: want}
+
+	depsMock := initializeTestService().depsReader
+	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
+
+	var count int
+	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+	}) {
+		require.NoError(t, err)
+		count++
+		break
+	}
+	assert.Equal(t, 1, count)
+}
+
+func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
+	unsupportedReader := &mockSummaryReader{
+		err: fmt.Errorf("not supported: %w", errors.ErrUnsupported),
+	}
+	trace := makeTestTrace()
+	unsupportedReader.On("FindTraces", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	depsMock := initializeTestService().depsReader
+	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
+
+	var count int
+	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+	}) {
+		require.NoError(t, err)
+		count++
+		break
+	}
+	assert.Equal(t, 1, count)
+}
