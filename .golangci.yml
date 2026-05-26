@@ -9,6 +9,7 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - clickhouselint
     - contextcheck
     - copyloopvar
     - decorder
