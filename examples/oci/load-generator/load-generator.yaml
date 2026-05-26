@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +18,7 @@ spec:
       containers:
       - name: trace-generator
         image: python:3.11
-        command: 
+        command:
           - /bin/sh
           - -c
           - |

@@ -20,6 +20,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
+// ErrCustomerNotFound is returned when a customer is not found.
+var ErrCustomerNotFound = errors.New("invalid customer ID")
+
 // database simulates Customer repository implemented on top of an SQL database
 type database struct {
 	tracer    trace.Tracer
@@ -85,5 +88,6 @@ func (d *database) Get(ctx context.Context, customerID int) (*Customer, error) {
 	if customer, ok := d.customers[customerID]; ok {
 		return customer, nil
 	}
-	return nil, errors.New("invalid customer ID")
+
+	return nil, ErrCustomerNotFound
 }

@@ -91,5 +91,5 @@ kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx
 - Load generator is **not** directly exposed to the internet
 - Access load generator via frontend-proxy: https://shop.demo.jaegertracing.io/loadgen/
 - All certificates are production Let's Encrypt certificates
-- Auto-renewal enabled (certificates valid for 90 days) 
+- Auto-renewal enabled (certificates valid for 90 days)
 

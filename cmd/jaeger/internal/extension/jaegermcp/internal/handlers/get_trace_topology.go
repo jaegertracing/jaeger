@@ -24,15 +24,18 @@ import (
 // This tool returns the structural tree of a trace showing parent-child relationships,
 // timing, and error locations WITHOUT returning attributes or logs to keep the response compact.
 type getTraceTopologyHandler struct {
-	queryService queryServiceGetTracesInterface
+	queryService             queryServiceGetTracesInterface
+	maxSpanDetailsPerRequest int
 }
 
 // NewGetTraceTopologyHandler creates a new get_trace_topology handler and returns the handler function.
 func NewGetTraceTopologyHandler(
 	queryService *querysvc.QueryService,
+	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetTraceTopologyInput, types.GetTraceTopologyOutput] {
 	h := &getTraceTopologyHandler{
-		queryService: queryService,
+		queryService:             queryService,
+		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
 	}
 	return h.handle
 }
@@ -63,8 +66,9 @@ func (h *getTraceTopologyHandler) handle(
 
 	tracesIter := h.queryService.GetTraces(ctx, params)
 
-	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
-	aggregatedIter := jptrace.AggregateTraces(tracesIter)
+	// AggregateTracesWithLimit ensures a complete trace view while bounding server-side
+	// memory to maxSpanDetailsPerRequest spans, preventing unbounded work on large traces.
+	aggregatedIter := jptrace.AggregateTracesWithLimit(tracesIter, h.maxSpanDetailsPerRequest)
 
 	// Collect all spans from the trace
 	var spans []rawSpan
@@ -80,6 +84,9 @@ func (h *getTraceTopologyHandler) handle(
 		// Iterate through all spans in the trace and collect them
 		for pos, span := range jptrace.SpanIter(trace) {
 			spans = append(spans, extractRawSpan(pos, span))
+			if h.maxSpanDetailsPerRequest > 0 && len(spans) >= h.maxSpanDetailsPerRequest {
+				break
+			}
 		}
 	}
 

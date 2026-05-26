@@ -9,6 +9,7 @@ TOOLS_PKG_NAMES := $(shell grep -E $(TOOLS_MOD_REGEX) < $(TOOLS_MOD_DIR)/tools.g
 TOOLS_BIN_NAMES := $(addprefix $(TOOLS_BIN_DIR)/, $(notdir $(shell echo $(TOOLS_PKG_NAMES) | sed 's|/v[0-9]||g')))
 
 GOFUMPT       := $(TOOLS_BIN_DIR)/gofumpt
+GOTESTSUM     := $(TOOLS_BIN_DIR)/gotestsum
 GOVERSIONINFO := $(TOOLS_BIN_DIR)/goversioninfo
 GOVULNCHECK   := $(TOOLS_BIN_DIR)/govulncheck
 LINT          := $(TOOLS_BIN_DIR)/golangci-lint
@@ -21,7 +22,7 @@ GOCOVMERGE    := $(TOOLS_BIN_DIR)/gocovmerge
 install-tools: $(TOOLS_BIN_NAMES)
 
 .PHONY: install-test-tools
-install-test-tools: $(LINT) $(GOFUMPT)
+install-test-tools: $(LINT) $(GOFUMPT) $(GOTESTSUM)
 
 .PHONY: install-coverage-tools
 install-coverage-tools: $(GOCOVMERGE)

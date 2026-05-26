@@ -71,7 +71,7 @@ func (ts *testServer) FindTraces(
 
 func (ts *testServer) FindTraceIDs(
 	context.Context,
-	*storage.FindTracesRequest,
+	*storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	return &storage.FindTraceIDsResponse{
 		TraceIds: ts.traceIDs,
@@ -215,7 +215,8 @@ func TestTraceReader_GetTraces_YieldStopsIteration(t *testing.T) {
 }
 
 func TestTraceReader_GetTraces_GRPCClientError(t *testing.T) {
-	conn, err := grpc.NewClient(":0",
+	conn, err := grpc.NewClient(
+		":0",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	) // create client without a started server
 	require.NoError(t, err)
@@ -420,7 +421,8 @@ func TestTraceReader_FindTraces_GRPCClientError(t *testing.T) {
 		OperationName: "operation-a",
 		Attributes:    pcommon.NewMap(),
 	}
-	conn, err := grpc.NewClient(":0",
+	conn, err := grpc.NewClient(
+		":0",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	) // create client without a started server
 	require.NoError(t, err)

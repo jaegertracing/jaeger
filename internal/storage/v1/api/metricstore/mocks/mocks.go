@@ -11,7 +11,6 @@ package mocks
 
 import (
 	"context"
-	"time"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -245,72 +244,6 @@ func (_c *Reader_GetLatencies_Call) Return(metricFamily *metrics.MetricFamily, e
 }
 
 func (_c *Reader_GetLatencies_Call) RunAndReturn(run func(ctx context.Context, params *metricstore.LatenciesQueryParameters) (*metrics.MetricFamily, error)) *Reader_GetLatencies_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetMinStepDuration provides a mock function for the type Reader
-func (_mock *Reader) GetMinStepDuration(ctx context.Context, params *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	ret := _mock.Called(ctx, params)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetMinStepDuration")
-	}
-
-	var r0 time.Duration
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *metricstore.MinStepDurationQueryParameters) (time.Duration, error)); ok {
-		return returnFunc(ctx, params)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *metricstore.MinStepDurationQueryParameters) time.Duration); ok {
-		r0 = returnFunc(ctx, params)
-	} else {
-		r0 = ret.Get(0).(time.Duration)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, *metricstore.MinStepDurationQueryParameters) error); ok {
-		r1 = returnFunc(ctx, params)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Reader_GetMinStepDuration_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetMinStepDuration'
-type Reader_GetMinStepDuration_Call struct {
-	*mock.Call
-}
-
-// GetMinStepDuration is a helper method to define mock.On call
-//   - ctx context.Context
-//   - params *metricstore.MinStepDurationQueryParameters
-func (_e *Reader_Expecter) GetMinStepDuration(ctx interface{}, params interface{}) *Reader_GetMinStepDuration_Call {
-	return &Reader_GetMinStepDuration_Call{Call: _e.mock.On("GetMinStepDuration", ctx, params)}
-}
-
-func (_c *Reader_GetMinStepDuration_Call) Run(run func(ctx context.Context, params *metricstore.MinStepDurationQueryParameters)) *Reader_GetMinStepDuration_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 *metricstore.MinStepDurationQueryParameters
-		if args[1] != nil {
-			arg1 = args[1].(*metricstore.MinStepDurationQueryParameters)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Reader_GetMinStepDuration_Call) Return(duration time.Duration, err error) *Reader_GetMinStepDuration_Call {
-	_c.Call.Return(duration, err)
-	return _c
-}
-
-func (_c *Reader_GetMinStepDuration_Call) RunAndReturn(run func(ctx context.Context, params *metricstore.MinStepDurationQueryParameters) (time.Duration, error)) *Reader_GetMinStepDuration_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -1,87 +1,14 @@
 # Prometheus monitoring mixin for Jaeger
 
-The Prometheus monitoring mixin for Jaeger provides a starting point for people wanting to monitor Jaeger using Prometheus, Alertmanager, and Grafana. To use it, you'll need [`jsonnet`](https://github.com/google/go-jsonnet) and [`jb` (jsonnet-bundler)](https://github.com/jsonnet-bundler/jsonnet-bundler). Both are Go programs and can be installed via `go install`:
+The Prometheus monitoring mixin for Jaeger provides a starting point for people wanting to monitor Jaeger using Prometheus, Alertmanager, and Grafana.
+
+The dashboard in this directory is committed as [dashboard-for-grafana.json](./dashboard-for-grafana.json) and generated from the Go source in `generate/` using `grafana-foundation-sdk/go`. If you only need the dashboard, you can import that JSON directly into Grafana or mount it into a provisioning directory. To regenerate it after editing the Go source, run:
 
 ```console
-go install github.com/google/go-jsonnet/cmd/jsonnet@latest
-go install github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb@latest
+make generate-dashboards
 ```
 
-This installs native binaries for your platform into `$(go env GOPATH)/bin`. Make sure that directory is on your `PATH`.
-
-Your monitoring mixin can then be initialized as follows:
-
-```console
-jb init
-jb install \
-  github.com/jaegertracing/jaeger/monitoring/jaeger-mixin@main \
-  github.com/grafana/jsonnet-libs/grafana-builder@master \
-  github.com/coreos/kube-prometheus/jsonnet/kube-prometheus@main
-```
-
-In the directory where your mixin was initialized, create a new `monitoring-setup.jsonnet`, specifying how your monitoring stack should look like: this file is yours, any customizations to Prometheus, Grafana, or Alertmanager should take place here. A simple example providing only the Jaeger dashboard for Grafana would be:
-
-```jsonnet
-local jaegerDashboard = (import 'jaeger-mixin/mixin.libsonnet').grafanaDashboards;
-{ ['dashboards-jaeger.json']: jaegerDashboard['jaeger.json'] }
-```
-
-The manifest files can be generated via the `jsonnet` command below. Once the command finishes, the file `manifests/dashboards-jaeger.json` should be available and can be loaded directly into Grafana.
-
-```console
-jsonnet -J vendor -cm manifests/ monitoring-setup.jsonnet
-```
-
-An example producing the manifests for a complete monitoring stack is located in this directory, as `monitoring-setup.example.jsonnet`. The manifests include Prometheus, Grafana, and Alertmanager managed via the Prometheus Operator for Kubernetes.
-
-```jsonnet
-local jaegerAlerts = (import 'jaeger-mixin/alerts.libsonnet').prometheusAlerts;
-local jaegerDashboard = (import 'jaeger-mixin/mixin.libsonnet').grafanaDashboards;
-
-local kp =
-  (import 'kube-prometheus/main.libsonnet') +
-  {
-    values+:: {
-      common+: {
-        namespace: 'observability',
-      },
-      grafana+: {
-        dashboards+:: {
-          'my-dashboard.json': jaegerDashboard['jaeger.json'],
-        },
-      },
-    },
-    exampleApplication: {
-      prometheusRuleExample: {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'PrometheusRule',
-        metadata: {
-          name: 'my-prometheus-rule',
-          namespace: $.values.common.namespace,
-        },
-        spec: jaegerAlerts,
-      },
-    },
-  };
-{ ['00namespace-' + name + '.json']: kp.kubePrometheus[name] for name in std.objectFields(kp.kubePrometheus) } +
-{ ['0prometheus-operator-' + name + '.json']: kp.prometheusOperator[name] for name in std.objectFields(kp.prometheusOperator) } +
-{ ['node-exporter-' + name + '.json']: kp.nodeExporter[name] for name in std.objectFields(kp.nodeExporter) } +
-{ ['kube-state-metrics-' + name + '.json']: kp.kubeStateMetrics[name] for name in std.objectFields(kp.kubeStateMetrics) } +
-{ ['alertmanager-' + name + '.json']: kp.alertmanager[name] for name in std.objectFields(kp.alertmanager) } +
-{ ['prometheus-' + name + '.json']: kp.prometheus[name] for name in std.objectFields(kp.prometheus) } +
-{ ['prometheus-adapter-' + name + '.json']: kp.prometheusAdapter[name] for name in std.objectFields(kp.prometheusAdapter) } +
-{ ['grafana-' + name + '.json']: kp.grafana[name] for name in std.objectFields(kp.grafana) } +
-{ ['my-application-' + name + '.json']: kp.exampleApplication[name] for name in std.objectFields(kp.exampleApplication) }
-```
-
-The manifest files can be generated via `jsonnet` and passed directly to `kubectl`:
-
-```console
-jsonnet -J vendor -cm manifests/ monitoring-setup.jsonnet
-kubectl apply -f manifests/
-```
-
-The resulting manifests will include everything that is needed to have a Prometheus, Alertmanager, and Grafana instances. Whenever a new alert rule is needed, or a new dashboard has to be defined, change your `monitoring-setup.jsonnet`, re-generate and re-apply the manifests.
+Alert rules are available as the committed Prometheus rules file [prometheus_alerts.yml](./prometheus_alerts.yml). You can load it directly into Prometheus or the Prometheus Operator, alongside the committed Grafana dashboard JSON.
 
 Make sure your Prometheus setup is properly scraping the Jaeger components, either by creating a `ServiceMonitor` (and the backing `Service` objects), or via `PodMonitor` resources, like:
 
@@ -108,7 +35,7 @@ This mixin was originally developed by [Grafana Labs](https://github.com/grafana
 
 ## Pre-built dashboard and alert rules
 
-This repository contains also a pre-built dashboard for Grafana and alert rules for Alertmanager. While we recommend that you generate those resources following the steps above, the following files can be used for quick tests.
+This repository contains a committed Grafana dashboard and pre-built alert rules for quick tests:
 
 - [Dashboard](./dashboard-for-grafana.json)
 - [Alerts](./prometheus_alerts.yml)
@@ -117,4 +44,4 @@ _IMPORTANT_: the metrics that are used by default by the dashboard are compatibl
 
 ## Background
 
-* For more information about monitoring mixins, see this [design doc](https://docs.google.com/document/d/1A9xvzwqnFVSOZ5fD3blKODXfsat5fg6ZhnKu9LK3lB4/view).
+* For background and historical context on the monitoring mixin, see [ADR-007](https://github.com/jaegertracing/jaeger/blob/main/docs/adr/007-grafana-dashboards-modernization.md). Note that the ADR describes an earlier Jsonnet-based approach and different filenames; the current implementation is the Go-based mixin and `dashboard-for-grafana.json` described above.

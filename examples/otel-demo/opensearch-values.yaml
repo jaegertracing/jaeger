@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 clusterName: "opensearch-cluster"
 nodeGroup: "single"
 
@@ -8,7 +11,7 @@ replicas: 1
 
 persistence:
   enabled: true
-  size: "10Gi"  
+  size: "10Gi"
   storageClass: "oci-bv" # Using Oracle Cloud Block Volume storage class
 
 opensearchJavaOpts: "-Xmx1g -Xms1g"

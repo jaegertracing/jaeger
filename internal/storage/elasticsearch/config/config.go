@@ -6,10 +6,12 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"os"
@@ -31,6 +33,7 @@ import (
 	"go.uber.org/zap/zapgrpc"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
@@ -417,7 +420,10 @@ func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logge
 	if err != nil {
 		return nil, err
 	}
-	options.Transport = transport
+	// Outermost wrapper: forward headers captured on the inbound request context
+	// (populated by the jaeger_query header_forwarding middleware/interceptors)
+	// onto every outbound request to Elasticsearch.
+	options.Transport = headerforwarding.NewHTTPClientRoundTripper(transport)
 	return esv8.NewClient(options)
 }
 
@@ -622,6 +628,11 @@ func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger
 		return nil, err
 	}
 
+	// Outermost wrapper: forward headers captured on the inbound request context
+	// (populated by the jaeger_query header_forwarding middleware/interceptors)
+	// onto every outbound request to Elasticsearch.
+	transport = headerforwarding.NewHTTPClientRoundTripper(transport)
+
 	// HTTP client setup with timeout and transport
 	httpClient := &http.Client{
 		Timeout:   c.QueryTimeout,
@@ -670,6 +681,28 @@ func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logge
 	l := zapgrpc.NewLogger(esLogger)
 	options = append(options, setLogger(l))
 	return options, nil
+}
+
+// getBodyFixRoundTripper ensures req.GetBody is populated when req.Body is set.
+// The olivere/elastic v7 client sets req.Body directly without setting GetBody,
+// which breaks HTTP authenticators (like sigv4auth) that rely on GetBody to hash
+// the request payload for signing.
+type getBodyFixRoundTripper struct {
+	base http.RoundTripper
+}
+
+func (t *getBodyFixRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body != nil && req.GetBody == nil {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		req.Body = io.NopCloser(bytes.NewReader(body))
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
+	}
+	return t.base.RoundTrip(req)
 }
 
 // GetHTTPRoundTripper returns configured http.RoundTripper with optional HTTP authenticator.
@@ -739,8 +772,13 @@ func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logg
 		}
 	}
 
-	// Apply HTTP authenticator extension if configured (e.g., SigV4)
+	// Apply HTTP authenticator extension if configured (e.g., SigV4).
+	// Wrap with getBodyFixRoundTripper first so that authenticators that
+	// rely on req.GetBody for payload hashing (such as sigv4auth) see
+	// a properly populated GetBody even when the upstream HTTP client
+	// (olivere/elastic) does not set it.
 	if httpAuth != nil {
+		roundTripper = &getBodyFixRoundTripper{base: roundTripper}
 		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
 		if err != nil {
 			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)

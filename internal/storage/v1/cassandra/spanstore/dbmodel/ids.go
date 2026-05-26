@@ -8,19 +8,10 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-
-	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
 // TraceID is a serializable form of model.TraceID
 type TraceID [16]byte
-
-// ToDomain converts trace ID from db-serializable form to domain TradeID
-func (t TraceID) ToDomain() model.TraceID {
-	traceIDHigh := binary.BigEndian.Uint64(t[:8])
-	traceIDLow := binary.BigEndian.Uint64(t[8:])
-	return model.NewTraceID(traceIDHigh, traceIDLow)
-}
 
 // String returns hex string representation of the trace ID.
 func (t TraceID) String() string {

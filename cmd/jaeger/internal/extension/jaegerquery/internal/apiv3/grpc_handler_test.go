@@ -15,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
@@ -198,7 +200,8 @@ func TestFindTracesSendError(t *testing.T) {
 			querysvc.QueryServiceOptions{},
 		),
 	}
-	err := h.internalFindTraces(context.Background(),
+	err := h.internalFindTraces(
+		context.Background(),
 		&api_v3.FindTracesRequest{
 			Query: &api_v3.TraceQueryParameters{
 				StartTimeMin: time.Now().Add(-2 * time.Hour),
@@ -219,6 +222,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	require.NoError(t, err)
 	recv, err := responseStream.Recv()
 	require.ErrorContains(t, err, "missing query")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 
 	responseStream, err = tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -227,6 +231,7 @@ func TestFindTracesQueryNil(t *testing.T) {
 	require.NoError(t, err)
 	recv, err = responseStream.Recv()
 	require.ErrorContains(t, err, "start time min and max are required parameters")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Nil(t, recv)
 }
 
@@ -252,7 +257,8 @@ func TestFindTracesStorageError(t *testing.T) {
 func TestGetServices(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetServices", matchContext).Return(
-		[]string{"foo"}, nil).Once()
+		[]string{"foo"}, nil,
+	).Once()
 
 	response, err := tsc.client.GetServices(context.Background(), &api_v3.GetServicesRequest{})
 	require.NoError(t, err)
@@ -262,7 +268,8 @@ func TestGetServices(t *testing.T) {
 func TestGetServicesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetServices", matchContext).Return(
-		nil, assert.AnError).Once()
+		nil, assert.AnError,
+	).Once()
 
 	response, err := tsc.client.GetServices(context.Background(), &api_v3.GetServicesRequest{})
 	require.ErrorContains(t, err, assert.AnError.Error())
@@ -276,7 +283,8 @@ func TestGetOperations(t *testing.T) {
 			{
 				Name: "get_users",
 			},
-		}, nil).Once()
+		}, nil,
+	).Once()
 
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.NoError(t, err)
@@ -287,10 +295,70 @@ func TestGetOperations(t *testing.T) {
 	}, response.GetOperations())
 }
 
+func TestFindTraceSummaries(t *testing.T) {
+	tsc := newTestServerClient(t)
+	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	require.Len(t, recv.GetSummaries(), 1)
+	assert.Equal(t, traceID.String(), recv.GetSummaries()[0].GetTraceId())
+}
+
+func TestFindTraceSummariesQueryNil(t *testing.T) {
+	tsc := newTestServerClient(t)
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.ErrorContains(t, err, "missing query")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Nil(t, recv)
+
+	responseStream, err = tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{},
+	})
+	require.NoError(t, err)
+	recv, err = responseStream.Recv()
+	require.ErrorContains(t, err, "start time min and max are required parameters")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Nil(t, recv)
+}
+
+func TestFindTraceSummariesStorageError(t *testing.T) {
+	tsc := newTestServerClient(t)
+	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.ErrorContains(t, err, assert.AnError.Error())
+	assert.Nil(t, recv)
+}
+
 func TestGetOperationsStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetOperations", matchContext, mock.AnythingOfType("tracestore.OperationQueryParams")).Return(
-		nil, assert.AnError).Once()
+		nil, assert.AnError,
+	).Once()
 
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.ErrorContains(t, err, assert.AnError.Error())

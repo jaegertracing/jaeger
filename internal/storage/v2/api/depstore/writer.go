@@ -4,6 +4,7 @@
 package depstore
 
 import (
+	"context"
 	"time"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
@@ -11,5 +12,5 @@ import (
 
 // Writer write the dependencies into the storage
 type Writer interface {
-	WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error
+	WriteDependencies(ctx context.Context, ts time.Time, dependencies []model.DependencyLink) error
 }

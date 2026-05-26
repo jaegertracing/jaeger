@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: CIT Hotrod
 
 on:
@@ -14,9 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         runtime: [docker, k8s]
-          
+
     steps:
-    - uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
@@ -28,7 +31,7 @@ jobs:
       run: |
         git fetch --prune --unshallow --tags
 
-    - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+    - uses: ./.github/actions/setup-go
       with:
         go-version: 1.26.x
 
@@ -50,16 +53,21 @@ jobs:
         esac
     - name: Install kubectl
       if: matrix.runtime == 'k8s'
-      uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4
+      uses: azure/setup-kubectl@15650b3ad78fff148532a140b8a4c821796b2d7b # v5
       with:
         version: 'latest'
-  
+
     - name: Create k8s Kind Cluster
       if: matrix.runtime == 'k8s'
       uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1
 
     - name: Build, test, and publish hotrod image
+      if: github.event_name == 'push' && github.ref_name == 'main'
       run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -r ${{ matrix.runtime }}
       env:
         DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build and test hotrod image (no publish)
+      if: github.event_name != 'push' || github.ref_name != 'main'
+      run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -r ${{ matrix.runtime }}

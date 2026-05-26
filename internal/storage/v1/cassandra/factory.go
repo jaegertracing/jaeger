@@ -6,7 +6,6 @@ package cassandra
 
 import (
 	"context"
-	"errors"
 	"io"
 
 	"go.opentelemetry.io/otel/trace"
@@ -22,12 +21,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	cdepstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/dependencystore"
 	csamplingstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/schema"
-	cspanstore "github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore/dbmodel"
 )
 
 var ( // interface comformance checks
@@ -123,20 +119,6 @@ func NewSession(c *config.Configuration) (cassandra.Session, error) {
 	return createSession(c)
 }
 
-// CreateSpanReader implements storage.Factory
-func (*Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return nil, errors.New("not implemented")
-}
-
-// CreateSpanWriter creates a spanstore.Writer.
-func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	options, err := writerOptions(f.Options)
-	if err != nil {
-		return nil, err
-	}
-	return cspanstore.NewSpanWriter(f.session, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger, options...)
-}
-
 // CreateDependencyReader creates a dependencystore.Reader.
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	version := cdepstore.GetDependencyVersion(f.session)
@@ -164,35 +146,6 @@ func (f *Factory) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store
 		},
 	)
 	return csamplingstore.New(f.session, samplingMetricsFactory, f.logger), nil
-}
-
-func writerOptions(opts *Options) ([]cspanstore.Option, error) {
-	var tagFilters []dbmodel.TagFilter
-
-	// drop all tag filters
-	if !opts.Index.Tags || !opts.Index.ProcessTags || !opts.Index.Logs {
-		tagFilters = append(tagFilters, dbmodel.NewTagFilterDropAll(!opts.Index.Tags, !opts.Index.ProcessTags, !opts.Index.Logs))
-	}
-
-	// black/white list tag filters
-	tagIndexBlacklist := opts.TagIndexBlacklist()
-	tagIndexWhitelist := opts.TagIndexWhitelist()
-	if len(tagIndexBlacklist) > 0 && len(tagIndexWhitelist) > 0 {
-		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
-	}
-	if len(tagIndexBlacklist) > 0 {
-		tagFilters = append(tagFilters, dbmodel.NewBlacklistFilter(tagIndexBlacklist))
-	} else if len(tagIndexWhitelist) > 0 {
-		tagFilters = append(tagFilters, dbmodel.NewWhitelistFilter(tagIndexWhitelist))
-	}
-
-	if len(tagFilters) == 0 {
-		return nil, nil
-	} else if len(tagFilters) == 1 {
-		return []cspanstore.Option{cspanstore.TagFilter(tagFilters[0])}, nil
-	}
-
-	return []cspanstore.Option{cspanstore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
 }
 
 var _ io.Closer = (*Factory)(nil)

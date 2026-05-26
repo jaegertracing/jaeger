@@ -20,8 +20,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
-const minStep = time.Millisecond
-
 // MetricsReader orchestrates metrics queries by:
 // 1. Calculating time ranges from query parameters.
 // 2. Delegating query construction and execution to Query.
@@ -164,11 +162,6 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 	}
 
 	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
-}
-
-// GetMinStepDuration returns the minimum step duration.
-func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return minStep, nil
 }
 
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket

@@ -4,15 +4,12 @@
 package tracestore
 
 import (
-	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,136 +51,4 @@ func verifyQuerySnapshot(t *testing.T, queries ...string) {
 		require.NoError(t, err)
 		assert.Equal(t, strings.TrimSpace(string(snapshot)), query, "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 	}
-}
-
-type testBatch struct {
-	driver.Batch
-	t          *testing.T
-	appended   [][]any
-	appendErr  error
-	sendCalled bool
-	sendErr    error
-}
-
-func (tb *testBatch) Append(v ...any) error {
-	if tb.appendErr != nil {
-		return tb.appendErr
-	}
-	tb.appended = append(tb.appended, v)
-	return nil
-}
-
-func (tb *testBatch) Send() error {
-	if tb.sendErr != nil {
-		return tb.sendErr
-	}
-	tb.sendCalled = true
-	return nil
-}
-
-func (*testBatch) Close() error {
-	return nil
-}
-
-type testQueryResponse struct {
-	rows driver.Rows
-	err  error
-}
-
-type testBatchResponse struct {
-	batch *testBatch
-	err   error
-}
-
-type testDriver struct {
-	driver.Conn
-
-	t               *testing.T
-	queryResponses  map[string]*testQueryResponse
-	batchResponses  map[string]*testBatchResponse
-	recordedQueries []string
-}
-
-func (t *testDriver) Query(_ context.Context, query string, _ ...any) (driver.Rows, error) {
-	t.recordedQueries = append(t.recordedQueries, query)
-
-	// Normalize whitespace so substring matching works regardless of indentation.
-	normalized := strings.Join(strings.Fields(query), " ")
-	for querySubstring, response := range t.queryResponses {
-		normalizedQuerySubstring := strings.Join(strings.Fields(querySubstring), " ")
-		if strings.Contains(normalized, normalizedQuerySubstring) {
-			return response.rows, response.err
-		}
-	}
-
-	return nil, nil
-}
-
-type testRows[T any] struct {
-	driver.Rows
-
-	data     []T
-	index    int
-	scanErr  error
-	scanFn   func(dest any, src T) error
-	closeErr error
-	rowsErr  error
-}
-
-func (tr *testRows[T]) Close() error {
-	return tr.closeErr
-}
-
-func (tr *testRows[T]) Err() error {
-	return tr.rowsErr
-}
-
-func (tr *testRows[T]) Next() bool {
-	return tr.index < len(tr.data)
-}
-
-func (tr *testRows[T]) ScanStruct(dest any) error {
-	if tr.scanErr != nil {
-		return tr.scanErr
-	}
-	if tr.index >= len(tr.data) {
-		return errors.New("no more rows")
-	}
-	if tr.scanFn == nil {
-		return errors.New("scanFn is not provided")
-	}
-	err := tr.scanFn(dest, tr.data[tr.index])
-	tr.index++
-	return err
-}
-
-func (tr *testRows[T]) Scan(dest ...any) error {
-	if tr.scanErr != nil {
-		return tr.scanErr
-	}
-	if tr.index >= len(tr.data) {
-		return errors.New("no more rows")
-	}
-	if tr.scanFn == nil {
-		return errors.New("scanFn is not provided")
-	}
-	err := tr.scanFn(dest, tr.data[tr.index])
-	tr.index++
-	return err
-}
-
-func (t *testDriver) PrepareBatch(
-	_ context.Context,
-	query string,
-	_ ...driver.PrepareBatchOption,
-) (driver.Batch, error) {
-	t.recordedQueries = append(t.recordedQueries, query)
-
-	for querySubstring, response := range t.batchResponses {
-		if strings.Contains(query, querySubstring) {
-			return response.batch, response.err
-		}
-	}
-
-	return nil, nil
 }

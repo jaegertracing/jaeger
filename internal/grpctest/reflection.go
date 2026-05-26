@@ -24,7 +24,8 @@ type ReflectionServiceValidator struct {
 func (v ReflectionServiceValidator) Execute(t *testing.T) {
 	conn, err := grpc.NewClient(
 		v.HostPort,
-		grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 	defer conn.Close()
 

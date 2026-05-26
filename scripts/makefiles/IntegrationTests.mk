@@ -5,26 +5,26 @@ STORAGE_PKGS = ./internal/storage/integration/...
 JAEGER_V2_STORAGE_PKGS = ./cmd/jaeger/internal/integration
 
 .PHONY: all-in-one-integration-test
-all-in-one-integration-test:
-	TEST_MODE=integration $(GOTEST) ./cmd/jaeger/internal/all_in_one_test.go
+all-in-one-integration-test: $(GOTESTSUM)
+	TEST_MODE=integration $(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) ./cmd/jaeger/internal/all_in_one_test.go
 
 # A general integration tests for jaeger-v2 storage backends,
 # these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
 # The integration tests are filtered by STORAGE env.
 .PHONY: jaeger-v2-storage-integration-test
-jaeger-v2-storage-integration-test:
+jaeger-v2-storage-integration-test: $(GOTESTSUM)
 	(cd cmd/jaeger/ && go build .)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS) $(COLORIZE)"
+	$(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 
 .PHONY: storage-integration-test
-storage-integration-test:
+storage-integration-test: $(GOTESTSUM)
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
 	go clean -testcache
-	bash -c "set -e; set -o pipefail; $(GOTEST) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS) $(COLORIZE)"
+	$(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(STORAGE_PKGS)
 
 .PHONY: badger-storage-integration-test
 badger-storage-integration-test:
@@ -47,3 +47,9 @@ index-rollover-integration-test: docker-images-elastic
 .PHONY: tail-sampling-integration-test
 tail-sampling-integration-test:
 	SAMPLING=tail $(MAKE) jaeger-v2-storage-integration-test
+
+# UI reverse-proxy integration tests (UC-1, UC-2, UC-3 from ADR-009).
+# Builds a local Docker image from the current source unless JAEGER_IMAGE is set.
+.PHONY: ui-reverse-proxy-integration-test
+ui-reverse-proxy-integration-test:
+	bash ./scripts/e2e/ui-reverse-proxy.sh

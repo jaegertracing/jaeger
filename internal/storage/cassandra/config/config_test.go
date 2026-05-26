@@ -60,6 +60,44 @@ func TestNewClusterWithDefaults(t *testing.T) {
 	assert.NotEmpty(t, cl.Keyspace)
 }
 
+func TestNewCluster_PreservesDriverTimeoutDefaultsWhenUnset(t *testing.T) {
+	cfg := Configuration{
+		Connection: Connection{
+			Servers: []string{"127.0.0.1:9042"},
+			// Timeout left at zero as when connection.timeout is omitted from YAML.
+		},
+		Schema: Schema{
+			CompactionWindow: time.Minute,
+		},
+		// Query.Timeout left at zero as when query.timeout is omitted from YAML.
+	}
+	require.NoError(t, cfg.Validate())
+	cl, err := cfg.NewCluster()
+	require.NoError(t, err)
+	assert.Equal(t, 11*time.Second, cl.Timeout, "gocql NewCluster default query timeout")
+	assert.Equal(t, 11*time.Second, cl.ConnectTimeout, "gocql NewCluster default connect timeout")
+}
+
+func TestNewCluster_AppliesTimeoutsWhenSet(t *testing.T) {
+	cfg := Configuration{
+		Connection: Connection{
+			Servers: []string{"127.0.0.1:9042"},
+			Timeout: 60 * time.Second,
+		},
+		Schema: Schema{
+			CompactionWindow: time.Minute,
+		},
+		Query: Query{
+			Timeout: 45 * time.Second,
+		},
+	}
+	require.NoError(t, cfg.Validate())
+	cl, err := cfg.NewCluster()
+	require.NoError(t, err)
+	assert.Equal(t, 45*time.Second, cl.Timeout)
+	assert.Equal(t, 60*time.Second, cl.ConnectTimeout)
+}
+
 func TestNewClusterWithOverrides(t *testing.T) {
 	cfg := DefaultConfiguration()
 	cfg.Query.Consistency = "LOCAL_QUORUM"

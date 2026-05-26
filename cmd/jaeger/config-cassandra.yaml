@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 service:
   extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2]
   pipelines:
@@ -35,30 +38,34 @@ extensions:
     backends:
       some_storage:
         cassandra:
-          schema: 
+          schema:
             keyspace: "jaeger_v1_dc1"
             create: "${env:CASSANDRA_CREATE_SCHEMA:-true}"
           connection:
             servers: ["${env:CASSANDRA_CONTACT_POINTS:-127.0.0.1:9042}"]
-            auth: 
+            auth:
               basic:
                 username: "cassandra"
                 password: "cassandra"
             tls:
               insecure: true
+          query:
+            timeout: 30s
       another_storage:
         cassandra:
-          schema: 
+          schema:
             keyspace: "jaeger_v1_dc1_archive"
             create: "${env:CASSANDRA_CREATE_SCHEMA:-true}"
           connection:
             servers: ["${env:CASSANDRA_CONTACT_POINTS:-127.0.0.1:9042}"]
             auth:
-              basic: 
+              basic:
                 username: "cassandra"
                 password: "cassandra"
             tls:
               insecure: true
+          query:
+            timeout: 30s
 
   remote_sampling:
     adaptive:

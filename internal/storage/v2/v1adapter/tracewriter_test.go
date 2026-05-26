@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -85,6 +87,26 @@ func TestGetV1Writer(t *testing.T) {
 		require.IsType(t, &SpanWriter{}, v1Writer)
 		require.Equal(t, writer, v1Writer.(*SpanWriter).traceWriter)
 	})
+}
+
+func TestWriteDependencies(t *testing.T) {
+	ts := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	deps := []model.DependencyLink{
+		{Parent: "a", Child: "b", CallCount: 1},
+	}
+	m := depstoremocks.NewWriter(t)
+	m.EXPECT().WriteDependencies(ts, deps).Return(nil)
+	dw := NewDependencyWriter(m)
+	err := dw.WriteDependencies(context.Background(), ts, deps)
+	require.NoError(t, err)
+}
+
+func TestWriteDependencies_Error(t *testing.T) {
+	m := depstoremocks.NewWriter(t)
+	m.EXPECT().WriteDependencies(mock.Anything, mock.Anything).Return(assert.AnError)
+	dw := NewDependencyWriter(m)
+	err := dw.WriteDependencies(context.Background(), time.Now(), nil)
+	require.ErrorIs(t, err, assert.AnError)
 }
 
 func makeTraces() ptrace.Traces {

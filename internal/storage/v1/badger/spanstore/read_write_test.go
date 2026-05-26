@@ -6,7 +6,6 @@ package spanstore_test
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -22,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestWriteReadBack(t *testing.T) {
@@ -351,7 +351,7 @@ func TestMenuSeeks(t *testing.T) {
 
 		operations, err := sr.GetOperations(
 			context.Background(),
-			spanstore.OperationQueryParameters{ServiceName: "service-1"},
+			tracestore.OperationQueryParams{ServiceName: "service-1"},
 		)
 		require.NoError(t, err)
 
@@ -472,10 +472,10 @@ func BenchmarkWrites(b *testing.B) {
 
 		f, err := os.Create("writes.out")
 		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
+			b.Fatal("could not create CPU profile: ", err)
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
+			b.Fatal("could not start CPU profile: ", err)
 		}
 		defer pprof.StopCPUProfile()
 
@@ -529,10 +529,10 @@ func makeReadBenchmark(b *testing.B, _ time.Time, params *spanstore.TraceQueryPa
 
 		f, err := os.Create(outputFile)
 		if err != nil {
-			log.Fatal("could not create CPU profile: ", err)
+			b.Fatal("could not create CPU profile: ", err)
 		}
 		if err := pprof.StartCPUProfile(f); err != nil {
-			log.Fatal("could not start CPU profile: ", err)
+			b.Fatal("could not start CPU profile: ", err)
 		}
 		defer pprof.StopCPUProfile()
 

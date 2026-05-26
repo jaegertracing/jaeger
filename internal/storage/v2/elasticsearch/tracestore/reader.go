@@ -9,20 +9,20 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-// TraceReader is a wrapper around spanstore.CoreSpanReader which return the output parallel to OTLP Models
+// TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
-	spanReader spanstore.CoreSpanReader
+	spanReader core.Reader
 }
 
 // NewTraceReader returns an instance of TraceReader
-func NewTraceReader(p spanstore.SpanReaderParams) *TraceReader {
+func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	return &TraceReader{
-		spanReader: spanstore.NewSpanReader(p),
+		spanReader: core.NewSpanReader(p),
 	}
 }
 
@@ -125,7 +125,7 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		StartTimeMin:  query.StartTimeMin,
 		StartTimeMax:  query.StartTimeMax,
 		Tags:          tags,
-		NumTraces:     query.SearchDepth,
+		SearchDepth:   query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
 	}

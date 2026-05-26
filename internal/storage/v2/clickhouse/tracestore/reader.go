@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
@@ -28,11 +29,16 @@ type ReaderConfig struct {
 	// MaxSearchDepth is the maximum number of trace IDs that can be returned when searching for traces.
 	// This value is used to limit the SearchDepth field in TraceQueryParams.
 	MaxSearchDepth int
+	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
+	AttributeMetadataCacheTTL time.Duration
+	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
+	AttributeMetadataCacheMaxSize int
 }
 
 type Reader struct {
-	conn   driver.Conn
-	config ReaderConfig
+	conn          driver.Conn
+	config        ReaderConfig
+	attrMetaCache cache.Cache
 }
 
 // NewReader returns a new Reader instance that uses the given ClickHouse connection
@@ -41,7 +47,10 @@ type Reader struct {
 // The provided connection is used exclusively for reading traces, meaning it is safe
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
-	return &Reader{conn: conn, config: cfg}
+	attrMetaCache := cache.NewLRUWithOptions(cfg.AttributeMetadataCacheMaxSize, &cache.Options{
+		TTL: cfg.AttributeMetadataCacheTTL,
+	})
+	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
 }
 
 func (r *Reader) GetTraces(

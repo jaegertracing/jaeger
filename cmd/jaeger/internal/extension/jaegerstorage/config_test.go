@@ -140,3 +140,17 @@ metric_backends:
 	require.NoError(t, conf.Unmarshal(cfg))
 	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].Opensearch.Servers)
 }
+
+func TestConfigDefaultClickHouseAsMetricsBackend(t *testing.T) {
+	conf := loadConf(t, `
+metric_backends:
+  some_metrics_storage:
+    clickhouse:
+      addresses:
+        - localhost:9000
+`)
+	cfg := createDefaultConfig().(*Config)
+	require.NoError(t, conf.Unmarshal(cfg))
+	require.NotNil(t, cfg.MetricBackends["some_metrics_storage"].ClickHouse)
+	assert.NotEmpty(t, cfg.MetricBackends["some_metrics_storage"].ClickHouse.Addresses)
+}

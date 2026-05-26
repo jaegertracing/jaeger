@@ -54,6 +54,16 @@ type E2EStorageIntegration struct {
 	// PropagateEnvVars contains a list of environment variables to propagate
 	// from the test process to the jaeger binary.
 	PropagateEnvVars []string
+	// FeatureGates contains a list of feature gate IDs to enable for the Jaeger binary.
+	FeatureGates []string
+}
+
+func (s *E2EStorageIntegration) args(configFile string) []string {
+	args := []string{"jaeger", "--config", configFile}
+	if len(s.FeatureGates) > 0 {
+		args = append(args, "--feature-gates="+strings.Join(s.FeatureGates, ","))
+	}
+	return args
 }
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
@@ -92,7 +102,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		HealthCheckPort: s.HealthCheckPort,
 		Cmd: exec.Cmd{
 			Path: "./cmd/jaeger/jaeger",
-			Args: []string{"jaeger", "--config", configFile},
+			Args: s.args(configFile),
 			// Change the working directory to the root of this project
 			// since the binary config file jaeger_query's ui.config_file points to
 			// "./cmd/jaeger/config-ui.json"

@@ -1,6 +1,6 @@
 # Setup for Scarf
 
-This document outlines our implementation details for [Scarf](https://scarf.sh) which provides usage and download analytics for the Jaeger project. 
+This document outlines our implementation details for [Scarf](https://scarf.sh) which provides usage and download analytics for the Jaeger project.
 
 ## DNS Configuration
 The following CNAMES were setup in Netlify for us to utilize the services:
@@ -74,4 +74,4 @@ To verify the pixel is loading correctly:
   * Visit `www.jaegertracing.io` in a browser.
   * Open your browser's **developer tools** (usually by pressing F12 or right-clicking and selecting "Inspect").
   * Go to the **"Network"** tab and filter by "a.png". You should see requests being made to `https://scarf.jaegertracing.io/a.png`.
-  
+

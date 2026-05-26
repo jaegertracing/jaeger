@@ -21,6 +21,266 @@ copy from UI changelog
 
 </details>
 
+v2.18.0 (2026-05-13)
+-------------------------------
+
+### Backend Changes
+
+#### ⛔ Breaking Changes
+
+* Update all otel collector packages ([@renovate-bot](https://github.com/renovate-bot) in [#8560](https://github.com/jaegertracing/jaeger/pull/8560))
+* [metricstore] remove min step api from metricstore ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8425](https://github.com/jaegertracing/jaeger/pull/8425))
+
+#### ✨ New Features
+
+* Feat(query): auto-detect ui base path from browser url (adr-009) ([@yurishkuro](https://github.com/yurishkuro) in [#8568](https://github.com/jaegertracing/jaeger/pull/8568))
+* Feat(storage): forward configured headers to elasticsearch/opensearch backend ([@ChaitanyaD48](https://github.com/ChaitanyaD48) in [#8544](https://github.com/jaegertracing/jaeger/pull/8544))
+* Feat(query): add configurable header forwarding to grpc storage backend ([@yurishkuro](https://github.com/yurishkuro) in [#8539](https://github.com/jaegertracing/jaeger/pull/8539))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix(mcp):  normalize span_kind input to lowercase in get_span_names handler ([@farhann-saleem](https://github.com/farhann-saleem) in [#8466](https://github.com/jaegertracing/jaeger/pull/8466))
+* Fix(clickhouse): fix array join alias broken by clickhouse v26 new analyzer ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8547](https://github.com/jaegertracing/jaeger/pull/8547))
+* Chore(jaegermcp): remove non-standard health mcp tool ([@Vi-shub](https://github.com/Vi-shub) in [#8549](https://github.com/jaegertracing/jaeger/pull/8549))
+* [jaegermcp] drop v1-style reftype from critical path logic ([@yurishkuro](https://github.com/yurishkuro) in [#8467](https://github.com/jaegertracing/jaeger/pull/8467))
+* [cassandra] add missing `spanhash` value to v2 `todbmodel` conversion ([@Manik2708](https://github.com/Manik2708) in [#8410](https://github.com/jaegertracing/jaeger/pull/8410))
+* Fix(cassandra): preserve gocql timeouts when unset in config ([@masihkhatibzadeh99](https://github.com/masihkhatibzadeh99) in [#8380](https://github.com/jaegertracing/jaeger/pull/8380))
+* [jaeger_mcp] continue inbound trace context from sep-414 request _meta ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#8361](https://github.com/jaegertracing/jaeger/pull/8361))
+* Validate start_time_max after start_time_min ([@utafrali](https://github.com/utafrali) in [#8309](https://github.com/jaegertracing/jaeger/pull/8309))
+* Fix sigv4 auth failure due to missing req.getbody on es/os writes ([@dd-tone](https://github.com/dd-tone) in [#8308](https://github.com/jaegertracing/jaeger/pull/8308))
+
+#### 🚧 Experimental Features
+
+* Feat(jaeger): implement ai new mcp endpoint for frontned dynamic contextual tooling ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8423](https://github.com/jaegertracing/jaeger/pull/8423))
+* [jaegerai] refactor route registration and request body size handling ([@yurishkuro](https://github.com/yurishkuro) in [#8468](https://github.com/jaegertracing/jaeger/pull/8468))
+* [fix][clickhouse] add missing scope attributes in clickhouse's query builder ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8439](https://github.com/jaegertracing/jaeger/pull/8439))
+* [jaegermcp]  add opentelemetry metrics middleware for mcp tool invocations ([@CosmicAlgo](https://github.com/CosmicAlgo) in [#8370](https://github.com/jaegertracing/jaeger/pull/8370))
+* [clickhouse][spm] add e2e test for clickhouse spm ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8432](https://github.com/jaegertracing/jaeger/pull/8432))
+* [clickhouse] integrate clickhouse metric storage into jaeger storage extension ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8426](https://github.com/jaegertracing/jaeger/pull/8426))
+* Feat(gemini-agent): implement ai gemini agent tracing ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8398](https://github.com/jaegertracing/jaeger/pull/8398))
+* [clickhouse][spm] implement `getcallrates` for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8417](https://github.com/jaegertracing/jaeger/pull/8417))
+* [clickhouse][spm] implement `geterrorrates` for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8414](https://github.com/jaegertracing/jaeger/pull/8414))
+* [clickhouse][spm] implement `getlatencies` for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8411](https://github.com/jaegertracing/jaeger/pull/8411))
+* [jaegermcp] add get_service_dependencies tool ([@lopster568](https://github.com/lopster568) in [#8403](https://github.com/jaegertracing/jaeger/pull/8403))
+* [clickhouse] enable direct integration tests for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8389](https://github.com/jaegertracing/jaeger/pull/8389))
+* Feature: add ttl support for clickhouse v2 storage ([@singhvibhanshu](https://github.com/singhvibhanshu) in [#7906](https://github.com/jaegertracing/jaeger/pull/7906))
+* [jaegermcp] improve mcp tool descriptions ([@lopster568](https://github.com/lopster568) in [#8314](https://github.com/jaegertracing/jaeger/pull/8314))
+* [clickhouse] implement dependency writer for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8360](https://github.com/jaegertracing/jaeger/pull/8360))
+
+#### 👷 CI Improvements
+
+* Ci: skip metrics comparison and coverage regression gate on main branch ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8469](https://github.com/jaegertracing/jaeger/pull/8469))
+* Chore(ci): fix stale empty go module cache ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8461](https://github.com/jaegertracing/jaeger/pull/8461))
+* Perf(lint): rewrite check-line-endings in python for ~37x speedup ([@yurishkuro](https://github.com/yurishkuro) in [#8399](https://github.com/jaegertracing/jaeger/pull/8399))
+* Ci: integrate check-line-endings.sh into make fmt and make lint ([@yurishkuro](https://github.com/yurishkuro) in [#8393](https://github.com/jaegertracing/jaeger/pull/8393))
+* Ci: exclude dev-only modules from fossa workspace scan ([@jkowall](https://github.com/jkowall) in [#8390](https://github.com/jaegertracing/jaeger/pull/8390))
+* Fix(ci): post coverage gate and metrics comparison check runs against pr head sha ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8387](https://github.com/jaegertracing/jaeger/pull/8387))
+
+#### ⚙️ Refactoring
+
+* [cassandra] remove v1 api dependencies ([@Manik2708](https://github.com/Manik2708) in [#8428](https://github.com/jaegertracing/jaeger/pull/8428))
+* [storage][cassandra] implement v2 `tracewriter` ([@Manik2708](https://github.com/Manik2708) in [#7699](https://github.com/jaegertracing/jaeger/pull/7699))
+* [cassandra] change signature of corespanreader to return an iterator ([@Manik2708](https://github.com/Manik2708) in [#8296](https://github.com/jaegertracing/jaeger/pull/8296))
+* [depstore][v2] update depstore writer interface to accept context ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8365](https://github.com/jaegertracing/jaeger/pull/8365))
+
+#### 📖 Documentation
+
+* Docs(security): document code review and 2fa policies ([@jkowall](https://github.com/jkowall) in [#8524](https://github.com/jaegertracing/jaeger/pull/8524))
+* Docs(jaegermcp): fix documentation inconsistencies in adr-002 and readme ([@Vi-shub](https://github.com/Vi-shub) in [#8509](https://github.com/jaegertracing/jaeger/pull/8509))
+* Document openssf gold badge evidence refresh ([@jkowall](https://github.com/jkowall) in [#8497](https://github.com/jaegertracing/jaeger/pull/8497))
+* Docs(mcp): align search_traces adr with search_depth schema ([@farhann-saleem](https://github.com/farhann-saleem) in [#8472](https://github.com/jaegertracing/jaeger/pull/8472))
+* [clickhouse][adr] add adr for clickhouse storage ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8434](https://github.com/jaegertracing/jaeger/pull/8434))
+
+### 📊 UI Changes
+
+#### ⛔ Breaking Changes
+
+* Chore: drop legacy browser support ([@ghosthouse7](https://github.com/ghosthouse7) in [#3712](https://github.com/jaegertracing/jaeger-ui/pull/3712))
+
+#### ✨ New Features
+
+* Feat(ui): auto-detect url prefix from window.location at page load ([@yurishkuro](https://github.com/yurishkuro) in [#3874](https://github.com/jaegertracing/jaeger-ui/pull/3874))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Fix monitor page chart widths on initial load ([@gulshank0](https://github.com/gulshank0) in [#3555](https://github.com/jaegertracing/jaeger-ui/pull/3555))
+* Fix: use compact duration format consistently across ui ([@yurishkuro](https://github.com/yurishkuro) in [#3846](https://github.com/jaegertracing/jaeger-ui/pull/3846))
+* Fix(search): restore time picker options broken by #3781 ([@yurishkuro](https://github.com/yurishkuro) in [#3845](https://github.com/jaegertracing/jaeger-ui/pull/3845))
+* Fix(search): use compact duration format in search results ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3844](https://github.com/jaegertracing/jaeger-ui/pull/3844))
+* Fix: add keyboard accessibility to span name and child expander in trace timeline ([@swetalin-10](https://github.com/swetalin-10) in [#3807](https://github.com/jaegertracing/jaeger-ui/pull/3807))
+* Restore trace timeline column resizing in embedded mode (`uiembed=v0`) ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3823](https://github.com/jaegertracing/jaeger-ui/pull/3823))
+* Fix: include backend error in otlp conversion error message ([@yurishkuro](https://github.com/yurishkuro) in [#3827](https://github.com/jaegertracing/jaeger-ui/pull/3827))
+* Fix: stop click propagation in clicktocopy to prevent header collapse ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3818](https://github.com/jaegertracing/jaeger-ui/pull/3818))
+* Fix(trace): restore "back to search" link broken by react router v6 migration ([@yurishkuro](https://github.com/yurishkuro) in [#3785](https://github.com/jaegertracing/jaeger-ui/pull/3785))
+* Feat(trace): add service filter to prune spans by service in timeline ([@yurishkuro](https://github.com/yurishkuro) in [#3765](https://github.com/jaegertracing/jaeger-ui/pull/3765))
+* Fix: prevent timeline tick labels from overlapping when column is narrow ([@aabhinavvvvvvv](https://github.com/aabhinavvvvvvv) in [#3768](https://github.com/jaegertracing/jaeger-ui/pull/3768))
+* Fix(ui): sort services alphabetically ([@bender316](https://github.com/bender316) in [#3734](https://github.com/jaegertracing/jaeger-ui/pull/3734))
+* 🔒 fix command injection in prepare-release.py ([@jkowall](https://github.com/jkowall) in [#3717](https://github.com/jaegertracing/jaeger-ui/pull/3717))
+* Perf: optimize tracestatistics grouping ([@jkowall](https://github.com/jkowall) in [#3718](https://github.com/jaegertracing/jaeger-ui/pull/3718))
+* Add environment checks to prepare-release target ([@jkowall](https://github.com/jkowall) in [#3512](https://github.com/jaegertracing/jaeger-ui/pull/3512))
+* Fix: prevent infinite loop on tracediff with empty trace ids ([@parshipcy](https://github.com/parshipcy) in [#3714](https://github.com/jaegertracing/jaeger-ui/pull/3714))
+* Adjust search results for smaller screens ([@lpmi-13](https://github.com/lpmi-13) in [#3697](https://github.com/jaegertracing/jaeger-ui/pull/3697))
+
+#### 👷 CI Improvements
+
+* Delete .github/workflows/s390x-build.yaml ([@yurishkuro](https://github.com/yurishkuro) in [#3851](https://github.com/jaegertracing/jaeger-ui/pull/3851))
+* Fix(lint): resolve eslint-plugin-jest(require-to-throw-message) warnings ([@JeevaRamanathan](https://github.com/JeevaRamanathan) in [#3759](https://github.com/jaegertracing/jaeger-ui/pull/3759))
+* Fix(lint): disable jest/no-conditional-expect ([@vibhor-5](https://github.com/vibhor-5) in [#3756](https://github.com/jaegertracing/jaeger-ui/pull/3756))
+* Fix(lint): disable eslint(no-shadow) warnings ([@vibhor-5](https://github.com/vibhor-5) in [#3757](https://github.com/jaegertracing/jaeger-ui/pull/3757))
+* Chore: add knip; remove 4 unused devdependencies ([@yurishkuro](https://github.com/yurishkuro) in [#3742](https://github.com/jaegertracing/jaeger-ui/pull/3742))
+
+#### ⚙️ Refactoring
+
+* Refactor(spanview): extract relativebar component from tracespanview ([@yurishkuro](https://github.com/yurishkuro) in [#3855](https://github.com/jaegertracing/jaeger-ui/pull/3855))
+* Refactor(stats): migrate tracestatisticsheader to functional component ([@WasThatRudy](https://github.com/WasThatRudy) in [#3842](https://github.com/jaegertracing/jaeger-ui/pull/3842))
+* Part of phase 1 (1f): remove config redux slice; use getconfig via useconfig ([@parshipcy](https://github.com/parshipcy) in [#3781](https://github.com/jaegertracing/jaeger-ui/pull/3781))
+* Part of phase 1 (1e): migrate embed flags off redux ([@parshipcy](https://github.com/parshipcy) in [#3761](https://github.com/jaegertracing/jaeger-ui/pull/3761))
+* Part of phase 1 (1d): move ddg view modifiers from redux to zustand ([@parshipcy](https://github.com/parshipcy) in [#3750](https://github.com/jaegertracing/jaeger-ui/pull/3750))
+* Fix(lint): replace new array(n) with array.from, promote no-new-array to error ([@mateenali66](https://github.com/mateenali66) in [#3754](https://github.com/jaegertracing/jaeger-ui/pull/3754))
+* Fix(lint): clear unused vars/imports, promote no-unused-vars to error in ts ([@mateenali66](https://github.com/mateenali66) in [#3753](https://github.com/jaegertracing/jaeger-ui/pull/3753))
+* Fix(lint): fix jest expects to have matcher calls, promote valid-expect to error ([@Pasta-coder](https://github.com/Pasta-coder) in [#3752](https://github.com/jaegertracing/jaeger-ui/pull/3752))
+* Fix(lint): drop useless array spread, promote no-useless-spread to error ([@mateenali66](https://github.com/mateenali66) in [#3749](https://github.com/jaegertracing/jaeger-ui/pull/3749))
+* Chore(lint): move oxlint config into vite.config.ts ([@yurishkuro](https://github.com/yurishkuro) in [#3748](https://github.com/jaegertracing/jaeger-ui/pull/3748))
+* Fix(lint): pass children as arg, promote no-children-prop to error ([@yurishkuro](https://github.com/yurishkuro) in [#3747](https://github.com/jaegertracing/jaeger-ui/pull/3747))
+* Chore: fix all knip unused-export warnings; enable failure mode ([@yurishkuro](https://github.com/yurishkuro) in [#3745](https://github.com/jaegertracing/jaeger-ui/pull/3745))
+* Chore: unexport 32 types not imported outside their own file ([@yurishkuro](https://github.com/yurishkuro) in [#3744](https://github.com/jaegertracing/jaeger-ui/pull/3744))
+* Chore: fix knip dead-code warnings ([@yurishkuro](https://github.com/yurishkuro) in [#3743](https://github.com/jaegertracing/jaeger-ui/pull/3743))
+* Part of phase1 (sub-2-1c): migrate collapse/expand and detail state to zustand ([@parshipcy](https://github.com/parshipcy) in [#3721](https://github.com/jaegertracing/jaeger-ui/pull/3721))
+* Convert measurablenode to functional component ([@thc1006](https://github.com/thc1006) in [#3407](https://github.com/jaegertracing/jaeger-ui/pull/3407))
+* Migrate tracespanview to functional component ([@whiplashvin](https://github.com/whiplashvin) in [#3470](https://github.com/jaegertracing/jaeger-ui/pull/3470))
+* Part of phase 1 (sub-1c): move trace timeline layout prefs to zustand ([@parshipcy](https://github.com/parshipcy) in [#3719](https://github.com/jaegertracing/jaeger-ui/pull/3719))
+* Part of phase 1 (1b): archive notifier migrated from redux to zustand ([@parshipcy](https://github.com/parshipcy) in [#3715](https://github.com/jaegertracing/jaeger-ui/pull/3715))
+* Part of phase 1: refactor: migrate trace diff state from redux to zustand ([@parshipcy](https://github.com/parshipcy) in [#3702](https://github.com/jaegertracing/jaeger-ui/pull/3702))
+* Refactor: convert spangraph to functional component ([@tmchow](https://github.com/tmchow) in [#3705](https://github.com/jaegertracing/jaeger-ui/pull/3705))
+* Test(jaeger-ui): migrate tests from jest to vitest ([@yurishkuro](https://github.com/yurishkuro) in [#3695](https://github.com/jaegertracing/jaeger-ui/pull/3695))
+* Test: add mockdefault helper for default-export mocks ([@yurishkuro](https://github.com/yurishkuro) in [#3694](https://github.com/jaegertracing/jaeger-ui/pull/3694))
+* Test: replace arrow ctor mocks with regular functions ([@yurishkuro](https://github.com/yurishkuro) in [#3693](https://github.com/jaegertracing/jaeger-ui/pull/3693))
+* Chore(jaeger-ui): replace require() in test bodies with static imports ([@yurishkuro](https://github.com/yurishkuro) in [#3692](https://github.com/jaegertracing/jaeger-ui/pull/3692))
+* Chore(jaeger-ui): rename jsx test files from .js to .jsx ([@yurishkuro](https://github.com/yurishkuro) in [#3691](https://github.com/jaegertracing/jaeger-ui/pull/3691))
+* [adr/007] migrate packages/plexus tests from jest to vitest ([@yurishkuro](https://github.com/yurishkuro) in [#3690](https://github.com/jaegertracing/jaeger-ui/pull/3690))
+* [adr/007] consolidate jaeger-ui tsconfigs (step e) ([@yurishkuro](https://github.com/yurishkuro) in [#3689](https://github.com/jaegertracing/jaeger-ui/pull/3689))
+
+v2.17.0 (2026-03-30)
+-------------------------------
+
+### Backend Changes
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* Implement timer duration bucket parsing in metrics init ([@junaiddshaukat](https://github.com/junaiddshaukat) in [#7951](https://github.com/jaegertracing/jaeger/pull/7951))
+* Fix(memory): accept string-form error filters in trace search ([@YoungHypo](https://github.com/YoungHypo) in [#8217](https://github.com/jaegertracing/jaeger/pull/8217))
+* Feat(monitor): restore grafana to spm docker-compose example (adr-007 step 1) ([@abhay1999](https://github.com/abhay1999) in [#8215](https://github.com/jaegertracing/jaeger/pull/8215))
+* Safe self-tracing via otel collector telemetry factory ([@yurishkuro](https://github.com/yurishkuro) in [#8208](https://github.com/jaegertracing/jaeger/pull/8208))
+* Fix: guard addjitter against zero/sub-nanosecond durations to prevent panic (fixes #8149) ([@shivamtiwari3](https://github.com/shivamtiwari3) in [#8178](https://github.com/jaegertracing/jaeger/pull/8178))
+* Fix: clock skew adjuster to also adjust endtimestamp ([@Audio431](https://github.com/Audio431) in [#8170](https://github.com/jaegertracing/jaeger/pull/8170))
+* Update mcp server readme ([@yurishkuro](https://github.com/yurishkuro) in [#8163](https://github.com/jaegertracing/jaeger/pull/8163))
+* Feat(query): expose metricsstorage to ui as storage capabilities ([@hharshhsaini](https://github.com/hharshhsaini) in [#8154](https://github.com/jaegertracing/jaeger/pull/8154))
+
+#### 🚧 Experimental Features
+
+* [clickhouse] optimize spans table for faster searching ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8258](https://github.com/jaegertracing/jaeger/pull/8258))
+* [jaegermcp] add system prompt instructions for llm clients (adr phase 4) ([@lopster568](https://github.com/lopster568) in [#8253](https://github.com/jaegertracing/jaeger/pull/8253))
+* Fix(jaegermcp): enforce response limits ([@abhay1999](https://github.com/abhay1999) in [#8242](https://github.com/jaegertracing/jaeger/pull/8242))
+* Feat(monitor): go sdk dashboard generator — adr-007 step 2a ([@abhay1999](https://github.com/abhay1999) in [#8216](https://github.com/jaegertracing/jaeger/pull/8216))
+* [clickhouse][benchmarking] add initial results from benchmarking ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8181](https://github.com/jaegertracing/jaeger/pull/8181))
+* [jaegermcp] enable tenancy enforcement ([@whiplashvin](https://github.com/whiplashvin) in [#8203](https://github.com/jaegertracing/jaeger/pull/8203))
+* [jaegermcp] enforce config-driven limits in mcp handlers ([@rite7sh](https://github.com/rite7sh) in [#8194](https://github.com/jaegertracing/jaeger/pull/8194))
+* [jaegermcp] fix mcp server integration with claude code ([@yurishkuro](https://github.com/yurishkuro) in [#8191](https://github.com/jaegertracing/jaeger/pull/8191))
+* [clickhouse] fix trace id timestamps table schema / query to deduplicate trace_ids ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8180](https://github.com/jaegertracing/jaeger/pull/8180))
+* [clickhouse] optimize get traces query by adding start and end time filter ([@mahadzaryab1](https://github.com/mahadzaryab1) in [#8152](https://github.com/jaegertracing/jaeger/pull/8152))
+
+#### 👷 CI Improvements
+
+* Fix: create reusable setup-go action to fix go module cache in ci workflows ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8257](https://github.com/jaegertracing/jaeger/pull/8257))
+* Use gotestsum for all test execution ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8256](https://github.com/jaegertracing/jaeger/pull/8256))
+* Fix(ci): correct metrics snapshot comparison noise ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8246](https://github.com/jaegertracing/jaeger/pull/8246))
+* Ci(monitor): add dashboard sync check for go sdk generator (adr-007 step 3) ([@abhay1999](https://github.com/abhay1999) in [#8240](https://github.com/jaegertracing/jaeger/pull/8240))
+* Fix(ci): add retry logic for pulling registry:2 in prepare-docker-buildx ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8236](https://github.com/jaegertracing/jaeger/pull/8236))
+* [ci] improve e2e workflow documentation and test mode naming ([@yurishkuro](https://github.com/yurishkuro) in [#8195](https://github.com/jaegertracing/jaeger/pull/8195))
+* Fix oke demo prometheus upgrade ([@danish9039](https://github.com/danish9039) in [#8183](https://github.com/jaegertracing/jaeger/pull/8183))
+* [test] add scope name and version integration test ([@Manik2708](https://github.com/Manik2708) in [#8138](https://github.com/jaegertracing/jaeger/pull/8138))
+* Fix ci parallel mode detection for org members without team access ([@yurishkuro](https://github.com/yurishkuro) in [#8182](https://github.com/jaegertracing/jaeger/pull/8182))
+* Revert metrics workflow changes from pr8106 ([@yurishkuro](https://github.com/yurishkuro) in [#8175](https://github.com/jaegertracing/jaeger/pull/8175))
+* Ci: fix pr resolution in ci summary report publish workflow ([@yurishkuro](https://github.com/yurishkuro) in [#8159](https://github.com/jaegertracing/jaeger/pull/8159))
+* Do not run dependency-review on push to main ([@yurishkuro](https://github.com/yurishkuro) in [#8158](https://github.com/jaegertracing/jaeger/pull/8158))
+* Include metric change details in pr comment ([@yurishkuro](https://github.com/yurishkuro) in [#8153](https://github.com/jaegertracing/jaeger/pull/8153))
+* Fix(ci): prevent stale coverage baseline from persisting across main-branch runs ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8157](https://github.com/jaegertracing/jaeger/pull/8157))
+* Fix: use $(suffix) in version-check binary path for debug builds ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8148](https://github.com/jaegertracing/jaeger/pull/8148))
+
+#### ⚙️ Refactoring
+
+* Move param type conversion util out of tracestore api into v1adapter ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#8255](https://github.com/jaegertracing/jaeger/pull/8255))
+* Feat(monitor): complete adr-007 step 2b dashboard upgrade ([@YoungHypo](https://github.com/YoungHypo) in [#8241](https://github.com/jaegertracing/jaeger/pull/8241))
+
+#### 📖 Documentation
+
+* Adr-007: grafana dashboard modernization and spm example validation ([@yurishkuro](https://github.com/yurishkuro) in [#8214](https://github.com/jaegertracing/jaeger/pull/8214))
+* Add badger adr ([@yurishkuro](https://github.com/yurishkuro) in [#8166](https://github.com/jaegertracing/jaeger/pull/8166))
+
+### 📊 UI Changes
+
+#### ✨ New Features
+
+* Allow viewing span details in a side panel instead of inline view ([@yurishkuro](https://github.com/yurishkuro) in [#3578](https://github.com/jaegertracing/jaeger-ui/pull/3578))
+* [feature]: add trace logs view to aggregate all span events ([@SoumyaRaikwar](https://github.com/SoumyaRaikwar) in [#3563](https://github.com/jaegertracing/jaeger-ui/pull/3563))
+
+#### 🐞 Bug fixes, Minor Improvements
+
+* 🔒 [security fix] replace innerHTML with textContent to mitigate XSS risk ([@jkowall](https://github.com/jkowall) in [#3651](https://github.com/jaegertracing/jaeger-ui/pull/3651))
+* Add plexus demo route to main ui (dev only, `/plexus-demo`) ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3656](https://github.com/jaegertracing/jaeger-ui/pull/3656))
+* Fix plexus demo ([@yurishkuro](https://github.com/yurishkuro) in [#3654](https://github.com/jaegertracing/jaeger-ui/pull/3654))
+* Clean-up display of incomplete icon, text, and tooltip ([@yurishkuro](https://github.com/yurishkuro) in [#3619](https://github.com/jaegertracing/jaeger-ui/pull/3619))
+* Revert "refactor(plexus): migrate digraph to functional component" ([@yurishkuro](https://github.com/yurishkuro) in [#3600](https://github.com/jaegertracing/jaeger-ui/pull/3600))
+* Revert "chore: fetch backend config dynamically in dev mode (#3541)" ([@yurishkuro](https://github.com/yurishkuro) in [#3599](https://github.com/jaegertracing/jaeger-ui/pull/3599))
+* Fix: dark mode is not working correctly on the quality metrics page ([@gulshank0](https://github.com/gulshank0) in [#3583](https://github.com/jaegertracing/jaeger-ui/pull/3583))
+* Fix: normalize uppercase trace ids to lowercase in url ([@samar-703](https://github.com/samar-703) in [#3485](https://github.com/jaegertracing/jaeger-ui/pull/3485))
+* Fix: tracediff slot b search populates slot a instead ([@samar-703](https://github.com/samar-703) in [#3473](https://github.com/jaegertracing/jaeger-ui/pull/3473))
+* Fix detail-row hierarchy: missing vertical bars for parent spans and white background regression ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3572](https://github.com/jaegertracing/jaeger-ui/pull/3572))
+* Fix: system architecture (dag) dark mode visibility ([@Parship12](https://github.com/Parship12) in [#3568](https://github.com/jaegertracing/jaeger-ui/pull/3568))
+
+#### 🚧 Experimental Features
+
+* [adr-0006] phase 5: combined modes, analytics, final polish ([@yurishkuro](https://github.com/yurishkuro) in [#3577](https://github.com/jaegertracing/jaeger-ui/pull/3577))
+* [adr-0006] phase 4: side panel polish ([@yurishkuro](https://github.com/yurishkuro) in [#3576](https://github.com/jaegertracing/jaeger-ui/pull/3576))
+* [adr-0006] phase 3: side panel container and span selection ([@yurishkuro](https://github.com/yurishkuro) in [#3569](https://github.com/jaegertracing/jaeger-ui/pull/3569))
+* [adr-0006] phase 2: tree-only mode (hide timeline) ([@yurishkuro](https://github.com/yurishkuro) in [#3562](https://github.com/jaegertracing/jaeger-ui/pull/3562))
+
+#### 👷 CI Improvements
+
+* Do not fail bundle size workflow on main branch ([@yurishkuro](https://github.com/yurishkuro) in [#3653](https://github.com/jaegertracing/jaeger-ui/pull/3653))
+* Use .prettierignore instead of explicit opt-in ([@yurishkuro](https://github.com/yurishkuro) in [#3647](https://github.com/jaegertracing/jaeger-ui/pull/3647))
+* Pin npm version ([@yurishkuro](https://github.com/yurishkuro) in [#3596](https://github.com/jaegertracing/jaeger-ui/pull/3596))
+
+#### ⚙️ Refactoring
+
+* Feat: add zustand and query foundation for state migration ([@Parship12](https://github.com/Parship12) in [#3662](https://github.com/jaegertracing/jaeger-ui/pull/3662))
+* Fix: replace remaining tooltip arrow prop ([@YoungHypo](https://github.com/YoungHypo) in [#3663](https://github.com/jaegertracing/jaeger-ui/pull/3663))
+* Remove `store` npm dependency and suppress lightningcss warning ([@yurishkuro](https://github.com/yurishkuro) in [#3659](https://github.com/jaegertracing/jaeger-ui/pull/3659))
+* Remove deprecated `worker-loader` in favor of webpack 5 / vite built-in worker support ([@yurishkuro](https://github.com/yurishkuro) in [#3646](https://github.com/jaegertracing/jaeger-ui/pull/3646))
+* Final part: migrate to react-router-dom v7 & drop compat layer & history ([@Parship12](https://github.com/Parship12) in [#3645](https://github.com/jaegertracing/jaeger-ui/pull/3645))
+* Part of phase 4 & 5: migrate the v5 matchpath call signature to v6/v7 matchpath signature ([@Parship12](https://github.com/Parship12) in [#3617](https://github.com/jaegertracing/jaeger-ui/pull/3617))
+* Part of phase 4 & 5: migrate link to react-router-dom-v5-compat ([@Parship12](https://github.com/Parship12) in [#3618](https://github.com/jaegertracing/jaeger-ui/pull/3618))
+* Part of phase 4: remove redux-first-history and decouple router state from redux ([@Parship12](https://github.com/Parship12) in [#3616](https://github.com/jaegertracing/jaeger-ui/pull/3616))
+* Cleanup for phase 4: remove history.replace() and historyupdatemiddleware ([@Parship12](https://github.com/Parship12) in [#3615](https://github.com/jaegertracing/jaeger-ui/pull/3615))
+* Final part of phase 3.2 (task 1): refactor(tracepage): convert class component to functional ([@Parship12](https://github.com/Parship12) in [#3613](https://github.com/jaegertracing/jaeger-ui/pull/3613))
+* Phase 3 leftovers: remove state.router.location usages (cleanup) ([@Parship12](https://github.com/Parship12) in [#3614](https://github.com/jaegertracing/jaeger-ui/pull/3614))
+* Part of phase 3.2 (task 1): factor out keyboard shortcut setup into a separate function in the tracepage ([@Parship12](https://github.com/Parship12) in [#3609](https://github.com/jaegertracing/jaeger-ui/pull/3609))
+* Fix(tracepage): fix stale filterspans cache key and remove dead code ([@thc1006](https://github.com/thc1006) in [#3592](https://github.com/jaegertracing/jaeger-ui/pull/3592))
+* Part of phase 3.2 (task 2): remove dead searchurl prop ([@Parship12](https://github.com/Parship12) in [#3603](https://github.com/jaegertracing/jaeger-ui/pull/3603))
+* Phase 3.2 (task 2): refactor(dependencygraph): convert class component to functional ([@Parship12](https://github.com/Parship12) in [#3591](https://github.com/jaegertracing/jaeger-ui/pull/3591))
+* Refactor(plexus): migrate digraph to functional component ([@hharshhsaini](https://github.com/hharshhsaini) in [#3534](https://github.com/jaegertracing/jaeger-ui/pull/3534))
+* Chore: fetch backend config dynamically in dev mode (#3541) ([@hharshhsaini](https://github.com/hharshhsaini) in [#3561](https://github.com/jaegertracing/jaeger-ui/pull/3561))
+* Refactor(plexus): migrate node to functional component (#3392) ([@hharshhsaini](https://github.com/hharshhsaini) in [#3531](https://github.com/jaegertracing/jaeger-ui/pull/3531))
+* Refactor(plexus): migrate svgedges to functional component (#3397) ([@hharshhsaini](https://github.com/hharshhsaini) in [#3518](https://github.com/jaegertracing/jaeger-ui/pull/3518))
+* Chore: replace `getconfigvalue` with direct `getconfig()` property access ([@Copilot](https://github.com/apps/copilot-swe-agent) in [#3589](https://github.com/jaegertracing/jaeger-ui/pull/3589))
+* Fix(monitor): use storagecapabilities config as authoritative signal for spm availability ([@yurishkuro](https://github.com/yurishkuro) in [#3587](https://github.com/jaegertracing/jaeger-ui/pull/3587))
+* Refactor: control monitor tab visibility via storage capabilities of the backend ([@hharshhsaini](https://github.com/hharshhsaini) in [#3554](https://github.com/jaegertracing/jaeger-ui/pull/3554))
+* Phase 3.2 (task 3): remove historyupdatemiddleware from redux & move navigate(url) into searchform ([@Parship12](https://github.com/Parship12) in [#3582](https://github.com/jaegertracing/jaeger-ui/pull/3582))
+* Phase 3.1: replace state.router.location with uselocation() ([@Parship12](https://github.com/Parship12) in [#3574](https://github.com/jaegertracing/jaeger-ui/pull/3574))
+* Refactor(plexus): migrate measurablenodes to functional component ([@hharshhsaini](https://github.com/hharshhsaini) in [#3533](https://github.com/jaegertracing/jaeger-ui/pull/3533))
+* Phase 1: migrate route definitions to react router v6 syntax ([@Parship12](https://github.com/Parship12) in [#3565](https://github.com/jaegertracing/jaeger-ui/pull/3565))
+* Refactor(plexus): migrate svgdefentry to functional component (#3395) ([@hharshhsaini](https://github.com/hharshhsaini) in [#3528](https://github.com/jaegertracing/jaeger-ui/pull/3528))
+
 v2.16.0 (2026-03-06)
 -------------------------------
 

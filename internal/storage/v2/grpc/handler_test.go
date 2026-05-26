@@ -390,7 +390,7 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			})).Once()
 		server := NewHandler(reader, writer, depReader)
 
-		response, err := server.FindTraceIDs(context.Background(), &storage.FindTracesRequest{
+		response, err := server.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{
 			Query: &storage.TraceQueryParameters{
 				ServiceName:   "service",
 				OperationName: "operation",

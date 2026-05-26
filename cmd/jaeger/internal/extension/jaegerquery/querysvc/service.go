@@ -158,6 +158,54 @@ func (qs QueryService) FindTraces(
 	}
 }
 
+// FindTraceSummaries searches for traces matching the query and returns an iterator
+// of lightweight summary information. If the underlying storage implements
+// tracestore.SummaryReader, it delegates to that; otherwise it falls back to
+// FindTraces and computes summaries from the full trace data.
+//
+// A SummaryReader implementation that does not support the operation should return
+// errors.ErrUnsupported (wrapped with %w) as the direct error, which causes
+// FindTraceSummaries to fall back transparently to computeSummaries.
+//
+// The iterator is single-use: once consumed, it cannot be used again.
+func (qs QueryService) FindTraceSummaries(
+	ctx context.Context,
+	query TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	if sr := findSummaryReader(qs.traceReader); sr != nil {
+		seqIter, err := sr.FindTraceSummaries(ctx, query.TraceQueryParams)
+		if err == nil {
+			return seqIter
+		}
+		if !errors.Is(err, errors.ErrUnsupported) {
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield(nil, err)
+			}
+		}
+		// ErrUnsupported — fall through to computeSummaries
+	}
+	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
+}
+
+// findSummaryReader walks the reader chain (via Unwrap) to find a SummaryReader,
+// allowing decorators that wrap the underlying reader to remain transparent.
+func findSummaryReader(r tracestore.Reader) tracestore.SummaryReader {
+	type unwrapper interface {
+		Unwrap() tracestore.Reader
+	}
+	for r != nil {
+		if sr, ok := r.(tracestore.SummaryReader); ok {
+			return sr
+		}
+		u, ok := r.(unwrapper)
+		if !ok {
+			break
+		}
+		r = u.Unwrap()
+	}
+	return nil
+}
+
 // ArchiveTrace archives a trace specified by the given query parameters.
 // If the ArchiveTraceWriter is not configured, it returns
 // an error indicating that there is no archive span storage available.

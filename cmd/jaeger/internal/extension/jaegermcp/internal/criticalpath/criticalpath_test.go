@@ -164,12 +164,10 @@ func TestComputeCriticalPath_Internal_LastFinishingChild_Recursive(t *testing.T)
 			ChildSpanIDs: []pcommon.SpanID{[8]byte{2}},
 		},
 		[8]byte{2}: {
-			SpanID:    [8]byte{2},
-			StartTime: 120,
-			Duration:  50,
-			References: []CPSpanReference{
-				{RefType: "CHILD_OF", SpanID: [8]byte{1}},
-			},
+			SpanID:       [8]byte{2},
+			ParentSpanID: [8]byte{1},
+			StartTime:    120,
+			Duration:     50,
 		},
 	}
 

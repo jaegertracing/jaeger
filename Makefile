@@ -36,6 +36,12 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
+# All tracked file types that should carry copyright and SPDX license headers.
+LIST_LICENSE_SRC = git ls-files \
+						'*.go' '*.js' '*.mk' '*.py' '*.sh' '*.ts' '*.yaml' '*.yml' 'Dockerfile*' 'Makefile*' | \
+						grep -vE '^(vendor/|idl/|jaeger-ui/|internal/proto-gen/|scripts/build/docker/debug/|python-sidecar/\.venv/|.*(^|/)mocks/|.*_mock\.go$$|.*\.pb\.go$$)' | \
+						sort
+
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
@@ -67,22 +73,22 @@ else
 	SED=sed
 endif
 
-GOTEST_QUIET=$(GO) test $(RACE)
-GOTEST=$(GOTEST_QUIET) -v
 COVEROUT=cover.out
 GOFMT=gofmt
 FMT_LOG=.fmt.log
 IMPORT_LOG=.import.log
-COLORIZE ?= | $(SED) 's/PASS/✅ PASS/g' | $(SED) 's/FAIL/❌ FAIL/g' | $(SED) 's/SKIP/🔕 SKIP/g'
+GOTESTSUM_FLAGS=--format pkgname-and-test-fails --format-icons hivis
 
- # import other Makefiles after the variables are defined
+# Import other Makefiles after the variables are defined.
+# The order is important as some Makefiles depend on variables
+# defined in this file and other includes.
 
+include scripts/makefiles/Tools.mk
 include scripts/makefiles/BuildBinaries.mk
 include scripts/makefiles/BuildInfo.mk
 include scripts/makefiles/Docker.mk
 include scripts/makefiles/IntegrationTests.mk
 include scripts/makefiles/Protobuf.mk
-include scripts/makefiles/Tools.mk
 include scripts/makefiles/Windows.mk
 
 
@@ -120,12 +126,12 @@ clean:
 	bash scripts/build/clean-binaries.sh
 
 .PHONY: test
-test:
-	bash -c "set -e; set -o pipefail; $(GOTEST) -tags=memory_storage_integration ./... $(COLORIZE)"
+test: $(GOTESTSUM)
+	$(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) -tags=memory_storage_integration ./...
 
 .PHONY: cover
-cover: nocover
-	bash -c "set -e; set -o pipefail; STORAGE=memory $(GOTEST) -timeout 5m -coverprofile $(COVEROUT) ./... | tee test-results.json"
+cover: nocover $(GOTESTSUM)
+	STORAGE=memory $(GOTESTSUM) $(GOTESTSUM_FLAGS) --rerun-fails --packages ./... -- $(RACE) -timeout 5m -coverprofile $(COVEROUT)
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -141,16 +147,24 @@ fmt: $(GOFUMPT)
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
+	@echo Running updateLicense.py on LICENSE_SRC ...
+	@./scripts/lint/updateLicense.py $(shell $(LIST_LICENSE_SRC))
+	@echo Running check-line-endings on all files ...
+	@./scripts/lint/check-line-endings.py -u
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings
+
+.PHONY: lint-monitoring
+lint-monitoring:
+	@cd ./monitoring/jaeger-mixin/generate && go run . | diff -q ../dashboard-for-grafana.json - > /dev/null || \
+		(echo "ERROR: dashboard-for-grafana.json is out of sync. Run 'make generate-dashboards'."; exit 1)
+	@echo "OK: dashboard-for-grafana.json is in sync."
 
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@./scripts/lint/updateLicense.py $(shell $(LIST_LICENSE_SRC)) > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: lint-nocommit
@@ -168,6 +182,11 @@ lint-imports:
 	@echo Verifying that all Go files have correctly ordered imports
 	@./scripts/lint/import-order-cleanup.py -o stdout -t $(ALL_SRC) > $(IMPORT_LOG)
 	@[ ! -s "$(IMPORT_LOG)" ] || (echo "Import ordering failures, run 'make fmt'" | cat - $(IMPORT_LOG) && false)
+
+.PHONY: lint-line-endings
+lint-line-endings:
+	@echo Verifying that all files use Unix line endings, have no trailing whitespace, and end with a final newline at EOF
+	@./scripts/lint/check-line-endings.py
 
 .PHONY: lint-fmt
 lint-fmt: $(GOFUMPT)
@@ -225,7 +244,6 @@ prepare-release:
 	bash ./scripts/release/prepare.sh $(VERSION)
 
 .PHONY: test-ci
-test-ci: GOTEST := $(GOTEST_QUIET)
 test-ci: build-examples cover
 
 .PHONY: init-submodules
@@ -233,6 +251,10 @@ init-submodules:
 	git submodule update --init --recursive
 
 MOCKERY_FLAGS := --all --disable-version-string
+.PHONY: generate-dashboards
+generate-dashboards:
+	cd ./monitoring/jaeger-mixin/generate && go run . > ../dashboard-for-grafana.json
+
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete

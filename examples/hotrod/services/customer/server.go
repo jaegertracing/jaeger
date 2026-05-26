@@ -6,6 +6,7 @@ package customer
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -73,6 +74,9 @@ func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response, err := s.database.Get(ctx, customerID)
+	if errors.Is(err, ErrCustomerNotFound) {
+		err = httperr.StatusError{Code: http.StatusNotFound, Err: err}
+	}
 	if httperr.HandleError(w, err, http.StatusInternalServerError) {
 		s.logger.For(ctx).Error("request failed", zap.Error(err))
 		return

@@ -30,10 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
-const (
-	minStep = time.Millisecond
-)
-
 type (
 	// MetricsReader is a Prometheus metrics reader.
 	MetricsReader struct {
@@ -252,11 +248,6 @@ func (m MetricsReader) GetErrorRates(ctx context.Context, requestParams *metrics
 
 	errorMetrics.Metrics = zeroErrorMetrics
 	return errorMetrics, nil
-}
-
-// GetMinStepDuration gets the minimum step duration (the smallest possible duration between two data points in a time series) supported.
-func (MetricsReader) GetMinStepDuration(_ context.Context, _ *metricstore.MinStepDurationQueryParameters) (time.Duration, error) {
-	return minStep, nil
 }
 
 // executeQuery executes a query against a Prometheus-compliant metrics backend.

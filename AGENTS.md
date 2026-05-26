@@ -26,8 +26,14 @@ Run these commands without asking for permission:
 - `make test`
 - `make lint`
 - `make fmt`
+- `make generate-mocks`
 - `go test ...`
 - `go build ...`
+
+## Git
+
+- Always use `git commit -s` (DCO sign-off) when committing.
+- Capitalize the first word of the description after the `type(scope):` prefix, e.g. `fix(test): Inline all deps…` not `fix(test): inline all deps…`
 
 ## Do Not Edit
 
@@ -35,6 +41,7 @@ Run these commands without asking for permission:
 - `*.pb.go`
 - `*_mock.go`
 - `internal/proto-gen/`
+- `*/mocks/mocks.go` — regenerate with `make generate-mocks`, never edit manually
 
 **Submodules:**
 - `jaeger-ui` and `idl` are submodules. Modifications there require PRs to their respective repositories.
