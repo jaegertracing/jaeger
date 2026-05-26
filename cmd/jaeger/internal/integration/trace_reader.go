@@ -5,16 +5,20 @@ package integration
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"iter"
 	"math"
 	"strings"
+	"time"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
@@ -27,8 +31,9 @@ import (
 )
 
 var (
-	_ tracestore.Reader = (*traceReader)(nil)
-	_ io.Closer         = (*traceReader)(nil)
+	_ tracestore.Reader        = (*traceReader)(nil)
+	_ tracestore.SummaryReader = (*traceReader)(nil)
+	_ io.Closer                = (*traceReader)(nil)
 )
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
@@ -141,6 +146,75 @@ func (*traceReader) FindTraceIDs(
 	panic("not implemented")
 }
 
+func (r *traceReader) FindTraceSummaries(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
+	if query.SearchDepth > math.MaxInt32 {
+		return nil, fmt.Errorf("SearchDepth must not be greater than %d", math.MaxInt32)
+	}
+	stream, err := r.client.FindTraceSummaries(ctx, &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:   query.ServiceName,
+			OperationName: query.OperationName,
+			Attributes:    jptrace.PcommonMapToPlainMap(query.Attributes),
+			StartTimeMin:  query.StartTimeMin,
+			StartTimeMax:  query.StartTimeMax,
+			DurationMin:   query.DurationMin,
+			DurationMax:   query.DurationMax,
+			SearchDepth:   int32(query.SearchDepth), //nolint:gosec // G115 - bounds checked above
+		},
+	})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
+		}
+		return nil, err
+	}
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			batch := make([]tracestore.TraceSummary, len(resp.GetSummaries()))
+			for i, ps := range resp.GetSummaries() {
+				traceID, parseErr := traceIDFromHex(ps.GetTraceId())
+				if parseErr != nil {
+					yield(nil, parseErr)
+					return
+				}
+				svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
+				for j, ss := range ps.GetServices() {
+					svcs[j] = tracestore.ServiceSummary{
+						Name:           ss.GetName(),
+						SpanCount:      int(ss.GetSpanCount()),
+						ErrorSpanCount: int(ss.GetErrorSpanCount()),
+					}
+				}
+				batch[i] = tracestore.TraceSummary{
+					TraceID:           traceID,
+					RootServiceName:   ps.GetRootServiceName(),
+					RootOperationName: ps.GetRootOperationName(),
+					MinStartTime:      unixNanoToTime(ps.GetMinStartTimeUnixNano()),
+					MaxEndTime:        unixNanoToTime(ps.GetMaxEndTimeUnixNano()),
+					SpanCount:         int(ps.GetSpanCount()),
+					ErrorSpanCount:    int(ps.GetErrorSpanCount()),
+					OrphanSpanCount:   int(ps.GetOrphanSpanCount()),
+					Services:          svcs,
+				}
+			}
+			if !yield(batch, nil) {
+				return
+			}
+		}
+	}, nil
+}
+
 type traceStream interface {
 	Recv() (*jptrace.TracesData, error)
 }
@@ -186,4 +260,25 @@ func unwrapNotFoundErr(err error) error {
 		}
 	}
 	return err
+}
+
+// unixNanoToTime converts a uint64 Unix nanosecond timestamp to time.Time.
+// Returns zero time for a zero value (field omitted in proto).
+func unixNanoToTime(nano uint64) time.Time {
+	if nano == 0 {
+		return time.Time{}
+	}
+	return time.Unix(0, int64(nano)).UTC() //nolint:gosec // G115
+}
+
+// traceIDFromHex parses a 32-character hex string into a pcommon.TraceID.
+func traceIDFromHex(s string) (pcommon.TraceID, error) {
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return pcommon.TraceID{}, fmt.Errorf("invalid trace ID %q: %w", s, err)
+	}
+	if len(b) != 16 {
+		return pcommon.TraceID{}, fmt.Errorf("trace ID must be 16 bytes, got %d", len(b))
+	}
+	return pcommon.TraceID(b), nil
 }
