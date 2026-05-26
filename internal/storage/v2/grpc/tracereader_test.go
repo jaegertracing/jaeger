@@ -738,13 +738,10 @@ func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
-	seqIter, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
-		Attributes: pcommon.NewMap(),
-	})
-	require.NoError(t, err)
-
 	var got []tracestore.TraceSummary
-	for batch, err := range seqIter {
+	for batch, err := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	}) {
 		require.NoError(t, err)
 		got = append(got, batch...)
 	}
@@ -765,10 +762,9 @@ func TestTraceReader_FindTraceSummaries_StreamError(t *testing.T) {
 	conn := startTestServer(t, ts)
 	reader := NewTraceReader(conn)
 
-	// Stream priming surfaces the RPC-level error as a direct return.
-	_, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+	_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
-	})
+	}))
 	require.ErrorContains(t, err, "received error from grpc stream")
 }
 
@@ -786,8 +782,8 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 	conn := startServer(t, server, listener)
 	reader := NewTraceReader(conn)
 
-	_, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+	_, err := jiter.CollectWithErrors(reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
-	})
+	}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }

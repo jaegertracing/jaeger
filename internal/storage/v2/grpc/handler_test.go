@@ -757,7 +757,7 @@ type readerWithSummaries struct {
 	summaryMock *tracestoremocks.SummaryReader
 }
 
-func (r *readerWithSummaries) FindTraceSummaries(ctx context.Context, q tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
+func (r *readerWithSummaries) FindTraceSummaries(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return r.summaryMock.FindTraceSummaries(ctx, q)
 }
 
@@ -796,7 +796,7 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(want, nil)
-		}), nil).Once()
+		})).Once()
 
 	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -824,7 +824,7 @@ func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
 	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(nil, assert.AnError)
-		}), nil).Once()
+		})).Once()
 
 	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
@@ -840,7 +840,7 @@ func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
 	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield([]tracestore.TraceSummary{{TraceID: pcommon.TraceID([16]byte{1})}}, nil)
-		}), nil).Once()
+		})).Once()
 
 	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))

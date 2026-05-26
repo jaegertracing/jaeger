@@ -154,44 +154,31 @@ func (tr *TraceReader) FindTraceIDs(
 func (tr *TraceReader) FindTraceSummaries(
 	ctx context.Context,
 	params tracestore.TraceQueryParams,
-) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
-	stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{
-		Query: toProtoQueryParameters(params),
-	})
-	if err != nil {
-		if status.Code(err) == codes.Unimplemented {
-			return nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
-		}
-		return nil, fmt.Errorf("failed to execute FindTraceSummaries: %w", err)
-	}
-	// For server-streaming RPCs, gRPC delivers the server's RPC-level error
-	// (including codes.Unimplemented) via the first Recv(), not the initial call.
-	// We prime the stream here so callers receive ErrUnsupported as a direct error
-	// and can trigger fallback logic without starting iteration.
-	// Per our server contract (Handler.FindTraceSummaries), codes.Unimplemented is
-	// always an RPC-level error, never a streamed chunk, so it always appears first.
-	firstResp, firstErr := stream.Recv()
-	if firstErr != nil && !errors.Is(firstErr, io.EOF) {
-		if status.Code(firstErr) == codes.Unimplemented {
-			return nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
-		}
-		return nil, fmt.Errorf("received error from grpc stream: %w", firstErr)
-	}
+) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if firstResp != nil {
-			if !yield(convertSummaryBatch(firstResp.GetSummaries()), nil) {
+		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{
+			Query: toProtoQueryParameters(params),
+		})
+		if err != nil {
+			if status.Code(err) == codes.Unimplemented {
+				yield(nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported))
 				return
 			}
-		}
-		if errors.Is(firstErr, io.EOF) {
+			yield(nil, fmt.Errorf("failed to execute FindTraceSummaries: %w", err))
 			return
 		}
+		// For server-streaming RPCs in gRPC-Go, RPC-level errors (including
+		// codes.Unimplemented) arrive via Recv(), not the initial call above.
 		for {
 			resp, err := stream.Recv()
 			if errors.Is(err, io.EOF) {
 				return
 			}
 			if err != nil {
+				if status.Code(err) == codes.Unimplemented {
+					yield(nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported))
+					return
+				}
 				yield(nil, fmt.Errorf("received error from grpc stream: %w", err))
 				return
 			}
@@ -199,7 +186,7 @@ func (tr *TraceReader) FindTraceSummaries(
 				return
 			}
 		}
-	}, nil
+	}
 }
 
 func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSummary {

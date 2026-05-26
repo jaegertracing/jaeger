@@ -868,15 +868,16 @@ type mockSummaryReader struct {
 	err       error
 }
 
-func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) (iter.Seq2[[]tracestore.TraceSummary, error], error) {
-	if m.err != nil {
-		return nil, m.err
-	}
+func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		if m.err != nil {
+			yield(nil, m.err)
+			return
+		}
 		if len(m.summaries) > 0 {
 			yield(m.summaries, nil)
 		}
-	}, nil
+	}
 }
 
 // wrappingReader wraps a tracestore.Reader and exposes Unwrap, simulating
@@ -940,8 +941,8 @@ func TestFindTraceSummaries_NativePath_ThroughWrapper(t *testing.T) {
 	wrapped.AssertNotCalled(t, "FindTraces")
 }
 
-// TestFindTraceSummaries_NativeError verifies that a non-ErrUnsupported direct error
-// from SummaryReader is propagated to the caller without falling back to FindTraces.
+// TestFindTraceSummaries_NativeError verifies that a non-ErrUnsupported error
+// yielded by SummaryReader is propagated to the caller without falling back to FindTraces.
 func TestFindTraceSummaries_NativeError(t *testing.T) {
 	errReader := &mockSummaryReader{
 		err: assert.AnError,
@@ -956,8 +957,8 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	errReader.AssertNotCalled(t, "FindTraces")
 }
 
-// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader returns
-// errors.ErrUnsupported as the direct error, QueryService transparently falls back
+// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader yields
+// errors.ErrUnsupported as the first error, QueryService transparently falls back
 // to FindTraces + computeSummaries rather than propagating the error to the caller.
 func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 	unsupportedReader := &mockSummaryReader{

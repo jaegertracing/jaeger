@@ -141,11 +141,7 @@ func (h *Handler) FindTraceSummaries(
 	if !ok {
 		return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented")
 	}
-	seqIter, err := sr.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query))
-	if err != nil {
-		return err
-	}
-	for summaries, err := range seqIter {
+	for summaries, err := range sr.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
 		if err != nil {
 			return err
 		}
