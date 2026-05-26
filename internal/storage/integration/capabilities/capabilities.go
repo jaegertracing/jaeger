@@ -41,6 +41,13 @@ func Memory() Capabilities {
 	}
 }
 
+// GRPC returns the capabilities for the gRPC remote storage backend.
+func GRPC() Capabilities {
+	return Capabilities{
+		skipList: []string{FindTraceSummariesTest},
+	}
+}
+
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
