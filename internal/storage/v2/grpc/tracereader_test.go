@@ -5,6 +5,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ type testServer struct {
 	services   []string
 	operations []*storage.Operation
 	traceIDs   []*storage.FoundTraceID
+	summaries  []*storage.TraceSummary
 	err        error
 }
 
@@ -76,6 +78,19 @@ func (ts *testServer) FindTraceIDs(
 	return &storage.FindTraceIDsResponse{
 		TraceIds: ts.traceIDs,
 	}, ts.err
+}
+
+func (ts *testServer) FindTraceSummaries(
+	_ *storage.FindTraceSummariesRequest,
+	s storage.TraceReader_FindTraceSummariesServer,
+) error {
+	if ts.err != nil {
+		return ts.err
+	}
+	if len(ts.summaries) > 0 {
+		return s.Send(&storage.FindTraceSummariesResponse{Summaries: ts.summaries})
+	}
+	return nil
 }
 
 func startTestServer(t *testing.T, testServer *testServer) *grpc.ClientConn {
@@ -700,4 +715,79 @@ func TestConvertMapToKeyValueList(t *testing.T) {
 			require.Equal(t, test.expected, result)
 		})
 	}
+}
+
+func TestTraceReader_FindTraceSummaries_Success(t *testing.T) {
+	minStart := time.Unix(1000, 0).UTC()
+	maxEnd := time.Unix(1001, 0).UTC()
+	wantSummaries := []*storage.TraceSummary{
+		{
+			TraceId:              []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			RootServiceName:      "frontend",
+			RootOperationName:    "HTTP GET /",
+			MinStartTimeUnixNano: uint64(minStart.UnixNano()),
+			MaxEndTimeUnixNano:   uint64(maxEnd.UnixNano()),
+			SpanCount:            3,
+			ErrorSpanCount:       1,
+			Services: []*storage.ServiceSummary{
+				{Name: "frontend", SpanCount: 2, ErrorSpanCount: 1},
+			},
+		},
+	}
+	ts := &testServer{summaries: wantSummaries}
+	conn := startTestServer(t, ts)
+	reader := NewTraceReader(conn)
+
+	seqIter, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	require.NoError(t, err)
+
+	var got []tracestore.TraceSummary
+	for batch, err := range seqIter {
+		require.NoError(t, err)
+		got = append(got, batch...)
+	}
+	require.Len(t, got, 1)
+	assert.Equal(t, pcommon.TraceID([16]byte{1}), got[0].TraceID)
+	assert.Equal(t, "frontend", got[0].RootServiceName)
+	assert.Equal(t, "HTTP GET /", got[0].RootOperationName)
+	assert.Equal(t, minStart, got[0].MinStartTime)
+	assert.Equal(t, maxEnd, got[0].MaxEndTime)
+	assert.Equal(t, 3, got[0].SpanCount)
+	assert.Equal(t, 1, got[0].ErrorSpanCount)
+	require.Len(t, got[0].Services, 1)
+	assert.Equal(t, "frontend", got[0].Services[0].Name)
+}
+
+func TestTraceReader_FindTraceSummaries_StreamError(t *testing.T) {
+	ts := &testServer{err: assert.AnError}
+	conn := startTestServer(t, ts)
+	reader := NewTraceReader(conn)
+
+	// The error is surfaced as a direct return because the priming recv fires it.
+	_, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	require.ErrorContains(t, err, "received error from grpc stream")
+}
+
+// unimplementedServer is a gRPC server that returns Unimplemented for
+// FindTraceSummaries (all other methods use the default Unimplemented stubs too).
+type unimplementedServer struct {
+	storage.UnimplementedTraceReaderServer
+}
+
+func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
+	listener, netErr := net.Listen("tcp", ":0")
+	require.NoError(t, netErr)
+	server := grpc.NewServer()
+	storage.RegisterTraceReaderServer(server, &unimplementedServer{})
+	conn := startServer(t, server, listener)
+	reader := NewTraceReader(conn)
+
+	_, err := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
