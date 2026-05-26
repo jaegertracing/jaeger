@@ -12,7 +12,6 @@ import (
 	"iter"
 	"math"
 	"strings"
-	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -200,8 +199,8 @@ func (r *traceReader) FindTraceSummaries(
 					TraceID:           traceID,
 					RootServiceName:   ps.GetRootServiceName(),
 					RootOperationName: ps.GetRootOperationName(),
-					MinStartTime:      unixNanoToTime(ps.GetMinStartTimeUnixNano()),
-					MaxEndTime:        unixNanoToTime(ps.GetMaxEndTimeUnixNano()),
+					MinStartTime:      jptrace.UnixNanoToTime(ps.GetMinStartTimeUnixNano()),
+					MaxEndTime:        jptrace.UnixNanoToTime(ps.GetMaxEndTimeUnixNano()),
 					SpanCount:         int(ps.GetSpanCount()),
 					ErrorSpanCount:    int(ps.GetErrorSpanCount()),
 					OrphanSpanCount:   int(ps.GetOrphanSpanCount()),
@@ -260,15 +259,6 @@ func unwrapNotFoundErr(err error) error {
 		}
 	}
 	return err
-}
-
-// unixNanoToTime converts a uint64 Unix nanosecond timestamp to time.Time.
-// Returns zero time for a zero value (field omitted in proto).
-func unixNanoToTime(nano uint64) time.Time {
-	if nano == 0 {
-		return time.Time{}
-	}
-	return time.Unix(0, int64(nano)).UTC() //nolint:gosec // G115
 }
 
 // traceIDFromHex parses a 32-character hex string into a pcommon.TraceID.

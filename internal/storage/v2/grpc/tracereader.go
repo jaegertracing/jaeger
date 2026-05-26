@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -17,6 +16,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -219,8 +219,8 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 			TraceID:           pcommon.TraceID(traceID),
 			RootServiceName:   ps.GetRootServiceName(),
 			RootOperationName: ps.GetRootOperationName(),
-			MinStartTime:      time.Unix(0, int64(ps.GetMinStartTimeUnixNano())).UTC(), //nolint:gosec // G115
-			MaxEndTime:        time.Unix(0, int64(ps.GetMaxEndTimeUnixNano())).UTC(),   //nolint:gosec // G115
+			MinStartTime:      jptrace.UnixNanoToTime(ps.GetMinStartTimeUnixNano()),
+			MaxEndTime:        jptrace.UnixNanoToTime(ps.GetMaxEndTimeUnixNano()),
 			SpanCount:         int(ps.GetSpanCount()),
 			ErrorSpanCount:    int(ps.GetErrorSpanCount()),
 			OrphanSpanCount:   int(ps.GetOrphanSpanCount()),

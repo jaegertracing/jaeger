@@ -164,8 +164,8 @@ func (h *Handler) FindTraceSummaries(
 				TraceId:              s.TraceID[:],
 				RootServiceName:      s.RootServiceName,
 				RootOperationName:    s.RootOperationName,
-				MinStartTimeUnixNano: uint64(s.MinStartTime.UnixNano()),
-				MaxEndTimeUnixNano:   uint64(s.MaxEndTime.UnixNano()),
+				MinStartTimeUnixNano: jptrace.TimeToUnixNano(s.MinStartTime),
+				MaxEndTimeUnixNano:   jptrace.TimeToUnixNano(s.MaxEndTime),
 				SpanCount:            int32(s.SpanCount),       //nolint:gosec // G115
 				ErrorSpanCount:       int32(s.ErrorSpanCount),  //nolint:gosec // G115
 				OrphanSpanCount:      int32(s.OrphanSpanCount), //nolint:gosec // G115
