@@ -1,6 +1,6 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: In progress (✅ Milestones 1 and 2 complete; ⏳ Milestone 3 in progress; ⏳ Milestones 4–5 pending)
+* **Status**: In progress (✅ Milestones 1, 2, and 4 complete; ⏳ Milestone 3 in progress; ⏳ Milestone 5 pending)
 * **Date**: 2026-05-21
 * **Last updated**: 2026-05-26
 
@@ -51,7 +51,7 @@ storage backends that do not implement native summary computation.
 
 ## Decision
 
-### 1. Data Model — `TraceSummary`
+### ✅ 1. Data Model — `TraceSummary`
 
 A new message that carries everything the search results screen needs without any
 individual span payloads.
@@ -129,7 +129,7 @@ message FindTraceSummariesResponse {
 }
 ```
 
-### 2. API v3 — New RPC
+### ✅ 2. API v3 — New RPC
 
 **Added to `QueryService` in `jaeger-idl/proto/api_v3/query_service.proto`:**
 
@@ -156,7 +156,7 @@ service QueryService {
 `FindTraceSummariesRequest` embeds the same `TraceQueryParameters` inner type as
 `FindTracesRequest`, so no new query-parameter parsing is needed.
 
-### 3. Storage v2 Remote API — Optional RPC
+### ✅ 3. Storage v2 Remote API — Optional RPC
 
 **Added to `TraceReader` in `jaeger-idl/proto/storage/v2/trace_storage.proto`:**
 
@@ -206,7 +206,7 @@ compatibility with existing remote storage plugins: they continue to compile bec
 auto-generated Go server interface provides a default `UnimplementedTraceReaderServer`
 embedding that already returns `UNIMPLEMENTED` for any un-overridden method.
 
-### 4. Go `tracestore.Reader` Interface — Optional Extension Interface
+### ✅ 4. Go `tracestore.Reader` Interface — Optional Extension Interface
 
 Rather than adding a method directly to `tracestore.Reader` (which would break all
 existing storage implementations), a new **optional** interface is introduced:
@@ -219,8 +219,10 @@ existing storage implementations), a new **optional** interface is introduced:
 // The iterator contract mirrors FindTraces: each yielded batch may contain one
 // or more summaries, and implementations may yield results incrementally as the
 // underlying query executes rather than buffering all results first.
+// Implementations that do not support the operation should yield
+// errors.ErrUnsupported (wrapped with %w) as the first error.
 type SummaryReader interface {
-    FindTraceSummaries(ctx context.Context, query TraceQueryParams) (iter.Seq2[[]TraceSummary, error], error)
+    FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 }
 
 // ServiceSummary holds per-service statistics for a single trace.
@@ -257,7 +259,7 @@ type TraceSummary struct {
 This follows the existing pattern in Jaeger where optional storage capabilities are
 expressed as separate interfaces (e.g. `spanstore.Writer` vs `spanstore.WriteFlags`).
 
-### 5. QueryService — Fallback Logic
+### ✅ 5. QueryService — Fallback Logic
 
 `querysvc.QueryService` gains a new method:
 
@@ -271,12 +273,11 @@ func (qs *QueryService) FindTraceSummaries(
 The return type is an iterator, consistent with `FindTraces` and `FindTraceIDs`, allowing
 summaries to be streamed incrementally to the caller rather than buffered in memory.
 
-`SummaryReader.FindTraceSummaries` returns a direct error (not via the iterator) when
-the capability is unavailable, using `errors.ErrUnsupported` (Go 1.21 standard sentinel)
-as the sentinel value. `QueryService.FindTraceSummaries` checks this direct error and
-falls back to `FindTraces` + `computeSummaries` when it wraps `ErrUnsupported`. This
-design lets the caller detect "not supported" immediately — before starting any iteration
-— avoiding unnecessary work.
+`SummaryReader.FindTraceSummaries` signals "not supported" by yielding
+`errors.ErrUnsupported` (Go 1.21 standard sentinel, wrapped with `%w`) as the **first
+iterator error**. The signature mirrors `FindTraces` — a plain iterator, no top-level
+error. `QueryService.FindTraceSummaries` wraps the iterator and, on first `ErrUnsupported`,
+falls back transparently to `FindTraces` + `computeSummaries`.
 
 Using `errors.ErrUnsupported` rather than a Jaeger-specific sentinel keeps the interface
 clean: any `SummaryReader` implementation can signal "not available" without importing
@@ -287,14 +288,19 @@ internal packages.
 ```go
 // In QueryService.FindTraceSummaries (simplified):
 if sr := findSummaryReader(qs.traceReader); sr != nil {
-    seqIter, err := sr.FindTraceSummaries(ctx, query)
-    if err == nil {
-        return seqIter
+    return func(yield func([]tracestore.TraceSummary, error) bool) {
+        for batch, err := range sr.FindTraceSummaries(ctx, query) {
+            if errors.Is(err, errors.ErrUnsupported) {
+                // fall through to computeSummaries
+                for b, e := range computeSummaries(qs.traceReader.FindTraces(ctx, query), qs.adjuster) {
+                    if !yield(b, e) { return }
+                }
+                return
+            }
+            if err != nil { yield(nil, err); return }
+            if !yield(batch, nil) { return }
+        }
     }
-    if !errors.Is(err, errors.ErrUnsupported) {
-        return func(yield func([]tracestore.TraceSummary, error) bool) { yield(nil, err) }
-    }
-    // ErrUnsupported — fall through to computeSummaries
 }
 // fallback: aggregate full traces into summaries via jptrace.AggregateTraces,
 // applying the clock-skew adjuster before summarizing each assembled trace
@@ -307,17 +313,19 @@ chunks always produces exactly one `TraceSummary`. The summary records `MinStart
 and `MaxEndTime` as raw `time.Time` values; duration is intentionally omitted and left
 for callers to derive.
 
-### 6. Remote Storage Adapter — Fallback on UNIMPLEMENTED
+### ✅ 6. Remote Storage Adapter — Fallback on UNIMPLEMENTED
 
 The gRPC-based remote storage adapter wraps the remote `TraceReader` gRPC client. Its
-`FindTraceSummaries` implementation calls the remote RPC and, if the server returns
-`codes.Unimplemented`, translates it to an error wrapping `errors.ErrUnsupported` before
-returning. This translation happens before an iterator is returned, so `QueryService`
-detects the unsupported case immediately and falls back to `FindTraces` + `computeSummaries`.
-The feature therefore works transparently with existing remote storage plugins that have
-not yet implemented the new RPC.
+`FindTraceSummaries` implementation is a plain iterator (no top-level error) that calls
+the remote RPC and yields `errors.ErrUnsupported` when the server returns
+`codes.Unimplemented`. Note: for server-streaming RPCs in gRPC-Go, the server's
+RPC-level error (including `codes.Unimplemented`) is delivered via the first `Recv()`
+call, not the initial stream-open call; the iterator handles this transparently.
+`QueryService` detects `ErrUnsupported` from the first iterator yield and falls back to
+`FindTraces` + `computeSummaries`. The feature therefore works transparently with
+existing remote storage plugins that have not yet implemented the new RPC.
 
-### 7. gRPC and HTTP Handlers
+### ✅ 7. gRPC and HTTP Handlers
 
 **gRPC handler** (`apiv3/grpc_handler.go`) streams response chunks back to the client:
 
@@ -345,7 +353,7 @@ full iterator via `jiter.FlattenWithErrors` before writing the JSON response (HT
 does not support true streaming for this use case; HTTP/2 streaming can be added later
 if needed).
 
-### 8. Jaeger UI Changes
+### ✅ 8. Jaeger UI Changes
 
 **API client** (`jaeger-ui/packages/jaeger-ui/src/api/jaeger.ts`):
 
@@ -450,7 +458,7 @@ matters only if a non-conforming or mocked backend is used in tests.
 
 ---
 
-### 9. Integration Tests
+### ✅ 9. Integration Tests
 
 The existing `TestJaegerQueryService` integration test (`cmd/jaeger/internal/integration/query_test.go`)
 runs two Jaeger instances connected over gRPC remote storage. It exercises the full stack but
@@ -610,28 +618,18 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
 
 ### Milestone 4 — Remote Storage gRPC adapter with fallback (`jaeger-idl` + `jaeger/`)
 
-> **Status: ⏳ Pending** (depends on Milestone 3; IDL work ✅ already merged — see Milestone 3 IDL commits)
+> **Status: ✅ Complete**
 
 **Goal:** Remote storage backends can optionally implement native summary computation.
 The adapter falls back transparently when they do not, so existing plugins require no
 changes.
 
-**Changes:**
+**Delivered:**
 1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
    `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main (same PR #203).
-2. **`jaeger`**: Implement `SummaryReader` in the gRPC storage reader
-   (`plugin/storage/grpc/`), falling back to `FindTraces` + `computeSummaries` on
-   `codes.Unimplemented`. `QueryService` picks up the new implementation automatically via
-   the existing `findSummaryReader` chain-walker (already shipped in Milestone 1).
-3. Integration test: a test gRPC server that alternately returns summaries natively and
-   returns `Unimplemented`; verify both paths produce identical output.
-
-**Success criteria:**
-- `make test` passes.
-- All existing remote-storage plugin tests compile and pass without implementing
-  `FindTraceSummaries` (the `UnimplementedTraceReaderServer` default handles it).
-- Fallback path produces output identical to the Milestone 1 direct fallback, verified
-  by the same golden test.
+2. ✅ **`jaeger`**: `Handler.FindTraceSummaries` in the gRPC storage server (`internal/storage/v2/grpc/handler.go`) forwards to the underlying `tracestore.SummaryReader` if available, otherwise returns `codes.Unimplemented`.
+3. ✅ **`jaeger`**: `TraceReader.FindTraceSummaries` in the gRPC storage client (`internal/storage/v2/grpc/tracereader.go`) implements `tracestore.SummaryReader` as a plain iterator (matching the `FindTraces` signature). `codes.Unimplemented` from the server (delivered via the first `Recv()`) is yielded as `errors.ErrUnsupported`; `QueryService` detects it and falls back to `computeSummaries` automatically via the existing `findSummaryReader` chain-walker (already shipped in Milestone 1).
+4. ✅ Storage backends that don't implement `SummaryReader` opt out via `Capabilities.SkipList` — the `FindTraceSummaries` integration test is only run for backends that implement it (currently the e2e `traceReader` in `cmd/jaeger/internal/integration/`).
 
 ---
 
@@ -667,8 +665,7 @@ independently reviewable and leaves `main` in a working state.
 | ✅ A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
 | ✅ B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
 | C | `jaeger/` | Switch HTTP gateway to the gRPC-gateway generated binding; delete the hand-written handler from Milestone 1 | Milestone 3 |
-| D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`plugin/storage/grpc/`) with `UNIMPLEMENTED` fallback; `QueryService` picks it up automatically via the existing `findSummaryReader` chain-walker | Milestone 4 |
-| F | `jaeger-ui/` | Regenerate Zod schemas from the updated OpenAPI spec; add `pattern` constraint for timestamp fields | Milestone 3 / tech-debt |
+| ✅ D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`internal/storage/v2/grpc/`) — server forwards to underlying `SummaryReader`; client is a plain iterator that yields `errors.ErrUnsupported` when the server returns `UNIMPLEMENTED` | Milestone 4 |
 | G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | Milestone 5, optional |
 
 ---
