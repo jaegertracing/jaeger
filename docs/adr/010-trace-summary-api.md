@@ -1,6 +1,6 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: In progress (✅ Milestones 1, 2, and 4 complete; ⏳ Milestone 3 in progress; ⏳ Milestone 5 pending)
+* **Status**: In progress (✅ Milestones 1, 2, 3, and 4 complete; ⏳ Milestone 5 pending)
 * **Date**: 2026-05-21
 * **Last updated**: 2026-05-26
 
@@ -413,8 +413,7 @@ encoding automatically with no special handling:
 3. **UI code** — schema validation and type inference automatically treat the fields as
    strings; arithmetic uses `BigInt(minStartTimeUnixNano)`.
 
-Until Milestone 3, the Milestone 1 HTTP handler encodes the fields manually via
-`strconv.FormatInt(t.UnixNano(), 10)`, replicating what proto3 JSON marshalling would do.
+As of Milestone 3, the HTTP handler uses `gogoproto/jsonpb` marshalling of `api_v3.FindTraceSummariesResponse`, which encodes `fixed64` fields as decimal strings automatically — exactly replicating what the manual `strconv.FormatInt(t.UnixNano(), 10)` encoding did before.
 
 #### Validation gap: `z.string()` does not enforce numeric content
 
@@ -589,9 +588,9 @@ the `TraceSummary` shape is complete and correct for all search-results renderin
 
 ### Milestone 3 — Formalise the API in `jaeger-idl`
 
-> **Status: ⏳ In progress (IDL work ✅ merged; submodule bump + gRPC handler ✅ [#8634](https://github.com/jaegertracing/jaeger/pull/8634); HTTP gateway migration + OpenAPI regeneration pending)**
+> **Status: ✅ Complete**
 >
-> IDL commits on `jaeger-idl` main (not yet imported into the `jaeger/` submodule):
+> IDL commits on `jaeger-idl` main:
 > - [jaeger-idl#203](https://github.com/jaegertracing/jaeger-idl/pull/203) (`8c84d89`) — Add `FindTraceSummaries` RPC to `api_v3` and `storage/v2`
 > - [jaeger-idl#200](https://github.com/jaegertracing/jaeger-idl/pull/200) (`c4f36ba`) — Give `FindTraceIDs` its own request type in `storage/v2`
 > - [jaeger-idl#202](https://github.com/jaegertracing/jaeger-idl/pull/202) (`2543795`) — Fix JSON naming in OpenAPI spec
@@ -606,7 +605,7 @@ usage. This also makes the endpoint accessible to gRPC clients and code-generate
    `FindTraceSummariesResponse`, and the `FindTraceSummaries` RPC to `api_v3/query_service.proto`.
    Also introduce a dedicated `FindTraceIDsRequest` type in `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main — see commits above.
 2. ✅ **`jaeger`**: Bump the `idl/` submodule to latest `jaeger-idl` main (`0daa719`). Regenerate Go bindings. Implement the gRPC handler method (`apiv3/grpc_handler.go`). ([#8634](https://github.com/jaegertracing/jaeger/pull/8634))
-3. **`jaeger`**: Switch the HTTP gateway to use the gRPC-gateway generated binding instead of the hand-written handler from Milestone 1.
+3. ✅ **`jaeger`**: Replace hand-written JSON scaffold types in the HTTP gateway with `api_v3.FindTraceSummariesResponse` + `gogoproto/jsonpb` marshalling ([#8645](https://github.com/jaegertracing/jaeger/pull/8645)). The gRPC-gateway approach was ruled out: it only supports OpenAPI v2, is a heavyweight dependency, and does not work with the `gogoproto` custom marshallers used throughout the project. Instead, the existing `marshalResponse`/`jsonpb` path is used — `jsonpb` encodes `fixed64` fields as decimal strings, matching the proto3 JSON spec and the OTLP convention, so no behaviour change occurs at the wire level.
 
 **Success criteria:**
 - Proto files pass `buf lint` and `buf breaking` against the previous IDL version.
@@ -664,7 +663,7 @@ independently reviewable and leaves `main` in a working state.
 |---|------|-------------|-------|
 | ✅ A | `jaeger/` | Bump `idl/` submodule to `jaeger-idl` main (`0daa719`); regenerate Go bindings; fix any compilation errors from the renamed `FindTraceIDsRequest` | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
 | ✅ B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
-| C | `jaeger/` | Switch HTTP gateway to the gRPC-gateway generated binding; delete the hand-written handler from Milestone 1 | Milestone 3 |
+| ✅ C | `jaeger/` | Replace hand-written JSON scaffold types in the HTTP gateway with `api_v3.FindTraceSummariesResponse` + `gogoproto/jsonpb`; delete `summaries.go` | [#8645](https://github.com/jaegertracing/jaeger/pull/8645) |
 | ✅ D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`internal/storage/v2/grpc/`) — server forwards to underlying `SummaryReader`; client is a plain iterator that yields `errors.ErrUnsupported` when the server returns `UNIMPLEMENTED` | Milestone 4 |
 | G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | Milestone 5, optional |
 
