@@ -168,8 +168,7 @@ func (r *traceReader) FindTraceSummaries(
 		})
 		if err != nil {
 			if status.Code(err) == codes.Unimplemented {
-				yield(nil, fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported))
-				return
+				err = fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
 			}
 			yield(nil, err)
 			return
