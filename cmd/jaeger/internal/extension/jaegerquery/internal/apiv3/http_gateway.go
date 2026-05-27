@@ -35,7 +35,6 @@ const (
 	routeGetOperations = "/api/v3/operations"
 )
 
-// HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
 	QueryService *querysvc.QueryService
 	Logger       *zap.Logger
@@ -43,7 +42,6 @@ type HTTPGateway struct {
 	BasePath     string
 }
 
-// RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
@@ -52,7 +50,6 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
 
-// addRoute adds a new endpoint to the router with given path and handler function.
 func (h *HTTPGateway) addRoute(
 	router *http.ServeMux,
 	f func(http.ResponseWriter, *http.Request),
@@ -66,8 +63,6 @@ func (h *HTTPGateway) addRoute(
 	router.HandleFunc(pattern, f)
 }
 
-// tryHandleError checks if the passed error is not nil and handles it by writing
-// an error response to the client. Otherwise it returns false.
 func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCode int) bool {
 	if err == nil {
 		return false
@@ -85,11 +80,11 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 		},
 	}
 	resp, _ := json.Marshal(&errorResponse)
+	w.Header().Set("Content-Type", "application/json")
 	http.Error(w, string(resp), statusCode)
 	return true
 }
 
-// tryParamError is similar to tryHandleError but specifically for reporting malformed params.
 func (h *HTTPGateway) tryParamError(w http.ResponseWriter, err error, paramName string) bool {
 	if err == nil {
 		return false
@@ -117,11 +112,10 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 			},
 		}
 		resp, _ := json.Marshal(&errorResponse)
+		w.Header().Set("Content-Type", "application/json")
 		http.Error(w, string(resp), http.StatusNotFound)
 		return
 	}
-	// TODO: the response should be streamed back to the client
-	// https://github.com/jaegertracing/jaeger/issues/6467
 	combinedTrace := ptrace.NewTraces()
 	for _, t := range traces {
 		resources := t.ResourceSpans()
@@ -194,7 +188,6 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	if shouldReturn {
 		return
 	}
-	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
 	queryParams.RawTraces = false
 	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
 	summaries, err := jiter.FlattenWithErrors(summariesIter)
