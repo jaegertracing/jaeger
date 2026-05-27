@@ -37,15 +37,8 @@ func TestInitMetrics(t *testing.T) {
 	testMetrics.Timer.Record(time.Duration(time.Second * 35))
 	testMetrics.Histogram.Record(42)
 
-	// wait for metrics
-	for range 1000 {
-		c, _ := f.Snapshot()
-		if _, ok := c["counter"]; ok {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
-
+	// metricstest.Backend updates counters synchronously (mutex-guarded),
+	// so values are available immediately after Inc/Update/Record calls.
 	c, g := f.Snapshot()
 
 	assert.EqualValues(t, 5, c["counter|key=value"])

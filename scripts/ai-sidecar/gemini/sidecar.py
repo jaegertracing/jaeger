@@ -121,7 +121,13 @@ class JaegerSidecarAgent(Agent):
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
         )
 
-    async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
+    async def new_session(
+        self,
+        cwd: str,
+        additional_directories: list[str] | None = None,
+        mcp_servers: Any = None,
+        **kwargs: Any,
+    ) -> NewSessionResponse:
         """Handle ACP `session/new` RPC.
 
         Invoked by ACP runtime dispatch (not direct app code) to allocate a new
@@ -166,6 +172,7 @@ class JaegerSidecarAgent(Agent):
         self,
         cwd: str,
         session_id: str,
+        additional_directories: list[str] | None = None,
         mcp_servers: Any = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
@@ -177,6 +184,7 @@ class JaegerSidecarAgent(Agent):
 
     async def list_sessions(
         self,
+        additional_directories: list[str] | None = None,
         cursor: str | None = None,
         cwd: str | None = None,
         **kwargs: Any,

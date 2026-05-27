@@ -20,7 +20,7 @@ require (
 	github.com/google/gnostic-models v0.7.1
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
-	github.com/jaegertracing/jaeger-idl v0.8.0
+	github.com/jaegertracing/jaeger-idl v0.9.0
 	github.com/kr/pretty v0.3.1
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/olivere/elastic/v7 v7.0.32

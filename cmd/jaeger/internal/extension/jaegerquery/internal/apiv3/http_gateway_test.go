@@ -4,6 +4,8 @@
 package apiv3
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"iter"
 	"net/http"
@@ -557,4 +559,72 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"services":[]}`, w.Body.String())
 	gw.reader.AssertExpectations(t)
+}
+
+// TestJSONPBFixed64AsDecimalString confirms that gogoproto/jsonpb encodes fixed64
+// fields as decimal strings (consistent with proto3 JSON spec and OTLP convention).
+// This validates the assumption behind using marshalResponse for FindTraceSummaries.
+func TestJSONPBFixed64AsDecimalString(t *testing.T) {
+	summary := &api_v3.TraceSummary{
+		MinStartTimeUnixNano: 1_000_000_000_000, // 1000s in ns
+		MaxEndTimeUnixNano:   1_001_000_000_000, // 1001s in ns
+	}
+	var buf bytes.Buffer
+	require.NoError(t, new(jsonpb.Marshaler).Marshal(&buf, summary))
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &m))
+	// fixed64 must be a decimal string, not a JSON number, to avoid float64 precision
+	// loss for nanosecond values above 2^53 in JavaScript.
+	assert.Equal(t, "1000000000000", m["minStartTimeUnixNano"])
+	assert.Equal(t, "1001000000000", m["maxEndTimeUnixNano"])
+}
+
+func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
+	q, qp := mockFindQueries()
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	trace := makeTestTrace()
+	// Ensure the trace has a root span (no parent) so summarizeTrace populates root fields.
+	rs := trace.ResourceSpans().At(0)
+	rs.Resource().Attributes().PutStr("service.name", "frontend")
+	span := rs.ScopeSpans().At(0).Spans().At(0)
+	span.SetName("HTTP GET /")
+	span.SetParentSpanID(pcommon.SpanID{}) // explicit root
+
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{trace}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp api_v3.FindTraceSummariesResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
+	require.Len(t, resp.Summaries, 1)
+	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
+	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
+	assert.Equal(t, int32(1), resp.Summaries[0].SpanCount)
+}
+
+func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
+	q, qp := mockFindQueries()
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	gw.reader.
+		On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/trace-summaries?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }

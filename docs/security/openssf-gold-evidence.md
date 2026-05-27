@@ -41,6 +41,16 @@ The stale-evidence refresh is tracked by `https://github.com/jaegertracing/jaege
 | `crypto_algorithm_agility` | `https://github.com/jaegertracing/jaeger/blob/main/SECURITY-ARCHITECTURE.md#algorithm-support` | `https://github.com/jaegertracing/jaeger/blob/main/docs/security/architecture.md#algorithm-support` |
 | `crypto_credential_agility` | `https://github.com/jaegertracing/jaeger/blob/main/SECURITY-ARCHITECTURE.md#credential-management` | `https://github.com/jaegertracing/jaeger/blob/main/docs/security/architecture.md#credential-management` |
 
+## OpenSSF Scorecard Accepted Exceptions
+
+The public OpenSSF Scorecard result remains detection-based. These entries document intentional Jaeger project decisions for checks where the project accepts the current score instead of adding superficial controls for score improvement only.
+
+| Scorecard check | Current score | Decision | Rationale |
+| --- | ---: | --- | --- |
+| `Fuzzing` | `0` | Accepted exception | Jaeger is not adding fuzzing solely to improve Scorecard. Useful fuzzing would need explicit target selection, seed corpora, invariants, ownership, triage, and non-PR infrastructure. Placeholder fuzz targets would be misleading. Revisit only for a specific untrusted-input parser or decoder with an owner and clear triage path. |
+
+The fuzzing exception is tracked by `https://github.com/jaegertracing/jaeger/issues/8636`.
+
 ## Gold Criteria With Current Evidence
 
 | Gold criterion | Current evidence |
