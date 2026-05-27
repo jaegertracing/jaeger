@@ -4,7 +4,6 @@
       "errorSpanCount": 1,
       "maxEndTimeUnixNano": "1001000000000",
       "minStartTimeUnixNano": "1000000000000",
-      "orphanSpanCount": 0,
       "rootOperationName": "HTTP GET /",
       "rootServiceName": "frontend",
       "services": [

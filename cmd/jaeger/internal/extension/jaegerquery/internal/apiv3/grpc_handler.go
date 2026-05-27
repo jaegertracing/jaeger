@@ -105,35 +105,39 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 		if err != nil {
 			return err
 		}
-		chunk := make([]*api_v3.TraceSummary, len(summaries))
-		for i := range summaries {
-			s := &summaries[i]
-			svcs := make([]*api_v3.ServiceSummary, len(s.Services))
-			for j := range s.Services {
-				ss := &s.Services[j]
-				svcs[j] = &api_v3.ServiceSummary{
-					Name:           ss.Name,
-					SpanCount:      int32(ss.SpanCount),      //nolint:gosec // G115
-					ErrorSpanCount: int32(ss.ErrorSpanCount), //nolint:gosec // G115
-				}
-			}
-			chunk[i] = &api_v3.TraceSummary{
-				TraceId:              s.TraceID.String(),
-				RootServiceName:      s.RootServiceName,
-				RootOperationName:    s.RootOperationName,
-				MinStartTimeUnixNano: jptrace.TimeToUnixNano(s.MinStartTime),
-				MaxEndTimeUnixNano:   jptrace.TimeToUnixNano(s.MaxEndTime),
-				SpanCount:            int32(s.SpanCount),       //nolint:gosec // G115
-				ErrorSpanCount:       int32(s.ErrorSpanCount),  //nolint:gosec // G115
-				OrphanSpanCount:      int32(s.OrphanSpanCount), //nolint:gosec // G115
-				Services:             svcs,
-			}
-		}
-		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: chunk}); err != nil {
+		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
 		}
 	}
 	return nil
+}
+
+func toProtoTraceSummaries(summaries []tracestore.TraceSummary) []*api_v3.TraceSummary {
+	out := make([]*api_v3.TraceSummary, len(summaries))
+	for i := range summaries {
+		s := &summaries[i]
+		svcs := make([]*api_v3.ServiceSummary, len(s.Services))
+		for j := range s.Services {
+			ss := &s.Services[j]
+			svcs[j] = &api_v3.ServiceSummary{
+				Name:           ss.Name,
+				SpanCount:      int32(ss.SpanCount),      //nolint:gosec // G115
+				ErrorSpanCount: int32(ss.ErrorSpanCount), //nolint:gosec // G115
+			}
+		}
+		out[i] = &api_v3.TraceSummary{
+			TraceId:              s.TraceID.String(),
+			RootServiceName:      s.RootServiceName,
+			RootOperationName:    s.RootOperationName,
+			MinStartTimeUnixNano: jptrace.TimeToUnixNano(s.MinStartTime),
+			MaxEndTimeUnixNano:   jptrace.TimeToUnixNano(s.MaxEndTime),
+			SpanCount:            int32(s.SpanCount),       //nolint:gosec // G115
+			ErrorSpanCount:       int32(s.ErrorSpanCount),  //nolint:gosec // G115
+			OrphanSpanCount:      int32(s.OrphanSpanCount), //nolint:gosec // G115
+			Services:             svcs,
+		}
+	}
+	return out
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
