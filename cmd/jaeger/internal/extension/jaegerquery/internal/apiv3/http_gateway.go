@@ -134,6 +134,7 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
