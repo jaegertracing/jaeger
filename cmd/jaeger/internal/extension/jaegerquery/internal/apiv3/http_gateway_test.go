@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"iter"
@@ -560,6 +561,24 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	gw.reader.AssertExpectations(t)
 }
 
+// TestJSONPBFixed64AsDecimalString confirms that gogoproto/jsonpb encodes fixed64
+// fields as decimal strings (consistent with proto3 JSON spec and OTLP convention).
+// This validates the assumption behind using marshalResponse for FindTraceSummaries.
+func TestJSONPBFixed64AsDecimalString(t *testing.T) {
+	summary := &api_v3.TraceSummary{
+		MinStartTimeUnixNano: 1_000_000_000_000, // 1000s in ns
+		MaxEndTimeUnixNano:   1_001_000_000_000, // 1001s in ns
+	}
+	var buf bytes.Buffer
+	require.NoError(t, new(jsonpb.Marshaler).Marshal(&buf, summary))
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &m))
+	// fixed64 must be a decimal string, not a JSON number, to avoid float64 precision
+	// loss for nanosecond values above 2^53 in JavaScript.
+	assert.Equal(t, "1000000000000", m["minStartTimeUnixNano"])
+	assert.Equal(t, "1001000000000", m["maxEndTimeUnixNano"])
+}
+
 func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	q, qp := mockFindQueries()
 	gw := setupHTTPGatewayNoServer(t, "")
@@ -584,12 +603,12 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var resp findTraceSummariesResponseJSON
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	var resp api_v3.FindTraceSummariesResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
 	require.Len(t, resp.Summaries, 1)
 	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
-	assert.Equal(t, 1, resp.Summaries[0].SpanCount)
+	assert.Equal(t, int32(1), resp.Summaries[0].SpanCount)
 }
 
 func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {

@@ -200,40 +200,9 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	response := findTraceSummariesResponseJSON{
-		Summaries: make([]traceSummaryJSON, len(summaries)),
-	}
-	for i := range summaries {
-		s := &summaries[i]
-		svcJSON := make([]serviceSummaryJSON, len(s.Services))
-		for j, svc := range s.Services {
-			svcJSON[j] = serviceSummaryJSON{
-				Name:           svc.Name,
-				SpanCount:      svc.SpanCount,
-				ErrorSpanCount: svc.ErrorSpanCount,
-			}
-		}
-		var minStartNano, maxEndNano string
-		if !s.MinStartTime.IsZero() {
-			minStartNano = strconv.FormatInt(s.MinStartTime.UnixNano(), 10)
-		}
-		if !s.MaxEndTime.IsZero() {
-			maxEndNano = strconv.FormatInt(s.MaxEndTime.UnixNano(), 10)
-		}
-		response.Summaries[i] = traceSummaryJSON{
-			TraceID:              s.TraceID.String(),
-			RootServiceName:      s.RootServiceName,
-			RootOperationName:    s.RootOperationName,
-			MinStartTimeUnixNano: minStartNano,
-			MaxEndTimeUnixNano:   maxEndNano,
-			SpanCount:            s.SpanCount,
-			ErrorSpanCount:       s.ErrorSpanCount,
-			OrphanSpanCount:      s.OrphanSpanCount,
-			Services:             svcJSON,
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
+		Summaries: toProtoTraceSummaries(summaries),
+	}, w)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
