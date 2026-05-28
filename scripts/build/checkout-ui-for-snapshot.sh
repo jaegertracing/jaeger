@@ -47,6 +47,22 @@ git -C "${WORK_DIR}" remote add origin "https://github.com/${JAEGER_UI_REPO}.git
 git -C "${WORK_DIR}" fetch --quiet --depth=1 origin "${UI_SHA}"
 git -C "${WORK_DIR}" checkout --quiet FETCH_HEAD
 
+# Patch the version in package.json to include the short SHA, so the About panel
+# shows e.g. "Jaeger UI v2.18.0-1c082b77" instead of "v2.18.0".  This only
+# modifies the ephemeral WORK_DIR checkout; the submodule is untouched.
+UI_SHORT_SHA="${UI_SHA:0:8}"
+PKG="${WORK_DIR}/packages/jaeger-ui/package.json"
+BASE_VERSION=$(python3 -c "import sys,json; print(json.load(open(sys.argv[1]))['version'])" "${PKG}")
+python3 -c "
+import sys, json
+path = sys.argv[1]
+short_sha = sys.argv[2]
+d = json.load(open(path))
+d['version'] = d['version'] + '-' + short_sha
+open(path, 'w').write(json.dumps(d, indent=2) + '\n')
+" "${PKG}" "${UI_SHORT_SHA}"
+echo "Patched jaeger-ui version to ${BASE_VERSION}-${UI_SHORT_SHA}" >&2
+
 # Export JAEGER_UI_DIR so subsequent `make build-ui` uses this checkout instead of
 # the submodule. JAEGER_UI_SKIP_RELEASE_CHECK tells rebuild-ui.sh to skip the
 # git fetch --unshallow + tag lookup (the snapshot commit is never a release tag).
