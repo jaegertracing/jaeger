@@ -48,10 +48,14 @@ git -C "${WORK_DIR}" fetch --quiet --depth=1 origin "${UI_SHA}"
 git -C "${WORK_DIR}" checkout --quiet FETCH_HEAD
 
 # Export JAEGER_UI_DIR so subsequent `make build-ui` uses this checkout instead of
-# the submodule. In CI (GITHUB_ENV set) the variable persists to following steps;
+# the submodule. JAEGER_UI_SKIP_RELEASE_CHECK tells rebuild-ui.sh to skip the
+# git fetch --unshallow + tag lookup (the snapshot commit is never a release tag).
+# In CI (GITHUB_ENV set) the variables persist to following steps;
 # locally, eval the output: eval "$(bash scripts/build/checkout-ui-for-snapshot.sh)"
 if [[ -n "${GITHUB_ENV:-}" ]]; then
     echo "JAEGER_UI_DIR=${WORK_DIR}" >> "${GITHUB_ENV}"
+    echo "JAEGER_UI_SKIP_RELEASE_CHECK=true" >> "${GITHUB_ENV}"
 else
     echo "export JAEGER_UI_DIR='${WORK_DIR}'"
+    echo "export JAEGER_UI_SKIP_RELEASE_CHECK=true"
 fi
