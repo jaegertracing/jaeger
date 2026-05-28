@@ -13,8 +13,7 @@
 # submodule (which would force full npm builds on all PR builds).
 #
 # The selected UI commit is deterministic: given the same backend SHA, the same
-# UI SHA is always chosen. The UI SHA is printed to stdout so callers can record
-# it (e.g. as a Docker image label).
+# UI SHA is always chosen.
 #
 # In CI (GITHUB_ENV is set): writes JAEGER_UI_DIR and JAEGER_UI_SHA to $GITHUB_ENV
 #   so they are available to subsequent workflow steps.
@@ -47,11 +46,11 @@ git clone --quiet --depth=1 "https://github.com/${JAEGER_UI_REPO}.git" "${WORK_D
 git -C "${WORK_DIR}" fetch --quiet --depth=1 origin "${UI_SHA}"
 git -C "${WORK_DIR}" checkout --quiet "${UI_SHA}"
 
-# Export to GITHUB_ENV if running in CI, otherwise emit for eval.
+# Export JAEGER_UI_DIR so subsequent `make build-ui` uses this checkout instead of
+# the submodule. In CI (GITHUB_ENV set) the variable persists to following steps;
+# locally, eval the output: eval "$(bash scripts/build/checkout-ui-for-snapshot.sh)"
 if [[ -n "${GITHUB_ENV:-}" ]]; then
     echo "JAEGER_UI_DIR=${WORK_DIR}" >> "${GITHUB_ENV}"
-    echo "JAEGER_UI_SHA=${UI_SHA}" >> "${GITHUB_ENV}"
 else
     echo "export JAEGER_UI_DIR='${WORK_DIR}'"
-    echo "export JAEGER_UI_SHA='${UI_SHA}'"
 fi
