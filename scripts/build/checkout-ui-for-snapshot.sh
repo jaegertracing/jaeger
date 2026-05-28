@@ -37,7 +37,7 @@ UI_SHA=$(curl --silent --fail --location \
     --header "X-GitHub-Api-Version: 2022-11-28" \
     ${GITHUB_TOKEN:+--header "Authorization: Bearer ${GITHUB_TOKEN}"} \
     "https://api.github.com/repos/${JAEGER_UI_REPO}/commits?sha=main&until=${JAEGER_COMMIT_TIME}&per_page=1" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['sha'])")
+    | python3 -c "import sys,json; c=json.load(sys.stdin); sys.exit('No jaeger-ui commits found before '+sys.argv[1]) if not c else print(c[0]['sha'])" "${JAEGER_COMMIT_TIME}")
 
 echo "Selected jaeger-ui commit: ${UI_SHA}" >&2
 
