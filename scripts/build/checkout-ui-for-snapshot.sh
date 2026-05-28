@@ -15,8 +15,10 @@
 # The selected UI commit is deterministic: given the same backend SHA, the same
 # UI SHA is always chosen.
 #
-# In CI (GITHUB_ENV is set): writes JAEGER_UI_DIR and JAEGER_UI_SHA to $GITHUB_ENV
-#   so they are available to subsequent workflow steps.
+# In CI (GITHUB_ENV is set): writes the following to $GITHUB_ENV so they are
+#   available to subsequent workflow steps:
+#     JAEGER_UI_DIR              — path to the snapshot checkout
+#     JAEGER_UI_SKIP_RELEASE_CHECK — tells rebuild-ui.sh to skip the tag lookup
 # Locally (no GITHUB_ENV): eval the output to set the variables in the current shell:
 #   eval "$(bash scripts/build/checkout-ui-for-snapshot.sh)"
 
