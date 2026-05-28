@@ -6,11 +6,19 @@ name: "CI Orchestrator: Stage 2 (Unit Tests)"
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   unit-tests:
+    permissions:
+      contents: read
+      checks: write
     uses: ./.github/workflows/ci-unit-tests.yml
     secrets: inherit
 
   ai-sidecar-gemini:
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-ai-sidecar-gemini.yml
     secrets: inherit
