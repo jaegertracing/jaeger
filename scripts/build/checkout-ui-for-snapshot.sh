@@ -39,11 +39,13 @@ fi
 
 echo "Selected jaeger-ui commit: ${UI_SHA}" >&2
 
-# Shallow-clone at the selected SHA.
+# Shallow-fetch exactly the selected SHA (init+fetch avoids cloning the tip of main first).
 rm -rf "${WORK_DIR}"
-git clone --quiet --depth=1 "https://github.com/${JAEGER_UI_REPO}.git" "${WORK_DIR}"
+mkdir -p "${WORK_DIR}"
+git -C "${WORK_DIR}" init --quiet
+git -C "${WORK_DIR}" remote add origin "https://github.com/${JAEGER_UI_REPO}.git"
 git -C "${WORK_DIR}" fetch --quiet --depth=1 origin "${UI_SHA}"
-git -C "${WORK_DIR}" checkout --quiet "${UI_SHA}"
+git -C "${WORK_DIR}" checkout --quiet FETCH_HEAD
 
 # Export JAEGER_UI_DIR so subsequent `make build-ui` uses this checkout instead of
 # the submodule. In CI (GITHUB_ENV set) the variable persists to following steps;
