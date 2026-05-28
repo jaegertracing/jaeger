@@ -27,9 +27,28 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	span.SetName("op-1")
 	dbSpan := ToDBModel(td)
 	writer := TraceWriter{spanWriter: coreWriter}
+	coreWriter.On("TakeBulkError").Return(nil)
 	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0])
 	err := writer.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
+}
+
+func TestTraceWriter_WriteTraces_SurfacesPriorBulkError(t *testing.T) {
+	coreWriter := &mocks.Writer{}
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr("service.name", "svc")
+	span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("op-1")
+	dbSpan := ToDBModel(td)
+
+	wantErr := assert.AnError
+	coreWriter.On("TakeBulkError").Return(wantErr)
+	coreWriter.On("WriteSpan", model.EpochMicrosecondsAsTime(dbSpan[0].StartTime), &dbSpan[0])
+
+	writer := TraceWriter{spanWriter: coreWriter}
+	err := writer.WriteTraces(context.Background(), td)
+	require.ErrorIs(t, err, wantErr)
 }
 
 func TestTraceWriter_Close(t *testing.T) {

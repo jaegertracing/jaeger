@@ -45,6 +45,9 @@ type SpanWriter struct {
 type Writer interface {
 	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
+	// TakeBulkError returns and clears the most recent asynchronous bulk-write
+	// error observed by the underlying ES client. Returns nil when none.
+	TakeBulkError() error
 	// Close closes Writer
 	Close() error
 }
@@ -146,6 +149,12 @@ func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
 	nestedTags, fieldTags := s.splitElevatedTags(span.Tags)
 	span.Tags = nestedTags
 	span.Tag = fieldTags
+}
+
+// TakeBulkError returns and clears the most recent asynchronous bulk-write
+// error observed by the underlying ES client.
+func (s *SpanWriter) TakeBulkError() error {
+	return s.client().LastBulkWriteError()
 }
 
 // Close closes SpanWriter

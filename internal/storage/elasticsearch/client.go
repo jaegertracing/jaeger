@@ -22,6 +22,13 @@ type Client interface {
 	DeleteIndex(index string) IndicesDeleteService
 	io.Closer
 	GetVersion() uint
+	// LastBulkWriteError returns and clears the most recent asynchronous
+	// bulk-write error observed by the bulk processor. Implementations should
+	// return nil when no error has been recorded since the previous call.
+	// This is the mechanism the v2 tracestore.Writer uses to surface bulk
+	// failures to its caller on a best-effort basis (see WriteTraces contract
+	// in internal/storage/v2/api/tracestore/writer.go).
+	LastBulkWriteError() error
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService

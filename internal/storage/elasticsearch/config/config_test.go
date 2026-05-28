@@ -2066,6 +2066,66 @@ func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
 	}
 }
 
+func TestBulkErrorTracker(t *testing.T) {
+	t.Run("Take returns nil when empty", func(t *testing.T) {
+		tr := &bulkErrorTracker{}
+		require.NoError(t, tr.Take())
+	})
+	t.Run("Record then Take returns the stored error and clears", func(t *testing.T) {
+		tr := &bulkErrorTracker{}
+		want := errors.New("bulk failed")
+		tr.Record(want)
+		require.ErrorIs(t, tr.Take(), want)
+		require.NoError(t, tr.Take(), "second Take must clear the slot")
+	})
+	t.Run("Record nil is a no-op", func(t *testing.T) {
+		tr := &bulkErrorTracker{}
+		tr.Record(nil)
+		require.NoError(t, tr.Take())
+	})
+	t.Run("Record overwrites the previously stored error", func(t *testing.T) {
+		tr := &bulkErrorTracker{}
+		tr.Record(errors.New("first"))
+		tr.Record(errors.New("second"))
+		require.ErrorContains(t, tr.Take(), "second")
+	})
+}
+
+func TestBulkCallback_RecordsErrors(t *testing.T) {
+	newCallback := func() *bulkCallback {
+		return &bulkCallback{
+			sm:         spanstoremetrics.NewWriter(metrics.NullFactory, "bulk_index"),
+			logger:     zap.NewNop(),
+			errTracker: &bulkErrorTracker{},
+		}
+	}
+	t.Run("transport-level err is recorded", func(t *testing.T) {
+		bcb := newCallback()
+		transportErr := errors.New("connection refused")
+		bcb.invoke(1, nil, nil, transportErr)
+		require.ErrorIs(t, bcb.errTracker.Take(), transportErr)
+	})
+	t.Run("per-item failures recorded with item count", func(t *testing.T) {
+		bcb := newCallback()
+		resp := &elastic.BulkResponse{
+			Errors: true,
+			Items: []map[string]*elastic.BulkResponseItem{
+				{"index": {Status: 201}}, // success (2xx)
+				{"index": {Status: 409, Error: &elastic.ErrorDetails{Type: "version_conflict"}}},
+			},
+		}
+		bcb.invoke(1, []elastic.BulkableRequest{nil, nil}, resp, nil)
+		err := bcb.errTracker.Take()
+		require.ErrorContains(t, err, "items fail")
+		require.ErrorContains(t, err, "of 2")
+	})
+	t.Run("success leaves tracker empty", func(t *testing.T) {
+		bcb := newCallback()
+		bcb.invoke(1, nil, &elastic.BulkResponse{}, nil)
+		require.NoError(t, bcb.errTracker.Take())
+	})
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }

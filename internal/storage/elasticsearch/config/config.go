@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -80,6 +81,36 @@ type bulkCallback struct {
 	startTimes sync.Map
 	sm         *spanstoremetrics.WriteMetrics
 	logger     *zap.Logger
+	// errTracker captures the most recent bulk failure so that synchronous
+	// callers of WriteTraces / WriteSpan can surface async write errors on the
+	// next call. See bulkErrorTracker for the consume-and-clear semantics.
+	errTracker *bulkErrorTracker
+}
+
+// bulkErrorTracker stores the most recent error observed by the bulk-processor
+// After callback. It is safe for concurrent use. The Take method returns and
+// clears the stored error so each error is reported to at most one caller.
+type bulkErrorTracker struct {
+	err atomic.Pointer[error]
+}
+
+// Record stores err as the most recent bulk-write error, overwriting any
+// previously stored value. Storing nil is a no-op.
+func (t *bulkErrorTracker) Record(err error) {
+	if err == nil {
+		return
+	}
+	t.err.Store(&err)
+}
+
+// Take returns and clears the most recent stored error. It returns nil when
+// no error has been recorded since the previous call.
+func (t *bulkErrorTracker) Take() error {
+	p := t.err.Swap(nil)
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 type IndexPrefix string
@@ -280,8 +311,9 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 	}
 
 	bcb := bulkCallback{
-		sm:     spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
-		logger: logger,
+		sm:         spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		logger:     logger,
+		errTracker: &bulkErrorTracker{},
 	}
 
 	if c.Version == 0 {
@@ -348,7 +380,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		return nil, err
 	}
 
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8, bcb.errTracker), nil
 }
 
 func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
@@ -394,6 +426,20 @@ func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, re
 			zap.Int("failed_count", failed),
 			zap.Error(err),
 			zap.Any("response", response))
+	}
+
+	// Surface async failures to the next synchronous caller so that the
+	// tracestore.Writer contract ("if any of the spans fail to be written an
+	// error is returned") is honored on a best-effort basis. We record the
+	// transport-level err first because it implies the whole batch failed;
+	// otherwise we summarise per-item failures from the response.
+	if bcb.errTracker != nil {
+		switch {
+		case err != nil:
+			bcb.errTracker.Record(fmt.Errorf("elasticsearch bulk request failed: %w", err))
+		case failed > 0:
+			bcb.errTracker.Record(fmt.Errorf("elasticsearch bulk request had %d of %d items fail", failed, total))
+		}
 	}
 }
 
