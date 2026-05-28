@@ -10,6 +10,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 const (
@@ -31,6 +32,16 @@ type Configuration struct {
 	Database string `mapstructure:"database"`
 	// Auth contains the authentication configuration to connect to ClickHouse.
 	Auth Authentication `mapstructure:"auth"`
+	// TLS, when present, enables and configures the TLS transport used to
+	// connect to ClickHouse. Omitting the block (or leaving it absent) keeps
+	// the connection in plaintext, preserving backwards compatibility. When
+	// the block is provided it is loaded via the OpenTelemetry configtls
+	// helpers, so it supports CA files, client certs, server-name overrides,
+	// and the standard insecure-skip-verify escape hatch. This makes managed
+	// ClickHouse services (e.g. ClickHouse Cloud) and clusters fronted by
+	// load balancers terminating TLS on 9440 (native) or 8443 (HTTP)
+	// reachable from Jaeger v2.
+	TLS configoptional.Optional[configtls.ClientConfig] `mapstructure:"tls"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.

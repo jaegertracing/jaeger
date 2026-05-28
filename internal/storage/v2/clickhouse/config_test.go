@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 func TestValidate(t *testing.T) {
@@ -94,6 +96,37 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
 	require.Equal(t, defaultAttributeMetadataCacheTTL, config.AttributeMetadataCacheTTL)
 	require.Equal(t, defaultAttributeMetadataCacheMaxSize, config.AttributeMetadataCacheMaxSize)
+}
+
+func TestConfiguration_TLS(t *testing.T) {
+	tests := []struct {
+		name string
+		tls  configoptional.Optional[configtls.ClientConfig]
+	}{
+		{
+			name: "TLS omitted (plaintext)",
+		},
+		{
+			name: "TLS enabled with default verification",
+			tls:  configoptional.Some(configtls.ClientConfig{}),
+		},
+		{
+			name: "TLS enabled with InsecureSkipVerify",
+			tls: configoptional.Some(configtls.ClientConfig{
+				InsecureSkipVerify: true,
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Configuration{
+				Addresses: []string{"localhost:9000"},
+				TLS:       tt.tls,
+			}
+			require.NoError(t, cfg.Validate())
+		})
+	}
 }
 
 func TestConfiguration_Validate_TTL(t *testing.T) {
