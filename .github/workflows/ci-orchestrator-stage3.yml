@@ -11,14 +11,10 @@ permissions:
 
 jobs:
   build-binaries:
-    permissions:
-      contents: read
     uses: ./.github/workflows/ci-build-binaries.yml
     secrets: inherit
 
   docker-build:
-    permissions:
-      contents: read
     uses: ./.github/workflows/ci-docker-build.yml
     secrets: inherit
 
@@ -30,14 +26,10 @@ jobs:
     secrets: inherit
 
   docker-hotrod:
-    permissions:
-      contents: read
     uses: ./.github/workflows/ci-docker-hotrod.yml
     secrets: inherit
 
   e2e-tests:
-    permissions:
-      contents: read
     uses: ./.github/workflows/ci-e2e-all.yml
     secrets: inherit
 
@@ -50,13 +42,9 @@ jobs:
     secrets: inherit
 
   dependency-review:
-    permissions:
-      contents: read
     uses: ./.github/workflows/dependency-review.yml
     secrets: inherit
 
   fossa:
-    permissions:
-      contents: read
     uses: ./.github/workflows/fossa.yml
     secrets: inherit

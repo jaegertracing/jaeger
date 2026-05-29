@@ -11,7 +11,5 @@ permissions:
 
 jobs:
   lint-checks:
-    permissions:
-      contents: read
     uses: ./.github/workflows/ci-lint-checks.yaml
     secrets: inherit

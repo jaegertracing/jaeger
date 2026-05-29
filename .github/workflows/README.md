@@ -112,9 +112,10 @@ permissions:
 ```
 
 Reusable workflows can only use permissions passed by their caller, and each
-called workflow can only keep or downgrade those permissions. For that reason,
-permissions are declared at each `workflow_call` edge instead of using
-`write-all` at the top level:
+called workflow can only keep or downgrade those permissions. The top-level
+`contents: read` declaration is therefore only the default. Jobs that call a
+reusable workflow and need additional scopes declare those scopes explicitly at
+the call site instead of relying on `write-all`:
 
 - **stage 1 and stage 2**: `contents: read`
 - **stage 3**: `contents: read`, plus `packages: read`, `actions: read`, and
@@ -123,8 +124,10 @@ permissions are declared at each `workflow_call` edge instead of using
 - **codeql.yml**: `security-events: write`, `actions: read`
 - **ci-docker-all-in-one.yml**: `packages: read` for pulling from GHCR
 - **ci-summary-report.yml**: `actions: write` for cache save and artifact
-  download, with PR comments and check runs handled by
-  `ci-summary-report-publish.yml`
+  download. PR comments and check runs are handled by
+  **ci-summary-report-publish.yml**, which runs from `workflow_run` in the base
+  repository context with its own explicit `pull-requests: write` and
+  `checks: write` permissions.
 
 ## Independent Workflows
 
