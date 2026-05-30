@@ -418,6 +418,35 @@ func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
 }
 
+func TestGetTraces_YieldFalseSkipsRowsError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectSpansByTraceID: {
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:    multipleSpans,
+					ScanFn:  scanSpanRowFn(),
+					RowsErr: assert.AnError,
+				},
+				Err: nil,
+			},
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+		TraceID: traceID,
+	})
+
+	called := 0
+	getTracesIter(func(_ []ptrace.Traces, err error) bool {
+		called++
+		require.NoError(t, err)
+		return false
+	})
+
+	require.Equal(t, 1, called)
+}
+
 func TestGetServices(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -789,6 +818,35 @@ func TestFindTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 
 	require.Len(t, gotTraces, 1)
 	requireTracesEqual(t, multipleSpans[0:1], gotTraces)
+}
+
+func TestFindTraces_YieldFalseSkipsRowsError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SelectSpansQuery: {
+				Rows: &clickhousetest.Rows[*dbmodel.SpanRow]{
+					Data:    multipleSpans,
+					ScanFn:  scanSpanRowFn(),
+					RowsErr: assert.AnError,
+				},
+				Err: nil,
+			},
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+
+	called := 0
+	findTracesIter(func(_ []ptrace.Traces, err error) bool {
+		called++
+		require.NoError(t, err)
+		return false
+	})
+
+	require.Equal(t, 1, called)
 }
 
 func TestFindTraces_ScanErrorContinues(t *testing.T) {

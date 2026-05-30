@@ -83,6 +83,11 @@ func (r *Reader) GetTraces(
 					break
 				}
 			}
+			if done {
+				rows.Close()
+				return
+			}
+
 			if err := rows.Err(); err != nil {
 				yield(nil, fmt.Errorf("failed to read span rows: %w", err))
 				rows.Close()
@@ -94,9 +99,6 @@ func (r *Reader) GetTraces(
 				return
 			}
 
-			if done {
-				return
-			}
 		}
 	}
 }
@@ -178,13 +180,13 @@ func (r *Reader) FindTraces(
 			span, err := dbmodel.ScanRow(rows)
 			if err != nil {
 				if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
-					break
+					return
 				}
 				continue
 			}
 			trace := dbmodel.FromRow(span)
 			if !yield([]ptrace.Traces{trace}, nil) {
-				break
+				return
 			}
 		}
 		if err := rows.Err(); err != nil {
