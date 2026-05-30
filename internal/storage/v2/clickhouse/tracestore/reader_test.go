@@ -842,7 +842,7 @@ func TestFindTraces_YieldFalseSkipsRowsError(t *testing.T) {
 	require.Equal(t, 1, called)
 }
 
-func TestFindTraces_ScanErrorContinues(t *testing.T) {
+func TestFindTraces_ScanErrorStopsIteration(t *testing.T) {
 	scanCalled := 0
 
 	scanFn := func(dest any, src *dbmodel.SpanRow) error {
@@ -866,18 +866,11 @@ func TestFindTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	findTracesIter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
+	iter := reader.FindTraces(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
-
-	expected := multipleSpans[1:] // skip the first span which caused the error
-	for trace, err := range findTracesIter {
-		if err != nil {
-			require.ErrorIs(t, err, assert.AnError)
-			continue
-		}
-		requireTracesEqual(t, expected, trace)
-	}
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to scan span row")
 }
 
 func TestFindTraces_ErrorCases(t *testing.T) {
@@ -1073,7 +1066,7 @@ func TestFindTraceIDs_YieldFalseOnSuccessStopsIteration(t *testing.T) {
 	}, gotTraceIDs)
 }
 
-func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
+func TestFindTraceIDs_ScanErrorStopsIteration(t *testing.T) {
 	scanCalled := 0
 
 	scanFn := func(dest any, src []any) error {
@@ -1097,26 +1090,14 @@ func TestFindTraceIDs_ScanErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
-
-	expected := []tracestore.FoundTraceID{
-		{
-			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
-		},
-	}
-
-	for traceID, err := range findTraceIDsIter {
-		if err != nil {
-			require.ErrorIs(t, err, assert.AnError)
-			continue
-		}
-		require.Equal(t, expected, traceID)
-	}
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to scan row")
 }
 
-func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
+func TestFindTraceIDs_DecodeErrorStopsIteration(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
 			sql.SearchTraceIDsBase: {
@@ -1143,35 +1124,11 @@ func TestFindTraceIDs_DecodeErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, ReaderConfig{})
-	findTraceIDsIter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
 		Attributes: pcommon.NewMap(),
 	})
-
-	expectedValidTraceIDs := []tracestore.FoundTraceID{
-		{
-			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}),
-			Start:   now.Add(-1 * time.Hour),
-			End:     now,
-		},
-		{
-			TraceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}),
-		},
-	}
-
-	var gotTraceIDs []tracestore.FoundTraceID
-	var errorCount int
-
-	for traceID, err := range findTraceIDsIter {
-		if err != nil {
-			require.ErrorContains(t, err, "failed to decode trace ID")
-			errorCount++
-			continue
-		}
-		gotTraceIDs = append(gotTraceIDs, traceID...)
-	}
-
-	require.Equal(t, 2, errorCount)
-	require.Equal(t, expectedValidTraceIDs, gotTraceIDs)
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to decode trace ID")
 }
 
 func TestFindTraceIDs_ErrorCases(t *testing.T) {

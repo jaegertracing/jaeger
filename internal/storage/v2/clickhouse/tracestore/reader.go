@@ -102,7 +102,6 @@ func (r *Reader) GetTraces(
 				yield(nil, iterErr)
 				return
 			}
-
 		}
 	}
 }
@@ -183,10 +182,8 @@ func (r *Reader) FindTraces(
 		for rows.Next() {
 			span, err := dbmodel.ScanRow(rows)
 			if err != nil {
-				if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
-					return
-				}
-				continue
+				yield(nil, fmt.Errorf("failed to scan span row: %w", err))
+				return
 			}
 			trace := dbmodel.FromRow(span)
 			if !yield([]ptrace.Traces{trace}, nil) {
@@ -248,7 +245,11 @@ func (r *Reader) FindTraceIDs(
 
 		for rows.Next() {
 			traceID, err := readRowIntoTraceID(rows)
-			if !yield(traceID, err) {
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield(traceID, nil) {
 				return
 			}
 		}
