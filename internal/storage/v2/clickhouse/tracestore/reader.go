@@ -6,6 +6,7 @@ package tracestore
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"iter"
 	"time"
@@ -59,43 +60,46 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			query, args := buildGetTracesQuery(traceID)
-			rows, err := r.conn.Query(ctx, query, args...)
-			if err != nil {
-				yield(nil, fmt.Errorf("failed to query trace: %w", err))
-				return
-			}
-
-			done := false
-			for rows.Next() {
-				span, err := dbmodel.ScanRow(rows)
+			stopped := false
+			iterErr := func() (err error) {
+				query, args := buildGetTracesQuery(traceID)
+				rows, err := r.conn.Query(ctx, query, args...)
 				if err != nil {
-					if !yield(nil, fmt.Errorf("failed to scan span row: %w", err)) {
-						done = true
-						break
+					return fmt.Errorf("failed to query trace: %w", err)
+				}
+
+				defer func() {
+					if closeErr := rows.Close(); closeErr != nil {
+						err = errors.Join(err, fmt.Errorf("failed to close rows: %w", closeErr))
 					}
-					continue
+				}()
+
+				for rows.Next() {
+					span, err := dbmodel.ScanRow(rows)
+					if err != nil {
+						return fmt.Errorf("failed to scan span row: %w", err)
+					}
+
+					trace := dbmodel.FromRow(span)
+					if !yield([]ptrace.Traces{trace}, nil) {
+						stopped = true
+						return nil
+					}
 				}
 
-				trace := dbmodel.FromRow(span)
-				if !yield([]ptrace.Traces{trace}, nil) {
-					done = true
-					break
+				if err := rows.Err(); err != nil {
+					return fmt.Errorf("failed to read span rows: %w", err)
 				}
-			}
-			if done {
-				rows.Close()
+
+				return nil
+			}()
+
+			if stopped {
 				return
 			}
 
-			if err := rows.Err(); err != nil {
-				yield(nil, fmt.Errorf("failed to read span rows: %w", err))
-				rows.Close()
-				return
-			}
-
-			if err := rows.Close(); err != nil {
-				yield(nil, fmt.Errorf("failed to close rows: %w", err))
+			if iterErr != nil {
+				yield(nil, iterErr)
 				return
 			}
 

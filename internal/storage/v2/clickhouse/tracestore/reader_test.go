@@ -351,7 +351,7 @@ func TestGetTraces_RowsError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to read span rows")
 }
 
-func TestGetTraces_ScanErrorContinues(t *testing.T) {
+func TestGetTraces_ScanErrorStopsIteration(t *testing.T) {
 	scanCalled := 0
 
 	scanFn := func(dest any, src *dbmodel.SpanRow) error {
@@ -375,18 +375,11 @@ func TestGetTraces_ScanErrorContinues(t *testing.T) {
 	}
 
 	reader := NewReader(conn, testReaderConfig)
-	getTracesIter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
+	iter := reader.GetTraces(context.Background(), tracestore.GetTraceParams{
 		TraceID: traceID,
 	})
-
-	expected := multipleSpans[1:] // skip the first span which caused the error
-	for trace, err := range getTracesIter {
-		if err != nil {
-			require.ErrorIs(t, err, assert.AnError)
-			continue
-		}
-		requireTracesEqual(t, expected, trace)
-	}
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to scan span row")
 }
 
 func TestGetTraces_YieldFalseOnSuccessStopsIteration(t *testing.T) {
