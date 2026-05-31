@@ -60,50 +60,48 @@ func (r *Reader) GetTraces(
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		for _, traceID := range traceIDs {
-			stopped := false
-			iterErr := func() (err error) {
-				query, args := buildGetTracesQuery(traceID)
-				rows, err := r.conn.Query(ctx, query, args...)
-				if err != nil {
-					return fmt.Errorf("failed to query trace: %w", err)
-				}
-
-				defer func() {
-					if closeErr := rows.Close(); closeErr != nil {
-						err = errors.Join(err, fmt.Errorf("failed to close rows: %w", closeErr))
-					}
-				}()
-
-				for rows.Next() {
-					span, err := dbmodel.ScanRow(rows)
-					if err != nil {
-						return fmt.Errorf("failed to scan span row: %w", err)
-					}
-
-					trace := dbmodel.FromRow(span)
-					if !yield([]ptrace.Traces{trace}, nil) {
-						stopped = true
-						return nil
-					}
-				}
-
-				if err := rows.Err(); err != nil {
-					return fmt.Errorf("failed to read span rows: %w", err)
-				}
-
-				return nil
-			}()
-
+			stopped, err := r.getTrace(ctx, traceID, yield)
 			if stopped {
 				return
 			}
-
-			if iterErr != nil {
-				yield(nil, iterErr)
+			if err != nil {
+				yield(nil, err)
 				return
 			}
 		}
 	}
+}
+
+func (r *Reader) getTrace(
+	ctx context.Context,
+	traceID tracestore.GetTraceParams,
+	yield func([]ptrace.Traces, error) bool,
+) (stopped bool, err error) {
+	query, args := buildGetTracesQuery(traceID)
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return false, fmt.Errorf("failed to query trace: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to close rows: %w", closeErr))
+		}
+	}()
+
+	for rows.Next() {
+		span, err := dbmodel.ScanRow(rows)
+		if err != nil {
+			return false, fmt.Errorf("failed to scan span row: %w", err)
+		}
+		trace := dbmodel.FromRow(span)
+		if !yield([]ptrace.Traces{trace}, nil) {
+			return true, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("failed to read span rows: %w", err)
+	}
+	return false, nil
 }
 
 func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
