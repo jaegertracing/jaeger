@@ -165,21 +165,28 @@ func (r *Reader) FindTraces(
 			yield(nil, fmt.Errorf("failed to query traces: %w", err))
 			return
 		}
-		defer rows.Close()
 
+		var errs []error
 		for rows.Next() {
-			span, err := dbmodel.ScanRow(rows)
-			if err != nil {
-				yield(nil, fmt.Errorf("failed to scan span row: %w", err))
-				return
+			span, scanErr := dbmodel.ScanRow(rows)
+			if scanErr != nil {
+				errs = append(errs, fmt.Errorf("failed to scan span row: %w", scanErr))
+				break
 			}
 			trace := dbmodel.FromRow(span)
 			if !yield([]ptrace.Traces{trace}, nil) {
+				_ = rows.Close()
 				return
 			}
 		}
-		if err := rows.Err(); err != nil {
-			yield(nil, fmt.Errorf("failed to read span rows: %w", err))
+		if rowsErr := rows.Err(); rowsErr != nil {
+			errs = append(errs, fmt.Errorf("failed to read span rows: %w", rowsErr))
+		}
+		if closeErr := rows.Close(); closeErr != nil {
+			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+		}
+		if err := errors.Join(errs...); err != nil {
+			yield(nil, err)
 		}
 	}
 }
@@ -229,20 +236,27 @@ func (r *Reader) FindTraceIDs(
 			yield(nil, fmt.Errorf("failed to query trace IDs: %w", err))
 			return
 		}
-		defer rows.Close()
 
+		var errs []error
 		for rows.Next() {
-			traceID, err := readRowIntoTraceID(rows)
-			if err != nil {
-				yield(nil, err)
-				return
+			traceID, scanErr := readRowIntoTraceID(rows)
+			if scanErr != nil {
+				errs = append(errs, scanErr)
+				break
 			}
 			if !yield(traceID, nil) {
+				_ = rows.Close()
 				return
 			}
 		}
-		if err := rows.Err(); err != nil {
-			yield(nil, fmt.Errorf("failed to read trace ID rows: %w", err))
+		if rowsErr := rows.Err(); rowsErr != nil {
+			errs = append(errs, fmt.Errorf("failed to read trace ID rows: %w", rowsErr))
+		}
+		if closeErr := rows.Close(); closeErr != nil {
+			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+		}
+		if err := errors.Join(errs...); err != nil {
+			yield(nil, err)
 		}
 	}
 }
