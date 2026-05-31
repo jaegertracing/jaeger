@@ -23,8 +23,9 @@ on:
 jobs:
   publish-release:
     permissions:
+      # Required to upload release artifacts with GITHUB_TOKEN.
       contents: write
-      deployments: write
+      # Required to pull images from GHCR during release image builds.
       packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD

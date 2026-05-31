@@ -104,20 +104,30 @@ This allows a single "kill-switch" to cancel older runs when new commits are pus
 
 ### Permissions Model
 
-The orchestrator uses `permissions: write-all` to allow maximum flexibility for child workflows:
+The orchestrator defaults to read-only repository access:
 
 ```yaml
-permissions: write-all
+permissions:
+  contents: read
 ```
 
-This grants broad permissions at the orchestrator level, allowing child workflows to request the specific permissions they need. Child workflows then apply the principle of least privilege by downgrading to only the permissions they require:
+Reusable workflows can only use permissions passed by their caller, and each
+called workflow can only keep or downgrade those permissions. The top-level
+`contents: read` declaration is therefore only the default. Jobs that call a
+reusable workflow and need additional scopes declare those scopes explicitly at
+the call site instead of relying on `write-all`:
 
-- **codeql.yml**: `security-events: write`, `actions: read` (for security scanning)
-- **ci-unit-tests.yml**: `checks: write` (for reporting test results)
-- **ci-docker-all-in-one.yml**: `packages: read` (for pulling from GHCR)
-- Other workflows: typically `contents: read` only
-
-**Why write-all?** When using `workflow_call`, GitHub Actions requires the caller workflow to grant permissions that called workflows can then use or downgrade. Without `write-all`, child workflows would be restricted to `contents: read` only, causing failures for workflows that need additional permissions like CodeQL or test reporting.
+- **stage 1 and stage 2**: `contents: read`
+- **stage 3**: `contents: read`, plus `packages: read`, `actions: read`, and
+  `security-events: write` only so nested Docker and CodeQL workflows can
+  request their required scopes
+- **codeql.yml**: `security-events: write`, `actions: read`
+- **ci-docker-all-in-one.yml**: `packages: read` for pulling from GHCR
+- **ci-summary-report.yml**: `actions: write` for cache save and artifact
+  download. PR comments and check runs are handled by
+  **ci-summary-report-publish.yml**, which runs from `workflow_run` in the base
+  repository context with its own explicit `pull-requests: write` and
+  `checks: write` permissions.
 
 ## Independent Workflows
 
