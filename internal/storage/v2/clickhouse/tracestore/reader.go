@@ -99,18 +99,27 @@ func (r *Reader) GetServices(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to query services: %w", err)
 	}
-	defer rows.Close()
 
-	var services []string
+	var (
+		services []string
+		errs     []error
+	)
 	for rows.Next() {
 		var service dbmodel.Service
-		if err := rows.ScanStruct(&service); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+		if scanErr := rows.ScanStruct(&service); scanErr != nil {
+			errs = append(errs, fmt.Errorf("failed to scan row: %w", scanErr))
+			break
 		}
 		services = append(services, service.Name)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read service rows: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		errs = append(errs, fmt.Errorf("failed to read service rows: %w", rowsErr))
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+	}
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
 	}
 	return services, nil
 }
@@ -129,22 +138,30 @@ func (r *Reader) GetOperations(
 	if err != nil {
 		return nil, fmt.Errorf("failed to query operations: %w", err)
 	}
-	defer rows.Close()
 
-	var operations []tracestore.Operation
+	var (
+		operations []tracestore.Operation
+		errs       []error
+	)
 	for rows.Next() {
 		var operation dbmodel.Operation
-		if err := rows.ScanStruct(&operation); err != nil {
-			return nil, fmt.Errorf("failed to scan row: %w", err)
+		if scanErr := rows.ScanStruct(&operation); scanErr != nil {
+			errs = append(errs, fmt.Errorf("failed to scan row: %w", scanErr))
+			break
 		}
-		o := tracestore.Operation{
+		operations = append(operations, tracestore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
-		}
-		operations = append(operations, o)
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to read operation rows: %w", err)
+	if rowsErr := rows.Err(); rowsErr != nil {
+		errs = append(errs, fmt.Errorf("failed to read operation rows: %w", rowsErr))
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+	}
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
 	}
 	return operations, nil
 }
