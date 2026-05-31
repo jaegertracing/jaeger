@@ -27,10 +27,10 @@ jobs:
           python-version: '3.14'
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@f94ec0808a9e523f27d1fac9768007cb0b05b8dd # v5
         with:
           version: "0.1.39"
-          
+
       - name: Sync sidecar dependencies
         working-directory: scripts/ai-sidecar/gemini
         run: uv sync --frozen

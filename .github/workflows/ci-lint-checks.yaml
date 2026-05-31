@@ -131,7 +131,7 @@ jobs:
 
     - name: Run Python unit tests for e2e scripts
       run: |
-        pip install --require-hashes -r .github/workflows/ci-requirements.txt
+        python3 -m pip install --require-hashes -r .github/actions/verify-metrics-snapshot/ci-requirements.txt
         python3 -m unittest discover -s scripts/e2e -p '*_test.py' -v
 
   binary-size-check:

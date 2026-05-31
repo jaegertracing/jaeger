@@ -36,7 +36,7 @@ jobs:
             --repo "${{ github.repository }}" --dir .artifacts
 
       - name: Install dependencies
-        run: pip install --require-hashes -r .github/workflows/ci-requirements.txt
+        run: python3 -m pip install --require-hashes -r .github/actions/verify-metrics-snapshot/ci-requirements.txt
 
       - name: Compare metrics and generate summary
         id: compare-metrics
