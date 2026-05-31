@@ -209,19 +209,23 @@ func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	startTimeStr := query.Get(paramStartTime)
-	endTimeStr := query.Get(paramEndTime)
+	q := r.URL.Query()
+	startTimeStr, startTimeParam := getQueryParam(q, paramStartTime, paramStartTimeDeprecated)
+	endTimeStr, endTimeParam := getQueryParam(q, paramEndTime, paramEndTimeDeprecated)
 	if startTimeStr == "" || endTimeStr == "" {
 		h.tryHandleError(w, fmt.Errorf("%s and %s are required", paramStartTime, paramEndTime), http.StatusBadRequest)
 		return
 	}
 	startTime, err := time.Parse(time.RFC3339Nano, startTimeStr)
-	if h.tryParamError(w, err, paramStartTime) {
+	if h.tryParamError(w, err, startTimeParam) {
 		return
 	}
 	endTime, err := time.Parse(time.RFC3339Nano, endTimeStr)
-	if h.tryParamError(w, err, paramEndTime) {
+	if h.tryParamError(w, err, endTimeParam) {
+		return
+	}
+	if !endTime.After(startTime) {
+		h.tryHandleError(w, fmt.Errorf("%s must be after %s", paramEndTime, paramStartTime), http.StatusBadRequest)
 		return
 	}
 	deps, err := h.QueryService.GetDependencies(r.Context(), endTime, endTime.Sub(startTime))
@@ -238,6 +242,7 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	}
 	h.marshalResponse(&api_v3.DependenciesResponse{Dependencies: apiDeps}, w)
 }
+
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 	services, err := h.QueryService.GetServices(r.Context())
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {

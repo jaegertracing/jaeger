@@ -158,6 +158,9 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	if startTime.IsZero() || endTime.IsZero() {
 		return nil, status.Error(codes.InvalidArgument, "start_time and end_time are required")
 	}
+	if !endTime.After(startTime) {
+		return nil, status.Error(codes.InvalidArgument, "end_time must be after start_time")
+	}
 	deps, err := h.QueryService.GetDependencies(ctx, endTime, endTime.Sub(startTime))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
