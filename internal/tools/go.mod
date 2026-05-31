@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/golangci/golangci-lint/v2 v2.12.2
 	github.com/josephspurrier/goversioninfo v1.7.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.152.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.153.0
 	github.com/vektra/mockery/v3 v3.7.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/vuln v1.3.0
@@ -233,13 +233,13 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
 	golang.org/x/exp/typeparams v0.0.0-20260209203927-2842357ff358 // indirect
-	golang.org/x/mod v0.35.0 // indirect
+	golang.org/x/mod v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260421165255-392afab6f40e // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/telemetry v0.0.0-20260508192327-42602be52be6 // indirect
 	golang.org/x/term v0.40.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
-	golang.org/x/tools v0.44.0 // indirect
+	golang.org/x/tools v0.45.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.7.0 // indirect

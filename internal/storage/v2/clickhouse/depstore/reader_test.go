@@ -149,6 +149,23 @@ func TestGetDependencies(t *testing.T) {
 			},
 			expectError: "failed to unmarshal dependencies JSON",
 		},
+		{
+			name: "rows error",
+			conn: &clickhousetest.Driver{
+				QueryResponses: map[string]*clickhousetest.QueryResponse{
+					sql.SelectDependencies: {
+						Rows: &clickhousetest.Rows[string]{
+							RowsErr: assert.AnError,
+						},
+					},
+				},
+			},
+			query: depstore.QueryParameters{
+				StartTime: now.Add(-1 * time.Hour),
+				EndTime:   now,
+			},
+			expectError: "failed to read dependency rows",
+		},
 	}
 
 	for _, test := range tests {
