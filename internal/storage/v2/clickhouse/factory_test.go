@@ -332,6 +332,22 @@ func TestNewFactory_TLSLoadError(t *testing.T) {
 	require.Nil(t, f)
 }
 
+func TestNewFactory_TLSLoadSuccess(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+	cfg := Configuration{
+		Protocol:  "native",
+		Addresses: []string{srv.Listener.Addr().String()},
+		TLS: configoptional.Some(configtls.ClientConfig{
+			InsecureSkipVerify: true,
+		}),
+	}
+	// TLS config loads successfully; connection fails because the test server is plain (no TLS).
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "failed to load TLS configuration")
+}
+
 func TestNewFactory_FeatureGateDisabled(t *testing.T) {
 	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
 	t.Cleanup(func() {
