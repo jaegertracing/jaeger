@@ -581,14 +581,80 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 }
 
 func TestHTTPGatewayGetDependenciesMissingParams(t *testing.T) {
-	gw := setupHTTPGatewayNoServer(t, "")
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tests := []struct {
+		name    string
+		url     string
+		wantMsg string
+	}{
+		{
+			name:    "both missing",
+			url:     "/api/v3/dependencies",
+			wantMsg: "startTime is required",
+		},
+		{
+			name:    "end_time missing",
+			url:     "/api/v3/dependencies?start_time=" + now,
+			wantMsg: "endTime is required",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			r, err := http.NewRequest(http.MethodGet, tc.url, http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tc.wantMsg)
+		})
+	}
+}
 
-	r, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies", http.NoBody)
+func TestHTTPGatewayGetDependenciesInvalidTime(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies?start_time=not-a-time&end_time=also-not", http.NoBody)
 	require.NoError(t, err)
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
-	assert.Contains(t, w.Body.String(), "are required")
+	assert.Contains(t, w.Body.String(), "malformed parameter")
+}
+
+func TestHTTPGatewayGetDependenciesEndBeforeStart(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	now := time.Now()
+	url := fmt.Sprintf(
+		"/api/v3/dependencies?start_time=%s&end_time=%s",
+		now.UTC().Format(time.RFC3339Nano),
+		now.Add(-time.Hour).UTC().Format(time.RFC3339Nano),
+	)
+	r, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "must be after")
+}
+
+func TestHTTPGatewayGetDependenciesStorageError(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	now := time.Now()
+	gw.depReader.
+		On("GetDependencies", matchContext, mock.AnythingOfType("depstore.QueryParameters")).
+		Return(nil, assert.AnError).Once()
+
+	url := fmt.Sprintf(
+		"/api/v3/dependencies?start_time=%s&end_time=%s",
+		now.Add(-time.Hour).UTC().Format(time.RFC3339Nano),
+		now.UTC().Format(time.RFC3339Nano),
+	)
+	r, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
 func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {

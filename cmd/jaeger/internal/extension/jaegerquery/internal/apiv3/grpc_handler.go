@@ -165,6 +165,10 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
 	}
+	return &api_v3.DependenciesResponse{Dependencies: toAPIDependencies(deps)}, nil
+}
+
+func toAPIDependencies(deps []model.DependencyLink) []*api_v3.Dependency {
 	apiDeps := make([]*api_v3.Dependency, len(deps))
 	for i, d := range deps {
 		apiDeps[i] = &api_v3.Dependency{
@@ -173,7 +177,7 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 			CallCount: uint64(d.CallCount),
 		}
 	}
-	return &api_v3.DependenciesResponse{Dependencies: apiDeps}, nil
+	return apiDeps
 }
 
 // GetOperations implements api_v3.QueryService's GetOperations

@@ -212,8 +212,12 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	startTimeStr, startTimeParam := getQueryParam(q, paramStartTime, paramStartTimeDeprecated)
 	endTimeStr, endTimeParam := getQueryParam(q, paramEndTime, paramEndTimeDeprecated)
-	if startTimeStr == "" || endTimeStr == "" {
-		h.tryHandleError(w, fmt.Errorf("%s and %s are required", paramStartTime, paramEndTime), http.StatusBadRequest)
+	if startTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("%s is required", paramStartTime), http.StatusBadRequest)
+		return
+	}
+	if endTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("%s is required", paramEndTime), http.StatusBadRequest)
 		return
 	}
 	startTime, err := time.Parse(time.RFC3339Nano, startTimeStr)
@@ -232,15 +236,7 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	apiDeps := make([]*api_v3.Dependency, len(deps))
-	for i, d := range deps {
-		apiDeps[i] = &api_v3.Dependency{
-			Parent:    d.Parent,
-			Child:     d.Child,
-			CallCount: uint64(d.CallCount),
-		}
-	}
-	h.marshalResponse(&api_v3.DependenciesResponse{Dependencies: apiDeps}, w)
+	h.marshalResponse(&api_v3.DependenciesResponse{Dependencies: toAPIDependencies(deps)}, w)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
