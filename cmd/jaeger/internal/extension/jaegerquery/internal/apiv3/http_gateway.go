@@ -27,6 +27,14 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
 
+const (
+	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces    = "/api/v3/traces"
+	routeFindSummaries = "/api/v3/trace-summaries"
+	routeGetServices   = "/api/v3/services"
+	routeGetOperations = "/api/v3/operations"
+)
+
 // HTTPGateway exposes APIv3 HTTP endpoints.
 type HTTPGateway struct {
 	QueryService *querysvc.QueryService
@@ -39,6 +47,7 @@ type HTTPGateway struct {
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace, http.MethodGet)
 	h.addRoute(router, h.findTraces, routeFindTraces, http.MethodGet)
+	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
 }
@@ -125,6 +134,7 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 }
 
 func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
 	_ = new(jsonpb.Marshaler).Marshal(w, response)
 }
 
@@ -177,6 +187,23 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
 	traces, err := jiter.FlattenWithErrors(findTracesIter)
 	h.returnTraces(traces, err, w)
+}
+
+func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
+	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
+	if shouldReturn {
+		return
+	}
+	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
+	queryParams.RawTraces = false
+	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summaries, err := jiter.FlattenWithErrors(summariesIter)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
+		Summaries: toProtoTraceSummaries(summaries),
+	}, w)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {

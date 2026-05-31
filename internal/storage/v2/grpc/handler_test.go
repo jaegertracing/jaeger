@@ -731,3 +731,122 @@ func TestConvertKeyValueListToMap(t *testing.T) {
 		})
 	}
 }
+
+// summaryStream captures sent FindTraceSummaries responses.
+type summaryStream struct {
+	grpc.ServerStream
+	sent    []*storage.FindTraceSummariesResponse
+	sendErr error
+}
+
+func (*summaryStream) Context() context.Context { return context.Background() }
+
+func (s *summaryStream) Send(r *storage.FindTraceSummariesResponse) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
+	s.sent = append(s.sent, r)
+	return nil
+}
+
+// readerWithSummaries embeds tracestoremocks.Reader and additionally
+// implements tracestore.SummaryReader so the handler sees a single object
+// that satisfies both interfaces.
+type readerWithSummaries struct {
+	tracestoremocks.Reader
+	summaryMock *tracestoremocks.SummaryReader
+}
+
+func (r *readerWithSummaries) FindTraceSummaries(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return r.summaryMock.FindTraceSummaries(ctx, q)
+}
+
+func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	handler := NewHandler(reader, writer, depReader)
+
+	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+		Query: &storage.TraceQueryParameters{},
+	}, &summaryStream{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not implemented")
+}
+
+func TestHandler_FindTraceSummaries_Success(t *testing.T) {
+	now := time.Unix(1000, 0).UTC()
+	want := []tracestore.TraceSummary{
+		{
+			TraceID:           pcommon.TraceID([16]byte{1}),
+			RootServiceName:   "frontend",
+			RootOperationName: "HTTP GET /",
+			MinStartTime:      now,
+			MaxEndTime:        now.Add(time.Second),
+			SpanCount:         3,
+			ErrorSpanCount:    1,
+			OrphanSpanCount:   0,
+			Services: []tracestore.ServiceSummary{
+				{Name: "frontend", SpanCount: 2, ErrorSpanCount: 1},
+				{Name: "backend", SpanCount: 1, ErrorSpanCount: 0},
+			},
+		},
+	}
+	summaryMock := new(tracestoremocks.SummaryReader)
+	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(want, nil)
+		})).Once()
+
+	reader := &readerWithSummaries{summaryMock: summaryMock}
+	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+	stream := &summaryStream{}
+
+	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+		Query: &storage.TraceQueryParameters{},
+	}, stream)
+	require.NoError(t, err)
+	require.Len(t, stream.sent, 1)
+	got := stream.sent[0].GetSummaries()
+	require.Len(t, got, 1)
+	assert.Equal(t, want[0].TraceID[:], got[0].GetTraceId())
+	assert.Equal(t, "frontend", got[0].GetRootServiceName())
+	assert.Equal(t, "HTTP GET /", got[0].GetRootOperationName())
+	assert.EqualValues(t, 3, got[0].GetSpanCount())
+	assert.EqualValues(t, 1, got[0].GetErrorSpanCount())
+	require.Len(t, got[0].GetServices(), 2)
+	assert.Equal(t, "frontend", got[0].GetServices()[0].GetName())
+	assert.Equal(t, "backend", got[0].GetServices()[1].GetName())
+}
+
+func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
+	summaryMock := new(tracestoremocks.SummaryReader)
+	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(nil, assert.AnError)
+		})).Once()
+
+	reader := &readerWithSummaries{summaryMock: summaryMock}
+	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+		Query: &storage.TraceQueryParameters{},
+	}, &summaryStream{})
+	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
+	summaryMock := new(tracestoremocks.SummaryReader)
+	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield([]tracestore.TraceSummary{{TraceID: pcommon.TraceID([16]byte{1})}}, nil)
+		})).Once()
+
+	reader := &readerWithSummaries{summaryMock: summaryMock}
+	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
+		Query: &storage.TraceQueryParameters{},
+	}, &summaryStream{sendErr: assert.AnError})
+	require.ErrorIs(t, err, assert.AnError)
+}

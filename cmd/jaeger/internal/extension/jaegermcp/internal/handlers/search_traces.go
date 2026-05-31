@@ -8,23 +8,20 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// queryServiceInterface defines the interface we need from QueryService for testing
+// queryServiceInterface defines the interface we need from QueryService for testing.
 type queryServiceInterface interface {
-	FindTraces(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error]
+	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
 }
 
 // searchTracesHandler implements the search_traces MCP tool.
@@ -54,55 +51,70 @@ func (h *searchTracesHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.SearchTracesInput,
 ) (*mcp.CallToolResult, types.SearchTracesOutput, error) {
-	// Build trace query parameters
 	query, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.SearchTracesOutput{}, err
 	}
 
-	// Execute search
-	tracesIter := h.queryService.FindTraces(ctx, query)
-
-	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
-	aggregatedIter := jptrace.AggregateTraces(tracesIter)
-
-	// Process results
 	var summaries []types.TraceSummary
 	var processErrs []error
 
-	for trace, err := range aggregatedIter {
+outer:
+	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
 		if err != nil {
-			// Store error but continue processing to return partial results
 			processErrs = append(processErrs, err)
-			continue
-		}
-
-		summary := buildTraceSummary(trace)
-		summaries = append(summaries, summary)
-		if h.maxResults > 0 && len(summaries) >= h.maxResults {
 			break
+		}
+		for i := range batch {
+			summaries = append(summaries, toMCPTraceSummary(batch[i]))
+			if h.maxResults > 0 && len(summaries) >= h.maxResults {
+				break outer
+			}
 		}
 	}
 
 	output := types.SearchTracesOutput{Traces: summaries}
-
-	// If we encountered errors during processing, include them in the output
 	if len(processErrs) > 0 {
 		output.Error = fmt.Sprintf("partial results returned due to error: %v", errors.Join(processErrs...))
 	}
-
 	return nil, output, nil
+}
+
+// toMCPTraceSummary converts a tracestore.TraceSummary to the MCP-specific types.TraceSummary.
+// Services is already sorted by name in tracestore.TraceSummary.
+func toMCPTraceSummary(s tracestore.TraceSummary) types.TraceSummary {
+	svcNames := make([]string, len(s.Services))
+	for i, svc := range s.Services {
+		svcNames[i] = svc.Name
+	}
+	var startTime string
+	if !s.MinStartTime.IsZero() {
+		startTime = s.MinStartTime.Format(time.RFC3339)
+	}
+	var durationUs int64
+	if !s.MinStartTime.IsZero() && !s.MaxEndTime.IsZero() {
+		durationUs = s.MaxEndTime.Sub(s.MinStartTime).Microseconds()
+	}
+	return types.TraceSummary{
+		TraceID:      s.TraceID.String(),
+		RootService:  s.RootServiceName,
+		RootSpanName: s.RootOperationName,
+		StartTime:    startTime,
+		DurationUs:   durationUs,
+		SpanCount:    s.SpanCount,
+		ServiceCount: len(s.Services),
+		Services:     svcNames,
+		HasErrors:    s.ErrorSpanCount > 0,
+	}
 }
 
 // buildQuery converts SearchTracesInput to querysvc.TraceQueryParams.
 func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysvc.TraceQueryParams, error) {
-	// Use default start time if not provided
 	startTimeMinInput := input.StartTimeMin
 	if startTimeMinInput == "" {
 		startTimeMinInput = "-1h"
 	}
 
-	// Parse and validate input
 	minStartTime, err := parseTimeParam(startTimeMinInput)
 	if err != nil {
 		return querysvc.TraceQueryParams{}, fmt.Errorf("invalid start_time_min: %w", err)
@@ -126,7 +138,6 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		return querysvc.TraceQueryParams{}, errors.New("service_name is required")
 	}
 
-	// Parse duration parameters
 	var durationMin, durationMax time.Duration
 	if input.DurationMin != "" {
 		durationMin, err = time.ParseDuration(input.DurationMin)
@@ -141,12 +152,10 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		}
 	}
 
-	// Validate duration range
 	if durationMin > 0 && durationMax > 0 && durationMax < durationMin {
 		return querysvc.TraceQueryParams{}, errors.New("duration_max must be greater than duration_min")
 	}
 
-	// Set default and max search depth
 	const defaultSearchDepth = 10
 	searchDepth := input.SearchDepth
 	if searchDepth <= 0 {
@@ -156,13 +165,10 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		searchDepth = h.maxResults
 	}
 
-	// Convert attributes map to pcommon.Map
 	attributes := pcommon.NewMap()
 	for key, value := range input.Attributes {
 		attributes.PutStr(key, value)
 	}
-
-	// If WithErrors is requested, add error attribute filter
 	if input.WithErrors {
 		attributes.PutStr("error", "true")
 	}
@@ -178,84 +184,8 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 			DurationMax:   durationMax,
 			SearchDepth:   searchDepth,
 		},
-		RawTraces: false, // We want adjusted traces
+		RawTraces: false,
 	}, nil
-}
-
-// buildTraceSummary constructs a TraceSummary from ptrace.Traces.
-func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
-	var summary types.TraceSummary
-	var rootSpan ptrace.Span
-	var rootServiceName string
-	var traceID pcommon.TraceID
-	services := make(map[string]struct{})
-	hasErrors := false
-	var minStartTime, maxEndTime time.Time
-	spanCount := 0
-
-	// Iterate through all spans in the trace
-	for pos, span := range jptrace.SpanIter(trace) {
-		spanCount++
-		traceID = span.TraceID()
-
-		// Track unique services from resource attributes
-		if serviceName, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
-			services[serviceName.Str()] = struct{}{}
-		}
-
-		// Find root span (span with no parent)
-		if span.ParentSpanID().IsEmpty() {
-			rootSpan = span
-			// Get service name for root span
-			if serviceName, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
-				rootServiceName = serviceName.Str()
-			}
-		}
-
-		// Track start and end times
-		startTime := span.StartTimestamp().AsTime()
-		endTime := span.EndTimestamp().AsTime()
-		if minStartTime.IsZero() || startTime.Before(minStartTime) {
-			minStartTime = startTime
-		}
-		if maxEndTime.IsZero() || endTime.After(maxEndTime) {
-			maxEndTime = endTime
-		}
-
-		// Check for errors
-		if span.Status().Code() == ptrace.StatusCodeError {
-			hasErrors = true
-		}
-	}
-
-	// Calculate duration
-	var duration time.Duration
-	if !minStartTime.IsZero() && !maxEndTime.IsZero() {
-		duration = maxEndTime.Sub(minStartTime)
-	}
-
-	// Extract root span information
-	if rootSpan != (ptrace.Span{}) {
-		summary.RootSpanName = rootSpan.Name()
-		summary.RootService = rootServiceName
-	}
-
-	serviceNames := make([]string, 0, len(services))
-	for svc := range services {
-		serviceNames = append(serviceNames, svc)
-	}
-	slices.Sort(serviceNames)
-
-	// Build summary
-	summary.TraceID = traceID.String()
-	summary.StartTime = minStartTime.Format(time.RFC3339)
-	summary.DurationUs = duration.Microseconds()
-	summary.SpanCount = spanCount
-	summary.ServiceCount = len(services)
-	summary.Services = serviceNames
-	summary.HasErrors = hasErrors
-
-	return summary
 }
 
 // parseTimeParam parses time parameters supporting RFC3339 and relative time formats.
@@ -263,25 +193,21 @@ func buildTraceSummary(trace ptrace.Traces) types.TraceSummary {
 func parseTimeParam(input string) (time.Time, error) {
 	input = strings.TrimSpace(input)
 
-	// Handle "now"
 	if input == "now" {
 		return time.Now(), nil
 	}
 
-	// Handle relative time (e.g., "-1h", "-30m")
 	if strings.HasPrefix(input, "-") {
-		duration, err := time.ParseDuration(input[1:]) // Remove the "-" prefix
+		duration, err := time.ParseDuration(input[1:])
 		if err != nil {
 			return time.Time{}, fmt.Errorf("invalid relative time format: %w", err)
 		}
 		return time.Now().Add(-duration), nil
 	}
 
-	// Try RFC3339 format
 	t, err := time.Parse(time.RFC3339, input)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("time must be RFC3339 or relative format (e.g., '-1h', 'now'): %w", err)
 	}
-
 	return t, nil
 }

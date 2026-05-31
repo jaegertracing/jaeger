@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	defaultSearchDepth = 100
+
 	paramTraceID = "trace_id" // path parameter
 
 	// Canonical camelCase query params matching proto3 JSON encoding.
@@ -47,11 +49,6 @@ const (
 	paramDurationMaxDeprecated    = "query.duration_max"
 	paramQueryRawTracesDeprecated = "query.raw_traces"
 	paramSpanKindDeprecated       = "span_kind"
-
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
 )
 
 // getQueryParam returns the value and effective param name, preferring the canonical name
@@ -103,6 +100,8 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 			return nil, true
 		}
 		queryParams.SearchDepth = searchDepth
+	} else {
+		queryParams.SearchDepth = defaultSearchDepth
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {
