@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -33,6 +35,7 @@ const (
 	paramDurationMin    = "query.durationMin"
 	paramDurationMax    = "query.durationMax"
 	paramQueryRawTraces = "query.rawTraces"
+	paramAttributes     = "query.attributes"
 	paramSpanKind       = "spanKind"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
@@ -63,11 +66,20 @@ func getQueryParam(q url.Values, canonical, deprecated string) (value string, pa
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
 	serviceName, _ := getQueryParam(q, paramServiceName, paramServiceNameDeprecated)
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
+	attrs := pcommon.NewMap()
+	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
+		var attrsMap map[string]string
+		if err := json.Unmarshal([]byte(attrsParam), &attrsMap); err != nil {
+			h.tryParamError(w, err, paramAttributes)
+			return nil, true
+		}
+		attrs = jptrace.PlainMapToPcommonMap(attrsMap)
+	}
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   serviceName,
 			OperationName: operationName,
-			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
+			Attributes:    attrs,
 		},
 	}
 

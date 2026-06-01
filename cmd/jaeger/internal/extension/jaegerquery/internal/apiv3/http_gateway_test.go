@@ -498,17 +498,6 @@ func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
 	time1 := time.Now().UTC().Truncate(time.Nanosecond)
 	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
 
-	attrs := pcommon.NewMap()
-	attrs.PutStr("http.status_code", "200")
-	attrs.PutStr("error", "true")
-
-	expectedParams := tracestore.TraceQueryParams{
-		ServiceName:  "svc",
-		Attributes:   attrs,
-		StartTimeMin: time1,
-		StartTimeMax: time2,
-	}
-
 	q := url.Values{}
 	q.Set(paramServiceName, "svc")
 	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
@@ -517,7 +506,17 @@ func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
 
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.
-		On("FindTraces", matchContext, expectedParams).
+		On("FindTraces", matchContext, mock.MatchedBy(func(qp tracestore.TraceQueryParams) bool {
+			v1, ok1 := qp.Attributes.Get("http.status_code")
+			v2, ok2 := qp.Attributes.Get("error")
+			return qp.ServiceName == "svc" &&
+				qp.StartTimeMin.Equal(time1) &&
+				qp.StartTimeMax.Equal(time2) &&
+				qp.SearchDepth == defaultSearchDepth &&
+				qp.Attributes.Len() == 2 &&
+				ok1 && v1.AsString() == "200" &&
+				ok2 && v2.AsString() == "true"
+		})).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
