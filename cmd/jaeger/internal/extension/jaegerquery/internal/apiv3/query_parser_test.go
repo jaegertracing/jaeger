@@ -232,7 +232,6 @@ func TestGetQueryParam(t *testing.T) {
 
 	q3 := url.Values{}
 	v, p = getQueryParam(q3, "canonical", "deprecated")
-	assert.Equal(t, "", v)
+	assert.Empty(t, v)
 	assert.Equal(t, "deprecated", p)
 }
-
