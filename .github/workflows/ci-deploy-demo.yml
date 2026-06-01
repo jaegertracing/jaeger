@@ -8,8 +8,8 @@ on:
     - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
   workflow_dispatch:
 
-permissions: read-all
-
+permissions:
+  contents: read
 jobs:
   deploy:
     name: Deploy Jaeger to OKE Cluster
