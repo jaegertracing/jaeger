@@ -4,8 +4,9 @@
 package capabilities
 
 const (
-	scopeAttributesTest = "Scope_Attributes"
-	linkAttributesTest  = "Link_Attributes"
+	scopeAttributesTest    = "Scope_Attributes"
+	linkAttributesTest     = "Link_Attributes"
+	FindTraceSummariesTest = "FindTraceSummaries"
 )
 
 // Capabilities defines the capabilities of a storage backend for integration tests.
@@ -33,6 +34,22 @@ func (c Capabilities) SkipList() []string {
 	return c.skipList
 }
 
+// Memory returns the capabilities for the in-process memory storage backend.
+func Memory() Capabilities {
+	return Capabilities{
+		skipList: []string{FindTraceSummariesTest},
+	}
+}
+
+// GRPC returns the capabilities for the gRPC remote storage backend.
+// FindTraceSummaries is skipped because it depends on the backing store
+// implementing tracestore.SummaryReader; the test backend (memory) does not yet.
+func GRPC() Capabilities {
+	return Capabilities{
+		skipList: []string{FindTraceSummariesTest},
+	}
+}
+
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
@@ -46,6 +63,7 @@ func Cassandra() Capabilities {
 			"Multiple_Traces",
 			scopeAttributesTest,
 			linkAttributesTest,
+			FindTraceSummariesTest,
 		},
 	}
 }
@@ -53,7 +71,7 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability"},
+		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
 	}
 }
 
@@ -62,7 +80,7 @@ func Badger() Capabilities {
 	return Capabilities{
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}
 }
 
@@ -72,7 +90,7 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}
 }
 
@@ -80,7 +98,7 @@ func Elasticsearch() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}
 }
 
@@ -88,6 +106,6 @@ func OpenSearch() Capabilities {
 func Kafka() Capabilities {
 	return Capabilities{
 		getDependenciesMissingSource: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}
 }

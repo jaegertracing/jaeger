@@ -32,6 +32,15 @@
           },
           "path_match":"process.tag.*"
         }
+      },
+      {
+        "scope_tags_map":{
+          "mapping":{
+            "type":"keyword",
+            "ignore_above":256
+          },
+          "path_match":"scopeTag.*"
+        }
       }
     ],
     "properties":{
@@ -135,6 +144,31 @@
           "spanID":{
             "type":"keyword",
             "ignore_above":256
+          },
+          "traceState":{
+            "type":"keyword",
+            "ignore_above":256
+          },
+          "flags":{
+            "type":"integer"
+          },
+          "tags":{
+            "type":"nested",
+            "dynamic":false,
+            "properties":{
+              "key":{
+                "type":"keyword",
+                "ignore_above":256
+              },
+              "value":{
+                "type":"keyword",
+                "ignore_above":256
+              },
+              "type":{
+                "type":"keyword",
+                "ignore_above":256
+              }
+            }
           }
         }
       },
@@ -142,6 +176,27 @@
         "type":"object"
       },
       "tags":{
+        "type":"nested",
+        "dynamic":false,
+        "properties":{
+          "key":{
+            "type":"keyword",
+            "ignore_above":256
+          },
+          "value":{
+            "type":"keyword",
+            "ignore_above":256
+          },
+          "type":{
+            "type":"keyword",
+            "ignore_above":256
+          }
+        }
+      },
+      "scopeTag":{
+        "type":"object"
+      },
+      "scopeTags":{
         "type":"nested",
         "dynamic":false,
         "properties":{

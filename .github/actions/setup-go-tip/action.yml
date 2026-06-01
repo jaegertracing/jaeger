@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # Inspired by https://github.com/actions/setup-go/issues/21#issuecomment-997208686
 name: 'Install Go Tip'
 description: 'Install Go Tip toolchain'

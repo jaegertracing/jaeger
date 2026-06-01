@@ -121,21 +121,28 @@ class JaegerSidecarAgent(Agent):
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
         )
 
-    async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
+    async def new_session(
+        self,
+        cwd: str,
+        additional_directories: list[str] | None = None,
+        mcp_servers: Any = None,
+        **kwargs: Any,
+    ) -> NewSessionResponse:
         """Handle ACP `session/new` RPC.
 
         Invoked by ACP runtime dispatch (not direct app code) to allocate a new
         session id that the client will use for subsequent prompt calls.
 
         Reads the optional contextual tools snapshot the gateway attaches via
-        NewSessionRequest._meta (parsed by the Python ACP runtime as
-        ``field_meta``) and stashes it per-session so the agentic loop can
-        merge those tools into the Gemini chat config.
+        NewSessionRequest._meta and stashes it per-session so the agentic loop
+        can merge those tools into the Gemini chat config. The Python ACP
+        router spreads ``_meta``'s inner keys into this handler's ``**kwargs``,
+        so ``kwargs`` itself is the meta dict to look up the namespaced key in.
         """
         session_id = f"sess-{self._next_session_id}"
         self._next_session_id += 1
 
-        contextual = _extract_contextual_tools(kwargs.get("field_meta"))
+        contextual = _extract_contextual_tools(kwargs)
         if contextual:
             self._contextual_tools[session_id] = contextual
             logger.info(
@@ -166,6 +173,7 @@ class JaegerSidecarAgent(Agent):
         self,
         cwd: str,
         session_id: str,
+        additional_directories: list[str] | None = None,
         mcp_servers: Any = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
@@ -177,6 +185,7 @@ class JaegerSidecarAgent(Agent):
 
     async def list_sessions(
         self,
+        additional_directories: list[str] | None = None,
         cursor: str | None = None,
         cwd: str | None = None,
         **kwargs: Any,
@@ -195,9 +204,26 @@ class JaegerSidecarAgent(Agent):
         tool_call_id: str,
     ) -> Any:
         """Dispatch a contextual (frontend-supplied) tool call back to the
-        gateway via the ACP extension method. The gateway either logs
-        (PR1 placeholder) or forwards to the AG-UI client (PR2+) and
-        returns the result, which we feed back into Gemini's chat.
+        gateway via the ACP extension method, fire-and-forget.
+
+        Two surfaces are involved and must not be conflated:
+
+        1. **AG-UI wire (browser):** the parallel ``session_update``
+           notifications below become ``TOOL_CALL_START`` /
+           ``TOOL_CALL_ARGS`` / ``TOOL_CALL_END`` SSE events. The browser
+           matches the tool name to its registered AG-UI tool and runs
+           ``execute(args)`` locally — *that* is the actual execution.
+           We deliberately do NOT populate ``raw_output`` / ``content`` on
+           the completion update: doing so would cause the streaming
+           client to emit ``TOOL_CALL_RESULT``, which tricks assistant-ui
+           into thinking the server already produced a result and skips
+           the local ``execute()``.
+
+        2. **LLM loop (Gemini):** the ext_method returns the gateway's
+           synthetic ``{"acknowledged": true}`` ack, which we feed back
+           into the agentic loop as the function response so Gemini
+           produces a final text answer. We never wait for the browser to
+           confirm — that's the "forget" half of fire-and-forget.
         """
         with tracer().start_as_current_span("sidecar.execute_contextual_tool", attributes={
             GEN_AI_TOOL_NAME: tool_name,
@@ -207,6 +233,9 @@ class JaegerSidecarAgent(Agent):
             try:
                 _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
+                # raw_input carries the LLM-generated arguments onto the
+                # AG-UI wire as TOOL_CALL_ARGS so the browser knows what
+                # to highlight / render / etc.
                 await conn.session_update(
                     session_id,
                     start_tool_call(
@@ -214,6 +243,7 @@ class JaegerSidecarAgent(Agent):
                         tool_name,
                         kind="other",
                         status="in_progress",
+                        raw_input=args,
                     ),
                 )
 
@@ -222,14 +252,14 @@ class JaegerSidecarAgent(Agent):
                     {"sessionId": session_id, "name": tool_name, "args": args},
                 )
 
-                output_text = _to_tool_text(response)
+                # Status=completed alone fires TOOL_CALL_END (no RESULT)
+                # because raw_output is intentionally absent — see the
+                # method docstring for why.
                 await conn.session_update(
                     session_id,
                     update_tool_call(
                         tool_call_id,
                         status="completed",
-                        content=[tool_content(text_block(output_text))],
-                        raw_output={"content": response},
                     ),
                 )
                 return response

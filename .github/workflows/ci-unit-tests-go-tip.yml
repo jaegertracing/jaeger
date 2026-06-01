@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: Unit Tests on Go Tip
 
 on:
@@ -19,8 +22,6 @@ permissions:
 
 jobs:
   unit-tests-go-tip:
-    permissions:
-      checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
@@ -42,5 +43,4 @@ jobs:
 
     - name: Run unit tests
       run: make test-ci
-
 
