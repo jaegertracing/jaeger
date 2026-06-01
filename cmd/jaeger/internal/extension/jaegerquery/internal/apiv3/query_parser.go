@@ -6,7 +6,6 @@ package apiv3
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -63,7 +62,7 @@ func getQueryParam(q url.Values, canonical, deprecated string) (value string, pa
 	return q.Get(deprecated), deprecated
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	serviceName, _ := getQueryParam(q, paramServiceName, paramServiceNameDeprecated)
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
 
@@ -77,25 +76,23 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
 		var attrsMap map[string]string
 		if err := json.Unmarshal([]byte(attrsParam), &attrsMap); err != nil {
-			h.tryParamError(w, err, paramAttributes)
-			return nil, true
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramAttributes, err)
 		}
 		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
 	}
+
 	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
 	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
 	if timeMinStr == "" || timeMaxStr == "" {
-		err := fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
-		h.tryHandleError(w, err, http.StatusBadRequest)
-		return nil, true
+		return nil, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
 	}
 	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
-	if h.tryParamError(w, err, timeMinParam) {
-		return nil, true
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
 	}
 	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
-	if h.tryParamError(w, err, timeMaxParam) {
-		return nil, true
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
 	}
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
@@ -107,8 +104,8 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	}
 	if n != "" {
 		searchDepth, err := strconv.Atoi(n)
-		if h.tryParamError(w, err, searchDepthParam) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
 		queryParams.SearchDepth = searchDepth
 	} else {
@@ -117,24 +114,24 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {
 		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramName) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.DurationMin = dur
 	}
 	if d, paramName := getQueryParam(q, paramDurationMax, paramDurationMaxDeprecated); d != "" {
 		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramName) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.DurationMax = dur
 	}
 	if r, paramName := getQueryParam(q, paramQueryRawTraces, paramQueryRawTracesDeprecated); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramName) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.RawTraces = rawTraces
 	}
-	return queryParams, false
+	return queryParams, nil
 }

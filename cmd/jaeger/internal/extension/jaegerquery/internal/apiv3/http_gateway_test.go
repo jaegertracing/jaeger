@@ -353,129 +353,18 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 }
 
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	goodTimeV := time.Now()
-	goodTime := goodTimeV.Format(time.RFC3339Nano)
-	goodDuration := "1s"
-	timeRangeErr := "query.startTimeMin and query.startTimeMax are required"
-	testCases := []struct {
-		name   string
-		params map[string]string
-		expErr string
-	}{
-		{
-			name:   "no time range",
-			expErr: timeRangeErr,
-		},
-		{
-			name:   "no max time",
-			params: map[string]string{"query.startTimeMin": goodTime},
-			expErr: timeRangeErr,
-		},
-		{
-			name:   "no min time",
-			params: map[string]string{"query.startTimeMax": goodTime},
-			expErr: timeRangeErr,
-		},
-		{
-			name:   "bad startTimeMin (canonical)",
-			params: map[string]string{"query.startTimeMin": "NaN", "query.startTimeMax": goodTime},
-			expErr: "query.startTimeMin",
-		},
-		{
-			name:   "bad start_time_min (deprecated)",
-			params: map[string]string{"query.start_time_min": "NaN", "query.start_time_max": goodTime},
-			expErr: "query.start_time_min",
-		},
-		{
-			name:   "bad startTimeMax (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": "NaN"},
-			expErr: "query.startTimeMax",
-		},
-		{
-			name:   "bad start_time_max (deprecated)",
-			params: map[string]string{"query.start_time_min": goodTime, "query.start_time_max": "NaN"},
-			expErr: "query.start_time_max",
-		},
-		{
-			name:   "bad searchDepth (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.searchDepth": "NaN"},
-			expErr: "query.searchDepth",
-		},
-		{
-			name:   "bad search_depth (deprecated)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.search_depth": "NaN"},
-			expErr: "query.search_depth",
-		},
-		{
-			name:   "bad num_traces (deprecated alias)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.num_traces": "NaN"},
-			expErr: "query.num_traces",
-		},
-		{
-			name:   "bad durationMin (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMin": "NaN"},
-			expErr: "query.durationMin",
-		},
-		{
-			name:   "bad duration_min (deprecated)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_min": "NaN"},
-			expErr: "query.duration_min",
-		},
-		{
-			name:   "bad durationMax (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMax": "NaN"},
-			expErr: "query.durationMax",
-		},
-		{
-			name:   "bad duration_max (deprecated)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_max": "NaN"},
-			expErr: "query.duration_max",
-		},
-		{
-			name: "bad rawTraces (canonical)",
-			params: map[string]string{
-				"query.startTimeMin": goodTime,
-				"query.startTimeMax": goodTime,
-				"query.durationMax":  goodDuration,
-				"query.rawTraces":    "foobar",
-			},
-			expErr: "query.rawTraces",
-		},
-		{
-			name: "bad raw_traces (deprecated)",
-			params: map[string]string{
-				"query.startTimeMin": goodTime,
-				"query.startTimeMax": goodTime,
-				"query.duration_max": goodDuration,
-				"query.raw_traces":   "foobar",
-			},
-			expErr: "query.raw_traces",
-		},
-		{
-			name: "bad attributes json",
-			params: map[string]string{
-				paramTimeMin:    goodTime,
-				paramTimeMax:    goodTime,
-				paramAttributes: "not-valid-json",
-			},
-			expErr: paramAttributes,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			q := url.Values{}
-			for k, v := range tc.params {
-				q.Set(k, v)
-			}
-			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
-			require.NoError(t, err)
-			w := httptest.NewRecorder()
+	t.Run("parse error returns 400", func(t *testing.T) {
+		// Detailed parse error cases are covered by TestParseFindTracesQuery.
+		// Here we only verify that any parse error is propagated as HTTP 400.
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
 
-			gw := setupHTTPGatewayNoServer(t, "")
-			gw.router.ServeHTTP(w, r)
-			assert.Contains(t, w.Body.String(), tc.expErr)
-		})
-	}
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+	})
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
