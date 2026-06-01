@@ -326,16 +326,14 @@ func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 }
 
 func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
-	// mock performs deep comparison of the timestamps and can fail
-	// if they are different in the timezone or the monotonic clocks.
-	// To void that we truncate monotonic clock and force UTC timezone.
-	time1 := time.Now().UTC().Truncate(time.Nanosecond)
-	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+	// Truncate monotonic clock and force UTC to avoid comparison failures in mocks.
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
 	q := url.Values{}
 	q.Set("query.serviceName", "foo")
 	q.Set("query.operationName", "bar")
-	q.Set("query.startTimeMin", time1.Format(time.RFC3339Nano))
-	q.Set("query.startTimeMax", time2.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMin", tMin.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", tMax.Format(time.RFC3339Nano))
 	q.Set("query.durationMin", "1s")
 	q.Set("query.durationMax", "2s")
 	q.Set("query.searchDepth", "10")
@@ -344,8 +342,8 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 		ServiceName:   "foo",
 		OperationName: "bar",
 		Attributes:    pcommon.NewMap(),
-		StartTimeMin:  time1,
-		StartTimeMax:  time2,
+		StartTimeMin:  tMin,
+		StartTimeMax:  tMax,
 		DurationMin:   1 * time.Second,
 		DurationMax:   2 * time.Second,
 		SearchDepth:   10,
@@ -384,13 +382,13 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 }
 
 func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
-	time1 := time.Now().UTC().Truncate(time.Nanosecond)
-	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
 
 	q := url.Values{}
 	q.Set(paramServiceName, "svc")
-	q.Set(paramTimeMin, time1.Format(time.RFC3339Nano))
-	q.Set(paramTimeMax, time2.Format(time.RFC3339Nano))
+	q.Set(paramTimeMin, tMin.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, tMax.Format(time.RFC3339Nano))
 	q.Set(paramAttributes, `{"http.status_code":"200","error":"true"}`)
 
 	gw := setupHTTPGatewayNoServer(t, "")
@@ -399,8 +397,8 @@ func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
 			v1, ok1 := qp.Attributes.Get("http.status_code")
 			v2, ok2 := qp.Attributes.Get("error")
 			return qp.ServiceName == "svc" &&
-				qp.StartTimeMin.Equal(time1) &&
-				qp.StartTimeMax.Equal(time2) &&
+				qp.StartTimeMin.Equal(tMin) &&
+				qp.StartTimeMax.Equal(tMax) &&
 				qp.SearchDepth == defaultSearchDepth &&
 				qp.Attributes.Len() == 2 &&
 				ok1 && v1.AsString() == "200" &&

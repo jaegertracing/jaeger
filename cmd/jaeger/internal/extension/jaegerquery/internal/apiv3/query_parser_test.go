@@ -14,9 +14,8 @@ import (
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
-	now := time.Now().UTC().Truncate(time.Nanosecond)
-	tMin := now.Add(-time.Hour)
-	tMax := now
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
 
 	goodMin := tMin.Format(time.RFC3339Nano)
 	goodMax := tMax.Format(time.RFC3339Nano)
@@ -130,6 +129,16 @@ func TestParseFindTracesQuery(t *testing.T) {
 			name:    "no min time",
 			params:  map[string]string{paramTimeMax: goodMax},
 			wantErr: "query.startTimeMin and query.startTimeMax are required",
+		},
+		{
+			name:    "startTimeMin not before startTimeMax",
+			params:  map[string]string{paramTimeMin: goodMax, paramTimeMax: goodMin},
+			wantErr: paramTimeMin + " must be before " + paramTimeMax,
+		},
+		{
+			name:    "startTimeMin equals startTimeMax",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMin},
+			wantErr: paramTimeMin + " must be before " + paramTimeMax,
 		},
 		{
 			name:    "bad startTimeMin (canonical)",

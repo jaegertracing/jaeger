@@ -94,6 +94,9 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	if err != nil {
 		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
 	}
+	if !timeMinParsed.Before(timeMaxParsed) {
+		return nil, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
+	}
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
 
