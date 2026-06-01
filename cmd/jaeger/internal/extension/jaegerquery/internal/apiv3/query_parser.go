@@ -66,23 +66,22 @@ func getQueryParam(q url.Values, canonical, deprecated string) (value string, pa
 func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
 	serviceName, _ := getQueryParam(q, paramServiceName, paramServiceNameDeprecated)
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
-	attrs := pcommon.NewMap()
+
+	queryParams := &querysvc.TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			ServiceName:   serviceName,
+			OperationName: operationName,
+			Attributes:    pcommon.NewMap(),
+		},
+	}
 	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
 		var attrsMap map[string]string
 		if err := json.Unmarshal([]byte(attrsParam), &attrsMap); err != nil {
 			h.tryParamError(w, err, paramAttributes)
 			return nil, true
 		}
-		attrs = jptrace.PlainMapToPcommonMap(attrsMap)
+		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
 	}
-	queryParams := &querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   serviceName,
-			OperationName: operationName,
-			Attributes:    attrs,
-		},
-	}
-
 	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
 	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
 	if timeMinStr == "" || timeMaxStr == "" {
