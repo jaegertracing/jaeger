@@ -63,3 +63,11 @@ func (handlerOptions) MetricsQueryService(mqs metricstore.Reader) HandlerOption 
 		apiHandler.metricsQueryService = mqs
 	}
 }
+
+// MaxRequestBodyBytes creates a HandlerOption that sets the maximum allowed
+// HTTP request body size in bytes. If not set, defaults to 20 MB.
+func (handlerOptions) MaxRequestBodyBytes(maxBytes int64) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.maxRequestBodyBytes = maxBytes
+	}
+}

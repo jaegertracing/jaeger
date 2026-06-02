@@ -47,6 +47,11 @@ const (
 
 	defaultAPIPrefix  = "api"
 	prettyPrintIndent = "    "
+
+	// defaultMaxRequestBodyBytes caps incoming HTTP body size to prevent OOM via
+	// malicious oversized POST requests. 20 MB matches common reverse-proxy
+	// defaults and is well above any realistic OTLP trace batch size.
+	defaultMaxRequestBodyBytes = 20 * 1024 * 1024
 )
 
 // HTTPHandler handles http requests
@@ -70,13 +75,14 @@ type structuredError struct {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	queryService        *querysvc.QueryService
-	metricsQueryService metricstore.Reader
-	queryParser         queryParser
-	basePath            string
-	apiPrefix           string
-	logger              *zap.Logger
-	tracer              trace.TracerProvider
+	queryService         *querysvc.QueryService
+	metricsQueryService  metricstore.Reader
+	queryParser          queryParser
+	basePath             string
+	apiPrefix            string
+	logger               *zap.Logger
+	tracer               trace.TracerProvider
+	maxRequestBodyBytes  int64
 }
 
 // NewAPIHandler returns an APIHandler
@@ -100,6 +106,9 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 	}
 	if aH.tracer == nil {
 		aH.tracer = nooptrace.NewTracerProvider()
+	}
+	if aH.maxRequestBodyBytes <= 0 {
+		aH.maxRequestBodyBytes = defaultMaxRequestBodyBytes
 	}
 	return aH
 }
@@ -184,8 +193,15 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 }
 
 func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, aH.maxRequestBodyBytes)
 	body, err := io.ReadAll(r.Body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		aH.handleError(w, err, http.StatusBadRequest)
 		return
 	}
 
