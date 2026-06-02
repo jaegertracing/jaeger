@@ -39,6 +39,10 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", `unable to parse param 'maxDuration': time: missing unit in duration "?30"?$`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=0", `parameter 'limit' must be greater than 0`, nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=-1", `parameter 'limit' must be greater than 0`, nil},
+		// start=1000 (1ms since epoch) is after end=0 (epoch)
+		{"x?service=service&start=1000&end=0&operation=operation&limit=200", `'start' must not be later than 'end'`, nil},
 		{
 			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{
