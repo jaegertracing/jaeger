@@ -43,6 +43,8 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=0&end=0&operation=operation&limit=-1", `parameter 'limit' must be greater than 0`, nil},
 		// start=1000 (1ms since epoch) is after end=0 (epoch)
 		{"x?service=service&start=1000&end=0&operation=operation&limit=200", `'start' must not be later than 'end'`, nil},
+		// trace-ID-only query with no start/end must not be rejected by the start>end check
+		{"x?traceID=abc123", noErr, nil},
 		{
 			"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{

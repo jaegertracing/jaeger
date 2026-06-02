@@ -371,7 +371,7 @@ func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.TraceIDs) == 0 && traceQuery.SearchDepth <= 0 {
 		return errLimitMustBePositive
 	}
-	if traceQuery.StartTimeMin.After(traceQuery.StartTimeMax) {
+	if len(traceQuery.TraceIDs) == 0 && traceQuery.StartTimeMin.After(traceQuery.StartTimeMax) {
 		return errStartTimeAfterEnd
 	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
