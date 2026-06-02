@@ -58,6 +58,18 @@ func (m *IoReaderMock) Read(b []byte) (int, error) {
 	return args.Int(0), args.Error(1)
 }
 
+// repeatByteReader is an infinite reader that fills every Read with b. Paired
+// with io.LimitReader it lets a test produce a bounded oversize payload
+// without allocating the whole thing in memory.
+type repeatByteReader byte
+
+func (r repeatByteReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(r)
+	}
+	return len(p), nil
+}
+
 var (
 	errStorageMsg = "storage error"
 	errStorage    = errors.New(errStorageMsg)
@@ -834,6 +846,22 @@ func TestTransformOTLPBadPayload(t *testing.T) {
 		request := "Bad Payload"
 		err := postJSON(ts.server.URL+"/api/transform", request, response)
 		require.ErrorContains(t, err, "cannot unmarshal OTLP")
+	}, querysvc.QueryServiceOptions{})
+}
+
+func TestTransformOTLPBodyTooLarge(t *testing.T) {
+	// Stream defaultMaxOTLPTransformBodySize+1 bytes without allocating the
+	// whole payload up front; MaxBytesReader has to see the cap exceeded
+	// during io.ReadAll for the 413 path to fire.
+	body := io.LimitReader(repeatByteReader('x'), defaultMaxOTLPTransformBodySize+1)
+
+	withTestServer(t, func(ts *testServer) {
+		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", body)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+
+		require.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode,
+			"oversize OTLP transform POST must be rejected with 413, not OOM the process")
 	}, querysvc.QueryServiceOptions{})
 }
 
