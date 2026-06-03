@@ -33,6 +33,7 @@ func (c Action) getMapping(version uint, mappingType mappings.MappingType) (stri
 		UseILM:          c.Config.UseILM,
 		ILMPolicyName:   c.Config.ILMPolicyName,
 		EsVersion:       version,
+		Archive:         c.Config.Archive,
 	}
 
 	return mappingBuilder.GetMapping(mappingType)

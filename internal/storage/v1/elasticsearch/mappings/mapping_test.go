@@ -414,3 +414,27 @@ func TestGetMappingTemplateOptions_DefaultCase(t *testing.T) {
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
+
+func TestGetMappingTemplateOptions_ArchiveILM(t *testing.T) {
+	replicas := int64(1)
+	mappingBuilder := &MappingBuilder{
+		Indices: config.Indices{
+			IndexPrefix: "test-",
+			Spans: config.IndexOptions{
+				Shards:   2,
+				Replicas: &replicas,
+				Priority: 10,
+			},
+		},
+		UseILM:        true,
+		ILMPolicyName: "archive-policy",
+		Archive:       true,
+	}
+
+	opts := mappingBuilder.getMappingTemplateOptions(SpanMapping)
+
+	assert.Equal(t, "test-jaeger-span-archive-write", opts.RolloverAlias)
+	assert.Equal(t, "test-jaeger-span-archive-read", opts.ReadAlias)
+	assert.True(t, opts.UseILM)
+	assert.Equal(t, "archive-policy", opts.ILMPolicyName)
+}

@@ -34,6 +34,7 @@ type MappingBuilder struct {
 	EsVersion       uint
 	UseILM          bool
 	ILMPolicyName   string
+	Archive         bool
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
@@ -44,6 +45,8 @@ type templateParams struct {
 	Shards        int64
 	Replicas      int64
 	Priority      int64
+	RolloverAlias string
+	ReadAlias     string
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
@@ -56,6 +59,14 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 		mappingOpts.Shards = mb.Indices.Spans.Shards
 		mappingOpts.Replicas = *mb.Indices.Spans.Replicas
 		mappingOpts.Priority = mb.Indices.Spans.Priority
+		prefix := mb.Indices.IndexPrefix.Apply("")
+		if mb.Archive {
+			mappingOpts.RolloverAlias = prefix + "jaeger-span-archive-write"
+			mappingOpts.ReadAlias = prefix + "jaeger-span-archive-read"
+		} else {
+			mappingOpts.RolloverAlias = prefix + "jaeger-span-write"
+			mappingOpts.ReadAlias = prefix + "jaeger-span-read"
+		}
 	case ServiceMapping:
 		mappingOpts.Shards = mb.Indices.Services.Shards
 		mappingOpts.Replicas = *mb.Indices.Services.Replicas
