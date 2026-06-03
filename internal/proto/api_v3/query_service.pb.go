@@ -5,7 +5,6 @@ package api_v3
 
 import (
 	context "context"
-	encoding_binary "encoding/binary"
 	fmt "fmt"
 	_ "github.com/gogo/googleapis/google/api"
 	_ "github.com/gogo/protobuf/gogoproto"
@@ -734,303 +733,6 @@ func (m *Dependency) GetCallCount() uint64 {
 	return 0
 }
 
-// ServiceSummary contains per-service statistics for a trace, matching
-// what the UI renders as a coloured tag in the search results row.
-type ServiceSummary struct {
-	// Name of the service.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Number of spans attributed to this service in the trace.
-	SpanCount int32 `protobuf:"varint,2,opt,name=span_count,json=spanCount,proto3" json:"span_count,omitempty"`
-	// Number of spans from this service that carry OTEL StatusCode = ERROR.
-	// The UI renders an error icon when this value is > 0.
-	// Only spans explicitly owned by this service are counted; there is no
-	// error propagation from child spans of other services.
-	ErrorSpanCount       int32    `protobuf:"varint,3,opt,name=error_span_count,json=errorSpanCount,proto3" json:"error_span_count,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *ServiceSummary) Reset()         { *m = ServiceSummary{} }
-func (m *ServiceSummary) String() string { return proto.CompactTextString(m) }
-func (*ServiceSummary) ProtoMessage()    {}
-func (*ServiceSummary) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{11}
-}
-func (m *ServiceSummary) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ServiceSummary) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ServiceSummary.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ServiceSummary) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ServiceSummary.Merge(m, src)
-}
-func (m *ServiceSummary) XXX_Size() int {
-	return m.Size()
-}
-func (m *ServiceSummary) XXX_DiscardUnknown() {
-	xxx_messageInfo_ServiceSummary.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ServiceSummary proto.InternalMessageInfo
-
-func (m *ServiceSummary) GetName() string {
-	if m != nil {
-		return m.Name
-	}
-	return ""
-}
-
-func (m *ServiceSummary) GetSpanCount() int32 {
-	if m != nil {
-		return m.SpanCount
-	}
-	return 0
-}
-
-func (m *ServiceSummary) GetErrorSpanCount() int32 {
-	if m != nil {
-		return m.ErrorSpanCount
-	}
-	return 0
-}
-
-// TraceSummary contains lightweight summary information about a trace,
-// suitable for display in search result lists.
-type TraceSummary struct {
-	// Hex-encoded 128-bit trace ID.
-	TraceId string `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
-	// Name of the service that owns the root span.
-	RootServiceName string `protobuf:"bytes,2,opt,name=root_service_name,json=rootServiceName,proto3" json:"root_service_name,omitempty"`
-	// Operation name of the root span.
-	RootOperationName string `protobuf:"bytes,3,opt,name=root_operation_name,json=rootOperationName,proto3" json:"root_operation_name,omitempty"`
-	// Start timestamp of the earliest span in the trace (Unix nanoseconds).
-	// Named to match the OTLP convention (e.g. startTimeUnixNano in OTLP span JSON).
-	// proto3 JSON encoding: fixed64/uint64/int64 fields are serialised as decimal
-	// strings to avoid float64 precision loss in JavaScript for values above 2^53.
-	MinStartTimeUnixNano uint64 `protobuf:"fixed64,4,opt,name=min_start_time_unix_nano,json=minStartTimeUnixNano,proto3" json:"min_start_time_unix_nano,omitempty"`
-	// End timestamp of the latest span in the trace (Unix nanoseconds).
-	// The UI may compute duration as BigInt(maxEndTimeUnixNano) - BigInt(minStartTimeUnixNano).
-	MaxEndTimeUnixNano uint64 `protobuf:"fixed64,5,opt,name=max_end_time_unix_nano,json=maxEndTimeUnixNano,proto3" json:"max_end_time_unix_nano,omitempty"`
-	// Total number of spans in the trace.
-	SpanCount int32 `protobuf:"varint,6,opt,name=span_count,json=spanCount,proto3" json:"span_count,omitempty"`
-	// Number of spans that carry an error indicator (OTEL StatusCode = ERROR).
-	ErrorSpanCount int32 `protobuf:"varint,7,opt,name=error_span_count,json=errorSpanCount,proto3" json:"error_span_count,omitempty"`
-	// Number of spans whose parent span ID is not present in this trace.
-	// A non-zero value indicates an incomplete or partial trace.
-	OrphanSpanCount int32 `protobuf:"varint,8,opt,name=orphan_span_count,json=orphanSpanCount,proto3" json:"orphan_span_count,omitempty"`
-	// Per-service breakdown, one entry per distinct service name observed
-	// across all spans, sorted by name.
-	Services             []*ServiceSummary `protobuf:"bytes,9,rep,name=services,proto3" json:"services,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
-	XXX_unrecognized     []byte            `json:"-"`
-	XXX_sizecache        int32             `json:"-"`
-}
-
-func (m *TraceSummary) Reset()         { *m = TraceSummary{} }
-func (m *TraceSummary) String() string { return proto.CompactTextString(m) }
-func (*TraceSummary) ProtoMessage()    {}
-func (*TraceSummary) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{12}
-}
-func (m *TraceSummary) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *TraceSummary) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_TraceSummary.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *TraceSummary) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_TraceSummary.Merge(m, src)
-}
-func (m *TraceSummary) XXX_Size() int {
-	return m.Size()
-}
-func (m *TraceSummary) XXX_DiscardUnknown() {
-	xxx_messageInfo_TraceSummary.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_TraceSummary proto.InternalMessageInfo
-
-func (m *TraceSummary) GetTraceId() string {
-	if m != nil {
-		return m.TraceId
-	}
-	return ""
-}
-
-func (m *TraceSummary) GetRootServiceName() string {
-	if m != nil {
-		return m.RootServiceName
-	}
-	return ""
-}
-
-func (m *TraceSummary) GetRootOperationName() string {
-	if m != nil {
-		return m.RootOperationName
-	}
-	return ""
-}
-
-func (m *TraceSummary) GetMinStartTimeUnixNano() uint64 {
-	if m != nil {
-		return m.MinStartTimeUnixNano
-	}
-	return 0
-}
-
-func (m *TraceSummary) GetMaxEndTimeUnixNano() uint64 {
-	if m != nil {
-		return m.MaxEndTimeUnixNano
-	}
-	return 0
-}
-
-func (m *TraceSummary) GetSpanCount() int32 {
-	if m != nil {
-		return m.SpanCount
-	}
-	return 0
-}
-
-func (m *TraceSummary) GetErrorSpanCount() int32 {
-	if m != nil {
-		return m.ErrorSpanCount
-	}
-	return 0
-}
-
-func (m *TraceSummary) GetOrphanSpanCount() int32 {
-	if m != nil {
-		return m.OrphanSpanCount
-	}
-	return 0
-}
-
-func (m *TraceSummary) GetServices() []*ServiceSummary {
-	if m != nil {
-		return m.Services
-	}
-	return nil
-}
-
-// Request object for FindTraceSummaries.
-type FindTraceSummariesRequest struct {
-	Query                *TraceQueryParameters `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
-}
-
-func (m *FindTraceSummariesRequest) Reset()         { *m = FindTraceSummariesRequest{} }
-func (m *FindTraceSummariesRequest) String() string { return proto.CompactTextString(m) }
-func (*FindTraceSummariesRequest) ProtoMessage()    {}
-func (*FindTraceSummariesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{13}
-}
-func (m *FindTraceSummariesRequest) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *FindTraceSummariesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_FindTraceSummariesRequest.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *FindTraceSummariesRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FindTraceSummariesRequest.Merge(m, src)
-}
-func (m *FindTraceSummariesRequest) XXX_Size() int {
-	return m.Size()
-}
-func (m *FindTraceSummariesRequest) XXX_DiscardUnknown() {
-	xxx_messageInfo_FindTraceSummariesRequest.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_FindTraceSummariesRequest proto.InternalMessageInfo
-
-func (m *FindTraceSummariesRequest) GetQuery() *TraceQueryParameters {
-	if m != nil {
-		return m.Query
-	}
-	return nil
-}
-
-// Response chunk for FindTraceSummaries. A single RPC call may yield multiple
-// chunks, each carrying one or more summaries, mirroring the chunked streaming
-// used by FindTraces / GetTrace.
-type FindTraceSummariesResponse struct {
-	Summaries            []*TraceSummary `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
-	XXX_unrecognized     []byte          `json:"-"`
-	XXX_sizecache        int32           `json:"-"`
-}
-
-func (m *FindTraceSummariesResponse) Reset()         { *m = FindTraceSummariesResponse{} }
-func (m *FindTraceSummariesResponse) String() string { return proto.CompactTextString(m) }
-func (*FindTraceSummariesResponse) ProtoMessage()    {}
-func (*FindTraceSummariesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{14}
-}
-func (m *FindTraceSummariesResponse) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *FindTraceSummariesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_FindTraceSummariesResponse.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *FindTraceSummariesResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FindTraceSummariesResponse.Merge(m, src)
-}
-func (m *FindTraceSummariesResponse) XXX_Size() int {
-	return m.Size()
-}
-func (m *FindTraceSummariesResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_FindTraceSummariesResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_FindTraceSummariesResponse proto.InternalMessageInfo
-
-func (m *FindTraceSummariesResponse) GetSummaries() []*TraceSummary {
-	if m != nil {
-		return m.Summaries
-	}
-	return nil
-}
-
 // GRPCGatewayError is the type returned when GRPC server returns an error.
 // Example: {"error":{"grpcCode":2,"httpCode":500,"message":"...","httpStatus":"text..."}}.
 type GRPCGatewayError struct {
@@ -1044,7 +746,7 @@ func (m *GRPCGatewayError) Reset()         { *m = GRPCGatewayError{} }
 func (m *GRPCGatewayError) String() string { return proto.CompactTextString(m) }
 func (*GRPCGatewayError) ProtoMessage()    {}
 func (*GRPCGatewayError) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{15}
+	return fileDescriptor_5fcb6756dc1afb8d, []int{11}
 }
 func (m *GRPCGatewayError) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1096,7 +798,7 @@ func (m *GRPCGatewayError_GRPCGatewayErrorDetails) Reset() {
 func (m *GRPCGatewayError_GRPCGatewayErrorDetails) String() string { return proto.CompactTextString(m) }
 func (*GRPCGatewayError_GRPCGatewayErrorDetails) ProtoMessage()    {}
 func (*GRPCGatewayError_GRPCGatewayErrorDetails) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{15, 0}
+	return fileDescriptor_5fcb6756dc1afb8d, []int{11, 0}
 }
 func (m *GRPCGatewayError_GRPCGatewayErrorDetails) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1175,7 +877,7 @@ func (m *GRPCGatewayWrapper) Reset()         { *m = GRPCGatewayWrapper{} }
 func (m *GRPCGatewayWrapper) String() string { return proto.CompactTextString(m) }
 func (*GRPCGatewayWrapper) ProtoMessage()    {}
 func (*GRPCGatewayWrapper) Descriptor() ([]byte, []int) {
-	return fileDescriptor_5fcb6756dc1afb8d, []int{16}
+	return fileDescriptor_5fcb6756dc1afb8d, []int{12}
 }
 func (m *GRPCGatewayWrapper) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1224,10 +926,6 @@ func init() {
 	proto.RegisterType((*GetDependenciesRequest)(nil), "jaeger.api_v3.GetDependenciesRequest")
 	proto.RegisterType((*DependenciesResponse)(nil), "jaeger.api_v3.DependenciesResponse")
 	proto.RegisterType((*Dependency)(nil), "jaeger.api_v3.Dependency")
-	proto.RegisterType((*ServiceSummary)(nil), "jaeger.api_v3.ServiceSummary")
-	proto.RegisterType((*TraceSummary)(nil), "jaeger.api_v3.TraceSummary")
-	proto.RegisterType((*FindTraceSummariesRequest)(nil), "jaeger.api_v3.FindTraceSummariesRequest")
-	proto.RegisterType((*FindTraceSummariesResponse)(nil), "jaeger.api_v3.FindTraceSummariesResponse")
 	proto.RegisterType((*GRPCGatewayError)(nil), "jaeger.api_v3.GRPCGatewayError")
 	proto.RegisterType((*GRPCGatewayError_GRPCGatewayErrorDetails)(nil), "jaeger.api_v3.GRPCGatewayError.GRPCGatewayErrorDetails")
 	proto.RegisterType((*GRPCGatewayWrapper)(nil), "jaeger.api_v3.GRPCGatewayWrapper")
@@ -1236,97 +934,81 @@ func init() {
 func init() { proto.RegisterFile("query_service.proto", fileDescriptor_5fcb6756dc1afb8d) }
 
 var fileDescriptor_5fcb6756dc1afb8d = []byte{
-	// 1432 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x57, 0x4f, 0x6f, 0xdb, 0xc6,
-	0x12, 0x7f, 0x94, 0x22, 0x59, 0x1a, 0x3b, 0xb6, 0xb3, 0xd6, 0x8b, 0x65, 0xc5, 0x96, 0x15, 0xfa,
-	0x05, 0x51, 0xf2, 0x1a, 0xc9, 0xb1, 0x81, 0xa4, 0x31, 0x10, 0xb4, 0xb1, 0x9d, 0x08, 0x6d, 0x91,
-	0x3f, 0xa5, 0xd3, 0x04, 0xf0, 0x85, 0x58, 0x8b, 0x1b, 0x89, 0x8d, 0xb8, 0x64, 0x96, 0x2b, 0x45,
-	0x42, 0x90, 0x43, 0x7b, 0xe9, 0xa1, 0x28, 0x50, 0xa0, 0x97, 0x9e, 0x7a, 0x6b, 0x0f, 0xfd, 0x08,
-	0xfd, 0x04, 0x41, 0x4f, 0x2d, 0x7a, 0x6f, 0x83, 0xa0, 0xf7, 0x7e, 0x85, 0x82, 0xbb, 0x4b, 0x8a,
-	0xa4, 0xec, 0xc0, 0x49, 0x7b, 0xb2, 0x38, 0xfb, 0x9b, 0xdf, 0xcc, 0xee, 0xfc, 0x76, 0x66, 0x0d,
-	0x0b, 0x4f, 0xfa, 0x84, 0x8d, 0x4c, 0x9f, 0xb0, 0x81, 0xdd, 0x26, 0x0d, 0x8f, 0xb9, 0xdc, 0x45,
-	0x27, 0x3f, 0xc5, 0xa4, 0x43, 0x58, 0x03, 0x7b, 0xb6, 0x39, 0xd8, 0xac, 0x2c, 0x77, 0x5c, 0xb7,
-	0xd3, 0x23, 0x4d, 0xec, 0xd9, 0x4d, 0x4c, 0xa9, 0xcb, 0x31, 0xb7, 0x5d, 0xea, 0x4b, 0x70, 0x65,
-	0x35, 0xb6, 0xfa, 0xc8, 0x26, 0x3d, 0xcb, 0x3c, 0x20, 0x5d, 0x3c, 0xb0, 0x5d, 0xa6, 0x00, 0x55,
-	0x05, 0x10, 0x5f, 0x07, 0xfd, 0x47, 0x4d, 0xab, 0xcf, 0x04, 0x83, 0x5a, 0x2f, 0x75, 0xdc, 0x8e,
-	0x2b, 0x7e, 0x36, 0x83, 0x5f, 0x29, 0xda, 0xc8, 0x8b, 0xdb, 0x0e, 0xf1, 0x39, 0x76, 0x3c, 0x05,
-	0xa8, 0xbb, 0x1e, 0xa1, 0x9c, 0xf4, 0x88, 0x43, 0x38, 0x1b, 0x49, 0x5c, 0x93, 0x33, 0xdc, 0x26,
-	0xcd, 0xc1, 0x65, 0xf9, 0x43, 0x21, 0xd7, 0x3a, 0xd4, 0xf5, 0xb9, 0xdd, 0x6e, 0x06, 0x1e, 0xd8,
-	0xb3, 0x07, 0x9b, 0x93, 0xdb, 0xd0, 0x7f, 0xd5, 0x60, 0xae, 0x45, 0xf8, 0xfd, 0xc0, 0xcf, 0x20,
-	0x4f, 0xfa, 0xc4, 0xe7, 0x68, 0x09, 0x0a, 0x82, 0xc7, 0xb4, 0xad, 0xb2, 0x56, 0xd3, 0xea, 0x45,
-	0x63, 0x4a, 0x7c, 0x7f, 0x60, 0xa1, 0x1d, 0x00, 0x9f, 0x63, 0xc6, 0xcd, 0x20, 0xad, 0x72, 0xa6,
-	0xa6, 0xd5, 0xa7, 0x37, 0x2a, 0x0d, 0x99, 0x73, 0x23, 0xcc, 0xb9, 0x71, 0x3f, 0xcc, 0x79, 0xbb,
-	0xf0, 0xe2, 0xf7, 0xd5, 0xff, 0x7c, 0xfd, 0xc7, 0xaa, 0x66, 0x14, 0x85, 0x5f, 0xb0, 0x82, 0xde,
-	0x83, 0x02, 0xa1, 0x96, 0xa4, 0xc8, 0xbe, 0x01, 0xc5, 0x14, 0xa1, 0x96, 0x20, 0x58, 0x01, 0x60,
-	0xf8, 0xa9, 0x29, 0x92, 0xf2, 0xcb, 0x27, 0x6a, 0x5a, 0xbd, 0x60, 0x14, 0x19, 0x7e, 0x2a, 0x76,
-	0xe1, 0xeb, 0x5f, 0xe5, 0xa0, 0x24, 0x7e, 0x7e, 0x1c, 0x14, 0xf9, 0x1e, 0x66, 0xd8, 0x21, 0x9c,
-	0x30, 0x1f, 0x9d, 0x85, 0x19, 0x55, 0x71, 0x93, 0x62, 0x87, 0xa8, 0xcd, 0x4d, 0x2b, 0xdb, 0x1d,
-	0xec, 0x10, 0x74, 0x0e, 0x66, 0x5d, 0x8f, 0xc8, 0x42, 0x49, 0x50, 0x46, 0x80, 0x4e, 0x46, 0x56,
-	0x01, 0xfb, 0x4c, 0x03, 0xc0, 0x9c, 0x33, 0xfb, 0xa0, 0xcf, 0x89, 0x5f, 0xce, 0xd6, 0xb2, 0xf5,
-	0xe9, 0x8d, 0xcd, 0x46, 0x42, 0x40, 0x8d, 0xc3, 0x72, 0x68, 0xdc, 0x88, 0xbc, 0x6e, 0x52, 0xce,
-	0x46, 0xdb, 0xef, 0xfc, 0xd4, 0xba, 0xb0, 0x55, 0x45, 0xcb, 0xe7, 0x9f, 0xe9, 0x5d, 0xce, 0xbd,
-	0x86, 0xcf, 0x31, 0xef, 0xfb, 0x66, 0xdb, 0xb5, 0x88, 0xbe, 0xa5, 0x6f, 0xac, 0xaf, 0xeb, 0xcf,
-	0xcf, 0xff, 0xac, 0xe5, 0x7d, 0xce, 0x6c, 0xda, 0x31, 0x62, 0x41, 0xd1, 0x87, 0x30, 0x3b, 0xae,
-	0x85, 0xe9, 0xd8, 0x54, 0x9c, 0xc4, 0x71, 0x0f, 0x73, 0x26, 0xaa, 0xc7, 0x6d, 0x9b, 0xa6, 0xb9,
-	0xf0, 0xb0, 0x9c, 0x7b, 0x3b, 0x2e, 0x3c, 0x44, 0xb7, 0x60, 0x26, 0x94, 0xba, 0xc8, 0x2a, 0x2f,
-	0x98, 0x96, 0x26, 0x98, 0x76, 0x15, 0x48, 0x12, 0x7d, 0x1b, 0x10, 0x4d, 0x87, 0x8e, 0x41, 0x4e,
-	0x09, 0x1e, 0x3c, 0x2c, 0x4f, 0xbd, 0x0d, 0x0f, 0x1e, 0xca, 0xaa, 0x63, 0xd6, 0xee, 0x9a, 0x16,
-	0xf1, 0x78, 0xb7, 0x5c, 0xa8, 0x69, 0xf5, 0x5c, 0x50, 0xf5, 0xc0, 0xb6, 0x1b, 0x98, 0x52, 0x82,
-	0x2a, 0xa6, 0x04, 0x55, 0xb9, 0x0e, 0x73, 0xa9, 0xb2, 0xa1, 0x79, 0xc8, 0x3e, 0x26, 0x23, 0xa5,
-	0xa0, 0xe0, 0x27, 0x2a, 0x41, 0x6e, 0x80, 0x7b, 0xfd, 0x50, 0x30, 0xf2, 0x63, 0x2b, 0xf3, 0xae,
-	0xa6, 0xdf, 0x81, 0x53, 0xb7, 0x6c, 0x6a, 0x49, 0xb2, 0xf0, 0x92, 0x5d, 0x83, 0x9c, 0xe8, 0x41,
-	0x82, 0x62, 0x7a, 0x63, 0xed, 0x18, 0xda, 0x31, 0xa4, 0x87, 0x5e, 0x02, 0xd4, 0x22, 0x7c, 0x4f,
-	0xaa, 0x36, 0x24, 0xd4, 0xaf, 0xc0, 0x42, 0xc2, 0xea, 0x7b, 0x2e, 0xf5, 0x09, 0x5a, 0x85, 0x82,
-	0xd2, 0xb7, 0x5f, 0xd6, 0x6a, 0xd9, 0x7a, 0x71, 0x3b, 0xfb, 0xf2, 0x46, 0xc6, 0x88, 0x8c, 0xfa,
-	0x43, 0x28, 0xb5, 0x08, 0xbf, 0x1b, 0xca, 0x3b, 0x4a, 0x70, 0x05, 0xa6, 0x14, 0x46, 0xee, 0x52,
-	0xfa, 0x85, 0x36, 0x54, 0x83, 0xa2, 0xef, 0x61, 0x6a, 0x3e, 0xb6, 0xa9, 0x25, 0xb7, 0x1c, 0x00,
-	0x34, 0xa3, 0x10, 0x58, 0x3f, 0xb2, 0xa9, 0xa5, 0xdf, 0x82, 0x62, 0xc4, 0x8a, 0x16, 0xe1, 0xc4,
-	0xf8, 0xca, 0x49, 0x2a, 0x61, 0x38, 0x82, 0x27, 0x13, 0xe3, 0x79, 0x00, 0xff, 0x4d, 0x25, 0xa8,
-	0xb6, 0x76, 0x1d, 0x20, 0xba, 0x95, 0x72, 0x73, 0xd3, 0x1b, 0xe5, 0xd4, 0x39, 0x46, 0x6e, 0x92,
-	0x35, 0xe6, 0xa0, 0x7f, 0xa7, 0xc1, 0xe9, 0x16, 0xe1, 0xbb, 0xc4, 0x23, 0xd4, 0x22, 0xb4, 0x6d,
-	0x8f, 0x8b, 0x93, 0x6c, 0x73, 0xda, 0x3f, 0x6f, 0x73, 0x99, 0xb7, 0x68, 0x73, 0xfa, 0x3e, 0x94,
-	0x92, 0xc9, 0xa9, 0x7d, 0x6f, 0xc3, 0x8c, 0x15, 0xb3, 0xab, 0x9d, 0x2f, 0xa5, 0x76, 0x1e, 0xb9,
-	0x8e, 0xe4, 0xd6, 0x13, 0x3e, 0x7a, 0x17, 0x60, 0x0c, 0x40, 0x67, 0x20, 0xef, 0x61, 0x46, 0x28,
-	0x8f, 0xd7, 0x47, 0x99, 0xd0, 0x12, 0xe4, 0xda, 0x5d, 0xbb, 0x97, 0xa8, 0x8e, 0xb4, 0x20, 0x1d,
-	0xa0, 0x8d, 0x7b, 0x3d, 0xb3, 0xed, 0xf6, 0x29, 0x17, 0xbd, 0xfc, 0x84, 0x5c, 0x2f, 0x06, 0xe6,
-	0x9d, 0xc0, 0xaa, 0x33, 0x98, 0x55, 0xa2, 0xdc, 0xeb, 0x3b, 0x0e, 0x66, 0xa3, 0xa3, 0xb5, 0xb0,
-	0x02, 0x20, 0xb4, 0x20, 0xe9, 0x32, 0xe2, 0x9e, 0x0a, 0x75, 0x08, 0x26, 0x54, 0x87, 0x79, 0xc2,
-	0x98, 0xcb, 0xcc, 0x18, 0x28, 0x2b, 0x40, 0xb3, 0xc2, 0xbe, 0x17, 0x22, 0xf5, 0x1f, 0xb2, 0x30,
-	0x23, 0x6e, 0x50, 0x18, 0xb2, 0x9a, 0x1e, 0x69, 0x4a, 0xcd, 0xe1, 0x5c, 0xbb, 0x08, 0xa7, 0x98,
-	0xeb, 0x72, 0x33, 0x31, 0x1e, 0xe4, 0x45, 0x9e, 0x0b, 0x16, 0xf6, 0x62, 0x23, 0xa2, 0x01, 0x0b,
-	0x02, 0x9b, 0x9a, 0x13, 0x59, 0x81, 0x16, 0x34, 0x77, 0x13, 0xb3, 0xe2, 0x0a, 0x94, 0x1d, 0x9b,
-	0x9a, 0xb1, 0xfe, 0xda, 0xa7, 0xf6, 0xd0, 0xa4, 0x98, 0xba, 0xa2, 0x63, 0xe7, 0x8d, 0x92, 0x63,
-	0xd3, 0xbd, 0x50, 0x37, 0x9f, 0x50, 0x7b, 0x78, 0x07, 0x53, 0x17, 0x6d, 0xc0, 0x69, 0x07, 0x0f,
-	0xcd, 0x50, 0x43, 0x31, 0xaf, 0x9c, 0xf0, 0x42, 0x0e, 0x1e, 0xde, 0x94, 0x52, 0x89, 0x7c, 0x92,
-	0x27, 0x98, 0x3f, 0xce, 0x09, 0x4e, 0x1d, 0x76, 0x82, 0xc1, 0x81, 0xb8, 0xcc, 0xeb, 0x62, 0x1a,
-	0x87, 0xca, 0xce, 0x39, 0x27, 0x17, 0xc6, 0xd8, 0x6b, 0xb1, 0x16, 0x53, 0x14, 0x5a, 0x5c, 0x49,
-	0x69, 0x31, 0x29, 0x80, 0x58, 0xf3, 0x79, 0x00, 0x4b, 0x51, 0x6b, 0x94, 0xab, 0xf6, 0xbf, 0xd2,
-	0x22, 0x1f, 0x42, 0xe5, 0x30, 0x5e, 0x75, 0x81, 0xae, 0x41, 0xd1, 0x0f, 0x8d, 0xea, 0xf6, 0x9c,
-	0x39, 0x8c, 0x3c, 0xcc, 0x77, 0x8c, 0xd6, 0xff, 0xd2, 0x60, 0xbe, 0x65, 0xdc, 0xdb, 0x69, 0x61,
-	0x4e, 0x9e, 0xe2, 0xd1, 0xcd, 0xe0, 0xd4, 0xd0, 0x6d, 0xc8, 0x89, 0xe3, 0x53, 0x89, 0x5e, 0x4d,
-	0x71, 0xa5, 0xf1, 0x13, 0x86, 0x5d, 0xc2, 0xb1, 0xdd, 0xf3, 0x0d, 0xc9, 0x52, 0xf9, 0x52, 0x83,
-	0xc5, 0x23, 0x20, 0xa8, 0x02, 0x85, 0x0e, 0xf3, 0xda, 0x3b, 0xae, 0x25, 0xef, 0x4f, 0xce, 0x88,
-	0xbe, 0x83, 0xb5, 0xe0, 0x09, 0x21, 0xd6, 0xe4, 0xe5, 0x89, 0xbe, 0x51, 0x19, 0xa6, 0x1c, 0xe2,
-	0xfb, 0xb8, 0x13, 0x0a, 0x35, 0xfc, 0x44, 0x55, 0x80, 0x00, 0xb5, 0x27, 0xde, 0x1d, 0x42, 0x90,
-	0x45, 0x23, 0x66, 0xd1, 0x1f, 0x00, 0x8a, 0x25, 0xf3, 0x90, 0x61, 0xcf, 0x23, 0x0c, 0xbd, 0x0f,
-	0x79, 0x46, 0xfc, 0x7e, 0x8f, 0xab, 0x3d, 0xd7, 0x1b, 0x89, 0x77, 0xa9, 0xec, 0x70, 0x0d, 0xf9,
-	0x1c, 0x1d, 0x5c, 0x96, 0xc7, 0xe9, 0xef, 0x62, 0x8e, 0x0d, 0xe5, 0xb7, 0xf1, 0x7d, 0x1e, 0x66,
-	0x44, 0xf5, 0x94, 0x38, 0xd0, 0x08, 0x0a, 0xe1, 0x4b, 0x14, 0x55, 0xd3, 0x47, 0x98, 0x7c, 0xa2,
-	0x56, 0x8e, 0x1d, 0x4e, 0x3f, 0xfb, 0xf9, 0x6f, 0x7f, 0x7e, 0x93, 0x39, 0x83, 0x96, 0xc4, 0x4b,
-	0x7d, 0xb0, 0x29, 0x9f, 0xc8, 0x7e, 0xf3, 0x59, 0xd8, 0x0f, 0x9e, 0xaf, 0x6b, 0xe8, 0x0b, 0x0d,
-	0x60, 0x3c, 0xa2, 0x51, 0x2d, 0x15, 0x7d, 0x62, 0x7a, 0xbf, 0x41, 0xfc, 0xff, 0x8b, 0xf8, 0xe7,
-	0xd0, 0x6c, 0x32, 0xfe, 0xfe, 0x82, 0x9e, 0xb2, 0x6c, 0x69, 0x17, 0xd7, 0x35, 0x44, 0x61, 0x3a,
-	0x36, 0xc5, 0xd1, 0xd9, 0xc9, 0x73, 0x48, 0xcd, 0xfd, 0x8a, 0xfe, 0x3a, 0x88, 0x14, 0xbc, 0x5e,
-	0x16, 0x49, 0x20, 0x34, 0x1f, 0x86, 0x0c, 0x2f, 0x20, 0x1a, 0xc0, 0xc9, 0xc4, 0x70, 0x45, 0x6b,
-	0x93, 0x74, 0x13, 0x6f, 0x83, 0xca, 0xff, 0x5e, 0x0f, 0x52, 0x51, 0x2b, 0x22, 0x6a, 0x09, 0xa1,
-	0x30, 0xea, 0x78, 0xf8, 0xa2, 0x67, 0xe2, 0xdf, 0x8e, 0xf8, 0x78, 0x43, 0xe7, 0x26, 0x49, 0x0f,
-	0x99, 0xcd, 0x95, 0xb5, 0xa3, 0xe6, 0x5c, 0xec, 0x86, 0xeb, 0xcb, 0x22, 0xf4, 0x69, 0x54, 0x0a,
-	0x43, 0xc7, 0x87, 0x1f, 0xfa, 0x51, 0x03, 0x34, 0xd9, 0x1e, 0x50, 0xfd, 0xa8, 0xb2, 0xa7, 0x3b,
-	0x53, 0xe5, 0xc2, 0x31, 0x90, 0x2a, 0x93, 0xeb, 0x22, 0x93, 0xab, 0x68, 0x31, 0x51, 0xed, 0x4b,
-	0x51, 0x47, 0xd9, 0x5f, 0xd6, 0x8f, 0x5a, 0x12, 0x8a, 0xd8, 0xbe, 0xf4, 0xe2, 0x55, 0x55, 0xfb,
-	0xe5, 0x55, 0x55, 0x7b, 0xf9, 0xaa, 0xaa, 0xc1, 0xa2, 0xed, 0xaa, 0xd8, 0x01, 0xd8, 0xa6, 0x1d,
-	0x95, 0xc2, 0x7e, 0x5e, 0xfe, 0x3d, 0xc8, 0x0b, 0x29, 0x6e, 0xfe, 0x1d, 0x00, 0x00, 0xff, 0xff,
-	0xb7, 0x84, 0xbc, 0x1f, 0xe2, 0x0e, 0x00, 0x00,
+	// 1173 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x56, 0xcd, 0x6f, 0x1b, 0x45,
+	0x14, 0x67, 0xec, 0xd8, 0xb1, 0x9f, 0xd3, 0x0f, 0xa6, 0xa6, 0x75, 0xdc, 0xd6, 0x71, 0x36, 0x44,
+	0x35, 0x5f, 0x76, 0xea, 0x48, 0x7c, 0x44, 0xaa, 0xa0, 0x49, 0x1a, 0x0b, 0x50, 0x4b, 0xd9, 0x56,
+	0xad, 0x94, 0xcb, 0x6a, 0xe2, 0x9d, 0xda, 0x4b, 0xed, 0xd9, 0xed, 0xcc, 0xd8, 0x89, 0x15, 0xf5,
+	0x00, 0x17, 0x0e, 0x08, 0x09, 0x89, 0x0b, 0x27, 0xfe, 0x10, 0xfe, 0x82, 0x8a, 0x13, 0x88, 0x3b,
+	0x54, 0x11, 0x77, 0xae, 0x1c, 0xd1, 0xce, 0xcc, 0xda, 0xeb, 0x75, 0x53, 0xa5, 0xe1, 0xe4, 0x99,
+	0x37, 0xbf, 0xf7, 0x7b, 0xef, 0xcd, 0x7b, 0xfb, 0x1b, 0xc3, 0x85, 0x27, 0x03, 0xca, 0x47, 0x8e,
+	0xa0, 0x7c, 0xe8, 0xb5, 0x69, 0x3d, 0xe0, 0xbe, 0xf4, 0xf1, 0x99, 0xaf, 0x08, 0xed, 0x50, 0x5e,
+	0x27, 0x81, 0xe7, 0x0c, 0xd7, 0xcb, 0x57, 0x3a, 0xbe, 0xdf, 0xe9, 0xd1, 0x06, 0x09, 0xbc, 0x06,
+	0x61, 0xcc, 0x97, 0x44, 0x7a, 0x3e, 0x13, 0x1a, 0x5c, 0x5e, 0x8a, 0x9d, 0x3e, 0xf2, 0x68, 0xcf,
+	0x75, 0xf6, 0x68, 0x97, 0x0c, 0x3d, 0x9f, 0x1b, 0x40, 0xc5, 0x00, 0xd4, 0x6e, 0x6f, 0xf0, 0xa8,
+	0xe1, 0x0e, 0xb8, 0x62, 0x30, 0xe7, 0xc5, 0x8e, 0xdf, 0xf1, 0xd5, 0xb2, 0x11, 0xae, 0x12, 0xb4,
+	0x63, 0x2f, 0xe9, 0xf5, 0xa9, 0x90, 0xa4, 0x1f, 0x18, 0x40, 0xcd, 0x0f, 0x28, 0x93, 0xb4, 0x47,
+	0xfb, 0x54, 0xf2, 0x91, 0xc6, 0x35, 0x24, 0x27, 0x6d, 0xda, 0x18, 0x5e, 0xd7, 0x0b, 0x83, 0x5c,
+	0xe9, 0x30, 0x5f, 0x48, 0xaf, 0xdd, 0x08, 0x3d, 0x48, 0xe0, 0x0d, 0xd7, 0x67, 0xcb, 0xb0, 0x7e,
+	0x47, 0x70, 0xae, 0x45, 0xe5, 0xfd, 0xd0, 0xcf, 0xa6, 0x4f, 0x06, 0x54, 0x48, 0xbc, 0x08, 0x39,
+	0xc5, 0xe3, 0x78, 0x6e, 0x09, 0x55, 0x51, 0x2d, 0x6f, 0xcf, 0xab, 0xfd, 0xa7, 0x2e, 0xde, 0x02,
+	0x10, 0x92, 0x70, 0xe9, 0x84, 0x69, 0x95, 0x52, 0x55, 0x54, 0x2b, 0x34, 0xcb, 0x75, 0x9d, 0x73,
+	0x3d, 0xca, 0xb9, 0x7e, 0x3f, 0xca, 0x79, 0x33, 0xf7, 0xec, 0xcf, 0xa5, 0xd7, 0x7e, 0xf8, 0x6b,
+	0x09, 0xd9, 0x79, 0xe5, 0x17, 0x9e, 0xe0, 0x8f, 0x21, 0x47, 0x99, 0xab, 0x29, 0xd2, 0xaf, 0x40,
+	0x31, 0x4f, 0x99, 0xab, 0x08, 0xae, 0x02, 0x70, 0xb2, 0xef, 0xa8, 0xa4, 0x44, 0x69, 0xae, 0x8a,
+	0x6a, 0x39, 0x3b, 0xcf, 0xc9, 0xbe, 0xaa, 0x42, 0x58, 0xdf, 0x67, 0xa0, 0xa8, 0x96, 0x5f, 0x86,
+	0x4d, 0xbe, 0x4b, 0x38, 0xe9, 0x53, 0x49, 0xb9, 0xc0, 0xcb, 0xb0, 0x60, 0x3a, 0xee, 0x30, 0xd2,
+	0xa7, 0xa6, 0xb8, 0x82, 0xb1, 0xdd, 0x21, 0x7d, 0x8a, 0x57, 0xe1, 0xac, 0x1f, 0x50, 0xdd, 0x28,
+	0x0d, 0x4a, 0x29, 0xd0, 0x99, 0xb1, 0x55, 0xc1, 0xbe, 0x46, 0x00, 0x44, 0x4a, 0xee, 0xed, 0x0d,
+	0x24, 0x15, 0xa5, 0x74, 0x35, 0x5d, 0x2b, 0x34, 0xd7, 0xeb, 0x53, 0x03, 0x54, 0x7f, 0x51, 0x0e,
+	0xf5, 0x9b, 0x63, 0xaf, 0x5b, 0x4c, 0xf2, 0xd1, 0xe6, 0xbb, 0xbf, 0xb4, 0xde, 0xda, 0xa8, 0xe0,
+	0x2b, 0xd7, 0x0e, 0xad, 0xae, 0x94, 0x41, 0x5d, 0x48, 0x22, 0x07, 0xc2, 0x69, 0xfb, 0x2e, 0xb5,
+	0x36, 0xac, 0xe6, 0xda, 0x9a, 0xf5, 0xf4, 0xda, 0xaf, 0x28, 0x2b, 0x24, 0xf7, 0x58, 0xc7, 0x8e,
+	0x05, 0xc5, 0x9f, 0xc1, 0xd9, 0x49, 0x2f, 0x9c, 0xbe, 0xc7, 0xd4, 0x4d, 0x9c, 0xf4, 0x32, 0x17,
+	0xc6, 0xfd, 0xb8, 0xed, 0xb1, 0x24, 0x17, 0x39, 0x28, 0x65, 0x4e, 0xc7, 0x45, 0x0e, 0xf0, 0x0e,
+	0x2c, 0x44, 0xa3, 0xae, 0xb2, 0xca, 0x2a, 0xa6, 0xc5, 0x19, 0xa6, 0x6d, 0x03, 0xd2, 0x44, 0x3f,
+	0x85, 0x44, 0x85, 0xc8, 0x31, 0xcc, 0x69, 0x8a, 0x87, 0x1c, 0x94, 0xe6, 0x4f, 0xc3, 0x43, 0x0e,
+	0x74, 0xd7, 0x09, 0x6f, 0x77, 0x1d, 0x97, 0x06, 0xb2, 0x5b, 0xca, 0x55, 0x51, 0x2d, 0x13, 0x76,
+	0x3d, 0xb4, 0x6d, 0x87, 0xa6, 0xc4, 0x40, 0xe5, 0x13, 0x03, 0x55, 0xbe, 0x01, 0xe7, 0x12, 0x6d,
+	0xc3, 0xe7, 0x21, 0xfd, 0x98, 0x8e, 0xcc, 0x04, 0x85, 0x4b, 0x5c, 0x84, 0xcc, 0x90, 0xf4, 0x06,
+	0xd1, 0xc0, 0xe8, 0xcd, 0x46, 0xea, 0x43, 0x64, 0xdd, 0x81, 0xd7, 0x77, 0x3c, 0xe6, 0x6a, 0xb2,
+	0xe8, 0x23, 0xfb, 0x08, 0x32, 0x4a, 0x83, 0x14, 0x45, 0xa1, 0xb9, 0x72, 0x82, 0xd9, 0xb1, 0xb5,
+	0x87, 0x55, 0x04, 0xdc, 0xa2, 0xf2, 0x9e, 0x9e, 0xda, 0x88, 0xd0, 0x7a, 0x1f, 0x2e, 0x4c, 0x59,
+	0x45, 0xe0, 0x33, 0x41, 0xf1, 0x12, 0xe4, 0xcc, 0x7c, 0x8b, 0x12, 0xaa, 0xa6, 0x6b, 0xf9, 0xcd,
+	0xf4, 0xf3, 0x9b, 0x29, 0x7b, 0x6c, 0xb4, 0x1e, 0x42, 0xb1, 0x45, 0xe5, 0x17, 0xd1, 0x78, 0x8f,
+	0x13, 0xbc, 0x0a, 0xf3, 0x06, 0xa3, 0xab, 0xd4, 0x7e, 0x91, 0x0d, 0x57, 0x21, 0x2f, 0x02, 0xc2,
+	0x9c, 0xc7, 0x1e, 0x73, 0x75, 0xc9, 0x21, 0x00, 0xd9, 0xb9, 0xd0, 0xfa, 0xb9, 0xc7, 0x5c, 0x6b,
+	0x07, 0xf2, 0x63, 0x56, 0x7c, 0x09, 0xe6, 0x26, 0x9f, 0x9c, 0xa6, 0x52, 0x86, 0x63, 0x78, 0x52,
+	0x31, 0x9e, 0x07, 0xf0, 0x46, 0x22, 0x41, 0x53, 0xda, 0x0d, 0x80, 0xf1, 0x57, 0xa9, 0x8b, 0x2b,
+	0x34, 0x4b, 0x89, 0x7b, 0x1c, 0xbb, 0x69, 0xd6, 0x98, 0x83, 0xf5, 0x33, 0x82, 0x8b, 0x2d, 0x2a,
+	0xb7, 0x69, 0x40, 0x99, 0x4b, 0x59, 0xdb, 0x9b, 0x34, 0x67, 0x5a, 0xe6, 0xd0, 0xff, 0x97, 0xb9,
+	0xd4, 0x29, 0x64, 0xce, 0xda, 0x85, 0xe2, 0x74, 0x72, 0xa6, 0xee, 0x4d, 0x58, 0x70, 0x63, 0x76,
+	0x53, 0xf9, 0x62, 0xa2, 0xf2, 0xb1, 0xeb, 0x48, 0x97, 0x3e, 0xe5, 0x63, 0x75, 0x01, 0x26, 0x00,
+	0x7c, 0x19, 0xb2, 0x01, 0xe1, 0x94, 0xc9, 0x78, 0x7f, 0x8c, 0x09, 0x2f, 0x42, 0xa6, 0xdd, 0xf5,
+	0x7a, 0x53, 0xdd, 0xd1, 0x16, 0x6c, 0x01, 0xb4, 0x49, 0xaf, 0xe7, 0xb4, 0xfd, 0x01, 0x93, 0x4a,
+	0xcb, 0xe7, 0xf4, 0x79, 0x3e, 0x34, 0x6f, 0x85, 0x56, 0xeb, 0x1f, 0x04, 0xe7, 0x5b, 0xf6, 0xdd,
+	0xad, 0x16, 0x91, 0x74, 0x9f, 0x8c, 0x6e, 0x71, 0xee, 0x73, 0x7c, 0x1b, 0x32, 0x34, 0x5c, 0x98,
+	0xbb, 0xfd, 0x20, 0x91, 0x7b, 0x12, 0x3f, 0x63, 0xd8, 0xa6, 0x92, 0x78, 0x3d, 0x61, 0x6b, 0x96,
+	0xf2, 0x77, 0x08, 0x2e, 0x1d, 0x03, 0xc1, 0x65, 0xc8, 0x75, 0x78, 0xd0, 0xde, 0xf2, 0x5d, 0xdd,
+	0xc9, 0x8c, 0x3d, 0xde, 0x87, 0x67, 0xa1, 0xe8, 0xaa, 0xb3, 0x94, 0x3e, 0x8b, 0xf6, 0xb8, 0x04,
+	0xf3, 0x7d, 0x2a, 0x04, 0xe9, 0xe8, 0x47, 0x2a, 0x6f, 0x47, 0x5b, 0x5c, 0x01, 0x08, 0x51, 0xf7,
+	0x94, 0x52, 0x2b, 0xd1, 0xcd, 0xdb, 0x31, 0x8b, 0xf5, 0x00, 0x70, 0x2c, 0x99, 0x87, 0x9c, 0x04,
+	0x01, 0xe5, 0xf8, 0x13, 0xc8, 0x72, 0x2a, 0x06, 0x3d, 0x69, 0x6a, 0xae, 0xd5, 0xa7, 0x5e, 0x72,
+	0x3d, 0x13, 0x75, 0xfd, 0x80, 0x0f, 0xaf, 0x6b, 0x01, 0x10, 0xdb, 0x44, 0x12, 0xdb, 0xf8, 0x35,
+	0xff, 0x9d, 0x83, 0x05, 0x25, 0x09, 0xe6, 0x23, 0xc7, 0x23, 0xc8, 0x45, 0x6f, 0x37, 0xae, 0x24,
+	0xaf, 0x70, 0xfa, 0x51, 0x2f, 0x9f, 0x38, 0x9c, 0xb5, 0xfc, 0xcd, 0x1f, 0x7f, 0xff, 0x98, 0xba,
+	0x8c, 0x17, 0xd5, 0x7f, 0x9b, 0xe1, 0xba, 0xfe, 0x53, 0x21, 0x1a, 0x87, 0xd1, 0x9f, 0x82, 0xa7,
+	0x6b, 0x08, 0x7f, 0x8b, 0x00, 0x26, 0xa2, 0x86, 0xab, 0x89, 0xe8, 0x33, 0x7a, 0xf7, 0x0a, 0xf1,
+	0xdf, 0x51, 0xf1, 0x57, 0xf1, 0xd9, 0xe9, 0xf8, 0xbb, 0x17, 0xac, 0x84, 0x65, 0x03, 0xbd, 0xbd,
+	0x86, 0x30, 0x83, 0x42, 0x4c, 0xf7, 0xf0, 0xf2, 0xec, 0x3d, 0x24, 0x94, 0xb2, 0x6c, 0xbd, 0x0c,
+	0xa2, 0xbf, 0x31, 0xab, 0xa4, 0x92, 0xc0, 0xf8, 0x7c, 0x14, 0x32, 0xd2, 0x4b, 0x3c, 0x84, 0x33,
+	0x53, 0x72, 0x84, 0x57, 0x66, 0xe9, 0x66, 0xd4, 0xb4, 0xfc, 0xe6, 0xcb, 0x41, 0x26, 0x6a, 0x59,
+	0x45, 0x2d, 0x62, 0x1c, 0x45, 0x9d, 0xc8, 0x15, 0x3e, 0x54, 0x7f, 0xd4, 0xe2, 0x82, 0x80, 0x57,
+	0x67, 0x49, 0x5f, 0xa0, 0x66, 0xe5, 0x95, 0xe3, 0x94, 0x21, 0x26, 0x2a, 0xd6, 0x15, 0x15, 0xfa,
+	0x22, 0x2e, 0x46, 0xa1, 0xe3, 0x72, 0xb1, 0xf9, 0xde, 0xb3, 0xa3, 0x0a, 0xfa, 0xed, 0xa8, 0x82,
+	0x9e, 0x1f, 0x55, 0x10, 0x5c, 0xf2, 0x7c, 0x43, 0x19, 0x36, 0xc2, 0x63, 0x1d, 0xc3, 0xbc, 0x9b,
+	0xd5, 0xbf, 0x7b, 0x59, 0xd5, 0xdd, 0xf5, 0xff, 0x02, 0x00, 0x00, 0xff, 0xff, 0xc1, 0xee, 0xb1,
+	0xd0, 0x67, 0x0b, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1355,11 +1037,6 @@ type QueryServiceClient interface {
 	// GetOperations returns operation names.
 	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
 	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*DependenciesResponse, error)
-	// FindTraceSummaries searches for traces matching the given query and streams
-	// back lightweight summary information for each matching trace. Each response
-	// chunk may contain one or more summaries. Use this instead of FindTraces when
-	// full span data is not required (e.g. search results page).
-	FindTraceSummaries(ctx context.Context, in *FindTraceSummariesRequest, opts ...grpc.CallOption) (QueryService_FindTraceSummariesClient, error)
 }
 
 type queryServiceClient struct {
@@ -1461,38 +1138,6 @@ func (c *queryServiceClient) GetDependencies(ctx context.Context, in *GetDepende
 	return out, nil
 }
 
-func (c *queryServiceClient) FindTraceSummaries(ctx context.Context, in *FindTraceSummariesRequest, opts ...grpc.CallOption) (QueryService_FindTraceSummariesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_QueryService_serviceDesc.Streams[2], "/jaeger.api_v3.QueryService/FindTraceSummaries", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &queryServiceFindTraceSummariesClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type QueryService_FindTraceSummariesClient interface {
-	Recv() (*FindTraceSummariesResponse, error)
-	grpc.ClientStream
-}
-
-type queryServiceFindTraceSummariesClient struct {
-	grpc.ClientStream
-}
-
-func (x *queryServiceFindTraceSummariesClient) Recv() (*FindTraceSummariesResponse, error) {
-	m := new(FindTraceSummariesResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // QueryServiceServer is the server API for QueryService service.
 type QueryServiceServer interface {
 	// GetTrace returns a single trace.
@@ -1509,11 +1154,6 @@ type QueryServiceServer interface {
 	// GetOperations returns operation names.
 	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
 	GetDependencies(context.Context, *GetDependenciesRequest) (*DependenciesResponse, error)
-	// FindTraceSummaries searches for traces matching the given query and streams
-	// back lightweight summary information for each matching trace. Each response
-	// chunk may contain one or more summaries. Use this instead of FindTraces when
-	// full span data is not required (e.g. search results page).
-	FindTraceSummaries(*FindTraceSummariesRequest, QueryService_FindTraceSummariesServer) error
 }
 
 // UnimplementedQueryServiceServer can be embedded to have forward compatible implementations.
@@ -1534,9 +1174,6 @@ func (*UnimplementedQueryServiceServer) GetOperations(ctx context.Context, req *
 }
 func (*UnimplementedQueryServiceServer) GetDependencies(ctx context.Context, req *GetDependenciesRequest) (*DependenciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetDependencies not implemented")
-}
-func (*UnimplementedQueryServiceServer) FindTraceSummaries(req *FindTraceSummariesRequest, srv QueryService_FindTraceSummariesServer) error {
-	return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented")
 }
 
 func RegisterQueryServiceServer(s *grpc.Server, srv QueryServiceServer) {
@@ -1639,27 +1276,6 @@ func _QueryService_GetDependencies_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _QueryService_FindTraceSummaries_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(FindTraceSummariesRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(QueryServiceServer).FindTraceSummaries(m, &queryServiceFindTraceSummariesServer{stream})
-}
-
-type QueryService_FindTraceSummariesServer interface {
-	Send(*FindTraceSummariesResponse) error
-	grpc.ServerStream
-}
-
-type queryServiceFindTraceSummariesServer struct {
-	grpc.ServerStream
-}
-
-func (x *queryServiceFindTraceSummariesServer) Send(m *FindTraceSummariesResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
 var _QueryService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "jaeger.api_v3.QueryService",
 	HandlerType: (*QueryServiceServer)(nil),
@@ -1686,11 +1302,6 @@ var _QueryService_serviceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "FindTraces",
 			Handler:       _QueryService_FindTraces_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "FindTraceSummaries",
-			Handler:       _QueryService_FindTraceSummaries_Handler,
 			ServerStreams: true,
 		},
 	},
@@ -2219,219 +1830,6 @@ func (m *Dependency) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *ServiceSummary) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ServiceSummary) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ServiceSummary) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.ErrorSpanCount != 0 {
-		i = encodeVarintQueryService(dAtA, i, uint64(m.ErrorSpanCount))
-		i--
-		dAtA[i] = 0x18
-	}
-	if m.SpanCount != 0 {
-		i = encodeVarintQueryService(dAtA, i, uint64(m.SpanCount))
-		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintQueryService(dAtA, i, uint64(len(m.Name)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *TraceSummary) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *TraceSummary) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *TraceSummary) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Services) > 0 {
-		for iNdEx := len(m.Services) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Services[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintQueryService(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x4a
-		}
-	}
-	if m.OrphanSpanCount != 0 {
-		i = encodeVarintQueryService(dAtA, i, uint64(m.OrphanSpanCount))
-		i--
-		dAtA[i] = 0x40
-	}
-	if m.ErrorSpanCount != 0 {
-		i = encodeVarintQueryService(dAtA, i, uint64(m.ErrorSpanCount))
-		i--
-		dAtA[i] = 0x38
-	}
-	if m.SpanCount != 0 {
-		i = encodeVarintQueryService(dAtA, i, uint64(m.SpanCount))
-		i--
-		dAtA[i] = 0x30
-	}
-	if m.MaxEndTimeUnixNano != 0 {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.MaxEndTimeUnixNano))
-		i--
-		dAtA[i] = 0x29
-	}
-	if m.MinStartTimeUnixNano != 0 {
-		i -= 8
-		encoding_binary.LittleEndian.PutUint64(dAtA[i:], uint64(m.MinStartTimeUnixNano))
-		i--
-		dAtA[i] = 0x21
-	}
-	if len(m.RootOperationName) > 0 {
-		i -= len(m.RootOperationName)
-		copy(dAtA[i:], m.RootOperationName)
-		i = encodeVarintQueryService(dAtA, i, uint64(len(m.RootOperationName)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.RootServiceName) > 0 {
-		i -= len(m.RootServiceName)
-		copy(dAtA[i:], m.RootServiceName)
-		i = encodeVarintQueryService(dAtA, i, uint64(len(m.RootServiceName)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.TraceId) > 0 {
-		i -= len(m.TraceId)
-		copy(dAtA[i:], m.TraceId)
-		i = encodeVarintQueryService(dAtA, i, uint64(len(m.TraceId)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *FindTraceSummariesRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *FindTraceSummariesRequest) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *FindTraceSummariesRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Query != nil {
-		{
-			size, err := m.Query.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintQueryService(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *FindTraceSummariesResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *FindTraceSummariesResponse) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *FindTraceSummariesResponse) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if len(m.Summaries) > 0 {
-		for iNdEx := len(m.Summaries) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Summaries[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintQueryService(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0xa
-		}
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *GRPCGatewayError) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2791,107 +2189,6 @@ func (m *Dependency) Size() (n int) {
 	}
 	if m.CallCount != 0 {
 		n += 1 + sovQueryService(uint64(m.CallCount))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *ServiceSummary) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Name)
-	if l > 0 {
-		n += 1 + l + sovQueryService(uint64(l))
-	}
-	if m.SpanCount != 0 {
-		n += 1 + sovQueryService(uint64(m.SpanCount))
-	}
-	if m.ErrorSpanCount != 0 {
-		n += 1 + sovQueryService(uint64(m.ErrorSpanCount))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *TraceSummary) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.TraceId)
-	if l > 0 {
-		n += 1 + l + sovQueryService(uint64(l))
-	}
-	l = len(m.RootServiceName)
-	if l > 0 {
-		n += 1 + l + sovQueryService(uint64(l))
-	}
-	l = len(m.RootOperationName)
-	if l > 0 {
-		n += 1 + l + sovQueryService(uint64(l))
-	}
-	if m.MinStartTimeUnixNano != 0 {
-		n += 9
-	}
-	if m.MaxEndTimeUnixNano != 0 {
-		n += 9
-	}
-	if m.SpanCount != 0 {
-		n += 1 + sovQueryService(uint64(m.SpanCount))
-	}
-	if m.ErrorSpanCount != 0 {
-		n += 1 + sovQueryService(uint64(m.ErrorSpanCount))
-	}
-	if m.OrphanSpanCount != 0 {
-		n += 1 + sovQueryService(uint64(m.OrphanSpanCount))
-	}
-	if len(m.Services) > 0 {
-		for _, e := range m.Services {
-			l = e.Size()
-			n += 1 + l + sovQueryService(uint64(l))
-		}
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *FindTraceSummariesRequest) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Query != nil {
-		l = m.Query.Size()
-		n += 1 + l + sovQueryService(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *FindTraceSummariesResponse) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if len(m.Summaries) > 0 {
-		for _, e := range m.Summaries {
-			l = e.Size()
-			n += 1 + l + sovQueryService(uint64(l))
-		}
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4395,557 +3692,6 @@ func (m *Dependency) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQueryService(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ServiceSummary) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQueryService
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ServiceSummary: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ServiceSummary: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Name = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SpanCount", wireType)
-			}
-			m.SpanCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.SpanCount |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ErrorSpanCount", wireType)
-			}
-			m.ErrorSpanCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ErrorSpanCount |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQueryService(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *TraceSummary) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQueryService
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: TraceSummary: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TraceSummary: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TraceId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TraceId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RootServiceName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.RootServiceName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RootOperationName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.RootOperationName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field MinStartTimeUnixNano", wireType)
-			}
-			m.MinStartTimeUnixNano = 0
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.MinStartTimeUnixNano = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-		case 5:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field MaxEndTimeUnixNano", wireType)
-			}
-			m.MaxEndTimeUnixNano = 0
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.MaxEndTimeUnixNano = uint64(encoding_binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-		case 6:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SpanCount", wireType)
-			}
-			m.SpanCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.SpanCount |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 7:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ErrorSpanCount", wireType)
-			}
-			m.ErrorSpanCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.ErrorSpanCount |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 8:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OrphanSpanCount", wireType)
-			}
-			m.OrphanSpanCount = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.OrphanSpanCount |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 9:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Services", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Services = append(m.Services, &ServiceSummary{})
-			if err := m.Services[len(m.Services)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQueryService(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *FindTraceSummariesRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQueryService
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: FindTraceSummariesRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: FindTraceSummariesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Query == nil {
-				m.Query = &TraceQueryParameters{}
-			}
-			if err := m.Query.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipQueryService(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *FindTraceSummariesResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowQueryService
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: FindTraceSummariesResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: FindTraceSummariesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Summaries", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowQueryService
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthQueryService
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Summaries = append(m.Summaries, &TraceSummary{})
-			if err := m.Summaries[len(m.Summaries)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skipQueryService(dAtA[iNdEx:])

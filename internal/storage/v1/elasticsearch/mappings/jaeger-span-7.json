@@ -13,7 +13,7 @@
     {{- if .UseILM }}
     ,"lifecycle": {
       "name": "{{ .ILMPolicyName }}",
-      "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
+      "rollover_alias":"{{ .RolloverAlias }}"
     }
     {{- end }}
   },
