@@ -8,7 +8,11 @@ The dashboard in this directory is committed as [dashboard-for-grafana.json](./d
 make generate-dashboards
 ```
 
-Alert rules are defined as declarative [Pyrra](https://github.com/pyrra-dev/pyrra) SLOs in the [pyrra/](./pyrra/) directory. Pyrra generates multi-window, multi-burn-rate Prometheus alert rules automatically from these definitions. To use them, deploy Pyrra and apply the SLO YAML files.
+Alert rules are committed as [prometheus_alerts.yml](./prometheus_alerts.yml) and generated from the declarative [Pyrra](https://github.com/pyrra-dev/pyrra) SLO definitions in [pyrra/](./pyrra/). You can load the generated file directly into Prometheus or the Prometheus Operator. To regenerate it after editing the SLO definitions, run:
+
+```console
+make generate-alerts
+```
 
 The following SLOs are provided:
 
@@ -41,12 +45,12 @@ This `PodMonitor` tells Prometheus to scrape the port `14269` from all pods cont
 
 This mixin was originally developed by [Grafana Labs](https://github.com/grafana/jsonnet-libs/tree/master/jaeger-mixin).
 
-## Pre-built dashboard and alert definitions
+## Pre-built dashboard and alert rules
 
-This repository contains a committed Grafana dashboard and Pyrra SLO definitions:
+This repository contains a committed Grafana dashboard and pre-built alert rules:
 
 - [Dashboard](./dashboard-for-grafana.json)
-- [Pyrra SLOs](./pyrra/)
+- [Alerts](./prometheus_alerts.yml)
 
 _IMPORTANT_: the metrics that are used by default by the dashboard are compatible with the components deployed as part of the production strategy, where each component is deployed individually. Some metric names differ from the ones used in the all-in-one strategy. Adjust your dashboard to reflect your scenario.
 

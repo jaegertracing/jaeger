@@ -1,13 +1,10 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Jaeger v2 alert rules are defined as declarative Pyrra SLOs
-# in the pyrra/ directory. Pyrra generates multi-window, multi-burn-rate
-# Prometheus alert rules automatically from those definitions.
+# This file is generated from the Pyrra SLO definitions in the pyrra/
+# directory. Do not edit manually. To regenerate, run:
 #
-# See pyrra/slo-receiver-success.yaml  — span ingest success rate
-#     pyrra/slo-exporter-success.yaml  — span export success rate
-#     pyrra/slo-query-success.yaml     — query API success rate
+#   make generate-alerts
 #
 # The following v1 alerts were removed because the metrics they
 # referenced (jaeger_agent_*, jaeger_client_*, jaeger_collector_*,

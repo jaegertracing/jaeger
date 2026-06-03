@@ -255,6 +255,11 @@ MOCKERY_FLAGS := --all --disable-version-string
 generate-dashboards:
 	cd ./monitoring/jaeger-mixin/generate && go run . > ../dashboard-for-grafana.json
 
+.PHONY: generate-alerts
+generate-alerts:
+	pyrra generate --config-files ./monitoring/jaeger-mixin/pyrra/*.yaml --output-folder ./monitoring/jaeger-mixin/
+
+
 .PHONY: generate-mocks
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
