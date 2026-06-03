@@ -1,70 +1,25 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-"groups":
-- "name": "jaeger_alerts"
-  "rules":
-  - "alert": "JaegerHTTPServerErrs"
-    "annotations":
-      "message": |
-        {{ $labels.job }} {{ $labels.instance }} is experiencing {{ printf "%.2f" $value }}% HTTP errors.
-    "expr": "100 * sum(rate(jaeger_agent_http_server_errors_total[1m])) by (instance, job, namespace) / sum(rate(jaeger_agent_http_server_total[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerRPCRequestsErrors"
-    "annotations":
-      "message": |
-        {{ $labels.job }} {{ $labels.instance }} is experiencing {{ printf "%.2f" $value }}% RPC HTTP errors.
-    "expr": "100 * sum(rate(jaeger_client_jaeger_rpc_http_requests{status_code=~\"4xx|5xx\"}[1m])) by (instance, job, namespace) / sum(rate(jaeger_client_jaeger_rpc_http_requests[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerClientSpansDropped"
-    "annotations":
-      "message": |
-        service {{ $labels.job }} {{ $labels.instance }} is dropping {{ printf "%.2f" $value }}% spans.
-    "expr": "100 * sum(rate(jaeger_reporter_spans{result=~\"dropped|err\"}[1m])) by (instance, job, namespace) / sum(rate(jaeger_reporter_spans[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerAgentSpansDropped"
-    "annotations":
-      "message": |
-        agent {{ $labels.job }} {{ $labels.instance }} is dropping {{ printf "%.2f" $value }}% spans.
-    "expr": "100 * sum(rate(jaeger_agent_reporter_batches_failures_total[1m])) by (instance, job, namespace) / sum(rate(jaeger_agent_reporter_batches_submitted_total[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerCollectorDroppingSpans"
-    "annotations":
-      "message": |
-        collector {{ $labels.job }} {{ $labels.instance }} is dropping {{ printf "%.2f" $value }}% spans.
-    "expr": "100 * sum(rate(jaeger_collector_spans_dropped_total[1m])) by (instance, job, namespace) / sum(rate(jaeger_collector_spans_received_total[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerSamplingUpdateFailing"
-    "annotations":
-      "message": |
-        {{ $labels.job }} {{ $labels.instance }} is failing {{ printf "%.2f" $value }}% in updating sampling policies.
-    "expr": "100 * sum(rate(jaeger_sampler_queries{result=\"err\"}[1m])) by (instance, job, namespace) / sum(rate(jaeger_sampler_queries[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerThrottlingUpdateFailing"
-    "annotations":
-      "message": |
-        {{ $labels.job }} {{ $labels.instance }} is failing {{ printf "%.2f" $value }}% in updating throttling policies.
-    "expr": "100 * sum(rate(jaeger_throttler_updates{result=\"err\"}[1m])) by (instance, job, namespace) / sum(rate(jaeger_throttler_updates[1m])) by (instance, job, namespace)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
-  - "alert": "JaegerQueryReqsFailing"
-    "annotations":
-      "message": |
-        {{ $labels.job }} {{ $labels.instance }} is seeing {{ printf "%.2f" $value }}% query errors on {{ $labels.operation }}.
-    "expr": "100 * sum(rate(jaeger_query_requests_total{result=\"err\"}[1m])) by (instance, job, namespace, operation) / sum(rate(jaeger_query_requests_total[1m])) by (instance, job, namespace, operation)> 1"
-    "for": "15m"
-    "labels":
-      "severity": "warning"
+# Jaeger v2 alert rules are defined as declarative Pyrra SLOs
+# in the pyrra/ directory. Pyrra generates multi-window, multi-burn-rate
+# Prometheus alert rules automatically from those definitions.
+#
+# See pyrra/slo-receiver-success.yaml  — span ingest success rate
+#     pyrra/slo-exporter-success.yaml  — span export success rate
+#     pyrra/slo-query-success.yaml     — query API success rate
+#
+# The following v1 alerts were removed because the metrics they
+# referenced (jaeger_agent_*, jaeger_client_*, jaeger_collector_*,
+# jaeger_sampler_*, jaeger_throttler_*) are not emitted by Jaeger v2:
+#
+#   - JaegerHTTPServerErrs        (agent removed in v2)
+#   - JaegerRPCRequestsErrors     (client SDK metric, not in v2)
+#   - JaegerClientSpansDropped    (client SDK metric, not in v2)
+#   - JaegerAgentSpansDropped     (agent removed in v2)
+#   - JaegerCollectorDroppingSpans → pyrra/slo-receiver-success.yaml
+#   - JaegerSamplingUpdateFailing (client SDK metric, not in v2)
+#   - JaegerThrottlingUpdateFailing (client SDK metric, not in v2)
+#   - JaegerQueryReqsFailing      → pyrra/slo-query-success.yaml
+
+"groups": []
