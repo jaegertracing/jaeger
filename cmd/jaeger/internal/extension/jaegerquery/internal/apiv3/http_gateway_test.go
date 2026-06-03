@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"iter"
@@ -325,16 +326,14 @@ func TestHTTPGatewayGetTraceInternalErrors(t *testing.T) {
 }
 
 func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
-	// mock performs deep comparison of the timestamps and can fail
-	// if they are different in the timezone or the monotonic clocks.
-	// To void that we truncate monotonic clock and force UTC timezone.
-	time1 := time.Now().UTC().Truncate(time.Nanosecond)
-	time2 := time1.Add(-time.Second).UTC().Truncate(time.Nanosecond)
+	// Truncate monotonic clock and force UTC to avoid comparison failures in mocks.
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
 	q := url.Values{}
 	q.Set("query.serviceName", "foo")
 	q.Set("query.operationName", "bar")
-	q.Set("query.startTimeMin", time1.Format(time.RFC3339Nano))
-	q.Set("query.startTimeMax", time2.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMin", tMin.Format(time.RFC3339Nano))
+	q.Set("query.startTimeMax", tMax.Format(time.RFC3339Nano))
 	q.Set("query.durationMin", "1s")
 	q.Set("query.durationMax", "2s")
 	q.Set("query.searchDepth", "10")
@@ -343,8 +342,8 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 		ServiceName:   "foo",
 		OperationName: "bar",
 		Attributes:    pcommon.NewMap(),
-		StartTimeMin:  time1,
-		StartTimeMax:  time2,
+		StartTimeMin:  tMin,
+		StartTimeMax:  tMax,
 		DurationMin:   1 * time.Second,
 		DurationMax:   2 * time.Second,
 		SearchDepth:   10,
@@ -352,120 +351,18 @@ func mockFindQueries() (url.Values, tracestore.TraceQueryParams) {
 }
 
 func TestHTTPGatewayFindTracesErrors(t *testing.T) {
-	goodTimeV := time.Now()
-	goodTime := goodTimeV.Format(time.RFC3339Nano)
-	goodDuration := "1s"
-	timeRangeErr := "query.startTimeMin and query.startTimeMax are required"
-	testCases := []struct {
-		name   string
-		params map[string]string
-		expErr string
-	}{
-		{
-			name:   "no time range",
-			expErr: timeRangeErr,
-		},
-		{
-			name:   "no max time",
-			params: map[string]string{"query.startTimeMin": goodTime},
-			expErr: timeRangeErr,
-		},
-		{
-			name:   "no min time",
-			params: map[string]string{"query.startTimeMax": goodTime},
-			expErr: timeRangeErr,
-		},
-		{
-			name:   "bad startTimeMin (canonical)",
-			params: map[string]string{"query.startTimeMin": "NaN", "query.startTimeMax": goodTime},
-			expErr: "query.startTimeMin",
-		},
-		{
-			name:   "bad start_time_min (deprecated)",
-			params: map[string]string{"query.start_time_min": "NaN", "query.start_time_max": goodTime},
-			expErr: "query.start_time_min",
-		},
-		{
-			name:   "bad startTimeMax (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": "NaN"},
-			expErr: "query.startTimeMax",
-		},
-		{
-			name:   "bad start_time_max (deprecated)",
-			params: map[string]string{"query.start_time_min": goodTime, "query.start_time_max": "NaN"},
-			expErr: "query.start_time_max",
-		},
-		{
-			name:   "bad searchDepth (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.searchDepth": "NaN"},
-			expErr: "query.searchDepth",
-		},
-		{
-			name:   "bad search_depth (deprecated)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.search_depth": "NaN"},
-			expErr: "query.search_depth",
-		},
-		{
-			name:   "bad num_traces (deprecated alias)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.num_traces": "NaN"},
-			expErr: "query.num_traces",
-		},
-		{
-			name:   "bad durationMin (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMin": "NaN"},
-			expErr: "query.durationMin",
-		},
-		{
-			name:   "bad duration_min (deprecated)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_min": "NaN"},
-			expErr: "query.duration_min",
-		},
-		{
-			name:   "bad durationMax (canonical)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.durationMax": "NaN"},
-			expErr: "query.durationMax",
-		},
-		{
-			name:   "bad duration_max (deprecated)",
-			params: map[string]string{"query.startTimeMin": goodTime, "query.startTimeMax": goodTime, "query.duration_max": "NaN"},
-			expErr: "query.duration_max",
-		},
-		{
-			name: "bad rawTraces (canonical)",
-			params: map[string]string{
-				"query.startTimeMin": goodTime,
-				"query.startTimeMax": goodTime,
-				"query.durationMax":  goodDuration,
-				"query.rawTraces":    "foobar",
-			},
-			expErr: "query.rawTraces",
-		},
-		{
-			name: "bad raw_traces (deprecated)",
-			params: map[string]string{
-				"query.startTimeMin": goodTime,
-				"query.startTimeMax": goodTime,
-				"query.duration_max": goodDuration,
-				"query.raw_traces":   "foobar",
-			},
-			expErr: "query.raw_traces",
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			q := url.Values{}
-			for k, v := range tc.params {
-				q.Set(k, v)
-			}
-			r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
-			require.NoError(t, err)
-			w := httptest.NewRecorder()
+	t.Run("parse error returns 400", func(t *testing.T) {
+		// Detailed parse error cases are covered by TestParseFindTracesQuery.
+		// Here we only verify that any parse error is propagated as HTTP 400.
+		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces", http.NoBody)
+		require.NoError(t, err)
+		w := httptest.NewRecorder()
 
-			gw := setupHTTPGatewayNoServer(t, "")
-			gw.router.ServeHTTP(w, r)
-			assert.Contains(t, w.Body.String(), tc.expErr)
-		})
-	}
+		gw := setupHTTPGatewayNoServer(t, "")
+		gw.router.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
+	})
 	t.Run("span reader error", func(t *testing.T) {
 		q, qp := mockFindQueries()
 		r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
@@ -482,6 +379,41 @@ func TestHTTPGatewayFindTracesErrors(t *testing.T) {
 		gw.router.ServeHTTP(w, r)
 		assert.Contains(t, w.Body.String(), assert.AnError.Error())
 	})
+}
+
+func TestHTTPGatewayFindTracesAttributes(t *testing.T) {
+	tMin := time.Now().Add(-time.Hour).UTC().Truncate(time.Nanosecond)
+	tMax := time.Now().UTC().Truncate(time.Nanosecond)
+
+	q := url.Values{}
+	q.Set(paramServiceName, "svc")
+	q.Set(paramTimeMin, tMin.Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, tMax.Format(time.RFC3339Nano))
+	q.Set(paramAttributes, `{"http.status_code":"200","error":"true"}`)
+
+	gw := setupHTTPGatewayNoServer(t, "")
+	gw.reader.
+		On("FindTraces", matchContext, mock.MatchedBy(func(qp tracestore.TraceQueryParams) bool {
+			v1, ok1 := qp.Attributes.Get("http.status_code")
+			v2, ok2 := qp.Attributes.Get("error")
+			return qp.ServiceName == "svc" &&
+				qp.StartTimeMin.Equal(tMin) &&
+				qp.StartTimeMax.Equal(tMax) &&
+				qp.SearchDepth == defaultSearchDepth &&
+				qp.Attributes.Len() == 2 &&
+				ok1 && v1.AsString() == "200" &&
+				ok2 && v2.AsString() == "true"
+		})).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/traces?"+q.Encode(), http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
 }
 
 func TestHTTPGatewayGetServicesErrors(t *testing.T) {
@@ -560,6 +492,24 @@ func TestHTTPGatewayGetServicesEmptyResponse(t *testing.T) {
 	gw.reader.AssertExpectations(t)
 }
 
+// TestJSONPBFixed64AsDecimalString confirms that gogoproto/jsonpb encodes fixed64
+// fields as decimal strings (consistent with proto3 JSON spec and OTLP convention).
+// This validates the assumption behind using marshalResponse for FindTraceSummaries.
+func TestJSONPBFixed64AsDecimalString(t *testing.T) {
+	summary := &api_v3.TraceSummary{
+		MinStartTimeUnixNano: 1_000_000_000_000, // 1000s in ns
+		MaxEndTimeUnixNano:   1_001_000_000_000, // 1001s in ns
+	}
+	var buf bytes.Buffer
+	require.NoError(t, new(jsonpb.Marshaler).Marshal(&buf, summary))
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &m))
+	// fixed64 must be a decimal string, not a JSON number, to avoid float64 precision
+	// loss for nanosecond values above 2^53 in JavaScript.
+	assert.Equal(t, "1000000000000", m["minStartTimeUnixNano"])
+	assert.Equal(t, "1001000000000", m["maxEndTimeUnixNano"])
+}
+
 func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	q, qp := mockFindQueries()
 	gw := setupHTTPGatewayNoServer(t, "")
@@ -584,12 +534,12 @@ func TestHTTPGatewayFindTraceSummaries(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 
 	require.Equal(t, http.StatusOK, w.Code)
-	var resp findTraceSummariesResponseJSON
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	var resp api_v3.FindTraceSummariesResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
 	require.Len(t, resp.Summaries, 1)
 	assert.Equal(t, "frontend", resp.Summaries[0].RootServiceName)
 	assert.Equal(t, "HTTP GET /", resp.Summaries[0].RootOperationName)
-	assert.Equal(t, 1, resp.Summaries[0].SpanCount)
+	assert.Equal(t, int32(1), resp.Summaries[0].SpanCount)
 }
 
 func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {

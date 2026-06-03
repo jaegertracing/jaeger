@@ -23,8 +23,9 @@ on:
 jobs:
   publish-release:
     permissions:
+      # Required to upload release artifacts with GITHUB_TOKEN.
       contents: write
-      deployments: write
+      # Required to pull images from GHCR during release image builds.
       packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
@@ -122,7 +123,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+    - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above

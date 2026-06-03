@@ -11,8 +11,6 @@ permissions:
 
 jobs:
   unit-tests:
-    permissions:
-      checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner

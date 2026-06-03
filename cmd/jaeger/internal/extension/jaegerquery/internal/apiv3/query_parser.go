@@ -4,8 +4,8 @@
 package apiv3
 
 import (
+	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strconv"
 	"time"
@@ -13,10 +13,13 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 const (
+	defaultSearchDepth = 100
+
 	paramTraceID = "trace_id" // path parameter
 
 	// Canonical camelCase query params matching proto3 JSON encoding.
@@ -31,6 +34,7 @@ const (
 	paramDurationMin    = "query.durationMin"
 	paramDurationMax    = "query.durationMax"
 	paramQueryRawTraces = "query.rawTraces"
+	paramAttributes     = "query.attributes"
 	paramSpanKind       = "spanKind"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
@@ -58,31 +62,40 @@ func getQueryParam(q url.Values, canonical, deprecated string) (value string, pa
 	return q.Get(deprecated), deprecated
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
+func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	serviceName, _ := getQueryParam(q, paramServiceName, paramServiceNameDeprecated)
 	operationName, _ := getQueryParam(q, paramOperationName, paramOperationNameDeprecated)
+
 	queryParams := &querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   serviceName,
 			OperationName: operationName,
-			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
+			Attributes:    pcommon.NewMap(),
 		},
+	}
+	if attrsParam := q.Get(paramAttributes); attrsParam != "" {
+		var attrsMap map[string]string
+		if err := json.Unmarshal([]byte(attrsParam), &attrsMap); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramAttributes, err)
+		}
+		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
 	}
 
 	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)
 	timeMaxStr, timeMaxParam := getQueryParam(q, paramTimeMax, paramTimeMaxDeprecated)
 	if timeMinStr == "" || timeMaxStr == "" {
-		err := fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
-		h.tryHandleError(w, err, http.StatusBadRequest)
-		return nil, true
+		return nil, fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
 	}
 	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMinStr)
-	if h.tryParamError(w, err, timeMinParam) {
-		return nil, true
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", timeMinParam, err)
 	}
 	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMaxStr)
-	if h.tryParamError(w, err, timeMaxParam) {
-		return nil, true
+	if err != nil {
+		return nil, fmt.Errorf("malformed parameter %s: %w", timeMaxParam, err)
+	}
+	if !timeMinParsed.Before(timeMaxParsed) {
+		return nil, fmt.Errorf("%s must be before %s", paramTimeMin, paramTimeMax)
 	}
 	queryParams.StartTimeMin = timeMinParsed
 	queryParams.StartTimeMax = timeMaxParsed
@@ -94,32 +107,34 @@ func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) 
 	}
 	if n != "" {
 		searchDepth, err := strconv.Atoi(n)
-		if h.tryParamError(w, err, searchDepthParam) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
 		queryParams.SearchDepth = searchDepth
+	} else {
+		queryParams.SearchDepth = defaultSearchDepth
 	}
 
 	if d, paramName := getQueryParam(q, paramDurationMin, paramDurationMinDeprecated); d != "" {
 		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramName) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.DurationMin = dur
 	}
 	if d, paramName := getQueryParam(q, paramDurationMax, paramDurationMaxDeprecated); d != "" {
 		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramName) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.DurationMax = dur
 	}
 	if r, paramName := getQueryParam(q, paramQueryRawTraces, paramQueryRawTracesDeprecated); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramName) {
-			return nil, true
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.RawTraces = rawTraces
 	}
-	return queryParams, false
+	return queryParams, nil
 }

@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
@@ -111,6 +112,7 @@ func runGatewayTests(
 	t.Run("GetOperations", gw.runGatewayGetOperations)
 	t.Run("GetTrace", gw.runGatewayGetTrace)
 	t.Run("FindTraces", gw.runGatewayFindTraces)
+	t.Run("FindTraceSummaries", gw.runGatewayFindTraceSummaries)
 }
 
 func (gw *testGateway) runGatewayGetServices(t *testing.T) {
@@ -159,6 +161,40 @@ func (gw *testGateway) runGatewayFindTraces(t *testing.T) {
 			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 	gw.verifyGetTraces(t, "/api/v3/traces?"+q.Encode(), traceID)
+}
+
+func (gw *testGateway) runGatewayFindTraceSummaries(t *testing.T) {
+	q, qp := mockFindQueries()
+
+	// Build a trace with deterministic timestamps so the snapshot is stable.
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "frontend")
+	scope := rs.ScopeSpans().AppendEmpty()
+
+	root := scope.Spans().AppendEmpty()
+	root.SetTraceID(traceID)
+	root.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}))
+	root.SetName("HTTP GET /")
+	root.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(1000, 0)))
+	root.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Unix(1001, 0)))
+
+	child := scope.Spans().AppendEmpty()
+	child.SetTraceID(traceID)
+	child.SetSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2}))
+	child.SetParentSpanID(pcommon.SpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1}))
+	child.Status().SetCode(ptrace.StatusCodeError)
+	child.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Unix(1000, 100)))
+	child.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Unix(1000, 900)))
+
+	gw.reader.On("FindTraces", matchContext, qp).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{td}, nil)
+		})).Once()
+
+	body, statusCode := gw.execRequest(t, "/api/v3/trace-summaries?"+q.Encode())
+	require.Equal(t, http.StatusOK, statusCode, "response=%s", string(body))
+	gw.verifySnapshot(t, body)
 }
 
 func (gw *testGateway) verifyGetTraces(t *testing.T, url string, expectedTraceID pcommon.TraceID) {
