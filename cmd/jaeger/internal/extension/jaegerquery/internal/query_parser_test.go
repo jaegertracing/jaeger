@@ -53,7 +53,7 @@ func TestParseTraceQuery(t *testing.T) {
 			},
 		},
 		// tags=JSON with a non-string value 123
-		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
+		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, `malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go (value|struct field \.x) of type string`, nil},
 		// tags=JSON
 		{
 			`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,

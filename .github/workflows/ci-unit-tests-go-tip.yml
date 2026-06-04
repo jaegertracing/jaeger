@@ -22,8 +22,6 @@ permissions:
 
 jobs:
   unit-tests-go-tip:
-    permissions:
-      checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner
@@ -45,5 +43,4 @@ jobs:
 
     - name: Run unit tests
       run: make test-ci
-
 

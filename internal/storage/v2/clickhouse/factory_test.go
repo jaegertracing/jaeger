@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
@@ -314,6 +315,37 @@ func TestGetProtocol(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestNewFactory_TLSLoadError(t *testing.T) {
+	cfg := Configuration{
+		Protocol:  "native",
+		Addresses: []string{"localhost:9440"},
+		TLS: configoptional.Some(configtls.ClientConfig{
+			Config: configtls.Config{
+				CAFile: "/nonexistent/ca.pem",
+			},
+		}),
+	}
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.ErrorContains(t, err, "failed to load TLS configuration")
+	require.Nil(t, f)
+}
+
+func TestNewFactory_TLSLoadSuccess(t *testing.T) {
+	srv := clickhousetest.NewServer(clickhousetest.FailureConfig{})
+	defer srv.Close()
+	cfg := Configuration{
+		Protocol:  "native",
+		Addresses: []string{srv.Listener.Addr().String()},
+		TLS: configoptional.Some(configtls.ClientConfig{
+			InsecureSkipVerify: true,
+		}),
+	}
+	// TLS config loads successfully; connection fails because the test server is plain (no TLS).
+	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.Error(t, err)
+	require.NotContains(t, err.Error(), "failed to load TLS configuration")
 }
 
 func TestNewFactory_FeatureGateDisabled(t *testing.T) {
