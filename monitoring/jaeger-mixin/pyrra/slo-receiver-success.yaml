@@ -5,6 +5,7 @@ apiVersion: pyrra.dev/v1alpha1
 kind: PrometheusServiceLevel
 metadata:
   name: jaeger-receiver-success
+  namespace: monitoring
   labels:
     app: jaeger
 spec:

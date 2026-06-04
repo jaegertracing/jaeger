@@ -1,6 +1,6 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
-
+#
 # This file is generated from the Pyrra SLO definitions in the pyrra/
 # directory. Do not edit manually. To regenerate, run:
 #
@@ -19,4 +19,361 @@
 #   - JaegerThrottlingUpdateFailing (client SDK metric, not in v2)
 #   - JaegerQueryReqsFailing      → pyrra/slo-query-success.yaml
 
-"groups": []
+groups:
+- interval: 2m30s
+  name: jaeger-exporter-success-increase
+  rules:
+  - expr: sum(increase(otelcol_exporter_sent_spans_total{job="jaeger"}[4w]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:increase4w
+  - alert: SLOMetricAbsent
+    expr: absent(otelcol_exporter_sent_spans_total{job="jaeger"}) == 1
+    for: 10m
+    labels:
+      job: jaeger
+      severity: critical
+      slo: jaeger-exporter-success
+  - expr: sum(increase(otelcol_exporter_send_failed_spans_total{job="jaeger"}[4w]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_send_failed_spans:increase4w
+  - alert: SLOMetricAbsent
+    expr: absent(otelcol_exporter_send_failed_spans_total{job="jaeger"}) == 1
+    for: 10m
+    labels:
+      job: jaeger
+      severity: critical
+      slo: jaeger-exporter-success
+- interval: 30s
+  name: jaeger-exporter-success
+  rules:
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[5m])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[5m]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate5m
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[30m])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[30m]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate30m
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[1h])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[1h]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate1h
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[2h])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[2h]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate2h
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[6h])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[6h]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate6h
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[1d])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[1d]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate1d
+  - expr: sum(rate(otelcol_exporter_send_failed_spans_total{job="jaeger"}[4d])) /
+      sum(rate(otelcol_exporter_sent_spans_total{job="jaeger"}[4d]))
+    labels:
+      job: jaeger
+      slo: jaeger-exporter-success
+    record: otelcol_exporter_sent_spans:burnrate4d
+  - alert: ErrorBudgetBurn
+    expr: otelcol_exporter_sent_spans:burnrate5m{job="jaeger",slo="jaeger-exporter-success"}
+      > (14 * (1-0.99)) and otelcol_exporter_sent_spans:burnrate1h{job="jaeger",slo="jaeger-exporter-success"}
+      > (14 * (1-0.99))
+    for: 2m0s
+    labels:
+      exhaustion: 2d
+      job: jaeger
+      long: 1h
+      severity: critical
+      short: 5m
+      slo: jaeger-exporter-success
+  - alert: ErrorBudgetBurn
+    expr: otelcol_exporter_sent_spans:burnrate30m{job="jaeger",slo="jaeger-exporter-success"}
+      > (7 * (1-0.99)) and otelcol_exporter_sent_spans:burnrate6h{job="jaeger",slo="jaeger-exporter-success"}
+      > (7 * (1-0.99))
+    for: 15m0s
+    labels:
+      exhaustion: 4d
+      job: jaeger
+      long: 6h
+      severity: critical
+      short: 30m
+      slo: jaeger-exporter-success
+  - alert: ErrorBudgetBurn
+    expr: otelcol_exporter_sent_spans:burnrate2h{job="jaeger",slo="jaeger-exporter-success"}
+      > (2 * (1-0.99)) and otelcol_exporter_sent_spans:burnrate1d{job="jaeger",slo="jaeger-exporter-success"}
+      > (2 * (1-0.99))
+    for: 1h0m0s
+    labels:
+      exhaustion: 2w
+      job: jaeger
+      long: 1d
+      severity: warning
+      short: 2h
+      slo: jaeger-exporter-success
+  - alert: ErrorBudgetBurn
+    expr: otelcol_exporter_sent_spans:burnrate6h{job="jaeger",slo="jaeger-exporter-success"}
+      > (1 * (1-0.99)) and otelcol_exporter_sent_spans:burnrate4d{job="jaeger",slo="jaeger-exporter-success"}
+      > (1 * (1-0.99))
+    for: 3h0m0s
+    labels:
+      exhaustion: 4w
+      job: jaeger
+      long: 4d
+      severity: warning
+      short: 6h
+      slo: jaeger-exporter-success
+groups:
+- interval: 2m30s
+  name: jaeger-query-success-increase
+  rules:
+  - expr: sum by (http_response_status_code) (increase(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[4w]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:increase4w
+  - alert: SLOMetricAbsent
+    expr: absent(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"})
+      == 1
+    for: 10m
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      severity: critical
+      slo: jaeger-query-success
+- interval: 30s
+  name: jaeger-query-success
+  rules:
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[5m]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[5m]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate5m
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[30m]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[30m]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate30m
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[1h]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[1h]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate1h
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[2h]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[2h]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate2h
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[6h]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[6h]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate6h
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[1d]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[1d]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate1d
+  - expr: sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5..",http_route="/api/v3/traces",job="jaeger"}[4d]))
+      / sum(rate(http_server_request_duration_seconds_count{http_route="/api/v3/traces",job="jaeger"}[4d]))
+    labels:
+      http_route: /api/v3/traces
+      job: jaeger
+      slo: jaeger-query-success
+    record: http_server_request_duration_seconds:burnrate4d
+  - alert: ErrorBudgetBurn
+    expr: http_server_request_duration_seconds:burnrate5m{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (14 * (1-0.99)) and http_server_request_duration_seconds:burnrate1h{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (14 * (1-0.99))
+    for: 2m0s
+    labels:
+      exhaustion: 2d
+      http_route: /api/v3/traces
+      job: jaeger
+      long: 1h
+      severity: critical
+      short: 5m
+      slo: jaeger-query-success
+  - alert: ErrorBudgetBurn
+    expr: http_server_request_duration_seconds:burnrate30m{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (7 * (1-0.99)) and http_server_request_duration_seconds:burnrate6h{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (7 * (1-0.99))
+    for: 15m0s
+    labels:
+      exhaustion: 4d
+      http_route: /api/v3/traces
+      job: jaeger
+      long: 6h
+      severity: critical
+      short: 30m
+      slo: jaeger-query-success
+  - alert: ErrorBudgetBurn
+    expr: http_server_request_duration_seconds:burnrate2h{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (2 * (1-0.99)) and http_server_request_duration_seconds:burnrate1d{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (2 * (1-0.99))
+    for: 1h0m0s
+    labels:
+      exhaustion: 2w
+      http_route: /api/v3/traces
+      job: jaeger
+      long: 1d
+      severity: warning
+      short: 2h
+      slo: jaeger-query-success
+  - alert: ErrorBudgetBurn
+    expr: http_server_request_duration_seconds:burnrate6h{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (1 * (1-0.99)) and http_server_request_duration_seconds:burnrate4d{http_route="/api/v3/traces",job="jaeger",slo="jaeger-query-success"}
+      > (1 * (1-0.99))
+    for: 3h0m0s
+    labels:
+      exhaustion: 4w
+      http_route: /api/v3/traces
+      job: jaeger
+      long: 4d
+      severity: warning
+      short: 6h
+      slo: jaeger-query-success
+groups:
+- interval: 2m30s
+  name: jaeger-receiver-success-increase
+  rules:
+  - expr: sum(increase(otelcol_receiver_accepted_spans_total{job="jaeger"}[4w]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:increase4w
+  - alert: SLOMetricAbsent
+    expr: absent(otelcol_receiver_accepted_spans_total{job="jaeger"}) == 1
+    for: 10m
+    labels:
+      job: jaeger
+      severity: critical
+      slo: jaeger-receiver-success
+  - expr: sum(increase(otelcol_receiver_refused_spans_total{job="jaeger"}[4w]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_refused_spans:increase4w
+  - alert: SLOMetricAbsent
+    expr: absent(otelcol_receiver_refused_spans_total{job="jaeger"}) == 1
+    for: 10m
+    labels:
+      job: jaeger
+      severity: critical
+      slo: jaeger-receiver-success
+- interval: 30s
+  name: jaeger-receiver-success
+  rules:
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[5m])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[5m]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate5m
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[30m])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[30m]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate30m
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[1h])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[1h]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate1h
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[2h])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[2h]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate2h
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[6h])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[6h]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate6h
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[1d])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[1d]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate1d
+  - expr: sum(rate(otelcol_receiver_refused_spans_total{job="jaeger"}[4d])) / sum(rate(otelcol_receiver_accepted_spans_total{job="jaeger"}[4d]))
+    labels:
+      job: jaeger
+      slo: jaeger-receiver-success
+    record: otelcol_receiver_accepted_spans:burnrate4d
+  - alert: ErrorBudgetBurn
+    expr: otelcol_receiver_accepted_spans:burnrate5m{job="jaeger",slo="jaeger-receiver-success"}
+      > (14 * (1-0.99)) and otelcol_receiver_accepted_spans:burnrate1h{job="jaeger",slo="jaeger-receiver-success"}
+      > (14 * (1-0.99))
+    for: 2m0s
+    labels:
+      exhaustion: 2d
+      job: jaeger
+      long: 1h
+      severity: critical
+      short: 5m
+      slo: jaeger-receiver-success
+  - alert: ErrorBudgetBurn
+    expr: otelcol_receiver_accepted_spans:burnrate30m{job="jaeger",slo="jaeger-receiver-success"}
+      > (7 * (1-0.99)) and otelcol_receiver_accepted_spans:burnrate6h{job="jaeger",slo="jaeger-receiver-success"}
+      > (7 * (1-0.99))
+    for: 15m0s
+    labels:
+      exhaustion: 4d
+      job: jaeger
+      long: 6h
+      severity: critical
+      short: 30m
+      slo: jaeger-receiver-success
+  - alert: ErrorBudgetBurn
+    expr: otelcol_receiver_accepted_spans:burnrate2h{job="jaeger",slo="jaeger-receiver-success"}
+      > (2 * (1-0.99)) and otelcol_receiver_accepted_spans:burnrate1d{job="jaeger",slo="jaeger-receiver-success"}
+      > (2 * (1-0.99))
+    for: 1h0m0s
+    labels:
+      exhaustion: 2w
+      job: jaeger
+      long: 1d
+      severity: warning
+      short: 2h
+      slo: jaeger-receiver-success
+  - alert: ErrorBudgetBurn
+    expr: otelcol_receiver_accepted_spans:burnrate6h{job="jaeger",slo="jaeger-receiver-success"}
+      > (1 * (1-0.99)) and otelcol_receiver_accepted_spans:burnrate4d{job="jaeger",slo="jaeger-receiver-success"}
+      > (1 * (1-0.99))
+    for: 3h0m0s
+    labels:
+      exhaustion: 4w
+      job: jaeger
+      long: 4d
+      severity: warning
+      short: 6h
+      slo: jaeger-receiver-success

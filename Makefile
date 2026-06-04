@@ -257,7 +257,37 @@ generate-dashboards:
 
 .PHONY: generate-alerts
 generate-alerts:
-	pyrra generate --config-files ./monitoring/jaeger-mixin/pyrra/*.yaml --output-folder ./monitoring/jaeger-mixin/
+	@rm -rf /tmp/pyrra-gen
+	@mkdir -p /tmp/pyrra-gen
+	docker run --rm -u $$(id -u):$$(id -g) \
+		-v $(PWD)/monitoring/jaeger-mixin/pyrra:/work/pyrra:ro \
+		-v /tmp/pyrra-gen:/work/out \
+		ghcr.io/pyrra-dev/pyrra:latest generate \
+		--config-files "/work/pyrra/*.yaml" \
+		--prometheus-folder /work/out/
+	@echo '# Copyright (c) 2026 The Jaeger Authors.' > monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '# SPDX-License-Identifier: Apache-2.0' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '# This file is generated from the Pyrra SLO definitions in the pyrra/' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '# directory. Do not edit manually. To regenerate, run:' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   make generate-alerts' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '# The following v1 alerts were removed because the metrics they' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '# referenced (jaeger_agent_*, jaeger_client_*, jaeger_collector_*,' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '# jaeger_sampler_*, jaeger_throttler_*) are not emitted by Jaeger v2:' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerHTTPServerErrs        (agent removed in v2)' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerRPCRequestsErrors     (client SDK metric, not in v2)' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerClientSpansDropped    (client SDK metric, not in v2)' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerAgentSpansDropped     (agent removed in v2)' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerCollectorDroppingSpans -> pyrra/slo-receiver-success.yaml' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerSamplingUpdateFailing (client SDK metric, not in v2)' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerThrottlingUpdateFailing (client SDK metric, not in v2)' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '#   - JaegerQueryReqsFailing      -> pyrra/slo-query-success.yaml' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@echo '' >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@cat /tmp/pyrra-gen/*.yaml >> monitoring/jaeger-mixin/prometheus_alerts.yml
+	@rm -rf /tmp/pyrra-gen
 
 
 .PHONY: generate-mocks
