@@ -5,19 +5,6 @@
 # directory. Do not edit manually. To regenerate, run:
 #
 #   make generate-alerts
-#
-# The following v1 alerts were removed because the metrics they
-# referenced (jaeger_agent_*, jaeger_client_*, jaeger_collector_*,
-# jaeger_sampler_*, jaeger_throttler_*) are not emitted by Jaeger v2:
-#
-#   - JaegerHTTPServerErrs        (agent removed in v2)
-#   - JaegerRPCRequestsErrors     (client SDK metric, not in v2)
-#   - JaegerClientSpansDropped    (client SDK metric, not in v2)
-#   - JaegerAgentSpansDropped     (agent removed in v2)
-#   - JaegerCollectorDroppingSpans → pyrra/slo-receiver-success.yaml
-#   - JaegerSamplingUpdateFailing (client SDK metric, not in v2)
-#   - JaegerThrottlingUpdateFailing (client SDK metric, not in v2)
-#   - JaegerQueryReqsFailing      → pyrra/slo-query-success.yaml
 
 groups:
 - interval: 2m30s
@@ -140,7 +127,6 @@ groups:
       severity: warning
       short: 6h
       slo: jaeger-exporter-success
-groups:
 - interval: 2m30s
   name: jaeger-query-success-increase
   rules:
@@ -263,7 +249,6 @@ groups:
       severity: warning
       short: 6h
       slo: jaeger-query-success
-groups:
 - interval: 2m30s
   name: jaeger-receiver-success-increase
   rules:

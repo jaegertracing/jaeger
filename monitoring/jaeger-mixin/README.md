@@ -20,8 +20,6 @@ The following SLOs are provided:
 - **jaeger-exporter-success** — span export success rate (`otelcol_exporter_*`)
 - **jaeger-query-success** — query API success rate (`http_server_request_duration_seconds_*`)
 
-Previous v1 agent/client alerts (`JaegerHTTPServerErrs`, `JaegerAgentSpansDropped`, `JaegerClientSpansDropped`, etc.) were removed because the Jaeger agent and client SDK metrics they referenced are not emitted by Jaeger v2.
-
 Make sure your Prometheus setup is properly scraping the Jaeger components, either by creating a `ServiceMonitor` (and the backing `Service` objects), or via `PodMonitor` resources, like:
 
 ```console
