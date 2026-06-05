@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: 'Setup BRANCH'
 description: 'Make BRANCH var accessible to job'
 runs:

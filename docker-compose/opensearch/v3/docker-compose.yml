@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   opensearch:
     image: opensearchproject/opensearch:3.6.0@sha256:508d340a2fdf8b9707d4f03435fd41b15f617d8b1495120665186f9912853e32

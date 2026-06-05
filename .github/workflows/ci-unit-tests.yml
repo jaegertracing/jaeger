@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: Unit Tests
 
 on:
@@ -8,8 +11,6 @@ permissions:
 
 jobs:
   unit-tests:
-    permissions:
-      checks: write
     runs-on: ubuntu-latest
     steps:
     - name: Harden Runner

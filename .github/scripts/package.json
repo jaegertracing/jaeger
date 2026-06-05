@@ -23,7 +23,7 @@
     "@octokit/rest": "^22.0.0"
   },
   "devDependencies": {
-    "jest": "30.4.1"
+    "jest": "30.4.2"
   },
   "jest": {
     "testEnvironment": "node",

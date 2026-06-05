@@ -22,6 +22,8 @@ def get_license_blob_lines(comment_prefix):
     ]
 
 COPYRIGHT_RE = re.compile(r'Copyright \(c\) (\d+)', re.I)
+ANY_SPDX_RE = re.compile(r'SPDX-License-Identifier:', re.I)
+SPDX_RE = re.compile(r'SPDX-License-Identifier:\s*Apache-2\.0\b', re.I)
 
 SHEBANG_RE = re.compile(r'^#!\s*/[^\s]+')
 
@@ -30,20 +32,29 @@ def update_license(name, license_lines):
         orig_lines = list(f)
     lines = list(orig_lines)
 
-    found = False
+    found_copyright = False
+    found_spdx = False
+    spdx_index = None
     changed = False
     jaeger = False
-    for i, line in enumerate(lines[:5]):
+    header_end = min(len(lines), 10)
+    for i, line in enumerate(lines[:header_end]):
+        if ANY_SPDX_RE.search(line):
+            if SPDX_RE.search(line):
+                found_spdx = True
+            elif spdx_index is None:
+                spdx_index = i
+
         m = COPYRIGHT_RE.search(line)
         if not m:
             continue
 
-        found = True
-        jaeger = 'Jaeger' in line
+        found_copyright = True
+        jaeger = jaeger or 'Jaeger' in line
 
         year = int(m.group(1))
         if year == CURRENT_YEAR:
-            break
+            continue
 
         # Avoid updating the copyright year.
         #
@@ -51,12 +62,35 @@ def update_license(name, license_lines):
         # assert line != new_line, ('Could not change year in: %s' % line)
         # lines[i] = new_line
         # changed = True
-        break
 
-    # print('found=%s, changed=%s, jaeger=%s' % (found, changed, jaeger))
+    # print('found_copyright=%s, found_spdx=%s, changed=%s, jaeger=%s' % (found_copyright, found_spdx, changed, jaeger))
+
+    if not found_spdx and spdx_index is not None:
+        lines[spdx_index] = license_lines[1]
+        found_spdx = True
+        changed = True
 
     first_line = lines[0]
     shebang_match = SHEBANG_RE.match(first_line)
+
+    def build_constraint_end_index():
+        if not license_lines[0].startswith('//'):
+            return None
+
+        seen_build_constraint = False
+        for i, line in enumerate(lines):
+            if line.startswith('//go:build') or line.startswith('// +build'):
+                seen_build_constraint = True
+                continue
+
+            if seen_build_constraint and line.strip() == '':
+                while i < len(lines) and lines[i].strip() == '':
+                    i += 1
+                return i
+
+            return None
+
+        return len(lines) if seen_build_constraint else None
 
     def replace(header_lines):
 
@@ -65,19 +99,35 @@ def update_license(name, license_lines):
         elif shebang_match:
             lines[1:1] = header_lines
         else:
-            lines[0:0] = header_lines
+            insert_at = build_constraint_end_index()
+            if insert_at is None:
+                insert_at = 0
+            lines[insert_at:insert_at] = header_lines
 
-    if not found:
-        # depend on file type
+    if not found_copyright and not found_spdx:
         if(shebang_match):
             replace(['\n'] + license_lines)
         else:
             replace(license_lines + ['\n'])
 
         changed = True
+    elif not found_copyright:
+        replace([license_lines[0]])
+        changed = True
+    elif not found_spdx:
+        insert_at = 1 if shebang_match else 0
+        copyright_index = None
+        for i, line in enumerate(lines[:min(len(lines), header_end + 1)]):
+            if COPYRIGHT_RE.search(line):
+                copyright_index = i
+        if copyright_index is not None:
+            insert_at = copyright_index + 1
+
+        lines[insert_at:insert_at] = [license_lines[1]]
+        changed = True
     else:
         if not jaeger:
-            replace(license_lines[0])
+            replace([license_lines[0]])
             changed = True
 
     if changed:
@@ -92,11 +142,15 @@ def get_license_type(file):
 
     ext_map = {
         '.go' : license_blob_lines_go,
+        '.js' : license_blob_lines_go,
+        '.ts' : license_blob_lines_go,
         '.mk' : license_blob_lines_script,
         'Makefile' : license_blob_lines_script,
         'Dockerfile' : license_blob_lines_script,
         '.py' : license_blob_lines_script,
         '.sh' : license_blob_lines_script,
+        '.yaml' : license_blob_lines_script,
+        '.yml' : license_blob_lines_script,
     }
 
     license_type = None

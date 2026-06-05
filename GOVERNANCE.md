@@ -63,6 +63,12 @@ Former maintainers are recognized with an honorary _Emeritus Maintainer_ status,
 
 Maintainers will be added to the GitHub @jaegertracing/jaeger-maintainers team, and made a GitHub maintainer of that team. They will be given write permission to the Jaeger GitHub repository https://github.com/jaegertracing/jaeger.
 
+### Maintainer account security
+
+Maintainers with write, maintain, or administrative access to Jaeger repositories must keep two-factor authentication enabled on their GitHub accounts. This requirement applies to changes in the central source repositories and to access to private project security information, including private vulnerability reports.
+
+Maintainers should prefer phishing-resistant second factors where available, such as passkeys or hardware security keys. Authenticator applications using time-based one-time passwords are acceptable fallbacks, while SMS-only two-factor authentication is discouraged because it does not provide phishing-resistant protection.
+
 ## Changes in Governance
 
 All changes in Governance require a 2/3 majority vote by maintainers.

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -59,9 +60,13 @@ func (h *getSpanNamesHandler) handle(
 	}
 
 	// Build query parameters
+	// Normalize span kind to lowercase because storage backends store span kinds
+	// in lowercase (e.g., "server") but the MCP schema documents uppercase examples
+	// (e.g., "SERVER"). Without normalization, uppercase input silently returns
+	// empty results instead of matching stored operations.
 	query := tracestore.OperationQueryParams{
 		ServiceName: input.ServiceName,
-		SpanKind:    input.SpanKind,
+		SpanKind:    strings.ToLower(strings.TrimSpace(input.SpanKind)),
 	}
 
 	// Get operations from storage

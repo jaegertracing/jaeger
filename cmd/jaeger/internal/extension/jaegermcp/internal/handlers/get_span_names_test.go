@@ -192,6 +192,67 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 	}
 }
 
+func TestGetSpanNamesHandler_SpanKindNormalization(t *testing.T) {
+	tests := []struct {
+		name             string
+		inputSpanKind    string
+		expectedSpanKind string
+	}{
+		{
+			name:             "uppercase normalized to lowercase",
+			inputSpanKind:    "SERVER",
+			expectedSpanKind: "server",
+		},
+		{
+			name:             "mixed case normalized to lowercase",
+			inputSpanKind:    "Client",
+			expectedSpanKind: "client",
+		},
+		{
+			name:             "leading and trailing whitespace trimmed",
+			inputSpanKind:    " SERVER ",
+			expectedSpanKind: "server",
+		},
+		{
+			name:             "lowercase unchanged",
+			inputSpanKind:    "producer",
+			expectedSpanKind: "producer",
+		},
+		{
+			name:             "empty string stays empty",
+			inputSpanKind:    "",
+			expectedSpanKind: "",
+		},
+		{
+			name:             "whitespace-only becomes empty",
+			inputSpanKind:    "   ",
+			expectedSpanKind: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedQuery tracestore.OperationQueryParams
+			mock := &mockGetOperationsQueryService{
+				getOperationsFunc: func(_ context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+					capturedQuery = query
+					return []tracestore.Operation{}, nil
+				},
+			}
+
+			handler := &getSpanNamesHandler{queryService: mock}
+			input := types.GetSpanNamesInput{
+				ServiceName: "test-service",
+				SpanKind:    tt.inputSpanKind,
+			}
+
+			_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedSpanKind, capturedQuery.SpanKind)
+		})
+	}
+}
+
 func TestNewGetSpanNamesHandler(t *testing.T) {
 	// Test that NewGetSpanNamesHandler returns a valid handler function
 	handler := NewGetSpanNamesHandler(nil)

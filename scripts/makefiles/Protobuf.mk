@@ -15,9 +15,14 @@
 #
 
 DOCKER=docker
-DOCKER_PROTOBUF_VERSION=0.5.0
+DOCKER_PROTOBUF_VERSION=0.5.1
 DOCKER_PROTOBUF=jaegertracing/protobuf:$(DOCKER_PROTOBUF_VERSION)
 PROTOC := ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
+
+# gnostic provides openapiv3/annotations.proto needed by api_v3 proto files.
+# Use '=' (lazy) so go list only runs when proto-api-v3 target is actually invoked.
+GNOSTIC_DIR = $(shell go list -m -f '{{.Dir}}' github.com/google/gnostic-models)
+PROTOC_WITH_GNOSTIC = ${DOCKER} run --rm -u ${shell id -u} -v${PWD}:${PWD} -v"${GNOSTIC_DIR}:/gnostic/gnostic" -w${PWD} ${DOCKER_PROTOBUF} --proto_path=${PWD}
 
 PROTO_GEN=internal/proto-gen
 PATCHED_OTEL_PROTO_DIR = $(PROTO_GEN)/.patched-otel-proto
@@ -36,6 +41,7 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types \
 		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api \
 		Mmodel.proto=github.com/jaegertracing/jaeger-idl/model/v1 \
+		Mgnostic/openapiv3/annotations.proto=github.com/google/gnostic-models/openapiv3 \
 	| $(SED) 's/  */,/g')
 
 OPENMETRICS_PROTO_FILES=$(wildcard internal/proto/metrics/*.proto)
@@ -69,10 +75,11 @@ endef
 #  $(2) - path to the .proto file
 #  $(3) - additional flags to pass to protoc, e.g. extra -Ixxx
 #  $(4) - additional options to pass to gogo plugin
+#  $(5) - protoc command override (default: $(PROTOC))
 define proto_compile
   $(call print_caption, "Processing $(2) --> $(1)")
 
-  $(PROTOC) \
+  $(if $(5),$(5),$(PROTOC)) \
     $(PROTO_INCLUDES) \
     --gogo_out=plugins=grpc,$(strip $(4)),$(PROTO_GOGO_MAPPINGS):$(PWD)/$(strip $(1)) \
     $(3) $(2)
@@ -152,7 +159,7 @@ patch-api-v3:
 
 .PHONY: proto-api-v3
 proto-api-v3: patch-api-v3
-	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto)
+	$(call proto_compile, $(API_V3_PATH), $(API_V3_PATCHED), -I$(API_V3_PATCHED_DIR) -Iidl/opentelemetry-proto -I/gnostic -I/gnostic/gnostic,, $(PROTOC_WITH_GNOSTIC))
 	@echo "🏗️  replace first instance of OTEL import with internal type"
 	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(API_V3_PATH)/query_service.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"

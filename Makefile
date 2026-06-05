@@ -36,6 +36,12 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
+# All tracked file types that should carry copyright and SPDX license headers.
+LIST_LICENSE_SRC = git ls-files \
+						'*.go' '*.js' '*.mk' '*.py' '*.sh' '*.ts' '*.yaml' '*.yml' 'Dockerfile*' 'Makefile*' | \
+						grep -vE '^(vendor/|idl/|jaeger-ui/|internal/proto-gen/|scripts/build/docker/debug/|python-sidecar/\.venv/|.*(^|/)mocks/|.*_mock\.go$$|.*\.pb\.go$$)' | \
+						sort
+
 # All .sh or .py or Makefile or .mk files that should be auto-formatted and linted.
 SCRIPTS_SRC = $(shell find . \( -name '*.sh' -o -name '*.py' -o -name '*.mk' -o -name 'Makefile*' -o -name 'Dockerfile*' \) \
 						-not -path './.git/*' \
@@ -141,8 +147,8 @@ fmt: $(GOFUMPT)
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	@echo Running gofumpt on ALL_SRC ...
 	@$(GOFUMPT) -e -l -w $(ALL_SRC)
-	@echo Running updateLicense.py on ALL_SRC ...
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC)
+	@echo Running updateLicense.py on LICENSE_SRC ...
+	@./scripts/lint/updateLicense.py $(shell $(LIST_LICENSE_SRC))
 	@echo Running check-line-endings on all files ...
 	@./scripts/lint/check-line-endings.py -u
 
@@ -158,7 +164,7 @@ lint-monitoring:
 .PHONY: lint-license
 lint-license:
 	@echo Verifying that all files have license headers
-	@./scripts/lint/updateLicense.py $(ALL_SRC) $(SCRIPTS_SRC) > $(FMT_LOG)
+	@./scripts/lint/updateLicense.py $(shell $(LIST_LICENSE_SRC)) > $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "License check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: lint-nocommit

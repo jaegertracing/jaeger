@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   jaeger:
     networks:
@@ -25,7 +28,7 @@ services:
   tracegen:
     networks:
       - backend
-    image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.17.0@sha256:cdd78c468ce239bfb801c3e692de5e472d8e639c48e0c9c30ed5ec4d6882cf6d
+    image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.18.0@sha256:96e94561b4cf76e87fc114f2a94b409d762c3db0966dc2f71e5fb9a2022fe6ce
     environment:
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel_collector:4318/v1/traces
     command: ["-workers", "3", "-pause", "250ms", "-services", "5", "-duration", "10s"]

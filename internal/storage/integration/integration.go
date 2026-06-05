@@ -376,6 +376,77 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	}
 }
 
+func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
+	s.skipIfNeeded(t)
+	defer s.cleanUp(t)
+
+	sr, ok := s.TraceReader.(tracestore.SummaryReader)
+	require.True(t, ok, "TraceReader must implement tracestore.SummaryReader; add FindTraceSummaries to Capabilities.SkipList to opt out")
+
+	trace := s.loadParseAndWriteExampleTrace(t)
+
+	// Derive the expected trace ID, time range, and service name from the written trace.
+	expectedTraceID := jptrace.GetTraceID(trace)
+	var minStart, maxEnd time.Time
+	var serviceName string
+	for pos, span := range jptrace.SpanIter(trace) {
+		start := span.StartTimestamp().AsTime()
+		end := span.EndTimestamp().AsTime()
+		if minStart.IsZero() || start.Before(minStart) {
+			minStart = start
+		}
+		if maxEnd.IsZero() || end.After(maxEnd) {
+			maxEnd = end
+		}
+		if serviceName == "" {
+			if v, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
+				serviceName = v.Str()
+			}
+		}
+	}
+
+	require.NotEmpty(t, serviceName, "service name must be present in trace fixture")
+	require.False(t, minStart.IsZero(), "min start time must be present in trace fixture")
+	require.False(t, maxEnd.IsZero(), "max end time must be present in trace fixture")
+
+	query := tracestore.TraceQueryParams{
+		ServiceName:  serviceName,
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: minStart.Add(-time.Minute),
+		StartTimeMax: maxEnd.Add(time.Minute),
+		SearchDepth:  10,
+	}
+
+	var summaries []tracestore.TraceSummary
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		batches, err := jiter.CollectWithErrors(sr.FindTraceSummaries(context.Background(), query))
+		if err != nil {
+			t.Log(err)
+			return false
+		}
+		summaries = nil
+		for _, b := range batches {
+			summaries = append(summaries, b...)
+		}
+		return len(summaries) > 0
+	})
+	require.True(t, found, "timed out waiting for FindTraceSummaries to return results")
+
+	// Find the summary for our trace.
+	var summary *tracestore.TraceSummary
+	for i := range summaries {
+		if summaries[i].TraceID == expectedTraceID {
+			summary = &summaries[i]
+			break
+		}
+	}
+	require.NotNil(t, summary, "expected trace ID %s not found in summaries", expectedTraceID)
+	assert.Equal(t, trace.SpanCount(), summary.SpanCount)
+	assert.False(t, summary.MinStartTime.IsZero(), "MinStartTime should not be zero")
+	assert.False(t, summary.MaxEndTime.IsZero(), "MaxEndTime should not be zero")
+	assert.NotEmpty(t, summary.Services, "services should not be empty")
+}
+
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
 	var traces []ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -650,4 +721,5 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
 }

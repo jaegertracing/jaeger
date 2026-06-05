@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 
@@ -23,6 +22,7 @@ import (
 
 // Handler implements api_v3.QueryServiceServer
 type Handler struct {
+	api_v3.UnimplementedQueryServiceServer
 	QueryService *querysvc.QueryService
 }
 
@@ -61,39 +61,83 @@ func (h *Handler) internalFindTraces(
 	request *api_v3.FindTracesRequest,
 	streamSend func(*jptrace.TracesData) error,
 ) error {
-	query := request.GetQuery()
-	if query == nil {
-		return status.Error(codes.InvalidArgument, "missing query")
+	queryParams, err := traceQueryParams(request.GetQuery())
+	if err != nil {
+		return err
 	}
-	if query.GetStartTimeMin().IsZero() ||
-		query.GetStartTimeMax().IsZero() {
-		return errors.New("start time min and max are required parameters")
-	}
+	queryParams.RawTraces = request.GetQuery().GetRawTraces()
+	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
+	return receiveTraces(findTracesIter, streamSend)
+}
 
+// traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
+// validating that the required time range fields are present.
+func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
+	if query == nil {
+		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
+	}
+	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
+		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
+	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
 			SearchDepth:   int(query.GetSearchDepth()),
+			StartTimeMin:  query.GetStartTimeMin(),
+			StartTimeMax:  query.GetStartTimeMax(),
+			DurationMin:   query.GetDurationMin(),
+			DurationMax:   query.GetDurationMax(),
 		},
-		RawTraces: query.GetRawTraces(),
 	}
-	if ts := query.GetStartTimeMin(); !ts.IsZero() {
-		queryParams.StartTimeMin = ts
-	}
-	if ts := query.GetStartTimeMax(); !ts.IsZero() {
-		queryParams.StartTimeMax = ts
-	}
-	if d := query.GetDurationMin(); d != 0 {
-		queryParams.DurationMin = d
-	}
-	if d := query.GetDurationMax(); d != 0 {
-		queryParams.DurationMax = d
+	return queryParams, nil
+}
+
+// FindTraceSummaries implements api_v3.QueryServiceServer's FindTraceSummaries
+func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, stream api_v3.QueryService_FindTraceSummariesServer) error {
+	queryParams, err := traceQueryParams(request.GetQuery())
+	if err != nil {
+		return err
 	}
 
-	findTracesIter := h.QueryService.FindTraces(ctx, queryParams)
-	return receiveTraces(findTracesIter, streamSend)
+	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
+		if err != nil {
+			return err
+		}
+		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
+			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
+		}
+	}
+	return nil
+}
+
+func toProtoTraceSummaries(summaries []tracestore.TraceSummary) []*api_v3.TraceSummary {
+	out := make([]*api_v3.TraceSummary, len(summaries))
+	for i := range summaries {
+		s := &summaries[i]
+		svcs := make([]*api_v3.ServiceSummary, len(s.Services))
+		for j := range s.Services {
+			ss := &s.Services[j]
+			svcs[j] = &api_v3.ServiceSummary{
+				Name:           ss.Name,
+				SpanCount:      int32(ss.SpanCount),      //nolint:gosec // G115
+				ErrorSpanCount: int32(ss.ErrorSpanCount), //nolint:gosec // G115
+			}
+		}
+		out[i] = &api_v3.TraceSummary{
+			TraceId:              s.TraceID.String(),
+			RootServiceName:      s.RootServiceName,
+			RootOperationName:    s.RootOperationName,
+			MinStartTimeUnixNano: jptrace.TimeToUnixNano(s.MinStartTime),
+			MaxEndTimeUnixNano:   jptrace.TimeToUnixNano(s.MaxEndTime),
+			SpanCount:            int32(s.SpanCount),       //nolint:gosec // G115
+			ErrorSpanCount:       int32(s.ErrorSpanCount),  //nolint:gosec // G115
+			OrphanSpanCount:      int32(s.OrphanSpanCount), //nolint:gosec // G115
+			Services:             svcs,
+		}
+	}
+	return out
 }
 
 // GetServices implements api_v3.QueryServiceServer's GetServices
@@ -129,27 +173,35 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 }
 
 // GetDependencies implements api_v3.QueryServiceServer's GetDependencies
-func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDependenciesRequest) (*api_v3.GetDependenciesResponse, error) {
-	if request.EndTime.IsZero() {
+func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDependenciesRequest) (*api_v3.DependenciesResponse, error) {
+	if request.GetStartTime().IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "start_time is required")
+	}
+	if request.GetEndTime().IsZero() {
 		return nil, status.Error(codes.InvalidArgument, "end_time is required")
 	}
-	if request.Lookback <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "lookback must be a positive duration")
+	
+	startTime := request.GetStartTime()
+	endTime := request.GetEndTime()
+
+	if !endTime.After(startTime) {
+		return nil, status.Error(codes.InvalidArgument, "end_time must be after start_time")
 	}
-	deps, err := h.QueryService.GetDependencies(ctx, request.EndTime, request.Lookback)
+	
+	lookback := endTime.Sub(startTime)
+	deps, err := h.QueryService.GetDependencies(ctx, endTime, lookback)
 	if err != nil {
 		return nil, err
 	}
-	links := make([]*api_v3.DependencyLink, len(deps))
+	links := make([]*api_v3.Dependency, len(deps))
 	for i, dep := range deps {
-		links[i] = &api_v3.DependencyLink{
+		links[i] = &api_v3.Dependency{
 			Parent:    dep.Parent,
 			Child:     dep.Child,
 			CallCount: dep.CallCount,
-			Source:    dep.Source,
 		}
 	}
-	return &api_v3.GetDependenciesResponse{Dependencies: links}, nil
+	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
 func receiveTraces(

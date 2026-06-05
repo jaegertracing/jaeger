@@ -336,7 +336,7 @@ func (r *TraceReader) indexSeeksToTraceIDs(plan *executionPlan, indexSeeks [][]b
 }
 
 func filterIDs(plan *executionPlan, innerIDs [][]byte) []model.TraceID {
-	traces := make([]model.TraceID, 0, plan.limit)
+	traces := make([]model.TraceID, 0)
 
 	items := 0
 	for i := range innerIDs {

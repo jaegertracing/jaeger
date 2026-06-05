@@ -152,9 +152,9 @@ echo "TOTAL_CHANGES=$total_changes" >> "$GITHUB_OUTPUT"
 
 if [ ${#missing_diffs[@]} -gt 0 ]; then
     echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
-elif [ "$total_changes" -gt 0 ]; then
-    echo "CONCLUSION=failure" >> "$GITHUB_OUTPUT"
 else
+    # Metric diffs are reported in the PR summary, but they are not a blocking
+    # CI failure. Missing diff artifacts remain blocking infra errors above.
     echo "CONCLUSION=success" >> "$GITHUB_OUTPUT"
 fi
 
@@ -214,7 +214,7 @@ if [ ${#missing_diffs[@]} -gt 0 ]; then
 fi
 
 if [ "$total_changes" -gt 0 ]; then
-    echo "::error::${total_changes} metric change(s) detected across all snapshots"
+    echo "::warning::${total_changes} metric change(s) detected across all snapshots"
     echo ""
     for summary_file in "${summary_files[@]}"; do
         file_name=$(basename "$summary_file" .md)

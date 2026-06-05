@@ -1,0 +1,20 @@
+{
+  "summaries": [
+    {
+      "errorSpanCount": 1,
+      "maxEndTimeUnixNano": "1001000000000",
+      "minStartTimeUnixNano": "1000000000000",
+      "rootOperationName": "HTTP GET /",
+      "rootServiceName": "frontend",
+      "services": [
+        {
+          "errorSpanCount": 1,
+          "name": "frontend",
+          "spanCount": 2
+        }
+      ],
+      "spanCount": 2,
+      "traceId": "00000000000000000000000000000001"
+    }
+  ]
+}

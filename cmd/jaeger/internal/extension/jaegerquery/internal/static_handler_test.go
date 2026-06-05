@@ -5,6 +5,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,7 +65,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		archiveStorage              bool   // archive storage enabled?
 		metricsStorage              bool   // metrics storage enabled?
 		logAccess                   bool
-		expectedBaseHTML            string // substring to match in the home page
 		UIConfigPath                string // path to UI config
 		expectedUIConfig            string // expected UI config
 		expectedStorageCapabilities string // expected storage capabilities
@@ -72,7 +72,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "",
 			baseURL:                     "/",
-			expectedBaseHTML:            `<base href="/"`,
 			archiveStorage:              false,
 			logAccess:                   true,
 			UIConfigPath:                "",
@@ -83,7 +82,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 			basePath:                    "/",
 			baseURL:                     "/",
 			archiveStorage:              false,
-			expectedBaseHTML:            `<base href="/"`,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
 			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
@@ -91,7 +89,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "/jaeger",
 			baseURL:                     "/jaeger/",
-			expectedBaseHTML:            `<base href="/jaeger/"`,
 			subroute:                    true,
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
@@ -101,7 +98,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 		{
 			basePath:                    "/metrics",
 			baseURL:                     "/metrics/",
-			expectedBaseHTML:            `<base href="/metrics/"`,
 			subroute:                    true,
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
@@ -148,7 +144,12 @@ func TestRegisterStaticHandler(t *testing.T) {
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"dev","buildDate":""};`, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
+			// Verify the inline base-path script marker is present and the backend
+			// did not rewrite <base href> to a path-specific value (ADR-009).
+			assert.Contains(t, html, `data-inject-target="BASE_URL"`, "<base> tag must carry data-inject-target marker for client-side base-path detection")
+			if testCase.basePath != "" && testCase.basePath != "/" {
+				assert.NotContains(t, html, `<base href="`+testCase.baseURL+`"`, "backend must not inject path-specific <base href>")
+			}
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
@@ -169,17 +170,6 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 		Logger: zap.NewNop(),
 	})
 	require.Error(t, err)
-
-	for _, base := range []string{"x", "x/", "/x/"} {
-		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-			UIConfig: UIConfig{
-				ConfigFile: "fixture/ui-config.json",
-			},
-			BasePath: base,
-			Logger:   zap.NewNop(),
-		})
-		assert.ErrorContainsf(t, err, "invalid base path", "basePath=%s", base)
-	}
 }
 
 func TestHotReloadUIConfig(t *testing.T) {
@@ -233,6 +223,12 @@ func TestLoadUIConfig(t *testing.T) {
 		expected        *loadedConfig
 		expectedError   string
 		expectedContent string
+	}
+
+	readJSFixture := func(name string) []byte {
+		content, err := os.ReadFile(name)
+		require.NoError(t, err)
+		return bytes.TrimSpace(content)
 	}
 
 	run := func(description string, testCase testCase) {
@@ -304,11 +300,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile: "fixture/ui-config.js",
 		expected: &loadedConfig{
 			regexp: configJsPattern,
-			config: []byte(`function UIConfig(){
-  return {
-    x: "y"
-  }
-}`),
+			config: readJSFixture("fixture/ui-config.js"),
 		},
 		expectedContent: "function UIConfig()",
 	})
@@ -316,16 +308,7 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile: "fixture/ui-config-menu.js",
 		expected: &loadedConfig{
 			regexp: configJsPattern,
-			config: []byte(`function UIConfig(){
-  return {
-    menu: [
-      {
-        label: "GitHub",
-        url: "https://github.com/jaegertracing/jaeger"
-      }
-    ]
-  }
-}`),
+			config: readJSFixture("fixture/ui-config-menu.js"),
 		},
 		expectedContent: "function UIConfig()",
 	})

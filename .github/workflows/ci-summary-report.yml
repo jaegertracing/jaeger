@@ -273,8 +273,9 @@ jobs:
           path: .artifacts/baseline-coverage.txt
           key: coverage-baseline_${{ github.run_id }}
 
-      # Fail the job (and the calling CI Orchestrator run) so the coverage/metrics
-      # regression is immediately visible in the PR Checks table.
+      # Fail the job (and the calling CI Orchestrator run) for blocking gates.
+      # Metric diffs are informational on PRs, but missing metrics diff artifacts
+      # still fail via the metrics conclusion because they indicate an infra issue.
       # The ci-summary artifact is already uploaded above (if: always()), so
       # ci-summary-report-publish.yml can still post the PR comment and check runs.
       - name: Fail if coverage or metrics gate failed

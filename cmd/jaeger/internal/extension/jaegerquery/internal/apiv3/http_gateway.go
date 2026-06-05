@@ -8,13 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/trace"
@@ -31,20 +29,9 @@ import (
 )
 
 const (
-	paramTraceID        = "trace_id" // get trace by ID
-	paramStartTime      = "start_time"
-	paramEndTime        = "end_time"
-	paramRawTraces      = "raw_traces"
-	paramServiceName    = "query.service_name" // find traces
-	paramOperationName  = "query.operation_name"
-	paramTimeMin        = "query.start_time_min"
-	paramTimeMax        = "query.start_time_max"
-	paramNumTraces      = "query.num_traces"
-	paramDurationMin    = "query.duration_min"
-	paramDurationMax    = "query.duration_max"
-	paramQueryRawTraces = "query.raw_traces"
 	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces      = "/api/v3/traces"
+	routeFindSummaries   = "/api/v3/trace-summaries"
 	routeGetServices     = "/api/v3/services"
 	routeGetOperations   = "/api/v3/operations"
 	routeGetDependencies = "/api/v3/dependencies"
@@ -63,6 +50,7 @@ type HTTPGateway struct {
 func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace)
 	h.addRoute(router, h.findTraces, routeFindTraces)
+	h.addRoute(router, h.findTraceSummaries, routeFindSummaries)
 	h.addRoute(router, h.getServices, routeGetServices)
 	h.addRoute(router, h.getOperations, routeGetOperations)
 	h.addRoute(router, h.getDependencies, routeGetDependencies)
@@ -170,26 +158,24 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	}
-	http_query := r.URL.Query()
-	startTime := http_query.Get(paramStartTime)
-	if startTime != "" {
+	q := r.URL.Query()
+	if startTime, paramName := getQueryParam(q, paramStartTime, paramStartTimeDeprecated); startTime != "" {
 		timeParsed, err := time.Parse(time.RFC3339Nano, startTime)
-		if h.tryParamError(w, err, paramStartTime) {
+		if h.tryParamError(w, err, paramName) {
 			return
 		}
 		request.TraceIDs[0].Start = timeParsed.UTC()
 	}
-	endTime := http_query.Get(paramEndTime)
-	if endTime != "" {
+	if endTime, paramName := getQueryParam(q, paramEndTime, paramEndTimeDeprecated); endTime != "" {
 		timeParsed, err := time.Parse(time.RFC3339Nano, endTime)
-		if h.tryParamError(w, err, paramEndTime) {
+		if h.tryParamError(w, err, paramName) {
 			return
 		}
 		request.TraceIDs[0].End = timeParsed.UTC()
 	}
-	if r := http_query.Get(paramRawTraces); r != "" {
-		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramRawTraces) {
+	if rawStr, paramName := getQueryParam(q, paramRawTraces, paramRawTracesDeprecated); rawStr != "" {
+		rawTraces, err := strconv.ParseBool(rawStr)
+		if h.tryParamError(w, err, paramName) {
 			return
 		}
 		request.RawTraces = rawTraces
@@ -200,8 +186,8 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
-	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
-	if shouldReturn {
+	queryParams, err := parseFindTracesQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
 		return
 	}
 
@@ -210,63 +196,21 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 	h.returnTraces(traces, err, w)
 }
 
-func (h *HTTPGateway) parseFindTracesQuery(q url.Values, w http.ResponseWriter) (*querysvc.TraceQueryParams, bool) {
-	queryParams := &querysvc.TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{
-			ServiceName:   q.Get(paramServiceName),
-			OperationName: q.Get(paramOperationName),
-			Attributes:    pcommon.NewMap(), // most curiously not supported by grpc-gateway
-		},
+func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
+	queryParams, err := parseFindTracesQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
+		return
 	}
-
-	timeMin := q.Get(paramTimeMin)
-	timeMax := q.Get(paramTimeMax)
-	if timeMin == "" || timeMax == "" {
-		err := fmt.Errorf("%s and %s are required", paramTimeMin, paramTimeMax)
-		h.tryHandleError(w, err, http.StatusBadRequest)
-		return nil, true
+	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.
+	queryParams.RawTraces = false
+	summariesIter := h.QueryService.FindTraceSummaries(r.Context(), *queryParams)
+	summaries, err := jiter.FlattenWithErrors(summariesIter)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
 	}
-	timeMinParsed, err := time.Parse(time.RFC3339Nano, timeMin)
-	if h.tryParamError(w, err, paramTimeMin) {
-		return nil, true
-	}
-	timeMaxParsed, err := time.Parse(time.RFC3339Nano, timeMax)
-	if h.tryParamError(w, err, paramTimeMax) {
-		return nil, true
-	}
-	queryParams.StartTimeMin = timeMinParsed
-	queryParams.StartTimeMax = timeMaxParsed
-
-	if n := q.Get(paramNumTraces); n != "" {
-		numTraces, err := strconv.Atoi(n)
-		if h.tryParamError(w, err, paramNumTraces) {
-			return nil, true
-		}
-		queryParams.SearchDepth = numTraces
-	}
-
-	if d := q.Get(paramDurationMin); d != "" {
-		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramDurationMin) {
-			return nil, true
-		}
-		queryParams.DurationMin = dur
-	}
-	if d := q.Get(paramDurationMax); d != "" {
-		dur, err := time.ParseDuration(d)
-		if h.tryParamError(w, err, paramDurationMax) {
-			return nil, true
-		}
-		queryParams.DurationMax = dur
-	}
-	if r := q.Get(paramQueryRawTraces); r != "" {
-		rawTraces, err := strconv.ParseBool(r)
-		if h.tryParamError(w, err, paramQueryRawTraces) {
-			return nil, true
-		}
-		queryParams.RawTraces = rawTraces
-	}
-	return queryParams, false
+	h.marshalResponse(&api_v3.FindTraceSummariesResponse{
+		Summaries: toProtoTraceSummaries(summaries),
+	}, w)
 }
 
 func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
@@ -283,10 +227,11 @@ func (h *HTTPGateway) getServices(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
+	q := r.URL.Query()
+	spanKind, _ := getQueryParam(q, paramSpanKind, paramSpanKindDeprecated)
 	queryParams := tracestore.OperationQueryParams{
-		ServiceName: query.Get("service"),
-		SpanKind:    query.Get("span_kind"),
+		ServiceName: q.Get("service"),
+		SpanKind:    spanKind,
 	}
 	operations, err := h.QueryService.GetOperations(r.Context(), queryParams)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
@@ -304,8 +249,8 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	startTimeStr := q.Get(paramStartTime)
-	endTimeStr := q.Get(paramEndTime)
+	startTimeStr, _ := getQueryParam(q, paramStartTime, paramStartTimeDeprecated)
+	endTimeStr, _ := getQueryParam(q, paramEndTime, paramEndTimeDeprecated)
 
 	if startTimeStr == "" || endTimeStr == "" {
 		h.tryHandleError(w, fmt.Errorf("%s and %s are required", paramStartTime, paramEndTime), http.StatusBadRequest)
@@ -333,15 +278,14 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := &api_v3.GetDependenciesResponse{
-		Dependencies: make([]*api_v3.DependencyLink, 0, len(dependencies)),
+	response := &api_v3.DependenciesResponse{
+		Dependencies: make([]*api_v3.Dependency, 0, len(dependencies)),
 	}
 	for _, dep := range dependencies {
-		response.Dependencies = append(response.Dependencies, &api_v3.DependencyLink{
+		response.Dependencies = append(response.Dependencies, &api_v3.Dependency{
 			Parent:    dep.Parent,
 			Child:     dep.Child,
 			CallCount: dep.CallCount,
-			Source:    dep.Source,
 		})
 	}
 

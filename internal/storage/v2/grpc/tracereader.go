@@ -13,12 +13,18 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var _ tracestore.Reader = (*TraceReader)(nil)
+var (
+	_ tracestore.Reader        = (*TraceReader)(nil)
+	_ tracestore.SummaryReader = (*TraceReader)(nil)
+)
 
 type TraceReader struct {
 	client storage.TraceReaderClient
@@ -123,7 +129,7 @@ func (tr *TraceReader) FindTraceIDs(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTracesRequest{
+		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{
 			Query: toProtoQueryParameters(params),
 		})
 		if err != nil {
@@ -143,6 +149,68 @@ func (tr *TraceReader) FindTraceIDs(
 		}
 		yield(foundTraceIDs, nil)
 	}
+}
+
+func (tr *TraceReader) FindTraceSummaries(
+	ctx context.Context,
+	params tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	maybeNotImplemented := func(err error, msg string) error {
+		if status.Code(err) == codes.Unimplemented || errors.Is(err, errors.ErrUnsupported) {
+			return fmt.Errorf("remote server does not support FindTraceSummaries: %w", errors.ErrUnsupported)
+		}
+		return fmt.Errorf("%s: %w", msg, err)
+	}
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{
+			Query: toProtoQueryParameters(params),
+		})
+		if err != nil {
+			yield(nil, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
+			return
+		}
+		for {
+			resp, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			}
+			if err != nil {
+				yield(nil, maybeNotImplemented(err, "received error from grpc stream"))
+				return
+			}
+			if !yield(convertSummaryBatch(resp.GetSummaries()), nil) {
+				return
+			}
+		}
+	}
+}
+
+func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSummary {
+	batch := make([]tracestore.TraceSummary, len(protos))
+	for i, ps := range protos {
+		var traceID [16]byte
+		copy(traceID[:], ps.GetTraceId())
+		svcs := make([]tracestore.ServiceSummary, len(ps.GetServices()))
+		for j, ss := range ps.GetServices() {
+			svcs[j] = tracestore.ServiceSummary{
+				Name:           ss.GetName(),
+				SpanCount:      int(ss.GetSpanCount()),
+				ErrorSpanCount: int(ss.GetErrorSpanCount()),
+			}
+		}
+		batch[i] = tracestore.TraceSummary{
+			TraceID:           pcommon.TraceID(traceID),
+			RootServiceName:   ps.GetRootServiceName(),
+			RootOperationName: ps.GetRootOperationName(),
+			MinStartTime:      jptrace.UnixNanoToTime(ps.GetMinStartTimeUnixNano()),
+			MaxEndTime:        jptrace.UnixNanoToTime(ps.GetMaxEndTimeUnixNano()),
+			SpanCount:         int(ps.GetSpanCount()),
+			ErrorSpanCount:    int(ps.GetErrorSpanCount()),
+			OrphanSpanCount:   int(ps.GetOrphanSpanCount()),
+			Services:          svcs,
+		}
+	}
+	return batch
 }
 
 func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryParameters {
