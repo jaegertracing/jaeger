@@ -23,11 +23,15 @@ func (u UniqueTraceIDs) Add(traceID TraceID) {
 
 // IntersectTraceIDs takes a list of UniqueTraceIDs and intersects them.
 func IntersectTraceIDs(uniqueTraceIdsList []UniqueTraceIDs) UniqueTraceIDs {
+	if len(uniqueTraceIdsList) == 0 {
+		return UniqueTraceIDs{}
+	}
+
 	// Find the smallest set to iterate over, as the intersection
 	// can never be larger than the smallest input set.
 	smallestIdx := 0
-	for i := range uniqueTraceIdsList {
-		if len(uniqueTraceIdsList[i]) < len(uniqueTraceIdsList[smallestIdx]) { //nolint:gosec // G602 false positive: smallestIdx is always a valid index
+	for i := 1; i < len(uniqueTraceIdsList); i++ {
+		if len(uniqueTraceIdsList[i]) < len(uniqueTraceIdsList[smallestIdx]) {
 			smallestIdx = i
 		}
 	}
