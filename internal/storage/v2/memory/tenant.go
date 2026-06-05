@@ -104,7 +104,8 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 		sameTraceIDResourceSpan.MoveAndAppendTo(traces.ResourceSpans())
 		t.mostRecent = (t.mostRecent + 1) % t.config.MaxTraces
 		// if there is already a trace in lastEvicted position, remove its ID from ids map
-		if !t.traces[t.mostRecent].id.IsEmpty() {
+		evicted := !t.traces[t.mostRecent].id.IsEmpty()
+		if evicted {
 			delete(t.ids, t.traces[t.mostRecent].id)
 		}
 		// update the ring with the trace id
@@ -115,7 +116,41 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 			startTime: startTime,
 			endTime:   endTime,
 		}
+		if evicted {
+			t.rebuildServicesAndOperations()
+		}
 	}
+}
+
+func (t *Tenant) rebuildServicesAndOperations() {
+	services := make(map[string]struct{})
+	operations := make(map[string]map[tracestore.Operation]struct{})
+	for _, traceEntry := range t.traces {
+		if traceEntry.id.IsEmpty() {
+			continue
+		}
+		for _, resourceSpan := range traceEntry.trace.ResourceSpans().All() {
+			serviceName := getServiceNameFromResource(resourceSpan.Resource())
+			if serviceName == "" {
+				continue
+			}
+			services[serviceName] = struct{}{}
+			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+				for _, span := range scopeSpan.Spans().All() {
+					op := tracestore.Operation{
+						Name:     span.Name(),
+						SpanKind: fromOTELSpanKind(span.Kind()),
+					}
+					if _, ok := operations[serviceName]; !ok {
+						operations[serviceName] = make(map[tracestore.Operation]struct{})
+					}
+					operations[serviceName][op] = struct{}{}
+				}
+			}
+		}
+	}
+	t.services = services
+	t.operations = operations
 }
 
 func (t *Tenant) findTraceAndIds(query tracestore.TraceQueryParams) ([]traceAndId, error) {

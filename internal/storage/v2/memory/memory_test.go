@@ -696,6 +696,62 @@ func TestNewStore_TracesLimit(t *testing.T) {
 	assert.Len(t, tenant.ids, maxTraces)
 }
 
+func TestEviction_RemovesStaleServicesAndOperations(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 2,
+	})
+	require.NoError(t, err)
+
+	// Write a trace for "evicted-service"
+	td1 := ptrace.NewTraces()
+	rs1 := td1.ResourceSpans().AppendEmpty()
+	rs1.Resource().Attributes().PutStr(conventions.ServiceNameKey, "evicted-service")
+	span1 := rs1.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span1.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span1.SetName("evicted-op")
+	span1.SetKind(ptrace.SpanKindServer)
+	err = store.WriteTraces(context.Background(), td1)
+	require.NoError(t, err)
+
+	// Verify "evicted-service" is initially present
+	services, err := store.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, services, "evicted-service")
+
+	// Write 2 traces for "retained-service" to fill the ring buffer and evict the first trace
+	for i := 2; i <= 3; i++ {
+		td := ptrace.NewTraces()
+		rs := td.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr(conventions.ServiceNameKey, "retained-service")
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i)))
+		span.SetName("retained-op")
+		span.SetKind(ptrace.SpanKindClient)
+		err = store.WriteTraces(context.Background(), td)
+		require.NoError(t, err)
+	}
+
+	// After eviction, "evicted-service" should no longer appear
+	services, err = store.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"retained-service"}, services)
+
+	// Operations for "evicted-service" should be empty
+	evictedOps, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "evicted-service",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, evictedOps)
+
+	// Operations for "retained-service" should still be present
+	retainedOps, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "retained-service",
+	})
+	require.NoError(t, err)
+	assert.Len(t, retainedOps, 1)
+	assert.Equal(t, "retained-op", retainedOps[0].Name)
+}
+
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 	maxTraces := 8
 	store, err := NewStore(Configuration{
