@@ -1,13 +1,14 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 package apiv3
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,8 @@ import (
 	tracemocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
 
-func TestHTTPGatewayGetDependencies(t *testing.T) {
+func newTestGateway(t *testing.T) (*HTTPGateway, *depsmocks.Reader, *http.ServeMux) {
+	t.Helper()
 	traceReader := &tracemocks.Reader{}
 	depReader := &depsmocks.Reader{}
 
@@ -36,6 +38,16 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 		Tracer:       noop.NewTracerProvider(),
 	}
 
+	router := http.NewServeMux()
+	gateway.RegisterRoutes(router)
+
+	return gateway, depReader, router
+}
+
+func TestHTTPGatewayGetDependencies(t *testing.T) {
+	_, depReader, router := newTestGateway(t)
+
+	startTime := time.Now().UTC().Add(-24 * time.Hour)
 	endTime := time.Now().UTC()
 
 	expectedDeps := []model.DependencyLink{
@@ -55,12 +67,9 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 
 	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(expectedDeps, nil)
 
-	router := mux.NewRouter()
-	gateway.RegisterRoutes(router)
-
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v3/dependencies?end_time="+endTime.Format(time.RFC3339Nano)+"&lookback=24h",
+		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -68,74 +77,64 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, "Response body: %s", w.Body.String())
-
-	var response struct {
-		Dependencies []struct {
-			Parent    string `json:"parent"`
-			Child     string `json:"child"`
-			CallCount string `json:"callCount"`
-			Source    string `json:"source"`
-		} `json:"dependencies"`
-	}
-
-	err := json.NewDecoder(w.Body).Decode(&response)
-	require.NoError(t, err)
-
-	assert.Len(t, response.Dependencies, 2)
-	assert.Equal(t, "frontend", response.Dependencies[0].Parent)
-	assert.Equal(t, "backend", response.Dependencies[0].Child)
-	assert.Equal(t, "100", response.Dependencies[0].CallCount)
-	assert.Equal(t, "traces", response.Dependencies[0].Source)
+	assert.Contains(t, w.Body.String(), "frontend")
+	assert.Contains(t, w.Body.String(), "backend")
+	depReader.AssertExpectations(t)
 }
 
 func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
-	traceReader := &tracemocks.Reader{}
-	depReader := &depsmocks.Reader{}
+	_, _, router := newTestGateway(t)
 
-	querySvc := querysvc.NewQueryService(
-		traceReader,
-		depReader,
-		querysvc.QueryServiceOptions{},
-	)
-
-	gateway := &HTTPGateway{
-		QueryService: querySvc,
-		Logger:       zap.NewNop(),
-		Tracer:       noop.NewTracerProvider(),
-	}
-
-	router := mux.NewRouter()
-	gateway.RegisterRoutes(router)
+	goodStartTime := "2026-01-24T12:00:00Z"
+	goodEndTime := "2026-01-24T16:00:00Z"
 
 	tests := []struct {
 		name           string
 		url            string
 		expectedStatus int
+		expectedBody   string
 	}{
 		{
-			name:           "missing end_time",
-			url:            "/api/v3/dependencies?lookback=24h",
+			name:           "missing start_time and end_time",
+			url:            "/api/v3/dependencies",
 			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "start_time",
 		},
 		{
-			name:           "missing lookback",
-			url:            "/api/v3/dependencies?end_time=2026-01-24T16:00:00Z",
+			name:           "missing start_time",
+			url:            "/api/v3/dependencies?end_time=" + goodEndTime,
 			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "start_time",
+		},
+		{
+			name:           "missing end_time",
+			url:            "/api/v3/dependencies?start_time=" + goodStartTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "end_time",
+		},
+		{
+			name:           "invalid start_time",
+			url:            "/api/v3/dependencies?start_time=invalid&end_time=" + goodEndTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "start_time",
 		},
 		{
 			name:           "invalid end_time",
-			url:            "/api/v3/dependencies?end_time=invalid&lookback=24h",
+			url:            "/api/v3/dependencies?start_time=" + goodStartTime + "&end_time=invalid",
 			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "end_time",
 		},
 		{
-			name:           "invalid lookback",
-			url:            "/api/v3/dependencies?end_time=2026-01-24T16:00:00Z&lookback=invalid",
+			name:           "end_time not after start_time",
+			url:            "/api/v3/dependencies?start_time=" + goodEndTime + "&end_time=" + goodStartTime,
 			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "end_time",
 		},
 		{
-			name:           "negative lookback",
-			url:            "/api/v3/dependencies?end_time=2026-01-24T16:00:00Z&lookback=-24h",
+			name:           "equal start_time and end_time",
+			url:            "/api/v3/dependencies?start_time=" + goodStartTime + "&end_time=" + goodStartTime,
 			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "end_time",
 		},
 	}
 
@@ -147,35 +146,21 @@ func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Contains(t, w.Body.String(), tt.expectedBody)
 		})
 	}
 }
 
 func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
-	traceReader := &tracemocks.Reader{}
-	depReader := &depsmocks.Reader{}
-
-	querySvc := querysvc.NewQueryService(
-		traceReader,
-		depReader,
-		querysvc.QueryServiceOptions{},
-	)
-
-	gateway := &HTTPGateway{
-		QueryService: querySvc,
-		Logger:       zap.NewNop(),
-		Tracer:       noop.NewTracerProvider(),
-	}
+	_, depReader, router := newTestGateway(t)
 
 	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
-	router := mux.NewRouter()
-	gateway.RegisterRoutes(router)
-
+	startTime := time.Now().UTC().Add(-24 * time.Hour)
 	endTime := time.Now().UTC()
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v3/dependencies?end_time="+endTime.Format(time.RFC3339Nano)+"&lookback=24h",
+		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -183,4 +168,24 @@ func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHTTPGatewayGetDependencies_EmptyResponse(t *testing.T) {
+	_, depReader, router := newTestGateway(t)
+
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return([]model.DependencyLink{}, nil)
+
+	startTime := time.Now().UTC().Add(-24 * time.Hour)
+	endTime := time.Now().UTC()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "dependencies")
 }

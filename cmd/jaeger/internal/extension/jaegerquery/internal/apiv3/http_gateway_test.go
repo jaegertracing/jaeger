@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -50,10 +49,7 @@ func setupHTTPGatewayNoServer(
 		Tracer:       nooptrace.NewTracerProvider(),
 	}
 
-	gw.router = &mux.Router{}
-	if basePath != "" && basePath != "/" {
-		gw.router = gw.router.PathPrefix(basePath).Subrouter()
-	}
+	gw.router = http.NewServeMux()
 	hgw.RegisterRoutes(gw.router)
 	return gw
 }

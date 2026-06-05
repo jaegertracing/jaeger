@@ -339,7 +339,42 @@ func TestGetDependenciesStorageError(t *testing.T) {
 	tsc.depsReader.On("GetDependencies", matchContext, mock.Anything).Return(
 		nil, assert.AnError).Once()
 
-	response, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{})
+	response, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
+		EndTime:  time.Now().UTC(),
+		Lookback: 24 * time.Hour,
+	})
 	require.ErrorContains(t, err, assert.AnError.Error())
 	assert.Nil(t, response)
+}
+
+func TestGetDependencies_InvalidArguments(t *testing.T) {
+	tests := []struct {
+		name    string
+		request *api_v3.GetDependenciesRequest
+		errMsg  string
+	}{
+		{
+			name:    "zero EndTime",
+			request: &api_v3.GetDependenciesRequest{Lookback: 24 * time.Hour},
+			errMsg:  "end_time is required",
+		},
+		{
+			name:    "zero Lookback",
+			request: &api_v3.GetDependenciesRequest{EndTime: time.Now().UTC()},
+			errMsg:  "lookback must be a positive duration",
+		},
+		{
+			name:    "negative Lookback",
+			request: &api_v3.GetDependenciesRequest{EndTime: time.Now().UTC(), Lookback: -1 * time.Hour},
+			errMsg:  "lookback must be a positive duration",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			response, err := tsc.client.GetDependencies(context.Background(), tt.request)
+			require.ErrorContains(t, err, tt.errMsg)
+			assert.Nil(t, response)
+		})
+	}
 }

@@ -130,6 +130,12 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 
 // GetDependencies implements api_v3.QueryServiceServer's GetDependencies
 func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDependenciesRequest) (*api_v3.GetDependenciesResponse, error) {
+	if request.EndTime.IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "end_time is required")
+	}
+	if request.Lookback <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "lookback must be a positive duration")
+	}
 	deps, err := h.QueryService.GetDependencies(ctx, request.EndTime, request.Lookback)
 	if err != nil {
 		return nil, err

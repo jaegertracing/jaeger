@@ -14,7 +14,6 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -44,8 +43,6 @@ const (
 	paramDurationMin    = "query.duration_min"
 	paramDurationMax    = "query.duration_max"
 	paramQueryRawTraces = "query.raw_traces"
-	paramLookback       = "lookback"
-
 	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
 	routeFindTraces      = "/api/v3/traces"
 	routeGetServices     = "/api/v3/services"
@@ -63,9 +60,7 @@ type HTTPGateway struct {
 
 // RegisterRoutes registers HTTP endpoints for APIv3 into provided mux.
 // The caller can create a subrouter if it needs to prepend a base path.
-func (h *HTTPGateway) RegisterRoutes(router interface {
-	HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
-}) {
+func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.getTrace, routeGetTrace)
 	h.addRoute(router, h.findTraces, routeFindTraces)
 	h.addRoute(router, h.getServices, routeGetServices)
@@ -75,15 +70,13 @@ func (h *HTTPGateway) RegisterRoutes(router interface {
 
 // addRoute adds a new endpoint to the router with given path and handler function.
 // This code is mostly copied from ../http_handler.
-func (*HTTPGateway) addRoute(
-	router interface {
-		HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request))
-	},
+func (h *HTTPGateway) addRoute(
+	router *http.ServeMux,
 	f func(http.ResponseWriter, *http.Request),
 	route string,
 ) {
 	var handler http.Handler = http.HandlerFunc(f)
-	handler = otelhttp.NewHandler(handler, route)
+	handler = otelhttp.NewHandler(handler, route, otelhttp.WithTracerProvider(h.Tracer))
 	handler = spanNameHandler(route, handler)
 	router.HandleFunc(route, handler.ServeHTTP)
 }
@@ -165,8 +158,7 @@ func (h *HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWri
 }
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	traceIDVar := vars[paramTraceID]
+	traceIDVar := r.PathValue(paramTraceID)
 	traceID, err := model.TraceIDFromString(traceIDVar)
 	if h.tryParamError(w, err, paramTraceID) {
 		return
@@ -312,11 +304,16 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 
 func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	startTimeStr := q.Get(paramStartTime)
 	endTimeStr := q.Get(paramEndTime)
-	lookbackStr := q.Get(paramLookback)
 
-	if endTimeStr == "" || lookbackStr == "" {
-		h.tryHandleError(w, errors.New("both end_time and lookback are required"), http.StatusBadRequest)
+	if startTimeStr == "" || endTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("%s and %s are required", paramStartTime, paramEndTime), http.StatusBadRequest)
+		return
+	}
+
+	startTime, err := time.Parse(time.RFC3339Nano, startTimeStr)
+	if h.tryParamError(w, err, paramStartTime) {
 		return
 	}
 
@@ -325,16 +322,12 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lookback, err := time.ParseDuration(lookbackStr)
-	if h.tryParamError(w, err, paramLookback) {
-		return
-	}
-	if lookback <= 0 {
-		err := fmt.Errorf("%s must be a positive duration", paramLookback)
-		h.tryHandleError(w, err, http.StatusBadRequest)
+	if !endTime.After(startTime) {
+		h.tryHandleError(w, fmt.Errorf("%s must be after %s", paramEndTime, paramStartTime), http.StatusBadRequest)
 		return
 	}
 
+	lookback := endTime.Sub(startTime)
 	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime, lookback)
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return

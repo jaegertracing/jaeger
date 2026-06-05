@@ -17,7 +17,6 @@ import (
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	gogoproto "github.com/gogo/protobuf/proto"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -46,7 +45,7 @@ var (
 type testGateway struct {
 	reader *tracestoremocks.Reader
 	url    string
-	router *mux.Router
+	router *http.ServeMux
 	// used to set a tenancy header when executing requests
 	setupRequest func(*http.Request)
 }
@@ -78,7 +77,8 @@ func (*testGateway) verifySnapshot(t *testing.T, body []byte) []byte {
 	}
 	snapshot, err := os.ReadFile(snapshotFile)
 	require.NoError(t, err)
-	assert.Equal(t, strings.TrimRight(string(snapshot), "\n"), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
+	snapshotStr := strings.ReplaceAll(string(snapshot), "\r\n", "\n")
+	assert.Equal(t, strings.TrimRight(snapshotStr, "\n"), string(body), "comparing against stored snapshot. Use REGENERATE_SNAPSHOTS=true to rebuild snapshots.")
 	return body
 }
 
