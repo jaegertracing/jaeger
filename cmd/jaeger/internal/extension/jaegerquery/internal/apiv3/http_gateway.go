@@ -179,8 +179,8 @@ func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
-	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
-	if shouldReturn {
+	queryParams, err := parseFindTracesQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
 		return
 	}
 
@@ -190,8 +190,8 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {
-	queryParams, shouldReturn := h.parseFindTracesQuery(r.URL.Query(), w)
-	if shouldReturn {
+	queryParams, err := parseFindTracesQuery(r.URL.Query())
+	if h.tryHandleError(w, err, http.StatusBadRequest) {
 		return
 	}
 	// Summaries always use adjusted, aggregated data; raw_traces has no effect here.

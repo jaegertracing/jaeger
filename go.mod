@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/ClickHouse/ch-go v0.71.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
-	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260504200637-e182dbfab154
+	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260605151526-e2c717d2194d
 	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v5 v5.0.3
@@ -22,7 +22,7 @@ require (
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/jaegertracing/jaeger-idl v0.9.0
 	github.com/kr/pretty v0.3.1
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/olivere/elastic/v7 v7.0.32
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.153.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.153.0
