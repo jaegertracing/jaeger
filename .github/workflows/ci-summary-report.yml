@@ -36,7 +36,8 @@ jobs:
             --repo "${{ github.repository }}" --dir .artifacts
 
       - name: Install dependencies
-        run: python3 -m pip install prometheus-client
+        run: |
+          python3 -m pip install --require-hashes --only-binary :all: -r .github/requirements/ci-python.txt
 
       - name: Compare metrics and generate summary
         id: compare-metrics
