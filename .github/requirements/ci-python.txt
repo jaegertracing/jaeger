@@ -1,7 +1,0 @@
-# Python dependencies used directly by GitHub Actions workflow scripts.
-# Hashes can be regenerated with:
-#   python3 -m pip download --no-deps --only-binary=:all: prometheus-client==0.25.0
-#   python3 -m pip hash prometheus_client-0.25.0-py3-none-any.whl
-
-prometheus-client==0.25.0 \
-    --hash=sha256:d5aec89e349a6ec230805d0df882f3807f74fd6c1a2fa86864e3c2279059fed1
