@@ -6,8 +6,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
-	"net/url"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -15,7 +13,6 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -39,13 +36,6 @@ type AIConfig struct {
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
-	// McpServers is an optional list of MCP servers the gateway advertises
-	// to the agent on every session/new. Empty/absent → the gateway sends
-	// `mcpServers: []` and the agent must rely on its own MCP config (if
-	// any). Agents that honor wire-pushed MCP (e.g. claude-agent-acp,
-	// which advertises mcp_capabilities.http) consume these directly;
-	// agents that don't (e.g. the Gemini sidecar) ignore them.
-	McpServers []jaegerai.McpServerConfig `mapstructure:"mcp_servers" valid:"optional"`
 	// A value of 0 selects DefaultMaxRequestBodySize; negative values are rejected.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 }
@@ -59,24 +49,6 @@ func (c *AIConfig) Validate() error {
 	}
 	if c.MaxRequestBodySize == 0 {
 		c.MaxRequestBodySize = DefaultMaxRequestBodySize
-	}
-	for i, ms := range c.McpServers {
-		if ms.Name == "" {
-			return fmt.Errorf("ai.mcp_servers[%d].name is required", i)
-		}
-		if ms.URL == "" {
-			return fmt.Errorf("ai.mcp_servers[%d].url is required", i)
-		}
-		// url.Parse alone is too permissive — strings like "foo bar" or
-		// "localhost:16687/mcp" parse without an error but are not what
-		// the agent can actually dial. Only HTTP transport is forwarded
-		// today, so reject anything that isn't a host-bearing http(s)
-		// URL up-front rather than letting it become a confusing
-		// agent-side failure mid-conversation.
-		u, err := url.Parse(ms.URL)
-		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-			return fmt.Errorf("ai.mcp_servers[%d].url must be an http(s) URL with host, got %q", i, ms.URL)
-		}
 	}
 	return nil
 }

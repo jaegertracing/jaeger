@@ -90,29 +90,49 @@ extensions:
 
 ## How Jaeger MCP gets to Claude
 
-The gateway forwards whatever the operator configures under
-`extensions.jaeger_query.ai.mcp_servers` to the agent via
-`NewSessionRequest.mcpServers` on every session/new. The Claude Agent SDK
-consumes those entries automatically and exposes their tools to the model
-as `mcp__<name>__<tool>`. No MCP wiring is needed in this bridge.
+The gateway does **not** push MCP servers to the agent over the ACP wire
+(doing so would let the agent dial MCP directly, bypassing the gateway
+and losing observability + the unified dispatch path that UI tools also
+need). Until the gateway grows a proper MCP egress endpoint, configure
+MCP at the bridge layer.
 
-Minimal config for plugging Claude into Jaeger's built-in MCP server:
+The bridge accepts a repeatable `--mcp-server name=url` flag. Each entry
+is injected into the `session/new` request the gateway sends, in
+`params._meta.claudeCode.options.mcpServers` — the same field the Claude
+Agent SDK reads when consuming `_meta.claudeCode.options`. The agent
+spawns the MCP client itself; tools surface to the model as
+`mcp__<name>__<tool>`.
 
-```yaml
-extensions:
-  jaeger_query:
-    ai:
-      agent_url: ws://127.0.0.1:16688
-      mcp_servers:
-        - name: jaeger
-          url: http://127.0.0.1:16687/mcp
+Plug in Jaeger's built-in MCP server:
+
+```bash
+npm start -- --mcp-server jaeger=http://127.0.0.1:16687/mcp
 ```
 
-> Only HTTP transport is exposed today. Stdio-only agents ignore the
-> entry; `claude-agent-acp` advertises HTTP MCP capability and honors it.
-> Agents that have their own MCP config (e.g. the Gemini sidecar reading
-> `JAEGER_MCP_URL`) silently drop wire-pushed entries — both paths stay
-> valid.
+(The `--` is required so npm forwards the rest of the line to the
+bridge script.) Or invoke node directly:
+
+```bash
+node jaeger-ws-bridge.mjs --mcp-server jaeger=http://127.0.0.1:16687/mcp
+```
+
+Multiple servers — repeat the flag:
+
+```bash
+node jaeger-ws-bridge.mjs \
+  --mcp-server jaeger=http://127.0.0.1:16687/mcp \
+  --mcp-server remote=https://mcp.example.com:8443/mcp
+```
+
+The bridge validates each entry at startup: name and URL non-empty, URL
+parseable as `http(s)`. Misconfigured entries fail fast with a clear
+error instead of becoming a confusing mid-conversation failure from the
+agent.
+
+> A future change will route MCP through the gateway itself (see the
+> follow-up to jaegertracing/jaeger#8630) so that every tool call is
+> traceable and UI tools + MCP tools share one dispatch path. Once that
+> lands, the README will switch back to a gateway-side config block.
 
 ## Known limitations
 
@@ -133,13 +153,12 @@ extensions:
 
 ## How it differs from the Gemini sidecar
 
-|                    | `gemini/`                                  | `claude-code/`                                  |
-| ------------------ | ------------------------------------------ | ----------------------------------------------- |
-| Language           | Python                                     | Node (just the bridge)                          |
-| Agent              | In-process, custom                         | External process: `claude-agent-acp`            |
-| MCP                | Built-in bridge reads `JAEGER_MCP_URL` env | Gateway pushes via `mcpServers`; SDK handles it |
-| Contextual tools   | Supported via ACP ext_method               | Not yet (dropped silently)                      |
-| LOC in this folder | ~600 (full agent)                          | ~100 (just the bridge)                          |
+|                  | `gemini/`                                  | `claude-code/`                                      |
+| ---------------- | ------------------------------------------ | --------------------------------------------------- |
+| Language         | Python                                     | Node (just the bridge)                              |
+| Agent            | In-process, custom                         | External process: `claude-agent-acp`                |
+| MCP              | Built-in bridge reads `JAEGER_MCP_URL` env | Bridge `--mcp-server` flag injects into session/new |
+| Contextual tools | Supported via ACP ext_method               | Not yet (dropped silently)                          |
 
 ## Files
 

@@ -195,7 +195,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20)
 
 	reqBody, err := json.Marshal(newAGUIRequest("trace for service checkout"))
 	require.NoError(t, err, "failed to marshal request")
@@ -221,7 +221,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
 	require.Empty(t, sessionReq.McpServers,
-		"when no ai.mcp_servers is configured the gateway must not advertise any MCP servers in NewSession — built-in MCP tools are reached by the sidecar directly, and contextual tools ride the ACP extension method instead")
+		"the gateway must not advertise any MCP servers in NewSession — built-in MCP tools are reached by the sidecar directly, and contextual tools ride the ACP extension method instead")
 	require.Empty(t, sessionReq.Meta,
 		"Meta must be omitted when the AG-UI request carries no tools")
 
@@ -235,52 +235,12 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.Empty(t, rr.Header().Get("Connection"), "Connection is a hop-by-hop header managed by net/http")
 }
 
-func TestChatHandlerForwardsConfiguredMcpServersInNewSession(t *testing.T) {
-	// When the operator wires up ai.mcp_servers, those entries must reach
-	// the agent on every session/new as HTTP McpServerHttpInline variants.
-	// Agents that advertise mcp_capabilities.http (claude-agent-acp)
-	// consume them automatically; agents that ignore wire-pushed MCP
-	// (Gemini sidecar) drop them silently — both paths stay valid.
-	agent := &mockACPAgent{}
-	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
-	defer cleanup()
-
-	servers := []McpServerConfig{
-		{Name: "jaeger", URL: "http://localhost:16687/mcp"},
-		{Name: "extra", URL: "http://localhost:17000/mcp"},
-	}
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20, servers)
-
-	reqBody, err := json.Marshal(newAGUIRequest("hello"))
-	require.NoError(t, err, "failed to marshal request")
-
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
-
-	_, sessionReq, _ := agent.snapshot()
-	require.NotNil(t, sessionReq, "expected new session request to be captured")
-	require.Len(t, sessionReq.McpServers, 2, "every configured ai.mcp_servers entry must reach session/new")
-
-	for i, want := range servers {
-		got := sessionReq.McpServers[i]
-		require.NotNil(t, got.Http, "entry %d must be marshalled as the HTTP McpServer variant", i)
-		require.Nil(t, got.Stdio, "entry %d must not populate the stdio variant", i)
-		require.Nil(t, got.Sse, "entry %d must not populate the SSE variant", i)
-		require.Equal(t, want.Name, got.Http.Name, "entry %d name mismatch", i)
-		require.Equal(t, want.URL, got.Http.Url, "entry %d url mismatch", i)
-		require.NotNil(t, got.Http.Headers,
-			"Headers must be a non-nil empty slice so the SDK marshals it as `[]` not `null`")
-	}
-}
-
 func TestChatHandlerAppendsContextEntriesToPromptBlocks(t *testing.T) {
 	agent := &mockACPAgent{}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 
 	reqBody, err := json.Marshal(ChatRequest{
 		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "where is the latency?"}},
@@ -319,7 +279,7 @@ func TestChatHandlerAttachesContextualToolsToMetaAndStore(t *testing.T) {
 	defer cleanup()
 
 	store := NewContextualToolsStore()
-	handler := NewChatHandler(zap.NewNop(), store, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), store, wsURL, "", 1<<20)
 
 	reqBody, err := json.Marshal(ChatRequest{
 		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}},
@@ -362,7 +322,7 @@ func TestChatHandlerOmitsMetaWhenNoTools(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), NewContextualToolsStore(), wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), NewContextualToolsStore(), wsURL, "", 1<<20)
 
 	reqBody, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)
@@ -384,7 +344,7 @@ func TestChatHandlerEmitsRunFinishedWithStopReasonInResult(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	reqBody, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
@@ -414,7 +374,7 @@ func TestChatHandlerPropagatesThreadAndRunIDs(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 
 	reqBody, err := json.Marshal(ChatRequest{
 		ThreadID: "thread-xyz",
@@ -462,7 +422,7 @@ func (*failingFlusherResponseWriter) Flush() {}
 
 func TestNewChatHandlerPassesThroughConfig(t *testing.T) {
 	store := NewContextualToolsStore()
-	h := NewChatHandler(zap.NewNop(), store, "ws://localhost:1", "/jaeger", 512, nil)
+	h := NewChatHandler(zap.NewNop(), store, "ws://localhost:1", "/jaeger", 512)
 	require.Equal(t, int64(512), h.maxRequestBodySize, "expected configured maxRequestBodySize")
 	require.Equal(t, "ws://localhost:1", h.sidecarWSURL, "expected configured sidecarWSURL")
 	require.Equal(t, "/jaeger", h.basePath, "expected configured basePath")
@@ -470,7 +430,7 @@ func TestNewChatHandlerPassesThroughConfig(t *testing.T) {
 }
 
 func TestChatHandlerMethodNotAllowed(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	req := httptest.NewRequest(http.MethodGet, "/api/ai/chat", http.NoBody)
 	rr := httptest.NewRecorder()
 
@@ -480,7 +440,7 @@ func TestChatHandlerMethodNotAllowed(t *testing.T) {
 }
 
 func TestChatHandlerBadRequest(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader("{"))
 	rr := httptest.NewRecorder()
 
@@ -490,7 +450,7 @@ func TestChatHandlerBadRequest(t *testing.T) {
 }
 
 func TestChatHandlerEmptyPrompt(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("   "))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -503,7 +463,7 @@ func TestChatHandlerEmptyPrompt(t *testing.T) {
 }
 
 func TestChatHandlerNoUserMessage(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	body, err := json.Marshal(ChatRequest{
 		Messages: []aguitypes.Message{{Role: "assistant", Content: "no user message in this run"}},
 	})
@@ -526,7 +486,7 @@ func TestChatHandlerRejectsBlankContextualToolName(t *testing.T) {
 	// validateContextualToolNames pin the function-level contract; this
 	// test pins that the handler wires the contract into the HTTP path.
 	store := NewContextualToolsStore()
-	handler := NewChatHandler(zap.NewNop(), store, "ws://127.0.0.1:1", "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), store, "ws://127.0.0.1:1", "", 1<<20)
 
 	body, err := json.Marshal(ChatRequest{
 		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hi"}},
@@ -550,7 +510,7 @@ func TestChatHandlerRejectsBlankContextualToolName(t *testing.T) {
 }
 
 func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 10, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 10)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"this body exceeds the 10 byte limit"}]}`))
 	rr := httptest.NewRecorder()
 
@@ -560,7 +520,7 @@ func TestChatHandlerRequestBodyTooLarge(t *testing.T) {
 }
 
 func TestChatHandlerDialFailure(t *testing.T) {
-	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -576,7 +536,7 @@ func TestChatHandlerInitializeError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -593,7 +553,7 @@ func TestChatHandlerNewSessionError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -613,7 +573,7 @@ func TestChatHandlerPromptError(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -650,7 +610,7 @@ func TestChatHandlerSessionUpdateStreamedBeforePromptReturns(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -672,7 +632,7 @@ func TestChatHandlerPromptErrorWriteFailure(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -699,7 +659,7 @@ func TestChatHandlerSessionCloseFiresWhenAgentAdvertisesCapability(t *testing.T)
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -731,7 +691,7 @@ func TestChatHandlerSessionCloseErrorIsSwallowed(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))
@@ -756,7 +716,7 @@ func TestChatHandlerSessionCloseSkippedWhenCapabilityAbsent(t *testing.T) {
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, nil)
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
 	body, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err, "failed to marshal request")
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(body))

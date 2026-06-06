@@ -20,23 +20,34 @@
 //     entry stays runnable.
 
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket, WebSocketServer } from "ws";
 
-const require = createRequire(import.meta.url);
-
 // Resolve the agent's CLI entry from its package.json so the bridge keeps
 // working when claude-agent-acp's dist layout changes between releases.
+// `import.meta.resolve` + readFileSync replaces an older createRequire
+// shim — both return the same path, but the static-ESM form avoids
+// pulling the CommonJS require helper into a pure-ESM bridge.
 function resolveAgentEntry() {
-  const pkgJsonPath =
-    require.resolve("@agentclientprotocol/claude-agent-acp/package.json");
-  const pkg = require("@agentclientprotocol/claude-agent-acp/package.json");
-  const binEntry =
-    typeof pkg.bin === "string" ? pkg.bin : pkg.bin?.["claude-agent-acp"];
-  if (!binEntry) {
+  const pkgJsonPath = fileURLToPath(
+    import.meta.resolve("@agentclientprotocol/claude-agent-acp/package.json"),
+  );
+  const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8"));
+  // pkg.bin can be a string ("./dist/index.js"), a map keyed by bin name,
+  // or absent. When it's a map we prefer the entry keyed by our expected
+  // unscoped name; if the package picks a different key (renamed bin,
+  // monorepo, etc.) we fall back to the first declared value so the
+  // bridge keeps working without an upstream patch.
+  let binEntry;
+  if (typeof pkg.bin === "string") {
+    binEntry = pkg.bin;
+  } else if (pkg.bin && typeof pkg.bin === "object") {
+    binEntry = pkg.bin["claude-agent-acp"] ?? Object.values(pkg.bin)[0];
+  }
+  if (typeof binEntry !== "string" || binEntry.length === 0) {
     throw new Error(
       "claude-agent-acp package.json does not declare a runnable bin entry",
     );
@@ -48,13 +59,93 @@ const AGENT_ENTRY = resolveAgentEntry();
 const HOST = process.env.HOST ?? "127.0.0.1";
 const PORT = Number(process.env.PORT ?? 16688);
 
+// Parse repeatable `--mcp-server name=url` flags into a Claude-shaped MCP
+// servers map. claude-agent-acp itself does NOT expose this flag — it
+// only honors MCP entries that arrive via NewSessionRequest._meta or its
+// own SDK settings files. Putting the flag here lets operators wire MCP
+// without editing ~/.claude/settings.json, while still keeping the
+// gateway out of the MCP egress path (Yuri's inversion-of-control point
+// in jaegertracing/jaeger#8631 — the bridge is part of the operator's
+// trust domain, the upstream agent is not).
+function parseMcpServerFlags(argv) {
+  const entries = {};
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] !== "--mcp-server") continue;
+    const spec = argv[i + 1];
+    if (!spec || !spec.includes("=")) {
+      throw new Error(
+        `--mcp-server expects name=url, got ${JSON.stringify(spec)}`,
+      );
+    }
+    const eq = spec.indexOf("=");
+    const name = spec.slice(0, eq).trim();
+    const url = spec.slice(eq + 1).trim();
+    if (!name || !url) {
+      throw new Error(
+        `--mcp-server expects non-empty name and url, got ${JSON.stringify(spec)}`,
+      );
+    }
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error(`--mcp-server ${name}=${url} is not a valid URL`);
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error(`--mcp-server ${name}=${url} must use http(s) scheme`);
+    }
+    entries[name] = { type: "http", url };
+    i++;
+  }
+  return entries;
+}
+
+const MCP_SERVERS = parseMcpServerFlags(process.argv.slice(2));
+
 const wss = new WebSocketServer({ host: HOST, port: PORT });
 console.error(`[bridge] listening on ws://${HOST}:${PORT}`);
 console.error(`[bridge] agent entry: ${AGENT_ENTRY}`);
+if (Object.keys(MCP_SERVERS).length > 0) {
+  console.error(
+    `[bridge] injecting MCP servers on session/new: ${Object.keys(MCP_SERVERS).join(", ")}`,
+  );
+}
 
 // Set DEBUG_BRIDGE=1 to log every JSON-RPC message in both directions.
 // Off by default to keep production logs uncluttered.
 const DEBUG = process.env.DEBUG_BRIDGE === "1";
+
+// injectMcpServers rewrites a JSON-RPC line on its way to the agent. For
+// `session/new` requests it merges the bridge's --mcp-server entries into
+// `params._meta.claudeCode.options.mcpServers`, which is the field the
+// Claude Agent SDK reads via `userProvidedOptions?.mcpServers` (see
+// claude-agent-acp src/acp-agent.ts:1925, 1979). Any entries the gateway
+// already put in that field win — bridge-supplied ones are defaults so
+// future gateway pushes don't get silently overwritten by the operator's
+// CLI. Anything that fails to parse passes through untouched so a
+// malformed frame can't be turned into a bigger failure by the bridge.
+function injectMcpServers(line) {
+  if (Object.keys(MCP_SERVERS).length === 0) return line;
+  if (!line.includes('"session/new"')) return line;
+  let msg;
+  try {
+    msg = JSON.parse(line);
+  } catch {
+    return line;
+  }
+  if (
+    msg?.method !== "session/new" ||
+    typeof msg.params !== "object" ||
+    msg.params === null
+  ) {
+    return line;
+  }
+  const meta = (msg.params._meta ??= {});
+  const claudeCode = (meta.claudeCode ??= {});
+  const options = (claudeCode.options ??= {});
+  options.mcpServers = { ...MCP_SERVERS, ...(options.mcpServers ?? {}) };
+  return JSON.stringify(msg);
+}
 
 wss.on("connection", (ws) => {
   // stdio: ["pipe", "pipe", "pipe"] — capture stderr so we can prefix it
@@ -94,12 +185,20 @@ wss.on("connection", (ws) => {
 
   ws.on("message", (data) => {
     // ws delivers binary and text frames as Buffer-ish; coerce to string
-    // and strip any trailing newline the sender added so we don't double
-    // up before writing to the child.
-    const text = data.toString().replace(/\r?\n$/, "");
-    if (text.length === 0) return;
-    if (DEBUG) console.error(`[bridge:${childPid}] →agent: ${text}`);
-    if (agent.stdin.writable) agent.stdin.write(text + "\n");
+    // and split on newlines. The gateway typically sends one JSON-RPC
+    // message per WS frame, but ACP framing on the agent's stdin is
+    // line-delimited, so multiple messages concatenated with `\n` inside
+    // a single frame are still legal — handle them by writing each
+    // non-empty line individually and re-appending the terminator
+    // exactly once. Symmetric with the agent→ws path (createInterface
+    // also splits on newlines), so behaviour is consistent in both
+    // directions even if some sender starts batching.
+    for (const line of data.toString().split(/\r?\n/)) {
+      if (line.length === 0) continue;
+      const text = injectMcpServers(line);
+      if (DEBUG) console.error(`[bridge:${childPid}] →agent: ${text}`);
+      if (agent.stdin.writable) agent.stdin.write(text + "\n");
+    }
   });
 
   // Grace period (ms) between stdin EOF and a forced SIGTERM. The agent

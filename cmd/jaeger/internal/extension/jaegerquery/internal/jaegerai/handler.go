@@ -32,7 +32,6 @@ type ChatHandler struct {
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
-	mcpServers         []McpServerConfig
 }
 
 // NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
@@ -40,17 +39,14 @@ type ChatHandler struct {
 // basePath is the jaeger-query base path; it is normalized once and kept
 // on the handler for consistency with other route handlers in this
 // package (APIHandler, static_handler) even though ServeHTTP does not
-// currently read it. mcpServers may be nil or empty when no MCP entries
-// should be advertised; otherwise each entry is forwarded to the agent
-// via NewSessionRequest.mcpServers on every chat turn.
-func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64, mcpServers []McpServerConfig) *ChatHandler {
+// currently read it.
+func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
-		mcpServers:         mcpServers,
 	}
 }
 
@@ -146,12 +142,8 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// "/" is a placeholder: the gateway advertises no fs capability in
 		// Initialize, so Cwd is never resolved against a real filesystem.
 		// ACP requires the field to be non-empty, hence this constant.
-		Cwd: "/",
-		// MCP servers come from the operator's ai.mcp_servers config; an
-		// empty/absent list serialises as a non-nil empty slice so agents
-		// that ignore wire-pushed MCP (e.g. the Gemini sidecar reading
-		// JAEGER_MCP_URL) see the same shape they always did.
-		McpServers: buildMcpServersWire(h.mcpServers),
+		Cwd:        "/",
+		McpServers: []acp.McpServer{},
 	}
 	if len(prefixedTools) > 0 {
 		newSessionReq.Meta = map[string]any{
