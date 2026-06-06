@@ -172,11 +172,11 @@ func decodeInputContent(raw []byte) ([]aguitypes.InputContent, bool) {
 
 func collectInputContentText(parts []aguitypes.InputContent) string {
 	textParts := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if part.Type != aguitypes.InputContentTypeText {
+	for i := range parts {
+		if parts[i].Type != aguitypes.InputContentTypeText {
 			continue
 		}
-		if trimmed := strings.TrimSpace(part.Text); trimmed != "" {
+		if trimmed := strings.TrimSpace(parts[i].Text); trimmed != "" {
 			textParts = append(textParts, trimmed)
 		}
 	}
