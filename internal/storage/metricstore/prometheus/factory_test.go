@@ -95,12 +95,11 @@ func TestWithConfiguration(t *testing.T) {
 			ServerURL:   "http://localhost:9090",
 			LatencyUnit: "milliseconds",
 		}
-		// NewFactoryWithConfig should validate and reject invalid latency unit
-		// However, the validation is currently not implemented in Configuration.Validate()
-		// So this test now just creates the factory successfully
-		f, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
-		require.NoError(t, err)
-		assert.Equal(t, "milliseconds", f.options.LatencyUnit)
+		// NewFactoryWithConfig validates the config and rejects an invalid
+		// latency unit instead of letting it panic later when the metric name
+		// is built.
+		_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
+		require.ErrorContains(t, err, "latency_unit")
 	})
 }
 

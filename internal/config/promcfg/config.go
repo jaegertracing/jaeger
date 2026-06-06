@@ -4,6 +4,7 @@
 package promcfg
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -30,6 +31,19 @@ type Configuration struct {
 }
 
 func (c *Configuration) Validate() error {
-	_, err := govalidator.ValidateStruct(c)
-	return err
+	if _, err := govalidator.ValidateStruct(c); err != nil {
+		return err
+	}
+	// LatencyUnit must be "ms" or "s". An empty value is allowed because the
+	// default ("ms") is applied during config unmarshalling. Without this check
+	// an invalid unit passes validation and later panics when the metric name
+	// is built (see buildFullLatencyMetricName). This mirrors the validation
+	// already done for the v1 flag path in
+	// internal/storage/metricstore/prometheus/options.go.
+	switch c.LatencyUnit {
+	case "", "ms", "s":
+	default:
+		return fmt.Errorf(`latency_unit must be "ms" or "s", not %q`, c.LatencyUnit)
+	}
+	return nil
 }
