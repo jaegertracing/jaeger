@@ -34,16 +34,16 @@ func (c *Configuration) Validate() error {
 	if _, err := govalidator.ValidateStruct(c); err != nil {
 		return err
 	}
-	// LatencyUnit must be "ms" or "s". An empty value is allowed because the
-	// default ("ms") is applied during config unmarshalling. Without this check
-	// an invalid unit passes validation and later panics when the metric name
-	// is built (see buildFullLatencyMetricName). This mirrors the validation
-	// already done for the v1 flag path in
-	// internal/storage/metricstore/prometheus/options.go.
-	switch c.LatencyUnit {
-	case "", "ms", "s":
-	default:
+	// Empty is allowed because the default ("ms") is applied during unmarshalling.
+	if c.LatencyUnit != "" && !IsValidLatencyUnit(c.LatencyUnit) {
 		return fmt.Errorf(`latency_unit must be "ms" or "s", not %q`, c.LatencyUnit)
 	}
 	return nil
+}
+
+// IsValidLatencyUnit reports whether u is a latency unit the Prometheus metric
+// name builder understands. It is the single source of truth shared by this
+// validation and the v1 flag path in prometheus/options.go.
+func IsValidLatencyUnit(u string) bool {
+	return u == "ms" || u == "s"
 }

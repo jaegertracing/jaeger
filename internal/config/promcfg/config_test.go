@@ -33,11 +33,12 @@ func TestValidateLatencyUnit(t *testing.T) {
 		{name: "s is valid", latencyUnit: "s"},
 		{name: "invalid unit is rejected", latencyUnit: "us", wantErr: "latency_unit"},
 		{name: "long form is rejected", latencyUnit: "milliseconds", wantErr: "latency_unit"},
+		{name: "uppercase is rejected (case-sensitive)", latencyUnit: "MS", wantErr: "latency_unit"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := Configuration{
-				ServerURL:   "localhost:1234",
+				ServerURL:   "http://localhost:1234",
 				LatencyUnit: test.latencyUnit,
 			}
 			err := cfg.Validate()
