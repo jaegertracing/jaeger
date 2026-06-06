@@ -106,10 +106,18 @@ func (h *HTTPGateway) returnTrace(td ptrace.Traces, w http.ResponseWriter) {
 }
 
 func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.ResponseWriter) {
+	h.returnTracesInternal(traces, err, w, false)
+}
+
+func (h *HTTPGateway) returnTracesOrEmpty(traces []ptrace.Traces, err error, w http.ResponseWriter) {
+	h.returnTracesInternal(traces, err, w, true)
+}
+
+func (h *HTTPGateway) returnTracesInternal(traces []ptrace.Traces, err error, w http.ResponseWriter, allowEmpty bool) {
 	if h.tryHandleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	if len(traces) == 0 {
+	if len(traces) == 0 && !allowEmpty {
 		errorResponse := api_v3.GRPCGatewayError{
 			Error: &api_v3.GRPCGatewayError_GRPCGatewayErrorDetails{
 				HttpCode: http.StatusNotFound,
@@ -120,6 +128,8 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 		http.Error(w, string(resp), http.StatusNotFound)
 		return
 	}
+	// Consolidate traces into a single payload. If traces is empty and allowEmpty is true,
+	// this naturally produces a valid empty traces result, keeping the response schema consistent.
 	// TODO: the response should be streamed back to the client
 	// https://github.com/jaegertracing/jaeger/issues/6467
 	combinedTrace := ptrace.NewTraces()
@@ -186,7 +196,7 @@ func (h *HTTPGateway) findTraces(w http.ResponseWriter, r *http.Request) {
 
 	findTracesIter := h.QueryService.FindTraces(r.Context(), *queryParams)
 	traces, err := jiter.FlattenWithErrors(findTracesIter)
-	h.returnTraces(traces, err, w)
+	h.returnTracesOrEmpty(traces, err, w)
 }
 
 func (h *HTTPGateway) findTraceSummaries(w http.ResponseWriter, r *http.Request) {

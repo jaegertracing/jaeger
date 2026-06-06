@@ -192,8 +192,11 @@ func TestHTTPGatewayFindTracesEmptyResponse(t *testing.T) {
 		})).Once()
 
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), "No traces found")
+	assert.Equal(t, http.StatusOK, w.Code)
+	var response api_v3.GRPCGatewayWrapper
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &response))
+	require.NotNil(t, response.Result)
+	assert.Equal(t, 0, response.Result.ToTraces().ResourceSpans().Len())
 }
 
 // TestHTTPGatewayFindTracesDeprecatedParams verifies that deprecated snake_case query params
@@ -224,8 +227,11 @@ func TestHTTPGatewayFindTracesDeprecatedParams(t *testing.T) {
 		})).Once()
 
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), "No traces found")
+	assert.Equal(t, http.StatusOK, w.Code)
+	var response api_v3.GRPCGatewayWrapper
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &response))
+	require.NotNil(t, response.Result)
+	assert.Equal(t, 0, response.Result.ToTraces().ResourceSpans().Len())
 }
 
 // TestHTTPGatewayFindTracesDeprecatedNumTraces verifies that the deprecated
@@ -247,8 +253,11 @@ func TestHTTPGatewayFindTracesDeprecatedNumTraces(t *testing.T) {
 		})).Once()
 
 	gw.router.ServeHTTP(w, r)
-	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Contains(t, w.Body.String(), "No traces found")
+	assert.Equal(t, http.StatusOK, w.Code)
+	var response api_v3.GRPCGatewayWrapper
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &response))
+	require.NotNil(t, response.Result)
+	assert.Equal(t, 0, response.Result.ToTraces().ResourceSpans().Len())
 }
 
 func TestHTTPGatewayGetTraceMalformedInputErrors(t *testing.T) {
