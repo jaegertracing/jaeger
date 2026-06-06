@@ -120,7 +120,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 	}
 
 	if !config.IsValidLatencyUnit(opt.LatencyUnit) {
-		return fmt.Errorf(`duration-unit must be one of "ms" or "s", not %q`, opt.LatencyUnit)
+		return config.LatencyUnitError(opt.LatencyUnit)
 	}
 
 	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)

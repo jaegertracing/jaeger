@@ -99,7 +99,7 @@ func TestWithConfiguration(t *testing.T) {
 		// latency unit instead of letting it panic later when the metric name
 		// is built.
 		_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
-		require.ErrorContains(t, err, "latency_unit")
+		require.EqualError(t, err, `latency_unit must be "ms" or "s", not "milliseconds"`)
 	})
 }
 
