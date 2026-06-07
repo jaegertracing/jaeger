@@ -101,6 +101,22 @@ func TestWithConfiguration(t *testing.T) {
 		_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 		require.EqualError(t, err, `latency_unit must be "ms" or "s", not "milliseconds"`)
 	})
+	t.Run("empty latency unit with normalize_duration is normalized to the default", func(t *testing.T) {
+		cfg := promcfg.Configuration{
+			ServerURL:         "http://localhost:9090",
+			NormalizeDuration: true,
+			LatencyUnit:       "", // empty: must be normalized to the default, not panic later
+		}
+		f, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
+		require.NoError(t, err)
+		assert.Equal(t, "ms", f.options.LatencyUnit)
+		// Building the reader must not panic now that the unit is normalized.
+		require.NotPanics(t, func() {
+			reader, err := f.CreateMetricsReader()
+			require.NoError(t, err)
+			assert.NotNil(t, reader)
+		})
+	})
 }
 
 func TestEmptyFactoryConfig(t *testing.T) {

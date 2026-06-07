@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	jconfig "github.com/jaegertracing/jaeger/internal/config"
 	config "github.com/jaegertracing/jaeger/internal/config/promcfg"
 )
 
@@ -26,6 +28,24 @@ func TestCLI(t *testing.T) {
 func TestCLIError(t *testing.T) {
 	_, err := parseKV("key1")
 	assert.ErrorContains(t, err, "failed to parse 'key1'. Expected format: 'param1=value1,param2=value2'")
+}
+
+func TestInitFromViperLatencyUnit(t *testing.T) {
+	t.Run("invalid unit is rejected", func(t *testing.T) {
+		opts := NewOptions()
+		v, _ := jconfig.Viperize(opts.AddFlags)
+		v.Set(prefix+suffixLatencyUnit, "us")
+		err := opts.InitFromViper(v)
+		require.EqualError(t, err, `latency_unit must be "ms" or "s", not "us"`)
+	})
+	t.Run("valid unit is accepted", func(t *testing.T) {
+		opts := NewOptions()
+		v, _ := jconfig.Viperize(opts.AddFlags)
+		v.Set(prefix+suffixLatencyUnit, "s")
+		err := opts.InitFromViper(v)
+		require.NoError(t, err)
+		assert.Equal(t, "s", opts.LatencyUnit)
+	})
 }
 
 func TestParseKV(t *testing.T) {

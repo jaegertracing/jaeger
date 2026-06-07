@@ -55,6 +55,13 @@ func NewFactoryWithConfig(
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	// Validate permits an empty LatencyUnit (it means "use the default"), so
+	// normalize it here before storing. Otherwise a config with NormalizeDuration
+	// set would reach the reader with an empty unit and panic when building the
+	// metric name.
+	if cfg.LatencyUnit == "" {
+		cfg.LatencyUnit = defaultLatencyUnit
+	}
 	f := NewFactory()
 	f.options = &Options{
 		Configuration: cfg,
