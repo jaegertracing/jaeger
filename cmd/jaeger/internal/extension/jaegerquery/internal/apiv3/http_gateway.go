@@ -65,7 +65,6 @@ func (h *HTTPGateway) addRoute(
 ) {
 	var handler http.Handler = http.HandlerFunc(f)
 	handler = otelhttp.NewHandler(handler, route, otelhttp.WithTracerProvider(h.Tracer))
-	handler = spanNameHandler(route, handler)
 	router.HandleFunc(route, handler.ServeHTTP)
 }
 
@@ -290,12 +289,4 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.marshalResponse(response, w)
-}
-
-func spanNameHandler(spanName string, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		span := trace.SpanFromContext(r.Context())
-		span.SetName(spanName)
-		handler.ServeHTTP(w, r)
-	})
 }
