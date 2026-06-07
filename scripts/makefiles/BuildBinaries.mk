@@ -46,9 +46,9 @@ $(JAEGER_UI_DIR)/packages/jaeger-ui/build/index.html:
 rebuild-ui:
 	@echo "::group::rebuild-ui logs"
 	JAEGER_UI_DIR="$(JAEGER_UI_DIR)" bash ./scripts/build/rebuild-ui.sh
-	@echo "NOTE: This target only rebuilds the UI assets inside $(JAEGER_UI_DIR)/packages/jaeger-ui/build/."
-	@echo "NOTE: To make them usable from query-service run 'make build-ui'."
 	@echo "::endgroup::"
+	rm -f cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
+	$(MAKE) build-ui
 
 .PHONY: build-examples
 build-examples:
