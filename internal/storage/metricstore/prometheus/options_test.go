@@ -46,6 +46,15 @@ func TestInitFromViperLatencyUnit(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "s", opts.LatencyUnit)
 	})
+	t.Run("empty unit is rejected at the flag layer", func(t *testing.T) {
+		// Unlike NewFactoryWithConfig (which normalizes empty to the default),
+		// the v1 flag path rejects an explicitly empty unit.
+		opts := NewOptions()
+		v, _ := jconfig.Viperize(opts.AddFlags)
+		v.Set(prefix+suffixLatencyUnit, "")
+		err := opts.InitFromViper(v)
+		require.EqualError(t, err, `latency_unit must be "ms" or "s", not ""`)
+	})
 }
 
 func TestParseKV(t *testing.T) {
