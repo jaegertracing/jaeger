@@ -103,10 +103,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		MetricsStorage: s.config.Storage.Metrics != "",
 	}
 
-	s.aiHealth, err = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
-	if err != nil {
-		return err
-	}
+	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
 	var aiHealthCheck func() bool
 	if s.aiHealth != nil {
@@ -146,31 +143,27 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 // (jaeger_query.ai block present with a non-empty agent URL and a positive
 // check interval). Returns nil when AI is disabled — there's nothing to
 // check and the static handler advertises aiAssistant=false.
-func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) (*aihealth.Checker, error) {
+func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihealth.Checker {
 	if !opts.AI.HasValue() {
-		return nil, nil
+		return nil
 	}
 	aiCfg := opts.AI.Get()
 	if aiCfg == nil || aiCfg.AgentURL == "" {
-		return nil, nil
+		return nil
 	}
 	if err := aiCfg.Validate(); err != nil {
 		logger.Error("Invalid AI config, capability check disabled", zap.Error(err))
-		return nil, nil
+		return nil
 	}
 	if aiCfg.HealthCheckInterval < 0 {
-		return nil, nil
+		return nil
 	}
-	r, err := aihealth.New(aihealth.Config{
+	return &aihealth.Checker{
 		Check:    aihealth.NewACPCheck(aiCfg.AgentURL, logger),
 		Interval: aiCfg.HealthCheckInterval,
 		Timeout:  aiCfg.HealthCheckTimeout,
 		Logger:   logger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("could not create AI health checker: %w", err)
 	}
-	return r, nil
 }
 
 func (s *server) addArchiveStorage(

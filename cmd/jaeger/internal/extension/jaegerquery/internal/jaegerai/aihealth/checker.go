@@ -10,52 +10,32 @@ package aihealth
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
 )
 
-// Config bundles the inputs the checker needs. Check is mandatory;
-// Interval and Timeout default to AIConfig's documented defaults if zero.
-type Config struct {
-	// Check is the single-shot health check the checker invokes on each
-	// tick. A nil error means healthy; any non-nil error means unhealthy.
+// Checker runs Check periodically and tracks whether the latest call
+// succeeded. Callers populate the public fields, then call Start; Current()
+// reports the latest state and is safe to call from any goroutine.
+//
+// All public fields are required and must be valid before Start: Check
+// non-nil, Interval and Timeout positive (zero or negative trips the
+// underlying time.NewTicker / context.WithTimeout into a panic or instant
+// failure), Logger non-nil. Validation is the caller's responsibility.
+type Checker struct {
+	// Check is the single-shot health check the loop invokes on each tick.
+	// A nil error means healthy; any non-nil error means unhealthy.
 	Check    func(ctx context.Context) error
 	Interval time.Duration
 	Timeout  time.Duration
 	Logger   *zap.Logger
-}
-
-// Checker runs Config.Check periodically and tracks whether the latest call
-// succeeded. Callers read the latest state via Current(), which is safe to
-// call from any goroutine.
-//
-// The zero Checker is not usable; construct via New.
-type Checker struct {
-	check    func(ctx context.Context) error
-	interval time.Duration
-	timeout  time.Duration
-	logger   *zap.Logger
 
 	current atomic.Bool
 
 	cancel context.CancelFunc
 	done   chan struct{}
-}
-
-// New constructs a Checker. Config.Check must be non-nil.
-func New(cfg Config) (*Checker, error) {
-	if cfg.Check == nil {
-		return nil, errors.New("aihealth: Config.Check must be non-nil")
-	}
-	return &Checker{
-		check:    cfg.Check,
-		interval: cfg.Interval,
-		timeout:  cfg.Timeout,
-		logger:   cfg.Logger,
-	}, nil
 }
 
 // Current returns the most recently observed health state. Initial value is
@@ -90,7 +70,7 @@ func (c *Checker) run(ctx context.Context) {
 
 	c.runOnce(ctx)
 
-	ticker := time.NewTicker(c.interval)
+	ticker := time.NewTicker(c.Interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -103,14 +83,14 @@ func (c *Checker) run(ctx context.Context) {
 }
 
 func (c *Checker) runOnce(ctx context.Context) {
-	checkCtx, cancel := context.WithTimeout(ctx, c.timeout)
+	checkCtx, cancel := context.WithTimeout(ctx, c.Timeout)
 	defer cancel()
-	err := c.check(checkCtx)
+	err := c.Check(checkCtx)
 	healthy := err == nil
 	if err != nil {
-		c.logger.Debug("AI health check failed", zap.Error(err))
+		c.Logger.Debug("AI health check failed", zap.Error(err))
 	}
 	if prev := c.current.Swap(healthy); prev != healthy {
-		c.logger.Info("AI health state changed", zap.Bool("healthy", healthy))
+		c.Logger.Info("AI health state changed", zap.Bool("healthy", healthy))
 	}
 }

@@ -14,30 +14,22 @@ import (
 	"go.uber.org/zap"
 )
 
-func newTestChecker(t *testing.T, check func(ctx context.Context) error) *Checker {
-	t.Helper()
-	c, err := New(Config{
+func newTestChecker(check func(ctx context.Context) error) *Checker {
+	return &Checker{
 		Check:    check,
 		Interval: 10 * time.Millisecond,
 		Timeout:  100 * time.Millisecond,
 		Logger:   zap.NewNop(),
-	})
-	require.NoError(t, err)
-	return c
-}
-
-func TestNew_RequiresCheck(t *testing.T) {
-	_, err := New(Config{})
-	require.Error(t, err)
+	}
 }
 
 func TestChecker_InitialStateIsFalse(t *testing.T) {
-	c := newTestChecker(t, func(context.Context) error { return errors.New("unused") })
+	c := newTestChecker(func(context.Context) error { return errors.New("unused") })
 	require.False(t, c.Current(), "before Start, Current must be false")
 }
 
 func TestChecker_FlipsToTrueOnHealthyCheck(t *testing.T) {
-	c := newTestChecker(t, func(context.Context) error { return nil })
+	c := newTestChecker(func(context.Context) error { return nil })
 	c.Start(t.Context())
 	defer c.Stop()
 
@@ -48,13 +40,12 @@ func TestChecker_FlipsToTrueOnHealthyCheck(t *testing.T) {
 func TestChecker_FlipsBackToFalseWhenCheckStartsFailing(t *testing.T) {
 	var healthy atomic.Bool
 	healthy.Store(true)
-	check := func(context.Context) error {
+	c := newTestChecker(func(context.Context) error {
 		if healthy.Load() {
 			return nil
 		}
 		return errors.New("down")
-	}
-	c := newTestChecker(t, check)
+	})
 	c.Start(t.Context())
 	defer c.Stop()
 
@@ -68,7 +59,7 @@ func TestChecker_FlipsBackToFalseWhenCheckStartsFailing(t *testing.T) {
 }
 
 func TestChecker_StaysFalseWhenCheckAlwaysFails(t *testing.T) {
-	c := newTestChecker(t, func(context.Context) error { return errors.New("always down") })
+	c := newTestChecker(func(context.Context) error { return errors.New("always down") })
 
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
@@ -79,13 +70,13 @@ func TestChecker_StaysFalseWhenCheckAlwaysFails(t *testing.T) {
 	require.False(t, c.Current())
 }
 
-func TestChecker_StopWithoutStartIsNoOp(t *testing.T) {
-	c := newTestChecker(t, func(context.Context) error { return nil })
+func TestChecker_StopWithoutStartIsNoOp(_ *testing.T) {
+	c := newTestChecker(func(context.Context) error { return nil })
 	c.Stop() // must not block or panic
 }
 
 func TestChecker_StartTwicePanics(t *testing.T) {
-	c := newTestChecker(t, func(context.Context) error { return nil })
+	c := newTestChecker(func(context.Context) error { return nil })
 	c.Start(t.Context())
 	defer c.Stop()
 	require.Panics(t, func() { c.Start(t.Context()) })
@@ -93,23 +84,19 @@ func TestChecker_StartTwicePanics(t *testing.T) {
 
 func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
 	var observed atomic.Int64
-	check := func(ctx context.Context) error {
-		deadline, ok := ctx.Deadline()
-		if !ok {
-			return errors.New("no deadline")
-		}
-		observed.Store(int64(time.Until(deadline)))
-		return nil
-	}
-
-	c, err := New(Config{
-		Check:    check,
+	c := &Checker{
+		Check: func(ctx context.Context) error {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				return errors.New("no deadline")
+			}
+			observed.Store(int64(time.Until(deadline)))
+			return nil
+		},
 		Interval: 50 * time.Millisecond,
 		Timeout:  200 * time.Millisecond,
 		Logger:   zap.NewNop(),
-	})
-	require.NoError(t, err)
-
+	}
 	c.Start(t.Context())
 	defer c.Stop()
 
