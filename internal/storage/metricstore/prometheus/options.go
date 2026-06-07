@@ -119,9 +119,8 @@ func (opt *Options) InitFromViper(v *viper.Viper) error {
 		return fmt.Errorf("failed to parse extra query params: %w", err)
 	}
 
-	isValidUnit := map[string]bool{"ms": true, "s": true}
-	if _, ok := isValidUnit[opt.LatencyUnit]; !ok {
-		return fmt.Errorf(`duration-unit must be one of "ms" or "s", not %q`, opt.LatencyUnit)
+	if !config.IsValidLatencyUnit(opt.LatencyUnit) {
+		return config.LatencyUnitError(opt.LatencyUnit)
 	}
 
 	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)
