@@ -20,6 +20,12 @@ import (
 // closes. Any transport-level or protocol-level error counts as unhealthy.
 // Suitable for use as aihealth.Config.Check.
 func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) error {
+	// The check only sends `initialize` and immediately closes — the sidecar
+	// should never send a client-bound call in that window, but if it does we
+	// refuse it rather than crash.
+	noopMethodHandler := func(_ context.Context, method string, _ json.RawMessage) (any, *acp.RequestError) {
+		return nil, acp.NewMethodNotFound(method)
+	}
 	return func(ctx context.Context) error {
 		adapter, err := jaegerai.DialWsAdapter(ctx, agentURL, logger)
 		if err != nil {
@@ -45,12 +51,4 @@ func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) 
 		}
 		return nil
 	}
-}
-
-// noopMethodHandler returns MethodNotFound for every inbound call. The
-// check only sends an `initialize` request and immediately closes the
-// connection — the sidecar should not send any client-bound calls in that
-// window, but if it does we refuse them rather than crash.
-func noopMethodHandler(_ context.Context, method string, _ json.RawMessage) (any, *acp.RequestError) {
-	return nil, acp.NewMethodNotFound(method)
 }
