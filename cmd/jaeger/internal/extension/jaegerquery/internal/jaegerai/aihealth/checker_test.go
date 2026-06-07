@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestChecker(t *testing.T, probe func(ctx context.Context) error) *Checker {
+func newTestChecker(t *testing.T, check func(ctx context.Context) error) *Checker {
 	t.Helper()
 	r, err := New(Config{
 		AgentURL: "ws://test.invalid:0",
@@ -21,7 +21,7 @@ func newTestChecker(t *testing.T, probe func(ctx context.Context) error) *Checke
 		Timeout:  100 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	r.probe = probe
+	r.check = check
 	return r
 }
 
@@ -56,7 +56,7 @@ func TestChecker_FlipsToTrueAndNotifies(t *testing.T) {
 func TestChecker_FlipsBackToFalse(t *testing.T) {
 	var healthy atomic.Bool
 	healthy.Store(true)
-	probe := func(context.Context) error {
+	check := func(context.Context) error {
 		if healthy.Load() {
 			return nil
 		}
@@ -64,7 +64,7 @@ func TestChecker_FlipsBackToFalse(t *testing.T) {
 	}
 
 	notifications := make(chan struct{}, 16)
-	r := newTestChecker(t, probe)
+	r := newTestChecker(t, check)
 	r.Subscribe(func() { notifications <- struct{}{} })
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -93,7 +93,7 @@ func TestChecker_NoNotifyWhenStateUnchanged(t *testing.T) {
 	defer r.Stop()
 
 	<-ctx.Done()
-	// Initial state is false; failing probes keep it false. Subscribers
+	// Initial state is false; failing checks keep it false. Subscribers
 	// must not fire because there's nothing to report.
 	require.Zero(t, count.Load(), "subscriber should not be notified when state stays false")
 }
@@ -132,9 +132,9 @@ func TestChecker_StartTwicePanics(t *testing.T) {
 	require.Panics(t, func() { r.Start(ctx) })
 }
 
-func TestChecker_ProbeTimeoutIsApplied(t *testing.T) {
+func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
 	var observed atomic.Int64
-	probe := func(ctx context.Context) error {
+	check := func(ctx context.Context) error {
 		deadline, ok := ctx.Deadline()
 		if !ok {
 			return errors.New("no deadline")
@@ -149,7 +149,7 @@ func TestChecker_ProbeTimeoutIsApplied(t *testing.T) {
 		Timeout:  200 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	r.probe = probe
+	r.check = check
 
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -159,7 +159,7 @@ func TestChecker_ProbeTimeoutIsApplied(t *testing.T) {
 	require.Eventually(t, func() bool {
 		d := time.Duration(observed.Load())
 		return d > 0 && d <= 200*time.Millisecond
-	}, time.Second, 10*time.Millisecond, "probe context must inherit the configured Timeout")
+	}, time.Second, 10*time.Millisecond, "check context must inherit the configured Timeout")
 }
 
 // waitFor consumes one item from the channel or fails the test on timeout.

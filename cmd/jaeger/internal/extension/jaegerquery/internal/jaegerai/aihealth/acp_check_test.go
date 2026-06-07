@@ -21,7 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 )
 
-// stubAgent is the minimal acp.Agent implementation needed by the probe —
+// stubAgent is the minimal acp.Agent implementation needed by the checker —
 // only Initialize and Cancel are exercised. Every other method returns a
 // zero value and nil error so the SDK does not blow up if it routes
 // something here that we don't expect.
@@ -65,7 +65,7 @@ func (*stubAgent) ListSessions(context.Context, acp.ListSessionsRequest) (acp.Li
 }
 
 func (*stubAgent) NewSession(context.Context, acp.NewSessionRequest) (acp.NewSessionResponse, error) {
-	return acp.NewSessionResponse{SessionId: "sess-probe"}, nil
+	return acp.NewSessionResponse{SessionId: "sess-check"}, nil
 }
 
 func (*stubAgent) Prompt(context.Context, acp.PromptRequest) (acp.PromptResponse, error) {
@@ -110,7 +110,7 @@ func startMockACPServer(t *testing.T, agent *stubAgent) string {
 	return "ws" + strings.TrimPrefix(srv.URL, "http")
 }
 
-func TestACPProbe_SucceedsAgainstReachableSidecar(t *testing.T) {
+func TestACPCheck_SucceedsAgainstReachableSidecar(t *testing.T) {
 	agent := &stubAgent{}
 	wsURL := startMockACPServer(t, agent)
 
@@ -132,7 +132,7 @@ func TestACPProbe_SucceedsAgainstReachableSidecar(t *testing.T) {
 	agent.mu.Unlock()
 }
 
-func TestACPProbe_FailsAgainstNonexistentSidecar(t *testing.T) {
+func TestACPCheck_FailsAgainstNonexistentSidecar(t *testing.T) {
 	r, err := New(Config{
 		AgentURL: "ws://127.0.0.1:1", // closed port
 		Interval: 20 * time.Millisecond,
@@ -143,14 +143,14 @@ func TestACPProbe_FailsAgainstNonexistentSidecar(t *testing.T) {
 	r.Start(t.Context())
 	defer r.Stop()
 
-	// Probe failures don't flip the state — initial state is already false —
+	// Check failures don't flip the state — initial state is already false —
 	// so the assertion is that after running for a few intervals the
 	// checker is still false (and didn't crash).
 	time.Sleep(150 * time.Millisecond)
 	require.False(t, r.Current())
 }
 
-func TestACPProbe_RecordsInitializeError(t *testing.T) {
+func TestACPCheck_RecordsInitializeError(t *testing.T) {
 	agent := &stubAgent{initErr: errors.New("agent rejected initialize")}
 	wsURL := startMockACPServer(t, agent)
 
@@ -164,7 +164,7 @@ func TestACPProbe_RecordsInitializeError(t *testing.T) {
 	r.Start(t.Context())
 	defer r.Stop()
 
-	// Initialize rejection means probe returns error, capability stays false.
+	// Initialize rejection means check returns error, capability stays false.
 	time.Sleep(150 * time.Millisecond)
 	require.False(t, r.Current())
 

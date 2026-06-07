@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package aihealth periodically probes the AI sidecar to determine whether
+// Package aihealth periodically checks the AI sidecar to determine whether
 // the chat surface should be advertised to the UI as a backend capability.
 //
 // The checker runs only when the jaeger_query.ai config block is present.
@@ -33,7 +33,7 @@ type Config struct {
 	Logger   *zap.Logger
 }
 
-// Checker periodically probes an ACP sidecar and tracks whether it is
+// Checker periodically checks an ACP sidecar and tracks whether it is
 // currently reachable. Subscribers are notified when the reachability flips.
 //
 // The zero Checker is not usable; construct via New.
@@ -43,9 +43,9 @@ type Checker struct {
 	timeout  time.Duration
 	logger   *zap.Logger
 
-	// probe is the function used to perform a single reachability check.
-	// Defaults to acp `initialize` over WebSocket; overridable for tests.
-	probe func(ctx context.Context) error
+	// check is the function used to perform a single reachability check.
+	// Defaults to ACP `initialize` over WebSocket; overridable for tests.
+	check func(ctx context.Context) error
 
 	current atomic.Bool
 
@@ -70,12 +70,12 @@ func New(cfg Config) (*Checker, error) {
 		timeout:  cfg.Timeout,
 		logger:   cfg.Logger,
 	}
-	r.probe = r.acpProbe
+	r.check = r.acpCheck
 	return r, nil
 }
 
 // Current returns the most recently observed reachability state. Initial
-// value is false until the first probe completes.
+// value is false until the first check completes.
 func (r *Checker) Current() bool { return r.current.Load() }
 
 // Subscribe registers a callback fired (synchronously, in the checker's
@@ -89,9 +89,9 @@ func (r *Checker) Subscribe(fn func()) {
 	r.mu.Unlock()
 }
 
-// Start launches the checker's background goroutine. The first probe runs
+// Start launches the checker's background goroutine. The first check runs
 // immediately so the UI lights up as soon as the operator brings both
-// processes online; subsequent probes are spaced by Interval. Start may be
+// processes online; subsequent checks are spaced by Interval. Start may be
 // called only once per Checker.
 func (r *Checker) Start(ctx context.Context) {
 	if r.done != nil {
@@ -131,12 +131,12 @@ func (r *Checker) run(ctx context.Context) {
 }
 
 func (r *Checker) runOnce(ctx context.Context) {
-	probeCtx, cancel := context.WithTimeout(ctx, r.timeout)
+	checkCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
-	err := r.probe(probeCtx)
+	err := r.check(checkCtx)
 	healthy := err == nil
 	if err != nil {
-		r.logger.Debug("AI sidecar probe failed", zap.String("agent_url", r.agentURL), zap.Error(err))
+		r.logger.Debug("AI sidecar health check failed", zap.String("agent_url", r.agentURL), zap.Error(err))
 	}
 	prev := r.current.Swap(healthy)
 	if prev != healthy {
@@ -159,9 +159,9 @@ func (r *Checker) notify() {
 	}
 }
 
-// acpProbe performs one ACP `initialize` round-trip against the sidecar.
+// acpCheck performs one ACP `initialize` round-trip against the sidecar.
 // Any transport-level or protocol-level error counts as unreachable.
-func (r *Checker) acpProbe(ctx context.Context) error {
+func (r *Checker) acpCheck(ctx context.Context) error {
 	adapter, err := jaegerai.DialWsAdapter(ctx, r.agentURL, r.logger)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)
@@ -177,7 +177,7 @@ func (r *Checker) acpProbe(ctx context.Context) error {
 			Terminal: false,
 		},
 		ClientInfo: &acp.Implementation{
-			Name:    "jaeger-ai-probe",
+			Name:    "jaeger-ai-check",
 			Version: version.Get().GitVersion,
 		},
 	}); err != nil {

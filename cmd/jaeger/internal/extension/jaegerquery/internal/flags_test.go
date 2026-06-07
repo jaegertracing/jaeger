@@ -21,8 +21,8 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.NotNil(t, aiCfg)
 	require.Equal(t, "ws://localhost:16688", aiCfg.AgentURL)
 	require.Equal(t, int64(1<<20), aiCfg.MaxRequestBodySize)
-	require.Equal(t, DefaultHealthProbeInterval, aiCfg.HealthProbeInterval)
-	require.Equal(t, DefaultHealthProbeTimeout, aiCfg.HealthProbeTimeout)
+	require.Equal(t, DefaultHealthCheckInterval, aiCfg.HealthCheckInterval)
+	require.Equal(t, DefaultHealthCheckTimeout, aiCfg.HealthCheckTimeout)
 	require.NoError(t, aiCfg.Validate())
 }
 
@@ -43,22 +43,22 @@ func TestAIConfigValidateAcceptsPositiveBodySize(t *testing.T) {
 	require.Equal(t, int64(1), cfg.MaxRequestBodySize)
 }
 
-func TestAIConfigValidateDefaultsHealthProbeFields(t *testing.T) {
+func TestAIConfigValidateDefaultsHealthCheckFields(t *testing.T) {
 	cfg := AIConfig{}
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, DefaultHealthProbeInterval, cfg.HealthProbeInterval)
-	require.Equal(t, DefaultHealthProbeTimeout, cfg.HealthProbeTimeout)
+	require.Equal(t, DefaultHealthCheckInterval, cfg.HealthCheckInterval)
+	require.Equal(t, DefaultHealthCheckTimeout, cfg.HealthCheckTimeout)
 }
 
-func TestAIConfigValidateRejectsNegativeHealthProbeTimeout(t *testing.T) {
-	cfg := AIConfig{HealthProbeTimeout: -time.Second}
+func TestAIConfigValidateRejectsNegativeHealthCheckTimeout(t *testing.T) {
+	cfg := AIConfig{HealthCheckTimeout: -time.Second}
 	require.Error(t, cfg.Validate())
 }
 
-func TestAIConfigValidatePreservesNegativeHealthProbeInterval(t *testing.T) {
+func TestAIConfigValidatePreservesNegativeHealthCheckInterval(t *testing.T) {
 	// A negative interval is a deliberate "disable probing" signal — Validate
 	// must leave it as-is rather than overwriting with the default.
-	cfg := AIConfig{HealthProbeInterval: -time.Second}
+	cfg := AIConfig{HealthCheckInterval: -time.Second}
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, -time.Second, cfg.HealthProbeInterval)
+	require.Equal(t, -time.Second, cfg.HealthCheckInterval)
 }

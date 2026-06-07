@@ -10,7 +10,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 )
 
-// noopMethodHandler returns MethodNotFound for every inbound call. The probe
+// noopMethodHandler returns MethodNotFound for every inbound call. The checker
 // only sends an `initialize` request to the sidecar and immediately closes
 // the connection — the sidecar should not send any client-bound calls in
 // that window, but if it does we refuse them rather than crash.

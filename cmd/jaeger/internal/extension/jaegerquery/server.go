@@ -139,8 +139,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 // buildAIHealthChecker constructs an AI health checker when the operator opted in
 // (jaeger_query.ai block present with a non-empty agent URL and a positive
-// probe interval). Returns nil when AI is disabled — there's nothing to
-// probe and the static handler advertises aiAssistant=false.
+// check interval). Returns nil when AI is disabled — there's nothing to
+// check and the static handler advertises aiAssistant=false.
 func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) (*aihealth.Checker, error) {
 	if !opts.AI.HasValue() {
 		return nil, nil
@@ -150,16 +150,16 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) (*aih
 		return nil, nil
 	}
 	if err := aiCfg.Validate(); err != nil {
-		logger.Error("Invalid AI config, capability probe disabled", zap.Error(err))
+		logger.Error("Invalid AI config, capability check disabled", zap.Error(err))
 		return nil, nil
 	}
-	if aiCfg.HealthProbeInterval < 0 {
+	if aiCfg.HealthCheckInterval < 0 {
 		return nil, nil
 	}
 	r, err := aihealth.New(aihealth.Config{
 		AgentURL: aiCfg.AgentURL,
-		Interval: aiCfg.HealthProbeInterval,
-		Timeout:  aiCfg.HealthProbeTimeout,
+		Interval: aiCfg.HealthCheckInterval,
+		Timeout:  aiCfg.HealthCheckTimeout,
 		Logger:   logger,
 	})
 	if err != nil {

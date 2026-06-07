@@ -31,12 +31,12 @@ type UIConfig struct {
 // AIConfig.MaxRequestBodySize is left unset (zero).
 const DefaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
 
-// DefaultHealthProbeInterval and DefaultHealthProbeTimeout are the fallback
-// values applied when AIConfig.HealthProbeInterval / HealthProbeTimeout are
+// DefaultHealthCheckInterval and DefaultHealthCheckTimeout are the fallback
+// values applied when AIConfig.HealthCheckInterval / HealthCheckTimeout are
 // left unset (zero).
 const (
-	DefaultHealthProbeInterval = 5 * time.Second
-	DefaultHealthProbeTimeout  = 2 * time.Second
+	DefaultHealthCheckInterval = 5 * time.Second
+	DefaultHealthCheckTimeout  = 2 * time.Second
 )
 
 type AIConfig struct {
@@ -46,14 +46,15 @@ type AIConfig struct {
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
 	// A value of 0 selects DefaultMaxRequestBodySize; negative values are rejected.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
-	// HealthProbeInterval controls how often the AI reconciler probes the
-	// sidecar to determine if the chat surface should be advertised to the
-	// UI. A value of 0 selects DefaultHealthProbeInterval; a negative value
-	// disables probing entirely and pins the advertised capability to false.
-	HealthProbeInterval time.Duration `mapstructure:"health_probe_interval" valid:"optional"`
-	// HealthProbeTimeout is the per-probe timeout. A value of 0 selects
-	// DefaultHealthProbeTimeout; negative values are rejected.
-	HealthProbeTimeout time.Duration `mapstructure:"health_probe_timeout" valid:"optional"`
+	// HealthCheckInterval controls how often the AI health checker contacts
+	// the sidecar to determine if the chat surface should be advertised to
+	// the UI. A value of 0 selects DefaultHealthCheckInterval; a negative
+	// value disables checking entirely and pins the advertised capability
+	// to false.
+	HealthCheckInterval time.Duration `mapstructure:"health_check_interval" valid:"optional"`
+	// HealthCheckTimeout is the per-check timeout. A value of 0 selects
+	// DefaultHealthCheckTimeout; negative values are rejected.
+	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
 }
 
 // Validate checks the AI config and applies defaults in place when fields
@@ -66,14 +67,14 @@ func (c *AIConfig) Validate() error {
 	if c.MaxRequestBodySize == 0 {
 		c.MaxRequestBodySize = DefaultMaxRequestBodySize
 	}
-	if c.HealthProbeTimeout < 0 {
-		return errors.New("ai.health_probe_timeout must be a non-negative duration")
+	if c.HealthCheckTimeout < 0 {
+		return errors.New("ai.health_check_timeout must be a non-negative duration")
 	}
-	if c.HealthProbeTimeout == 0 {
-		c.HealthProbeTimeout = DefaultHealthProbeTimeout
+	if c.HealthCheckTimeout == 0 {
+		c.HealthCheckTimeout = DefaultHealthCheckTimeout
 	}
-	if c.HealthProbeInterval == 0 {
-		c.HealthProbeInterval = DefaultHealthProbeInterval
+	if c.HealthCheckInterval == 0 {
+		c.HealthCheckInterval = DefaultHealthCheckInterval
 	}
 	return nil
 }
@@ -111,8 +112,8 @@ func DefaultQueryOptions() QueryOptions {
 		AI: configoptional.Default(AIConfig{
 			AgentURL:            "ws://localhost:16688",
 			MaxRequestBodySize:  DefaultMaxRequestBodySize,
-			HealthProbeInterval: DefaultHealthProbeInterval,
-			HealthProbeTimeout:  DefaultHealthProbeTimeout,
+			HealthCheckInterval: DefaultHealthCheckInterval,
+			HealthCheckTimeout:  DefaultHealthCheckTimeout,
 		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
