@@ -15,36 +15,35 @@ import (
 
 func newTestChecker(t *testing.T, check func(ctx context.Context) error) *Checker {
 	t.Helper()
-	r, err := New(Config{
-		AgentURL: "ws://test.invalid:0",
+	c, err := New(Config{
+		Check:    check,
 		Interval: 10 * time.Millisecond,
 		Timeout:  100 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	r.check = check
-	return r
+	return c
 }
 
-func TestNew_RequiresAgentURL(t *testing.T) {
+func TestNew_RequiresCheck(t *testing.T) {
 	_, err := New(Config{})
 	require.Error(t, err)
 }
 
 func TestChecker_InitialStateIsFalse(t *testing.T) {
-	r := newTestChecker(t, func(context.Context) error { return errors.New("unused") })
-	require.False(t, r.Current(), "before Start, Current must be false")
+	c := newTestChecker(t, func(context.Context) error { return errors.New("unused") })
+	require.False(t, c.Current(), "before Start, Current must be false")
 }
 
-func TestChecker_FlipsToTrueOnHealthySidecar(t *testing.T) {
-	r := newTestChecker(t, func(context.Context) error { return nil })
-	r.Start(t.Context())
-	defer r.Stop()
+func TestChecker_FlipsToTrueOnHealthyCheck(t *testing.T) {
+	c := newTestChecker(t, func(context.Context) error { return nil })
+	c.Start(t.Context())
+	defer c.Stop()
 
-	require.Eventually(t, r.Current, time.Second, 10*time.Millisecond,
+	require.Eventually(t, c.Current, time.Second, 10*time.Millisecond,
 		"Current() should flip to true once a check succeeds")
 }
 
-func TestChecker_FlipsBackToFalseWhenSidecarDies(t *testing.T) {
+func TestChecker_FlipsBackToFalseWhenCheckStartsFailing(t *testing.T) {
 	var healthy atomic.Bool
 	healthy.Store(true)
 	check := func(context.Context) error {
@@ -53,41 +52,41 @@ func TestChecker_FlipsBackToFalseWhenSidecarDies(t *testing.T) {
 		}
 		return errors.New("down")
 	}
-	r := newTestChecker(t, check)
-	r.Start(t.Context())
-	defer r.Stop()
+	c := newTestChecker(t, check)
+	c.Start(t.Context())
+	defer c.Stop()
 
-	require.Eventually(t, r.Current, time.Second, 10*time.Millisecond,
-		"Current() should flip to true while sidecar is healthy")
+	require.Eventually(t, c.Current, time.Second, 10*time.Millisecond,
+		"Current() should flip to true while check succeeds")
 
 	healthy.Store(false)
-	require.Eventually(t, func() bool { return !r.Current() },
+	require.Eventually(t, func() bool { return !c.Current() },
 		time.Second, 10*time.Millisecond,
-		"Current() should flip back to false once sidecar stops responding")
+		"Current() should flip back to false once check starts failing")
 }
 
-func TestChecker_StaysFalseWhenSidecarNeverResponds(t *testing.T) {
-	r := newTestChecker(t, func(context.Context) error { return errors.New("always down") })
+func TestChecker_StaysFalseWhenCheckAlwaysFails(t *testing.T) {
+	c := newTestChecker(t, func(context.Context) error { return errors.New("always down") })
 
 	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
-	r.Start(ctx)
-	defer r.Stop()
+	c.Start(ctx)
+	defer c.Stop()
 
 	<-ctx.Done()
-	require.False(t, r.Current())
+	require.False(t, c.Current())
 }
 
 func TestChecker_StopWithoutStartIsNoOp(t *testing.T) {
-	r := newTestChecker(t, func(context.Context) error { return nil })
-	r.Stop() // must not block or panic
+	c := newTestChecker(t, func(context.Context) error { return nil })
+	c.Stop() // must not block or panic
 }
 
 func TestChecker_StartTwicePanics(t *testing.T) {
-	r := newTestChecker(t, func(context.Context) error { return nil })
-	r.Start(t.Context())
-	defer r.Stop()
-	require.Panics(t, func() { r.Start(t.Context()) })
+	c := newTestChecker(t, func(context.Context) error { return nil })
+	c.Start(t.Context())
+	defer c.Stop()
+	require.Panics(t, func() { c.Start(t.Context()) })
 }
 
 func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
@@ -101,16 +100,15 @@ func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
 		return nil
 	}
 
-	r, err := New(Config{
-		AgentURL: "ws://test.invalid:0",
+	c, err := New(Config{
+		Check:    check,
 		Interval: 50 * time.Millisecond,
 		Timeout:  200 * time.Millisecond,
 	})
 	require.NoError(t, err)
-	r.check = check
 
-	r.Start(t.Context())
-	defer r.Stop()
+	c.Start(t.Context())
+	defer c.Stop()
 
 	require.Eventually(t, func() bool {
 		d := time.Duration(observed.Load())

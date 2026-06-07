@@ -21,33 +21,24 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 )
 
-// stubAgent is the minimal acp.Agent implementation needed by the checker —
-// only Initialize and Cancel are exercised. Every other method returns a
-// zero value and nil error so the SDK does not blow up if it routes
-// something here that we don't expect.
+// stubAgent is the minimal acp.Agent implementation needed by the check —
+// only Initialize is exercised. Every other method returns a zero value and
+// nil error so the SDK does not blow up if it routes something unexpected.
 type stubAgent struct {
-	mu         sync.Mutex
-	initCount  int
-	initErr    error
-	asc        *acp.AgentSideConnection
-	initBlocks bool // when true, Initialize blocks until ctx is done (to exercise timeout)
+	mu        sync.Mutex
+	initCount int
+	initErr   error
 }
 
 func (*stubAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
 	return acp.AuthenticateResponse{}, nil
 }
 
-func (a *stubAgent) Initialize(ctx context.Context, params acp.InitializeRequest) (acp.InitializeResponse, error) {
+func (a *stubAgent) Initialize(_ context.Context, params acp.InitializeRequest) (acp.InitializeResponse, error) {
 	a.mu.Lock()
 	a.initCount++
-	blocks := a.initBlocks
 	initErr := a.initErr
 	a.mu.Unlock()
-
-	if blocks {
-		<-ctx.Done()
-		return acp.InitializeResponse{}, ctx.Err()
-	}
 	if initErr != nil {
 		return acp.InitializeResponse{}, initErr
 	}
@@ -96,9 +87,6 @@ func startMockACPServer(t *testing.T, agent *stubAgent) string {
 
 		adapter := jaegerai.NewWsAdapter(conn, zap.NewNop())
 		asc := acp.NewAgentSideConnection(agent, adapter, adapter)
-		agent.mu.Lock()
-		agent.asc = asc
-		agent.mu.Unlock()
 		<-asc.Done()
 	}))
 	t.Cleanup(func() {
@@ -114,61 +102,23 @@ func TestACPCheck_SucceedsAgainstReachableSidecar(t *testing.T) {
 	agent := &stubAgent{}
 	wsURL := startMockACPServer(t, agent)
 
-	r, err := New(Config{
-		AgentURL: wsURL,
-		Interval: 20 * time.Millisecond,
-		Timeout:  500 * time.Millisecond,
-		Logger:   zap.NewNop(),
-	})
+	err := NewACPCheck(wsURL, zap.NewNop())(t.Context())
 	require.NoError(t, err)
-	r.Start(t.Context())
-	defer r.Stop()
-
-	require.Eventually(t, r.Current, time.Second, 10*time.Millisecond,
-		"checker should flip to true once the sidecar responds to initialize")
 
 	agent.mu.Lock()
-	require.Positive(t, agent.initCount, "sidecar should have received at least one initialize")
+	require.Equal(t, 1, agent.initCount, "sidecar should have received exactly one initialize")
 	agent.mu.Unlock()
 }
 
-func TestACPCheck_FailsAgainstNonexistentSidecar(t *testing.T) {
-	r, err := New(Config{
-		AgentURL: "ws://127.0.0.1:1", // closed port
-		Interval: 20 * time.Millisecond,
-		Timeout:  200 * time.Millisecond,
-		Logger:   zap.NewNop(),
-	})
-	require.NoError(t, err)
-	r.Start(t.Context())
-	defer r.Stop()
-
-	// Check failures don't flip the state — initial state is already false —
-	// so the assertion is that after running for a few intervals the
-	// checker is still false (and didn't crash).
-	time.Sleep(150 * time.Millisecond)
-	require.False(t, r.Current())
+func TestACPCheck_FailsWhenDialFails(t *testing.T) {
+	err := NewACPCheck("ws://127.0.0.1:1", zap.NewNop())(t.Context()) // closed port
+	require.ErrorContains(t, err, "dial:")
 }
 
-func TestACPCheck_RecordsInitializeError(t *testing.T) {
+func TestACPCheck_FailsWhenInitializeRejected(t *testing.T) {
 	agent := &stubAgent{initErr: errors.New("agent rejected initialize")}
 	wsURL := startMockACPServer(t, agent)
 
-	r, err := New(Config{
-		AgentURL: wsURL,
-		Interval: 20 * time.Millisecond,
-		Timeout:  500 * time.Millisecond,
-		Logger:   zap.NewNop(),
-	})
-	require.NoError(t, err)
-	r.Start(t.Context())
-	defer r.Stop()
-
-	// Initialize rejection means check returns error, capability stays false.
-	time.Sleep(150 * time.Millisecond)
-	require.False(t, r.Current())
-
-	agent.mu.Lock()
-	require.Positive(t, agent.initCount, "sidecar should have received initialize attempts")
-	agent.mu.Unlock()
+	err := NewACPCheck(wsURL, zap.NewNop())(t.Context())
+	require.ErrorContains(t, err, "initialize:")
 }
