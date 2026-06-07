@@ -35,25 +35,16 @@ func TestChecker_InitialStateIsFalse(t *testing.T) {
 	require.False(t, r.Current(), "before Start, Current must be false")
 }
 
-func TestChecker_FlipsToTrueAndNotifies(t *testing.T) {
-	notified := make(chan struct{}, 4)
+func TestChecker_FlipsToTrueOnHealthySidecar(t *testing.T) {
 	r := newTestChecker(t, func(context.Context) error { return nil })
-	r.Subscribe(func() { notified <- struct{}{} })
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r.Start(ctx)
+	r.Start(t.Context())
 	defer r.Stop()
 
-	select {
-	case <-notified:
-	case <-time.After(time.Second):
-		t.Fatal("subscriber was not notified within 1s")
-	}
-	require.True(t, r.Current())
+	require.Eventually(t, r.Current, time.Second, 10*time.Millisecond,
+		"Current() should flip to true once a check succeeds")
 }
 
-func TestChecker_FlipsBackToFalse(t *testing.T) {
+func TestChecker_FlipsBackToFalseWhenSidecarDies(t *testing.T) {
 	var healthy atomic.Bool
 	healthy.Store(true)
 	check := func(context.Context) error {
@@ -62,61 +53,29 @@ func TestChecker_FlipsBackToFalse(t *testing.T) {
 		}
 		return errors.New("down")
 	}
-
-	notifications := make(chan struct{}, 16)
 	r := newTestChecker(t, check)
-	r.Subscribe(func() { notifications <- struct{}{} })
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r.Start(ctx)
+	r.Start(t.Context())
 	defer r.Stop()
 
-	// Wait for the first flip to true.
-	waitFor(t, notifications, time.Second)
-	require.True(t, r.Current())
+	require.Eventually(t, r.Current, time.Second, 10*time.Millisecond,
+		"Current() should flip to true while sidecar is healthy")
 
-	// Knock the sidecar over and wait for the flip back to false.
 	healthy.Store(false)
-	waitFor(t, notifications, time.Second)
-	require.False(t, r.Current())
+	require.Eventually(t, func() bool { return !r.Current() },
+		time.Second, 10*time.Millisecond,
+		"Current() should flip back to false once sidecar stops responding")
 }
 
-func TestChecker_NoNotifyWhenStateUnchanged(t *testing.T) {
-	var count atomic.Int32
+func TestChecker_StaysFalseWhenSidecarNeverResponds(t *testing.T) {
 	r := newTestChecker(t, func(context.Context) error { return errors.New("always down") })
-	r.Subscribe(func() { count.Add(1) })
 
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancel()
 	r.Start(ctx)
 	defer r.Stop()
 
 	<-ctx.Done()
-	// Initial state is false; failing checks keep it false. Subscribers
-	// must not fire because there's nothing to report.
-	require.Zero(t, count.Load(), "subscriber should not be notified when state stays false")
-}
-
-func TestChecker_MultipleSubscribersAllNotified(t *testing.T) {
-	var a, b atomic.Int32
-	r := newTestChecker(t, func(context.Context) error { return nil })
-	r.Subscribe(func() { a.Add(1) })
-	r.Subscribe(func() { b.Add(1) })
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r.Start(ctx)
-	defer r.Stop()
-
-	require.Eventually(t, func() bool { return a.Load() >= 1 && b.Load() >= 1 },
-		time.Second, 10*time.Millisecond, "both subscribers must be notified")
-}
-
-func TestChecker_NilSubscriberIgnored(t *testing.T) {
-	r := newTestChecker(t, func(context.Context) error { return nil })
-	r.Subscribe(nil) // must not panic
-	r.notify()       // must not panic
+	require.False(t, r.Current())
 }
 
 func TestChecker_StopWithoutStartIsNoOp(t *testing.T) {
@@ -126,10 +85,9 @@ func TestChecker_StopWithoutStartIsNoOp(t *testing.T) {
 
 func TestChecker_StartTwicePanics(t *testing.T) {
 	r := newTestChecker(t, func(context.Context) error { return nil })
-	ctx := t.Context()
-	r.Start(ctx)
+	r.Start(t.Context())
 	defer r.Stop()
-	require.Panics(t, func() { r.Start(ctx) })
+	require.Panics(t, func() { r.Start(t.Context()) })
 }
 
 func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
@@ -151,23 +109,11 @@ func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
 	require.NoError(t, err)
 	r.check = check
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	r.Start(ctx)
+	r.Start(t.Context())
 	defer r.Stop()
 
 	require.Eventually(t, func() bool {
 		d := time.Duration(observed.Load())
 		return d > 0 && d <= 200*time.Millisecond
 	}, time.Second, 10*time.Millisecond, "check context must inherit the configured Timeout")
-}
-
-// waitFor consumes one item from the channel or fails the test on timeout.
-func waitFor(t *testing.T, ch <-chan struct{}, d time.Duration) {
-	t.Helper()
-	select {
-	case <-ch:
-	case <-time.After(d):
-		t.Fatal("timeout waiting for channel")
-	}
 }

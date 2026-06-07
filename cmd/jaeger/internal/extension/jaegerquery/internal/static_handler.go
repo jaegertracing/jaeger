@@ -43,22 +43,14 @@ type BackendCapabilities struct {
 	AIAssistant    bool `json:"aiAssistant"`
 }
 
-// AIAvailability reports whether the AI sidecar is currently reachable, and
-// lets callers subscribe to flip events. A nil AIAvailability is treated as
-// "always false" — used in builds where the AI gateway is not configured.
-type AIAvailability interface {
-	Current() bool
-	Subscribe(fn func())
-}
-
 // RegisterStaticHandler adds handler for static assets to the router.
-// aiAvailability may be nil; the chat surface stays hidden when it is.
-func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiAvailability AIAvailability) io.Closer {
+// aiHealthCheck may be nil; the chat surface stays hidden when it is.
+func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiHealthCheck func() bool) io.Closer {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.UIConfig.AssetsPath, StaticAssetsHandlerOptions{
 		UIConfig:            qOpts.UIConfig,
 		BasePath:            qOpts.BasePath,
 		StorageCapabilities: qCapabilities,
-		AIAvailability:      aiAvailability,
+		AIHealthCheck:       aiHealthCheck,
 		Logger:              logger,
 	})
 	if err != nil {
@@ -83,8 +75,12 @@ type StaticAssetsHandlerOptions struct {
 	UIConfig
 	BasePath            string
 	StorageCapabilities querysvc.StorageCapabilities
-	AIAvailability      AIAvailability
-	Logger              *zap.Logger
+	// AIHealthCheck reports whether the AI sidecar is currently reachable.
+	// Called on every serve of the SPA root so the injected aiAssistant flag
+	// reflects the latest health-check result. nil is treated as "always
+	// false" — used when the AI gateway is not configured.
+	AIHealthCheck func() bool
+	Logger        *zap.Logger
 }
 
 type loadedConfig struct {
@@ -118,14 +114,6 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 
 	h.indexHTML.Store(indexHTML)
 
-	// Re-derive index.html whenever AI sidecar reachability flips so the
-	// backendCapabilities.aiAssistant value the next page-load sees stays
-	// in sync. The subscribe callback runs in the reconciler goroutine; the
-	// atomic Store keeps notFound's read safe.
-	if options.AIAvailability != nil {
-		options.AIAvailability.Subscribe(h.reloadOnCapabilityChange)
-	}
-
 	return h, nil
 }
 
@@ -145,22 +133,19 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	capabilitiesJSON, _ := json.Marshal(sH.options.StorageCapabilities)
 	capabilitiesString := fmt.Sprintf("JAEGER_STORAGE_CAPABILITIES = %s;", string(capabilitiesJSON))
 	indexBytes = compabilityPattern.ReplaceAll(indexBytes, []byte(capabilitiesString))
-	// replace unified backend capabilities — composes storage flags with the AI
-	// reachability flag so newer UIs can read everything from a single source
-	backend := BackendCapabilities{
-		ArchiveStorage: sH.options.StorageCapabilities.ArchiveStorage,
-		MetricsStorage: sH.options.StorageCapabilities.MetricsStorage,
-		AIAssistant:    sH.options.AIAvailability != nil && sH.options.AIAvailability.Current(),
-	}
-	backendJSON, _ := json.Marshal(backend)
-	backendString := fmt.Sprintf("JAEGER_BACKEND_CAPABILITIES = %s;", string(backendJSON))
-	indexBytes = backendCapabilityPattern.ReplaceAll(indexBytes, []byte(backendString))
 	// replace Jaeger version
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
 	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
 	// The <base href> is no longer injected here. The UI detects its own mount-point
 	// prefix at page-load time via an inline script in index.html (see ADR-009).
+	//
+	// Note: JAEGER_BACKEND_CAPABILITIES is intentionally NOT substituted here.
+	// The aiAssistant portion of that blob can flip at runtime as the sidecar
+	// comes and goes, so the substitution happens per request inside
+	// injectBackendCapabilities — the cached HTML keeps the original
+	// `JAEGER_BACKEND_CAPABILITIES = DEFAULT_BACKEND_CAPABILITIES;` line
+	// untouched, and each response gets a freshly-derived value.
 
 	return indexBytes, nil
 }
@@ -175,16 +160,22 @@ func (sH *StaticAssetsHandler) reloadUIConfig() {
 	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.ConfigFile))
 }
 
-// reloadOnCapabilityChange re-derives index.html with the latest backend
-// capability values and atomically swaps the cached copy. Errors are logged
-// but otherwise swallowed — the previously-stored index.html keeps serving.
-func (sH *StaticAssetsHandler) reloadOnCapabilityChange() {
-	content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
-	if err != nil {
-		sH.options.Logger.Error("error re-deriving index.html for capability change", zap.Error(err))
-		return
+// injectBackendCapabilities substitutes the JAEGER_BACKEND_CAPABILITIES line in
+// the cached index.html with a freshly-derived blob. Called per response so the
+// aiAssistant flag reflects the latest health check.
+func (sH *StaticAssetsHandler) injectBackendCapabilities(indexBytes []byte) []byte {
+	aiAvailable := false
+	if sH.options.AIHealthCheck != nil {
+		aiAvailable = sH.options.AIHealthCheck()
 	}
-	sH.indexHTML.Store(content)
+	backend := BackendCapabilities{
+		ArchiveStorage: sH.options.StorageCapabilities.ArchiveStorage,
+		MetricsStorage: sH.options.StorageCapabilities.MetricsStorage,
+		AIAssistant:    aiAvailable,
+	}
+	backendJSON, _ := json.Marshal(backend)
+	backendString := fmt.Sprintf("JAEGER_BACKEND_CAPABILITIES = %s;", string(backendJSON))
+	return backendCapabilityPattern.ReplaceAll(indexBytes, []byte(backendString))
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
@@ -285,7 +276,7 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(sH.indexHTML.Load().([]byte))
+	w.Write(sH.injectBackendCapabilities(sH.indexHTML.Load().([]byte)))
 }
 
 func (sH *StaticAssetsHandler) Close() error {

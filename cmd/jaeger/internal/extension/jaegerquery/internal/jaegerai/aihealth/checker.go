@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -34,7 +33,8 @@ type Config struct {
 }
 
 // Checker periodically checks an ACP sidecar and tracks whether it is
-// currently reachable. Subscribers are notified when the reachability flips.
+// currently reachable. Callers read the latest state via Current(), which
+// is safe to call from any goroutine.
 //
 // The zero Checker is not usable; construct via New.
 type Checker struct {
@@ -48,9 +48,6 @@ type Checker struct {
 	check func(ctx context.Context) error
 
 	current atomic.Bool
-
-	mu   sync.Mutex
-	subs []func()
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -77,17 +74,6 @@ func New(cfg Config) (*Checker, error) {
 // Current returns the most recently observed reachability state. Initial
 // value is false until the first check completes.
 func (r *Checker) Current() bool { return r.current.Load() }
-
-// Subscribe registers a callback fired (synchronously, in the checker's
-// goroutine) whenever Current() flips. Callbacks must not block.
-func (r *Checker) Subscribe(fn func()) {
-	if fn == nil {
-		return
-	}
-	r.mu.Lock()
-	r.subs = append(r.subs, fn)
-	r.mu.Unlock()
-}
 
 // Start launches the checker's background goroutine. The first check runs
 // immediately so the UI lights up as soon as the operator brings both
@@ -145,17 +131,6 @@ func (r *Checker) runOnce(ctx context.Context) {
 			zap.String("agent_url", r.agentURL),
 			zap.Bool("reachable", healthy),
 		)
-		r.notify()
-	}
-}
-
-func (r *Checker) notify() {
-	r.mu.Lock()
-	subs := make([]func(), len(r.subs))
-	copy(subs, r.subs)
-	r.mu.Unlock()
-	for _, fn := range subs {
-		fn()
 	}
 }
 

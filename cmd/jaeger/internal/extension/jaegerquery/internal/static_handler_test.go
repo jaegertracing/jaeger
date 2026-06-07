@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -164,53 +165,34 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 }
 
-// fakeAIAvailability is a settable AIAvailability for tests. The reload
-// hook fires whenever Set is called with a different value.
-type fakeAIAvailability struct {
-	current   bool
-	callbacks []func()
-}
-
-func (f *fakeAIAvailability) Current() bool       { return f.current }
-func (f *fakeAIAvailability) Subscribe(fn func()) { f.callbacks = append(f.callbacks, fn) }
-func (f *fakeAIAvailability) Set(v bool) {
-	if f.current == v {
-		return
-	}
-	f.current = v
-	for _, fn := range f.callbacks {
-		fn()
-	}
-}
-
 func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	tests := []struct {
 		name              string
 		archiveStorage    bool
 		metricsStorage    bool
-		aiAvailable       AIAvailability
+		aiHealthCheck     func() bool
 		expectAIAssistant bool
 	}{
 		{
-			name:              "no AI availability injects aiAssistant=false",
-			aiAvailable:       nil,
+			name:              "no AI health check injects aiAssistant=false",
+			aiHealthCheck:     nil,
 			expectAIAssistant: false,
 		},
 		{
 			name:              "AI reachable injects aiAssistant=true",
-			aiAvailable:       &fakeAIAvailability{current: true},
+			aiHealthCheck:     func() bool { return true },
 			expectAIAssistant: true,
 		},
 		{
 			name:              "AI unreachable injects aiAssistant=false",
-			aiAvailable:       &fakeAIAvailability{current: false},
+			aiHealthCheck:     func() bool { return false },
 			expectAIAssistant: false,
 		},
 		{
 			name:              "storage flags mirrored alongside AI",
 			archiveStorage:    true,
 			metricsStorage:    true,
-			aiAvailable:       &fakeAIAvailability{current: true},
+			aiHealthCheck:     func() bool { return true },
 			expectAIAssistant: true,
 		},
 	}
@@ -224,7 +206,7 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 					ArchiveStorage: tt.archiveStorage,
 					MetricsStorage: tt.metricsStorage,
 				},
-				tt.aiAvailable,
+				tt.aiHealthCheck,
 			)
 			defer closer.Close()
 
@@ -241,14 +223,14 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	}
 }
 
-func TestStaticHandlerReloadsOnAIFlip(t *testing.T) {
-	ai := &fakeAIAvailability{current: false}
+func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
+	var available atomic.Bool
 	r := http.NewServeMux()
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
 		querysvc.StorageCapabilities{},
-		ai,
+		available.Load,
 	)
 	defer closer.Close()
 
@@ -260,13 +242,13 @@ func TestStaticHandlerReloadsOnAIFlip(t *testing.T) {
 
 	require.Contains(t, getBody(), `"aiAssistant":false`)
 
-	ai.Set(true)
+	available.Store(true)
 	require.Contains(t, getBody(), `"aiAssistant":true`,
-		"index.html must reflect the new value after AIAvailability flips to true")
+		"next response must reflect the new AI health check value")
 
-	ai.Set(false)
+	available.Store(false)
 	require.Contains(t, getBody(), `"aiAssistant":false`,
-		"index.html must reflect the new value after AIAvailability flips back to false")
+		"next response must reflect the new AI health check value")
 }
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {

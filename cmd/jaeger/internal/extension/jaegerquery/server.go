@@ -108,6 +108,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return err
 	}
 
+	var aiHealthCheck func() bool
+	if s.aiHealth != nil {
+		aiHealthCheck = s.aiHealth.Current
+	}
+
 	s.server, err = queryapp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
@@ -115,7 +120,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		mqs,
 		&s.config.QueryOptions,
 		caps,
-		aiAvailability(s.aiHealth),
+		aiHealthCheck,
 		tm,
 		telset,
 	)
@@ -166,16 +171,6 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) (*aih
 		return nil, fmt.Errorf("could not create AI health checker: %w", err)
 	}
 	return r, nil
-}
-
-// aiAvailability adapts *aihealth.Checker to queryapp.AIAvailability,
-// returning nil when the checker is nil so the static handler treats AI
-// as unavailable.
-func aiAvailability(r *aihealth.Checker) queryapp.AIAvailability {
-	if r == nil {
-		return nil
-	}
-	return r
 }
 
 func (s *server) addArchiveStorage(
