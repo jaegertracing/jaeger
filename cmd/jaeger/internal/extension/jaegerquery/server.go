@@ -125,15 +125,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
 	}
 
-	if s.aiHealth != nil {
-		// The OTel collector cancels the Start context once Start returns,
-		// so the checker is given a fresh background context and torn
-		// down explicitly in Shutdown.
-		s.aiHealth.Start(context.Background()) //nolint:contextcheck // intentional: checker outlives Start ctx; Shutdown stops it.
-	}
-
 	if err := s.server.Start(ctx); err != nil {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
+	}
+
+	// Start the health checker only after the query server is up — a failed
+	// server start (e.g. port bind error) returns an error from Start, and
+	// the OTel collector does not call Shutdown in that case. Starting the
+	// checker first would leak its goroutine forever. The checker is given a
+	// fresh background context because the Start context is cancelled when
+	// Start returns; Shutdown stops the checker explicitly.
+	if s.aiHealth != nil {
+		s.aiHealth.Start(context.Background()) //nolint:contextcheck // intentional: checker outlives Start ctx; Shutdown stops it.
 	}
 
 	return nil
