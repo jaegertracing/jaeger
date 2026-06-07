@@ -112,7 +112,11 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	var spanKind string
+	if kv, ok := model.KeyValues(span.Tags).FindByKey(model.SpanKindKey); ok {
+		spanKind = kv.AsString()
+	}
+	w.cache.Update(span.Process.ServiceName, spanKind, span.OperationName, expireTime)
 
 	return err
 }
