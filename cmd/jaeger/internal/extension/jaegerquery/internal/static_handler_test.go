@@ -69,7 +69,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 		logAccess                   bool
 		UIConfigPath                string // path to UI config
 		expectedUIConfig            string // expected UI config
-		expectedStorageCapabilities string // expected storage capabilities
+		expectedBackendCapabilities string // expected backend capabilities blob
 	}{
 		{
 			basePath:                    "",
@@ -78,7 +78,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			logAccess:                   true,
 			UIConfigPath:                "",
 			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/",
@@ -86,7 +86,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              false,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/jaeger",
@@ -95,7 +95,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/metrics",
@@ -104,7 +104,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedStorageCapabilities: `JAEGER_STORAGE_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true,"aiAssistant":false};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -145,7 +145,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 			html := httpGet("") // get home page
 			assert.Contains(t, html, testCase.expectedUIConfig, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedStorageCapabilities, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedBackendCapabilities, "actual: %v", html)
 			assert.Contains(t, html, `JAEGER_VERSION = {"gitCommit":"","gitVersion":"dev","buildDate":""};`, "actual: %v", html)
 			// Verify the inline base-path script marker is present and the backend
 			// did not rewrite <base href> to a path-specific value (ADR-009).

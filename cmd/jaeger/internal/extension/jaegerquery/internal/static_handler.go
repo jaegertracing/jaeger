@@ -26,11 +26,10 @@ import (
 
 var (
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
-	configPattern            = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	configJsPattern          = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
-	versionPattern           = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
-	compabilityPattern       = regexp.MustCompile("JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;")
-	backendCapabilityPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
+	configPattern       = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
+	configJsPattern     = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
+	versionPattern      = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
+	capabilitiesPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
 )
 
 // BackendCapabilities is the JSON shape injected into index.html via the
@@ -128,11 +127,6 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	} else if configObject != nil {
 		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
 	}
-	// replace storage capabilities (legacy injection, kept for backwards compatibility
-	// with older UI bundles that don't yet read backendCapabilities)
-	capabilitiesJSON, _ := json.Marshal(sH.options.StorageCapabilities)
-	capabilitiesString := fmt.Sprintf("JAEGER_STORAGE_CAPABILITIES = %s;", string(capabilitiesJSON))
-	indexBytes = compabilityPattern.ReplaceAll(indexBytes, []byte(capabilitiesString))
 	// replace Jaeger version
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
@@ -175,7 +169,7 @@ func (sH *StaticAssetsHandler) injectBackendCapabilities(indexBytes []byte) []by
 	}
 	backendJSON, _ := json.Marshal(backend)
 	backendString := fmt.Sprintf("JAEGER_BACKEND_CAPABILITIES = %s;", string(backendJSON))
-	return backendCapabilityPattern.ReplaceAll(indexBytes, []byte(backendString))
+	return capabilitiesPattern.ReplaceAll(indexBytes, []byte(backendString))
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
