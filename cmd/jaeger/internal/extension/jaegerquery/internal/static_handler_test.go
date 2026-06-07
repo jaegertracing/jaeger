@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -32,9 +31,12 @@ import (
 //go:generate mockery -all -dir ../../../internal/fswatcher
 
 func TestNotExistingUiConfig(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
-		Logger: zap.NewNop(),
-	})
+	handler, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
+		querysvc.StorageCapabilities{},
+		nil,
+		zap.NewNop(),
+	)
 	require.ErrorContains(t, err, "no such file or directory")
 	assert.Nil(t, handler)
 }
@@ -252,12 +254,12 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 }
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
-	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfig: UIConfig{
-			ConfigFile: "fixture/invalid-config",
-		},
-		Logger: zap.NewNop(),
-	})
+	_, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: "fixture/invalid-config"}},
+		querysvc.StorageCapabilities{},
+		nil,
+		zap.NewNop(),
+	)
 	require.Error(t, err)
 }
 
@@ -281,17 +283,16 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
 	logger := zap.New(zcore)
-	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
-		UIConfig: UIConfig{
-			ConfigFile: cfgFileName,
-		},
-		Logger: logger,
-	})
+	h, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
+		querysvc.StorageCapabilities{},
+		nil,
+		logger,
+	)
 	require.NoError(t, err)
 	defer h.Close()
 
-	c := string(h.indexHTML.Load().([]byte))
-	assert.Contains(t, c, "About Jaeger")
+	assert.Contains(t, string(h.deriveIndexHTML()), "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
@@ -302,8 +303,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 			FilterField(zap.String("filename", cfgFileName)).Len() > 0
 	}, 100, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
 
-	i := string(h.indexHTML.Load().([]byte))
-	assert.Contains(t, i, "About a new Jaeger", logObserver.All())
+	assert.Contains(t, string(h.deriveIndexHTML()), "About a new Jaeger", logObserver.All())
 }
 
 func TestLoadUIConfig(t *testing.T) {
@@ -331,17 +331,15 @@ func TestLoadUIConfig(t *testing.T) {
 			assert.Equal(t, testCase.expected, config)
 
 			if testCase.expectedContent != "" {
-				h := &StaticAssetsHandler{
-					options: StaticAssetsHandlerOptions{
-						UIConfig: UIConfig{
-							ConfigFile: testCase.configFile,
-						},
-					},
-				}
-				assetsFS := ui.GetStaticFiles(zap.NewNop())
-				indexHTML, err := h.loadAndEnrichIndexHTML(assetsFS.Open)
+				h, err := newStaticAssetsHandler(
+					&QueryOptions{UIConfig: UIConfig{ConfigFile: testCase.configFile}},
+					querysvc.StorageCapabilities{},
+					nil,
+					zap.NewNop(),
+				)
 				require.NoError(t, err)
-				assert.Contains(t, string(indexHTML), testCase.expectedContent)
+				defer h.Close()
+				assert.Contains(t, string(h.deriveIndexHTML()), testCase.expectedContent)
 			}
 		})
 	}

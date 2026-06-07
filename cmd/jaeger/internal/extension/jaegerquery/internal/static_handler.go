@@ -33,53 +33,42 @@ var (
 )
 
 // BackendCapabilities is the JSON shape injected into index.html via the
-// JAEGER_BACKEND_CAPABILITIES search-replace pattern. It mirrors the legacy
-// storage flags so newer UIs can read everything from a single source, and
-// adds the aiAssistant flag the chat surface gates on.
+// JAEGER_BACKEND_CAPABILITIES search-replace pattern.
 type BackendCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
 	MetricsStorage bool `json:"metricsStorage"`
 	AIAssistant    bool `json:"aiAssistant"`
 }
 
-// RegisterStaticHandler adds handler for static assets to the router.
+// RegisterStaticHandler builds and registers the static-assets handler on r.
 // aiHealthCheck may be nil; the chat surface stays hidden when it is.
+// Returns an io.Closer that stops the fswatcher used for UI config reloads.
 func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiHealthCheck func() bool) io.Closer {
-	staticHandler, err := NewStaticAssetsHandler(qOpts.UIConfig.AssetsPath, StaticAssetsHandlerOptions{
-		UIConfig:            qOpts.UIConfig,
-		BasePath:            qOpts.BasePath,
-		StorageCapabilities: qCapabilities,
-		AIHealthCheck:       aiHealthCheck,
-		Logger:              logger,
-	})
+	h, err := newStaticAssetsHandler(qOpts, qCapabilities, aiHealthCheck, logger)
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
-
-	staticHandler.RegisterRoutes(r)
-
-	return staticHandler
+	h.registerRoutes(r)
+	return h
 }
 
-// StaticAssetsHandler handles static assets
-type StaticAssetsHandler struct {
-	options   StaticAssetsHandlerOptions
-	indexHTML atomic.Value // stores []byte
-	assetsFS  http.FileSystem
-	watcher   *fswatcher.FSWatcher
-}
+// staticAssetsHandler serves the Jaeger UI bundle. index.html is derived on
+// every SPA serve so all injected values — including the AI capability,
+// which flips at runtime — are always current. The raw bytes and the parsed
+// UI config are cached; everything else is computed at serve time.
+type staticAssetsHandler struct {
+	assetsFS      http.FileSystem
+	basePath      string
+	logAccess     bool
+	storageCaps   querysvc.StorageCapabilities
+	aiHealthCheck func() bool
+	logger        *zap.Logger
 
-// StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
-type StaticAssetsHandlerOptions struct {
-	UIConfig
-	BasePath            string
-	StorageCapabilities querysvc.StorageCapabilities
-	// AIHealthCheck reports whether the AI sidecar is currently reachable.
-	// Called on every serve of the SPA root so the injected aiAssistant flag
-	// reflects the latest health-check result. nil is treated as "always
-	// false" — used when the AI gateway is not configured.
-	AIHealthCheck func() bool
-	Logger        *zap.Logger
+	indexHTMLRaw []byte                       // read once from disk at boot
+	uiConfig     atomic.Pointer[loadedConfig] // refreshed by fswatcher on UI-config-file changes; nil when no UI config is set
+	uiConfigFile string
+
+	watcher *fswatcher.FSWatcher
 }
 
 type loadedConfig struct {
@@ -87,89 +76,85 @@ type loadedConfig struct {
 	config []byte
 }
 
-// NewStaticAssetsHandler returns a StaticAssetsHandler
-func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
-	assetsFS := ui.GetStaticFiles(options.Logger)
-	if staticAssetsRoot != "" {
-		assetsFS = http.Dir(staticAssetsRoot)
+func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCapabilities, aiHealthCheck func() bool, logger *zap.Logger) (*staticAssetsHandler, error) {
+	assetsFS := ui.GetStaticFiles(logger)
+	if qOpts.UIConfig.AssetsPath != "" {
+		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
 	}
-
-	h := &StaticAssetsHandler{
-		options:  options,
-		assetsFS: assetsFS,
-	}
-
-	indexHTML, err := h.loadAndEnrichIndexHTML(assetsFS.Open)
+	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
+		return nil, fmt.Errorf("cannot load index.html: %w", err)
+	}
+	h := &staticAssetsHandler{
+		assetsFS:      assetsFS,
+		basePath:      qOpts.BasePath,
+		logAccess:     qOpts.UIConfig.LogAccess,
+		storageCaps:   storageCaps,
+		aiHealthCheck: aiHealthCheck,
+		logger:        logger,
+		indexHTMLRaw:  raw,
+		uiConfigFile:  qOpts.UIConfig.ConfigFile,
+	}
+	if err := h.refreshUIConfig(); err != nil {
 		return nil, err
 	}
-
-	options.Logger.Info("Using UI configuration", zap.String("path", options.ConfigFile))
-	watcher, err := fswatcher.New([]string{options.ConfigFile}, h.reloadUIConfig, h.options.Logger)
+	if qOpts.UIConfig.ConfigFile != "" {
+		logger.Info("Using UI configuration", zap.String("path", qOpts.UIConfig.ConfigFile))
+	}
+	watcher, err := fswatcher.New([]string{qOpts.UIConfig.ConfigFile}, h.reloadUIConfig, logger)
 	if err != nil {
 		return nil, err
 	}
 	h.watcher = watcher
-
-	h.indexHTML.Store(indexHTML)
-
 	return h, nil
 }
 
-func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
-	indexBytes, err := loadIndexHTML(open)
+// refreshUIConfig re-reads the UI config file from disk and atomically swaps
+// the cached parsed value. Called once at boot and again whenever the
+// fswatcher fires.
+func (h *staticAssetsHandler) refreshUIConfig() error {
+	cfg, err := loadUIConfig(h.uiConfigFile)
 	if err != nil {
-		return nil, fmt.Errorf("cannot load index.html: %w", err)
+		return err
 	}
-	// replace UI config
-	if configObject, err := loadUIConfig(sH.options.ConfigFile); err != nil {
-		return nil, err
-	} else if configObject != nil {
-		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
+	h.uiConfig.Store(cfg)
+	return nil
+}
+
+func (h *staticAssetsHandler) reloadUIConfig() {
+	h.logger.Info("reloading UI config", zap.String("filename", h.uiConfigFile))
+	if err := h.refreshUIConfig(); err != nil {
+		h.logger.Error("error while reloading the UI config", zap.Error(err))
+		return
 	}
-	// replace Jaeger version
+	h.logger.Info("reloaded UI config", zap.String("filename", h.uiConfigFile))
+}
+
+// deriveIndexHTML builds the served index.html from the cached raw bytes by
+// applying every substitution on the spot — UI config, version, backend
+// capabilities. Called per request so values that can change at runtime are
+// always current.
+//
+// The <base href> is not injected here. The UI detects its own mount-point
+// prefix at page-load time via an inline script in index.html (see ADR-009).
+func (h *staticAssetsHandler) deriveIndexHTML() []byte {
+	out := h.indexHTMLRaw
+	if cfg := h.uiConfig.Load(); cfg != nil {
+		out = cfg.regexp.ReplaceAll(out, cfg.config)
+	}
 	versionJSON, _ := json.Marshal(version.Get())
-	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
-	indexBytes = versionPattern.ReplaceAll(indexBytes, []byte(versionString))
-	// The <base href> is no longer injected here. The UI detects its own mount-point
-	// prefix at page-load time via an inline script in index.html (see ADR-009).
-	//
-	// Note: JAEGER_BACKEND_CAPABILITIES is intentionally NOT substituted here.
-	// The aiAssistant portion of that blob can flip at runtime as the sidecar
-	// comes and goes, so the substitution happens per request inside
-	// injectBackendCapabilities — the cached HTML keeps the original
-	// `JAEGER_BACKEND_CAPABILITIES = DEFAULT_BACKEND_CAPABILITIES;` line
-	// untouched, and each response gets a freshly-derived value.
-
-	return indexBytes, nil
-}
-
-func (sH *StaticAssetsHandler) reloadUIConfig() {
-	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.ConfigFile))
-	content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
-	if err != nil {
-		sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
-	}
-	sH.indexHTML.Store(content)
-	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.ConfigFile))
-}
-
-// injectBackendCapabilities substitutes the JAEGER_BACKEND_CAPABILITIES line in
-// the cached index.html with a freshly-derived blob. Called per response so the
-// aiAssistant flag reflects the latest health check.
-func (sH *StaticAssetsHandler) injectBackendCapabilities(indexBytes []byte) []byte {
+	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
 	aiAvailable := false
-	if sH.options.AIHealthCheck != nil {
-		aiAvailable = sH.options.AIHealthCheck()
+	if h.aiHealthCheck != nil {
+		aiAvailable = h.aiHealthCheck()
 	}
-	backend := BackendCapabilities{
-		ArchiveStorage: sH.options.StorageCapabilities.ArchiveStorage,
-		MetricsStorage: sH.options.StorageCapabilities.MetricsStorage,
+	capsJSON, _ := json.Marshal(BackendCapabilities{
+		ArchiveStorage: h.storageCaps.ArchiveStorage,
+		MetricsStorage: h.storageCaps.MetricsStorage,
 		AIAssistant:    aiAvailable,
-	}
-	backendJSON, _ := json.Marshal(backend)
-	backendString := fmt.Sprintf("JAEGER_BACKEND_CAPABILITIES = %s;", string(backendJSON))
-	return capabilitiesPattern.ReplaceAll(indexBytes, []byte(backendString))
+	})
+	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
+	return out
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
@@ -225,24 +210,23 @@ func loadUIConfig(uiConfig string) (*loadedConfig, error) {
 	}
 }
 
-func (sH *StaticAssetsHandler) loggingHandler(handler http.Handler) http.Handler {
-	if !sH.options.LogAccess {
+func (h *staticAssetsHandler) loggingHandler(handler http.Handler) http.Handler {
+	if !h.logAccess {
 		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sH.options.Logger.Info("serving static asset", zap.Stringer("url", r.URL))
+		h.logger.Info("serving static asset", zap.Stringer("url", r.URL))
 		handler.ServeHTTP(w, r)
 	})
 }
 
-// RegisterRoutes registers routes for this handler on the given router.
-func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
-	basePath := sH.options.BasePath
+func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
+	basePath := h.basePath
 	if basePath == "" {
 		basePath = "/"
 	}
 
-	fileServer := http.FileServer(sH.assetsFS)
+	fileServer := http.FileServer(h.assetsFS)
 	if basePath != "/" {
 		fileServer = http.StripPrefix(basePath+"/", fileServer)
 	}
@@ -254,7 +238,7 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	} else {
 		staticPattern = basePath + "/static/"
 	}
-	router.Handle(staticPattern, sH.loggingHandler(fileServer))
+	router.Handle(staticPattern, h.loggingHandler(fileServer))
 
 	// Register catch-all handler for SPA routing (serves index.html for all non-API routes).
 	// This must be registered last to act as a fallback.
@@ -265,14 +249,14 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *http.ServeMux) {
 	} else {
 		catchAllPattern = basePath + "/"
 	}
-	router.Handle(catchAllPattern, sH.loggingHandler(http.HandlerFunc(sH.notFound)))
+	router.Handle(catchAllPattern, h.loggingHandler(http.HandlerFunc(h.serveSPA)))
 }
 
-func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, _ *http.Request) {
+func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(sH.injectBackendCapabilities(sH.indexHTML.Load().([]byte)))
+	w.Write(h.deriveIndexHTML())
 }
 
-func (sH *StaticAssetsHandler) Close() error {
-	return sH.watcher.Close()
+func (h *staticAssetsHandler) Close() error {
+	return h.watcher.Close()
 }
