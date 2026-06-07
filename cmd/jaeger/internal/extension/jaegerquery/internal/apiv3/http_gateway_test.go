@@ -35,7 +35,7 @@ import (
 
 func setupHTTPGatewayNoServer(
 	_ *testing.T,
-	basePath string,
+	_ string,
 ) *testGateway {
 	gw := &testGateway{
 		reader: &tracestoremocks.Reader{},
@@ -60,17 +60,14 @@ func setupHTTPGatewayNoServer(
 
 func setupHTTPGateway(
 	t *testing.T,
-	basePath string,
+	_ string,
 ) *testGateway {
-	gw := setupHTTPGatewayNoServer(t, basePath)
+	gw := setupHTTPGatewayNoServer(t, "")
 
 	httpServer := httptest.NewServer(gw.router)
 	t.Cleanup(func() { httpServer.Close() })
 
 	gw.url = httpServer.URL
-	if basePath != "/" {
-		gw.url += basePath
-	}
 	return gw
 }
 

@@ -104,10 +104,10 @@ func makeTestTrace() ptrace.Traces {
 
 func runGatewayTests(
 	t *testing.T,
-	basePath string,
+	_ string,
 	setupRequest func(*http.Request),
 ) {
-	gw := setupHTTPGateway(t, basePath)
+	gw := setupHTTPGateway(t, "")
 	gw.setupRequest = setupRequest
 	t.Run("GetServices", gw.runGatewayGetServices)
 	t.Run("GetOperations", gw.runGatewayGetOperations)
