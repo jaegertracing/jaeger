@@ -35,6 +35,7 @@ const (
 	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
 	rawParam         = "raw"
+	filterParam      = "filter"
 )
 
 var (
@@ -221,7 +222,7 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //
 //	query ::= services , [ '&' optionalParams ]
 //	optionalParams := param | param '&' optionalParams
-//	param ::=  groupByOperation | endTs | lookback | step | ratePer | spanKinds
+//	param ::=  groupByOperation | endTs | lookback | step | ratePer | spanKinds | filters
 //	services ::= service | service '&' services
 //	service ::= 'service=' strValue
 //	groupByOperation ::= 'groupByOperation=' boolValue
@@ -232,6 +233,8 @@ func (p *queryParser) parseDependenciesQueryParams(r *http.Request) (dqp depende
 //	spanKinds ::= spanKind | spanKind '&' spanKinds
 //	spanKind ::= 'spanKind=' spanKindType
 //	spanKindType ::= "unspecified" | "internal" | "server" | "client" | "producer" | "consumer"
+//	filters ::= filter | filter '&' filters
+//	filter ::= 'filter=' strValue ':' strValue (pre-configured dimension name and value, e.g. deployment.environment:prod)
 func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.BaseQueryParameters, err error) {
 	query := r.URL.Query()
 	services, ok := query[serviceParam]
@@ -265,11 +268,39 @@ func (p *queryParser) parseMetricsQueryParams(r *http.Request) (bqp metricstore.
 	if err != nil {
 		return bqp, err
 	}
+	filters, err := parseMetricFilters(query[filterParam])
+	if err != nil {
+		return bqp, newParseError(err, filterParam)
+	}
 	bqp.EndTime = &endTs
 	bqp.Lookback = &lookback
 	bqp.Step = &step
 	bqp.RatePer = &ratePer
+	bqp.Filters = filters
 	return bqp, err
+}
+
+// parseMetricFilters parses repeated `filter=key:value` query params into a
+// dimension map. Returns nil (not an empty map) when no filters are supplied
+// so downstream code can distinguish "no filtering" cleanly.
+func parseMetricFilters(raw []string) (map[string]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]string, len(raw))
+	for _, kv := range raw {
+		idx := strings.Index(kv, ":")
+		if idx <= 0 || idx == len(kv)-1 {
+			return nil, fmt.Errorf("malformed filter %q, expecting key:value", kv)
+		}
+		key := kv[:idx]
+		val := kv[idx+1:]
+		if _, dup := out[key]; dup {
+			return nil, fmt.Errorf("duplicate filter key %q", key)
+		}
+		out[key] = val
+	}
+	return out, nil
 }
 
 // parseTime parses the time parameter of an HTTP request that is represented the number of "units" since epoch.

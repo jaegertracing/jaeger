@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	protometrics "github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
@@ -126,6 +127,21 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	}
 
 	checkExpectedExistingAndNonExistentCounters(t, counters, wantCounts, gauges, wantExistingKeys, wantNonExistentKeys)
+}
+
+func TestGetDimensionsPassthrough(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	mockReader := mocks.Reader{}
+	mrs := metricstoremetrics.NewReaderDecorator(&mockReader, mf)
+
+	wantDims := []metricstore.Dimension{{Name: "host"}}
+	mockReader.On("GetDimensions", context.Background()).Return(wantDims, nil)
+
+	dims, err := mrs.GetDimensions(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, wantDims, dims)
+	mockReader.AssertExpectations(t)
 }
 
 func TestMain(m *testing.M) {

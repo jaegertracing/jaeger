@@ -224,6 +224,16 @@ func TestScaleToMillisAndRound_EmptyWindow(t *testing.T) {
 	assert.True(t, math.IsNaN(result))
 }
 
+func TestGetDimensions(t *testing.T) {
+	mockServer := startMockEsServer(t, "", mockEmptyResponse)
+	defer mockServer.Close()
+	reader, _ := setupMetricsReaderFromServer(t, mockServer)
+
+	dims, err := reader.GetDimensions(context.Background())
+	require.NoError(t, err)
+	assert.Nil(t, dims)
+}
+
 func Test_ErrorCases(t *testing.T) {
 	endTime := time.UnixMilli(0)
 	tests := []struct {

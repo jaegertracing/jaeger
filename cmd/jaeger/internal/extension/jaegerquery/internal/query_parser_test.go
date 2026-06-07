@@ -296,6 +296,69 @@ func TestParseRepeatedSpanKinds(t *testing.T) {
 	}, mqp.SpanKinds)
 }
 
+func TestParseFiltersSingle(t *testing.T) {
+	request, err := http.NewRequest(http.MethodGet, "x?service=foo&filter=deployment.environment:prod", http.NoBody)
+	require.NoError(t, err)
+	parser := &queryParser{timeNow: time.Now}
+	mqp, err := parser.parseMetricsQueryParams(request)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"deployment.environment": "prod"}, mqp.Filters)
+}
+
+func TestParseFiltersRepeated(t *testing.T) {
+	q := "x?service=foo&filter=deployment.environment:prod&filter=k8s.cluster:us-west-1"
+	request, err := http.NewRequest(http.MethodGet, q, http.NoBody)
+	require.NoError(t, err)
+	parser := &queryParser{timeNow: time.Now}
+	mqp, err := parser.parseMetricsQueryParams(request)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"deployment.environment": "prod",
+		"k8s.cluster":            "us-west-1",
+	}, mqp.Filters)
+}
+
+func TestParseFiltersWithColonInValue(t *testing.T) {
+	// A value containing a colon is preserved verbatim — split only on the first ':'.
+	q := "x?service=foo&filter=region:us:west-1"
+	request, err := http.NewRequest(http.MethodGet, q, http.NoBody)
+	require.NoError(t, err)
+	parser := &queryParser{timeNow: time.Now}
+	mqp, err := parser.parseMetricsQueryParams(request)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "us:west-1"}, mqp.Filters)
+}
+
+func TestParseFiltersOmittedYieldsNil(t *testing.T) {
+	request, err := http.NewRequest(http.MethodGet, "x?service=foo", http.NoBody)
+	require.NoError(t, err)
+	parser := &queryParser{timeNow: time.Now}
+	mqp, err := parser.parseMetricsQueryParams(request)
+	require.NoError(t, err)
+	assert.Nil(t, mqp.Filters)
+}
+
+func TestParseFiltersMalformed(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		raw  string
+	}{
+		{"missing colon", "x?service=foo&filter=keyonly"},
+		{"empty key", "x?service=foo&filter=:value"},
+		{"empty value", "x?service=foo&filter=key:"},
+		{"duplicate key", "x?service=foo&filter=k:v1&filter=k:v2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request, err := http.NewRequest(http.MethodGet, tc.raw, http.NoBody)
+			require.NoError(t, err)
+			parser := &queryParser{timeNow: time.Now}
+			_, err = parser.parseMetricsQueryParams(request)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "filter")
+		})
+	}
+}
+
 func TestParameterErrors(t *testing.T) {
 	ts := initializeTestServer(t)
 

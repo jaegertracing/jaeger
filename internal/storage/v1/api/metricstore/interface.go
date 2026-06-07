@@ -21,6 +21,31 @@ type Reader interface {
 	// GetErrorRates gets the error rate metrics for a given list of services grouped by service
 	// and optionally grouped by operation.
 	GetErrorRates(ctx context.Context, params *ErrorRateQueryParameters) (*metrics.MetricFamily, error)
+	// GetDimensions returns the set of pre-configured dimensions on which
+	// GetLatencies/GetCallRates/GetErrorRates may be filtered via
+	// BaseQueryParameters.Filters. Backends that do not support dimension
+	// filtering return an empty slice (or nil).
+	GetDimensions(ctx context.Context) ([]Dimension, error)
+}
+
+// Dimension declares a Prometheus label (or equivalent backend field) that the
+// SPM API can filter on via BaseQueryParameters.Filters. Dimensions are
+// pre-configured by the operator — free-form/arbitrary tag filtering is
+// intentionally not supported because Prometheus requires labels to be
+// declared up front via the spanmetrics connector's "dimensions" config.
+type Dimension struct {
+	// Name is the OTel attribute name as declared in the spanmetrics connector
+	// (e.g. "deployment.environment"). Dots are converted to underscores when
+	// constructing PromQL label selectors.
+	Name string `json:"name" mapstructure:"name"`
+	// DisplayName is the user-facing label shown in the UI dropdown.
+	// Defaults to Name when empty.
+	DisplayName string `json:"displayName,omitempty" mapstructure:"display_name"`
+	// Values is the closed set of allowed values shown in the UI dropdown
+	// and enforced by the API. An empty slice means the UI may render a
+	// free-text input; the API will still validate values against a small
+	// set of PromQL-safe characters server-side.
+	Values []string `json:"values,omitempty" mapstructure:"values"`
 }
 
 // BaseQueryParameters contains the common set of parameters used by all metrics queries:
@@ -44,6 +69,11 @@ type BaseQueryParameters struct {
 	// The jaeger_query extension always populates this with a non-empty default,
 	// so backend implementations can assume it will not be empty.
 	SpanKinds []string
+	// Filters is an optional map of pre-configured dimension name -> value used
+	// to scope the metrics query further (e.g. {"deployment.environment": "prod"}).
+	// Keys are OTel attribute names matching a configured Dimension; backends that
+	// do not support dimension filtering ignore this field.
+	Filters map[string]string
 }
 
 // LatenciesQueryParameters contains the parameters required for latency metrics queries.

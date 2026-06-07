@@ -164,6 +164,13 @@ func (r MetricsReader) GetErrorRates(ctx context.Context, params *metricstore.Er
 	return CalculateErrorRates(rawErrorsMetrics, callRateMetrics, params.BaseQueryParameters, timeRange), nil
 }
 
+// GetDimensions returns the set of pre-configured filterable dimensions.
+// TODO(#7433): the Elasticsearch metricstore does not yet support dimension
+// filtering. Returning an empty slice tells the UI to hide the dropdowns.
+func (MetricsReader) GetDimensions(context.Context) ([]metricstore.Dimension, error) {
+	return nil, nil
+}
+
 // bucketsToPoints is a helper function for getting points value from ES AGG bucket
 func bucketsToPoints(buckets []*elastic.AggregationBucketHistogramItem, valueExtractor func(*elastic.AggregationBucketHistogramItem) float64) []*Pair {
 	var points []*Pair
