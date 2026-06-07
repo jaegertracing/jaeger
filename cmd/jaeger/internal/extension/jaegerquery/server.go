@@ -150,8 +150,10 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihe
 	if !opts.AI.HasValue() {
 		return nil
 	}
+	// HasValue was just checked, so Get is guaranteed to return non-nil
+	// (configoptional.Optional[T].Get returns nil only when HasValue is false).
 	aiCfg := opts.AI.Get()
-	if aiCfg == nil || aiCfg.AgentURL == "" {
+	if aiCfg.AgentURL == "" {
 		return nil
 	}
 	if err := aiCfg.Validate(); err != nil {
