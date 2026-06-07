@@ -20,9 +20,6 @@ import (
 // closes. Any transport-level or protocol-level error counts as unhealthy.
 // Suitable for use as aihealth.Config.Check.
 func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) error {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
 	return func(ctx context.Context) error {
 		adapter, err := jaegerai.DialWsAdapter(ctx, agentURL, logger)
 		if err != nil {
@@ -32,7 +29,7 @@ func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) 
 
 		conn := acp.NewConnection(noopMethodHandler, adapter, adapter)
 
-		if _, err := acp.SendRequest[acp.InitializeResponse](conn, ctx, acp.AgentMethodInitialize, acp.InitializeRequest{
+		req := acp.InitializeRequest{
 			ProtocolVersion: acp.ProtocolVersionNumber,
 			ClientCapabilities: acp.ClientCapabilities{
 				Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
@@ -42,7 +39,8 @@ func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) 
 				Name:    "jaeger-ai-check",
 				Version: version.Get().GitVersion,
 			},
-		}); err != nil {
+		}
+		if _, err := acp.SendRequest[acp.InitializeResponse](conn, ctx, acp.AgentMethodInitialize, req); err != nil {
 			return fmt.Errorf("initialize: %w", err)
 		}
 		return nil

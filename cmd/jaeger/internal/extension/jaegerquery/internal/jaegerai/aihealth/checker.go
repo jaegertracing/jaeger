@@ -50,9 +50,6 @@ func New(cfg Config) (*Checker, error) {
 	if cfg.Check == nil {
 		return nil, errors.New("aihealth: Config.Check must be non-nil")
 	}
-	if cfg.Logger == nil {
-		cfg.Logger = zap.NewNop()
-	}
 	return &Checker{
 		check:    cfg.Check,
 		interval: cfg.Interval,

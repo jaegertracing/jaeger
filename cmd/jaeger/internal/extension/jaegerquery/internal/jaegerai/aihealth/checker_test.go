@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func newTestChecker(t *testing.T, check func(ctx context.Context) error) *Checker {
@@ -19,6 +20,7 @@ func newTestChecker(t *testing.T, check func(ctx context.Context) error) *Checke
 		Check:    check,
 		Interval: 10 * time.Millisecond,
 		Timeout:  100 * time.Millisecond,
+		Logger:   zap.NewNop(),
 	})
 	require.NoError(t, err)
 	return c
@@ -104,6 +106,7 @@ func TestChecker_CheckTimeoutIsApplied(t *testing.T) {
 		Check:    check,
 		Interval: 50 * time.Millisecond,
 		Timeout:  200 * time.Millisecond,
+		Logger:   zap.NewNop(),
 	})
 	require.NoError(t, err)
 
