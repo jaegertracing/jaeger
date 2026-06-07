@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package aireconciler
+package aihealth
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestReconciler(t *testing.T, probe func(ctx context.Context) error) *Reconciler {
+func newTestChecker(t *testing.T, probe func(ctx context.Context) error) *Checker {
 	t.Helper()
 	r, err := New(Config{
 		AgentURL: "ws://test.invalid:0",
@@ -30,14 +30,14 @@ func TestNew_RequiresAgentURL(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestReconciler_InitialStateIsFalse(t *testing.T) {
-	r := newTestReconciler(t, func(context.Context) error { return errors.New("unused") })
+func TestChecker_InitialStateIsFalse(t *testing.T) {
+	r := newTestChecker(t, func(context.Context) error { return errors.New("unused") })
 	require.False(t, r.Current(), "before Start, Current must be false")
 }
 
-func TestReconciler_FlipsToTrueAndNotifies(t *testing.T) {
+func TestChecker_FlipsToTrueAndNotifies(t *testing.T) {
 	notified := make(chan struct{}, 4)
-	r := newTestReconciler(t, func(context.Context) error { return nil })
+	r := newTestChecker(t, func(context.Context) error { return nil })
 	r.Subscribe(func() { notified <- struct{}{} })
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -53,7 +53,7 @@ func TestReconciler_FlipsToTrueAndNotifies(t *testing.T) {
 	require.True(t, r.Current())
 }
 
-func TestReconciler_FlipsBackToFalse(t *testing.T) {
+func TestChecker_FlipsBackToFalse(t *testing.T) {
 	var healthy atomic.Bool
 	healthy.Store(true)
 	probe := func(context.Context) error {
@@ -64,7 +64,7 @@ func TestReconciler_FlipsBackToFalse(t *testing.T) {
 	}
 
 	notifications := make(chan struct{}, 16)
-	r := newTestReconciler(t, probe)
+	r := newTestChecker(t, probe)
 	r.Subscribe(func() { notifications <- struct{}{} })
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -82,9 +82,9 @@ func TestReconciler_FlipsBackToFalse(t *testing.T) {
 	require.False(t, r.Current())
 }
 
-func TestReconciler_NoNotifyWhenStateUnchanged(t *testing.T) {
+func TestChecker_NoNotifyWhenStateUnchanged(t *testing.T) {
 	var count atomic.Int32
-	r := newTestReconciler(t, func(context.Context) error { return errors.New("always down") })
+	r := newTestChecker(t, func(context.Context) error { return errors.New("always down") })
 	r.Subscribe(func() { count.Add(1) })
 
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -98,9 +98,9 @@ func TestReconciler_NoNotifyWhenStateUnchanged(t *testing.T) {
 	require.Zero(t, count.Load(), "subscriber should not be notified when state stays false")
 }
 
-func TestReconciler_MultipleSubscribersAllNotified(t *testing.T) {
+func TestChecker_MultipleSubscribersAllNotified(t *testing.T) {
 	var a, b atomic.Int32
-	r := newTestReconciler(t, func(context.Context) error { return nil })
+	r := newTestChecker(t, func(context.Context) error { return nil })
 	r.Subscribe(func() { a.Add(1) })
 	r.Subscribe(func() { b.Add(1) })
 
@@ -113,26 +113,26 @@ func TestReconciler_MultipleSubscribersAllNotified(t *testing.T) {
 		time.Second, 10*time.Millisecond, "both subscribers must be notified")
 }
 
-func TestReconciler_NilSubscriberIgnored(t *testing.T) {
-	r := newTestReconciler(t, func(context.Context) error { return nil })
+func TestChecker_NilSubscriberIgnored(t *testing.T) {
+	r := newTestChecker(t, func(context.Context) error { return nil })
 	r.Subscribe(nil) // must not panic
 	r.notify()       // must not panic
 }
 
-func TestReconciler_StopWithoutStartIsNoOp(t *testing.T) {
-	r := newTestReconciler(t, func(context.Context) error { return nil })
+func TestChecker_StopWithoutStartIsNoOp(t *testing.T) {
+	r := newTestChecker(t, func(context.Context) error { return nil })
 	r.Stop() // must not block or panic
 }
 
-func TestReconciler_StartTwicePanics(t *testing.T) {
-	r := newTestReconciler(t, func(context.Context) error { return nil })
+func TestChecker_StartTwicePanics(t *testing.T) {
+	r := newTestChecker(t, func(context.Context) error { return nil })
 	ctx := t.Context()
 	r.Start(ctx)
 	defer r.Stop()
 	require.Panics(t, func() { r.Start(ctx) })
 }
 
-func TestReconciler_ProbeTimeoutIsApplied(t *testing.T) {
+func TestChecker_ProbeTimeoutIsApplied(t *testing.T) {
 	var observed atomic.Int64
 	probe := func(ctx context.Context) error {
 		deadline, ok := ctx.Deadline()

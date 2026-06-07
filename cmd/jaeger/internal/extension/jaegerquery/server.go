@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/aireconciler"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/aihealth"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -35,7 +35,7 @@ var (
 type server struct {
 	config         *Config
 	server         *queryapp.Server
-	aiReconciler   *aireconciler.Reconciler
+	aiHealth       *aihealth.Checker
 	telset         component.TelemetrySettings
 	qs             *querysvc.QueryService
 	tenancyManager *tenancy.Manager
@@ -103,7 +103,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		MetricsStorage: s.config.Storage.Metrics != "",
 	}
 
-	s.aiReconciler, err = buildAIReconciler(&s.config.QueryOptions, telset.Logger)
+	s.aiHealth, err = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 	if err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		mqs,
 		&s.config.QueryOptions,
 		caps,
-		aiAvailability(s.aiReconciler),
+		aiAvailability(s.aiHealth),
 		tm,
 		telset,
 	)
@@ -123,11 +123,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
 	}
 
-	if s.aiReconciler != nil {
+	if s.aiHealth != nil {
 		// The OTel collector cancels the Start context once Start returns,
-		// so the reconciler is given a fresh background context and torn
+		// so the checker is given a fresh background context and torn
 		// down explicitly in Shutdown.
-		s.aiReconciler.Start(context.Background()) //nolint:contextcheck // intentional: reconciler outlives Start ctx; Shutdown stops it.
+		s.aiHealth.Start(context.Background()) //nolint:contextcheck // intentional: checker outlives Start ctx; Shutdown stops it.
 	}
 
 	if err := s.server.Start(ctx); err != nil {
@@ -137,11 +137,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	return nil
 }
 
-// buildAIReconciler constructs an AI reconciler when the operator opted in
+// buildAIHealthChecker constructs an AI health checker when the operator opted in
 // (jaeger_query.ai block present with a non-empty agent URL and a positive
 // probe interval). Returns nil when AI is disabled — there's nothing to
 // probe and the static handler advertises aiAssistant=false.
-func buildAIReconciler(opts *queryapp.QueryOptions, logger *zap.Logger) (*aireconciler.Reconciler, error) {
+func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) (*aihealth.Checker, error) {
 	if !opts.AI.HasValue() {
 		return nil, nil
 	}
@@ -156,22 +156,22 @@ func buildAIReconciler(opts *queryapp.QueryOptions, logger *zap.Logger) (*aireco
 	if aiCfg.HealthProbeInterval < 0 {
 		return nil, nil
 	}
-	r, err := aireconciler.New(aireconciler.Config{
+	r, err := aihealth.New(aihealth.Config{
 		AgentURL: aiCfg.AgentURL,
 		Interval: aiCfg.HealthProbeInterval,
 		Timeout:  aiCfg.HealthProbeTimeout,
 		Logger:   logger,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("could not create AI capability reconciler: %w", err)
+		return nil, fmt.Errorf("could not create AI health checker: %w", err)
 	}
 	return r, nil
 }
 
-// aiAvailability adapts *aireconciler.Reconciler to queryapp.AIAvailability,
-// returning nil when the reconciler is nil so the static handler treats AI
+// aiAvailability adapts *aihealth.Checker to queryapp.AIAvailability,
+// returning nil when the checker is nil so the static handler treats AI
 // as unavailable.
-func aiAvailability(r *aireconciler.Reconciler) queryapp.AIAvailability {
+func aiAvailability(r *aihealth.Checker) queryapp.AIAvailability {
 	if r == nil {
 		return nil
 	}
@@ -237,8 +237,8 @@ func (s *server) createMetricReader(host component.Host) (metricstore.Reader, er
 }
 
 func (s *server) Shutdown(_ context.Context) error {
-	if s.aiReconciler != nil {
-		s.aiReconciler.Stop()
+	if s.aiHealth != nil {
+		s.aiHealth.Stop()
 	}
 	if s.server != nil {
 		return s.server.Close()

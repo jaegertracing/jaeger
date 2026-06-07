@@ -1,13 +1,13 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package aireconciler periodically probes the AI sidecar to determine whether
+// Package aihealth periodically probes the AI sidecar to determine whether
 // the chat surface should be advertised to the UI as a backend capability.
 //
-// The reconciler runs only when the jaeger_query.ai config block is present.
+// The checker runs only when the jaeger_query.ai config block is present.
 // When it is absent, the static handler skips construction entirely and the
 // advertised aiAssistant capability stays at its initial false value.
-package aireconciler
+package aihealth
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
-// Config bundles the inputs the reconciler needs. AgentURL must be non-empty;
+// Config bundles the inputs the checker needs. AgentURL must be non-empty;
 // Interval and Timeout default to AIConfig's documented defaults if zero.
 type Config struct {
 	AgentURL string
@@ -33,11 +33,11 @@ type Config struct {
 	Logger   *zap.Logger
 }
 
-// Reconciler periodically probes an ACP sidecar and tracks whether it is
+// Checker periodically probes an ACP sidecar and tracks whether it is
 // currently reachable. Subscribers are notified when the reachability flips.
 //
-// The zero Reconciler is not usable; construct via New.
-type Reconciler struct {
+// The zero Checker is not usable; construct via New.
+type Checker struct {
 	agentURL string
 	interval time.Duration
 	timeout  time.Duration
@@ -56,15 +56,15 @@ type Reconciler struct {
 	done   chan struct{}
 }
 
-// New constructs a Reconciler. AgentURL must be non-empty.
-func New(cfg Config) (*Reconciler, error) {
+// New constructs a Checker. AgentURL must be non-empty.
+func New(cfg Config) (*Checker, error) {
 	if cfg.AgentURL == "" {
-		return nil, errors.New("aireconciler: AgentURL must be non-empty")
+		return nil, errors.New("aihealth: AgentURL must be non-empty")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = zap.NewNop()
 	}
-	r := &Reconciler{
+	r := &Checker{
 		agentURL: cfg.AgentURL,
 		interval: cfg.Interval,
 		timeout:  cfg.Timeout,
@@ -76,11 +76,11 @@ func New(cfg Config) (*Reconciler, error) {
 
 // Current returns the most recently observed reachability state. Initial
 // value is false until the first probe completes.
-func (r *Reconciler) Current() bool { return r.current.Load() }
+func (r *Checker) Current() bool { return r.current.Load() }
 
-// Subscribe registers a callback fired (synchronously, in the reconciler's
+// Subscribe registers a callback fired (synchronously, in the checker's
 // goroutine) whenever Current() flips. Callbacks must not block.
-func (r *Reconciler) Subscribe(fn func()) {
+func (r *Checker) Subscribe(fn func()) {
 	if fn == nil {
 		return
 	}
@@ -89,13 +89,13 @@ func (r *Reconciler) Subscribe(fn func()) {
 	r.mu.Unlock()
 }
 
-// Start launches the reconciler's background goroutine. The first probe runs
+// Start launches the checker's background goroutine. The first probe runs
 // immediately so the UI lights up as soon as the operator brings both
 // processes online; subsequent probes are spaced by Interval. Start may be
-// called only once per Reconciler.
-func (r *Reconciler) Start(ctx context.Context) {
+// called only once per Checker.
+func (r *Checker) Start(ctx context.Context) {
 	if r.done != nil {
-		panic("aireconciler: Start called twice")
+		panic("aihealth: Start called twice")
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
@@ -105,7 +105,7 @@ func (r *Reconciler) Start(ctx context.Context) {
 
 // Stop signals the background goroutine to exit and waits for it. Safe to
 // call multiple times; safe to call before Start (no-op).
-func (r *Reconciler) Stop() {
+func (r *Checker) Stop() {
 	if r.done == nil {
 		return
 	}
@@ -113,7 +113,7 @@ func (r *Reconciler) Stop() {
 	<-r.done
 }
 
-func (r *Reconciler) run(ctx context.Context) {
+func (r *Checker) run(ctx context.Context) {
 	defer close(r.done)
 
 	r.runOnce(ctx)
@@ -130,7 +130,7 @@ func (r *Reconciler) run(ctx context.Context) {
 	}
 }
 
-func (r *Reconciler) runOnce(ctx context.Context) {
+func (r *Checker) runOnce(ctx context.Context) {
 	probeCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 	err := r.probe(probeCtx)
@@ -149,7 +149,7 @@ func (r *Reconciler) runOnce(ctx context.Context) {
 	}
 }
 
-func (r *Reconciler) notify() {
+func (r *Checker) notify() {
 	r.mu.Lock()
 	subs := make([]func(), len(r.subs))
 	copy(subs, r.subs)
@@ -161,7 +161,7 @@ func (r *Reconciler) notify() {
 
 // acpProbe performs one ACP `initialize` round-trip against the sidecar.
 // Any transport-level or protocol-level error counts as unreachable.
-func (r *Reconciler) acpProbe(ctx context.Context) error {
+func (r *Checker) acpProbe(ctx context.Context) error {
 	adapter, err := jaegerai.DialWsAdapter(ctx, r.agentURL, r.logger)
 	if err != nil {
 		return fmt.Errorf("dial: %w", err)

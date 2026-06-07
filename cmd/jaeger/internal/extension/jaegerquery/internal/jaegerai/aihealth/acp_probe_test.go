@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package aireconciler
+package aihealth
 
 import (
 	"context"
@@ -125,7 +125,7 @@ func TestACPProbe_SucceedsAgainstReachableSidecar(t *testing.T) {
 	defer r.Stop()
 
 	require.Eventually(t, r.Current, time.Second, 10*time.Millisecond,
-		"reconciler should flip to true once the sidecar responds to initialize")
+		"checker should flip to true once the sidecar responds to initialize")
 
 	agent.mu.Lock()
 	require.Positive(t, agent.initCount, "sidecar should have received at least one initialize")
@@ -145,7 +145,7 @@ func TestACPProbe_FailsAgainstNonexistentSidecar(t *testing.T) {
 
 	// Probe failures don't flip the state — initial state is already false —
 	// so the assertion is that after running for a few intervals the
-	// reconciler is still false (and didn't crash).
+	// checker is still false (and didn't crash).
 	time.Sleep(150 * time.Millisecond)
 	require.False(t, r.Current())
 }
