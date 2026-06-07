@@ -31,6 +31,14 @@ type UIConfig struct {
 // AIConfig.MaxRequestBodySize is left unset (zero).
 const DefaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
 
+// DefaultHealthProbeInterval and DefaultHealthProbeTimeout are the fallback
+// values applied when AIConfig.HealthProbeInterval / HealthProbeTimeout are
+// left unset (zero).
+const (
+	DefaultHealthProbeInterval = 5 * time.Second
+	DefaultHealthProbeTimeout  = 2 * time.Second
+)
+
 type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
@@ -38,17 +46,34 @@ type AIConfig struct {
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
 	// A value of 0 selects DefaultMaxRequestBodySize; negative values are rejected.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
+	// HealthProbeInterval controls how often the AI reconciler probes the
+	// sidecar to determine if the chat surface should be advertised to the
+	// UI. A value of 0 selects DefaultHealthProbeInterval; a negative value
+	// disables probing entirely and pins the advertised capability to false.
+	HealthProbeInterval time.Duration `mapstructure:"health_probe_interval" valid:"optional"`
+	// HealthProbeTimeout is the per-probe timeout. A value of 0 selects
+	// DefaultHealthProbeTimeout; negative values are rejected.
+	HealthProbeTimeout time.Duration `mapstructure:"health_probe_timeout" valid:"optional"`
 }
 
-// Validate checks the AI config and applies DefaultMaxRequestBodySize in place
-// when MaxRequestBodySize is zero; the pointer receiver is required so the
-// default persists back to the caller's config.
+// Validate checks the AI config and applies defaults in place when fields
+// are left at their zero value; the pointer receiver is required so the
+// defaults persist back to the caller's config.
 func (c *AIConfig) Validate() error {
 	if c.MaxRequestBodySize < 0 {
 		return errors.New("ai.max_request_body_size must be a non-negative integer")
 	}
 	if c.MaxRequestBodySize == 0 {
 		c.MaxRequestBodySize = DefaultMaxRequestBodySize
+	}
+	if c.HealthProbeTimeout < 0 {
+		return errors.New("ai.health_probe_timeout must be a non-negative duration")
+	}
+	if c.HealthProbeTimeout == 0 {
+		c.HealthProbeTimeout = DefaultHealthProbeTimeout
+	}
+	if c.HealthProbeInterval == 0 {
+		c.HealthProbeInterval = DefaultHealthProbeInterval
 	}
 	return nil
 }
@@ -84,8 +109,10 @@ func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
 		AI: configoptional.Default(AIConfig{
-			AgentURL:           "ws://localhost:16688",
-			MaxRequestBodySize: DefaultMaxRequestBodySize,
+			AgentURL:            "ws://localhost:16688",
+			MaxRequestBodySize:  DefaultMaxRequestBodySize,
+			HealthProbeInterval: DefaultHealthProbeInterval,
+			HealthProbeTimeout:  DefaultHealthProbeTimeout,
 		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{

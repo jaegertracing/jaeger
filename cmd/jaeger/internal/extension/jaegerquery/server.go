@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/aireconciler"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -34,6 +35,7 @@ var (
 type server struct {
 	config         *Config
 	server         *queryapp.Server
+	aiReconciler   *aireconciler.Reconciler
 	telset         component.TelemetrySettings
 	qs             *querysvc.QueryService
 	tenancyManager *tenancy.Manager
@@ -101,6 +103,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		MetricsStorage: s.config.Storage.Metrics != "",
 	}
 
+	s.aiReconciler, err = buildAIReconciler(&s.config.QueryOptions, telset.Logger)
+	if err != nil {
+		return err
+	}
+
 	s.server, err = queryapp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
@@ -108,6 +115,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		mqs,
 		&s.config.QueryOptions,
 		caps,
+		aiAvailability(s.aiReconciler),
 		tm,
 		telset,
 	)
@@ -115,11 +123,59 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not create jaeger-query: %w", err)
 	}
 
+	if s.aiReconciler != nil {
+		// The OTel collector cancels the Start context once Start returns,
+		// so the reconciler is given a fresh background context and torn
+		// down explicitly in Shutdown.
+		s.aiReconciler.Start(context.Background()) //nolint:contextcheck // intentional: reconciler outlives Start ctx; Shutdown stops it.
+	}
+
 	if err := s.server.Start(ctx); err != nil {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 
 	return nil
+}
+
+// buildAIReconciler constructs an AI reconciler when the operator opted in
+// (jaeger_query.ai block present with a non-empty agent URL and a positive
+// probe interval). Returns nil when AI is disabled — there's nothing to
+// probe and the static handler advertises aiAssistant=false.
+func buildAIReconciler(opts *queryapp.QueryOptions, logger *zap.Logger) (*aireconciler.Reconciler, error) {
+	if !opts.AI.HasValue() {
+		return nil, nil
+	}
+	aiCfg := opts.AI.Get()
+	if aiCfg == nil || aiCfg.AgentURL == "" {
+		return nil, nil
+	}
+	if err := aiCfg.Validate(); err != nil {
+		logger.Error("Invalid AI config, capability probe disabled", zap.Error(err))
+		return nil, nil
+	}
+	if aiCfg.HealthProbeInterval < 0 {
+		return nil, nil
+	}
+	r, err := aireconciler.New(aireconciler.Config{
+		AgentURL: aiCfg.AgentURL,
+		Interval: aiCfg.HealthProbeInterval,
+		Timeout:  aiCfg.HealthProbeTimeout,
+		Logger:   logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not create AI capability reconciler: %w", err)
+	}
+	return r, nil
+}
+
+// aiAvailability adapts *aireconciler.Reconciler to queryapp.AIAvailability,
+// returning nil when the reconciler is nil so the static handler treats AI
+// as unavailable.
+func aiAvailability(r *aireconciler.Reconciler) queryapp.AIAvailability {
+	if r == nil {
+		return nil
+	}
+	return r
 }
 
 func (s *server) addArchiveStorage(
@@ -181,6 +237,9 @@ func (s *server) createMetricReader(host component.Host) (metricstore.Reader, er
 }
 
 func (s *server) Shutdown(_ context.Context) error {
+	if s.aiReconciler != nil {
+		s.aiReconciler.Stop()
+	}
 	if s.server != nil {
 		return s.server.Close()
 	}

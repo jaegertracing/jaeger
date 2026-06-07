@@ -50,6 +50,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 				},
 			},
 			querysvc.StorageCapabilities{ArchiveStorage: false},
+			nil,
 		)
 		defer closer.Close()
 	})
@@ -122,6 +123,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 					BasePath: testCase.basePath,
 				},
 				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
+				nil,
 			)
 			defer closer.Close()
 
@@ -160,6 +162,111 @@ func TestRegisterStaticHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+// fakeAIAvailability is a settable AIAvailability for tests. The reload
+// hook fires whenever Set is called with a different value.
+type fakeAIAvailability struct {
+	current   bool
+	callbacks []func()
+}
+
+func (f *fakeAIAvailability) Current() bool       { return f.current }
+func (f *fakeAIAvailability) Subscribe(fn func()) { f.callbacks = append(f.callbacks, fn) }
+func (f *fakeAIAvailability) Set(v bool) {
+	if f.current == v {
+		return
+	}
+	f.current = v
+	for _, fn := range f.callbacks {
+		fn()
+	}
+}
+
+func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
+	tests := []struct {
+		name              string
+		archiveStorage    bool
+		metricsStorage    bool
+		aiAvailable       AIAvailability
+		expectAIAssistant bool
+	}{
+		{
+			name:              "no AI availability injects aiAssistant=false",
+			aiAvailable:       nil,
+			expectAIAssistant: false,
+		},
+		{
+			name:              "AI reachable injects aiAssistant=true",
+			aiAvailable:       &fakeAIAvailability{current: true},
+			expectAIAssistant: true,
+		},
+		{
+			name:              "AI unreachable injects aiAssistant=false",
+			aiAvailable:       &fakeAIAvailability{current: false},
+			expectAIAssistant: false,
+		},
+		{
+			name:              "storage flags mirrored alongside AI",
+			archiveStorage:    true,
+			metricsStorage:    true,
+			aiAvailable:       &fakeAIAvailability{current: true},
+			expectAIAssistant: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := http.NewServeMux()
+			closer := RegisterStaticHandler(
+				r, zap.NewNop(),
+				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+				querysvc.StorageCapabilities{
+					ArchiveStorage: tt.archiveStorage,
+					MetricsStorage: tt.metricsStorage,
+				},
+				tt.aiAvailable,
+			)
+			defer closer.Close()
+
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+			body := rr.Body.String()
+
+			expected := fmt.Sprintf(
+				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"aiAssistant":%t};`,
+				tt.archiveStorage, tt.metricsStorage, tt.expectAIAssistant,
+			)
+			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
+		})
+	}
+}
+
+func TestStaticHandlerReloadsOnAIFlip(t *testing.T) {
+	ai := &fakeAIAvailability{current: false}
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+		querysvc.StorageCapabilities{},
+		ai,
+	)
+	defer closer.Close()
+
+	getBody := func() string {
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+		return rr.Body.String()
+	}
+
+	require.Contains(t, getBody(), `"aiAssistant":false`)
+
+	ai.Set(true)
+	require.Contains(t, getBody(), `"aiAssistant":true`,
+		"index.html must reflect the new value after AIAvailability flips to true")
+
+	ai.Set(false)
+	require.Contains(t, getBody(), `"aiAssistant":false`,
+		"index.html must reflect the new value after AIAvailability flips back to false")
 }
 
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {

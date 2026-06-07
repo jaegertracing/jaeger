@@ -26,18 +26,39 @@ import (
 
 var (
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
-	configPattern      = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
-	configJsPattern    = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
-	versionPattern     = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
-	compabilityPattern = regexp.MustCompile("JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;")
+	configPattern            = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
+	configJsPattern          = regexp.MustCompile(`(?im)^\s*//\s*JAEGER_CONFIG_JS.*\n.*`)
+	versionPattern           = regexp.MustCompile("JAEGER_VERSION *= *DEFAULT_VERSION;")
+	compabilityPattern       = regexp.MustCompile("JAEGER_STORAGE_CAPABILITIES *= *DEFAULT_STORAGE_CAPABILITIES;")
+	backendCapabilityPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
 )
 
+// BackendCapabilities is the JSON shape injected into index.html via the
+// JAEGER_BACKEND_CAPABILITIES search-replace pattern. It mirrors the legacy
+// storage flags so newer UIs can read everything from a single source, and
+// adds the aiAssistant flag the chat surface gates on.
+type BackendCapabilities struct {
+	ArchiveStorage bool `json:"archiveStorage"`
+	MetricsStorage bool `json:"metricsStorage"`
+	AIAssistant    bool `json:"aiAssistant"`
+}
+
+// AIAvailability reports whether the AI sidecar is currently reachable, and
+// lets callers subscribe to flip events. A nil AIAvailability is treated as
+// "always false" — used in builds where the AI gateway is not configured.
+type AIAvailability interface {
+	Current() bool
+	Subscribe(fn func())
+}
+
 // RegisterStaticHandler adds handler for static assets to the router.
-func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities) io.Closer {
+// aiAvailability may be nil; the chat surface stays hidden when it is.
+func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiAvailability AIAvailability) io.Closer {
 	staticHandler, err := NewStaticAssetsHandler(qOpts.UIConfig.AssetsPath, StaticAssetsHandlerOptions{
 		UIConfig:            qOpts.UIConfig,
 		BasePath:            qOpts.BasePath,
 		StorageCapabilities: qCapabilities,
+		AIAvailability:      aiAvailability,
 		Logger:              logger,
 	})
 	if err != nil {
@@ -62,6 +83,7 @@ type StaticAssetsHandlerOptions struct {
 	UIConfig
 	BasePath            string
 	StorageCapabilities querysvc.StorageCapabilities
+	AIAvailability      AIAvailability
 	Logger              *zap.Logger
 }
 
@@ -96,6 +118,14 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 
 	h.indexHTML.Store(indexHTML)
 
+	// Re-derive index.html whenever AI sidecar reachability flips so the
+	// backendCapabilities.aiAssistant value the next page-load sees stays
+	// in sync. The subscribe callback runs in the reconciler goroutine; the
+	// atomic Store keeps notFound's read safe.
+	if options.AIAvailability != nil {
+		options.AIAvailability.Subscribe(h.reloadOnCapabilityChange)
+	}
+
 	return h, nil
 }
 
@@ -110,10 +140,21 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	} else if configObject != nil {
 		indexBytes = configObject.regexp.ReplaceAll(indexBytes, configObject.config)
 	}
-	// replace storage capabilities
+	// replace storage capabilities (legacy injection, kept for backwards compatibility
+	// with older UI bundles that don't yet read backendCapabilities)
 	capabilitiesJSON, _ := json.Marshal(sH.options.StorageCapabilities)
 	capabilitiesString := fmt.Sprintf("JAEGER_STORAGE_CAPABILITIES = %s;", string(capabilitiesJSON))
 	indexBytes = compabilityPattern.ReplaceAll(indexBytes, []byte(capabilitiesString))
+	// replace unified backend capabilities — composes storage flags with the AI
+	// reachability flag so newer UIs can read everything from a single source
+	backend := BackendCapabilities{
+		ArchiveStorage: sH.options.StorageCapabilities.ArchiveStorage,
+		MetricsStorage: sH.options.StorageCapabilities.MetricsStorage,
+		AIAssistant:    sH.options.AIAvailability != nil && sH.options.AIAvailability.Current(),
+	}
+	backendJSON, _ := json.Marshal(backend)
+	backendString := fmt.Sprintf("JAEGER_BACKEND_CAPABILITIES = %s;", string(backendJSON))
+	indexBytes = backendCapabilityPattern.ReplaceAll(indexBytes, []byte(backendString))
 	// replace Jaeger version
 	versionJSON, _ := json.Marshal(version.Get())
 	versionString := fmt.Sprintf("JAEGER_VERSION = %s;", string(versionJSON))
@@ -132,6 +173,18 @@ func (sH *StaticAssetsHandler) reloadUIConfig() {
 	}
 	sH.indexHTML.Store(content)
 	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.ConfigFile))
+}
+
+// reloadOnCapabilityChange re-derives index.html with the latest backend
+// capability values and atomically swaps the cached copy. Errors are logged
+// but otherwise swallowed — the previously-stored index.html keeps serving.
+func (sH *StaticAssetsHandler) reloadOnCapabilityChange() {
+	content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
+	if err != nil {
+		sH.options.Logger.Error("error re-deriving index.html for capability change", zap.Error(err))
+		return
+	}
+	sH.indexHTML.Store(content)
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {

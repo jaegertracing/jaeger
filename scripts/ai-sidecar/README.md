@@ -386,6 +386,16 @@ framework you use:
   connects to a running sidecar over WebSocket and drives the full
   `initialize` → `session/new` → `session/prompt` flow against a mocked LLM.
 
+### 6. Confirm the UI lights up automatically
+
+You don't need to flip a UI flag. The Jaeger backend periodically probes the
+configured `agent_url` (default every 5s; tunable via
+`jaeger_query.ai.health_probe_interval`) and advertises the result to the UI
+as a backend capability. Open the Jaeger UI in a fresh browser tab after
+your sidecar is responding to `initialize` — the chat surface should appear
+on the next page load. Stop the sidecar and the chat surface goes away the
+same way.
+
 ---
 
 ## Where to Read More
