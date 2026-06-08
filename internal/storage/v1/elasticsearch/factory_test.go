@@ -371,6 +371,10 @@ func runPasswordFromFileTest(t *testing.T) {
 	var authReceived sync.Map
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("request to fake ES server: %v", r)
+		w.Write(mockEsServerResponse)
+		if r.Method != http.MethodPost {
+			return
+		}
 		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
 		if !assert.Len(t, h, 2) {
@@ -382,7 +386,6 @@ func runPasswordFromFileTest(t *testing.T) {
 		auth := string(authBytes)
 		authReceived.Store(auth, auth)
 		t.Logf("request to fake ES server contained auth=%s", auth)
-		w.Write(mockEsServerResponse)
 	}))
 	t.Cleanup(server.Close)
 
@@ -390,8 +393,9 @@ func runPasswordFromFileTest(t *testing.T) {
 	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
 	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
+		Servers:            []string{server.URL},
+		DisableHealthCheck: true, // test validates write auth, not health probes
+		LogLevel:           "debug",
 		Authentication: escfg.Authentication{
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				Username:         "user",
@@ -399,8 +403,9 @@ func runPasswordFromFileTest(t *testing.T) {
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates auth headers
+			MaxBytes:      -1,               // disable bulk
+			MaxActions:    -1,               // disable bulk; the test only validates auth headers
+			FlushInterval: time.Millisecond, // flush write requests for POST auth assertions
 		},
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
