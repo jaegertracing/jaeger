@@ -624,11 +624,12 @@ too lazy delays UI recovery after a sidecar restart. A few questions:
   (so the UI lights up faster after the user fixes things)? Probably
   yes, but adds state. Acceptable to start with a flat interval.
 - The documented way to disable AI is to omit the `jaeger_query.ai`
-  block from the config — that already skips probing and emits
-  `aiAssistant: false` per §4.1.2. Should we additionally honor an
-  explicit `agent_url: ""` as a within-block disable (useful for
-  config templates that always include the block)? Probably yes, with
-  identical semantics to omitting the block.
+  block from the config — that already skips checking and emits
+  `aiAssistant: false` per §4.1.2. For config templates that always
+  include the block, the within-block disable signal is a negative
+  `health_check_interval` (empty `agent_url` is rejected at validation
+  because an `ai:` block with no URL would disable all AI functionality,
+  not just the checker — see `AIConfig.Validate`).
 - Should the probe be skipped if the static handler hasn't loaded
   index.html yet? No — initial-probe latency is the dominant factor in
   "how long until the UI shows AI is on" after both processes start.
