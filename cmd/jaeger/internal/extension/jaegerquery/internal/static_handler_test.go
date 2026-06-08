@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -304,6 +306,52 @@ func TestHotReloadUIConfig(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return strings.Contains(string(h.deriveIndexHTML()), "About a new Jaeger")
 	}, time.Second, 5*time.Millisecond, "TTL-based reload did not pick up the new UI config content")
+}
+
+func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
+	prev := uiConfigReloadInterval
+	uiConfigReloadInterval = 10 * time.Millisecond
+	t.Cleanup(func() { uiConfigReloadInterval = prev })
+
+	dir := t.TempDir()
+	cfgFile, err := os.CreateTemp(dir, "*.json")
+	require.NoError(t, err)
+	defer cfgFile.Close()
+	cfgFileName := cfgFile.Name()
+
+	tmpFile, err := os.CreateTemp(dir, "*.json")
+	require.NoError(t, err)
+	defer tmpFile.Close()
+
+	good, err := os.ReadFile("fixture/ui-config-hotreload.json")
+	require.NoError(t, err)
+	require.NoError(t, syncWrite(cfgFile, tmpFile, good))
+
+	zcore, logObserver := observer.New(zapcore.ErrorLevel)
+	h, err := newStaticAssetsHandler(
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
+		querysvc.StorageCapabilities{},
+		nil,
+		zap.New(zcore),
+	)
+	require.NoError(t, err)
+	defer h.Close()
+
+	// Overwrite the file with content that fails to parse, then wait past
+	// the TTL so the next deriveIndexHTML triggers a reload.
+	require.NoError(t, syncWrite(cfgFile, tmpFile, []byte("{not valid json")))
+
+	require.Eventually(t, func() bool {
+		// Force a reload attempt by calling deriveIndexHTML; the malformed
+		// file should produce a logged error while leaving the previously
+		// cached "About Jaeger" content intact.
+		body := string(h.deriveIndexHTML())
+		if !strings.Contains(body, "About Jaeger") {
+			return false
+		}
+		return logObserver.FilterMessage("could not reload UI config; keeping previously cached value").Len() > 0
+	}, time.Second, 5*time.Millisecond,
+		"expected the static handler to keep the previously cached UI config when a reload fails")
 }
 
 func TestLoadUIConfig(t *testing.T) {

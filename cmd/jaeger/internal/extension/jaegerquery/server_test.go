@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configoptional"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -438,4 +439,53 @@ func TestQueryService(t *testing.T) {
 
 	tm := server.TenancyManager()
 	require.NotNil(t, tm, "TenancyManager should not be nil")
+}
+
+func TestBuildAIHealthChecker(t *testing.T) {
+	tests := []struct {
+		name    string
+		ai      configoptional.Optional[app.AIConfig]
+		wantNil bool
+	}{
+		{
+			name:    "no AI block (HasValue=false) returns nil",
+			ai:      configoptional.None[app.AIConfig](),
+			wantNil: true,
+		},
+		{
+			name: "HealthCheckInterval=0 disables the checker",
+			ai: configoptional.Some(app.AIConfig{
+				AgentURL:            "ws://localhost:16688",
+				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				HealthCheckInterval: 0,
+				HealthCheckTimeout:  app.DefaultAIHealthCheckTimeout,
+			}),
+			wantNil: true,
+		},
+		{
+			name: "valid config returns a configured Checker",
+			ai: configoptional.Some(app.AIConfig{
+				AgentURL:            "ws://localhost:16688",
+				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				HealthCheckInterval: 5 * time.Second,
+				HealthCheckTimeout:  2 * time.Second,
+			}),
+			wantNil: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &app.QueryOptions{AI: tt.ai}
+			got := buildAIHealthChecker(opts, zaptest.NewLogger(t))
+			if tt.wantNil {
+				require.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			require.Equal(t, 5*time.Second, got.Interval)
+			require.Equal(t, 2*time.Second, got.Timeout)
+			require.NotNil(t, got.Check)
+			require.NotNil(t, got.Logger)
+		})
+	}
 }
