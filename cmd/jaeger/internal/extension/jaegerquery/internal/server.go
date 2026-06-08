@@ -251,6 +251,21 @@ func otlpProxyPathPrefix(basePath string) string {
 	return prefix
 }
 
+func otelFilterFunc(basePath string) func(*http.Request) bool {
+	prefixes := []string{
+		path.Join("/", basePath, "static"),
+		otlpProxyPathPrefix(basePath),
+	}
+	return func(r *http.Request) bool {
+		for _, p := range prefixes {
+			if strings.HasPrefix(r.URL.Path, p) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
 // registerOTLPProxy mounts the route described by OTLPProxyConfig. The proxy
 // handler is wrapped with otelhttp using a no-op tracer but the real meter
 // provider so HTTP server metrics flow without producing a self-referential
@@ -306,12 +321,7 @@ func createHTTPServer(
 		},
 		handler,
 		xconfighttp.WithOtelHTTPOptions(
-			otelhttp.WithFilter(func(r *http.Request) bool {
-				ignoreStatic := path.Join("/", queryOpts.BasePath, "static")
-				ignoreOTLP := otlpProxyPathPrefix(queryOpts.BasePath)
-				return !strings.HasPrefix(r.URL.Path, ignoreStatic) &&
-					!strings.HasPrefix(r.URL.Path, ignoreOTLP)
-			}),
+			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
 				// Use just the route pattern without the HTTP method prefix or basePath
 				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
