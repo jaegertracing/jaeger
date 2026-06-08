@@ -23,6 +23,8 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	traceapi "go.opentelemetry.io/otel/trace"
@@ -46,6 +48,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var testCertKeyLocation = "../../../../../../internal/config/tlscfg/testdata"
@@ -1140,4 +1143,178 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 		require.Equal(t, http.StatusBadGateway, rr.Code)
 	})
+}
+
+func TestOTLPProxyPathPrefix(t *testing.T) {
+	require.Equal(t, "/api/otlp", otlpProxyPathPrefix(""))
+	require.Equal(t, "/api/otlp", otlpProxyPathPrefix("/"))
+	require.Equal(t, "/jaeger/api/otlp", otlpProxyPathPrefix("/jaeger"))
+}
+
+func TestInitRouterOTLPProxy(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+
+	t.Run("absent block does not register the route", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		require.False(t, opts.OTLPProxy.HasValue())
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+
+		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader(`{}`))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusNotFound, rr.Code)
+	})
+
+	// Spin up a stub upstream so we can verify the proxy forwards correctly.
+	type captured struct {
+		path        string
+		body        string
+		contentType string
+	}
+	stub := func() (*httptest.Server, *captured) {
+		got := &captured{}
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got.path = r.URL.Path
+			got.contentType = r.Header.Get("Content-Type")
+			buf := make([]byte, r.ContentLength)
+			n, _ := r.Body.Read(buf)
+			got.body = string(buf[:n])
+			w.WriteHeader(http.StatusOK)
+		}))
+		return srv, got
+	}
+
+	t.Run("forwards to upstream with prefix stripped", func(t *testing.T) {
+		upstream, got := stub()
+		t.Cleanup(upstream.Close)
+
+		opts := DefaultQueryOptions()
+		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+
+		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("payload"))
+		req.Header.Set("Content-Type", "application/x-protobuf")
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.Equal(t, "/v1/traces", got.path, "the /api/otlp prefix must be stripped before forwarding")
+		require.Equal(t, "application/x-protobuf", got.contentType)
+		require.Equal(t, "payload", got.body)
+	})
+
+	t.Run("honors BasePath", func(t *testing.T) {
+		upstream, got := stub()
+		t.Cleanup(upstream.Close)
+
+		opts := DefaultQueryOptions()
+		opts.BasePath = "/jaeger"
+		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+
+		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/otlp/v1/traces", strings.NewReader("payload"))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		require.Equal(t, "/v1/traces", got.path)
+
+		// The same request without the BasePath should miss the proxy and 404
+		// via the apiNotFoundPattern catch-all.
+		got.path = ""
+		req2 := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("payload"))
+		rr2 := httptest.NewRecorder()
+		handler.ServeHTTP(rr2, req2)
+		require.Equal(t, http.StatusNotFound, rr2.Code)
+		require.Empty(t, got.path, "request without BasePath must not reach the upstream")
+	})
+
+	t.Run("logs an error and skips registration when target is unparseable", func(t *testing.T) {
+		logger, logBuf := testutils.NewLogger()
+		errTelset := telset
+		errTelset.Logger = logger
+
+		opts := DefaultQueryOptions()
+		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: "://not a url"})
+
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, errTelset)
+		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+
+		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("{}"))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+
+		require.Equal(t, http.StatusNotFound, rr.Code)
+		require.Contains(t, logBuf.String(), "Invalid OTLP proxy target")
+	})
+}
+
+func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	// A manual-reader meter provider so we can assert against captured metric
+	// data after the request.
+	reader := sdkmetric.NewManualReader()
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { require.NoError(t, mp.Shutdown(context.Background())) })
+
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	telset.MeterProvider = mp
+
+	opts := DefaultQueryOptions()
+	opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
+
+	querySvc := makeQuerySvc()
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+	handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	t.Cleanup(func() { require.NoError(t, closer.Close()) })
+
+	for range 3 {
+		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("payload"))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		require.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	// We don't pin to a specific metric name — the otelhttp instrumentation
+	// has shifted between `http.server.duration` and
+	// `http.server.request.duration` across versions. What we assert is that
+	// at least one HTTP server metric reported a measurement for our path.
+	var foundCount uint64
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if !strings.HasPrefix(m.Name, "http.server.") {
+				continue
+			}
+			switch agg := m.Data.(type) {
+			case metricdata.Histogram[float64]:
+				for _, dp := range agg.DataPoints {
+					foundCount += dp.Count
+				}
+			case metricdata.Histogram[int64]:
+				for _, dp := range agg.DataPoints {
+					foundCount += dp.Count
+				}
+			default:
+				// Other aggregations (sum, gauge, etc.) don't carry the
+				// per-request count we use for this assertion. Ignore them.
+			}
+		}
+	}
+	require.GreaterOrEqual(t, foundCount, uint64(3),
+		"expected at least 3 HTTP server metric measurements (one per request) from the OTLP proxy")
 }

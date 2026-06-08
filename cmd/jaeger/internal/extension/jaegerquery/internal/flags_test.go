@@ -24,6 +24,40 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, DefaultAIHealthCheckInterval, aiCfg.HealthCheckInterval)
 	require.Equal(t, DefaultAIHealthCheckTimeout, aiCfg.HealthCheckTimeout)
 	require.NoError(t, aiCfg.Validate())
+
+	require.False(t, qo.OTLPProxy.HasValue())
+	otlpCfg := qo.OTLPProxy.GetOrInsertDefault()
+	require.NotNil(t, otlpCfg)
+	require.Equal(t, DefaultOTLPProxyTarget, otlpCfg.Target)
+	require.NoError(t, otlpCfg.Validate())
+}
+
+func TestOTLPProxyConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		target  string
+		wantErr string
+	}{
+		{name: "valid http", target: "http://127.0.0.1:4318"},
+		{name: "valid https", target: "https://collector.example.com:4318"},
+		{name: "default target", target: DefaultOTLPProxyTarget},
+		{name: "empty rejected", target: "", wantErr: "otlp_proxy.target is required"},
+		{name: "non-URL rejected", target: "://not a url", wantErr: "must be a valid URL"},
+		{name: "missing host rejected", target: "http://", wantErr: "must include a host"},
+		{name: "non-http scheme rejected", target: "ws://localhost:4318", wantErr: `must use http or https scheme, got "ws"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := OTLPProxyConfig{Target: tc.target}
+			err := cfg.Validate()
+			if tc.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantErr)
+		})
+	}
 }
 
 // validAIConfig returns an AIConfig that passes Validate; tests mutate the
