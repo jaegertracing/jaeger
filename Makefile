@@ -282,3 +282,11 @@ repro-check:
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
+
+.PHONY: run-ai-gemini
+run-ai-gemini:
+	./scripts/ai-sidecar/gemini/run.sh
+
+.PHONY: run-ai-claude
+run-ai-claude:
+	./scripts/ai-sidecar/claude-code/run.sh
