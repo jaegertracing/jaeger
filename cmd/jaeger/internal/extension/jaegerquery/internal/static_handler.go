@@ -14,13 +14,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync/atomic"
+	"sync"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/fswatcher"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -32,6 +32,13 @@ var (
 	capabilitiesPattern = regexp.MustCompile("JAEGER_BACKEND_CAPABILITIES *= *DEFAULT_BACKEND_CAPABILITIES;")
 )
 
+// uiConfigReloadInterval is the TTL on the cached UI config: deriveIndexHTML
+// re-reads the file from disk when the cached value is older than this. A
+// package-level var (not const) so tests can shorten it. Matches the
+// "load from disk on demand, cache for N" pattern used by configtls'
+// certificate reloader — no background goroutine needed.
+var uiConfigReloadInterval = 10 * time.Second
+
 // BackendCapabilities is the JSON shape injected into index.html via the
 // JAEGER_BACKEND_CAPABILITIES search-replace pattern.
 type BackendCapabilities struct {
@@ -42,7 +49,6 @@ type BackendCapabilities struct {
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
 // aiHealthCheck may be nil; the chat surface stays hidden when it is.
-// Returns an io.Closer that stops the fswatcher used for UI config reloads.
 func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiHealthCheck func() bool) io.Closer {
 	h, err := newStaticAssetsHandler(qOpts, qCapabilities, aiHealthCheck, logger)
 	if err != nil {
@@ -54,8 +60,8 @@ func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOpt
 
 // staticAssetsHandler serves the Jaeger UI bundle. index.html is derived on
 // every SPA serve so all injected values — including the AI capability,
-// which flips at runtime — are always current. The raw bytes and the parsed
-// UI config are cached; everything else is computed at serve time.
+// which flips at runtime — are always current. The raw bytes are cached;
+// the UI config is cached with a TTL and re-read from disk on demand.
 type staticAssetsHandler struct {
 	assetsFS      http.FileSystem
 	basePath      string
@@ -64,11 +70,14 @@ type staticAssetsHandler struct {
 	aiHealthCheck func() bool
 	logger        *zap.Logger
 
-	indexHTMLRaw []byte                       // read once from disk at boot
-	uiConfig     atomic.Pointer[loadedConfig] // refreshed by fswatcher on UI-config-file changes; nil when no UI config is set
-	uiConfigFile string
+	indexHTMLRaw []byte // read once from disk at boot
+	uiConfigFile string // immutable after construction
 
-	watcher *fswatcher.FSWatcher
+	// uiConfig cache. Loaded once at boot for fail-fast validation, then
+	// re-read lazily by deriveIndexHTML when uiConfigExpiry has passed.
+	uiConfigMu     sync.RWMutex
+	uiConfig       *loadedConfig // nil when uiConfigFile == ""
+	uiConfigExpiry time.Time
 }
 
 type loadedConfig struct {
@@ -95,39 +104,53 @@ func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCap
 		indexHTMLRaw:  raw,
 		uiConfigFile:  qOpts.UIConfig.ConfigFile,
 	}
-	if err := h.refreshUIConfig(); err != nil {
+	// Eager initial load: surface UI-config syntax errors at startup rather
+	// than letting them appear on the first page-load several seconds later.
+	cfg, err := loadUIConfig(h.uiConfigFile)
+	if err != nil {
 		return nil, err
 	}
+	h.uiConfig = cfg
+	h.uiConfigExpiry = time.Now().Add(uiConfigReloadInterval)
 	if qOpts.UIConfig.ConfigFile != "" {
 		logger.Info("Using UI configuration", zap.String("path", qOpts.UIConfig.ConfigFile))
 	}
-	watcher, err := fswatcher.New([]string{qOpts.UIConfig.ConfigFile}, h.reloadUIConfig, logger)
-	if err != nil {
-		return nil, err
-	}
-	h.watcher = watcher
 	return h, nil
 }
 
-// refreshUIConfig re-reads the UI config file from disk and atomically swaps
-// the cached parsed value. Called once at boot and again whenever the
-// fswatcher fires.
-func (h *staticAssetsHandler) refreshUIConfig() error {
+// getUIConfig returns the cached parsed UI config, re-reading it from disk
+// when the TTL has elapsed. A reload error is logged and the previously
+// cached value is kept — a transient I/O failure should not break the
+// serve path. Returns nil when no UI config file is configured.
+func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
+	if h.uiConfigFile == "" {
+		return nil
+	}
+	now := time.Now()
+	h.uiConfigMu.RLock()
+	if now.Before(h.uiConfigExpiry) {
+		cfg := h.uiConfig
+		h.uiConfigMu.RUnlock()
+		return cfg
+	}
+	h.uiConfigMu.RUnlock()
+
+	h.uiConfigMu.Lock()
+	defer h.uiConfigMu.Unlock()
+	// Re-check after acquiring the write lock — another goroutine may have
+	// refreshed the cache while we were waiting.
+	if now.Before(h.uiConfigExpiry) {
+		return h.uiConfig
+	}
 	cfg, err := loadUIConfig(h.uiConfigFile)
 	if err != nil {
-		return err
+		h.logger.Error("could not reload UI config; keeping previously cached value",
+			zap.String("filename", h.uiConfigFile), zap.Error(err))
+	} else {
+		h.uiConfig = cfg
 	}
-	h.uiConfig.Store(cfg)
-	return nil
-}
-
-func (h *staticAssetsHandler) reloadUIConfig() {
-	h.logger.Info("reloading UI config", zap.String("filename", h.uiConfigFile))
-	if err := h.refreshUIConfig(); err != nil {
-		h.logger.Error("error while reloading the UI config", zap.Error(err))
-		return
-	}
-	h.logger.Info("reloaded UI config", zap.String("filename", h.uiConfigFile))
+	h.uiConfigExpiry = now.Add(uiConfigReloadInterval)
+	return h.uiConfig
 }
 
 // deriveIndexHTML builds the served index.html from the cached raw bytes by
@@ -139,7 +162,7 @@ func (h *staticAssetsHandler) reloadUIConfig() {
 // prefix at page-load time via an inline script in index.html (see ADR-009).
 func (h *staticAssetsHandler) deriveIndexHTML() []byte {
 	out := h.indexHTMLRaw
-	if cfg := h.uiConfig.Load(); cfg != nil {
+	if cfg := h.getUIConfig(); cfg != nil {
 		out = cfg.regexp.ReplaceAll(out, cfg.config)
 	}
 	versionJSON, _ := json.Marshal(version.Get())
@@ -257,6 +280,7 @@ func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, _ *http.Request) {
 	w.Write(h.deriveIndexHTML())
 }
 
-func (h *staticAssetsHandler) Close() error {
-	return h.watcher.Close()
-}
+// Close is a no-op; the handler holds no resources that need explicit
+// teardown. Kept so the type continues to satisfy io.Closer for callers
+// that wire it into a chain alongside other closeable handlers.
+func (*staticAssetsHandler) Close() error { return nil }

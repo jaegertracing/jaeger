@@ -21,8 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -264,6 +262,11 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 }
 
 func TestHotReloadUIConfig(t *testing.T) {
+	// Shorten the reload TTL so the test doesn't have to wait the full default.
+	prev := uiConfigReloadInterval
+	uiConfigReloadInterval = 10 * time.Millisecond
+	t.Cleanup(func() { uiConfigReloadInterval = prev })
+
 	dir := t.TempDir()
 
 	cfgFile, err := os.CreateTemp(dir, "*.json")
@@ -281,13 +284,11 @@ func TestHotReloadUIConfig(t *testing.T) {
 	err = syncWrite(cfgFile, tmpFile, content)
 	require.NoError(t, err)
 
-	zcore, logObserver := observer.New(zapcore.InfoLevel)
-	logger := zap.New(zcore)
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
 		querysvc.StorageCapabilities{},
 		nil,
-		logger,
+		zap.NewNop(),
 	)
 	require.NoError(t, err)
 	defer h.Close()
@@ -298,12 +299,11 @@ func TestHotReloadUIConfig(t *testing.T) {
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
 	require.NoError(t, err)
 
-	waitUntil(t, func() bool {
-		return logObserver.FilterMessage("reloaded UI config").
-			FilterField(zap.String("filename", cfgFileName)).Len() > 0
-	}, 100, 10*time.Millisecond, "timed out waiting for the hot reload to kick in")
-
-	assert.Contains(t, string(h.deriveIndexHTML()), "About a new Jaeger", logObserver.All())
+	// The TTL on the cached UI config is 10ms; deriveIndexHTML re-reads from
+	// disk after that. Poll until the new content is picked up.
+	require.Eventually(t, func() bool {
+		return strings.Contains(string(h.deriveIndexHTML()), "About a new Jaeger")
+	}, time.Second, 5*time.Millisecond, "TTL-based reload did not pick up the new UI config content")
 }
 
 func TestLoadUIConfig(t *testing.T) {
@@ -415,16 +415,6 @@ func TestLoadIndexHTMLReadError(t *testing.T) {
 	}
 	_, err := loadIndexHTML(open)
 	require.Error(t, err)
-}
-
-func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.Duration, timeoutErrMsg string) {
-	for range iterations {
-		if f() {
-			return
-		}
-		time.Sleep(sleepInterval)
-	}
-	require.Fail(t, timeoutErrMsg)
 }
 
 // syncWrite ensures data is written to the given filename and flushed to disk.
