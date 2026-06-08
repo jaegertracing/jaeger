@@ -26,39 +26,54 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.NoError(t, aiCfg.Validate())
 }
 
+// validAIConfig returns an AIConfig that passes Validate; tests then mutate
+// the field they care about to exercise one validation rule at a time.
+func validAIConfig() AIConfig {
+	return AIConfig{AgentURL: "ws://localhost:16688"}
+}
+
+func TestAIConfigValidateRejectsEmptyAgentURL(t *testing.T) {
+	cfg := AIConfig{}
+	require.EqualError(t, cfg.Validate(), "ai.agent_url is required")
+}
+
 func TestAIConfigValidateRejectsNegativeBodySize(t *testing.T) {
-	cfg := AIConfig{MaxRequestBodySize: -1}
+	cfg := validAIConfig()
+	cfg.MaxRequestBodySize = -1
 	require.Error(t, cfg.Validate())
 }
 
 func TestAIConfigValidateDefaultsZeroBodySize(t *testing.T) {
-	cfg := AIConfig{MaxRequestBodySize: 0}
+	cfg := validAIConfig()
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, DefaultMaxRequestBodySize, cfg.MaxRequestBodySize)
 }
 
 func TestAIConfigValidateAcceptsPositiveBodySize(t *testing.T) {
-	cfg := AIConfig{MaxRequestBodySize: 1}
+	cfg := validAIConfig()
+	cfg.MaxRequestBodySize = 1
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, int64(1), cfg.MaxRequestBodySize)
 }
 
 func TestAIConfigValidateDefaultsHealthCheckFields(t *testing.T) {
-	cfg := AIConfig{}
+	cfg := validAIConfig()
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, DefaultHealthCheckInterval, cfg.HealthCheckInterval)
 	require.Equal(t, DefaultHealthCheckTimeout, cfg.HealthCheckTimeout)
 }
 
 func TestAIConfigValidateRejectsNegativeHealthCheckTimeout(t *testing.T) {
-	cfg := AIConfig{HealthCheckTimeout: -time.Second}
+	cfg := validAIConfig()
+	cfg.HealthCheckTimeout = -time.Second
 	require.Error(t, cfg.Validate())
 }
 
 func TestAIConfigValidatePreservesNegativeHealthCheckInterval(t *testing.T) {
-	// A negative interval is a deliberate "disable probing" signal — Validate
-	// must leave it as-is rather than overwriting with the default.
-	cfg := AIConfig{HealthCheckInterval: -time.Second}
+	// A negative interval is a deliberate "disable" signal — Validate must
+	// leave it as-is rather than overwriting with the default.
+	cfg := validAIConfig()
+	cfg.HealthCheckInterval = -time.Second
 	require.NoError(t, cfg.Validate())
 	require.Equal(t, -time.Second, cfg.HealthCheckInterval)
 }

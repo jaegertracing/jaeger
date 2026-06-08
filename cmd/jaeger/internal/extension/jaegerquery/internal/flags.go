@@ -61,6 +61,9 @@ type AIConfig struct {
 // are left at their zero value; the pointer receiver is required so the
 // defaults persist back to the caller's config.
 func (c *AIConfig) Validate() error {
+	if c.AgentURL == "" {
+		return errors.New("ai.agent_url is required")
+	}
 	if c.MaxRequestBodySize < 0 {
 		return errors.New("ai.max_request_body_size must be a non-negative integer")
 	}

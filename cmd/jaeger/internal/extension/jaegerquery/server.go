@@ -148,19 +148,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 // check and the static handler advertises aiAssistant=false.
 func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihealth.Checker {
 	if !opts.AI.HasValue() {
+		logger.Info("AI Assistant disabled")
 		return nil
 	}
-	// HasValue was just checked, so Get is guaranteed to return non-nil
-	// (configoptional.Optional[T].Get returns nil only when HasValue is false).
-	aiCfg := opts.AI.Get()
-	if aiCfg.AgentURL == "" {
-		return nil
-	}
-	if err := aiCfg.Validate(); err != nil {
-		logger.Error("Invalid AI config, capability check disabled", zap.Error(err))
-		return nil
-	}
+	aiCfg := opts.AI.Get() // cannot be nil when HasValue is true
 	if aiCfg.HealthCheckInterval < 0 {
+		logger.Info("AI Assistant health check disabled via negative health_check_interval")
 		return nil
 	}
 	return &aihealth.Checker{

@@ -49,6 +49,7 @@ func (c *Checker) Start(ctx context.Context) {
 	if c.done != nil {
 		panic("aihealth: Start called twice")
 	}
+	c.Logger.Info("Starting AI health checker", zap.Duration("interval", c.Interval), zap.Duration("timeout", c.Timeout))
 	ctx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
 	c.done = make(chan struct{})
