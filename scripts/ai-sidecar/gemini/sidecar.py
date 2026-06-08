@@ -467,12 +467,23 @@ async def _run_agent_with_cleanup(
     supervisor's done callback.
 
     See https://github.com/jaegertracing/jaeger/issues/8733 for the full
-    chain. The proper fix is upstream: ``AgentSideConnection`` should
-    expose a public ``close()``/``__aexit__``. Until then, reach into
-    the private ``_conn`` to drive the cleanup. ``asyncio.shield`` ensures
-    the close cancels the supervised tasks even if we ourselves are being
-    cancelled — the inner close task survives our cancellation and runs
-    to completion on the event loop.
+    chain and https://github.com/agentclientprotocol/python-sdk/issues/108
+    for the upstream tracking. The proper fix is upstream — either
+    ``run_agent`` grows a ``try/finally`` around ``await conn.listen()`` or
+    ``AgentSideConnection`` exposes a public ``close()``/``__aexit__``. Until
+    one of those lands, reach into the private ``_conn`` to drive the
+    cleanup. ``asyncio.shield`` ensures the close cancels the supervised
+    tasks even if we ourselves are being cancelled — the inner close task
+    survives our cancellation and runs to completion on the event loop.
+
+    What we lose vs upstream ``run_agent`` (acp/core.py:38-72) by
+    re-implementing here: the stdio fallback for ``input_stream``/
+    ``output_stream`` (we always pass streams), the ``use_unstable_protocol``
+    flag (we don't enable it), the ``stdio_buffer_limit_bytes`` knob (also
+    stdio-only), and ``**connection_kwargs`` forwarding (we use the
+    AgentSideConnection default constructor). If upstream adds a new
+    parameter we need, mirror it here too — or, better, switch to the
+    upstream fix once it lands and delete this wrapper.
     """
     conn = AgentSideConnection(agent, agent_writer, agent_reader, listening=False)
     try:
