@@ -225,18 +225,22 @@ pattern can be retired without further UI changes.
 
 #### 4.1.2 Liveness probe
 
-When the `jaeger_query.ai` config block is absent, the reconciler is
+When the `jaeger_query.ai` config block is absent, the checker is
 not started at all and `aiAssistant` is statically `false` — there's
-nothing to probe. When the block is present, the backend runs a small
-reconciler loop that periodically opens an ACP WebSocket to
-`agent_url`, completes the `initialize` handshake, and closes. Each
-probe records a result and a timestamp into an atomic struct. The
-reconciler:
+nothing to check. When the block is present, the backend runs a small
+loop that periodically opens an ACP WebSocket to `agent_url`,
+completes the `initialize` handshake, and closes. Each check records
+its result into an atomic boolean. The loop:
 
-- Default interval: **5 s**. Configurable via
-  `jaeger_query.ai.health_probe_interval` for tuning; `0` disables
-  probing (capability is then always `false`).
-- Default per-probe timeout: **2 s**.
+- Default interval: **5 s**, seeded by `DefaultQueryOptions` via
+  `configoptional.Default(AIConfig{...})`. A user's partial YAML block
+  overlays only the fields they specify; unset fields keep the
+  factory default. To disable the checker within an `ai:` block, set
+  `health_check_interval: 0s` explicitly. The operator-facing way to
+  disable AI entirely is to omit the `ai:` block (see §3.2).
+- Default per-check timeout: **2 s**. Configurable via
+  `jaeger_query.ai.health_check_timeout`; must be positive when the
+  checker is enabled.
 - Probe payload: a minimal ACP `initialize` request. No `session/new` or
   `prompt` — initialize is the cheapest reachability test that exercises
   the actual protocol path the chat handler uses, not just a TCP dial.
@@ -296,9 +300,9 @@ during boot. Same shape and pattern as `storageCapabilities` today.
 
 - **Stale until reload.** A sidecar that comes up after Jaeger requires
   the user to refresh the page before the chat surface appears.
-- **Couples the static handler to the AI reconciler.** Small but real:
-  the handler needs to subscribe to probe state changes to trigger
-  re-rendering of `index.html`.
+- **Couples the static handler to the AI checker.** The handler needs
+  to either subscribe to check state changes or call `Current()` at
+  serve time (the latter is what the implementation ended up doing).
 - **Every future dynamic-state capability we add inherits the same
   reload-to-update behavior.** Survivable for one capability; less great
   as the list grows.
@@ -318,7 +322,7 @@ channel.
   anything else that changes capabilities — the UI sees it within a
   polling interval (or push event).
 - **Decouples runtime state from static assets.** The asset handler no
-  longer needs to know about reconcilers.
+  longer needs to know about background checkers.
 - **Aligns with the existing direction** of moving components onto the
   `useConfig` hook: one centralized capability source, all consumers
   subscribe, dynamic updates are free.
@@ -510,14 +514,14 @@ capabilities channel is the natural place to ship its result.
 Simpler implementation: advertise `aiAssistant = true` whenever the
 `jaeger_query.ai` block is present in the config (or equivalently,
 whenever `agent_url != ""` after `configoptional` defaulting). No
-background reconciler, no atomic swap, no probe interval to tune.
+background checker, no per-request derivation, no interval to tune.
 
 **Rejected** because it lies any time the operator's config has the
 block but the sidecar isn't running — which is the *default* state
 when using the shipped example `cmd/jaeger/config.yaml` without
 starting a sidecar. The UI would render the chat surface and every
-call would fail. A liveness probe is cheap (one ACP `initialize` every
-30 s) and removes an entire class of "I deleted the sidecar but the
+call would fail. A liveness check is cheap (one ACP `initialize` every
+5 s) and removes an entire class of "I deleted the sidecar but the
 chat surface is still there" bug reports.
 
 ### 5.4 In-process sidecar supervision
@@ -571,15 +575,16 @@ Backend (`cmd/jaeger/internal/extension/jaegerquery/`):
   future-proofing) `archiveStorage` / `metricsStorage` mirrored from
   `storageCapabilities`, so the legacy storage pattern can be retired
   cleanly once both backends and UIs are upgraded.
-- New `aireconciler` package (or similar) implementing the periodic
-  ACP `initialize` probe described in §4.1.2. Exposes `Current() bool`
-  and a change callback.
-- The static handler subscribes to the change callback and atomically
-  re-derives `indexHTML` via the existing `indexHTML.Store(...)` path
-  in `static_handler.go:97,133`.
-- New config fields `jaeger_query.ai.health_probe_interval` (default
-  `30s`) and `jaeger_query.ai.health_probe_timeout` (default `2s`)
-  in `flags.go` alongside the existing `AgentURL`.
+- New `jaegerai/aihealth` package implementing the periodic ACP
+  `initialize` check described in §4.1.2. Exposes `Current() bool`; the
+  ACP-specific check function is `aihealth.NewACPCheck(agentURL, logger)`.
+- The static handler derives `index.html` per request, calling
+  `aiHealthCheck()` inline so the injected `aiAssistant` flag always
+  reflects the latest health-check value (no subscribe / cache-invalidate
+  machinery).
+- New config fields `jaeger_query.ai.health_check_interval` (default
+  `5s`) and `jaeger_query.ai.health_check_timeout` (default `2s`) in
+  `flags.go` alongside the existing `AgentURL`.
 
 Docs:
 
@@ -611,7 +616,7 @@ The two PRs are independent: §4.1 stands on its own; §4.2 is useful even if
 
 ### 7.1 Probe interval and timeout defaults
 
-`30 s` / `2 s` are educated guesses. Too aggressive wastes connections;
+`5 s` / `2 s` are educated guesses. Too aggressive wastes connections;
 too lazy delays UI recovery after a sidecar restart. A few questions:
 
 - Should the interval back off when the sidecar is reachable (cheap to
@@ -619,11 +624,13 @@ too lazy delays UI recovery after a sidecar restart. A few questions:
   (so the UI lights up faster after the user fixes things)? Probably
   yes, but adds state. Acceptable to start with a flat interval.
 - The documented way to disable AI is to omit the `jaeger_query.ai`
-  block from the config — that already skips probing and emits
-  `aiAssistant: false` per §4.1.2. Should we additionally honor an
-  explicit `agent_url: ""` as a within-block disable (useful for
-  config templates that always include the block)? Probably yes, with
-  identical semantics to omitting the block.
+  block from the config — that already skips checking and emits
+  `aiAssistant: false` per §4.1.2. For config templates that always
+  include the block, set `health_check_interval: 0s` to disable just
+  the checker (`AIConfig.Validate` accepts 0 as the explicit disable
+  signal). Empty `agent_url` is rejected at validation because an
+  `ai:` block with no URL would disable all AI functionality, not
+  just the checker — see `AIConfig.Validate`.
 - Should the probe be skipped if the static handler hasn't loaded
   index.html yet? No — initial-probe latency is the dominant factor in
   "how long until the UI shows AI is on" after both processes start.

@@ -49,13 +49,15 @@ type Server struct {
 	telset       telemetry.Settings
 }
 
-// NewServer creates and initializes Server
+// NewServer creates and initializes Server.
+// aiHealthCheck may be nil; the chat surface stays hidden when it is.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
 	caps querysvc.StorageCapabilities,
+	aiHealthCheck func() bool,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -78,7 +80,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, aiHealthCheck, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -168,6 +170,7 @@ func initRouter(
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	caps querysvc.StorageCapabilities,
+	aiHealthCheck func() bool,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, io.Closer) {
@@ -215,7 +218,7 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -237,10 +240,11 @@ func createHTTPServer(
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	caps querysvc.StorageCapabilities,
+	aiHealthCheck func() bool,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
+	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {

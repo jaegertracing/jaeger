@@ -93,7 +93,7 @@ func TestCreateTLSServerSinglePortError(t *testing.T) {
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8080", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}), telset)
+		nil, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
 
@@ -117,7 +117,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}, TLS: configoptional.Some(tlsCfg)},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}), telset)
+		nil, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.Error(t, err)
 }
 
@@ -142,7 +142,7 @@ func TestStartTLSHttpServerError(t *testing.T) {
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":8081", Transport: confignet.TransportTypeTCP}},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}), telset)
+		nil, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.Error(t, s.Start(context.Background()))
 	t.Cleanup(func() {
@@ -443,7 +443,7 @@ func TestServerHTTPTLS(t *testing.T) {
 			querySvc := makeQuerySvc()
 
 			server, err := NewServer(context.Background(), querySvc.qs, nil,
-				serverOptions, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}), telset)
+				serverOptions, querysvc.StorageCapabilities{}, nil, tenancy.NewManager(&tenancy.Options{}), telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -556,7 +556,7 @@ func TestServerGRPCTLS(t *testing.T) {
 			querySvc := makeQuerySvc()
 			telset := initTelSet(logger, nooptrace.NewTracerProvider())
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}),
+				nil, serverOptions, querysvc.StorageCapabilities{}, nil, tenancy.NewManager(&tenancy.Options{}),
 				telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
@@ -614,7 +614,7 @@ func TestServerBadHostPort(t *testing.T) {
 			},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}),
+		nil, tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.Error(t, err)
 
@@ -635,7 +635,7 @@ func TestServerBadHostPort(t *testing.T) {
 			},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}),
+		nil, tenancy.NewManager(&tenancy.Options{}),
 		telset)
 
 	require.Error(t, err)
@@ -677,7 +677,7 @@ func TestServerInUseHostPort(t *testing.T) {
 					},
 				},
 				querysvc.StorageCapabilities{},
-				tenancy.NewManager(&tenancy.Options{}),
+				nil, tenancy.NewManager(&tenancy.Options{}),
 				telset,
 			)
 			require.NoError(t, err)
@@ -707,7 +707,7 @@ func TestServerGracefulExit(t *testing.T) {
 			GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}), telset)
+		nil, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 
@@ -753,7 +753,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 			},
 		},
 		querysvc.StorageCapabilities{},
-		tenancy.NewManager(&tenancy.Options{}),
+		nil, tenancy.NewManager(&tenancy.Options{}),
 		telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
@@ -815,7 +815,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 		})).Once()
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	server, err := NewServer(context.Background(), querySvc.qs,
-		nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		nil, serverOptions, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() {
@@ -915,7 +915,7 @@ func TestServerHTTP_TracesRequest(t *testing.T) {
 			telset := initTelSet(zaptest.NewLogger(t), tracerProvider)
 
 			server, err := NewServer(context.Background(), querySvc.qs,
-				nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+				nil, serverOptions, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -963,7 +963,7 @@ func TestServerAPINotFound(t *testing.T) {
 			tenancyMgr := tenancy.NewManager(&serverOptions.Tenancy)
 			telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 
-			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+			server, err := NewServer(context.Background(), querySvc.qs, nil, serverOptions, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 			require.NoError(t, err)
 			require.NoError(t, server.Start(context.Background()))
 			t.Cleanup(func() {
@@ -1027,7 +1027,7 @@ func TestServerGRPC_HeaderForwarding(t *testing.T) {
 		GRPC: configgrpc.ServerConfig{NetAddr: confignet.AddrConfig{Endpoint: ":0", Transport: confignet.TransportTypeTCP}},
 	}
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
-	server, err := NewServer(context.Background(), qs, nil, opts, querysvc.StorageCapabilities{}, tenancy.NewManager(&tenancy.Options{}), telset)
+	server, err := NewServer(context.Background(), qs, nil, opts, querysvc.StorageCapabilities{}, nil, tenancy.NewManager(&tenancy.Options{}), telset)
 	require.NoError(t, err)
 	require.NoError(t, server.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, server.Close()) })
@@ -1070,7 +1070,7 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 		{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
 	}
 
-	handler, closer := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+	handler, closer := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
@@ -1096,7 +1096,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{AgentURL: ""})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		t.Cleanup(func() {
 			require.NoError(t, closer.Close())
 		})
@@ -1112,7 +1112,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		t.Cleanup(func() {
 			require.NoError(t, closer.Close())
 		})
@@ -1129,7 +1129,7 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, tenancyMgr, telset)
+		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		t.Cleanup(func() {
 			require.NoError(t, closer.Close())
 		})

@@ -27,28 +27,53 @@ type UIConfig struct {
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
 }
 
-// DefaultMaxRequestBodySize is the fallback limit applied when
-// AIConfig.MaxRequestBodySize is left unset (zero).
-const DefaultMaxRequestBodySize int64 = 1 << 20 // 1 MiB
+// Defaults for AIConfig fields. Applied when the field is left at its zero
+// value (or, for AgentURL, when DefaultQueryOptions seeds the configoptional
+// default).
+const (
+	DefaultAIAgentURL                  = "ws://localhost:16688"
+	DefaultAIMaxRequestBodySize  int64 = 1 << 20 // 1 MiB
+	DefaultAIHealthCheckInterval       = 5 * time.Second
+	DefaultAIHealthCheckTimeout        = 2 * time.Second
+)
 
+// AIConfig is the AI-related slice of QueryOptions. All defaults are seeded
+// by DefaultQueryOptions via configoptional.Default, and a user's partial
+// YAML block overlays only the fields they specify (configoptional unmarshals
+// onto the seeded value), so unset fields keep their default. Validate is
+// therefore a pure check — it does not mutate the receiver.
 type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
 	AgentURL string `mapstructure:"agent_url" valid:"required"`
-	// A value of 0 selects DefaultMaxRequestBodySize; negative values are rejected.
+	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
+	// HealthCheckInterval controls how often the AI health checker contacts
+	// the sidecar to determine if the chat surface should be advertised to
+	// the UI. Set to 0 to disable the health checker (advertised capability
+	// stays at false); negative values are rejected.
+	HealthCheckInterval time.Duration `mapstructure:"health_check_interval" valid:"optional"`
+	// HealthCheckTimeout is the per-check timeout. Must be positive when
+	// HealthCheckInterval > 0; ignored when the checker is disabled.
+	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
 }
 
-// Validate checks the AI config and applies DefaultMaxRequestBodySize in place
-// when MaxRequestBodySize is zero; the pointer receiver is required so the
-// default persists back to the caller's config.
+// Validate is a pure check; defaults are supplied by DefaultQueryOptions
+// (see the AIConfig type-level comment) so by the time Validate runs the
+// caller's struct already has sensible values for any field they omitted.
 func (c *AIConfig) Validate() error {
-	if c.MaxRequestBodySize < 0 {
-		return errors.New("ai.max_request_body_size must be a non-negative integer")
+	if c.AgentURL == "" {
+		return errors.New("ai.agent_url is required")
 	}
-	if c.MaxRequestBodySize == 0 {
-		c.MaxRequestBodySize = DefaultMaxRequestBodySize
+	if c.MaxRequestBodySize <= 0 {
+		return errors.New("ai.max_request_body_size must be a positive integer")
+	}
+	if c.HealthCheckInterval < 0 {
+		return errors.New("ai.health_check_interval must not be negative (0 disables the health checker)")
+	}
+	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
+		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
 	return nil
 }
@@ -84,8 +109,10 @@ func DefaultQueryOptions() QueryOptions {
 	return QueryOptions{
 		MaxClockSkewAdjust: 0, // disabled by default
 		AI: configoptional.Default(AIConfig{
-			AgentURL:           "ws://localhost:16688",
-			MaxRequestBodySize: DefaultMaxRequestBodySize,
+			AgentURL:            DefaultAIAgentURL,
+			MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
+			HealthCheckInterval: DefaultAIHealthCheckInterval,
+			HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
 		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
