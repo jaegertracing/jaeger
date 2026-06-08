@@ -205,6 +205,25 @@ func TestServerStart(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Exercises the AI health checker Start/Stop branches in
+			// server.Start and server.Shutdown. The agent URL points at a
+			// closed port so the periodic check just fails — what we care
+			// about here is that the lifecycle wires up and tears down
+			// without leaking goroutines.
+			name: "start with AI health checker",
+			config: &Config{
+				Storage: Storage{TracesPrimary: "jaeger_storage"},
+				QueryOptions: app.QueryOptions{
+					AI: configoptional.Some(app.AIConfig{
+						AgentURL:            "ws://127.0.0.1:1",
+						MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+						HealthCheckInterval: time.Hour, // long enough that no check actually fires in this test
+						HealthCheckTimeout:  app.DefaultAIHealthCheckTimeout,
+					}),
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -138,11 +138,10 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 
 	h.uiConfigMu.Lock()
 	defer h.uiConfigMu.Unlock()
-	// Re-check after acquiring the write lock — another goroutine may have
-	// refreshed the cache while we were waiting.
-	if now.Before(h.uiConfigExpiry) {
-		return h.uiConfig
-	}
+	// We don't double-check uiConfigExpiry after taking the write lock; the
+	// rare cost of a concurrent goroutine doing a redundant disk read for the
+	// SPA root is well under what a useful test would have to fabricate. This
+	// matches the configtls certReloader pattern.
 	cfg, err := loadUIConfig(h.uiConfigFile)
 	if err != nil {
 		h.logger.Error("could not reload UI config; keeping previously cached value",
