@@ -1,15 +1,30 @@
 # RFC 0003: Simplify Running Jaeger With the AI Sidecar
 
-- **Status:** Draft
+- **Status:** Partially Implemented
 - **Author:** Yuri Shkuro
 - **Created:** 2026-06-06
 - **Last Updated:** 2026-06-07
 
-**Implementation status:** The UI half of §4.1 has landed in
-[jaeger-ui#4034][pr-4034] — `backendCapabilities.aiAssistant` is now
-the sole UI gate for the chat surface. The remaining work is in the
-backend: the liveness probe (§4.1.2) and the
-`JAEGER_BACKEND_CAPABILITIES` injection in `static_handler.go`.
+## Implementation status
+
+| RFC section | What | Status |
+|---|---|---|
+| §4.1 | UI: `backendCapabilities.aiAssistant` gate (drops the `Config.ai.enabled` flag) | ✅ Done — [jaeger-ui#4034][pr-4034] |
+| §4.1 | `jaegerai/aihealth` package: periodic ACP `initialize` check, `Current() bool`, `NewACPCheck` factory | ✅ Done — [#8728][pr-8728] |
+| §4.1 | `JAEGER_BACKEND_CAPABILITIES` injection in `static_handler.go`, per-request derivation, `health_check_interval`/`health_check_timeout` config | ✅ Done — [#8727][pr-8727] |
+| §4.2 | Gemini launcher: `make run-ai-gemini`, shared `scripts/ai-sidecar/_lib.sh`, prefix-tagged `[jaeger]`/`[sidecar]` logs, process-group cleanup | ✅ Done — [#8732][pr-8732] |
+| §4.3 | Gemini preflight check (`GEMINI_API_KEY`) | ✅ Done — [#8732][pr-8732] |
+| §4.2 | Claude Code launcher (`make run-ai-claude-code`) | ⏳ Blocked on [#8631][pr-8631] (Claude Code sidecar) |
+| §4.2 | Docker Compose: `docker-compose/ai-gemini/`, `docker-compose/ai-claude-code/`, per-sidecar `Dockerfile`s | ⏳ Pending — separate follow-up |
+| §7.2 | Prebuilt sidecar images on `ghcr.io` | ⏳ Deferred per the open question |
+| §5.4 | In-process sidecar supervision | ❌ Explicitly rejected in this RFC |
+
+Spun out of this work but tracked separately:
+
+- [#8733][issue-8733] — Gemini sidecar leaks ACP background tasks when the
+  WebSocket closes mid-session. Triggered by the health checker's frequent
+  short-lived connections but a pre-existing bug in `handle_websocket`
+  (cancellation of `agent_task` skips `Connection.close()`).
 
 ---
 
@@ -768,4 +783,8 @@ pre-flight auth check, Jaeger launch, sidecar launch, and clean shutdown.
 [flags-go]: ../../cmd/jaeger/internal/extension/jaegerquery/internal/flags.go
 [static-handler]: ../../cmd/jaeger/internal/extension/jaegerquery/internal/static_handler.go
 [pr-8631]: https://github.com/jaegertracing/jaeger/pull/8631
+[pr-8727]: https://github.com/jaegertracing/jaeger/pull/8727
+[pr-8728]: https://github.com/jaegertracing/jaeger/pull/8728
+[pr-8732]: https://github.com/jaegertracing/jaeger/pull/8732
 [pr-4034]: https://github.com/jaegertracing/jaeger-ui/pull/4034
+[issue-8733]: https://github.com/jaegertracing/jaeger/issues/8733
