@@ -279,6 +279,15 @@ const (
 	TruncateDependencies      = `TRUNCATE TABLE IF EXISTS dependencies`
 )
 
+const (
+	AlterSpansAddSpanStrAttrKeysIndex    = `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_span_str_attr_keys str_attributes.key TYPE bloom_filter(0.01) GRANULARITY 1`
+	AlterSpansAddSpanStrAttrValuesIndex  = `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_span_str_attr_values str_attributes.value TYPE bloom_filter(0.01) GRANULARITY 1`
+	AlterSpansAddResStrAttrKeysIndex     = `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_res_str_attr_keys resource_str_attributes.key TYPE bloom_filter(0.01) GRANULARITY 1`
+	AlterSpansAddResStrAttrValuesIndex   = `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_res_str_attr_values resource_str_attributes.value TYPE bloom_filter(0.01) GRANULARITY 1`
+	AlterSpansAddScopeStrAttrKeysIndex   = `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_scope_str_attr_keys scope_str_attributes.key TYPE bloom_filter(0.01) GRANULARITY 1`
+	AlterSpansAddScopeStrAttrValuesIndex = `ALTER TABLE spans ADD INDEX IF NOT EXISTS idx_scope_str_attr_values scope_str_attributes.value TYPE bloom_filter(0.01) GRANULARITY 1`
+)
+
 const SelectDependencies = `
 SELECT
     dependencies_json

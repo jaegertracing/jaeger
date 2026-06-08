@@ -111,6 +111,48 @@ func TestNewFactory_Errors(t *testing.T) {
 			expectedError: "failed to create spans table",
 		},
 		{
+			name: "spans span str attr keys index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterSpansAddSpanStrAttrKeysIndex: assert.AnError,
+			},
+			expectedError: "failed to create spans span str attr keys index",
+		},
+		{
+			name: "spans span str attr values index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterSpansAddSpanStrAttrValuesIndex: assert.AnError,
+			},
+			expectedError: "failed to create spans span str attr values index",
+		},
+		{
+			name: "spans resource str attr keys index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterSpansAddResStrAttrKeysIndex: assert.AnError,
+			},
+			expectedError: "failed to create spans resource str attr keys index",
+		},
+		{
+			name: "spans resource str attr values index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterSpansAddResStrAttrValuesIndex: assert.AnError,
+			},
+			expectedError: "failed to create spans resource str attr values index",
+		},
+		{
+			name: "spans scope str attr keys index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterSpansAddScopeStrAttrKeysIndex: assert.AnError,
+			},
+			expectedError: "failed to create spans scope str attr keys index",
+		},
+		{
+			name: "spans scope str attr values index creation error",
+			failureConfig: clickhousetest.FailureConfig{
+				sql.AlterSpansAddScopeStrAttrValuesIndex: assert.AnError,
+			},
+			expectedError: "failed to create spans scope str attr values index",
+		},
+		{
 			name: "services table creation error",
 			failureConfig: clickhousetest.FailureConfig{
 				sql.CreateServicesTable: assert.AnError,
