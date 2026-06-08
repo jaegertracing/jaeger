@@ -1258,13 +1258,15 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 	}))
 	t.Cleanup(upstream.Close)
 
-	// A manual-reader meter provider so we can assert against captured metric
-	// data after the request.
 	reader := sdkmetric.NewManualReader()
 	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	t.Cleanup(func() { require.NoError(t, mp.Shutdown(context.Background())) })
 
-	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	spanExporter := tracetest.NewInMemoryExporter()
+	tp := tracesdk.NewTracerProvider(tracesdk.WithSyncer(spanExporter))
+	t.Cleanup(func() { require.NoError(t, tp.Shutdown(context.Background())) })
+
+	telset := initTelSet(zaptest.NewLogger(t), tp)
 	telset.MeterProvider = mp
 
 	opts := DefaultQueryOptions()
@@ -1283,13 +1285,12 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code)
 	}
 
+	require.Empty(t, spanExporter.GetSpans(),
+		"OTLP proxy route must not produce server spans (uses noop tracer)")
+
 	var rm metricdata.ResourceMetrics
 	require.NoError(t, reader.Collect(context.Background(), &rm))
 
-	// We don't pin to a specific metric name — the otelhttp instrumentation
-	// has shifted between `http.server.duration` and
-	// `http.server.request.duration` across versions. What we assert is that
-	// at least one HTTP server metric reported a measurement for our path.
 	var foundCount uint64
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
@@ -1306,8 +1307,6 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 					foundCount += dp.Count
 				}
 			default:
-				// Other aggregations (sum, gauge, etc.) don't carry the
-				// per-request count we use for this assertion. Ignore them.
 			}
 		}
 	}
