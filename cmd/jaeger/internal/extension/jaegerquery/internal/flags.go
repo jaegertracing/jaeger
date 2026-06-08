@@ -33,7 +33,7 @@ type UIConfig struct {
 const (
 	DefaultAIAgentURL                  = "ws://localhost:16688"
 	DefaultAIMaxRequestBodySize  int64 = 1 << 20 // 1 MiB
-	DefaultAIHealthCheckInterval       = 5 * time.Second
+	DefaultAIHealthCheckInterval       = 30 * time.Second
 	DefaultAIHealthCheckTimeout        = 2 * time.Second
 )
 
