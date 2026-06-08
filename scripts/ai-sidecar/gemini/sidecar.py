@@ -31,10 +31,10 @@ from acp import (
     Agent,
     InitializeResponse,
     PromptResponse,
-    run_agent,
     text_block,
     update_agent_message,
 )
+from acp.agent.connection import AgentSideConnection
 from acp.helpers import start_tool_call, tool_content, update_tool_call
 from acp.interfaces import Client
 from acp.schema import (
@@ -442,6 +442,51 @@ class JaegerSidecarAgent(Agent):
             return PromptResponse(stop_reason="end_turn")
 
 
+async def _run_agent_with_cleanup(
+    agent: Agent,
+    agent_writer: asyncio.StreamWriter,
+    agent_reader: asyncio.StreamReader,
+) -> None:
+    """Run an ACP agent over the supplied streams and *always* close the
+    underlying Connection on exit.
+
+    The upstream ``acp.run_agent`` is roughly::
+
+        conn = AgentSideConnection(...)
+        await conn.listen()
+
+    with no ``try/finally``. ``handle_websocket`` below cancels this task
+    whenever a peer task (ws_read_task / ws_write_task) finishes first via
+    ``asyncio.wait(FIRST_COMPLETED)``. The cancellation propagates out of
+    ``listen()`` without invoking ``Connection.close()``, which leaves the
+    ``MessageSender._loop`` and ``MessageDispatcher._run`` tasks the
+    Connection's TaskSupervisor registered on the event loop orphaned.
+    Python's GC later destroys them while still pending and surfaces
+    "Task was destroyed but it is pending!" warnings followed by
+    "RuntimeError: cannot reuse already awaited coroutine" from the
+    supervisor's done callback.
+
+    See https://github.com/jaegertracing/jaeger/issues/8733 for the full
+    chain. The proper fix is upstream: ``AgentSideConnection`` should
+    expose a public ``close()``/``__aexit__``. Until then, reach into
+    the private ``_conn`` to drive the cleanup. ``asyncio.shield`` ensures
+    the close cancels the supervised tasks even if we ourselves are being
+    cancelled — the inner close task survives our cancellation and runs
+    to completion on the event loop.
+    """
+    conn = AgentSideConnection(agent, agent_writer, agent_reader, listening=False)
+    try:
+        await conn.listen()
+    finally:
+        try:
+            await asyncio.shield(conn._conn.close())  # noqa: SLF001
+        except asyncio.CancelledError:
+            # We've been re-cancelled while shielding the close. The inner
+            # close task is registered on the event loop and continues to
+            # completion; we let the cancellation propagate to our caller.
+            raise
+
+
 async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | None = None) -> None:
     logger.info("New websocket connection from Jaeger AI Gateway")
 
@@ -462,7 +507,10 @@ async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | 
             raise RuntimeError("agent_factory must be provided by the application entrypoint")
 
         agent = agent_factory()
-        agent_task = asyncio.create_task(run_agent(agent, agent_writer, agent_reader), name="agent_task")
+        agent_task = asyncio.create_task(
+            _run_agent_with_cleanup(agent, agent_writer, agent_reader),
+            name="agent_task",
+        )
 
         # Bridge the client ends of the socket pair up to the WebSocket
         ws_read_task = asyncio.create_task(ws_to_client_writer(websocket, client_writer), name="ws_read_task")

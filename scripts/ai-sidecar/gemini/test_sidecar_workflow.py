@@ -243,3 +243,91 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
 def test_complete_acp_workflow_with_fake_agent() -> None:
     asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
 
+
+async def run_initialize_only_cycles(num_cycles: int) -> list[dict[str, Any]]:
+    """Drive the AI health checker's access pattern N times: open WebSocket,
+    complete one `initialize` round-trip, close. Return whatever the asyncio
+    loop's exception handler captured during the run.
+
+    Under the bug fixed by #8733, each cycle leaves the Connection's
+    MessageSender._loop and MessageDispatcher._run tasks orphaned on the
+    event loop. Python's GC later destroys them and asyncio routes the
+    "Task was destroyed but it is pending!" notice through
+    loop.call_exception_handler(...) — which is what we capture here.
+    """
+    captured: list[dict[str, Any]] = []
+    loop = asyncio.get_running_loop()
+    original_handler = loop.get_exception_handler()
+    loop.set_exception_handler(lambda _loop, ctx: captured.append(ctx))
+
+    try:
+        async with websockets.serve(
+            partial(sidecar.handle_websocket, agent_factory=FakeAgent),
+            "127.0.0.1",
+            0,
+        ) as server:
+            port = next(iter(server.sockets)).getsockname()[1]
+            uri = f"ws://127.0.0.1:{port}"
+
+            for _ in range(num_cycles):
+                pending = PendingRequests()
+                received: list[dict[str, Any]] = []
+                stop_event = asyncio.Event()
+                async with websockets.connect(uri) as websocket:
+                    receiver = asyncio.create_task(recv_loop(websocket, pending, received, stop_event))
+                    try:
+                        await send_request(
+                            websocket,
+                            pending,
+                            "initialize",
+                            {
+                                "protocolVersion": PROTOCOL_VERSION,
+                                "clientCapabilities": {
+                                    "fs": {"readTextFile": False, "writeTextFile": False},
+                                    "terminal": False,
+                                },
+                                "clientInfo": {
+                                    "name": "pytest-probe-client",
+                                    "title": "AI health-check probe",
+                                    "version": "test",
+                                },
+                            },
+                        )
+                    finally:
+                        receiver.cancel()
+                        with pytest.raises(asyncio.CancelledError):
+                            await receiver
+                # Give the server's handle_websocket finally-block time to run.
+                await asyncio.sleep(0.05)
+
+        # Force a GC cycle so any orphaned Task.__del__ logs fire before we check.
+        import gc
+        for _ in range(3):
+            gc.collect()
+            await asyncio.sleep(0.05)
+    finally:
+        loop.set_exception_handler(original_handler)
+
+    return captured
+
+
+def test_repeated_initialize_only_cycles_do_not_leak_asyncio_tasks() -> None:
+    """Regression for #8733.
+
+    The AI health checker (cmd/jaeger/.../aihealth) opens a fresh WebSocket
+    every ~30s, sends `initialize`, and closes immediately. Before the fix,
+    each cycle cancelled handle_websocket's agent_task mid-stream and skipped
+    Connection.close(), leaving MessageSender/MessageDispatcher tasks
+    orphaned. The asyncio loop's exception handler then received
+    "Task was destroyed but it is pending!" for each leaked task.
+
+    Verify that running three such cycles produces no destroyed-pending-task
+    notices.
+    """
+    captured = asyncio.run(run_initialize_only_cycles(num_cycles=3))
+    leaked = [
+        ctx for ctx in captured
+        if "destroyed but it is pending" in str(ctx.get("message", "")).lower()
+    ]
+    assert leaked == [], f"asyncio reported orphaned pending tasks: {leaked}"
+
