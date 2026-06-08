@@ -59,6 +59,10 @@ ai::start_jaeger() {
 
 # Poll the Jaeger query HTTP port until it answers or the timeout elapses.
 ai::wait_jaeger() {
+	if ! command -v curl >/dev/null 2>&1; then
+		ai::log "curl is required to probe Jaeger readiness but was not found in PATH. Install it and retry."
+		return 1
+	fi
 	local deadline=$((SECONDS + AI_JAEGER_READY_TIMEOUT_SEC))
 	ai::log "waiting for Jaeger to become ready at $AI_JAEGER_READY_URL (up to ${AI_JAEGER_READY_TIMEOUT_SEC}s)…"
 	while ! curl -fsS "$AI_JAEGER_READY_URL" >/dev/null 2>&1; do
