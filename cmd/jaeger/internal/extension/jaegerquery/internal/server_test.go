@@ -1154,6 +1154,22 @@ func TestOTLPProxyPathPrefix(t *testing.T) {
 	require.Equal(t, "/jaeger/api/otlp", otlpProxyPathPrefix("/jaeger"))
 }
 
+func TestOtelFilterFunc(t *testing.T) {
+	filter := otelFilterFunc("")
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/api/services", true},
+		{"/static/bundle.js", false},
+		{"/api/otlp/v1/traces", false},
+	}
+	for _, tt := range tests {
+		req := httptest.NewRequest(http.MethodGet, tt.path, http.NoBody)
+		assert.Equal(t, tt.want, filter(req), "path: %s", tt.path)
+	}
+}
+
 func TestInitRouterOTLPProxy(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
 	querySvc := makeQuerySvc()
