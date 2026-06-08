@@ -7,6 +7,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
@@ -14,6 +16,15 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
+
+// silentACPLogger discards the ACP SDK's internal diagnostics for the
+// probe-connection lifecycle. The SDK logs every disconnect at INFO via
+// slog.Default() — useful for long-lived chat sessions, but spammy for the
+// AI health checker, which by design opens a connection, sends one
+// `initialize` request, and closes immediately. Transport- and protocol-
+// level errors are still returned to the caller from acp.SendRequest, so
+// nothing diagnostic is lost.
+var silentACPLogger = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 // NewACPCheck returns a check function that opens a fresh WebSocket
 // connection to agentURL, performs one ACP `initialize` round-trip, and
@@ -34,6 +45,7 @@ func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) 
 		defer adapter.Close()
 
 		conn := acp.NewConnection(noopMethodHandler, adapter, adapter)
+		conn.SetLogger(silentACPLogger)
 
 		req := acp.InitializeRequest{
 			ProtocolVersion: acp.ProtocolVersionNumber,
