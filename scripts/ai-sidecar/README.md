@@ -307,6 +307,15 @@ Wire-level strings that have to match exactly on both sides:
 
 End-to-end smoke test — works for either path.
 
+> **Shortcut for the Gemini reference sidecar:** steps 1 and 2 collapse
+> into `make run-ai-gemini` (after `export GEMINI_API_KEY=…`). The launcher
+> handles toolchain bootstrap, starts Jaeger with the example config, and
+> runs the sidecar in the foreground. To add the same one-command UX for
+> your fork, drop a `preflight.sh` and a `run.sh` next to your sidecar's
+> source — see `scripts/ai-sidecar/gemini/run.sh` for the template and
+> `scripts/ai-sidecar/_lib.sh` for the shared helper functions — then add
+> a `run-ai-<name>` Make target.
+
 ### 1. Start Jaeger with your sidecar configured
 
 ```yaml
