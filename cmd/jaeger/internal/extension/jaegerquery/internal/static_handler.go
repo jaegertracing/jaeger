@@ -104,16 +104,17 @@ func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCap
 		indexHTMLRaw:  raw,
 		uiConfigFile:  qOpts.UIConfig.ConfigFile,
 	}
-	// Eager initial load: surface UI-config syntax errors at startup rather
-	// than letting them appear on the first page-load several seconds later.
-	cfg, err := loadUIConfig(h.uiConfigFile)
-	if err != nil {
-		return nil, err
-	}
-	h.uiConfig = cfg
-	h.uiConfigExpiry = time.Now().Add(uiConfigReloadInterval)
-	if qOpts.UIConfig.ConfigFile != "" {
-		logger.Info("Using UI configuration", zap.String("path", qOpts.UIConfig.ConfigFile))
+	if h.uiConfigFile != "" {
+		// Eager initial load: surface UI-config syntax errors at startup
+		// rather than letting them appear on the first page-load several
+		// seconds later. Subsequent reloads are lazy, gated by uiConfigExpiry.
+		cfg, err := loadUIConfig(h.uiConfigFile)
+		if err != nil {
+			return nil, err
+		}
+		h.uiConfig = cfg
+		h.uiConfigExpiry = time.Now().Add(uiConfigReloadInterval)
+		logger.Info("Using UI configuration", zap.String("path", h.uiConfigFile))
 	}
 	return h, nil
 }
