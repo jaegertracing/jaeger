@@ -176,7 +176,7 @@ func initRouter(
 	aiHealthCheck func() bool,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, io.Closer) {
+) (http.Handler, io.Closer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -218,7 +218,9 @@ func initRouter(
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
-		registerOTLPProxy(r, queryOpts, telset)
+		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	r.HandleFunc(apiNotFoundPattern, func(w http.ResponseWriter, _ *http.Request) {
@@ -238,7 +240,7 @@ func initRouter(
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
-	return handler, staticHandlerCloser
+	return handler, staticHandlerCloser, nil
 }
 
 func otlpProxyPathPrefix(basePath string) string {
@@ -254,12 +256,11 @@ func otlpProxyPathPrefix(basePath string) string {
 // provider so HTTP server metrics flow without producing a self-referential
 // server span; the top-level otelhttp filter excludes this prefix so the
 // per-route wrap is the only instrumentation layer.
-func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) {
+func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
 	cfg := queryOpts.OTLPProxy.Get()
 	target, err := url.Parse(cfg.Target)
 	if err != nil {
-		telset.Logger.Error("Invalid OTLP proxy target, route disabled", zap.String("target", cfg.Target), zap.Error(err))
-		return
+		return fmt.Errorf("invalid OTLP proxy target %q: %w", cfg.Target, err)
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	prefix := otlpProxyPathPrefix(queryOpts.BasePath)
@@ -273,6 +274,7 @@ func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemet
 	telset.Logger.Info("OTLP proxy registered",
 		zap.String("path_prefix", prefix+"/v1/"),
 		zap.String("target", cfg.Target))
+	return nil
 }
 
 func createHTTPServer(
@@ -285,7 +287,10 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, staticHandlerCloser, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	if err != nil {
+		return nil, err
+	}
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {

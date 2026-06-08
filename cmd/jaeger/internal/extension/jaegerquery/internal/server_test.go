@@ -48,7 +48,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var testCertKeyLocation = "../../../../../../internal/config/tlscfg/testdata"
@@ -1073,7 +1072,8 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 		{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
 	}
 
-	handler, closer := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	handler, closer, err := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
@@ -1099,7 +1099,8 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{AgentURL: ""})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, closer.Close())
 		})
@@ -1115,7 +1116,8 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, closer.Close())
 		})
@@ -1132,7 +1134,8 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
 		t.Cleanup(func() {
 			require.NoError(t, closer.Close())
 		})
@@ -1160,7 +1163,8 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		require.False(t, opts.OTLPProxy.HasValue())
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader(`{}`))
@@ -1195,7 +1199,8 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("payload"))
@@ -1217,7 +1222,8 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
 		t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/otlp/v1/traces", strings.NewReader("payload"))
@@ -1237,23 +1243,12 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		require.Empty(t, got.path, "request without BasePath must not reach the upstream")
 	})
 
-	t.Run("logs an error and skips registration when target is unparseable", func(t *testing.T) {
-		logger, logBuf := testutils.NewLogger()
-		errTelset := telset
-		errTelset.Logger = logger
-
+	t.Run("returns error when target is unparseable", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: "://not a url"})
 
-		handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, errTelset)
-		t.Cleanup(func() { require.NoError(t, closer.Close()) })
-
-		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("{}"))
-		rr := httptest.NewRecorder()
-		handler.ServeHTTP(rr, req)
-
-		require.Equal(t, http.StatusNotFound, rr.Code)
-		require.Contains(t, logBuf.String(), "Invalid OTLP proxy target")
+		_, _, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.ErrorContains(t, err, "invalid OTLP proxy target")
 	})
 }
 
@@ -1277,7 +1272,8 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 
 	querySvc := makeQuerySvc()
 	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
-	handler, closer := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, closer.Close()) })
 
 	for range 3 {
