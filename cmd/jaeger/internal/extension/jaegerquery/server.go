@@ -152,8 +152,8 @@ func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihe
 		return nil
 	}
 	aiCfg := opts.AI.Get() // cannot be nil when HasValue is true
-	if aiCfg.HealthCheckInterval < 0 {
-		logger.Info("AI Assistant health check disabled via negative health_check_interval")
+	if aiCfg.HealthCheckInterval == 0 {
+		logger.Info("AI Assistant health check disabled (health_check_interval=0)")
 		return nil
 	}
 	return &aihealth.Checker{

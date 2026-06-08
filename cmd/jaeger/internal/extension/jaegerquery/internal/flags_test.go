@@ -26,54 +26,58 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.NoError(t, aiCfg.Validate())
 }
 
-// validAIConfig returns an AIConfig that passes Validate; tests then mutate
-// the field they care about to exercise one validation rule at a time.
+// validAIConfig returns an AIConfig that passes Validate; tests mutate the
+// field they care about to exercise one rule at a time. The factory-default
+// values mirror what configoptional.Default(...) seeds at runtime.
 func validAIConfig() AIConfig {
-	return AIConfig{AgentURL: DefaultAIAgentURL}
+	return AIConfig{
+		AgentURL:            DefaultAIAgentURL,
+		MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
+		HealthCheckInterval: DefaultAIHealthCheckInterval,
+		HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
+	}
+}
+
+func TestAIConfigValidateAcceptsDefaults(t *testing.T) {
+	cfg := validAIConfig()
+	require.NoError(t, cfg.Validate())
 }
 
 func TestAIConfigValidateRejectsEmptyAgentURL(t *testing.T) {
-	cfg := AIConfig{}
+	cfg := validAIConfig()
+	cfg.AgentURL = ""
 	require.EqualError(t, cfg.Validate(), "ai.agent_url is required")
 }
 
-func TestAIConfigValidateRejectsNegativeBodySize(t *testing.T) {
-	cfg := validAIConfig()
-	cfg.MaxRequestBodySize = -1
-	require.Error(t, cfg.Validate())
+func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
+	for _, size := range []int64{0, -1} {
+		cfg := validAIConfig()
+		cfg.MaxRequestBodySize = size
+		require.EqualError(t, cfg.Validate(), "ai.max_request_body_size must be a positive integer")
+	}
 }
 
-func TestAIConfigValidateDefaultsZeroBodySize(t *testing.T) {
+func TestAIConfigValidateAcceptsZeroHealthCheckIntervalAsDisable(t *testing.T) {
 	cfg := validAIConfig()
+	cfg.HealthCheckInterval = 0
+	// Timeout becomes irrelevant when the checker is disabled; the validator
+	// must not require a positive timeout in that case.
+	cfg.HealthCheckTimeout = 0
 	require.NoError(t, cfg.Validate())
-	require.Equal(t, DefaultAIMaxRequestBodySize, cfg.MaxRequestBodySize)
 }
 
-func TestAIConfigValidateAcceptsPositiveBodySize(t *testing.T) {
-	cfg := validAIConfig()
-	cfg.MaxRequestBodySize = 1
-	require.NoError(t, cfg.Validate())
-	require.Equal(t, int64(1), cfg.MaxRequestBodySize)
-}
-
-func TestAIConfigValidateDefaultsHealthCheckFields(t *testing.T) {
-	cfg := validAIConfig()
-	require.NoError(t, cfg.Validate())
-	require.Equal(t, DefaultAIHealthCheckInterval, cfg.HealthCheckInterval)
-	require.Equal(t, DefaultAIHealthCheckTimeout, cfg.HealthCheckTimeout)
-}
-
-func TestAIConfigValidateRejectsNegativeHealthCheckTimeout(t *testing.T) {
-	cfg := validAIConfig()
-	cfg.HealthCheckTimeout = -time.Second
-	require.Error(t, cfg.Validate())
-}
-
-func TestAIConfigValidatePreservesNegativeHealthCheckInterval(t *testing.T) {
-	// A negative interval is a deliberate "disable" signal — Validate must
-	// leave it as-is rather than overwriting with the default.
+func TestAIConfigValidateRejectsNegativeHealthCheckInterval(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.HealthCheckInterval = -time.Second
-	require.NoError(t, cfg.Validate())
-	require.Equal(t, -time.Second, cfg.HealthCheckInterval)
+	require.EqualError(t, cfg.Validate(),
+		"ai.health_check_interval must not be negative (0 disables the health checker)")
+}
+
+func TestAIConfigValidateRejectsNonPositiveHealthCheckTimeoutWhenEnabled(t *testing.T) {
+	for _, timeout := range []time.Duration{0, -time.Second} {
+		cfg := validAIConfig()
+		cfg.HealthCheckTimeout = timeout
+		require.EqualError(t, cfg.Validate(),
+			"ai.health_check_timeout must be positive when health_check_interval is positive")
+	}
 }

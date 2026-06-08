@@ -232,15 +232,15 @@ loop that periodically opens an ACP WebSocket to `agent_url`,
 completes the `initialize` handshake, and closes. Each check records
 its result into an atomic boolean. The loop:
 
-- Default interval: **5 s**. Configurable via
-  `jaeger_query.ai.health_check_interval` for tuning. `0` (the zero
-  value) selects the default in keeping with Go's `time.Duration`
-  convention; a negative duration is an optional within-block disable
-  signal for config templates that always include the `ai:` block.
-  The operator-facing way to disable AI is to omit the `ai:` block
-  entirely (see §3.2).
+- Default interval: **5 s**, seeded by `DefaultQueryOptions` via
+  `configoptional.Default(AIConfig{...})`. A user's partial YAML block
+  overlays only the fields they specify; unset fields keep the
+  factory default. To disable the checker within an `ai:` block, set
+  `health_check_interval: 0s` explicitly. The operator-facing way to
+  disable AI entirely is to omit the `ai:` block (see §3.2).
 - Default per-check timeout: **2 s**. Configurable via
-  `jaeger_query.ai.health_check_timeout`.
+  `jaeger_query.ai.health_check_timeout`; must be positive when the
+  checker is enabled.
 - Probe payload: a minimal ACP `initialize` request. No `session/new` or
   `prompt` — initialize is the cheapest reachability test that exercises
   the actual protocol path the chat handler uses, not just a TCP dial.
@@ -626,10 +626,11 @@ too lazy delays UI recovery after a sidecar restart. A few questions:
 - The documented way to disable AI is to omit the `jaeger_query.ai`
   block from the config — that already skips checking and emits
   `aiAssistant: false` per §4.1.2. For config templates that always
-  include the block, the within-block disable signal is a negative
-  `health_check_interval` (empty `agent_url` is rejected at validation
-  because an `ai:` block with no URL would disable all AI functionality,
-  not just the checker — see `AIConfig.Validate`).
+  include the block, set `health_check_interval: 0s` to disable just
+  the checker (`AIConfig.Validate` accepts 0 as the explicit disable
+  signal). Empty `agent_url` is rejected at validation because an
+  `ai:` block with no URL would disable all AI functionality, not
+  just the checker — see `AIConfig.Validate`.
 - Should the probe be skipped if the static handler hasn't loaded
   index.html yet? No — initial-probe latency is the dominant factor in
   "how long until the UI shows AI is on" after both processes start.
