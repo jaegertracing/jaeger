@@ -1,0 +1,191 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package apiv3
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	tracemocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+)
+
+func newTestGateway(t *testing.T) (*HTTPGateway, *depsmocks.Reader, *http.ServeMux) {
+	t.Helper()
+	traceReader := &tracemocks.Reader{}
+	depReader := &depsmocks.Reader{}
+
+	querySvc := querysvc.NewQueryService(
+		traceReader,
+		depReader,
+		querysvc.QueryServiceOptions{},
+	)
+
+	gateway := &HTTPGateway{
+		QueryService: querySvc,
+		Logger:       zap.NewNop(),
+		Tracer:       noop.NewTracerProvider(),
+	}
+
+	router := http.NewServeMux()
+	gateway.RegisterRoutes(router)
+
+	return gateway, depReader, router
+}
+
+func TestHTTPGatewayGetDependencies(t *testing.T) {
+	_, depReader, router := newTestGateway(t)
+
+	startTime := time.Now().UTC().Add(-24 * time.Hour)
+	endTime := time.Now().UTC()
+
+	expectedDeps := []model.DependencyLink{
+		{
+			Parent:    "frontend",
+			Child:     "backend",
+			CallCount: 100,
+			Source:    "traces",
+		},
+		{
+			Parent:    "backend",
+			Child:     "database",
+			CallCount: 500,
+			Source:    "traces",
+		},
+	}
+
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(expectedDeps, nil)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, "Response body: %s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "frontend")
+	assert.Contains(t, w.Body.String(), "backend")
+	depReader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
+	_, _, router := newTestGateway(t)
+
+	goodStartTime := "2026-01-24T12:00:00Z"
+	goodEndTime := "2026-01-24T16:00:00Z"
+
+	tests := []struct {
+		name           string
+		url            string
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name:           "missing start_time and end_time",
+			url:            "/api/v3/dependencies",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "startTime",
+		},
+		{
+			name:           "missing start_time",
+			url:            "/api/v3/dependencies?end_time=" + goodEndTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "startTime",
+		},
+		{
+			name:           "missing end_time",
+			url:            "/api/v3/dependencies?start_time=" + goodStartTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "endTime",
+		},
+		{
+			name:           "invalid start_time",
+			url:            "/api/v3/dependencies?start_time=invalid&end_time=" + goodEndTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "startTime",
+		},
+		{
+			name:           "invalid end_time",
+			url:            "/api/v3/dependencies?start_time=" + goodStartTime + "&end_time=invalid",
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "endTime",
+		},
+		{
+			name:           "end_time not after start_time",
+			url:            "/api/v3/dependencies?start_time=" + goodEndTime + "&end_time=" + goodStartTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "endTime",
+		},
+		{
+			name:           "equal start_time and end_time",
+			url:            "/api/v3/dependencies?start_time=" + goodStartTime + "&end_time=" + goodStartTime,
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "endTime",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.url, nil)
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expectedStatus, w.Code)
+			assert.Contains(t, w.Body.String(), tt.expectedBody)
+		})
+	}
+}
+
+func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
+	_, depReader, router := newTestGateway(t)
+
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError)
+
+	startTime := time.Now().UTC().Add(-24 * time.Hour)
+	endTime := time.Now().UTC()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func TestHTTPGatewayGetDependencies_EmptyResponse(t *testing.T) {
+	_, depReader, router := newTestGateway(t)
+
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return([]model.DependencyLink{}, nil)
+
+	startTime := time.Now().UTC().Add(-24 * time.Hour)
+	endTime := time.Now().UTC()
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
+		nil,
+	)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "dependencies")
+}
