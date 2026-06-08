@@ -6,8 +6,6 @@ package app
 
 import (
 	"errors"
-	"fmt"
-	"net/url"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -62,39 +60,21 @@ type AIConfig struct {
 }
 
 // DefaultOTLPProxyTarget is the loopback endpoint of the bundled OTel-collector
-// OTLP HTTP receiver. Used when the operator opts into the otlp_proxy block
-// without overriding `target` themselves.
+// OTLP HTTP receiver.
 const DefaultOTLPProxyTarget = "http://127.0.0.1:4318"
 
-// OTLPProxyConfig opts the query extension into mounting an HTTP reverse
-// proxy at `/api/otlp/v1/*` that forwards to an OTel-collector OTLP HTTP
-// receiver. The motivating use case is browser-side telemetry from the
-// Jaeger UI: same-origin POSTs to the query port avoid the CORS preflight
-// round-trip and the operator-side allow-list config that a cross-port
-// alternative would require.
+// OTLPProxyConfig mounts an HTTP reverse proxy at `<basePath>/api/otlp/v1/*`
+// that strips the `/api/otlp` prefix and forwards to Target. Intended for
+// same-origin browser telemetry from the SPA — POSTs to the query port
+// avoid the CORS preflight a cross-port OTLP receiver would need.
 type OTLPProxyConfig struct {
 	// Target is the base URL of the OTLP HTTP receiver to forward to.
-	// The proxy strips the `/api/otlp` prefix before forwarding, so a POST
-	// to `<query>/api/otlp/v1/traces` becomes `<target>/v1/traces`.
 	Target string `mapstructure:"target" valid:"required"`
 }
 
-// Validate is a pure check; the default value is supplied by DefaultQueryOptions
-// (see the OTLPProxyConfig type-level comment) so an operator who opts into the
-// block without overrides still gets a valid Target.
 func (c *OTLPProxyConfig) Validate() error {
 	if c.Target == "" {
 		return errors.New("otlp_proxy.target is required")
-	}
-	u, err := url.Parse(c.Target)
-	if err != nil {
-		return fmt.Errorf("otlp_proxy.target must be a valid URL: %w", err)
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("otlp_proxy.target must use http or https scheme, got %q", u.Scheme)
-	}
-	if u.Host == "" {
-		return errors.New("otlp_proxy.target must include a host")
 	}
 	return nil
 }
@@ -143,8 +123,7 @@ type QueryOptions struct {
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
 	// AI holds configuration related to Jaeger AI gateway integration.
 	AI configoptional.Optional[AIConfig] `mapstructure:"ai"`
-	// OTLPProxy, when present, mounts a same-origin OTLP HTTP reverse proxy
-	// at `/api/otlp/v1/*` on the query port. Absent (default) ⇒ no proxy route.
+	// OTLPProxy, when present, mounts an OTLP HTTP reverse proxy — see OTLPProxyConfig.
 	OTLPProxy configoptional.Optional[OTLPProxyConfig] `mapstructure:"otlp_proxy"`
 }
 

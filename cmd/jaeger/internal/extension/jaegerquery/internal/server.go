@@ -217,13 +217,6 @@ func initRouter(
 		}
 	}
 
-	// OTLP HTTP reverse proxy. When the operator opts into the otlp_proxy
-	// block, mount a proxy at `<basePath>/api/otlp/v1/*` that forwards to the
-	// configured OTel-collector OTLP HTTP receiver. The motivating use case
-	// is browser-side telemetry from the SPA: same-origin POSTs avoid the
-	// CORS preflight an alternate-port receiver would need. The otelhttp
-	// instrumentation in createHTTPServer is filtered out for the proxied
-	// path prefix so we don't trace our own trace-ingest endpoint.
 	if queryOpts.OTLPProxy.HasValue() {
 		registerOTLPProxy(r, queryOpts, telset)
 	}
@@ -248,10 +241,6 @@ func initRouter(
 	return handler, staticHandlerCloser
 }
 
-// otlpProxyPathPrefix returns the routing prefix the OTLP proxy is mounted at,
-// honoring the configured BasePath. The trailing slash is intentional — the
-// http.ServeMux interprets a trailing slash as a subtree match so the proxy
-// catches /v1/traces, /v1/logs, /v1/metrics, and any future OTLP endpoint.
 func otlpProxyPathPrefix(basePath string) string {
 	prefix := "/api/otlp"
 	if basePath != "" && basePath != "/" {
@@ -260,25 +249,15 @@ func otlpProxyPathPrefix(basePath string) string {
 	return prefix
 }
 
-// registerOTLPProxy installs an HTTP reverse proxy at <basePath>/api/otlp/v1/*
-// that forwards to queryOpts.OTLPProxy.Get().Target. The `/api/otlp` prefix is
-// stripped before forwarding so the downstream receiver sees its native
-// `/v1/...` path.
-//
-// The handler is wrapped with otelhttp using a no-op tracer provider but the
-// real meter provider, so requests show up in the standard HTTP server
-// metrics (http.server.request.duration etc.) without producing a server
-// span — we don't want to trace our own trace-ingest endpoint. The
-// otelhttp filter in createHTTPServer correspondingly skips this prefix so
-// the per-route wrap here is the only otelhttp layer in the chain.
-//
-// Callers must check queryOpts.OTLPProxy.HasValue() before invoking.
+// registerOTLPProxy mounts the route described by OTLPProxyConfig. The proxy
+// handler is wrapped with otelhttp using a no-op tracer but the real meter
+// provider so HTTP server metrics flow without producing a self-referential
+// server span; the top-level otelhttp filter excludes this prefix so the
+// per-route wrap is the only instrumentation layer.
 func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) {
 	cfg := queryOpts.OTLPProxy.Get()
 	target, err := url.Parse(cfg.Target)
 	if err != nil {
-		// Validate ran earlier in the load path, so reaching here means the
-		// caller skipped it. Log and disable the route rather than panic.
 		telset.Logger.Error("Invalid OTLP proxy target, route disabled", zap.String("target", cfg.Target), zap.Error(err))
 		return
 	}
@@ -324,19 +303,9 @@ func createHTTPServer(
 		xconfighttp.WithOtelHTTPOptions(
 			otelhttp.WithFilter(func(r *http.Request) bool {
 				ignoreStatic := path.Join("/", queryOpts.BasePath, "static")
-				// Always exclude `/api/otlp/*` from server-side instrumentation,
-				// whether or not the proxy is enabled. When enabled, this avoids
-				// the obvious feedback loop of tracing our own trace-ingest
-				// endpoint; when disabled, the request 404s and the missing
-				// span is irrelevant.
 				ignoreOTLP := otlpProxyPathPrefix(queryOpts.BasePath)
-				if strings.HasPrefix(r.URL.Path, ignoreStatic) {
-					return false
-				}
-				if strings.HasPrefix(r.URL.Path, ignoreOTLP) {
-					return false
-				}
-				return true
+				return !strings.HasPrefix(r.URL.Path, ignoreStatic) &&
+					!strings.HasPrefix(r.URL.Path, ignoreOTLP)
 			}),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
 				// Use just the route pattern without the HTTP method prefix or basePath
