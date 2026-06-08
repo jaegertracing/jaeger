@@ -22,8 +22,38 @@ AI_JAEGER_READY_URL="http://127.0.0.1:16686/api/services"
 # take 30s+ on a fresh build cache; 90s leaves room without hanging forever.
 AI_JAEGER_READY_TIMEOUT_SEC=${AI_JAEGER_READY_TIMEOUT_SEC:-90}
 
+# ANSI colors for log prefixes. Suppressed when stdout isn't a TTY (CI,
+# redirected to a file). Bash's $'…' decodes the escapes at parse time.
+# shellcheck disable=SC2034 # AI_COLOR_SIDECAR is read by per-sidecar run.sh scripts that source this file.
+if [[ -t 1 ]]; then
+	AI_COLOR_LAUNCHER=$'\033[33m'  # yellow
+	AI_COLOR_JAEGER=$'\033[36m'    # cyan
+	AI_COLOR_SIDECAR=$'\033[32m'   # green
+	AI_COLOR_RESET=$'\033[0m'
+else
+	AI_COLOR_LAUNCHER=
+	AI_COLOR_JAEGER=
+	AI_COLOR_SIDECAR=
+	AI_COLOR_RESET=
+fi
+
+# Print a launcher status line. Distinct color from the [jaeger] and
+# [sidecar] streams so operators can tell which messages come from the
+# launcher itself versus the processes it manages.
 ai::log() {
-	echo "[ai-sidecar] $*"
+	printf '%s[ai-sidecar]%s %s\n' "$AI_COLOR_LAUNCHER" "$AI_COLOR_RESET" "$*"
+}
+
+# Pipe a process's output through awk to prepend a colored tag to each line.
+# Usage:  somecmd 2>&1 | ai::tag jaeger "$AI_COLOR_JAEGER"
+# awk's fflush() is what keeps tagged lines appearing in real time — without
+# it, awk buffers stdout and the operator sees nothing until the process is
+# verbose enough to fill a pipe buffer.
+ai::tag() {
+	local label=$1
+	local color=$2
+	awk -v label="[$label]" -v color="$color" -v reset="$AI_COLOR_RESET" \
+		'{print color label reset, $0; fflush()}'
 }
 
 # Run the preflight script for the named sidecar. Each sidecar contributes a
@@ -39,19 +69,24 @@ ai::preflight() {
 	"$script"
 }
 
-# Launch Jaeger in the background via `go run`. Sets AI_JAEGER_PID so the EXIT
-# trap can stop it on shutdown. The first call also installs the trap.
+# Launch Jaeger in the background via `go run`, with its stdout/stderr
+# tagged "[jaeger]" so its lines are distinguishable from the sidecar's.
 #
 # `go run` is a wrapper: it builds a temporary binary and execs the compiled
 # Jaeger process as a child. Signalling only the wrapper PID leaves the
 # compiled Jaeger orphaned (reparented to init). We enable bash monitor
 # mode (`set -m`) for the duration of the launch so the backgrounded job
 # becomes its own process group leader; cleanup_on_exit then kills the whole
-# group with `kill -- -PGID`, taking the compiled binary with it.
+# group with `kill -- -PGID`, taking the compiled binary and the tagger awk
+# subprocess with it.
 ai::start_jaeger() {
 	ai::log "starting Jaeger (config: $AI_JAEGER_CONFIG)…"
 	set -m
-	(cd "$AI_REPO_ROOT" && exec go run ./cmd/jaeger --config "$AI_JAEGER_CONFIG") &
+	(
+		cd "$AI_REPO_ROOT"
+		go run ./cmd/jaeger --config "$AI_JAEGER_CONFIG" 2>&1 |
+			ai::tag jaeger "$AI_COLOR_JAEGER"
+	) &
 	AI_JAEGER_PID=$!
 	set +m
 	trap ai::cleanup_on_exit EXIT
@@ -85,9 +120,9 @@ ai::cleanup_on_exit() {
 	if [[ -n "${AI_JAEGER_PID:-}" ]] && kill -0 "$AI_JAEGER_PID" 2>/dev/null; then
 		ai::log "stopping Jaeger (pgid $AI_JAEGER_PID)…"
 		# Negative PID signals the entire process group — see start_jaeger.
-		# This catches both the `go run` wrapper and the compiled binary
-		# it execs. Errors are ignored: by the time wait returns, members
-		# of the group may already have exited.
+		# This catches the `go run` wrapper, the compiled binary it execs,
+		# and the tagger awk subprocess. Errors are ignored: by the time
+		# wait returns, members of the group may already have exited.
 		kill -TERM -- -"$AI_JAEGER_PID" 2>/dev/null || true
 		wait "$AI_JAEGER_PID" 2>/dev/null || true
 	fi

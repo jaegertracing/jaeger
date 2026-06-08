@@ -34,4 +34,4 @@ ai::wait_jaeger
 
 ai::log "starting Gemini sidecar…"
 cd "$HERE"
-uv run python main.py
+uv run python main.py 2>&1 | ai::tag sidecar "$AI_COLOR_SIDECAR"
