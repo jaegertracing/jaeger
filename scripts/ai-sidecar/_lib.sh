@@ -41,10 +41,19 @@ ai::preflight() {
 
 # Launch Jaeger in the background via `go run`. Sets AI_JAEGER_PID so the EXIT
 # trap can stop it on shutdown. The first call also installs the trap.
+#
+# `go run` is a wrapper: it builds a temporary binary and execs the compiled
+# Jaeger process as a child. Signalling only the wrapper PID leaves the
+# compiled Jaeger orphaned (reparented to init). We enable bash monitor
+# mode (`set -m`) for the duration of the launch so the backgrounded job
+# becomes its own process group leader; cleanup_on_exit then kills the whole
+# group with `kill -- -PGID`, taking the compiled binary with it.
 ai::start_jaeger() {
 	ai::log "starting Jaeger (config: $AI_JAEGER_CONFIG)…"
+	set -m
 	(cd "$AI_REPO_ROOT" && exec go run ./cmd/jaeger --config "$AI_JAEGER_CONFIG") &
 	AI_JAEGER_PID=$!
+	set +m
 	trap ai::cleanup_on_exit EXIT
 }
 
@@ -70,8 +79,12 @@ ai::wait_jaeger() {
 
 ai::cleanup_on_exit() {
 	if [[ -n "${AI_JAEGER_PID:-}" ]] && kill -0 "$AI_JAEGER_PID" 2>/dev/null; then
-		ai::log "stopping Jaeger (pid $AI_JAEGER_PID)…"
-		kill "$AI_JAEGER_PID" 2>/dev/null || true
+		ai::log "stopping Jaeger (pgid $AI_JAEGER_PID)…"
+		# Negative PID signals the entire process group — see start_jaeger.
+		# This catches both the `go run` wrapper and the compiled binary
+		# it execs. Errors are ignored: by the time wait returns, members
+		# of the group may already have exited.
+		kill -TERM -- -"$AI_JAEGER_PID" 2>/dev/null || true
 		wait "$AI_JAEGER_PID" 2>/dev/null || true
 	fi
 }
