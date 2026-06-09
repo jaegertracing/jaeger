@@ -43,13 +43,25 @@ type SpanWriter struct {
 	encodingType byte
 }
 
-// NewSpanWriter returns a SpawnWriter with cache
-func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration) *SpanWriter {
+// NewSpanWriter returns a SpanWriter with cache
+func NewSpanWriter(db *badger.DB, c *CacheStore, ttl time.Duration, encoding string) *SpanWriter {
 	return &SpanWriter{
 		store:        db,
 		ttl:          ttl,
 		cache:        c,
-		encodingType: defaultEncoding, // TODO Make configurable
+		encodingType: toByteEncoding(encoding),
+	}
+}
+
+// toByteEncoding converts the string encoding type to the corresponding byte value
+func toByteEncoding(encoding string) byte {
+	switch encoding {
+	case "json":
+		return jsonEncoding
+	case "protobuf":
+		return protoEncoding
+	default:
+		return defaultEncoding
 	}
 }
 

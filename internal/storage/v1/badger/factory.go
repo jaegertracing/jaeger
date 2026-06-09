@@ -152,7 +152,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans), nil
+	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans, f.Config.Encoding), nil
 }
 
 // CreateDependencyReader creates a dependencystore.Reader.

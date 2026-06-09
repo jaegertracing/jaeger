@@ -17,6 +17,7 @@ const (
 	suffixEphemeral           = ".ephemeral"
 	suffixSpanstoreTTL        = ".span-store-ttl"
 	suffixSyncWrite           = ".consistency"
+	suffixEncoding            = ".encoding"
 	suffixMaintenanceInterval = ".maintenance-interval"
 	suffixMetricsInterval     = ".metrics-update-interval" // Intended only for testing purposes
 	suffixReadOnly            = ".read-only"
@@ -49,6 +50,11 @@ func (c *Config) AddFlags(flagSet *flag.FlagSet) {
 		c.SyncWrites,
 		"If all writes should be synced immediately to physical disk. This will impact write performance.",
 	)
+	flagSet.String(
+		prefix+suffixEncoding,
+		c.Encoding,
+		"Encoding type for stored spans. Supported values are json and protobuf (default).",
+	)
 	flagSet.Duration(
 		prefix+suffixMaintenanceInterval,
 		c.MaintenanceInterval,
@@ -76,6 +82,7 @@ func initFromViper(config *Config, v *viper.Viper, _ *zap.Logger) {
 	config.Directories.Keys = v.GetString(prefix + suffixKeyDirectory)
 	config.Directories.Values = v.GetString(prefix + suffixValueDirectory)
 	config.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
+	config.Encoding = v.GetString(prefix + suffixEncoding)
 	config.TTL.Spans = v.GetDuration(prefix + suffixSpanstoreTTL)
 	config.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
 	config.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)

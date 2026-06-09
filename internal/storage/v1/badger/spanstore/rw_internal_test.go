@@ -24,7 +24,7 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), "protobuf")
 		rw := NewTraceReader(store, cache, true)
 
 		sw.encodingType = jsonEncoding
@@ -41,7 +41,7 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), "protobuf")
 		// rw := NewTraceReader(store, cache)
 
 		sw.encodingType = 0x04
@@ -54,7 +54,7 @@ func TestEncodingTypes(t *testing.T) {
 		testSpan := createDummySpan()
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), "protobuf")
 		rw := NewTraceReader(store, cache, true)
 
 		err := sw.WriteSpan(context.Background(), &testSpan)
@@ -89,11 +89,17 @@ func TestDecodeErrorReturns(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestToByteEncoding(t *testing.T) {
+	assert.Equal(t, jsonEncoding, toByteEncoding("json"))
+	assert.Equal(t, protoEncoding, toByteEncoding("protobuf"))
+	assert.Equal(t, defaultEncoding, toByteEncoding("unknown"))
+}
+
 func TestDuplicateTraceIDDetection(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour))
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), "protobuf")
 		rw := NewTraceReader(store, cache, true)
 		origStartTime := testSpan.StartTime
 
