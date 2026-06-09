@@ -20,10 +20,8 @@ const (
 	defaultNormalizeDuration = false
 )
 
-// Options stores the configuration entries for this storage.
-type Options struct {
-	config.Configuration
-}
+// Options is an alias for the Prometheus storage configuration.
+type Options = config.Configuration
 
 func DefaultConfig() config.Configuration {
 	return config.Configuration{
@@ -37,9 +35,8 @@ func DefaultConfig() config.Configuration {
 	}
 }
 
-// NewOptions creates a new Options struct.
+// NewOptions creates a new Options with default values.
 func NewOptions() *Options {
-	return &Options{
-		Configuration: DefaultConfig(),
-	}
+	cfg := DefaultConfig()
+	return &cfg
 }
