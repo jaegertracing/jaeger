@@ -36,7 +36,7 @@ type Config struct {
 	// SyncWrites, if set to true, will immediately sync all writes to disk. Note that
 	// setting this field to true will affect write performance.
 	SyncWrites bool `mapstructure:"consistency"`
-	// Encoding, will determine the encoding type for stored spans. Supported values are
+	// Encoding determines the encoding type for stored spans. Supported values are
 	// json and protobuf (default).
 	Encoding string `mapstructure:"encoding"`
 	// MaintenanceInterval is the regular interval after which a maintenance job is
