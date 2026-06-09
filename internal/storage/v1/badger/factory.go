@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"expvar"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -152,6 +153,9 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter creates a spanstore.Writer.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
+	if f.Config.Encoding != "json" && f.Config.Encoding != "protobuf" {
+		return nil, fmt.Errorf("unknown encoding type: %s", f.Config.Encoding)
+	}
 	return badgerstore.NewSpanWriter(f.store, f.cache, f.Config.TTL.Spans, f.Config.Encoding), nil
 }
 

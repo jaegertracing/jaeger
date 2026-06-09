@@ -82,7 +82,9 @@ func initFromViper(config *Config, v *viper.Viper, _ *zap.Logger) {
 	config.Directories.Keys = v.GetString(prefix + suffixKeyDirectory)
 	config.Directories.Values = v.GetString(prefix + suffixValueDirectory)
 	config.SyncWrites = v.GetBool(prefix + suffixSyncWrite)
-	config.Encoding = v.GetString(prefix + suffixEncoding)
+	if v.IsSet(prefix + suffixEncoding) {
+		config.Encoding = v.GetString(prefix + suffixEncoding)
+	}
 	config.TTL.Spans = v.GetDuration(prefix + suffixSpanstoreTTL)
 	config.MaintenanceInterval = v.GetDuration(prefix + suffixMaintenanceInterval)
 	config.MetricsUpdateInterval = v.GetDuration(prefix + suffixMetricsInterval)
