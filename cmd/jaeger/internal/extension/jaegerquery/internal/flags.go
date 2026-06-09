@@ -59,6 +59,26 @@ type AIConfig struct {
 	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
 }
 
+// DefaultOTLPProxyTarget is the loopback endpoint of the bundled OTel-collector
+// OTLP HTTP receiver.
+const DefaultOTLPProxyTarget = "http://127.0.0.1:4318"
+
+// OTLPProxyConfig mounts an HTTP reverse proxy at `<basePath>/api/otlp/v1/*`
+// that strips the `/api/otlp` prefix and forwards to Target. Intended for
+// same-origin browser telemetry from the SPA — POSTs to the query port
+// avoid the CORS preflight a cross-port OTLP receiver would need.
+type OTLPProxyConfig struct {
+	// Target is the base URL of the OTLP HTTP receiver to forward to.
+	Target string `mapstructure:"target" valid:"required"`
+}
+
+func (c *OTLPProxyConfig) Validate() error {
+	if c.Target == "" {
+		return errors.New("otlp_proxy.target is required")
+	}
+	return nil
+}
+
 // Validate is a pure check; defaults are supplied by DefaultQueryOptions
 // (see the AIConfig type-level comment) so by the time Validate runs the
 // caller's struct already has sensible values for any field they omitted.
@@ -103,6 +123,8 @@ type QueryOptions struct {
 	GRPC configgrpc.ServerConfig `mapstructure:"grpc"`
 	// AI holds configuration related to Jaeger AI gateway integration.
 	AI configoptional.Optional[AIConfig] `mapstructure:"ai"`
+	// OTLPProxy, when present, mounts an OTLP HTTP reverse proxy — see OTLPProxyConfig.
+	OTLPProxy configoptional.Optional[OTLPProxyConfig] `mapstructure:"otlp_proxy"`
 }
 
 func DefaultQueryOptions() QueryOptions {
@@ -113,6 +135,9 @@ func DefaultQueryOptions() QueryOptions {
 			MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
 			HealthCheckInterval: DefaultAIHealthCheckInterval,
 			HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
+		}),
+		OTLPProxy: configoptional.Default(OTLPProxyConfig{
+			Target: DefaultOTLPProxyTarget,
 		}),
 		HTTP: confighttp.ServerConfig{
 			NetAddr: confignet.AddrConfig{
