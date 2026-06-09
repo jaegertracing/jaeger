@@ -6,15 +6,11 @@ package elasticsearch
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,8 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var mockEsServerResponse = []byte(`
@@ -91,21 +85,14 @@ func TestFactoryBase_Purge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a real factory with a mock ES client
 			mockClient := &mocks.Client{}
 			mockDelete := &mocks.IndicesDeleteService{}
 			mockClient.On("DeleteIndex", "*").Return(mockDelete)
 
 			tt.setupMock(mockDelete)
 
-			// Create a mock client that will be stored in the atomic.Pointer
-			f := &FactoryBase{
-				client: atomic.Pointer[es.Client]{},
-			}
-			// Create a concrete type that implements es.Client
 			var client es.Client = mockClient
-			// Store the client in the atomic.Pointer
-			f.client.Store(&client)
+			f := &FactoryBase{client: client}
 
 			err := f.Purge(context.Background())
 			if tt.expectedErr {
@@ -114,7 +101,6 @@ func TestFactoryBase_Purge(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Verify the mock was called as expected
 			mockClient.AssertExpectations(t)
 			mockDelete.AssertExpectations(t)
 		})
@@ -297,7 +283,7 @@ func TestCreateTemplates(t *testing.T) {
 		f.tracer = otel.GetTracerProvider()
 		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
 		require.NoError(t, err)
-		f.client.Store(&client)
+		f.client = client
 		f.templateBuilder = es.TextTemplateBuilder{}
 		jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
 		jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
@@ -344,160 +330,40 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
-func TestPasswordFromFile(t *testing.T) {
-	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnce(t)
-	})
-	t.Run("primary client", func(t *testing.T) {
-		runPasswordFromFileTest(t)
-	})
-
-	t.Run("load token error", func(t *testing.T) {
-		file := filepath.Join(t.TempDir(), "does not exist")
-		token, err := loadTokenFromFile(file)
-		require.Error(t, err)
-		assert.Empty(t, token)
-	})
+func TestFactoryESClientsAreNil(t *testing.T) {
+	f := &FactoryBase{}
+	assert.Nil(t, f.getClient())
 }
 
-func runPasswordFromFileTest(t *testing.T) {
-	const (
-		pwd1 = "first password"
-		pwd2 = "second password"
-		// and with user name
-		upwd1 = "user:" + pwd1
-		upwd2 = "user:" + pwd2
-	)
-	var authReceived sync.Map
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("request to fake ES server: %v", r)
-		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
-		h := strings.Split(r.Header.Get("Authorization"), " ")
-		if !assert.Len(t, h, 2) {
-			return
-		}
-		assert.Equal(t, "Basic", h[0])
-		authBytes, err := base64.StdEncoding.DecodeString(h[1])
-		assert.NoError(t, err, "header: %s", h)
-		auth := string(authBytes)
-		authReceived.Store(auth, auth)
-		t.Logf("request to fake ES server contained auth=%s", auth)
+// TestPasswordFromFile verifies that the factory initialises successfully when
+// BasicAuthentication is configured with a PasswordFilePath.
+func TestPasswordFromFile(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	t.Cleanup(server.Close)
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
+	require.NoError(t, os.WriteFile(pwdFile, []byte("secret"), 0o600))
 
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
-		LogLevel: "debug",
+		LogLevel: "error",
 		Authentication: escfg.Authentication{
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				Username:         "user",
 				PasswordFilePath: pwdFile,
 			}),
 		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates auth headers
-		},
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
-
-	writer := core.NewSpanWriter(f.GetSpanWriterParams())
-	span1 := &dbmodel.Span{
-		Process: dbmodel.Process{ServiceName: "foo"},
-	}
-	writer.WriteSpan(time.Now(), span1)
-	assert.Eventually(
-		t,
-		func() bool {
-			pwd, ok := authReceived.Load(upwd1)
-			return ok && pwd == upwd1
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to send the first password",
-	)
-
-	t.Log("replace password in the file")
-	client1 := f.getClient()
-	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
-	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
-	require.NoError(t, os.Rename(newPwdFile, pwdFile))
-
-	assert.Eventually(
-		t,
-		func() bool {
-			client2 := f.getClient()
-			return client1 != client2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to change for the new password",
-	)
-
-	span2 := &dbmodel.Span{
-		Process: dbmodel.Process{ServiceName: "foo"},
-	}
-	writer.WriteSpan(time.Now(), span2)
-	assert.Eventually(
-		t,
-		func() bool {
-			pwd, ok := authReceived.Load(upwd2)
-			return ok && pwd == upwd2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to send the new password",
-	)
+	require.NoError(t, f.Close())
 }
 
-func TestFactoryESClientsAreNil(t *testing.T) {
-	f := &FactoryBase{}
-	assert.Nil(t, f.getClient())
-}
-
-func TestPasswordFromFileErrors(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	defer server.Close()
-
-	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
-
-	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
-		Authentication: escfg.Authentication{
-			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-				PasswordFilePath: pwdFile,
-			}),
-		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates error paths
-		},
-	}
-
-	logger, buf := testutils.NewEchoLogger(t)
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger, nil)
-	require.NoError(t, err)
-	defer f.Close()
-
-	f.config.Servers = []string{}
-	f.onPasswordChange()
-	assert.Contains(t, buf.String(), "no servers specified")
-
-	require.NoError(t, os.Remove(pwdFile))
-	f.onPasswordChange()
-}
-
-func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
+// TestFactoryBase_MissingPasswordFile verifies that factory creation fails fast
+// when a PasswordFilePath is configured but the file does not exist.
+func TestFactoryBase_MissingPasswordFile(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://localhost:9200"},
 		LogLevel: "debug",
@@ -530,7 +396,6 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 		},
 	}
 
-	// Mock authenticator
 	mockAuth := &mockHTTPAuthenticator{}
 
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), mockAuth)
@@ -538,7 +403,6 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 	require.NotNil(t, f)
 	defer require.NoError(t, f.Close())
 
-	// Verify factory is properly initialized with authenticator
 	readerParams := f.GetSpanReaderParams()
 	assert.IsType(t, core.SpanReaderParams{}, readerParams)
 }
