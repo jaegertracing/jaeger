@@ -6,11 +6,14 @@ package elasticsearch
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 var mockEsServerResponse = []byte(`
@@ -335,30 +339,76 @@ func TestFactoryESClientsAreNil(t *testing.T) {
 	assert.Nil(t, f.getClient())
 }
 
-// TestPasswordFromFile verifies that the factory initialises successfully when
-// BasicAuthentication is configured with a PasswordFilePath.
 func TestPasswordFromFile(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	runPasswordFromFileTest(t)
+}
+
+func runPasswordFromFileTest(t *testing.T) {
+	const (
+		pwd1  = "first password"
+		pwd2  = "second password"
+		upwd1 = "user:" + pwd1
+		upwd2 = "user:" + pwd2
+	)
+
+	var authReceived sync.Map
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := strings.Split(r.Header.Get("Authorization"), " ")
+		if !assert.Len(t, h, 2) {
+			return
+		}
+		assert.Equal(t, "Basic", h[0])
+		authBytes, err := base64.StdEncoding.DecodeString(h[1])
+		assert.NoError(t, err, "header: %s", h)
+		authReceived.Store(string(authBytes), struct{}{})
 		w.Write(mockEsServerResponse)
 	}))
 	t.Cleanup(server.Close)
 
 	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte("secret"), 0o600))
+	require.NoError(t, os.WriteFile(pwdFile, []byte(pwd1), 0o600))
 
 	cfg := escfg.Configuration{
 		Servers:  []string{server.URL},
-		LogLevel: "error",
+		LogLevel: "debug",
 		Authentication: escfg.Authentication{
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				Username:         "user",
 				PasswordFilePath: pwdFile,
+				ReloadInterval:   50 * time.Millisecond,
 			}),
 		},
+		BulkProcessing: escfg.BulkProcessing{
+			MaxBytes:      -1, // disable bulk size limit
+			MaxActions:    -1, // disable bulk action limit
+			FlushInterval: 10 * time.Millisecond,
+		},
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+
+	writer := core.NewSpanWriter(f.GetSpanWriterParams())
+	writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+
+	assert.Eventually(t, func() bool {
+		_, ok := authReceived.Load(upwd1)
+		return ok
+	}, 5*time.Second, time.Millisecond, "expecting ES client to use first password")
+
+	// Replace the password file atomically (same pattern as Kubernetes secret rotation)
+	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
+	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
+	require.NoError(t, os.Rename(newPwdFile, pwdFile))
+
+	// After ReloadInterval expires the transport re-reads the file; keep writing
+	// spans until the new auth header is observed.
+	assert.Eventually(t, func() bool {
+		writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+		_, ok := authReceived.Load(upwd2)
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "expecting ES client to use second password after cache reload")
 }
 
 // TestFactoryBase_MissingPasswordFile verifies that factory creation fails fast
