@@ -94,7 +94,7 @@ func (c *CacheStore) GetOperations(query tracestore.OperationQueryParams) ([]tra
 		}
 	}
 
-	var result []tracestore.Operation
+	result := make([]tracestore.Operation, 0)
 	for op, e := range c.operations[query.ServiceName] {
 		if e <= t {
 			delete(c.operations[query.ServiceName], op)

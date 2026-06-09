@@ -84,7 +84,7 @@ func TestGetOperationsSpanKindFilter(t *testing.T) {
 		// Non-existent service
 		ops, err = cache.GetOperations(tracestore.OperationQueryParams{ServiceName: "nosvc"})
 		require.NoError(t, err)
-		assert.Nil(t, ops)
+		assert.Empty(t, ops)
 	})
 }
 

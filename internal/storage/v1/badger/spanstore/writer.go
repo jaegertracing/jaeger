@@ -79,7 +79,11 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	binary.BigEndian.PutUint64(durationValue, uint64(model.DurationAsMicroseconds(span.Duration)))
 	entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(durationIndexKey, durationValue, startTime, span.TraceID), nil, expireTime))
 
+	var spanKind string
 	for _, kv := range span.Tags {
+		if kv.Key == model.SpanKindKey {
+			spanKind = kv.AsString()
+		}
 		// Convert everything to string since queries are done that way also
 		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
 		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
@@ -112,10 +116,6 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	var spanKind string
-	if kv, ok := model.KeyValues(span.Tags).FindByKey(model.SpanKindKey); ok {
-		spanKind = kv.AsString()
-	}
 	w.cache.Update(span.Process.ServiceName, spanKind, span.OperationName, expireTime)
 
 	return err

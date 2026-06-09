@@ -243,7 +243,7 @@ func (r *TraceReader) GetServices(context.Context) ([]string, error) {
 	return r.cache.GetServices()
 }
 
-// GetOperations fetches operations in the service and empty slice if service does not exists
+// GetOperations returns operations for the given service, optionally filtered by SpanKind.
 func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
