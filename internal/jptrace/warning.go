@@ -11,7 +11,16 @@ import (
 func AddWarnings(span ptrace.Span, warnings ...string) {
 	var w pcommon.Slice
 	if currWarnings, ok := span.Attributes().Get(WarningsAttribute); ok {
-		w = currWarnings.Slice()
+		if currWarnings.Type() == pcommon.ValueTypeSlice {
+			w = currWarnings.Slice()
+		} else {
+			// The attribute may round-trip through storage backends that do not
+			// support slice-typed tags and come back as a plain string
+			// (mirrors the malformed-data fallback in GetWarnings).
+			prev := currWarnings.AsString()
+			w = span.Attributes().PutEmptySlice(WarningsAttribute)
+			w.AppendEmpty().SetStr(prev)
+		}
 	} else {
 		w = span.Attributes().PutEmptySlice(WarningsAttribute)
 	}
