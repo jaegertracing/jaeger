@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	depsmocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracemocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 )
@@ -47,8 +49,9 @@ func newTestGateway(t *testing.T) (*HTTPGateway, *depsmocks.Reader, *http.ServeM
 func TestHTTPGatewayGetDependencies(t *testing.T) {
 	_, depReader, router := newTestGateway(t)
 
-	startTime := time.Now().UTC().Add(-24 * time.Hour)
-	endTime := time.Now().UTC()
+	now := time.Now().UTC()
+	startTime := now.Add(-24 * time.Hour)
+	endTime := now
 
 	expectedDeps := []model.DependencyLink{
 		{
@@ -77,8 +80,11 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, "Response body: %s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "frontend")
-	assert.Contains(t, w.Body.String(), "backend")
+	var resp api_v3.DependenciesResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
+	require.Len(t, resp.Dependencies, 2)
+	assert.Equal(t, "frontend", resp.Dependencies[0].Parent)
+	assert.Equal(t, "backend", resp.Dependencies[1].Parent)
 	depReader.AssertExpectations(t)
 }
 
@@ -156,8 +162,9 @@ func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
 
 	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
-	startTime := time.Now().UTC().Add(-24 * time.Hour)
-	endTime := time.Now().UTC()
+	now := time.Now().UTC()
+	startTime := now.Add(-24 * time.Hour)
+	endTime := now
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
@@ -175,8 +182,9 @@ func TestHTTPGatewayGetDependencies_EmptyResponse(t *testing.T) {
 
 	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return([]model.DependencyLink{}, nil)
 
-	startTime := time.Now().UTC().Add(-24 * time.Hour)
-	endTime := time.Now().UTC()
+	now := time.Now().UTC()
+	startTime := now.Add(-24 * time.Hour)
+	endTime := now
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v3/dependencies?start_time="+startTime.Format(time.RFC3339Nano)+"&end_time="+endTime.Format(time.RFC3339Nano),
