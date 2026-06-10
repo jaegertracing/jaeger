@@ -9,8 +9,14 @@ type GetSpanDetailsInput struct {
 	TraceID string `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 
 	// SpanIDs is a list of span IDs to fetch details for (required).
-	// It is recommended to limit this to 20 spans or fewer for optimal performance.
-	SpanIDs []string `json:"span_ids" jsonschema:"List of span IDs to fetch details for. Recommended to limit to 20 spans or fewer"`
+	// When a trace has more spans than the server limit, pass all span IDs and
+	// set Offset to the returned NextOffset to paginate through them.
+	SpanIDs []string `json:"span_ids" jsonschema:"List of span IDs to fetch details for"`
+
+	// Offset is the starting index into SpanIDs for this page (optional, default: 0).
+	// On the first call omit this field or set it to 0. On subsequent calls set it
+	// to the NextOffset value returned by the previous response.
+	Offset int `json:"offset,omitempty" jsonschema:"Starting index into span_ids for pagination (default 0)"`
 }
 
 // GetSpanDetailsOutput defines the output of the get_span_details MCP tool.
@@ -18,6 +24,14 @@ type GetSpanDetailsOutput struct {
 	TraceID string       `json:"trace_id" jsonschema:"Unique identifier for the trace"`
 	Spans   []SpanDetail `json:"spans,omitempty" jsonschema:"List of span details"`
 	Error   string       `json:"error,omitempty" jsonschema:"Error message if some spans were not found"`
+
+	// HasMore is true when the number of requested span IDs exceeded the server
+	// limit and only a partial page was returned. Call again with NextOffset to
+	// retrieve the next page.
+	HasMore bool `json:"has_more" jsonschema:"True if more spans remain to be fetched"`
+
+	// NextOffset is the Offset value to use in the next call when HasMore is true.
+	NextOffset int `json:"next_offset,omitempty" jsonschema:"Offset to use for the next page"`
 }
 
 // SpanDetail contains full OTLP span data including attributes, events, and links.

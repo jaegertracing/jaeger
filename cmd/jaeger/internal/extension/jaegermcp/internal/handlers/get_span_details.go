@@ -52,15 +52,53 @@ func (h *getSpanDetailsHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetSpanDetailsInput,
 ) (*mcp.CallToolResult, types.GetSpanDetailsOutput, error) {
-	// Build query parameters (includes validation)
+	if input.TraceID == "" {
+		return nil, types.GetSpanDetailsOutput{}, errors.New("trace_id is required")
+	}
+	if _, err := parseTraceID(input.TraceID); err != nil {
+		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("invalid trace_id: %w", err)
+	}
+	if len(input.SpanIDs) == 0 {
+		return nil, types.GetSpanDetailsOutput{}, errors.New("span_ids is required and must not be empty")
+	}
+	// Compute the window of span IDs to process in this page.
+	// If the caller provided more IDs than the server limit, we cap
+	// this page and signal the remainder via HasMore + NextOffset.
+	start := input.Offset
+	if start < 0 {
+		return nil, types.GetSpanDetailsOutput{}, errors.New("offset must be >= 0")
+	}
+	// Fast-path: When offset is at or beyond the span list, return an empty terminal page
+	// without querying storage.
+	if start >= len(input.SpanIDs) {
+		return nil, types.GetSpanDetailsOutput{
+			TraceID: input.TraceID,
+			Spans:   nil,
+			HasMore: false,
+		}, nil
+	}
+
+	// Build query parameters (includes trace ID validation)
 	params, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err
 	}
 
-	// Create span ID set for efficient lookup
-	spanIDSet := make(map[string]struct{}, len(input.SpanIDs))
-	for _, spanID := range input.SpanIDs {
+	end := len(input.SpanIDs)
+	if h.maxSpanDetailsPerRequest > 0 && start+h.maxSpanDetailsPerRequest < end {
+		end = start + h.maxSpanDetailsPerRequest
+	}
+
+	pageSpanIDs := input.SpanIDs[start:end]
+	hasMore := end < len(input.SpanIDs)
+	nextOffset := 0
+	if hasMore {
+		nextOffset = end
+	}
+
+	// Create span ID set for efficient lookup (only for this page).
+	spanIDSet := make(map[string]struct{}, len(pageSpanIDs))
+	for _, spanID := range pageSpanIDs {
 		spanIDSet[spanID] = struct{}{}
 	}
 
@@ -69,7 +107,7 @@ func (h *getSpanDetailsHandler) handle(
 	// Wrap with AggregateTraces to ensure each ptrace.Traces contains a complete trace
 	aggregatedIter := jptrace.AggregateTraces(tracesIter)
 
-	// Collect spans matching the requested span IDs
+	// Collect spans matching the requested span IDs for this page
 	var spanDetails []types.SpanDetail
 	traceFound := false
 
@@ -101,11 +139,13 @@ func (h *getSpanDetailsHandler) handle(
 	}
 
 	output := types.GetSpanDetailsOutput{
-		TraceID: input.TraceID,
-		Spans:   spanDetails,
+		TraceID:    input.TraceID,
+		Spans:      spanDetails,
+		HasMore:    hasMore,
+		NextOffset: nextOffset,
 	}
 
-	// Report any span IDs that were not found
+	// Report any span IDs from this page that were not found in the trace
 	if len(spanIDSet) > 0 {
 		missingIDs := make([]string, 0, len(spanIDSet))
 		for spanID := range spanIDSet {
@@ -119,22 +159,13 @@ func (h *getSpanDetailsHandler) handle(
 
 // buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
 func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
-	// Validate input
+	// Validate required fields
 	if input.TraceID == "" {
 		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
 	}
 
 	if len(input.SpanIDs) == 0 {
 		return querysvc.GetTraceParams{}, errors.New("span_ids is required and must not be empty")
-	}
-
-	// Validate span count against configured limit
-	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
-		return querysvc.GetTraceParams{}, fmt.Errorf(
-			"span_ids exceeds maximum limit: requested %d, max allowed %d",
-			len(input.SpanIDs),
-			h.maxSpanDetailsPerRequest,
-		)
 	}
 
 	traceID, err := parseTraceID(input.TraceID)

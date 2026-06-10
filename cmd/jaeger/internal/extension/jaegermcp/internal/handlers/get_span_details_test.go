@@ -497,22 +497,173 @@ func TestConvertAttributeValue(t *testing.T) {
 	}
 }
 
-func TestGetSpanDetailsHandler_ExceedsLimit(t *testing.T) {
-	// Create handler with a limit of 2 spans per request
-	handler := NewGetSpanDetailsHandler(nil, 2)
+func TestGetSpanDetailsHandler_ExceedsLimit_PaginatesInstead(t *testing.T) {
+	traceID := testTraceID
+
+	// Build a trace with 3 spans
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/test1"},
+		{spanID: "span002", operation: "/api/test2"},
+		{spanID: "span003", operation: "/api/test3"},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// Handler with limit=2; caller passes 3 IDs
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 2}
 
 	input := types.GetSpanDetailsInput{
-		TraceID: testTraceID,
-		// Request 3 spans but limit is 2 - should fail before querying
+		TraceID: traceID,
 		SpanIDs: []string{spanIDToHex("span001"), spanIDToHex("span002"), spanIDToHex("span003")},
+		Offset:  0,
 	}
 
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "exceeds maximum limit")
-	assert.Contains(t, err.Error(), "requested 3")
-	assert.Contains(t, err.Error(), "max allowed 2")
+	// Must not return a hard error anymore — pagination kicks in instead
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 2) // only first page (limit=2)
+	assert.True(t, output.HasMore) // one span still pending
+	assert.Equal(t, 2, output.NextOffset)
+}
+
+func TestGetSpanDetailsHandler_Pagination_FirstPage(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/s1"},
+		{spanID: "span002", operation: "/api/s2"},
+		{spanID: "span003", operation: "/api/s3"},
+		{spanID: "span004", operation: "/api/s4"},
+		{spanID: "span005", operation: "/api/s5"},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 2}
+
+	allIDs := []string{
+		spanIDToHex("span001"), spanIDToHex("span002"), spanIDToHex("span003"),
+		spanIDToHex("span004"), spanIDToHex("span005"),
+	}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: allIDs,
+		Offset:  0,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 2)
+	assert.True(t, output.HasMore)
+	assert.Equal(t, 2, output.NextOffset)
+}
+
+func TestGetSpanDetailsHandler_Pagination_MiddlePage(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/s1"},
+		{spanID: "span002", operation: "/api/s2"},
+		{spanID: "span003", operation: "/api/s3"},
+		{spanID: "span004", operation: "/api/s4"},
+		{spanID: "span005", operation: "/api/s5"},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 2}
+
+	allIDs := []string{
+		spanIDToHex("span001"), spanIDToHex("span002"), spanIDToHex("span003"),
+		spanIDToHex("span004"), spanIDToHex("span005"),
+	}
+
+	// Second page: offset=2 → should return span003 + span004
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: allIDs,
+		Offset:  2,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 2)
+	assert.True(t, output.HasMore)
+	assert.Equal(t, 4, output.NextOffset)
+
+	// Verify the correct spans were returned (span003 and span004)
+	names := make(map[string]bool)
+	for _, s := range output.Spans {
+		names[s.SpanName] = true
+	}
+	assert.True(t, names["/api/s3"])
+	assert.True(t, names["/api/s4"])
+	assert.False(t, names["/api/s1"]) // first page — should not appear here
+}
+
+func TestGetSpanDetailsHandler_Pagination_LastPage(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/s1"},
+		{spanID: "span002", operation: "/api/s2"},
+		{spanID: "span003", operation: "/api/s3"},
+		{spanID: "span004", operation: "/api/s4"},
+		{spanID: "span005", operation: "/api/s5"},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 2}
+
+	allIDs := []string{
+		spanIDToHex("span001"), spanIDToHex("span002"), spanIDToHex("span003"),
+		spanIDToHex("span004"), spanIDToHex("span005"),
+	}
+
+	// Third (last) page: offset=4 → only span005 remains
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: allIDs,
+		Offset:  4,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 1)
+	assert.False(t, output.HasMore) // nothing left after this page
+	assert.Equal(t, "/api/s5", output.Spans[0].SpanName)
+}
+
+func TestGetSpanDetailsHandler_Pagination_ExactFit(t *testing.T) {
+	traceID := testTraceID
+
+	spanConfigs := []spanConfig{
+		{spanID: "span001", operation: "/api/s1"},
+		{spanID: "span002", operation: "/api/s2"},
+	}
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	// Limit equals the number of spans — should complete in one page
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 2}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: []string{spanIDToHex("span001"), spanIDToHex("span002")},
+		Offset:  0,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 2)
+	assert.False(t, output.HasMore) // exact fit — no more pages needed
 }
 
 func TestParseTraceID(t *testing.T) {
@@ -554,4 +705,97 @@ func TestParseTraceID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetSpanDetailsHandler_Pagination_OffsetUnderflow(t *testing.T) {
+	mock := newMockYieldingTraces(ptrace.NewTraces())
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 2}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{"a", "b", "c"},
+		Offset:  -1,
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "offset must be >= 0")
+}
+
+func TestGetSpanDetailsHandler_Pagination_OffsetEqualsLength(t *testing.T) {
+	handler := &getSpanDetailsHandler{queryService: nil, maxSpanDetailsPerRequest: 2}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{"a", "b", "c"},
+		Offset:  3, // Offset == len(span_ids)
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	// Should return an empty terminal page without querying storage.
+	require.NoError(t, err)
+	assert.Empty(t, output.Spans)
+	assert.False(t, output.HasMore)
+	assert.Equal(t, 0, output.NextOffset)
+	assert.Equal(t, testTraceID, output.TraceID)
+}
+
+func TestGetSpanDetailsHandler_Pagination_OffsetOverflow(t *testing.T) {
+	handler := &getSpanDetailsHandler{queryService: nil, maxSpanDetailsPerRequest: 2}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{"a", "b", "c"},
+		Offset:  10, // Offset > len(span_ids)
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	// Should return an empty terminal page without querying storage.
+	require.NoError(t, err)
+	assert.Empty(t, output.Spans)
+	assert.False(t, output.HasMore)
+	assert.Equal(t, 0, output.NextOffset)
+	assert.Equal(t, testTraceID, output.TraceID)
+}
+
+func TestGetSpanDetailsHandler_Pagination_LimitZero_DisablesPagination(t *testing.T) {
+	spanConfigs := []spanConfig{{spanID: "a", operation: "op1"}}
+	testTrace := createTestTraceWithSpans(testTraceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 0}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanIDToHex("a")},
+		Offset:  0,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 1)
+	assert.False(t, output.HasMore)
+	assert.Equal(t, 0, output.NextOffset)
+}
+
+func TestGetSpanDetailsHandler_Pagination_NegativeLimit_DisablesPagination(t *testing.T) {
+	spanConfigs := []spanConfig{{spanID: "a", operation: "op1"}}
+	testTrace := createTestTraceWithSpans(testTraceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: -1}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanIDToHex("a")},
+		Offset:  0,
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+	assert.Len(t, output.Spans, 1)
+	assert.False(t, output.HasMore)
+	assert.Equal(t, 0, output.NextOffset)
 }
