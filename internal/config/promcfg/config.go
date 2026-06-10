@@ -34,27 +34,8 @@ func (c *Configuration) Validate() error {
 	if _, err := govalidator.ValidateStruct(c); err != nil {
 		return err
 	}
-	// An empty LatencyUnit is allowed: it means "use the default" ("ms"). That
-	// default is normally populated when the config is loaded (the CLI flag
-	// default for v1, DefaultConfig for v2), but programmatically-constructed
-	// configs may leave it empty, so callers must not assume LatencyUnit is
-	// non-empty after Validate.
-	if c.LatencyUnit != "" && !IsValidLatencyUnit(c.LatencyUnit) {
-		return LatencyUnitError(c.LatencyUnit)
+	if u := c.LatencyUnit; u != "" && u != "ms" && u != "s" {
+		return fmt.Errorf(`latency_unit must be "ms" or "s", not %q`, u)
 	}
 	return nil
-}
-
-// IsValidLatencyUnit reports whether u is a latency unit the Prometheus metric
-// name builder understands. It is the single source of truth shared by this
-// validation and the v1 flag path in prometheus/options.go.
-func IsValidLatencyUnit(u string) bool {
-	return u == "ms" || u == "s"
-}
-
-// LatencyUnitError reports that the configured latency unit is unsupported. It is
-// shared by the v2 config validation and the v1 flag path so both surfaces emit
-// an identical message.
-func LatencyUnitError(value string) error {
-	return fmt.Errorf(`latency_unit must be "ms" or "s", not %q`, value)
 }

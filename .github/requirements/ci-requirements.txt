@@ -1,0 +1,12 @@
+# Python dependencies used directly by GitHub Actions workflow scripts.
+#
+# This file is named "*requirements.txt" on purpose: it matches Renovate's
+# default pip_requirements manager pattern so version bumps are raised
+# automatically. Renovate updates the pinned version but NOT the --hash line,
+# so whenever the version changes the hash must be regenerated with:
+#   python3 -m pip download --no-deps --only-binary=:all: prometheus-client==<version>
+#   python3 -m pip hash prometheus_client-<version>-py3-none-any.whl
+# (--require-hashes in CI will fail loudly if the hash is left stale.)
+
+prometheus-client==0.25.0 \
+    --hash=sha256:d5aec89e349a6ec230805d0df882f3807f74fd6c1a2fa86864e3c2279059fed1
