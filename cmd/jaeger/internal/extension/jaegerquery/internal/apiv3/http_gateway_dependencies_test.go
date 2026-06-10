@@ -68,7 +68,7 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 		},
 	}
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(expectedDeps, nil)
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(expectedDeps, nil).Once()
 
 	req := httptest.NewRequest(
 		http.MethodGet,
@@ -160,7 +160,7 @@ func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
 func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
 	_, depReader, router := newTestGateway(t)
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError)
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
 
 	now := time.Now().UTC()
 	startTime := now.Add(-24 * time.Hour)
@@ -175,12 +175,13 @@ func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	depReader.AssertExpectations(t)
 }
 
 func TestHTTPGatewayGetDependencies_EmptyResponse(t *testing.T) {
 	_, depReader, router := newTestGateway(t)
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return([]model.DependencyLink{}, nil)
+	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return([]model.DependencyLink{}, nil).Once()
 
 	now := time.Now().UTC()
 	startTime := now.Add(-24 * time.Hour)
@@ -194,6 +195,9 @@ func TestHTTPGatewayGetDependencies_EmptyResponse(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Contains(t, w.Body.String(), "dependencies")
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp api_v3.DependenciesResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &resp))
+	assert.Empty(t, resp.Dependencies)
+	depReader.AssertExpectations(t)
 }

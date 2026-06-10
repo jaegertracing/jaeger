@@ -277,8 +277,12 @@ func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	startTimeStr, _ := getQueryParam(q, paramStartTime, paramStartTimeDeprecated)
 	endTimeStr, _ := getQueryParam(q, paramEndTime, paramEndTimeDeprecated)
 
-	if startTimeStr == "" || endTimeStr == "" {
-		h.tryHandleError(w, fmt.Errorf("start time and end time parameters are required"), http.StatusBadRequest)
+	if startTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("missing required parameter: %s", paramStartTime), http.StatusBadRequest)
+		return
+	}
+	if endTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("missing required parameter: %s", paramEndTime), http.StatusBadRequest)
 		return
 	}
 
