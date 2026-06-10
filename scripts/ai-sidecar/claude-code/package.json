@@ -15,7 +15,7 @@
     "ws": "^8.18.0"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.6.0"
   },
   "license": "Apache-2.0"
 }

@@ -8,15 +8,17 @@
 
 set -euo pipefail
 
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Auto-detect authentication
 AUTH_OK=false
 
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+  AUTH_OK=true
+elif [[ -d "$HERE/node_modules" ]]; then
+  if "$HERE/node_modules/.bin/claude-agent-acp" --cli auth status >/dev/null 2>&1; then
     AUTH_OK=true
-elif [[ -d "$(dirname "${BASH_SOURCE[0]}")/node_modules" ]]; then
-    if "$(dirname "${BASH_SOURCE[0]}")/node_modules/.bin/claude-agent-acp" --cli auth status >/dev/null 2>&1; then
-        AUTH_OK=true
-    fi
+  fi
 fi
 
 if [[ "$AUTH_OK" = false ]]; then
