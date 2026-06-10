@@ -337,6 +337,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &FactoryBase{}
 	assert.Nil(t, f.getClient())
+	assert.NoError(t, f.Close()) // must not panic on nil client
 }
 
 func TestPasswordFromFile(t *testing.T) {

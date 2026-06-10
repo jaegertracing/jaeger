@@ -170,7 +170,10 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 
 // Close closes the resources held by the factory
 func (f *FactoryBase) Close() error {
-	return f.getClient().Close()
+	if c := f.getClient(); c != nil {
+		return c.Close()
+	}
+	return nil
 }
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
