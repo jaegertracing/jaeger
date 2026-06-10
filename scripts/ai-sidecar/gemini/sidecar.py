@@ -66,13 +66,9 @@ class JaegerSidecarAgent(Agent):
         self._conn: Client | None = None
         self._gemini = genai.Client(api_key=config.gemini_api_key)
         self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
+        self._gemini_model = config.gemini_model_name
         self._next_session_id = 1
         self._next_tool_call_id = 1
-        # Per-session AG-UI tool snapshot pulled from NewSessionRequest._meta.
-        # Each entry is the raw tool definition dict the frontend supplied
-        # (shape: {name, description?, parameters?}). The agentic loop uses
-        # the names to decide whether a Gemini function_call dispatches via
-        # MCP (built-in) or via the ACP extension method (contextual).
         self._contextual_tools: dict[str, list[dict[str, Any]]] = {}
 
     def _new_tool_call_id(self, tool_name: str) -> str:
@@ -309,7 +305,7 @@ class JaegerSidecarAgent(Agent):
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
         with tracer().start_as_current_span("sidecar.agentic_loop", attributes={
             GEN_AI_CONVERSATION_ID: session_id,
-            GEN_AI_REQUEST_MODEL: "gemini-2.5-flash",
+            GEN_AI_REQUEST_MODEL: self._gemini_model,
         }):
             logger.info("Starting agentic Gemini loop for session %s", session_id)
             system_instruction = (
@@ -343,7 +339,7 @@ class JaegerSidecarAgent(Agent):
             )
 
             chat = self._gemini.chats.create(
-                model="gemini-2.5-flash",
+                model=self._gemini_model,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     tools=cast(Any, tools_for_gemini),

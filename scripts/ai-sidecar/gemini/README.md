@@ -26,6 +26,14 @@ export GEMINI_API_KEY="your_api_key_here"
 
 Without this key, the sidecar cannot create the Gemini client.
 
+Optional Gemini model selection:
+
+```bash
+export GEMINI_MODEL_NAME="gemini-1.5-pro"
+```
+
+If unset, the sidecar defaults to `gemini-2.5-flash`. Use this to switch to more capable or cost-effective models.
+
 Optional MCP endpoint override:
 
 ```bash
@@ -52,6 +60,7 @@ Traces are exported over OTLP/gRPC. The default target (`http://localhost:4317`)
 | --- | --- | --- | --- |
 | `--otlp-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | OTLP/gRPC collector endpoint |
 | `--otlp-insecure` / `--no-otlp-insecure` | `OTEL_EXPORTER_OTLP_INSECURE` | `true` | Skip TLS when exporting (set to false + provide TLS at the collector for production) |
+| `--gemini-model-name` | `GEMINI_MODEL_NAME` | `gemini-2.5-flash` | Gemini model to use for trace analysis |
 
 Example pointing at a remote collector with TLS:
 
@@ -139,7 +148,7 @@ graph LR
     end
 
     subgraph External
-        Gemini[Gemini API<br/>gemini-2.5-flash]
+        Gemini[Gemini API<br/>gemini-2.5-flash (configurable)]
     end
 
     GW <-- "WebSocket (ACP)<br/>incl. _meta/jaegertracing.io/tools/call" --> WS

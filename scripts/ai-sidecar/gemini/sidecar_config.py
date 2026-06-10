@@ -11,6 +11,7 @@ class SidecarConfig:
     mcp_discovery_timeout_sec: float
     otlp_endpoint: str
     otlp_insecure: bool
+    gemini_model_name: str
 
     def validate(self) -> None:
         if not self.gemini_api_key:
@@ -25,3 +26,5 @@ class SidecarConfig:
             raise RuntimeError(
                 "OTEL_EXPORTER_OTLP_ENDPOINT must be provided via --otlp-endpoint or environment variable"
             )
+        if not self.gemini_model_name:
+            raise RuntimeError("GEMINI_MODEL_NAME must not be empty")
