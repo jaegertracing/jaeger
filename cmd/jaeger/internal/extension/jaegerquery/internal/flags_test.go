@@ -24,6 +24,17 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, DefaultAIHealthCheckInterval, aiCfg.HealthCheckInterval)
 	require.Equal(t, DefaultAIHealthCheckTimeout, aiCfg.HealthCheckTimeout)
 	require.NoError(t, aiCfg.Validate())
+
+	require.False(t, qo.OTLPProxy.HasValue())
+	otlpCfg := qo.OTLPProxy.GetOrInsertDefault()
+	require.NotNil(t, otlpCfg)
+	require.Equal(t, DefaultOTLPProxyTarget, otlpCfg.Target)
+	require.NoError(t, otlpCfg.Validate())
+}
+
+func TestOTLPProxyConfigValidate(t *testing.T) {
+	require.NoError(t, (&OTLPProxyConfig{Target: DefaultOTLPProxyTarget}).Validate())
+	require.EqualError(t, (&OTLPProxyConfig{Target: ""}).Validate(), "otlp_proxy.target is required")
 }
 
 // validAIConfig returns an AIConfig that passes Validate; tests mutate the
