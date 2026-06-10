@@ -23,8 +23,12 @@ The simplest way to start the sidecar alongside a local Jaeger instance is using
 
 ```bash
 # In the repository root
-make run-ai-claude
+make run-ai-claude ARGS="--mcp-server jaeger=http://127.0.0.1:16687/mcp"
 ```
+
+> **Note:** The `--mcp-server` flag is what gives Claude access to Jaeger's
+> tracing tools. Without it the bridge runs but the agent has no tools to
+> query traces. See [MCP Servers](#mcp-servers) for details.
 
 ### Authentication
 The launcher auto-detects two types of credentials:
@@ -61,15 +65,18 @@ Optional environment variables:
 | `DEBUG_BRIDGE` | unset       | Log every JSON-RPC frame in both directions.                                                            |
 
 ### MCP Servers
-The bridge accepts a repeatable `--mcp-server name=url` flag to inject MCP servers into the session.
+
+To give Claude access to Jaeger's tools, pass the `--mcp-server` flag via the `ARGS` variable:
 
 ```bash
 # Via Makefile
-make run-ai-claude -- --mcp-server jaeger=http://127.0.0.1:16687/mcp
+make run-ai-claude ARGS="--mcp-server jaeger=http://127.0.0.1:16687/mcp"
 
 # Or directly
 ./run.sh --mcp-server jaeger=http://127.0.0.1:16687/mcp
 ```
+
+The flag is repeatable — pass multiple `--mcp-server` entries to connect additional MCP servers.
 
 ## Files
 

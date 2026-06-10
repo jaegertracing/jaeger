@@ -289,4 +289,4 @@ run-ai-gemini:
 
 .PHONY: run-ai-claude
 run-ai-claude:
-	./scripts/ai-sidecar/claude-code/run.sh
+	./scripts/ai-sidecar/claude-code/run.sh $(ARGS)
