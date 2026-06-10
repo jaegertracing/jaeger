@@ -119,7 +119,8 @@ uv run python main.py \
   --host localhost --port 16688 \
   --mcp-url http://127.0.0.1:16687/mcp \
   --mcp-discovery-timeout-sec 15 \
-  --otlp-endpoint http://localhost:4317 --otlp-insecure
+  --otlp-endpoint http://localhost:4317 --otlp-insecure \
+  --gemini-model-name gemini-1.5-pro
 ```
 
 ## Code Layout
