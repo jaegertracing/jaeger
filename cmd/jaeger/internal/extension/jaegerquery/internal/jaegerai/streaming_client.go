@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -165,12 +166,40 @@ func (c *streamingClient) ensureTextStart() {
 	c.textOpen = true
 }
 
-// RequestPermission always denies. The gateway advertises no filesystem or
-// terminal capabilities, so any permission request is unexpected. Tool
-// interactions (e.g. visualization) are handled via the contextual tools
-// snapshot the frontend supplies on the AG-UI request, not through ACP
-// permissions.
-func (*streamingClient) RequestPermission(context.Context, acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+// RequestPermission auto-accepts tool calls by selecting the first
+// allow-flavoured option the agent offers. The gateway curates which tools
+// an agent can invoke through two pre-approved channels:
+//   - MCP tools the operator wires up at deploy time (read-only telemetry
+//     queries against Jaeger).
+//   - Contextual tools the frontend declares for the chat turn (browser-
+//     side AG-UI tools the user is implicitly authorising by sending the
+//     prompt).
+//
+// Filesystem and terminal capabilities are disabled in Initialize, so a
+// well-behaved agent will not have other tools to ask about; if one does
+// ask, we still accept because the tool itself was already curated upstream.
+// AG-UI has no permission-request event shape to bubble a per-call prompt
+// up to the browser, so deferring would be useless.
+//
+// The previous "always cancel" policy was incompatible with agents like the
+// Claude Agent SDK, which routes every tool call through canUseTool / a
+// session/request_permission RPC; the cancelled outcome aborted every call
+// as "Tool use aborted". The Gemini sidecar never hit this because Gemini's
+// tool path does not issue ACP permission requests.
+//
+// If the agent presents no allow-kind option (e.g. only reject choices),
+// we fall through to cancelled so a misconfigured agent cannot be coerced
+// into a forbidden action.
+func (*streamingClient) RequestPermission(_ context.Context, req acp.RequestPermissionRequest) (acp.RequestPermissionResponse, error) {
+	for _, opt := range req.Options {
+		if opt.Kind == acp.PermissionOptionKindAllowOnce || opt.Kind == acp.PermissionOptionKindAllowAlways {
+			return acp.RequestPermissionResponse{
+				Outcome: acp.RequestPermissionOutcome{
+					Selected: &acp.RequestPermissionOutcomeSelected{OptionId: opt.OptionId},
+				},
+			}, nil
+		}
+	}
 	return acp.RequestPermissionResponse{
 		Outcome: acp.RequestPermissionOutcome{
 			Cancelled: &acp.RequestPermissionOutcomeCancelled{},
@@ -184,7 +213,18 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	u := n.Update
 	if u.AgentMessageChunk != nil {
 		content := u.AgentMessageChunk.Content
-		if content.Text != nil {
+		// AG-UI's TextMessageContentEvent forbids empty deltas and the SDK
+		// encoder rejects them at write time, marking the SSE stream closed
+		// and stranding the browser bubble half-rendered. ACP, however,
+		// allows agents to emit text-block lifecycle/framing chunks whose
+		// `text` is "" or whitespace-only (Claude's stream maps
+		// content_block_start → empty-text chunk this way). Skip those at
+		// the boundary so the AG-UI invariant START → CONTENT+ → END holds
+		// and a noisy upstream agent doesn't take down the run. Note we
+		// emit the original Text (not the trimmed value) — leading/trailing
+		// whitespace inside a multi-chunk message is meaningful glue
+		// between deltas, only fully-blank chunks are skipped.
+		if content.Text != nil && strings.TrimSpace(content.Text.Text) != "" {
 			c.ensureTextStart()
 			c.emit(aguievents.NewTextMessageContentEvent(c.messageID, content.Text.Text))
 		}

@@ -38,7 +38,7 @@ func (f *Factory) Initialize(telset telemetry.Settings) error {
 
 // CreateMetricsReader implements storage.V1MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	mr, err := prometheusstore.NewMetricsReader(f.options.Configuration, f.telset.Logger, f.telset.TracerProvider, f.httpAuth)
+	mr, err := prometheusstore.NewMetricsReader(*f.options, f.telset.Logger, f.telset.TracerProvider, f.httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -55,10 +55,15 @@ func NewFactoryWithConfig(
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	f := NewFactory()
-	f.options = &Options{
-		Configuration: cfg,
+	// Validate permits an empty LatencyUnit (it means "use the default"), so
+	// normalize it to the default before storing so downstream code never sees an
+	// empty unit. Without this, a config with NormalizeDuration enabled would
+	// reach the reader with an empty unit and panic when building the metric name.
+	if cfg.LatencyUnit == "" {
+		cfg.LatencyUnit = defaultLatencyUnit
 	}
+	f := NewFactory()
+	f.options = &cfg
 	f.httpAuth = httpAuth
 	err := f.Initialize(telset)
 	return f, err

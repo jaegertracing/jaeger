@@ -9,6 +9,7 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - clickhouselint
     - contextcheck
     - copyloopvar
     - decorder
@@ -146,9 +147,7 @@ linters:
         # "no nested structs are allowed" - don't enable, doesn't make sense
         - name: nested-structs
           disabled: true
-        # looks useful, but requires refactoring: "calls to log.Fatal only in main() or init() functions"
         - name: deep-exit
-          disabled: true
         # existing packages conflict with stdlib names or use underscores; cannot rename
         - name: package-naming
           disabled: true

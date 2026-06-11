@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/aihealth"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -34,6 +35,7 @@ var (
 type server struct {
 	config         *Config
 	server         *queryapp.Server
+	aiHealth       *aihealth.Checker
 	telset         component.TelemetrySettings
 	qs             *querysvc.QueryService
 	tenancyManager *tenancy.Manager
@@ -101,6 +103,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		MetricsStorage: s.config.Storage.Metrics != "",
 	}
 
+	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
+
+	var aiHealthCheck func() bool
+	if s.aiHealth != nil {
+		aiHealthCheck = s.aiHealth.Current
+	}
+
 	s.server, err = queryapp.NewServer(
 		ctx,
 		// TODO propagate healthcheck updates up to the collector's runtime
@@ -108,6 +117,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		mqs,
 		&s.config.QueryOptions,
 		caps,
+		aiHealthCheck,
 		tm,
 		telset,
 	)
@@ -119,7 +129,39 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("could not start jaeger-query: %w", err)
 	}
 
+	// Start the health checker only after the query server is up — a failed
+	// server start (e.g. port bind error) returns an error from Start, and
+	// the OTel collector does not call Shutdown in that case. Starting the
+	// checker first would leak its goroutine forever. The checker is given a
+	// fresh background context because the Start context is cancelled when
+	// Start returns; Shutdown stops the checker explicitly.
+	if s.aiHealth != nil {
+		s.aiHealth.Start(context.Background()) //nolint:contextcheck // intentional: checker outlives Start ctx; Shutdown stops it.
+	}
+
 	return nil
+}
+
+// buildAIHealthChecker constructs an AI health checker when the operator opted in
+// (jaeger_query.ai block present with a non-empty agent URL and a positive
+// check interval). Returns nil when AI is disabled — there's nothing to
+// check and the static handler advertises aiAssistant=false.
+func buildAIHealthChecker(opts *queryapp.QueryOptions, logger *zap.Logger) *aihealth.Checker {
+	if !opts.AI.HasValue() {
+		logger.Info("AI Assistant disabled")
+		return nil
+	}
+	aiCfg := opts.AI.Get() // cannot be nil when HasValue is true
+	if aiCfg.HealthCheckInterval == 0 {
+		logger.Info("AI Assistant health check disabled (health_check_interval=0)")
+		return nil
+	}
+	return &aihealth.Checker{
+		Check:    aihealth.NewACPCheck(aiCfg.AgentURL, logger),
+		Interval: aiCfg.HealthCheckInterval,
+		Timeout:  aiCfg.HealthCheckTimeout,
+		Logger:   logger,
+	}
 }
 
 func (s *server) addArchiveStorage(
@@ -181,6 +223,9 @@ func (s *server) createMetricReader(host component.Host) (metricstore.Reader, er
 }
 
 func (s *server) Shutdown(_ context.Context) error {
+	if s.aiHealth != nil {
+		s.aiHealth.Stop()
+	}
 	if s.server != nil {
 		return s.server.Close()
 	}

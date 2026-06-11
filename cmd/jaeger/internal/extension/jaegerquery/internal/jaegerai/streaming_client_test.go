@@ -284,23 +284,91 @@ func TestStreamingClientEnsureTextStartIsIdempotent(t *testing.T) {
 	assert.Equal(t, []string{"TEXT_MESSAGE_START"}, types, "ensureTextStart should only emit once per open message")
 }
 
-func TestStreamingClientRequestPermissionAlwaysDenies(t *testing.T) {
+func TestStreamingClientRequestPermissionAcceptsAllowOnce(t *testing.T) {
+	// Agents like the Claude Agent SDK route every tool call through a
+	// session/request_permission RPC. The gateway already curates which
+	// tools the agent can invoke (operator-configured MCP + frontend-
+	// declared contextual tools), and AG-UI has no per-call permission
+	// event to bubble up — so the gateway must select an allow option
+	// rather than cancel, which Claude treats as "Tool use aborted".
 	c := &streamingClient{}
 
-	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
-	require.NoError(t, err)
-	require.NotNil(t, resp.Outcome.Cancelled, "expected cancelled outcome when no options")
-
-	resp, err = c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
 		Options: []acp.PermissionOption{{
 			OptionId: "opt-1",
-			Name:     "allow",
+			Name:     "allow once",
 			Kind:     acp.PermissionOptionKindAllowOnce,
 		}},
 	})
 	require.NoError(t, err)
-	require.NotNil(t, resp.Outcome.Cancelled, "expected cancelled outcome even with options")
-	require.Nil(t, resp.Outcome.Selected, "should never auto-approve permissions")
+	require.NotNil(t, resp.Outcome.Selected, "expected allow-kind option to be selected")
+	require.Nil(t, resp.Outcome.Cancelled, "must not cancel when an allow option is offered")
+	assert.Equal(t, acp.PermissionOptionId("opt-1"), resp.Outcome.Selected.OptionId)
+}
+
+func TestStreamingClientRequestPermissionPicksFirstAllowOption(t *testing.T) {
+	// Agents typically present a list like [allow_once, allow_always,
+	// reject_once]. Order-preserving "first allow wins" keeps the agent's
+	// suggested ordering authoritative — the gateway has no preference
+	// between scopes, so don't impose one.
+	c := &streamingClient{}
+
+	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+		Options: []acp.PermissionOption{
+			{OptionId: "reject", Name: "reject", Kind: acp.PermissionOptionKindRejectOnce},
+			{OptionId: "once", Name: "allow once", Kind: acp.PermissionOptionKindAllowOnce},
+			{OptionId: "always", Name: "allow always", Kind: acp.PermissionOptionKindAllowAlways},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Outcome.Selected)
+	assert.Equal(t, acp.PermissionOptionId("once"), resp.Outcome.Selected.OptionId,
+		"first allow-kind option must be chosen, skipping any preceding reject options")
+}
+
+func TestStreamingClientRequestPermissionAcceptsAllowAlwaysWhenNoOnce(t *testing.T) {
+	// Some agents may only offer allow_always (e.g. for tools they consider
+	// safe to remember). Accept that too — both kinds are "yes."
+	c := &streamingClient{}
+
+	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+		Options: []acp.PermissionOption{{
+			OptionId: "always",
+			Name:     "allow always",
+			Kind:     acp.PermissionOptionKindAllowAlways,
+		}},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Outcome.Selected)
+	assert.Equal(t, acp.PermissionOptionId("always"), resp.Outcome.Selected.OptionId)
+}
+
+func TestStreamingClientRequestPermissionCancelsWhenNoOptions(t *testing.T) {
+	// Defensive: with no options to choose from there's nothing to accept,
+	// so fall through to cancelled rather than fabricate an option id.
+	c := &streamingClient{}
+
+	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Outcome.Cancelled, "no options → cancelled")
+	require.Nil(t, resp.Outcome.Selected)
+}
+
+func TestStreamingClientRequestPermissionCancelsWhenOnlyRejectOptions(t *testing.T) {
+	// A misconfigured or hostile agent that only presents reject options
+	// cannot be coerced into an allow — the gateway falls through to
+	// cancelled so the tool call is aborted instead of forced.
+	c := &streamingClient{}
+
+	resp, err := c.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+		Options: []acp.PermissionOption{
+			{OptionId: "reject-once", Kind: acp.PermissionOptionKindRejectOnce},
+			{OptionId: "reject-always", Kind: acp.PermissionOptionKindRejectAlways},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Outcome.Cancelled)
+	require.Nil(t, resp.Outcome.Selected, "must not promote a reject option to an allow")
 }
 
 func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testing.T) {
@@ -322,6 +390,78 @@ func TestStreamingClientSessionUpdateAgentMessageChunkEmitsTextContent(t *testin
 	contentEvent := events[2]
 	assert.Equal(t, "hello world", contentEvent["delta"])
 	assert.Equal(t, c.messageID, contentEvent["messageId"])
+}
+
+func TestStreamingClientSessionUpdateAgentMessageChunkSkipsEmptyText(t *testing.T) {
+	// AG-UI's TextMessageContentEvent forbids empty deltas — its SDK encoder
+	// rejects them at write time, which would mark the SSE stream closed and
+	// strand the browser bubble after TEXT_MESSAGE_START. ACP itself permits
+	// empty-text chunks (Claude maps content_block_start lifecycle events
+	// that way), so the gateway must filter them at the boundary. No
+	// TEXT_MESSAGE_START fires either: pairing START with content that
+	// never arrives breaks the AG-UI invariant START → CONTENT+ → END.
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+		Update: acp.SessionUpdate{
+			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock("")},
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, rec.Body.String(),
+		"empty-text agent_message_chunk must not produce any SSE events")
+	assert.False(t, c.textOpen,
+		"TEXT_MESSAGE_START must not be emitted when no content will follow")
+}
+
+func TestStreamingClientSessionUpdateAgentMessageChunkSkipsWhitespaceOnlyText(t *testing.T) {
+	// Some agents emit framing chunks containing only whitespace (e.g. a
+	// newline marking a block boundary). The AG-UI encoder treats those the
+	// same as empty deltas, so they get filtered out at the boundary
+	// alongside truly-empty chunks.
+	for _, blank := range []string{" ", "  \t  ", "\n", "\r\n"} {
+		t.Run(strings.ReplaceAll(strings.ReplaceAll(blank, "\n", "\\n"), "\t", "\\t"), func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+			err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+				Update: acp.SessionUpdate{
+					AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(blank)},
+				},
+			})
+			require.NoError(t, err)
+			require.Empty(t, rec.Body.String(),
+				"whitespace-only agent_message_chunk %q must not produce any SSE events", blank)
+			assert.False(t, c.textOpen,
+				"TEXT_MESSAGE_START must not be emitted for whitespace-only chunks")
+		})
+	}
+}
+
+func TestStreamingClientSessionUpdateAgentMessageChunkPreservesInternalWhitespace(t *testing.T) {
+	// Whitespace inside a non-blank chunk is meaningful glue between
+	// streamed deltas — e.g. when an agent emits "Hello" then " world"
+	// separately, the leading space must survive so the assembled message
+	// reads "Hello world". The filter only drops fully-blank chunks; it
+	// does NOT trim the delta when it forwards.
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+	c.startRun()
+
+	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
+		Update: acp.SessionUpdate{
+			AgentMessageChunk: &acp.SessionUpdateAgentMessageChunk{Content: acp.TextBlock(" world ")},
+		},
+	})
+	require.NoError(t, err)
+
+	events := parseSSEEvents(t, rec.Body.String())
+	require.Equal(t,
+		[]string{"RUN_STARTED", "TEXT_MESSAGE_START", "TEXT_MESSAGE_CONTENT"},
+		eventTypes(events))
+	assert.Equal(t, " world ", events[2]["delta"],
+		"non-blank chunks must be forwarded verbatim, preserving leading/trailing whitespace")
 }
 
 func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {

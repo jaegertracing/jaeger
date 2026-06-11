@@ -10,6 +10,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 )
 
 const (
@@ -31,6 +32,8 @@ type Configuration struct {
 	Database string `mapstructure:"database"`
 	// Auth contains the authentication configuration to connect to ClickHouse.
 	Auth Authentication `mapstructure:"auth"`
+	// TLS, when present, enables TLS for the ClickHouse connection.
+	TLS configoptional.Optional[configtls.ClientConfig] `mapstructure:"tls"`
 	// DialTimeout is the timeout for establishing a connection to ClickHouse.
 	DialTimeout time.Duration `mapstructure:"dial_timeout"`
 	// CreateSchema, if set to true, will create the ClickHouse schema if it does not exist.

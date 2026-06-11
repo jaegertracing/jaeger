@@ -48,7 +48,7 @@ const (
 	tagKeyField            = "key"
 	tagValueField          = "value"
 
-	defaultNumTraces = 100
+	defaultSearchDepth = 100
 
 	dawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
 )
@@ -304,8 +304,8 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery dbmodel.TraceQ
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
 	}
-	if traceQuery.NumTraces == 0 {
-		traceQuery.NumTraces = defaultNumTraces
+	if traceQuery.SearchDepth == 0 {
+		traceQuery.SearchDepth = defaultSearchDepth
 	}
 
 	esTraceIDs, err := s.findTraceIDsFromQuery(ctx, traceQuery)
@@ -496,7 +496,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	//      },
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
-	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
+	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 	jaegerIndices := s.timeRangeIndices(
 		s.spanIndexPrefix,

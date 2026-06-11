@@ -9,8 +9,10 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -131,9 +133,51 @@ func (h *Handler) FindTraces(
 	return nil
 }
 
+func (h *Handler) FindTraceSummaries(
+	req *storage.FindTraceSummariesRequest,
+	srv storage.TraceReader_FindTraceSummariesServer,
+) error {
+	sr, ok := h.traceReader.(tracestore.SummaryReader)
+	if !ok {
+		return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented")
+	}
+	for summaries, err := range sr.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
+		if err != nil {
+			return err
+		}
+		batch := make([]*storage.TraceSummary, len(summaries))
+		for i := range summaries {
+			s := &summaries[i]
+			svcs := make([]*storage.ServiceSummary, len(s.Services))
+			for j := range s.Services {
+				svcs[j] = &storage.ServiceSummary{
+					Name:           s.Services[j].Name,
+					SpanCount:      int32(s.Services[j].SpanCount),      //nolint:gosec // G115
+					ErrorSpanCount: int32(s.Services[j].ErrorSpanCount), //nolint:gosec // G115
+				}
+			}
+			batch[i] = &storage.TraceSummary{
+				TraceId:              s.TraceID[:],
+				RootServiceName:      s.RootServiceName,
+				RootOperationName:    s.RootOperationName,
+				MinStartTimeUnixNano: jptrace.TimeToUnixNano(s.MinStartTime),
+				MaxEndTimeUnixNano:   jptrace.TimeToUnixNano(s.MaxEndTime),
+				SpanCount:            int32(s.SpanCount),       //nolint:gosec // G115
+				ErrorSpanCount:       int32(s.ErrorSpanCount),  //nolint:gosec // G115
+				OrphanSpanCount:      int32(s.OrphanSpanCount), //nolint:gosec // G115
+				Services:             svcs,
+			}
+		}
+		if err := srv.Send(&storage.FindTraceSummariesResponse{Summaries: batch}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (h *Handler) FindTraceIDs(
 	ctx context.Context,
-	req *storage.FindTracesRequest,
+	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
 	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {

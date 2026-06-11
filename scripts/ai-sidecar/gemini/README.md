@@ -75,7 +75,23 @@ uv sync
 
 ## Run The Sidecar Server
 
-You can start the same server using either entrypoint:
+### One-command launcher (recommended)
+
+From the repository root:
+
+```bash
+export GEMINI_API_KEY=…
+make run-ai-gemini
+```
+
+This bootstraps the Python toolchain (`uv sync`), starts Jaeger with the
+example config, waits for it to be ready, then runs the sidecar in the
+foreground. Ctrl-C stops both.
+
+### Manual
+
+If you'd rather run the two processes yourself (e.g., to point the sidecar
+at a remote Jaeger), start the server directly:
 
 ```bash
 uv run python main.py

@@ -233,7 +233,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 				StartTimeMax:  ts.Add(1 * time.Hour),
 				DurationMin:   1 * time.Hour,
 				DurationMax:   1 * time.Hour,
-				NumTraces:     10,
+				SearchDepth:   10,
 			}
 			coreReader.On("FindTraceIDs", mock.Anything, dbTraceQueryParams).Return(test.traceIdsFromCoreReader, test.errFromCoreReader)
 			reader := TraceReader{spanReader: coreReader}
