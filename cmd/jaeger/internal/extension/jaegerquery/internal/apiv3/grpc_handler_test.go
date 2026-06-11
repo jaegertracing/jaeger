@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -45,20 +46,22 @@ func newGrpcServer(t *testing.T, handler *Handler) (*grpc.Server, net.Addr) {
 }
 
 type testServerClient struct {
-	server  *grpc.Server
-	address net.Addr
-	reader  *tracestoremocks.Reader
-	client  api_v3.QueryServiceClient
+	server    *grpc.Server
+	address   net.Addr
+	reader    *tracestoremocks.Reader
+	depReader *dependencystoremocks.Reader
+	client    api_v3.QueryServiceClient
 }
 
 func newTestServerClient(t *testing.T) *testServerClient {
 	tsc := &testServerClient{
-		reader: &tracestoremocks.Reader{},
+		reader:    &tracestoremocks.Reader{},
+		depReader: &dependencystoremocks.Reader{},
 	}
 
 	q := querysvc.NewQueryService(
 		tsc.reader,
-		&dependencystoremocks.Reader{},
+		tsc.depReader,
 		querysvc.QueryServiceOptions{},
 	)
 	h := &Handler{
@@ -363,4 +366,56 @@ func TestGetOperationsStorageError(t *testing.T) {
 	response, err := tsc.client.GetOperations(context.Background(), &api_v3.GetOperationsRequest{})
 	require.ErrorContains(t, err, assert.AnError.Error())
 	assert.Nil(t, response)
+}
+
+func TestGetDependencies(t *testing.T) {
+	tsc := newTestServerClient(t)
+	now := time.Now()
+	tsc.depReader.On("GetDependencies", matchContext, mock.AnythingOfType("depstore.QueryParameters")).
+		Return([]model.DependencyLink{{Parent: "svc-a", Child: "svc-b", CallCount: 42}}, nil).Once()
+
+	resp, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
+		StartTime: now.Add(-time.Hour),
+		EndTime:   now,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.GetDependencies(), 1)
+	assert.Equal(t, "svc-a", resp.GetDependencies()[0].GetParent())
+	assert.Equal(t, "svc-b", resp.GetDependencies()[0].GetChild())
+	assert.Equal(t, uint64(42), resp.GetDependencies()[0].GetCallCount())
+}
+
+func TestGetDependenciesInvalidParams(t *testing.T) {
+	tsc := newTestServerClient(t)
+	now := time.Now()
+
+	// missing times
+	resp, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{})
+	require.ErrorContains(t, err, "start_time and end_time are required")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Nil(t, resp)
+
+	// end before start
+	resp, err = tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
+		StartTime: now,
+		EndTime:   now.Add(-time.Hour),
+	})
+	require.ErrorContains(t, err, "end_time must be after start_time")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+	assert.Nil(t, resp)
+}
+
+func TestGetDependenciesStorageError(t *testing.T) {
+	tsc := newTestServerClient(t)
+	now := time.Now()
+	tsc.depReader.On("GetDependencies", matchContext, mock.AnythingOfType("depstore.QueryParameters")).
+		Return(nil, assert.AnError).Once()
+
+	resp, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
+		StartTime: now.Add(-time.Hour),
+		EndTime:   now,
+	})
+	require.ErrorContains(t, err, assert.AnError.Error())
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.Nil(t, resp)
 }

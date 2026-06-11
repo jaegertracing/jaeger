@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,7 @@ import (
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -37,12 +39,13 @@ func setupHTTPGatewayNoServer(
 	basePath string,
 ) *testGateway {
 	gw := &testGateway{
-		reader: &tracestoremocks.Reader{},
+		reader:    &tracestoremocks.Reader{},
+		depReader: &dependencystoremocks.Reader{},
 	}
 
 	q := querysvc.NewQueryService(
 		gw.reader,
-		&dependencystoremocks.Reader{},
+		gw.depReader,
 		querysvc.QueryServiceOptions{},
 	)
 
@@ -474,6 +477,114 @@ func TestHTTPGatewayGetOperationsErrors(t *testing.T) {
 	require.NoError(t, err)
 	w = httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
+	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestHTTPGatewayGetDependencies(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+
+	startTime := time.Now().Add(-time.Hour)
+	endTime := time.Now()
+	gw.depReader.
+		On("GetDependencies", matchContext, mock.AnythingOfType("depstore.QueryParameters")).
+		Return([]model.DependencyLink{
+			{Parent: "svc-a", Child: "svc-b", CallCount: 42},
+		}, nil).Once()
+
+	url := fmt.Sprintf(
+		"/api/v3/dependencies?start_time=%s&end_time=%s",
+		startTime.UTC().Format(time.RFC3339Nano),
+		endTime.UTC().Format(time.RFC3339Nano),
+	)
+	r, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var response api_v3.DependenciesResponse
+	require.NoError(t, jsonpb.Unmarshal(w.Body, &response))
+	require.Len(t, response.Dependencies, 1)
+	assert.Equal(t, "svc-a", response.Dependencies[0].Parent)
+	assert.Equal(t, "svc-b", response.Dependencies[0].Child)
+	assert.Equal(t, uint64(42), response.Dependencies[0].CallCount)
+	gw.depReader.AssertExpectations(t)
+}
+
+func TestHTTPGatewayGetDependenciesMissingParams(t *testing.T) {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	tests := []struct {
+		name    string
+		url     string
+		wantMsg string
+	}{
+		{
+			name:    "both missing",
+			url:     "/api/v3/dependencies",
+			wantMsg: "startTime is required",
+		},
+		{
+			name:    "end_time missing",
+			url:     "/api/v3/dependencies?start_time=" + now,
+			wantMsg: "endTime is required",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			r, err := http.NewRequest(http.MethodGet, tc.url, http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tc.wantMsg)
+		})
+	}
+}
+
+func TestHTTPGatewayGetDependenciesInvalidTime(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	r, err := http.NewRequest(http.MethodGet, "/api/v3/dependencies?start_time=not-a-time&end_time=also-not", http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "malformed parameter")
+}
+
+func TestHTTPGatewayGetDependenciesEndBeforeStart(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	now := time.Now()
+	url := fmt.Sprintf(
+		"/api/v3/dependencies?start_time=%s&end_time=%s",
+		now.UTC().Format(time.RFC3339Nano),
+		now.Add(-time.Hour).UTC().Format(time.RFC3339Nano),
+	)
+	r, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "must be after")
+}
+
+func TestHTTPGatewayGetDependenciesStorageError(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	now := time.Now()
+	gw.depReader.
+		On("GetDependencies", matchContext, mock.AnythingOfType("depstore.QueryParameters")).
+		Return(nil, assert.AnError).Once()
+
+	url := fmt.Sprintf(
+		"/api/v3/dependencies?start_time=%s&end_time=%s",
+		now.Add(-time.Hour).UTC().Format(time.RFC3339Nano),
+		now.UTC().Format(time.RFC3339Nano),
+	)
+	r, err := http.NewRequest(http.MethodGet, url, http.NoBody)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
 }
 
