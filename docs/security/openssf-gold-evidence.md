@@ -47,9 +47,15 @@ The public OpenSSF Scorecard result remains detection-based. These entries docum
 
 | Scorecard check | Current score | Decision | Rationale |
 | --- | ---: | --- | --- |
+| `Branch-Protection` | `8` | Accepted exception | Jaeger keeps `main` protected with pull requests required, CODEOWNERS review required, required status checks configured, branch protection enforced for administrators, force pushes disabled, and branch deletion disabled. Maintainers accept one required approving review instead of raising the requirement to two solely for additional Scorecard credit. |
 | `Fuzzing` | `0` | Accepted exception | Jaeger is not adding fuzzing solely to improve Scorecard. Useful fuzzing would need explicit target selection, seed corpora, invariants, ownership, triage, and non-PR infrastructure. Placeholder fuzz targets would be misleading. Revisit only for a specific untrusted-input parser or decoder with an owner and clear triage path. |
+| `Pinned-Dependencies` | `8` | Accepted exception | Jaeger component Dockerfiles intentionally use dynamic `FROM $base_image` and `FROM $debug_image` references because the centralized Docker build scripts inject the release base and debug images. Those source images are built from pinned Dockerfiles, so mirroring the same digest defaults in every component Dockerfile would add drift risk without improving the release build. |
+
+The branch protection exception is tracked by `https://github.com/jaegertracing/jaeger/issues/8674`.
 
 The fuzzing exception is tracked by `https://github.com/jaegertracing/jaeger/issues/8636`.
+
+The pinned Docker base image exception is tracked by `https://github.com/jaegertracing/jaeger/issues/8671`.
 
 ## Gold Criteria With Current Evidence
 
