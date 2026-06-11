@@ -1196,3 +1196,54 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkGetDependencies(b *testing.B) {
+	for _, numSpans := range []int{100, 500, 2000} {
+		b.Run(fmt.Sprintf("spans=%d", numSpans), func(b *testing.B) {
+			store, err := NewStore(Configuration{MaxTraces: 10})
+			require.NoError(b, err)
+
+			// Build a chain of spans across alternating ResourceSpans.
+			// span[i] has parent = span[i-1], placed in a different ResourceSpan.
+			// This forces the old linear scan to go deeper each time.
+			traceID := pcommon.TraceID([16]byte{1})
+			td := ptrace.NewTraces()
+
+			for i := 0; i < numSpans; i++ {
+				svcName := "service-A"
+				if i%2 == 1 {
+					svcName = "service-B"
+				}
+				rs := td.ResourceSpans().AppendEmpty()
+				rs.Resource().Attributes().PutStr("service.name", svcName)
+				span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+				span.SetTraceID(traceID)
+				spanID := pcommon.SpanID([8]byte{byte(i >> 8), byte(i)})
+				span.SetSpanID(spanID)
+				if i > 0 {
+					parentID := pcommon.SpanID([8]byte{byte((i - 1) >> 8), byte(i - 1)})
+					span.SetParentSpanID(parentID)
+				}
+				span.SetStartTimestamp(pcommon.Timestamp(time.Now().UnixNano()))
+				span.SetEndTimestamp(pcommon.Timestamp(time.Now().Add(time.Millisecond).UnixNano()))
+			}
+
+			err = store.WriteTraces(context.Background(), td)
+			require.NoError(b, err)
+
+			query := depstore.QueryParameters{
+				StartTime: time.Now().Add(-1 * time.Hour),
+				EndTime:   time.Now().Add(1 * time.Hour),
+			}
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, err := store.GetDependencies(context.Background(), query)
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
