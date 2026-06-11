@@ -401,7 +401,8 @@ func TestGetDependencies(t *testing.T) {
 func TestGetDependenciesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.depsReader.On("GetDependencies", matchContext, mock.Anything).Return(
-		nil, assert.AnError).Once()
+		nil, assert.AnError,
+	).Once()
 
 	endTime := time.Now().UTC()
 	response, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
