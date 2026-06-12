@@ -157,6 +157,7 @@ Body text.
 	_, err := Parse(data, "skills/bad/SKILL.md")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skills/bad/SKILL.md")
+	assert.Contains(t, err.Error(), "missing required field")
 	assert.Contains(t, err.Error(), "allowed_tools")
 }
 
@@ -172,5 +173,6 @@ Body text.
 	_, err := Parse(data, "skills/bad/SKILL.md")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "skills/bad/SKILL.md")
+	assert.Contains(t, err.Error(), "must contain at least one entry")
 	assert.Contains(t, err.Error(), "allowed_tools")
 }

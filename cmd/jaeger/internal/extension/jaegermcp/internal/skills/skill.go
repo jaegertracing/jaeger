@@ -55,8 +55,11 @@ func Parse(data []byte, sourcePath string) (*Skill, error) {
 	if skill.Description == "" {
 		return nil, fmt.Errorf("%s: missing required field %q", sourcePath, "description")
 	}
-	if len(skill.AllowedTools) == 0 {
+	if skill.AllowedTools == nil {
 		return nil, fmt.Errorf("%s: missing required field %q", sourcePath, "allowed_tools")
+	}
+	if len(skill.AllowedTools) == 0 {
+		return nil, fmt.Errorf("%s: field %q must contain at least one entry", sourcePath, "allowed_tools")
 	}
 
 	skill.Body = string(bytes.TrimRight(body, " \t\r\n"))
