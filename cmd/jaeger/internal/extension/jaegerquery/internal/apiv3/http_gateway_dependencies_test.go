@@ -99,7 +99,7 @@ func TestHTTPGatewayGetDependencies(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, depReader, router := newTestGateway(t)
-			depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(tt.dependencies, nil).Once()
+			depReader.On("GetDependencies", mock.Anything, mock.Anything, mock.Anything).Return(tt.dependencies, nil).Once()
 
 			req := httptest.NewRequest(
 				http.MethodGet,
@@ -191,7 +191,7 @@ func TestHTTPGatewayGetDependenciesErrors(t *testing.T) {
 func TestHTTPGatewayGetDependencies_StorageError(t *testing.T) {
 	_, depReader, router := newTestGateway(t)
 
-	depReader.On("GetDependencies", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
+	depReader.On("GetDependencies", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
 
 	now := time.Now().UTC()
 	startTime := now.Add(-24 * time.Hour)
