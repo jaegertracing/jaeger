@@ -274,8 +274,8 @@ func TraceIDFromString(s string) (model.TraceID, error) {
 
 func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	startTimeStr, _ := getQueryParam(q, paramStartTime, paramStartTimeDeprecated)
-	endTimeStr, _ := getQueryParam(q, paramEndTime, paramEndTimeDeprecated)
+	startTimeStr := q.Get(paramStartTime)
+	endTimeStr := q.Get(paramEndTime)
 
 	if startTimeStr == "" {
 		h.tryHandleError(w, fmt.Errorf("missing required parameter: %s", paramStartTime), http.StatusBadRequest)
