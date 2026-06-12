@@ -19,6 +19,8 @@ jobs:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
     - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        fetch-depth: 0
 
     - uses: ./.github/actions/setup-go
       with:
@@ -34,6 +36,9 @@ jobs:
 
     - name: Run unit tests
       run: make test-ci
+
+    - name: Run coverage check for changed files
+      run: make check-coverage
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov

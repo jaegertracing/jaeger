@@ -154,7 +154,7 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/check-line-endings.py -u
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings lint-mocks
 
 .PHONY: lint-monitoring
 lint-monitoring:
@@ -264,6 +264,27 @@ generate-dashboards:
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
 	$(MOCKERY) | tee .mockery.log
+
+.PHONY: lint-mocks
+lint-mocks: generate-mocks
+	@echo "Checking if mocks are up to date..."
+	@git diff --exit-code || (echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes." && exit 1)
+	@if git status --porcelain | grep -q '??'; then \
+		echo "Untracked files found after generating mocks. Please commit them."; \
+		git status --porcelain | grep '??'; \
+		exit 1; \
+	fi
+	@echo "OK: Mocks are up to date."
+
+GOCOVDIFF := $(TOOLS_BIN_DIR)/gocovdiff
+$(GOCOVDIFF):
+	cd internal/tools && $(GO) build -o $(GOCOVDIFF) -trimpath github.com/vearutop/gocovdiff
+
+.PHONY: check-coverage
+check-coverage: $(GOCOVDIFF)
+	@echo "Checking coverage of changed files relative to main branch..."
+	@git fetch origin main
+	@$(GOCOVDIFF) -cov cover.out -target-branch origin/main -threshold 75
 
 .PHONY: certs
 certs:

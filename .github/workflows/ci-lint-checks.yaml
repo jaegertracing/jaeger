@@ -100,7 +100,7 @@ jobs:
       run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
 
     - name: Verify Mockery types are up to date
-      run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
+      run: make lint-mocks
 
     - name: Verify Grafana dashboard JSON is in sync with Go generator
       run: make lint-monitoring
