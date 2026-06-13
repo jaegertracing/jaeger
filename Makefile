@@ -268,23 +268,24 @@ generate-mocks: $(MOCKERY)
 .PHONY: lint-mocks
 lint-mocks: generate-mocks
 	@echo "Checking if mocks are up to date..."
-	@git diff --exit-code || (echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes." && exit 1)
-	@if git status --porcelain | grep -q '??'; then \
+	@git diff --exit-code -- '*_mock.go' '**/mocks/*' || (echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes." && exit 1)
+	@if git status --porcelain -- '*_mock.go' '**/mocks/*' | grep -q '??'; then \
 		echo "Untracked files found after generating mocks. Please commit them."; \
-		git status --porcelain | grep '??'; \
+		git status --porcelain -- '*_mock.go' '**/mocks/*' | grep '??'; \
 		exit 1; \
 	fi
 	@echo "OK: Mocks are up to date."
 
 GOCOVDIFF := $(TOOLS_BIN_DIR)/gocovdiff
 $(GOCOVDIFF):
-	cd internal/tools && $(GO) build -o $(GOCOVDIFF) -trimpath github.com/vearutop/gocovdiff
+	cd internal/tools && $(GO) build -o $(abspath $(GOCOVDIFF)) -trimpath github.com/vearutop/gocovdiff
 
+TARGET_BRANCH ?= origin/main
 .PHONY: check-coverage
 check-coverage: $(GOCOVDIFF)
-	@echo "Checking coverage of changed files relative to main branch..."
-	@git fetch origin main
-	@$(GOCOVDIFF) -cov cover.out -target-branch origin/main -threshold 75
+	@echo "Checking coverage of changed files relative to $(TARGET_BRANCH)..."
+	@git rev-parse --verify $(TARGET_BRANCH) >/dev/null 2>&1 || (git fetch origin $$(echo $(TARGET_BRANCH) | sed 's|^origin/||') && git rev-parse --verify $(TARGET_BRANCH) >/dev/null 2>&1)
+	@$(GOCOVDIFF) -cov cover.out -target-branch $(TARGET_BRANCH) -threshold 75
 
 .PHONY: certs
 certs:
