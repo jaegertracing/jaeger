@@ -1,0 +1,76 @@
+# Copyright (c) 2024 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Docker Compose for three reverse-proxy use cases (ADR-009):
+#
+#   UC-1 (port 18080): proxy forwards prefix unchanged
+#     Jaeger: extensions.jaeger_query.base_path=/jaeger/prefix
+#     httpd:  ProxyPass /jaeger/prefix → http://jaeger:16686/jaeger/prefix
+#
+#   UC-2 (port 18081): single pod, two external prefixes
+#     Jaeger: no base-path (serves at root /)
+#     httpd:  /alt/ → http://jaeger:16686/ (strips prefix)
+#             /     → http://jaeger:16686/ (pass-through)
+#
+#   UC-3 (port 18082): proxy rewrites external prefix to different internal prefix
+#     Jaeger: extensions.jaeger_query.base_path=/internal
+#     httpd:  /external/ → http://jaeger:16686/internal/
+
+services:
+  # ---------------------------------------------------------------------------
+  # UC-1: prefix-forwarding proxy
+  # ---------------------------------------------------------------------------
+  jaeger-uc1:
+    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-2.18.0}}
+    command: "--set extensions.jaeger_query.base_path=/jaeger/prefix"
+    networks:
+      uc1:
+        aliases: [jaeger]
+
+  httpd-uc1:
+    image: httpd:2.4.67
+    ports: ["18080:80"]
+    volumes:
+      - "./httpd.conf:/usr/local/apache2/conf/httpd.conf"
+    depends_on: [jaeger-uc1]
+    networks: [uc1]
+
+  # ---------------------------------------------------------------------------
+  # UC-2: single pod, two external prefixes
+  # ---------------------------------------------------------------------------
+  jaeger-uc2:
+    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-2.18.0}}
+    networks:
+      uc2:
+        aliases: [jaeger]
+
+  httpd-uc2:
+    image: httpd:2.4.67
+    ports: ["18081:80"]
+    volumes:
+      - "./httpd-uc2.conf:/usr/local/apache2/conf/httpd.conf"
+    depends_on: [jaeger-uc2]
+    networks: [uc2]
+
+  # ---------------------------------------------------------------------------
+  # UC-3: proxy rewrites external prefix to different internal prefix
+  # ---------------------------------------------------------------------------
+  jaeger-uc3:
+    image: ${JAEGER_IMAGE:-cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-2.18.0}}
+    command: "--set extensions.jaeger_query.base_path=/internal"
+    networks:
+      uc3:
+        aliases: [jaeger]
+
+  httpd-uc3:
+    image: httpd:2.4.67
+    ports: ["18082:80"]
+    volumes:
+      - "./httpd-uc3.conf:/usr/local/apache2/conf/httpd.conf"
+    depends_on: [jaeger-uc3]
+    networks: [uc3]
+
+networks:
+  uc1: {}
+  uc2: {}
+  uc3: {}

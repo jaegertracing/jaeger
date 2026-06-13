@@ -1,0 +1,60 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Integration tests for Badger (embedded key-value store) storage backend.
+# direct: classic tests at the storage API layer, directly instantiating the storage implementation.
+# e2e: multi-process E2E tests via the trace ingestion and query APIs.
+
+name: CIT Badger
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  badger:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        storage_test: [direct, e2e]
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Run Badger storage integration tests
+      env:
+        # Short interval so metricsCopier fires within the test duration.
+        # Propagated to the Jaeger subprocess via PropagateEnvVars in badger_test.go.
+        BADGER_METRICS_UPDATE_INTERVAL: 1s
+      run: |
+        case ${{ matrix.storage_test }} in
+          direct)
+            make badger-storage-integration-test
+            ;;
+          e2e)
+            STORAGE=badger make jaeger-v2-storage-integration-test
+            ;;
+        esac
+
+    - uses: ./.github/actions/verify-metrics-snapshot
+      if: matrix.storage_test == 'e2e'
+      with:
+        snapshot: metrics_snapshot_badger
+        artifact_key: metrics_snapshot_badger_${{ matrix.storage_test }}
+
+    - name: Upload coverage to codecov
+      uses: ./.github/actions/upload-codecov
+      with:
+        files: cover.out
+        flag: badger_${{ matrix.storage_test }}

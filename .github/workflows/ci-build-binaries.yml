@@ -1,0 +1,60 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build binaries
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
+jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - name: define matrix
+      id: set-matrix
+      run: |
+        echo "matrix=$(bash scripts/utils/platforms-to-gh-matrix.sh)" >> $GITHUB_OUTPUT
+
+  build-binaries:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{fromJson(needs.generate-matrix.outputs.matrix)}}
+    name: build-binaries-${{ matrix.os }}-${{ matrix.arch }}
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Build platform binaries
+      run: make build-binaries-${{ matrix.os }}-${{ matrix.arch }}
+      env:
+        # Skip debug binaries on PRs to save CI time (4+ min per arch)
+        # Debug binaries are still built on main branch and during releases
+        SKIP_DEBUG_BINARIES: ${{ github.event_name == 'pull_request' && '1' || '0' }}

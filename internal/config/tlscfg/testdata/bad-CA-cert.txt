@@ -1,0 +1,3 @@
+-----BEGIN CERTIFICATE-----
+bad certificate
+-----END CERTIFICATE-----

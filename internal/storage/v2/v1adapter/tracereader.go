@@ -1,0 +1,123 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package v1adapter
+
+import (
+	"context"
+	"errors"
+	"iter"
+
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+)
+
+var _ tracestore.Reader = (*TraceReader)(nil)
+
+// TraceReader adapts a v1 spanstore.Reader to the v2 tracestore.Reader interface.
+type TraceReader struct {
+	spanReader spanstore.Reader
+}
+
+func NewTraceReader(spanReader spanstore.Reader) *TraceReader {
+	return &TraceReader{
+		spanReader: spanReader,
+	}
+}
+
+func (tr *TraceReader) GetTraces(
+	ctx context.Context,
+	traceIDs ...tracestore.GetTraceParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		for _, idParams := range traceIDs {
+			query := spanstore.GetTraceParameters{
+				TraceID:   ToV1TraceID(idParams.TraceID),
+				StartTime: idParams.Start,
+				EndTime:   idParams.End,
+			}
+			t, err := tr.spanReader.GetTrace(ctx, query)
+			if err != nil {
+				if errors.Is(err, spanstore.ErrTraceNotFound) {
+					continue
+				}
+				yield(nil, err)
+				return
+			}
+			batch := &model.Batch{Spans: t.GetSpans()}
+			tr := V1BatchesToTraces([]*model.Batch{batch})
+			if !yield([]ptrace.Traces{tr}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (tr *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	return tr.spanReader.GetServices(ctx)
+}
+
+func (tr *TraceReader) GetOperations(
+	ctx context.Context,
+	query tracestore.OperationQueryParams,
+) ([]tracestore.Operation, error) {
+	return tr.spanReader.GetOperations(ctx, query)
+}
+
+func (tr *TraceReader) FindTraces(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]ptrace.Traces, error] {
+	return func(yield func([]ptrace.Traces, error) bool) {
+		traces, err := tr.spanReader.FindTraces(ctx, GetV1QueryParameters(query))
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for _, trace := range traces {
+			batch := &model.Batch{Spans: trace.GetSpans()}
+			otelTrace := V1BatchesToTraces([]*model.Batch{batch})
+			if !yield([]ptrace.Traces{otelTrace}, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (tr *TraceReader) FindTraceIDs(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.FoundTraceID, error] {
+	return func(yield func([]tracestore.FoundTraceID, error) bool) {
+		traceIDs, err := tr.spanReader.FindTraceIDs(ctx, GetV1QueryParameters(query))
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		otelIDs := make([]tracestore.FoundTraceID, 0, len(traceIDs))
+		for _, traceID := range traceIDs {
+			otelIDs = append(otelIDs, tracestore.FoundTraceID{
+				TraceID: FromV1TraceID(traceID),
+			})
+		}
+		yield(otelIDs, nil)
+	}
+}
+
+// GetV1QueryParameters converts a tracestore.TraceQueryParams to a spanstore.TraceQueryParameters.
+func GetV1QueryParameters(query tracestore.TraceQueryParams) *spanstore.TraceQueryParameters {
+	return &spanstore.TraceQueryParameters{
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Tags:          jptrace.PcommonMapToPlainMap(query.Attributes),
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		NumTraces:     query.SearchDepth,
+	}
+}

@@ -1,0 +1,169 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Publish release
+
+on:
+  release:
+    types:
+      - published
+
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        required: true
+        type: boolean
+        description: Do a test run. It will only build one platform (for speed) and will not push artifacts.
+
+      overwrite:
+        required: true
+        type: boolean
+        description: Allow overwriting artifacts.
+
+jobs:
+  publish-release:
+    permissions:
+      # Required to upload release artifacts with GITHUB_TOKEN.
+      contents: write
+      # Required to pull images from GHCR during release image builds.
+      packages: read  # This allows the runner to pull from GHCR
+    if: github.repository == 'jaegertracing/jaeger'
+    runs-on: jaeger-linux-amd64-32core-1200GB_SSD
+
+    steps:
+    - name: Clean up some disk space
+      # We had an issue where the workflow was running out of disk space,
+      # because it downloads so many Docker images for different platforms.
+      # Here we delete some stuff from the VM that we do not use.
+      # Inspired by https://github.com/jlumbroso/free-disk-space.
+      run: |
+        sudo rm -rf /usr/local/lib/android || true
+        df -h /
+
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - uses: ./.github/actions/setup-node.js
+
+    - name: Determine parameters
+      id: params
+      run: |
+        docker_flags=()
+        if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+          docker_flags=("${docker_flags[@]}" -l -p linux/amd64)
+          echo "platforms=linux/amd64" >> $GITHUB_OUTPUT
+          echo "gpg_key_override=-k skip" >> $GITHUB_OUTPUT
+        else
+          echo "platforms=$(make echo-platforms)" >> $GITHUB_OUTPUT
+        fi
+        if [[ "${{ inputs.overwrite }}" == "true" ]]; then
+          docker_flags=("${docker_flags[@]}" -o)
+        fi
+        echo "docker_flags=${docker_flags[@]}" >> $GITHUB_OUTPUT
+        cat $GITHUB_OUTPUT
+
+    - name: Export BRANCH variable and validate it is a semver
+      # Many scripts depend on BRANCH variable. We do not want to
+      # use ./.github/actions/setup-branch here because it may set
+      # BRANCH=main when the workflow is triggered manually.
+      run: |
+        BRANCH=$(make echo-version)
+        echo Validate that the latest tag ${BRANCH} is in semver format
+        echo ${BRANCH} | grep -E '^v[0-9]+.[0-9]+.[0-9]+(-rc[0-9]+)?$'
+        echo "BRANCH=${BRANCH}" >> ${GITHUB_ENV}
+
+    - name: Configure GPG Key
+      if: ${{ inputs.dry_run != true }}
+      uses: crazy-max/ghaction-import-gpg@2dc316deee8e90f13e1a351ab510b4d5bc0c82cd # v7.0.0
+      with:
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+    - name: Build all binaries
+      run: make build-all-platforms PLATFORMS=${{ steps.params.outputs.platforms }}
+
+    - name: Package binaries
+      run: |
+        bash scripts/build/package-deploy.sh \
+          -p ${{ steps.params.outputs.platforms }} \
+          ${{ steps.params.outputs.gpg_key_override }}
+
+    - name: Upload binaries
+      if: ${{ inputs.dry_run != true }}
+      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
+      with:
+        file: '{deploy/*.tar.gz,deploy/*.zip,deploy/*.sha256sum.txt,deploy/*.asc}'
+        file_glob: true
+        overwrite: ${{ inputs.overwrite }}
+        tag: ${{ env.BRANCH }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete the release artifacts after uploading them.
+      run: |
+        rm -rf deploy || true
+        df -h /
+
+    - name: Log in to GHCR
+      uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+    - name: Build and upload all container images
+      # -B skips building the binaries since we already did that above
+      run: |
+        bash scripts/build/build-upload-docker-images.sh -B \
+          ${{ steps.params.outputs.docker_flags }}
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish jaeger image
+      run: |
+        bash scripts/build/build-all-in-one-image.sh \
+          ${{ steps.params.outputs.docker_flags }}
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build, test, and publish hotrod image
+      run: |
+        bash scripts/build/build-hotrod-image.sh \
+          ${{ steps.params.outputs.docker_flags }}
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Generate SBOM
+      uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      with:
+        output-file: jaeger-SBOM.spdx.json
+        upload-release-assets: false
+        upload-artifact: false
+
+    - name: Upload SBOM
+      # Upload SBOM manually, because anchore/sbom-action does not do that
+      # when the workflow is triggered manually, only from a release.
+      uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
+      if: ${{ inputs.dry_run != true }}
+      with:
+        file: jaeger-SBOM.spdx.json
+        overwrite: ${{ inputs.overwrite }}
+        tag: ${{ env.BRANCH }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}

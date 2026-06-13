@@ -1,0 +1,290 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package remotesampling
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"sync"
+
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/extension"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
+
+	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/metrics/otelmetrics"
+	samplinggrpc "github.com/jaegertracing/jaeger/internal/sampling/grpc"
+	samplinghttp "github.com/jaegertracing/jaeger/internal/sampling/http"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/adaptive"
+	"github.com/jaegertracing/jaeger/internal/sampling/samplingstrategy/file"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
+)
+
+var _ extension.Extension = (*rsExtension)(nil)
+
+// type Extension interface {
+// 	extension.Extension
+// 	// rs *rsExtension
+// }
+
+const defaultResourceName = "sampling_store_leader"
+
+type rsExtension struct {
+	cfg              *Config
+	telemetry        component.TelemetrySettings
+	httpServer       *http.Server
+	grpcServer       *grpc.Server
+	strategyProvider samplingstrategy.Provider // TODO we should rename this to Provider, not "store"
+	adaptiveStore    samplingstore.Store
+	distLock         *leaderelection.DistributedElectionParticipant
+	shutdownWG       sync.WaitGroup
+}
+
+func newExtension(cfg *Config, telemetry component.TelemetrySettings) *rsExtension {
+	return &rsExtension{
+		cfg:       cfg,
+		telemetry: telemetry,
+	}
+}
+
+// AdaptiveSamplingComponents is a struct that holds the components needed for adaptive sampling.
+type AdaptiveSamplingComponents struct {
+	SamplingStore samplingstore.Store
+	DistLock      *leaderelection.DistributedElectionParticipant
+	Options       *adaptive.Options
+}
+
+// GetAdaptiveSamplingComponents locates the `remotesampling` extension in Host
+// and returns the sampling store and a loader/follower implementation, provided
+// that the extension is configured with adaptive sampling (vs. file-based config).
+func GetAdaptiveSamplingComponents(host component.Host) (*AdaptiveSamplingComponents, error) {
+	var comp component.Component
+	var compID component.ID
+	for id, ext := range host.GetExtensions() {
+		if id.Type() == ComponentType {
+			comp = ext
+			compID = id
+			break
+		}
+	}
+	if comp == nil {
+		return nil, fmt.Errorf(
+			"cannot find extension '%s' (make sure it's defined earlier in the config)",
+			ComponentType,
+		)
+	}
+	ext, ok := comp.(*rsExtension)
+	if !ok {
+		return nil, fmt.Errorf("extension '%s' is not of type '%s'", compID, ComponentType)
+	}
+	if ext.adaptiveStore == nil || ext.distLock == nil {
+		return nil, fmt.Errorf("extension '%s' is not configured for adaptive sampling", compID)
+	}
+	adaptiveCfg := ext.cfg.Adaptive.Get()
+	return &AdaptiveSamplingComponents{
+		SamplingStore: ext.adaptiveStore,
+		DistLock:      ext.distLock,
+		Options:       &adaptiveCfg.Options,
+	}, nil
+}
+
+func (ext *rsExtension) Start(ctx context.Context, host component.Host) error {
+	if ext.cfg.File.HasValue() {
+		fileCfg := ext.cfg.File.Get()
+		ext.telemetry.Logger.Info(
+			"Starting file-based sampling strategy provider",
+			zap.String("path", fileCfg.Path),
+		)
+		if err := ext.startFileBasedStrategyProvider(ctx); err != nil {
+			return err
+		}
+	}
+
+	if ext.cfg.Adaptive.HasValue() {
+		adaptiveCfg := ext.cfg.Adaptive.Get()
+		ext.telemetry.Logger.Info(
+			"Starting adaptive sampling strategy provider",
+			zap.String("sampling_store", adaptiveCfg.SamplingStore),
+		)
+		if err := ext.startAdaptiveStrategyProvider(host); err != nil {
+			return err
+		}
+	}
+
+	if ext.cfg.HTTP.HasValue() {
+		if err := ext.startHTTPServer(ctx, host); err != nil {
+			return fmt.Errorf("failed to start sampling http server: %w", err)
+		}
+	}
+
+	if ext.cfg.GRPC.HasValue() {
+		if err := ext.startGRPCServer(ctx, host); err != nil {
+			return fmt.Errorf("failed to start sampling gRPC server: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (ext *rsExtension) Shutdown(ctx context.Context) error {
+	var errs []error
+
+	if ext.httpServer != nil {
+		errs = append(errs, ext.httpServer.Shutdown(ctx))
+	}
+
+	if ext.grpcServer != nil {
+		ext.grpcServer.GracefulStop()
+	}
+
+	if ext.distLock != nil {
+		errs = append(errs, ext.distLock.Close())
+	}
+
+	if ext.strategyProvider != nil {
+		errs = append(errs, ext.strategyProvider.Close())
+	}
+	return errors.Join(errs...)
+}
+
+func (ext *rsExtension) startFileBasedStrategyProvider(_ context.Context) error {
+	fileCfg := ext.cfg.File.Get()
+	opts := file.Options{
+		StrategiesFile:             fileCfg.Path,
+		ReloadInterval:             fileCfg.ReloadInterval,
+		DefaultSamplingProbability: fileCfg.DefaultSamplingProbability,
+	}
+
+	provider, err := file.NewProvider(opts, ext.telemetry.Logger) //nolint:contextcheck // NewProvider does not accept context
+	if err != nil {
+		return fmt.Errorf("failed to create the local file strategy store: %w", err)
+	}
+
+	ext.strategyProvider = provider
+	return nil
+}
+
+func (ext *rsExtension) startAdaptiveStrategyProvider(host component.Host) error {
+	adaptiveCfg := ext.cfg.Adaptive.Get()
+	storageName := adaptiveCfg.SamplingStore
+
+	storeFactory, err := jaegerstorage.GetSamplingStoreFactory(storageName, host)
+	if err != nil {
+		return fmt.Errorf("failed to obtain sampling store factory: %w", err)
+	}
+
+	store, err := storeFactory.CreateSamplingStore(adaptiveCfg.AggregationBuckets)
+	if err != nil {
+		return fmt.Errorf("failed to create the sampling store: %w", err)
+	}
+	ext.adaptiveStore = store
+
+	{
+		lock, err := storeFactory.CreateLock()
+		if err != nil {
+			return fmt.Errorf("failed to create the distributed lock: %w", err)
+		}
+
+		ep := leaderelection.NewElectionParticipant(lock, defaultResourceName,
+			leaderelection.ElectionParticipantOptions{
+				LeaderLeaseRefreshInterval:   adaptiveCfg.LeaderLeaseRefreshInterval,
+				FollowerLeaseRefreshInterval: adaptiveCfg.FollowerLeaseRefreshInterval,
+				Logger:                       ext.telemetry.Logger,
+			})
+		if err := ep.Start(); err != nil {
+			return fmt.Errorf("failed to start the leader election participant: %w", err)
+		}
+		ext.distLock = ep
+	}
+
+	provider := adaptive.NewProvider(adaptiveCfg.Options, ext.telemetry.Logger, ext.distLock, store)
+	if err := provider.Start(); err != nil {
+		return fmt.Errorf("failed to start the adaptive strategy store: %w", err)
+	}
+	ext.strategyProvider = provider
+	return nil
+}
+
+func (ext *rsExtension) startHTTPServer(ctx context.Context, host component.Host) error {
+	mf := otelmetrics.NewFactory(ext.telemetry.MeterProvider)
+	mf = mf.Namespace(metrics.NSOptions{Name: "jaeger_remote_sampling"})
+	handler := samplinghttp.NewHandler(samplinghttp.HandlerParams{
+		ConfigManager: &samplinghttp.ConfigManager{
+			SamplingProvider: ext.strategyProvider,
+		},
+		MetricsFactory: mf,
+	})
+	httpMux := http.NewServeMux()
+	handler.RegisterRoutes(httpMux)
+
+	httpCfg := ext.cfg.HTTP.Get()
+	var err error
+	if ext.httpServer, err = httpCfg.ToServer(ctx, host.GetExtensions(), ext.telemetry, httpMux); err != nil {
+		return err
+	}
+
+	ext.telemetry.Logger.Info(
+		"Starting remote sampling HTTP server",
+		zap.String("endpoint", httpCfg.NetAddr.Endpoint),
+	)
+	var hln net.Listener
+	if hln, err = httpCfg.ToListener(ctx); err != nil {
+		return err
+	}
+
+	ext.shutdownWG.Go(func() {
+		err := ext.httpServer.Serve(hln)
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
+		}
+	})
+
+	return nil
+}
+
+func (ext *rsExtension) startGRPCServer(ctx context.Context, host component.Host) error {
+	grpcCfg := ext.cfg.GRPC.Get()
+	var err error
+	if ext.grpcServer, err = grpcCfg.ToServer(ctx, host.GetExtensions(), ext.telemetry); err != nil {
+		return err
+	}
+
+	api_v2.RegisterSamplingManagerServer(ext.grpcServer, samplinggrpc.NewHandler(ext.strategyProvider))
+
+	healthServer := health.NewServer() // support health checks on the gRPC server
+	healthServer.SetServingStatus("jaeger.api_v2.SamplingManager", grpc_health_v1.HealthCheckResponse_SERVING)
+	grpc_health_v1.RegisterHealthServer(ext.grpcServer, healthServer)
+
+	ext.telemetry.Logger.Info(
+		"Starting remote sampling GRPC server",
+		zap.String("endpoint", grpcCfg.NetAddr.Endpoint),
+	)
+	var gln net.Listener
+	if gln, err = grpcCfg.NetAddr.Listen(ctx); err != nil {
+		return err
+	}
+
+	ext.shutdownWG.Go(func() {
+		if err := ext.grpcServer.Serve(gln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(err))
+		}
+	})
+
+	return nil
+}
+
+func (*rsExtension) Dependencies() []component.ID {
+	return []component.ID{jaegerstorage.ID}
+}

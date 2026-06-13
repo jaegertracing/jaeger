@@ -1,0 +1,69 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: "CodeQL"
+
+on:
+  workflow_call:
+  schedule:
+    - cron: '31 6 * * 1'
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  codeql-analyze:
+    # Skip merge_group to avoid duplicate runs (code already scanned on pull_request)
+    # See https://github.com/github/codeql-action/issues/1537
+    if: ${{ github.event_name != 'merge_group' }}
+    name: CodeQL Analyze
+    runs-on: ubuntu-latest
+
+    permissions:
+      security-events: write
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'go', 'python' ]
+
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit
+
+    - name: Checkout repository
+      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - name: Setup Go
+      if: matrix.language == 'go'
+      uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+      with:
+        languages: ${{ matrix.language }}
+
+    # Use Autobuild for Python (it works fine for interpreted languages)
+    - name: Autobuild (Python)
+      if: matrix.language == 'python'
+      uses: github/codeql-action/autobuild@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+
+    # Explicit build for Go - required for CodeQL to analyze compiled code
+    - name: Build Go code
+      if: matrix.language == 'go'
+      run: |
+        # Build all Go binaries to ensure CodeQL can analyze them
+        go build -v ./...
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
+      with:
+        category: ".github/workflows/codeql.yml:codeql-analyze/language:${{ matrix.language }}"

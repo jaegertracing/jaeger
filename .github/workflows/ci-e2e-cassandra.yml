@@ -1,0 +1,68 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Integration tests for Cassandra storage backend, covering multiple Cassandra
+# major versions, schema versions, and both manual and auto schema creation.
+# direct: classic tests at the storage API layer, directly instantiating the storage implementation.
+# e2e: multi-process E2E tests via the trace ingestion and query APIs.
+
+name: CIT Cassandra
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  cassandra:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        storage_test: [direct, e2e]
+        create-schema: [manual, auto]
+        version:
+        - distribution: cassandra
+          major: 4.x
+          schema: v004
+        - distribution: cassandra
+          major: 5.x
+          schema: v004
+        exclude:
+        # Exclude direct as creating schema on startup is only available in e2e mode
+        - storage_test: direct
+          create-schema: auto
+    name: ${{ matrix.version.distribution }}-${{ matrix.version.major }} ${{ matrix.storage_test }} schema=${{ matrix.create-schema }}
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Run cassandra integration tests
+      id: test-execution
+      run: bash scripts/e2e/cassandra.sh ${{ matrix.version.major }} ${{ matrix.version.schema }} ${{ matrix.storage_test }}
+      env:
+        SKIP_APPLY_SCHEMA: ${{ matrix.create-schema == 'auto' && true || false }}
+
+    - uses: ./.github/actions/verify-metrics-snapshot
+      if: matrix.storage_test == 'e2e'
+      with:
+        snapshot: metrics_snapshot_cassandra
+        artifact_key: metrics_snapshot_cassandras_${{ matrix.version.major }}_${{ matrix.version.schema }}_${{ matrix.storage_test }}_${{ matrix.create-schema }}
+
+    - name: Upload coverage to codecov
+      uses: ./.github/actions/upload-codecov
+      with:
+        files: cover.out
+        flag: cassandra-${{ matrix.version.major }}-${{ matrix.storage_test }}-${{ matrix.create-schema }}
+
+

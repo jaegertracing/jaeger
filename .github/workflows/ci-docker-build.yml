@@ -1,0 +1,51 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Build docker images
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
+jobs:
+  docker-images:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: git fetch --prune --unshallow --tags
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - uses: ./.github/actions/setup-node.js
+
+    - uses: ./.github/actions/setup-branch
+
+    - run: make install-ci
+
+    - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+    - name: Build only linux/amd64 container images (PR and merge queue)
+      if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+      # -D disables images with debugger
+      run: bash scripts/build/build-upload-docker-images.sh -D -p linux/amd64
+
+    - name: Build and upload all container images
+      if: github.event_name == 'push' && github.ref_name == 'main'
+      run: bash scripts/build/build-upload-docker-images.sh
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}

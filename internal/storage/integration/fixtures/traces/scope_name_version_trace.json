@@ -1,0 +1,74 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query23-service"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "testing-library",
+            "version": "1.1.1"
+          },
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000224",
+              "spanId": "0000000000000002",
+              "name": "placeholder",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639876000",
+              "attributes": [
+                {
+                  "key": "sameplacetag1",
+                  "value": {
+                    "stringValue": "sameplacevalue"
+                  }
+                },
+                {
+                  "key": "sameplacetag2",
+                  "value": {
+                    "intValue": "123"
+                  }
+                },
+                {
+                  "key": "sameplacetag4",
+                  "value": {
+                    "boolValue": true
+                  }
+                },
+                {
+                  "key": "sameplacetag3",
+                  "value": {
+                    "doubleValue": 72.5
+                  }
+                },
+                {
+                  "key": "blob",
+                  "value": {
+                    "bytesValue": "AAAwOQ=="
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

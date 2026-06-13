@@ -1,0 +1,20 @@
+{
+  "priority": 503,
+  "index_patterns": "test-jaeger-sampling-*",
+  "template": {
+    "aliases": {
+      "test-jaeger-sampling-read": {}
+    },
+    "settings": {
+      "index.number_of_shards": 3,
+      "index.number_of_replicas": 3,
+      "index.mapping.nested_fields.limit": 50,
+      "index.requests.cache.enable": true,
+      "lifecycle": {
+        "name": "jaeger-test-policy",
+        "rollover_alias": "test-jaeger-sampling-write"
+      }
+    },
+    "mappings": {}
+  }
+}

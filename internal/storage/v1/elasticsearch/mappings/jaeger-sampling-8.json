@@ -1,0 +1,24 @@
+{
+  "priority": {{ .Priority }},
+  "index_patterns": "{{ .IndexPrefix }}jaeger-sampling-*",
+  "template": {
+    {{- if .UseILM }}
+    "aliases": {
+      "{{ .IndexPrefix }}jaeger-sampling-read": {}
+    },
+    {{- end }}
+    "settings": {
+      "index.number_of_shards": {{ .Shards }},
+      "index.number_of_replicas": {{ .Replicas }},
+      "index.mapping.nested_fields.limit": 50,
+      "index.requests.cache.enable": false
+      {{- if .UseILM }},
+      "lifecycle": {
+        "name": "{{ .ILMPolicyName }}",
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-sampling-write"
+      }
+      {{- end }}
+    },
+    "mappings": {}
+  }
+}

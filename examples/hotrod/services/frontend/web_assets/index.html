@@ -1,0 +1,131 @@
+<html>
+  <meta charset="ISO-8859-1">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+  <head>
+    <title>HotROD - Rides On Demand</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+    <style>
+.uuid { margin-top: 15px; }
+.hotrod-button { padding: 20px; cursor: pointer; margin-top: 10px; }
+.hotrod-button:hover { cursor: pointer; filter: brightness(85%); }
+#hotrod-log { margin-top: 15px; }
+#tip { margin-top: 15px; }
+    </style>
+
+  </head>
+  <body>
+    <div class="container">
+      <div class="uuid alert alert-info"></div>
+      <center>
+        <h1>Hot R.O.D.</h1>
+        <h4>🚗 <em>Rides On Demand</em> 🚗</h4>
+        <div class="row">
+            <div class="col-md-3 col-sm-6">
+                <span
+                    class="btn btn-info btn-block hotrod-button"
+                    data-customer="123">Rachel's Floral Designs</span>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <span
+                    class="btn btn-info btn-block hotrod-button"
+                    data-customer="392">Trom Chocolatier</span>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <span
+                    class="btn btn-info btn-block hotrod-button"
+                    data-customer="731">Japanese Desserts</span>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <span
+                    class="btn btn-info btn-block hotrod-button"
+                    data-customer="567">Amazing Coffee Roasters</span>
+            </div>
+        </div>
+        <div id="tip">Click on customer name above to order a car.</div>
+        <div id="hotrod-log" class="lead"></div>
+      </center>
+    </div>
+  </body>
+
+  <script>
+
+function formatDuration(duration) {
+  const d = duration / (1000000 * 1000 * 60);
+  const units = 'min';
+  return Math.round(d) + units;
+}
+
+function parseTraceResponse(value) {
+  const VERSION = '00';
+  const VERSION_PART = '(?!ff)[\\da-f]{2}';
+  const TRACE_ID_PART = '(?![0]{32})[\\da-f]{32}';
+  const PARENT_ID_PART = '(?![0]{16})[\\da-f]{16}';
+  const FLAGS_PART = '[\\da-f]{2}';
+  const TRACE_PARENT_REGEX = new RegExp(
+    `^\\s?(${VERSION_PART})-(${TRACE_ID_PART})-(${PARENT_ID_PART})-(${FLAGS_PART})(-.*)?\\s?$`
+  );
+  const match = TRACE_PARENT_REGEX.exec(value);
+  return (match) ? match[2] : null;
+}
+
+const clientUUID = Math.round(Math.random() * 10000);
+var lastRequestID = 0;
+
+$(".uuid").html(`Your web client's id: <strong>${clientUUID}</strong>`);
+
+$(".hotrod-button").click(function(evt) {
+  lastRequestID++;
+  const requestID = clientUUID + "-" + lastRequestID;
+  const freshCar = $($("#hotrod-log").prepend('<div class="fresh-car"><em>Dispatching a car...[req: '+requestID+']</em></div>').children()[0]);
+  const customer = evt.target.dataset.customer;
+  const headers = {
+      'baggage': 'session=' + clientUUID + ', request=' + requestID
+  };
+  console.log('sending headers', headers);
+
+  // Use current URI as basepath for ajax requests
+  var pathPrefix = window.location.pathname;
+  pathPrefix = pathPrefix != "/" ? pathPrefix : '';
+
+  // TODO this should be done on page load, not on every button click
+  var config = {};
+  $.ajax(pathPrefix + '/config?nonse=' + Math.random(), {
+    method: 'GET',
+    success: function(data, textStatus) {
+      console.log('config', data);
+      config = data;
+    },
+  });
+
+  const before = Date.now();
+  $.ajax(pathPrefix + '/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
+    headers: headers,
+    method: 'GET',
+    success: function(data, textStatus, xhr) {
+      const after = Date.now();
+      const traceResponse = xhr.getResponseHeader('traceresponse');
+      const traceID = parseTraceResponse(traceResponse);
+      console.log('response', data);
+      console.log('traceResponse', traceResponse, 'traceID', traceID);
+
+      const duration = formatDuration(data.ETA);
+      var traceLink = '';
+      if (config && config['jaeger']) {
+        const jaeger = config['jaeger'];
+        const findURL = `/search?limit=20&lookback=1h&service=frontend&tags=%7B%22driver%22%3A%22${data.Driver}%22%7D`;
+        traceLink = ` [<a href="${jaeger}${findURL}" target="_blank">find trace</a>]`;
+        if (traceID) {
+          traceLink += ` [<a href="${jaeger}/trace/${traceID}" target="_blank">open trace</a>]`;
+        }
+      }
+      freshCar.html(`HotROD <b>${data.Driver}</b> arriving in ${duration} [req: ${requestID}, latency: ${after-before}ms] ${traceLink}`);
+    },
+  });
+});
+
+  </script>
+
+</html>
