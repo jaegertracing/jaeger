@@ -213,6 +213,7 @@ jobs:
 
     - name: validate renovate config
       run: |
+        bash scripts/utils/retry.sh docker pull ghcr.io/renovatebot/renovate:latest
         docker run \
           -v $PWD/renovate.json:/usr/src/app/renovate.json \
           ghcr.io/renovatebot/renovate:latest \

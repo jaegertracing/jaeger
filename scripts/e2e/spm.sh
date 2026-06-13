@@ -385,8 +385,23 @@ teardown_services() {
   docker compose -f $compose_file down
 }
 
+# Pre-pull all non-jaeger compose services with retry; the jaeger image is
+# built locally above as jaegertracing/jaeger:dev and would not be in any
+# registry, so pull it separately by service name.
+pre_pull_compose_images() {
+  local services=("microsim")
+  case "$METRICSTORE" in
+    prometheus) services+=("prometheus" "grafana") ;;
+    elasticsearch|opensearch|clickhouse) services+=("$METRICSTORE") ;;
+  esac
+  JAEGER_VERSION=dev bash scripts/utils/retry.sh \
+    docker compose -f "$compose_file" pull "${services[@]}"
+}
+
 main() {
-  (cd docker-compose/monitor && make build BINARY="jaeger" && make $make_target DOCKER_COMPOSE_ARGS="-d")
+  (cd docker-compose/monitor && make build BINARY="jaeger")
+  pre_pull_compose_images
+  (cd docker-compose/monitor && make $make_target DOCKER_COMPOSE_ARGS="-d")
 
   wait_for_services_to_be_healthy
   check_spm
