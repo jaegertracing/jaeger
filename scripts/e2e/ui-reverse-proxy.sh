@@ -133,13 +133,11 @@ if [[ -z "$JAEGER_IMAGE" ]]; then
 fi
 log "Using Jaeger image: ${JAEGER_IMAGE}"
 
-# Pre-pull external images with retry. The compose file references httpd and
-# (when JAEGER_IMAGE points to a published image) the jaeger image. A locally
-# built image is already loaded, so skip it via `docker image inspect`.
-bash "${REPO_ROOT}/scripts/utils/retry.sh" docker pull httpd:2.4.67
-if ! docker image inspect "$JAEGER_IMAGE" >/dev/null 2>&1; then
-  bash "${REPO_ROOT}/scripts/utils/retry.sh" docker pull "$JAEGER_IMAGE"
-fi
+# Pre-pull the httpd services with retry. The jaeger services aren't pulled
+# here because JAEGER_IMAGE may point to the locally built jaeger-local:e2e-ui-rp,
+# which isn't published in any registry.
+bash "${REPO_ROOT}/scripts/utils/retry.sh" \
+  docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" pull httpd-uc1 httpd-uc2 httpd-uc3
 
 JAEGER_IMAGE="${JAEGER_IMAGE}" \
   docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" up -d
