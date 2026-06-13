@@ -1,0 +1,91 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# docker compose file to test Scylla with Jaeger.
+
+# Disclaimer: This defaults to using 'latest' image tag for Jaeger images,
+# which can be stale in your local repository. In case of issues try running
+# against the actual Jaeger version like JAEGER_VERSION=1.59.0.
+
+networks:
+  jaeger-scylladb:
+
+services:
+  jaeger:
+    restart: unless-stopped
+    image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    volumes:
+      - ../../cmd/jaeger/config-cassandra.yaml:/etc/jaeger/config.yaml
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - CASSANDRA_CONTACT_POINTS=scylladb:9042
+    ports:
+      - 16686:16686
+      - 16687:16687
+      - 4317:4317
+      - 4318:4318
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      - cassandra-schema
+
+  cassandra-schema:
+    image: cr.jaegertracing.io/jaegertracing/jaeger-cassandra-schema:${JAEGER_VERSION:-latest}
+    environment:
+      CASSANDRA_PROTOCOL_VERSION: 4
+      CASSANDRA_VERSION: 4
+      CQLSH_HOST: scylladb
+      DATACENTER: test
+      MODE: test
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      scylladb:
+        condition: service_healthy
+
+  scylladb:
+    restart: always
+    image: scylladb/scylla:5.4.7@sha256:d73f652cbce3622827eeff35a650936d70b2bf2939ea5dd6b7e6c3e8944537fe
+    ports:
+      - 9042:9042
+    volumes:
+      - .docker/scylladb/1:/var/lib/scylla
+    networks:
+      - jaeger-scylladb
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
+      interval: 1s
+      retries: 120
+      timeout: 1s
+
+  scylladb2:
+    restart: always
+    image: scylladb/scylla:5.4.7@sha256:d73f652cbce3622827eeff35a650936d70b2bf2939ea5dd6b7e6c3e8944537fe
+    command: --seeds=scylladb
+    volumes:
+      - .docker/scylladb/2:/var/lib/scylla
+    networks:
+      - jaeger-scylladb
+
+  scylladb3:
+    restart: always
+    image: scylladb/scylla:5.4.7@sha256:d73f652cbce3622827eeff35a650936d70b2bf2939ea5dd6b7e6c3e8944537fe
+    command: --seeds=scylladb
+    volumes:
+      - .docker/scylladb/3:/var/lib/scylla
+    networks:
+      - jaeger-scylladb
+
+  hotrod:
+    image: cr.jaegertracing.io/jaegertracing/example-hotrod:${JAEGER_VERSION:-latest}
+    container_name: hotrod
+    ports:
+      - 8080:8080
+    command: [ "all" ]
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    networks:
+      - jaeger-scylladb
+    depends_on:
+      - jaeger

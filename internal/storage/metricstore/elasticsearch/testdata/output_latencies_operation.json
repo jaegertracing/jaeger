@@ -1,0 +1,52 @@
+
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 100,
+    "max_score": 0.0,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "/FindNearest",
+          "doc_count": 100,
+          "date_histogram": {
+            "buckets": [
+              {
+                "key_as_string": "1749894900000",
+                "key": 1749894900000,
+                "doc_count": 50,
+                "percentiles_of_bucket": {
+                  "values": {
+                    "95.0": 200.0
+                  }
+                }
+              },
+              {
+                "key_as_string": "1749894960000",
+                "key": 1749894960000,
+                "doc_count": 60,
+                "percentiles_of_bucket": {
+                  "values": {
+                    "95.0": 210.0
+                  }
+                }
+              }
+            ]
+          }
+        }
+        ]
+      }
+    }
+}

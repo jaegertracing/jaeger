@@ -1,0 +1,68 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+dir: '{{.InterfaceDir}}/mocks/'
+structname: '{{.InterfaceName}}'
+pkgname: mocks
+template: testify
+filename: mocks.go
+template-data:
+  boilerplate-file: .mockery.header.txt
+packages:
+  github.com/jaegertracing/jaeger/internal/distributedlock:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/leaderelection:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/proto-gen/storage_v1:
+    config:
+      all: true
+      include-auto-generated: true
+  github.com/jaegertracing/jaeger/internal/storage/cassandra:
+    config:
+      template-data:
+        unroll-variadic: false
+    interfaces:
+      Iterator: {}
+      Query: {}
+      Session: {}
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/dependencystore:
+    interfaces:
+      Reader: {}
+      Writer: {}
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore:
+    interfaces:
+      CoreDependencyStore: {}
+  github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core:
+    interfaces:
+      Reader: {}
+      Writer: {}
+  github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore:
+    config:
+      all: true
+  github.com/jaegertracing/jaeger/internal/storage/v1/cassandra/spanstore:
+    interfaces:
+      CoreSpanReader: {}
+      CoreSpanWriter: {}

@@ -1,0 +1,445 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package sql
+
+import _ "embed"
+
+const InsertSpan = `
+INSERT INTO
+    spans (
+        id,
+        trace_id,
+        trace_state,
+        parent_span_id,
+        name,
+        kind,
+        start_time,
+        status_code,
+        status_message,
+        duration,
+        bool_attributes.key,
+        bool_attributes.value,
+        double_attributes.key,
+        double_attributes.value,
+        int_attributes.key,
+        int_attributes.value,
+        str_attributes.key,
+        str_attributes.value,
+        complex_attributes.key,
+        complex_attributes.value,
+        events.name,
+        events.timestamp,
+        events.bool_attributes,
+        events.double_attributes,
+        events.int_attributes,
+        events.str_attributes,
+        events.complex_attributes,
+        links.trace_id,
+        links.span_id,
+        links.trace_state,
+        links.bool_attributes,
+        links.double_attributes,
+        links.int_attributes,
+        links.str_attributes,
+        links.complex_attributes,
+        service_name,
+        resource_bool_attributes.key,
+        resource_bool_attributes.value,
+        resource_double_attributes.key,
+        resource_double_attributes.value,
+        resource_int_attributes.key,
+        resource_int_attributes.value,
+        resource_str_attributes.key,
+        resource_str_attributes.value,
+        resource_complex_attributes.key,
+        resource_complex_attributes.value,
+        scope_name,
+        scope_version,
+        scope_bool_attributes.key,
+        scope_bool_attributes.value,
+        scope_double_attributes.key,
+        scope_double_attributes.value,
+        scope_int_attributes.key,
+        scope_int_attributes.value,
+        scope_str_attributes.key,
+        scope_str_attributes.value,
+        scope_complex_attributes.key,
+        scope_complex_attributes.value
+    )
+VALUES
+    (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?
+    )
+`
+
+const SelectSpansQuery = `
+SELECT
+    id,
+    trace_id,
+    trace_state,
+    parent_span_id,
+    name,
+    kind,
+    start_time,
+    status_code,
+    status_message,
+    duration,
+    bool_attributes.key,
+    bool_attributes.value,
+    double_attributes.key,
+    double_attributes.value,
+    int_attributes.key,
+    int_attributes.value,
+    str_attributes.key,
+    str_attributes.value,
+    complex_attributes.key,
+    complex_attributes.value,
+    events.name,
+    events.timestamp,
+    events.bool_attributes.key,
+    events.bool_attributes.value,
+    events.double_attributes.key,
+    events.double_attributes.value,
+    events.int_attributes.key,
+    events.int_attributes.value,
+    events.str_attributes.key,
+    events.str_attributes.value,
+    events.complex_attributes.key,
+    events.complex_attributes.value,
+    links.trace_id,
+    links.span_id,
+    links.trace_state,
+    links.bool_attributes.key,
+    links.bool_attributes.value,
+    links.double_attributes.key,
+    links.double_attributes.value,
+    links.int_attributes.key,
+    links.int_attributes.value,
+    links.str_attributes.key,
+    links.str_attributes.value,
+    links.complex_attributes.key,
+    links.complex_attributes.value,
+    service_name,
+    resource_bool_attributes.key,
+    resource_bool_attributes.value,
+    resource_double_attributes.key,
+    resource_double_attributes.value,
+    resource_int_attributes.key,
+    resource_int_attributes.value,
+    resource_str_attributes.key,
+    resource_str_attributes.value,
+    resource_complex_attributes.key,
+    resource_complex_attributes.value,
+    scope_name,
+    scope_version,
+    scope_bool_attributes.key,
+    scope_bool_attributes.value,
+    scope_double_attributes.key,
+    scope_double_attributes.value,
+    scope_int_attributes.key,
+    scope_int_attributes.value,
+    scope_str_attributes.key,
+    scope_str_attributes.value,
+    scope_complex_attributes.key,
+    scope_complex_attributes.value
+FROM
+    spans s
+`
+
+const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
+
+// SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
+//
+// The query begins with a no-op predicate (`WHERE 1=1`) so that additional
+// filters can be appended unconditionally using `AND` without needing to check
+// whether this is the first WHERE clause.
+const SearchTraceIDsBase = `SELECT DISTINCT
+    s.trace_id
+FROM spans s
+WHERE 1=1`
+
+// SearchTraceIDs wraps a trace ID subquery with a JOIN to
+// trace_id_timestamps to retrieve the start and end times for each trace.
+// The %s placeholder is replaced with the complete inner subquery
+// (SearchTraceIDsBase + conditions + LIMIT).
+const SearchTraceIDs = `
+SELECT
+    l.trace_id,
+    min(t.start) AS start,
+    max(t.end) AS end
+FROM (
+%s
+) l
+LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
+GROUP BY l.trace_id`
+
+const SelectServices = `
+SELECT
+    name
+FROM
+    services
+GROUP BY name
+`
+
+const SelectOperationsAllKinds = `
+SELECT
+    name,
+    span_kind
+FROM
+    operations
+WHERE
+    service_name = ?
+GROUP BY name, span_kind
+`
+
+const SelectOperationsByKind = `
+SELECT
+    name,
+    span_kind
+FROM
+    operations
+WHERE
+    service_name = ?
+    AND span_kind = ?
+GROUP BY name, span_kind
+`
+
+const SelectAttributeMetadata = `
+SELECT
+    attribute_key,
+    type,
+    level
+FROM
+    attribute_metadata`
+
+const (
+	TruncateSpans             = `TRUNCATE TABLE IF EXISTS spans`
+	TruncateServices          = `TRUNCATE TABLE IF EXISTS services`
+	TruncateOperations        = `TRUNCATE TABLE IF EXISTS operations`
+	TruncateTraceIDTimestamps = `TRUNCATE TABLE IF EXISTS trace_id_timestamps`
+	TruncateAttributeMetadata = `TRUNCATE TABLE IF EXISTS attribute_metadata`
+	TruncateDependencies      = `TRUNCATE TABLE IF EXISTS dependencies`
+)
+
+const SelectDependencies = `
+SELECT
+    dependencies_json
+FROM
+    dependencies
+WHERE
+    timestamp >= ?
+    AND timestamp < ?`
+
+const InsertDependencies = `
+INSERT INTO
+    dependencies (timestamp, dependencies_json)
+VALUES
+    (?, ?)`
+
+const SelectLatencies = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    quantile(?)(duration) / 1e6 AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectLatenciesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    quantile(?)(duration) / 1e6 AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
+const SelectCallRates = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    count(*) / ? AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectCallRatesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    count(*) / ? AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
+const SelectErrorRates = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    countIf(status_code = 'Error') / count(*) AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name
+ORDER BY
+    ts`
+
+const SelectErrorRatesByOperation = `
+SELECT
+    toStartOfInterval(start_time, toIntervalSecond(?)) AS ts,
+    service_name,
+    name,
+    countIf(status_code = 'Error') / count(*) AS val
+FROM
+    spans
+WHERE
+    start_time >= ?
+    AND start_time < ?
+    AND service_name IN (?)
+    AND kind IN (?)
+GROUP BY
+    ts,
+    service_name,
+    name
+ORDER BY
+    ts`
+
+//go:embed create_dependencies_table.sql
+var CreateDependenciesTable string
+
+//go:embed create_spans_table.sql
+var CreateSpansTable string
+
+//go:embed create_services_table.sql
+var CreateServicesTable string
+
+//go:embed create_services_mv.sql
+var CreateServicesMaterializedView string
+
+//go:embed create_operations_table.sql
+var CreateOperationsTable string
+
+//go:embed create_operations_mv.sql
+var CreateOperationsMaterializedView string
+
+//go:embed create_trace_id_timestamps_table.sql
+var CreateTraceIDTimestampsTable string
+
+//go:embed create_trace_id_timestamps_mv.sql
+var CreateTraceIDTimestampsMaterializedView string
+
+//go:embed create_attribute_metadata_table.sql
+var CreateAttributeMetadataTable string
+
+//go:embed create_attribute_metadata_mv.sql
+var CreateAttributeMetadataMaterializedView string
+
+//go:embed create_event_attribute_metadata_mv.sql
+var CreateEventAttributeMetadataMaterializedView string
+
+//go:embed create_link_attribute_metadata_mv.sql
+var CreateLinkAttributeMetadataMaterializedView string

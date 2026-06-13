@@ -1,0 +1,69 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query16-service"
+            }
+          },
+          {
+            "key": "sameplacetag1",
+            "value": {
+              "stringValue": "sameplacevalue"
+            }
+          },
+          {
+            "key": "sameplacetag2",
+            "value": {
+              "intValue": "123"
+            }
+          },
+          {
+            "key": "sameplacetag4",
+            "value": {
+              "boolValue": true
+            }
+          },
+          {
+            "key": "sameplacetag3",
+            "value": {
+              "doubleValue": 72.5
+            }
+          },
+          {
+            "key": "blob",
+            "value": {
+              "bytesValue": "AAAwOQ=="
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000016",
+              "spanId": "0000000000000005",
+              "name": "query16-operation",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639876000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

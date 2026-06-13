@@ -1,0 +1,120 @@
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 100,
+    "max_score": 0.0,
+    "hits": []
+  },
+  "aggregations": {
+    "results_buckets": {
+      "buckets": [
+        {
+          "key": 1749894840000,
+          "doc_count": 0,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 0.0
+            }
+          }
+        },
+        {
+          "key": 1749894900000,
+          "doc_count": 50,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 250.0
+            }
+          }
+        },
+        {
+          "key": 1749894960000,
+          "doc_count": 60,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 260.0
+            }
+          }
+        },
+        {
+          "key": 1749895020000,
+          "doc_count": 70,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 270.0
+            }
+          }
+        },
+        {
+          "key": 1749895080000,
+          "doc_count": 80,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 280.0
+            }
+          }
+        },
+        {
+          "key": 1749895140000,
+          "doc_count": 90,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 290.0
+            }
+          }
+        },
+        {
+          "key": 1749895200000,
+          "doc_count": 0,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 0.0
+            }
+          }
+        },
+        {
+          "key": 1749895260000,
+          "doc_count": 100,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 300.0
+            }
+          }
+        },
+        {
+          "key": 1749895320000,
+          "doc_count": 110,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 310.0
+            }
+          }
+        },
+        {
+          "key": 1749895380000,
+          "doc_count": 120,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 320.0
+            }
+          }
+        },
+        {
+          "key": 1749895440000,
+          "doc_count": 130,
+          "percentiles_of_bucket": {
+            "values": {
+              "75.0": 330.0
+            }
+          }
+        }
+      ]
+    }
+  }
+}

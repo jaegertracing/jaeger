@@ -1,0 +1,49 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# E2E integration tests for Kafka as a span ingestion buffer (Jaeger v2),
+# verifying the Collector → Kafka → Ingester pipeline.
+
+name: CIT Kafka
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  kafka:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kafka-version: ["3.x"]
+    name: kafka ${{ matrix.kafka-version }} v2
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Run kafka integration tests
+      id: test-execution
+      run: bash scripts/e2e/kafka.sh -v ${{ matrix.kafka-version }}
+
+    - uses: ./.github/actions/verify-metrics-snapshot
+      with:
+        snapshot: metrics_snapshot_kafka
+        artifact_key: metrics_snapshot_kafka_v2
+
+    - name: Upload coverage to codecov
+      uses: ./.github/actions/upload-codecov
+      with:
+        files: cover.out
+        flag: kafka-${{ matrix.kafka-version }}-v2

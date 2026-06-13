@@ -1,0 +1,92 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+include:
+  - path: v3/docker-compose.yml
+
+services:
+  jaeger-remote-storage:
+    image: cr.jaegertracing.io/jaegertracing/jaeger-remote-storage@sha256:e78c6093ac38f7cdccf0877750bb21f2cbcc08c2fd3e578966b5796a31f26643
+    ports:
+      - 17271:17271
+    environment:
+      - SPAN_STORAGE_TYPE=memory
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:17270/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  jaeger-collector:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.19.0@sha256:ede4864215be4cd85bd8c3129a2fea6c5713c5653c7282c429dba123014bc68b
+    volumes:
+      - ../../cmd/jaeger/config-kafka-collector.yaml:/etc/jaeger/config.yaml
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - KAFKA_TOPIC=jaeger-spans
+      - KAFKA_ENCODING=otlp_proto
+    ports:
+      - 4318:4318
+      - 14250:14250
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:13133/status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      kafka:
+        condition: service_healthy
+    links:
+      - kafka
+
+  jaeger-ingester:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.19.0@sha256:ede4864215be4cd85bd8c3129a2fea6c5713c5653c7282c429dba123014bc68b
+    volumes:
+      - ./jaeger-ingester-remote-storage.yaml:/etc/jaeger/config.yaml
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - KAFKA_BROKER=kafka:9092
+      - KAFKA_TOPIC=jaeger-spans
+      - KAFKA_ENCODING=otlp_proto
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:14133/status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      kafka:
+        condition: service_healthy
+      jaeger-remote-storage:
+        condition: service_healthy
+      jaeger-collector:
+        condition: service_healthy
+    links:
+      - kafka
+      - jaeger-remote-storage
+
+  jaeger-query:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.19.0@sha256:ede4864215be4cd85bd8c3129a2fea6c5713c5653c7282c429dba123014bc68b
+    volumes:
+      - ../../cmd/jaeger/config-query.yaml:/etc/jaeger/config.yaml
+      - ../../cmd/jaeger/config-ui.json:/cmd/jaeger/config-ui.json:ro
+    command:
+      - "--config=/etc/jaeger/config.yaml"
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger-collector:4318
+    ports:
+      - "16686:16686"
+      - "16687"
+    restart: on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:13133/status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      jaeger-remote-storage:
+        condition: service_healthy
+    links:
+      - jaeger-remote-storage

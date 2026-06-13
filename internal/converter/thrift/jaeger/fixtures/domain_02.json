@@ -1,0 +1,45 @@
+{
+  "spans": [
+    {
+      "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+      "spanId": "AAAAAABkfZg=",
+      "operationName": "get",
+      "references": [
+        {
+          "refType": "CHILD_OF",
+          "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+          "spanId": "AAAAAABoxOM="
+        }
+      ],
+      "startTime": "2017-01-26T16:46:31.639875-05:00",
+      "duration": "22938000ns",
+      "tags": [
+        {
+          "key": "peer.service",
+          "vType": "BINARY",
+          "vBinary": "AAAAAAAAMDk="
+        }
+      ],
+      "process": {
+        "serviceName": "api"
+      }
+    },
+    {
+      "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+      "spanId": "AAAAAABkfZk=",
+      "operationName": "get",
+      "references": [
+        {
+          "refType": "FOLLOWS_FROM",
+          "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+          "spanId": "AAAAAABoxOM="
+        }
+      ],
+      "startTime": "2017-01-26T16:46:31.639875-05:00",
+      "duration": "22938000ns",
+      "process": {
+        "serviceName": "api"
+      }
+    }
+  ]
+}

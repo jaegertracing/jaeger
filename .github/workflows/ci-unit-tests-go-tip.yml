@@ -1,0 +1,46 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Unit Tests on Go Tip
+
+on:
+  push:
+    branches: [main]
+
+  workflow_dispatch:
+
+  # We normally don't want this workflow to run on PRs, only on main branch.
+  # Unless the workflow file itself or the setup action is modified.
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ci-unit-tests-go-tip.yml'
+      - '.github/actions/setup-go-tip/**'
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests-go-tip:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - name: Install Go Tip
+      uses: ./.github/actions/setup-go-tip
+      with:
+        gh_token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Clean Go cache for gotip
+      run: |
+        go clean -cache
+        go clean -modcache
+
+    - name: Run unit tests
+      run: make test-ci
+

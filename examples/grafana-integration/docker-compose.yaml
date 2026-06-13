@@ -1,0 +1,76 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  grafana:
+    image: grafana/grafana:10.2.2
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/dashboard.yml:/etc/grafana/provisioning/dashboards/dashboard.yml
+      - ./grafana/hotrod_metrics_logs.json:/etc/grafana/provisioning/dashboards/hotrod_metrics_logs.json
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  loki:
+    image: grafana/loki:2.9.2
+    ports:
+      - '3100:3100'
+    command: -config.file=/etc/loki/local-config.yaml
+    # send Loki traces to Jaeger
+    environment:
+      - JAEGER_AGENT_HOST=jaeger
+      - JAEGER_AGENT_PORT=6831
+      - JAEGER_SAMPLER_TYPE=const
+      - JAEGER_SAMPLER_PARAM=1
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+        # Prevent container from being stuck when shutting down
+        # https://github.com/grafana/loki/issues/2361#issuecomment-718024318
+        loki-timeout: 1s
+        loki-max-backoff: 1s
+        loki-retries: 1
+
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/all-in-one:1.51
+    ports:
+      - '6831:6831'
+      - '16686:16686'
+      - '4318:4318'
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  hotrod:
+    image: cr.jaegertracing.io/jaegertracing/example-hotrod:1.51
+    depends_on:
+      - jaeger
+    ports:
+      - '8080:8080'
+      - '8083:8083'
+    command: ["-m","prometheus","all"]
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - '9090:9090'
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'

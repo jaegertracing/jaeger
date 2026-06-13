@@ -1,0 +1,55 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "query05-service"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000005",
+              "spanId": "0000000000000001",
+              "name": "operation-list-test2",
+              "startTimeUnixNano": "1485389011639875000",
+              "endTimeUnixNano": "1485389011639880000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000005",
+              "spanId": "0000000000000002",
+              "name": "operation-list-test3",
+              "startTimeUnixNano": "1485388591639875000",
+              "endTimeUnixNano": "1485388591639880000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

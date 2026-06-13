@@ -1,0 +1,36 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Verify PR Label
+
+on:
+  merge_group:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+permissions:
+  contents: read
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+        with:
+          egress-policy: audit
+
+      - name: Check PR label
+        # Only fail if NOT merge_group, AND labels DO NOT contain 'changelog:'
+        if: |
+          github.event_name != 'merge_group' &&
+          contains(join(github.event.pull_request.labels.*.name, ','), 'changelog:') == false
+        run: |
+          echo "::error::Pull request is missing a required 'changelog:' label. Found labels: ${{ join(github.event.pull_request.labels.*.name, ', ') }}"
+          exit 1

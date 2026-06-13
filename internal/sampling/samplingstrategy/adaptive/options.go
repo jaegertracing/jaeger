@@ -1,0 +1,90 @@
+// Copyright (c) 2018 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package adaptive
+
+import (
+	"time"
+)
+
+// Options holds configuration for the adaptive sampling strategy store.
+// The abbreviation SPS refers to "samples-per-second", which is the target
+// of the optimization/control implemented by the adaptive sampling.
+type Options struct {
+	// TargetSamplesPerSecond is the global target rate of samples per operation.
+	// TODO implement manual overrides per service/operation.
+	TargetSamplesPerSecond float64 `mapstructure:"target_samples_per_second"`
+
+	// DeltaTolerance is the acceptable amount of deviation between the observed and the desired (target)
+	// throughput for an operation, expressed as a ratio. For example, the value of 0.3 (30% deviation)
+	// means that if abs((actual-expected) / expected) < 0.3, then the actual sampling rate is "close enough"
+	// and the system does not need to send an updated sampling probability (the "control signal" u(t)
+	// in the PID Controller terminology) to the sampler in the application.
+	//
+	// Increase this to reduce the amount of fluctuation in the calculated probabilities.
+	DeltaTolerance float64 `mapstructure:"delta_tolerance"`
+
+	// CalculationInterval determines how often new probabilities are calculated. E.g. if it is 1 minute,
+	// new sampling probabilities are calculated once a minute and each bucket will contain 1 minute worth
+	// of aggregated throughput data.
+	CalculationInterval time.Duration `mapstructure:"calculation_interval"`
+
+	// AggregationBuckets is the total number of aggregated throughput buckets kept in memory, ie. if
+	// the CalculationInterval is 1 minute (each bucket contains 1 minute of thoughput data) and the
+	// AggregationBuckets is 3, the adaptive sampling processor will keep at most 3 buckets in memory for
+	// all operations.
+	// TODO(wjang): Expand on why this is needed when BucketsForCalculation seems to suffice.
+	AggregationBuckets int `mapstructure:"aggregation_buckets"`
+
+	// BucketsForCalculation determines how many previous buckets used in calculating the weighted QPS,
+	// ie. if BucketsForCalculation is 1, only the most recent bucket will be used in calculating the weighted QPS.
+	BucketsForCalculation int `mapstructure:"calculation_buckets"`
+
+	// Delay is the amount of time to delay probability generation by, ie. if the CalculationInterval
+	// is 1 minute, the number of buckets is 10, and the delay is 2 minutes, then at one time
+	// we'll have [now()-12m,now()-2m] range of throughput data in memory to base the calculations
+	// off of. This delay is necessary to counteract the rate at which the jaeger clients poll for
+	// the latest sampling probabilities. The default client poll rate is 1 minute, which means that
+	// during any 1 minute interval, the clients will be fetching new probabilities in a uniformly
+	// distributed manner throughout the 1 minute window. By setting the delay to 2 minutes, we can
+	// guarantee that all clients can use the latest calculated probabilities for at least 1 minute.
+	Delay time.Duration `mapstructure:"calculation_delay"`
+
+	// InitialSamplingProbability is the initial sampling probability for all new operations.
+	InitialSamplingProbability float64 `mapstructure:"initial_sampling_probability"`
+
+	// MinSamplingProbability is the minimum sampling probability for all operations. ie. the calculated sampling
+	// probability will be in the range [MinSamplingProbability, 1.0].
+	MinSamplingProbability float64 `mapstructure:"min_sampling_probability"`
+
+	// MinSamplesPerSecond determines the min number of traces that are sampled per second.
+	// For example, if the value is 0.01666666666 (one every minute), then the sampling processor will do
+	// its best to sample at least one trace a minute for an operation. This is useful for low QPS operations
+	// that may never be sampled by the probabilistic sampler.
+	MinSamplesPerSecond float64 `mapstructure:"min_samples_per_second"`
+
+	// LeaderLeaseRefreshInterval is the duration to sleep if this processor is elected leader before
+	// attempting to renew the lease on the leader lock. NB. This should be less than FollowerLeaseRefreshInterval
+	// to reduce lock thrashing.
+	LeaderLeaseRefreshInterval time.Duration `mapstructure:"leader_lease_refresh_interval"`
+
+	// FollowerLeaseRefreshInterval is the duration to sleep if this processor is a follower
+	// (ie. failed to gain the leader lock).
+	FollowerLeaseRefreshInterval time.Duration `mapstructure:"follower_lease_refresh_interval"`
+}
+
+func DefaultOptions() Options {
+	return Options{
+		TargetSamplesPerSecond:       1,
+		DeltaTolerance:               0.3,
+		BucketsForCalculation:        1,
+		CalculationInterval:          time.Minute,
+		AggregationBuckets:           10,
+		Delay:                        time.Minute * 2,
+		InitialSamplingProbability:   0.001,
+		MinSamplingProbability:       1e-5,                                   // one in 100k requests
+		MinSamplesPerSecond:          1.0 / float64(time.Minute/time.Second), // once every 1 minute
+		LeaderLeaseRefreshInterval:   5 * time.Second,
+		FollowerLeaseRefreshInterval: 60 * time.Second,
+	}
+}

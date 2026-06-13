@@ -1,0 +1,49 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+service:
+  extensions: [healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger]
+      processors: [batch]
+      exporters: [kafka]
+  telemetry:
+    resource:
+      service.name: jaeger_collector
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+  jaeger:
+    protocols:
+      grpc:
+      thrift_binary:
+      thrift_compact:
+      thrift_http:
+
+processors:
+  batch:
+
+exporters:
+  kafka:
+    brokers:
+      - ${env:KAFKA_BROKER:-localhost:9092}
+    traces:
+      topic: ${env:KAFKA_TOPIC:-jaeger-spans}
+      encoding: ${env:KAFKA_ENCODING:-otlp_proto}

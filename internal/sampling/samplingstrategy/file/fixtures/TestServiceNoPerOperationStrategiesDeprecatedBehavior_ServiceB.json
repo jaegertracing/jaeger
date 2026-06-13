@@ -1,0 +1,6 @@
+{
+  "strategyType": 1,
+  "rateLimitingSampling": {
+    "maxTracesPerSecond": 3
+  }
+}

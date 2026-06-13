@@ -1,0 +1,191 @@
+// Copyright (c) 2024 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package storagecleaner
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.uber.org/zap/zaptest"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/internal/storage/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+)
+
+var (
+	_ jaegerstorage.Extension = (*mockStorageExt)(nil)
+	_ tracestore.Factory      = (*PurgerFactory)(nil)
+)
+
+type PurgerFactory struct {
+	tracestoremocks.Factory
+	err error
+}
+
+func (f *PurgerFactory) Purge(_ context.Context) error {
+	return f.err
+}
+
+type mockStorageExt struct {
+	name           string
+	factory        tracestore.Factory
+	metricsFactory storage.MetricStoreFactory
+}
+
+func (*mockStorageExt) Start(context.Context, component.Host) error {
+	panic("not implemented")
+}
+
+func (*mockStorageExt) Shutdown(context.Context) error {
+	panic("not implemented")
+}
+
+func (m *mockStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
+	if m.name == name {
+		return m.factory, nil
+	}
+	return nil, errors.New("storage not found")
+}
+
+func (m *mockStorageExt) MetricStorageFactory(name string) (storage.MetricStoreFactory, error) {
+	if m.name == name {
+		return m.metricsFactory, nil
+	}
+	return nil, errors.New("metric storage not found")
+}
+
+func TestStorageCleanerExtension(t *testing.T) {
+	tests := []struct {
+		name    string
+		factory tracestore.Factory
+		status  int
+	}{
+		{
+			name:    "good storage",
+			factory: &PurgerFactory{},
+			status:  http.StatusOK,
+		},
+		{
+			name:    "good storage with error",
+			factory: &PurgerFactory{err: errors.New("error")},
+			status:  http.StatusInternalServerError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &Config{
+				TraceStorage: "storage",
+				Port:         Port,
+			}
+			s := newStorageCleaner(config, component.TelemetrySettings{
+				Logger: zaptest.NewLogger(t),
+			})
+			require.NotEmpty(t, s.Dependencies())
+			host := storagetest.NewStorageHost()
+			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+				name:    "storage",
+				factory: test.factory,
+			})
+			require.NoError(t, s.Start(context.Background(), host))
+			defer s.Shutdown(context.Background())
+
+			addr := fmt.Sprintf("http://0.0.0.0:%s%s", Port, URL)
+			client := &http.Client{}
+			require.Eventually(t, func() bool {
+				r, err := http.NewRequest(http.MethodPost, addr, http.NoBody)
+				require.NoError(t, err)
+				resp, err := client.Do(r)
+				if err != nil {
+					t.Logf("client.Do error: %v", err)
+				} else {
+					defer resp.Body.Close()
+				}
+				return err == nil && test.status == resp.StatusCode
+			}, 10*time.Second, 100*time.Millisecond)
+		})
+	}
+}
+
+func TestGetStorageFactoryError(t *testing.T) {
+	tests := []struct {
+		name    string
+		factory tracestore.Factory
+	}{
+		{
+			name:    "NoFactory",
+			factory: &tracestoremocks.Factory{},
+		},
+		{
+			name:    "BadFactory",
+			factory: nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := &Config{}
+			s := newStorageCleaner(config, component.TelemetrySettings{
+				Logger: zaptest.NewLogger(t),
+			})
+			host := storagetest.NewStorageHost()
+			host.WithExtension(jaegerstorage.ID, &mockStorageExt{
+				name:    "storage",
+				factory: test.factory,
+			})
+			err := s.Start(context.Background(), host)
+			require.ErrorContains(t, err, "failed to obtain purger")
+		})
+	}
+}
+
+func TestStorageExtensionStartError(t *testing.T) {
+	config := &Config{
+		TraceStorage: "storage",
+		Port:         "invalid-port",
+	}
+	var startStatus atomic.Pointer[componentstatus.Event]
+	s := newStorageCleaner(config, component.TelemetrySettings{
+		Logger: zaptest.NewLogger(t),
+	})
+	host := &testHost{
+		Host: storagetest.NewStorageHost().WithExtension(
+			jaegerstorage.ID,
+			&mockStorageExt{
+				name:    "storage",
+				factory: &PurgerFactory{},
+			},
+		),
+		reportFunc: func(status *componentstatus.Event) {
+			startStatus.Store(status)
+		},
+	}
+
+	require.NoError(t, s.Start(context.Background(), host))
+	assert.Eventually(t, func() bool {
+		return startStatus.Load() != nil
+	}, 5*time.Second, 100*time.Millisecond)
+	require.ErrorContains(t, startStatus.Load().Err(), "error starting cleaner server")
+}
+
+type testHost struct {
+	component.Host
+	reportFunc func(event *componentstatus.Event)
+}
+
+func (h *testHost) Report(event *componentstatus.Event) {
+	h.reportFunc(event)
+}

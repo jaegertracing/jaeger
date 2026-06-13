@@ -1,0 +1,18 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+         - targets:
+           - localhost:9090
+
+  - job_name: 'hotrod-application'
+    static_configs:
+         - targets:
+           - hotrod:8080

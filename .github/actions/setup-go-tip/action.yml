@@ -1,0 +1,82 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Inspired by https://github.com/actions/setup-go/issues/21#issuecomment-997208686
+name: 'Install Go Tip'
+description: 'Install Go Tip toolchain'
+inputs:
+  gh_token:
+    description: 'The GitHub Token'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Download pre-built Go tip from grafana/gotip repo
+      id: download
+      shell: bash
+      run: |
+        set -euo pipefail
+        gh release download ubuntu-latest --repo grafana/gotip --pattern 'go.zip'
+        echo "::group::unzip"
+        unzip go.zip -d $HOME/sdk
+        echo "::endgroup::"
+        export GOROOT="$HOME/sdk/gotip"
+        echo "GOROOT=$GOROOT" >> $GITHUB_ENV
+        echo "success=true" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ inputs.gh_token }}
+
+    # If download failed, we will try to build tip from source.
+    # This requires Go toolchain, so install it first.
+    # However, gotip is picky about the version of Go used to build it,
+    # sometimes it requires the latest version, so determine it dynamically.
+    - name: Determine latest Go version
+      if: steps.download.outputs.success == 'false'
+      id: get_go_version
+      shell: bash
+      run: |
+        LATEST_GO_VERSION=$(curl -s "https://go.dev/VERSION?m=text" | grep go1 | sed 's/^go//g')
+        echo "LATEST_GO_VERSION=$LATEST_GO_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Install Go toolchain
+      if: steps.download.outputs.success == 'false'
+      uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+      with:
+        go-version: ${{ steps.get_go_version.outputs.LATEST_GO_VERSION }}
+
+    - name: Build Go Tip from source
+      if: steps.download.outputs.success == 'false'
+      shell: bash
+      run: |
+        echo Build Go Tip from source
+        set -euo pipefail
+        go install golang.org/dl/gotip@latest
+        gotip download
+        export GOROOT="$(gotip env GOROOT)"
+        echo "GOROOT=$GOROOT" >> $GITHUB_ENV
+        # for some reason even though we put gotip at the front of PATH later,
+        # the go binary installed in previous step still takes precedence. So remove it.
+        rm -f $(which go)
+
+    - name: Setup Go environment
+      shell: bash
+      run: |
+        echo Setup Go environment
+        set -euo pipefail
+        $GOROOT/bin/go version
+        GOPATH="$HOME/gotip"
+        PATH="$GOROOT/bin:$GOPATH/bin:$PATH"
+        echo "GOPATH=$GOPATH" >> $GITHUB_ENV
+        echo "PATH=$PATH" >> $GITHUB_ENV
+
+    - name: Check Go Version
+      shell: bash
+      run: |
+        echo Check Go Version
+        set -euo pipefail
+        echo "GOPATH=$GOPATH"
+        echo "GOROOT=$GOROOT"
+        echo "which go:"
+        which -a go
+        echo "Active Go version:"
+        go version

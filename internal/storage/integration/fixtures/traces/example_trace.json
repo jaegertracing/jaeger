@@ -1,0 +1,143 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-service-2"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000004",
+              "name": "example-operation-2",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-service-3"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000005",
+              "name": "example-operation-1",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "example-service-1"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {},
+          "spans": [
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000003",
+              "name": "example-operation-1",
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000006",
+              "name": "example-operation-3",
+              "kind": 2,
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00000000000000000000000000000011",
+              "spanId": "0000000000000007",
+              "name": "example-operation-4",
+              "kind": 3,
+              "startTimeUnixNano": "1485449191639875000",
+              "endTimeUnixNano": "1485449191639975000",
+              "events": [
+                {
+                  "timeUnixNano": "1485449191639875000"
+                },
+                {
+                  "timeUnixNano": "1485449191639875000"
+                }
+              ],
+              "status": {}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

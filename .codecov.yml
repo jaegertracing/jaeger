@@ -1,0 +1,34 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+codecov:
+  notify:
+    require_ci_to_pass: yes
+    after_n_builds: 18
+  strict_yaml_branch: main  # only use the latest copy on the main branch
+
+ignore:
+  - "**/*.pb.go"
+  - "**/mocks/*"
+  - "proto-gen/*/*"
+  - "thrift-gen/*/*"
+  - "**/main.go"
+  - "examples/hotrod"
+  - "internal/storage/integration"
+  - "cmd/jaeger/internal/integration"
+  - "internal/tools"
+  - "monitoring/jaeger-mixin/generate"
+
+coverage:
+  precision: 2
+  round: down
+  range: "95...100"
+  status:
+    project:
+      default:
+        enabled: yes
+        target: 95%
+    patch:
+      default:
+        enabled: yes
+        target: 95%

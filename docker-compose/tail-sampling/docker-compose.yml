@@ -1,0 +1,39 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  jaeger:
+    networks:
+      backend:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:${JAEGER_VERSION:-latest}
+    volumes:
+      - "./jaeger-v2-config.yml:/etc/jaeger/config.yml"
+    command: ["--config", "/etc/jaeger/config.yml"]
+    ports:
+      - "16686:16686"
+      - "4317"
+
+  otel_collector:
+    networks:
+      backend:
+    image: otel/opentelemetry-collector-contrib:${OTEL_IMAGE_TAG:-0.108.0}
+    volumes:
+      - ${OTEL_CONFIG_SRC:-./otel-collector-config-connector.yml}:/etc/otelcol/otel-collector-config.yml
+    command: --config /etc/otelcol/otel-collector-config.yml
+    depends_on:
+      - jaeger
+    ports:
+      - "4318"
+
+  tracegen:
+    networks:
+      - backend
+    image: cr.jaegertracing.io/jaegertracing/jaeger-tracegen:2.19.0@sha256:22fa2710ac408f98f59f02ab6944512ff589d330255ee4d881bf5f84b4a8e7c3
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel_collector:4318/v1/traces
+    command: ["-workers", "3", "-pause", "250ms", "-services", "5", "-duration", "10s"]
+    depends_on:
+      - jaeger
+
+networks:
+  backend:

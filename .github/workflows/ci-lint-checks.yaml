@@ -1,0 +1,219 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Lint Checks
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:  # added using https://github.com/step-security/secure-workflows
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Print Jaeger version for no reason
+      run: make echo-version
+
+    - run: make install-test-tools
+
+    - run: make lint
+
+  pull-request-preconditions:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - uses: ./.github/actions/block-pr-from-main-branch
+
+    - run: |
+        git fetch origin main
+        make lint-nocommit
+
+  dco-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - name: Set up Python 3.x for DCO check
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      with:
+        python-version: '3.x'
+
+    - name: Run DCO check
+      if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
+      run: python3 scripts/lint/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
+      env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  idl-version-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: recursive
+        fetch-tags: true
+
+    - name: check jaeger-idl versions across git submodule and go.mod dependency
+      run: make lint-jaeger-idl-versions
+
+  generated-files-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: recursive
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Verify Protobuf types are up to date
+      run: make proto && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
+
+    - name: Verify Mockery types are up to date
+      run: make generate-mocks && { if git status --porcelain | grep '??'; then exit 1; else git diff --name-status --exit-code; fi }
+
+    - name: Verify Grafana dashboard JSON is in sync with Go generator
+      run: make lint-monitoring
+
+  lint-shell-scripts:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+
+    - run: sudo apt-get install shellcheck
+
+    - run: shellcheck scripts/**/*.sh
+
+    - name: Install shunit2 for shell unit tests
+      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        repository: kward/shunit2
+        path: .tools/shunit2
+
+    - name: Run unit tests for scripts
+      run: |
+        SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh
+
+    - name: Run Python unit tests for e2e scripts
+      run: |
+        python3 -m pip install --require-hashes --no-deps --only-binary :all: -r .github/requirements/ci-requirements.txt
+        python3 -m unittest discover -s scripts/e2e -p '*_test.py' -v
+
+  binary-size-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - name: Setup Node.js version
+      uses: ./.github/actions/setup-node.js
+
+    - name: Build jaeger binary
+      run: make build-jaeger
+
+    - name: Calculate jaeger binary size
+      run: |
+        TOTAL_SIZE=$(du -sb ./cmd/jaeger/jaeger-linux-amd64 | cut -f1)
+        echo "$TOTAL_SIZE" > ./new_jaeger_binary_size.txt
+        echo "Total binary size: $TOTAL_SIZE bytes"
+
+    - name: Restore previous binary size
+      id: cache-binary-size
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb      # v5.0.1
+      with:
+        path: ./jaeger_binary_size.txt
+        key: jaeger_binary_size
+        restore-keys: |
+          jaeger_binary_size
+
+    - name: Compare `jaeger` binary sizes
+      if: ${{ (steps.cache-binary-size.outputs.cache-matched-key != '') && ((github.event_name != 'push') || (github.ref != 'refs/heads/main')) }}
+      run: |
+        set -euf -o pipefail
+        OLD_BINARY_SIZE=$(cat ./jaeger_binary_size.txt)
+        NEW_BINARY_SIZE=$(cat ./new_jaeger_binary_size.txt)
+        printf "Previous binary size: %'d bytes\n" $OLD_BINARY_SIZE
+        printf "New binary size:      %'d bytes\n" $NEW_BINARY_SIZE
+
+        PERCENTAGE_CHANGE=$(echo "scale=2; ($NEW_BINARY_SIZE - $OLD_BINARY_SIZE) * 100 / $OLD_BINARY_SIZE" | bc)
+        if (( $(echo "$PERCENTAGE_CHANGE > 2.0" | bc) == 1 )); then
+          echo "❌ binary size increased by more than 2% ($PERCENTAGE_CHANGE%)"
+          exit 1
+        else
+          echo "✅ binary size change is within acceptable range ($PERCENTAGE_CHANGE%)"
+        fi
+
+
+    - name: Remove previous *_binary_*.txt
+      run: |
+        rm -rf ./jaeger_binary_size.txt
+        mv ./new_jaeger_binary_size.txt ./jaeger_binary_size.txt
+
+    - name: Save new jaeger binary size
+      if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
+      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb     # v5.0.1
+      with:
+        path: ./jaeger_binary_size.txt
+        key: jaeger_binary_size_${{ github.run_id }}
+
+  validate-renovate-config:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: false
+
+    - name: validate renovate config
+      run: |
+        docker run \
+          -v $PWD/renovate.json:/usr/src/app/renovate.json \
+          ghcr.io/renovatebot/renovate:latest \
+          renovate-config-validator

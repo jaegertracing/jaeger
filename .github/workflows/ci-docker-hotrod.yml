@@ -1,0 +1,73 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: CIT Hotrod
+
+on:
+  workflow_call:
+
+# See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
+permissions:
+  contents: read
+
+jobs:
+  hotrod:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [docker, k8s]
+
+    steps:
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - name: Fetch git tags
+      run: |
+        git fetch --prune --unshallow --tags
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - uses: ./.github/actions/setup-node.js
+
+    - uses: ./.github/actions/setup-branch
+
+    - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+    - name: Define BUILD_FLAGS var if running on a Pull Request
+      run: |
+        case ${GITHUB_EVENT_NAME} in
+          pull_request)
+            echo "BUILD_FLAGS=-l -p linux/amd64" >> ${GITHUB_ENV}
+            ;;
+          *)
+            echo "BUILD_FLAGS=" >> ${GITHUB_ENV}
+            ;;
+        esac
+    - name: Install kubectl
+      if: matrix.runtime == 'k8s'
+      uses: azure/setup-kubectl@15650b3ad78fff148532a140b8a4c821796b2d7b # v5
+      with:
+        version: 'latest'
+
+    - name: Create k8s Kind Cluster
+      if: matrix.runtime == 'k8s'
+      uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1
+
+    - name: Build, test, and publish hotrod image
+      if: github.event_name == 'push' && github.ref_name == 'main'
+      run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -r ${{ matrix.runtime }}
+      env:
+        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+
+    - name: Build and test hotrod image (no publish)
+      if: github.event_name != 'push' || github.ref_name != 'main'
+      run:  bash scripts/build/build-hotrod-image.sh ${{ env.BUILD_FLAGS }} -r ${{ matrix.runtime }}

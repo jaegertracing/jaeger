@@ -1,0 +1,50 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Fan-out workflow that invokes all individual E2E integration test workflows
+# for every supported storage backend and feature.
+
+name: E2E Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  badger:
+    uses: ./.github/workflows/ci-e2e-badger.yaml
+
+  cassandra:
+    uses: ./.github/workflows/ci-e2e-cassandra.yml
+
+  elasticsearch:
+    uses: ./.github/workflows/ci-e2e-elasticsearch.yml
+
+  grpc:
+    uses: ./.github/workflows/ci-e2e-grpc.yml
+
+  kafka:
+    uses: ./.github/workflows/ci-e2e-kafka.yml
+
+  memory:
+    uses: ./.github/workflows/ci-e2e-memory.yaml
+
+  opensearch:
+    uses: ./.github/workflows/ci-e2e-opensearch.yml
+
+  query:
+    uses: ./.github/workflows/ci-e2e-query.yml
+
+  clickhouse:
+    uses: ./.github/workflows/ci-e2e-clickhouse.yml
+
+  spm:
+    uses: ./.github/workflows/ci-e2e-spm.yml
+
+  tailsampling:
+    uses: ./.github/workflows/ci-e2e-tailsampling.yml
+
+  ui-reverse-proxy:
+    uses: ./.github/workflows/ci-e2e-ui-reverse-proxy.yml

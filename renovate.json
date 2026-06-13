@@ -1,0 +1,201 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":gitSignOff"
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardHeader": "Project settings are at https://developer.mend.io/",
+  "labels": [
+    "changelog:dependencies"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security", "changelog:dependencies"]
+  },
+  "suppressNotifications": [
+    "prEditedNotification"
+  ],
+  "schedule": [
+    "on the first day of the month"
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "on the first day of the month"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "CI Python deps are hash-pinned in .github/requirements/*requirements.txt for OpenSSF Scorecard. Renovate bumps the version but NOT the --hash line, so the bump PR will fail --require-hashes until the hash is regenerated (see the comment in the requirements file). Label these so they are easy to spot and complete.",
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchFileNames": [
+        ".github/requirements/**"
+      ],
+      "labels": [
+        "changelog:ci",
+        "changelog:dependencies"
+      ]
+    },
+    {
+      "matchFileNames": [
+        "docker-compose/**/docker-compose.y*ml"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "patch",
+        "digest"
+      ],
+      "enabled": false
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "github-actions deps"
+    },
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "digest"
+      ],
+      "enabled": false
+    },
+    {
+      "groupName": "All OTEL SDK + contrib packages",
+      "groupSlug": "go-otel-sdk",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchPackageNames": [
+        "go.opentelemetry.io/otel/**",
+        "go.opentelemetry.io/contrib/**",
+        "github.com/open-telemetry/opentelemetry-go-contrib/**"
+      ],
+      "schedule": [
+        "on friday"
+      ]
+    },
+    {
+      "groupName": "All OTEL Collector packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "go.opentelemetry.io/collector{/,}**"
+      ],
+      "schedule": [
+        "on friday"
+      ]
+    },
+    {
+      "groupName": "All OTEL Collector contrib packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/open-telemetry/opentelemetry-collector-contrib{/,}**"
+      ],
+      "schedule": [
+        "on friday"
+      ]
+    },
+    {
+      "groupName": "All google.golang.org packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchSourceUrls": [
+        "google.golang.org{/,}**"
+      ]
+    },
+    {
+      "groupName": "All golang.org/x packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "golang.org/x{/,}**"
+      ]
+    },
+    {
+      "groupName": "All github.com/prometheus packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/prometheus{/,}**"
+      ]
+    },
+    {
+      "groupName": "Exclude frequent tools upgrades",
+      "matchDatasources": [
+        "go"
+      ],
+      "matchPackageNames": [
+        "github.com/vektra/mockery/**"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "enabled": false
+    },
+    {
+      "groupName": "All Jaeger Docker images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "cr.jaegertracing.io/jaegertracing/jaeger",
+        "cr.jaegertracing.io/jaegertracing/jaeger-tracegen"
+      ]
+    },
+    {
+      "groupName": "All ClickHouse packages",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "github.com/ClickHouse/ch-go",
+        "github.com/ClickHouse/clickhouse-go/v2"
+      ]
+    },
+    {
+      "groupName": "OpenSearch 3.x docker images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "opensearchproject/opensearch"
+      ],
+      "matchFileNames": [
+        "docker-compose/opensearch/v3/docker-compose.yml",
+        "docker-compose/monitor/docker-compose-opensearch.yml"
+      ],
+      "allowedVersions": "3.x"
+    },
+    {
+      "groupName": "Elasticsearch 9.x docker images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "docker.elastic.co/elasticsearch/elasticsearch"
+      ],
+      "matchFileNames": [
+        "docker-compose/elasticsearch/v9/docker-compose.yml",
+        "docker-compose/monitor/docker-compose-elasticsearch.yml"
+      ],
+      "allowedVersions": "9.x"
+    }
+  ]
+}
