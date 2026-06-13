@@ -21,7 +21,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-var _ tracestore.Reader = (*Reader)(nil)
+var (
+	_ tracestore.Reader        = (*Reader)(nil)
+	_ tracestore.SummaryReader = (*Reader)(nil)
+)
 
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
@@ -206,6 +209,121 @@ func (r *Reader) FindTraces(
 			yield(nil, err)
 		}
 	}
+}
+
+// FindTraceSummaries natively computes lightweight trace summaries in ClickHouse,
+// satisfying tracestore.SummaryReader. It reuses the same filtered, limited
+// trace-ID selection as FindTraces, then aggregates only summary columns instead
+// of materializing full span payloads. This is the native path ADR-010 Milestone 5
+// defines; backends without it fall back to querysvc client-side aggregation.
+func (r *Reader) FindTraceSummaries(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			return
+		}
+
+		rows, err := r.conn.Query(ctx, buildFindTraceSummariesQuery(traceIDsQuery), args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query trace summaries: %w", err))
+			return
+		}
+
+		var errs []error
+		for rows.Next() {
+			summary, scanErr := scanTraceSummaryRow(rows)
+			if scanErr != nil {
+				errs = append(errs, scanErr)
+				break
+			}
+			if !yield([]tracestore.TraceSummary{summary}, nil) {
+				_ = rows.Close()
+				return
+			}
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			errs = append(errs, fmt.Errorf("failed to read summary rows: %w", rowsErr))
+		}
+		if closeErr := rows.Close(); closeErr != nil {
+			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+		}
+		if err := errors.Join(errs...); err != nil {
+			yield(nil, err)
+		}
+	}
+}
+
+// scanTraceSummaryRow scans a single aggregated row from the native summary query
+// into a tracestore.TraceSummary. The per-service arrays are index-aligned because
+// both sumMap aggregations key on service_name and ClickHouse returns map keys sorted.
+func scanTraceSummaryRow(rows driver.Rows) (tracestore.TraceSummary, error) {
+	var (
+		traceIDHex     string
+		minStart       time.Time
+		maxEnd         time.Time
+		spanCount      uint64
+		errorSpanCount uint64
+		rootService    string
+		rootOperation  string
+		svcNames       []string
+		svcSpanCounts  []uint64
+		svcErrorCounts []uint64
+		orphanCount    uint64
+	)
+	if err := rows.Scan(
+		&traceIDHex,
+		&minStart,
+		&maxEnd,
+		&spanCount,
+		&errorSpanCount,
+		&rootService,
+		&rootOperation,
+		&svcNames,
+		&svcSpanCounts,
+		&svcErrorCounts,
+		&orphanCount,
+	); err != nil {
+		return tracestore.TraceSummary{}, fmt.Errorf("failed to scan summary row: %w", err)
+	}
+
+	b, err := hex.DecodeString(traceIDHex)
+	if err != nil {
+		return tracestore.TraceSummary{}, fmt.Errorf("failed to decode trace ID: %w", err)
+	}
+
+	services := make([]tracestore.ServiceSummary, 0, len(svcNames))
+	for i := range svcNames {
+		var spanCnt, errorCnt int
+		if i < len(svcSpanCounts) {
+			//nolint:gosec // G115: per-service span count is bounded by trace size
+			spanCnt = int(svcSpanCounts[i])
+		}
+		if i < len(svcErrorCounts) {
+			//nolint:gosec // G115: per-service error count is bounded by trace size
+			errorCnt = int(svcErrorCounts[i])
+		}
+		services = append(services, tracestore.ServiceSummary{
+			Name:           svcNames[i],
+			SpanCount:      spanCnt,
+			ErrorSpanCount: errorCnt,
+		})
+	}
+
+	return tracestore.TraceSummary{
+		TraceID:           pcommon.TraceID(b),
+		RootServiceName:   rootService,
+		RootOperationName: rootOperation,
+		MinStartTime:      minStart,
+		MaxEndTime:        maxEnd,
+		SpanCount:         int(spanCount),
+		ErrorSpanCount:    int(errorSpanCount),
+		OrphanSpanCount:   int(orphanCount),
+		Services:          services,
+	}, nil
 }
 
 func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {

@@ -1231,3 +1231,313 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(iter)
 	require.ErrorContains(t, err, "failed to build query")
 }
+
+// scanTraceSummaryFn maps a pre-aggregated test row (as ClickHouse would return
+// from the native summary query) into the positional destinations used by
+// scanTraceSummaryRow.
+func scanTraceSummaryFn() func(dest any, src []any) error {
+	return func(dest any, src []any) error {
+		ptrs, ok := dest.([]any)
+		if !ok {
+			return fmt.Errorf("expected []any for dest, got %T", dest)
+		}
+		if len(ptrs) != 11 {
+			return fmt.Errorf("expected 11 destination arguments, got %d", len(ptrs))
+		}
+		if len(src) != len(ptrs) {
+			return fmt.Errorf("expected %d source values, got %d", len(ptrs), len(src))
+		}
+		assign := func(i int, dst, val any) error {
+			switch d := dst.(type) {
+			case *string:
+				v, ok := val.(string)
+				if !ok {
+					return fmt.Errorf("dest[%d]: expected string, got %T", i, val)
+				}
+				*d = v
+			case *time.Time:
+				v, ok := val.(time.Time)
+				if !ok {
+					return fmt.Errorf("dest[%d]: expected time.Time, got %T", i, val)
+				}
+				*d = v
+			case *uint64:
+				v, ok := val.(uint64)
+				if !ok {
+					return fmt.Errorf("dest[%d]: expected uint64, got %T", i, val)
+				}
+				*d = v
+			case *[]string:
+				v, ok := val.([]string)
+				if !ok {
+					return fmt.Errorf("dest[%d]: expected []string, got %T", i, val)
+				}
+				*d = v
+			case *[]uint64:
+				v, ok := val.([]uint64)
+				if !ok {
+					return fmt.Errorf("dest[%d]: expected []uint64, got %T", i, val)
+				}
+				*d = v
+			default:
+				return fmt.Errorf("dest[%d]: unsupported destination type %T", i, dst)
+			}
+			return nil
+		}
+		for i := range ptrs {
+			if err := assign(i, ptrs[i], src[i]); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func TestFindTraceSummaries_Success(t *testing.T) {
+	summaryRow := []any{
+		traceIDHex1,
+		now.Add(-1 * time.Hour),
+		now,
+		uint64(3),
+		uint64(1),
+		"serviceA",
+		"operationA",
+		[]string{"serviceA", "serviceB"},
+		[]uint64{2, 1},
+		[]uint64{1, 0},
+		uint64(0),
+	}
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   [][]any{summaryRow},
+					ScanFn: scanTraceSummaryFn(),
+				},
+			},
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		ServiceName:  "serviceA",
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: now.Add(-1 * time.Hour),
+		StartTimeMax: now,
+		SearchDepth:  10,
+	})
+	summaries, err := jiter.FlattenWithErrors(iter)
+	require.NoError(t, err)
+	require.Len(t, conn.RecordedQueries, 1)
+	// The service filter from buildFindTraceIDsQuery is embedded in the summary query.
+	require.Contains(t, conn.RecordedQueries[0], "s.service_name = ?")
+
+	require.Len(t, summaries, 1)
+	assert.Equal(t, pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}), summaries[0].TraceID)
+	assert.Equal(t, "serviceA", summaries[0].RootServiceName)
+	assert.Equal(t, "operationA", summaries[0].RootOperationName)
+	assert.Equal(t, now.Add(-1*time.Hour), summaries[0].MinStartTime)
+	assert.Equal(t, now, summaries[0].MaxEndTime)
+	assert.Equal(t, 3, summaries[0].SpanCount)
+	assert.Equal(t, 1, summaries[0].ErrorSpanCount)
+	assert.Equal(t, 0, summaries[0].OrphanSpanCount)
+	assert.Equal(t, []tracestore.ServiceSummary{
+		{Name: "serviceA", SpanCount: 2, ErrorSpanCount: 1},
+		{Name: "serviceB", SpanCount: 1, ErrorSpanCount: 0},
+	}, summaries[0].Services)
+}
+
+func TestFindTraceSummaries_CrossService(t *testing.T) {
+	summaryRow := []any{
+		traceIDHex1,
+		now.Add(-1 * time.Hour),
+		now,
+		uint64(1),
+		uint64(0),
+		"serviceA",
+		"operationA",
+		[]string{"serviceA"},
+		[]uint64{1},
+		[]uint64{0},
+		uint64(0),
+	}
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   [][]any{summaryRow},
+					ScanFn: scanTraceSummaryFn(),
+				},
+			},
+		},
+	}
+
+	reader := NewReader(conn, testReaderConfig)
+	// No ServiceName: cross-service search must not inject a service filter.
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	summaries, err := jiter.FlattenWithErrors(iter)
+	require.NoError(t, err)
+	require.Len(t, conn.RecordedQueries, 1)
+	require.NotContains(t, conn.RecordedQueries[0], "s.service_name = ?")
+	require.Len(t, summaries, 1)
+	assert.Equal(t, 1, summaries[0].SpanCount)
+}
+
+func TestFindTraceSummaries_BuildQueryError(t *testing.T) {
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10000, // exceeds testReaderConfig.MaxSearchDepth
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to build query")
+}
+
+func TestFindTraceSummaries_QueryError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Err: assert.AnError,
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to query trace summaries")
+}
+
+func TestFindTraceSummaries_ScanError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:    [][]any{{}}, // one row present so Next() returns true
+					ScanErr: assert.AnError,
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to scan summary row")
+}
+
+func TestFindTraceSummaries_TraceIDDecodeError(t *testing.T) {
+	badRow := []any{
+		"not-valid-hex",
+		now.Add(-1 * time.Hour),
+		now,
+		uint64(1),
+		uint64(0),
+		"serviceA",
+		"operationA",
+		[]string{"serviceA"},
+		[]uint64{1},
+		[]uint64{0},
+		uint64(0),
+	}
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   [][]any{badRow},
+					ScanFn: scanTraceSummaryFn(),
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to decode trace ID")
+}
+
+func TestFindTraceSummaries_RowsError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					RowsErr: assert.AnError,
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to read summary rows")
+}
+
+func TestFindTraceSummaries_CloseError(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					CloseErr: assert.AnError,
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "failed to close rows")
+}
+
+func TestFindTraceSummaries_EarlyTermination(t *testing.T) {
+	summaryRow := []any{
+		traceIDHex1,
+		now.Add(-1 * time.Hour),
+		now,
+		uint64(1),
+		uint64(0),
+		"serviceA",
+		"operationA",
+		[]string{"serviceA"},
+		[]uint64{1},
+		[]uint64{0},
+		uint64(0),
+	}
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   [][]any{summaryRow, summaryRow},
+					ScanFn: scanTraceSummaryFn(),
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	count := 0
+	iter(func(_ []tracestore.TraceSummary, err error) bool {
+		require.NoError(t, err)
+		count++
+		return false // stop after the first batch
+	})
+	assert.Equal(t, 1, count)
+}
