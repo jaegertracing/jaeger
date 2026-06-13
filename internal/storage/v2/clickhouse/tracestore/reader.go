@@ -23,6 +23,9 @@ import (
 
 var _ tracestore.Reader = (*Reader)(nil)
 
+// changed: Reader now supports native trace summaries
+var _ tracestore.SummaryReader = (*Reader)(nil)
+
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
 	// This value is used when the SearchDepth field in TraceQueryParams is not set.
@@ -205,6 +208,92 @@ func (r *Reader) FindTraces(
 		if err := errors.Join(errs...); err != nil {
 			yield(nil, err)
 		}
+	}
+}
+
+// changed: native summary query without materializing full traces
+func (r *Reader) FindTraceSummaries(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to build query: %w", err))
+			return
+		}
+
+		querySQL := fmt.Sprintf(`
+			SELECT
+				trace_id,
+				min(timestamp) AS min_start_time,
+				max(timestamp + duration) AS max_end_time,
+				count() AS span_count,
+				countIf(status_code = 'STATUS_CODE_ERROR') AS error_span_count,
+				argMin(service_name, timestamp) AS root_service_name,
+				argMin(span_name, timestamp) AS root_operation_name
+			FROM spans
+			WHERE trace_id IN (%s)
+			GROUP BY trace_id
+			ORDER BY min_start_time DESC
+		`, traceIDsQuery)
+
+		rows, err := r.conn.Query(ctx, querySQL, args...)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to query trace summaries: %w", err))
+			return
+		}
+
+		var (
+			summaries []tracestore.TraceSummary
+			errs      []error
+		)
+
+		for rows.Next() {
+			var (
+				traceIDHex string
+				summary    tracestore.TraceSummary
+			)
+
+			if scanErr := rows.Scan(
+				&traceIDHex,
+				&summary.MinStartTime,
+				&summary.MaxEndTime,
+				&summary.SpanCount,
+				&summary.ErrorSpanCount,
+				&summary.RootServiceName,
+				&summary.RootOperationName,
+			); scanErr != nil {
+				errs = append(errs, fmt.Errorf("failed to scan summary row: %w", scanErr))
+				break
+			}
+
+			traceIDBytes, decodeErr := hex.DecodeString(traceIDHex)
+			if decodeErr != nil {
+				errs = append(errs, fmt.Errorf("failed to decode trace ID: %w", decodeErr))
+				break
+			}
+
+			summary.TraceID = pcommon.TraceID(traceIDBytes)
+
+			// changed: avoid full trace reconstruction for orphan spans
+			summary.OrphanSpanCount = 0
+
+			summaries = append(summaries, summary)
+		}
+
+		if rowsErr := rows.Err(); rowsErr != nil {
+			errs = append(errs, fmt.Errorf("failed to read summary rows: %w", rowsErr))
+		}
+		if closeErr := rows.Close(); closeErr != nil {
+			errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+		}
+		if err := errors.Join(errs...); err != nil {
+			yield(nil, err)
+			return
+		}
+
+		yield(summaries, nil)
 	}
 }
 
