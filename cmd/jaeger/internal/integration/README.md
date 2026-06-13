@@ -37,11 +37,11 @@ Integration tests require cleaning up the data in the storage between tests to p
 flowchart LR
     Receiver --> Processor
     Processor[...] --> Exporter
-    JaegerStorageExension -.->|"(1) getStorage()"| Exporter
+    JaegerStorageExtension -.->|"(1) getStorage()"| Exporter
     Exporter -->|"(2) writeTrace()"| Storage
 
     e2e_test -->|"(1) POST /purge"| HTTP_endpoint
-    JaegerStorageExension -.->|"(2) getStorage()"| HTTP_endpoint
+    JaegerStorageExtension -.->|"(2) getStorage()"| HTTP_endpoint
     HTTP_endpoint -->|"(3) factory.(*Purger).Purge()"| Storage
 
     style e2e_test fill:blue,color:white
@@ -52,7 +52,7 @@ flowchart LR
         Processor
         Exporter
 
-        subgraph JaegerStorageExension[Jaeger Storage Extension]
+        subgraph JaegerStorageExtension[Jaeger Storage Extension]
             Storage[(Trace
                      Storage)]
         end
