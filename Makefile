@@ -266,26 +266,31 @@ generate-mocks: $(MOCKERY)
 	$(MOCKERY) | tee .mockery.log
 
 .PHONY: lint-mocks
-lint-mocks: generate-mocks
+lint-mocks:
 	@echo "Checking if mocks are up to date..."
-	@git diff --exit-code -- '*_mock.go' '**/mocks/*' || (echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes." && exit 1)
+	@git diff --quiet -- '*_mock.go' '**/mocks/*' || (echo "Error: Working directory has uncommitted mock modifications. Commit or stash them before running lint-mocks." && exit 1)
+	@($(MAKE) generate-mocks) || (echo "Mock generation failed. Restoring mocks..." && git checkout -- '*_mock.go' '**/mocks/*' 2>/dev/null && git clean -fd -- '*_mock.go' '**/mocks/*' 2>/dev/null && exit 1)
+	@git diff --exit-code -- '*_mock.go' '**/mocks/*' || (echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes." && git checkout -- '*_mock.go' '**/mocks/*' && exit 1)
 	@if git status --porcelain -- '*_mock.go' '**/mocks/*' | grep -q '??'; then \
 		echo "Untracked files found after generating mocks. Please commit them."; \
 		git status --porcelain -- '*_mock.go' '**/mocks/*' | grep '??'; \
+		git clean -fd -- '*_mock.go' '**/mocks/*'; \
 		exit 1; \
 	fi
 	@echo "OK: Mocks are up to date."
 
 GOCOVDIFF := $(TOOLS_BIN_DIR)/gocovdiff
 $(GOCOVDIFF):
-	cd internal/tools && $(GO) build -o $(abspath $(GOCOVDIFF)) -trimpath github.com/vearutop/gocovdiff
+	cd internal/tools && GOBIN=$(abspath $(TOOLS_BIN_DIR)) $(GO) install -trimpath github.com/vearutop/gocovdiff
 
-TARGET_BRANCH ?= origin/main
+TARGET_BRANCH      ?= origin/main
+COVER_PROFILE      ?= cover.out
+COVERAGE_THRESHOLD ?= 75
 .PHONY: check-coverage
 check-coverage: $(GOCOVDIFF)
-	@echo "Checking coverage of changed files relative to $(TARGET_BRANCH)..."
+	@echo "Checking coverage of changed files relative to $(TARGET_BRANCH) using $(COVER_PROFILE) (threshold: $(COVERAGE_THRESHOLD)%)..."
 	@git rev-parse --verify $(TARGET_BRANCH) >/dev/null 2>&1 || (git fetch origin $$(echo $(TARGET_BRANCH) | sed 's|^origin/||') && git rev-parse --verify $(TARGET_BRANCH) >/dev/null 2>&1)
-	@$(GOCOVDIFF) -cov cover.out -target-branch $(TARGET_BRANCH) -threshold 75
+	@$(GOCOVDIFF) -cov $(COVER_PROFILE) -target-branch $(TARGET_BRANCH) -threshold $(COVERAGE_THRESHOLD)
 
 .PHONY: certs
 certs:
