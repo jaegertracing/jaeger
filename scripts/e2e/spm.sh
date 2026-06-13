@@ -387,7 +387,7 @@ teardown_services() {
 
 # Pre-pull all non-jaeger compose services with retry; the jaeger image is
 # built locally above as jaegertracing/jaeger:dev and would not be in any
-# registry, so pull it separately by service name.
+# registry, so we only pull the external services explicitly by name.
 pre_pull_compose_images() {
   local services=("microsim")
   case "$METRICSTORE" in
