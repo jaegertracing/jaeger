@@ -25,7 +25,7 @@ type SpanReader struct {
 // GetV1Reader adapts a v2 tracestore.Reader to the v1 spanstore.Reader interface.
 // If the passed reader is already a v1 adapter, it returns the underlying v1 spanstore.Reader.
 func GetV1Reader(reader tracestore.Reader) spanstore.Reader {
-	if tr, ok := reader.(*TraceReader); ok {
+	if tr, ok := reader.(*TraceReader); ok && tr != nil {
 		return tr.spanReader
 	}
 	return &SpanReader{

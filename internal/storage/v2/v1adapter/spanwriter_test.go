@@ -35,6 +35,14 @@ func TestGetV1Reader(t *testing.T) {
 		require.IsType(t, &SpanReader{}, v1Reader)
 		require.Equal(t, reader, v1Reader.(*SpanReader).traceReader)
 	})
+
+	t.Run("typed nil panic", func(t *testing.T) {
+		var tr *TraceReader = nil
+		var reader tracestore.Reader = tr // typed nil
+		require.NotPanics(t, func() {
+			GetV1Reader(reader)
+		})
+	})
 }
 
 func TestSpanWriter_WriteSpan(t *testing.T) {

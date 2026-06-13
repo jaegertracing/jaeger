@@ -17,7 +17,7 @@ type DependencyReader struct {
 }
 
 func GetV1DependencyReader(reader depstore.Reader) dependencystore.Reader {
-	if dr, ok := reader.(*DependencyReader); ok {
+	if dr, ok := reader.(*DependencyReader); ok && dr != nil {
 		return dr.reader
 	}
 	return &DowngradedDependencyReader{
