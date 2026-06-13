@@ -32,7 +32,7 @@ flowchart LR
         AdaptiveSamplingProcessor -->|"[]*model.Span"| AdaptiveSamplingProcessorV1
         AdaptiveSamplingProcessorV1 ---|use| SamplingStorage
 
-        subgraph JaegerStorageExension[Jaeger Storage Exension]
+        subgraph JaegerStorageExension[Jaeger Storage Extension]
             Storage[[Storage
                      Config]]
         end

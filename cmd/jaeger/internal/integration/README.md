@@ -52,7 +52,7 @@ flowchart LR
         Processor
         Exporter
 
-        subgraph JaegerStorageExension[Jaeger Storage Exension]
+        subgraph JaegerStorageExension[Jaeger Storage Extension]
             Storage[(Trace
                      Storage)]
         end
