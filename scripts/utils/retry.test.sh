@@ -71,5 +71,26 @@ testAttemptsEnvSingleTry() {
   assertEquals "no sleeps with ATTEMPTS=1" 0 "$count"
 }
 
+testRejectsNonNumericAttempts() {
+  out=$(ATTEMPTS=foo BACKOFF=0 bash "$retry" true 2>&1)
+  rc=$?
+  assertEquals "exit 2" 2 $rc
+  assertContains "$out" "ATTEMPTS must be a non-negative integer"
+}
+
+testRejectsNonNumericBackoff() {
+  out=$(ATTEMPTS=3 BACKOFF=bar bash "$retry" true 2>&1)
+  rc=$?
+  assertEquals "exit 2" 2 $rc
+  assertContains "$out" "BACKOFF must be a non-negative integer"
+}
+
+testRejectsZeroAttempts() {
+  out=$(ATTEMPTS=0 BACKOFF=0 bash "$retry" true 2>&1)
+  rc=$?
+  assertEquals "exit 2" 2 $rc
+  assertContains "$out" "ATTEMPTS must be at least 1"
+}
+
 # shellcheck disable=SC1091
 source "${SHUNIT2}/shunit2"

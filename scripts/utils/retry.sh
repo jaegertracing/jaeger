@@ -21,6 +21,20 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
+# Validate env vars up-front: `[ "$i" -ge "$ATTEMPTS" ]` inside the `if`
+# condition below would otherwise be eaten by `set -e` on a non-numeric
+# value and the loop would spin forever.
+case "$ATTEMPTS" in
+  ''|*[!0-9]*) echo "retry.sh: ATTEMPTS must be a non-negative integer (got '$ATTEMPTS')" >&2; exit 2 ;;
+esac
+case "$BACKOFF" in
+  ''|*[!0-9]*) echo "retry.sh: BACKOFF must be a non-negative integer (got '$BACKOFF')" >&2; exit 2 ;;
+esac
+if [ "$ATTEMPTS" -lt 1 ]; then
+  echo "retry.sh: ATTEMPTS must be at least 1 (got '$ATTEMPTS')" >&2
+  exit 2
+fi
+
 i=1
 backoff=$BACKOFF
 while true; do
