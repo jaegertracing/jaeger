@@ -231,6 +231,60 @@ FROM (
 LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
 GROUP BY l.trace_id`
 
+// SelectTraceSummaries computes lightweight per-trace summaries natively in
+// ClickHouse, avoiding materialization of full span payloads. The %s placeholder
+// is replaced with the limited trace-ID subquery (SearchTraceIDsBase + filters +
+// LIMIT), so only the already-selected traces are aggregated.
+//
+// The inner query aggregates one row per span into per-trace statistics:
+//   - min_start / max_end derive the trace duration without fetching spans.
+//   - root_service / root_operation come from the parentless span (empty
+//     parent_span_id) with the earliest start time, via argMinIf, matching the
+//     client-side fallback in querysvc.summarizeTrace.
+//   - svc_stats is a single multi-value sumMap keyed by service_name carrying
+//     both per-service span and error counts. A single sumMap guarantees one
+//     shared, sorted key array with both value arrays aligned to it; using two
+//     separate sumMaps would misalign, because sumMap drops keys whose summed
+//     value is zero (an error-free service would vanish from the error map).
+//   - span_ids / parent_ids feed the outer orphan-span computation.
+//
+// The outer query projects the sumMap tuple into parallel arrays and counts
+// orphan spans (a span whose parent is absent from the trace).
+const SelectTraceSummaries = `
+SELECT
+    trace_id,
+    min_start,
+    max_end,
+    span_count,
+    error_span_count,
+    root_service,
+    root_operation,
+    svc_stats.1 AS svc_names,
+    svc_stats.2 AS svc_span_counts,
+    svc_stats.3 AS svc_error_counts,
+    toUInt64(arrayCount(p -> p != '' AND NOT has(span_ids, p), parent_ids)) AS orphan_count
+FROM (
+    SELECT
+        s.trace_id AS trace_id,
+        min(s.start_time) AS min_start,
+        max(s.start_time + toIntervalNanosecond(s.duration)) AS max_end,
+        toUInt64(count()) AS span_count,
+        toUInt64(countIf(s.status_code = 'Error')) AS error_span_count,
+        argMinIf(s.service_name, s.start_time, s.parent_span_id = '') AS root_service,
+        argMinIf(s.name, s.start_time, s.parent_span_id = '') AS root_operation,
+        sumMap([s.service_name], [toUInt64(1)], [toUInt64(s.status_code = 'Error')]) AS svc_stats,
+        groupArray(s.id) AS span_ids,
+        groupArray(s.parent_span_id) AS parent_ids
+    FROM spans s
+    WHERE s.trace_id IN (
+        SELECT trace_id FROM (
+%s
+        )
+    )
+    GROUP BY s.trace_id
+)
+ORDER BY min_start DESC`
+
 const SelectServices = `
 SELECT
     name

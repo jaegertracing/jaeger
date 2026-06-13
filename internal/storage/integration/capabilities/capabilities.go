@@ -69,9 +69,10 @@ func Cassandra() Capabilities {
 }
 
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
+// FindTraceSummaries is supported natively via tracestore.SummaryReader.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
+		skipList: []string{"GetThroughput", "GetLatestProbability"},
 	}
 }
 
