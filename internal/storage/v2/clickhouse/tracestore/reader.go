@@ -216,6 +216,12 @@ func (r *Reader) FindTraces(
 // trace-ID selection as FindTraces, then aggregates only summary columns instead
 // of materializing full span payloads. This is the native path ADR-010 Milestone 5
 // defines; backends without it fall back to querysvc client-side aggregation.
+//
+// Summaries are computed from the raw stored spans and do not run query-service
+// adjusters (span deduplication, clock-skew correction) that the client-side
+// fallback applies, so for traces with duplicate spans or clock skew the counts
+// and times may differ from the adjusted path. See sql.SelectTraceSummaries for
+// the rationale behind these raw-storage semantics.
 func (r *Reader) FindTraceSummaries(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
