@@ -226,10 +226,6 @@ lint-jaeger-idl-versions:
 run-all-in-one: build-ui
 	go run ./cmd/all-in-one --log-level debug
 
-.PHONY: run-ai-gemini
-run-ai-gemini:
-	./scripts/ai-sidecar/gemini/run.sh
-
 .PHONY: changelog
 changelog:
 	@./scripts/release/notes.py --exclude-dependabot --verbose
