@@ -29,6 +29,8 @@ jobs:
       packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
 
     steps:
     - name: Clean up some disk space
@@ -100,6 +102,14 @@ jobs:
         bash scripts/build/package-deploy.sh \
           -p ${{ steps.params.outputs.platforms }} \
           ${{ steps.params.outputs.gpg_key_override }}
+    - name: Generate subject for provenance
+      id: hash
+      run: |
+        set -euo pipefail
+        # Compute sha256 of all release artifacts and base64 encode it
+        cd deploy/
+        sha256sum *.tar.gz *.zip | base64 -w0 > "${GITHUB_OUTPUT}/hashes.txt"
+        echo "hashes=$(cat "${GITHUB_OUTPUT}/hashes.txt")" >> $GITHUB_OUTPUT
 
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
@@ -167,3 +177,15 @@ jobs:
         overwrite: ${{ inputs.overwrite }}
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+        
+  generate-provenance:
+    needs: [publish-release]
+    if: github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.0.0
+    with:
+      base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
+      upload-assets: true

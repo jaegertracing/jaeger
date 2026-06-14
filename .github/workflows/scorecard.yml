@@ -18,7 +18,7 @@ on:
     branches: [ "main" ]
 
 # Declare default permissions as read only.
-permissions: read-all
+permissions: read
 
 jobs:
   analysis:
@@ -30,8 +30,8 @@ jobs:
       # Needed to publish results and get a badge (see publish_results below).
       id-token: write
       # Uncomment the permissions below if installing in a private repository.
-      # contents: read
-      # actions: read
+      contents: read
+      actions: read
 
     steps:
       - name: Harden Runner
