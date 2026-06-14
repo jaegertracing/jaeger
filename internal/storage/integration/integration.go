@@ -401,6 +401,9 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(t), expected)
 			CompareTraceSlices(t, expected, actual)
 		})
+		if t.Failed() {
+			t.Fatal("Aborting remaining FindTraces queries because a subtest failed, to prevent cascading timeouts")
+		}
 	}
 }
 
