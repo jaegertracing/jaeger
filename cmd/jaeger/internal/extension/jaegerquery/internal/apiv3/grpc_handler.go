@@ -172,6 +172,38 @@ func (h *Handler) GetOperations(ctx context.Context, request *api_v3.GetOperatio
 	}, nil
 }
 
+// GetDependencies implements api_v3.QueryServiceServer's GetDependencies
+func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDependenciesRequest) (*api_v3.DependenciesResponse, error) {
+	if request.GetStartTime().IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "start_time is required")
+	}
+	if request.GetEndTime().IsZero() {
+		return nil, status.Error(codes.InvalidArgument, "end_time is required")
+	}
+
+	startTime := request.GetStartTime()
+	endTime := request.GetEndTime()
+
+	if !endTime.After(startTime) {
+		return nil, status.Error(codes.InvalidArgument, "end_time must be after start_time")
+	}
+
+	lookback := endTime.Sub(startTime)
+	deps, err := h.QueryService.GetDependencies(ctx, endTime, lookback)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]*api_v3.Dependency, len(deps))
+	for i, dep := range deps {
+		links[i] = &api_v3.Dependency{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: dep.CallCount,
+		}
+	}
+	return &api_v3.DependenciesResponse{Dependencies: links}, nil
+}
+
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*jptrace.TracesData) error,
