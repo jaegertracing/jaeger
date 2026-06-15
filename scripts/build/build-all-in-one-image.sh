@@ -63,6 +63,7 @@ make build-ui
 
 run_integration_test() {
   local image_name="$1"
+  bash scripts/utils/retry.sh docker pull "${image_name}:${GITHUB_SHA}"
   CID=$(docker run -d -p 16686:16686 -p 13133:13133 -p 5778:5778 "${image_name}:${GITHUB_SHA}")
 
   if ! make all-in-one-integration-test ; then

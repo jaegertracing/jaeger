@@ -133,6 +133,12 @@ if [[ -z "$JAEGER_IMAGE" ]]; then
 fi
 log "Using Jaeger image: ${JAEGER_IMAGE}"
 
+# Pre-pull the httpd services' images with retry. We don't pull the images for
+# the jaeger services because JAEGER_IMAGE may resolve to the locally built
+# jaeger-local:e2e-ui-rp, which isn't published in any registry.
+bash "${REPO_ROOT}/scripts/utils/retry.sh" \
+  docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" pull httpd-uc1 httpd-uc2 httpd-uc3
+
 JAEGER_IMAGE="${JAEGER_IMAGE}" \
   docker compose -p "${COMPOSE_PROJECT}" -f "${COMPOSE_FILE}" up -d
 
