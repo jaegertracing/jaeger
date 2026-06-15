@@ -93,12 +93,15 @@ The existing `tag` UDT already used by the `tags` column (`key text, value text,
 
 ### Schema Versioning and Migration
 
-A new schema template `v005.cql.tmpl` will be created. The existing `create.sh` script selects the template by Cassandra major version; a new condition will be added to use v005 for Cassandra 5.x and as the default for new installations.
+A new schema template `v005.cql.tmpl` will be created for new installations. 
 
-For **existing deployments** upgrading from v004: an `ALTER TABLE` migration will be provided in the schema README, adding the new columns to an existing keyspace:
+For existing deployments upgrading from v004, a migration script will be added at:
 
+`internal/storage/v1/cassandra/schema/migration/v004tov005.cql.tmpl`
 
-CREATE TYPE IF NOT EXISTS link (
+following the pattern established in PR #1937. The migration script will contain:
+
+```CREATE TYPE IF NOT EXISTS link (
     trace_id    blob,
     span_id     blob,
     trace_state text,
@@ -110,6 +113,7 @@ ALTER TABLE ${keyspace}.traces ADD scope_name text;
 ALTER TABLE ${keyspace}.traces ADD scope_version text;
 ALTER TABLE ${keyspace}.traces ADD scope_attributes frozen<list<tag>>;
 ALTER TABLE ${keyspace}.traces ADD links frozen<list<link>>;
+```
 
 
 > **Note**: Cassandra supports `ALTER TABLE ... ADD` for non-primary-key columns, so this migration does not require a table rebuild. Existing rows will return `null` for the new columns, which the reader must handle gracefully by treating `null` as empty/absent.
@@ -134,11 +138,11 @@ type Span struct {
 }
 
 type SpanLink struct {
-    TraceID    dbmodel.TraceID `db:"trace_id"`
-    SpanID     dbmodel.SpanID  `db:"span_id"`
-    TraceState string          `db:"trace_state"`
-    Attributes []Tag           `db:"attributes"`
-    Flags      int32           `db:"flags"`
+    TraceID    TraceID `db:"trace_id"`
+    SpanID     SpanID  `db:"span_id"`
+    TraceState string  `db:"trace_state"`
+    Attributes []Tag   `db:"attributes"`
+    Flags      int32   `db:"flags"`
 }
 ```
 
