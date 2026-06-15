@@ -47,6 +47,7 @@ parse_args() {
 
 setup_kafka() {
   echo "Starting Kafka using Docker Compose..."
+  bash scripts/utils/retry.sh docker compose -f "${compose_file}" pull kafka
   docker compose -f "${compose_file}" up -d kafka
 }
 
