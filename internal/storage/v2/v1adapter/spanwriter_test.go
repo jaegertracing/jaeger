@@ -37,11 +37,9 @@ func TestGetV1Reader(t *testing.T) {
 	})
 
 	t.Run("typed nil panic", func(t *testing.T) {
-		var tr *TraceReader = nil
-		var reader tracestore.Reader = tr // typed nil
-		require.NotPanics(t, func() {
-			GetV1Reader(reader)
-		})
+	var tr *TraceReader = nil
+	require.NotPanics(t, func() {
+		GetV1Reader(tr) // typed nil
 	})
 }
 
