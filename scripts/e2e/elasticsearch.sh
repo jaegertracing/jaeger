@@ -28,6 +28,7 @@ check_arg() {
 # start the elasticsearch/opensearch container
 setup_db() {
   local compose_file=$1
+  bash scripts/utils/retry.sh docker compose -f "${compose_file}" pull
   docker compose -f "${compose_file}" up -d
 }
 

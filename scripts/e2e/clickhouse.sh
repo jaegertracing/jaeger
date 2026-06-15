@@ -13,6 +13,7 @@ container_name="clickhouse"
 
 setup_clickhouse() {
     echo "Starting ClickHouse with $compose_file"
+    bash scripts/utils/retry.sh docker compose -f "$compose_file" pull
     docker compose -f "$compose_file" up -d
 }
 
