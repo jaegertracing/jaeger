@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -300,6 +301,9 @@ func scanTraceSummaryRow(rows driver.Rows) (tracestore.TraceSummary, error) {
 	if err != nil {
 		return tracestore.TraceSummary{}, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
+	if len(b) != len(pcommon.TraceID{}) {
+		return tracestore.TraceSummary{}, fmt.Errorf("invalid trace ID length %d (expected %d)", len(b), len(pcommon.TraceID{}))
+	}
 
 	services := make([]tracestore.ServiceSummary, 0, len(svcNames))
 	for i := range svcNames {
@@ -318,6 +322,16 @@ func scanTraceSummaryRow(rows driver.Rows) (tracestore.TraceSummary, error) {
 			ErrorSpanCount: errorCnt,
 		})
 	}
+
+	slices.SortFunc(services, func(a, b tracestore.ServiceSummary) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
 
 	return tracestore.TraceSummary{
 		TraceID:           pcommon.TraceID(b),
@@ -343,6 +357,9 @@ func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {
 	b, err := hex.DecodeString(traceIDHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode trace ID: %w", err)
+	}
+	if len(b) != len(pcommon.TraceID{}) {
+		return nil, fmt.Errorf("invalid trace ID length %d (expected %d)", len(b), len(pcommon.TraceID{}))
 	}
 
 	traceID := tracestore.FoundTraceID{
