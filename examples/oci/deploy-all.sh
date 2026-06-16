@@ -15,6 +15,18 @@ PUBLIC_BASE_URL="${JAEGER_DEMO_PUBLIC_BASE_URL:-https://demo.jaegertracing.io}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 PROMETHEUS_STACK_CHART="prometheus-community/kube-prometheus-stack"
 PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.10.4}"
+CLEAN_UNINSTALL_TIMEOUT="${JAEGER_DEMO_CLEAN_UNINSTALL_TIMEOUT:-10m0s}"
+
+uninstall_release() {
+  local name=$1
+
+  if ! helm uninstall "$name" --ignore-not-found --wait --timeout "$CLEAN_UNINSTALL_TIMEOUT"; then
+    echo "❌ Failed to uninstall Helm release $name within $CLEAN_UNINSTALL_TIMEOUT"
+    helm status "$name" || true
+    helm list --all --filter "^${name}$" || true
+    return 1
+  fi
+}
 
 case "$MODE" in
   upgrade|clean|local)
@@ -42,13 +54,8 @@ if [[ "$MODE" == "upgrade" ]]; then
   HELM_PROM_CMD="upgrade --install --force --wait"
 else
   echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
-  helm uninstall jaeger --ignore-not-found || true
-  helm uninstall prometheus --ignore-not-found || true
-  for name in jaeger prometheus; do
-    while helm list --filter "^${name}$" | grep "$name" &>/dev/null; do
-      echo "Waiting for Helm release $name to be deleted..."
-    done
-  done
+  uninstall_release jaeger
+  uninstall_release prometheus
   HELM_JAEGER_CMD="install --wait"
   HELM_PROM_CMD="install --wait"
 fi

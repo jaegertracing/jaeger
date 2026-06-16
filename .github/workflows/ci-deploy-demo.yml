@@ -11,6 +11,14 @@ on:
       image_tag:
         description: 'Snapshot image tag to deploy. Defaults to the workflow SHA.'
         required: false
+      deploy_mode:
+        description: 'Deployment mode. Defaults to upgrade; use clean only to reinstall the demo.'
+        required: false
+        default: upgrade
+        type: choice
+        options:
+          - upgrade
+          - clean
 
 permissions: read-all
 
@@ -28,6 +36,7 @@ jobs:
       JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY: jaegertracing/example-hotrod-snapshot
       JAEGER_DEMO_IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_IMAGE_PULL_POLICY: Always
+      JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
       RUN_PUBLIC_SMOKE_TESTS: "true"
 
     steps:
@@ -45,13 +54,8 @@ jobs:
 
     - name: Deploy using appropriate script
       run: |
-        if [ "${{ github.event_name }}" = "schedule" ]; then
-          echo "🕒 Scheduled run - deploying snapshot image tag ${JAEGER_DEMO_IMAGE_TAG}"
-          bash ./examples/oci/deploy-all.sh
-        else
-          echo "🔄 Manual run - clean install using snapshot image tag ${JAEGER_DEMO_IMAGE_TAG}"
-          bash ./examples/oci/deploy-all.sh clean
-        fi
+        echo "🔄 Deploying snapshot image tag ${JAEGER_DEMO_IMAGE_TAG} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
+        bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
 
     - name: Send detailed Slack notification on failure
       if: failure()
