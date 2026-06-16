@@ -48,7 +48,7 @@ rebuild-ui:
 	JAEGER_UI_DIR="$(JAEGER_UI_DIR)" bash ./scripts/build/rebuild-ui.sh
 	@echo "::endgroup::"
 	rm -f cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
-	$(MAKE) build-ui
+	$(MAKE) build-ui JAEGER_UI_DIR="$(JAEGER_UI_DIR)"
 
 .PHONY: build-examples
 build-examples:
