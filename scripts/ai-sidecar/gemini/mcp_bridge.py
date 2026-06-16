@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import json
 import logging
 from typing import Any
 
+import requests
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.genai import types
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
@@ -17,9 +19,33 @@ from tracing import tracer
 
 logger = logging.getLogger(__name__)
 
+# URI of the skills index resource — the single entry point for skill discovery.
+_SKILLS_INDEX_URI = "skill://skills-index"
+
+
+def _extract_json(text: str) -> dict | None:
+    """Extract the last JSON object from an MCP Streamable HTTP response.
+
+    The response may be plain JSON or SSE (data: {...} lines). We scan
+    backwards for the last line that looks like a JSON object.
+    """
+    for line in reversed(text.strip().splitlines()):
+        line = line.strip()
+        if line.startswith("data:"):
+            line = line[5:].strip()
+        if line.startswith("{"):
+            try:
+                return json.loads(line)
+            except json.JSONDecodeError:
+                continue
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        return None
+
 
 class JaegerMCPBridge:
-    """Loads MCP tools once and exposes them for Gemini tool-calling."""
+    """Loads MCP tools and skill resources once and exposes them for Gemini."""
 
     def __init__(self, mcp_url: str, timeout_sec: float):
         self._mcp_url = mcp_url
@@ -29,6 +55,7 @@ class JaegerMCPBridge:
         )
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
+        self._skills_index: str | None = None  # cached skills index SKILL.md body
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -83,6 +110,84 @@ class JaegerMCPBridge:
                 self._gemini_tools = []
 
             self._initialized = True
+
+        # Discover skills index via resources/read — best-effort, never fails startup.
+        self._skills_index = await self._fetch_skills_index()
+
+    async def _fetch_skills_index(self) -> str | None:
+        """Fetch the skills index via MCP resources/read using a throw-away session.
+
+        Returns the SKILL.md body for skill://skills-index, or None if
+        the server does not support resources or the call fails for any reason.
+        """
+        try:
+            # Open a minimal MCP session (initialize → resources/read → delete).
+            init_body = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-03-26",
+                    "capabilities": {},
+                    "clientInfo": {"name": "jaeger-sidecar", "version": "1.0.0"},
+                },
+            }
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+            }
+            init_resp = await asyncio.to_thread(
+                lambda: requests.post(self._mcp_url, json=init_body, headers=headers, timeout=10)
+            )
+            init_resp.raise_for_status()
+            sid = init_resp.headers.get("Mcp-Session-Id")
+            if not sid:
+                logger.debug("MCP server did not return a session ID; skipping skills discovery")
+                return None
+
+            read_body = {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "resources/read",
+                "params": {"uri": _SKILLS_INDEX_URI},
+            }
+            read_headers = {**headers, "Mcp-Session-Id": sid}
+            read_resp = await asyncio.to_thread(
+                lambda: requests.post(self._mcp_url, json=read_body, headers=read_headers, timeout=10)
+            )
+            read_resp.raise_for_status()
+
+            # Extract the JSON result from SSE or plain JSON response.
+            result_json = _extract_json(read_resp.text)
+            if result_json is None:
+                logger.debug("Could not parse resources/read response for %s", _SKILLS_INDEX_URI)
+                return None
+
+            contents = result_json.get("result", {}).get("contents", [])
+            if not contents:
+                return None
+
+            body = contents[0].get("text", "")
+            logger.info("Loaded skills index from %s (%d bytes)", _SKILLS_INDEX_URI, len(body))
+            return body or None
+
+        except Exception as exc:
+            logger.debug("Skills index discovery failed (non-fatal): %s", exc)
+            return None
+        finally:
+            # Best-effort session cleanup.
+            try:
+                if "sid" in dir() and sid:
+                    await asyncio.to_thread(
+                        lambda: requests.delete(self._mcp_url, headers={"Mcp-Session-Id": sid}, timeout=5)
+                    )
+            except Exception:
+                pass
+
+    async def get_skills_index(self) -> str | None:
+        """Return the cached skills index body, loading it lazily if needed."""
+        await self.initialize()
+        return self._skills_index
 
     async def get_gemini_tools(self) -> list[types.Tool]:
         await self.initialize()

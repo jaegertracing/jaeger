@@ -322,6 +322,17 @@ class JaegerSidecarAgent(Agent):
                 "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps."
             )
 
+            # Append the skills index if available so Gemini knows which
+            # built-in behaviours to activate (e.g. greet-user, echo-message).
+            skills_index = await self._mcp.get_skills_index()
+            if skills_index:
+                system_instruction += (
+                    "\n\n## Available Skills\n\n"
+                    "The following skill index describes built-in behaviours you should activate "
+                    "when the user's request matches a skill description:\n\n"
+                    + skills_index
+                )
+
             mcp_tools = await self._mcp.get_gemini_tools()
             mcp_tool_names: set[str] = set()
             for tool in mcp_tools:

@@ -79,6 +79,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		},
 	)
 	s.registerTools()
+	s.registerResources()
 	mw := []mcp.Middleware{
 		createTracingMiddleware(s.telset.TracerProvider),
 	}
