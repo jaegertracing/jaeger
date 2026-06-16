@@ -10,6 +10,8 @@ IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-}}"
 LOCAL_IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-latest}}"
 JAEGER_IMAGE_REPOSITORY="${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY:-jaegertracing/jaeger}"
 HOTROD_IMAGE_REPOSITORY="${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY:-jaegertracing/example-hotrod}"
+JAEGER_IMAGE_TAG="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-$IMAGE_TAG}"
+HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-$IMAGE_TAG}"
 IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
 PUBLIC_BASE_URL="${JAEGER_DEMO_PUBLIC_BASE_URL:-https://demo.jaegertracing.io}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
@@ -107,15 +109,16 @@ else
     --set hotrod.image.repository="${HOTROD_IMAGE_REPOSITORY}"
     --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}"
   )
-  if [[ -n "$IMAGE_TAG" ]]; then
-    image_args+=(
-      --set allInOne.image.tag="${IMAGE_TAG}"
-      --set hotrod.image.tag="${IMAGE_TAG}"
-    )
+  if [[ -n "$JAEGER_IMAGE_TAG" ]]; then
+    image_args+=(--set allInOne.image.tag="${JAEGER_IMAGE_TAG}")
+  fi
+  if [[ -n "$HOTROD_IMAGE_TAG" ]]; then
+    image_args+=(--set hotrod.image.tag="${HOTROD_IMAGE_TAG}")
   fi
 
-  echo "🟣 Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${IMAGE_TAG:-chart-default}"
-  echo "🟣 Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${IMAGE_TAG:-values-default}"
+  echo "🟣 Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG:-chart-default}"
+  echo "🟣 Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG:-values-default}"
+
   helm $HELM_JAEGER_CMD --timeout 10m0s jaeger ./helm-charts/charts/jaeger \
     --set provisionDataStore.cassandra=false \
     --set allInOne.enabled=true \
