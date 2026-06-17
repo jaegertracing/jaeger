@@ -156,6 +156,18 @@ adopt_resource_for_helm_release() {
     --overwrite
 }
 
+delete_deployment_before_helm_upgrade() {
+  local namespace=$1
+  local deployment=$2
+
+  if ! kubectl get deployment "$deployment" -n "$namespace" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  log "Deleting existing deployment $namespace/$deployment before Helm upgrade"
+  kubectl delete deployment "$deployment" -n "$namespace" --wait=true --timeout=120s
+}
+
 smoke_expect() {
   local url=$1
   local expected=$2
@@ -347,7 +359,7 @@ main() {
   if [[ "$MODE" == "upgrade" ]]; then
     adopt_resource_for_helm_release jaeger serviceaccount jaeger-hotrod jaeger
     adopt_resource_for_helm_release jaeger service jaeger-hotrod jaeger
-    adopt_resource_for_helm_release jaeger deployment jaeger-hotrod jaeger
+    delete_deployment_before_helm_upgrade jaeger jaeger-hotrod
   fi
 
   log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
