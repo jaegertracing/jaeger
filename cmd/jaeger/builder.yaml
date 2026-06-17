@@ -1,0 +1,74 @@
+# Reference builder.yaml for assembling Jaeger using ocb (OpenTelemetry Collector Builder).
+# This manifest reproduces the default Jaeger distribution and serves as both
+# documentation and a CI validation artifact.
+#
+# Usage:
+#   ocb --config cmd/jaeger/builder.yaml
+#
+# To add custom components, copy this file and append entries to the relevant
+# section (extensions, receivers, exporters, processors, connectors).
+#
+# Cross-compilation is supported via GOOS/GOARCH environment variables:
+#   GOOS=linux GOARCH=arm64 ocb --config cmd/jaeger/builder.yaml
+
+dist:
+  module: github.com/jaegertracing/jaeger/cmd/jaeger/ocb-build
+  name: jaeger
+  description: Jaeger - distributed tracing platform
+  output_path: ./cmd/jaeger/_build
+
+telemetry:
+  gomod: github.com/jaegertracing/jaeger v0.0.0
+  import: github.com/jaegertracing/jaeger/components/telemetry
+
+extensions:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckv2extension v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.154.0
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/sigv4authextension v0.154.0
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/extension/jaegermcp
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerquery
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/extension/remotesampling
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/extension/expvar
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/extension/remotestorage
+
+receivers:
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.153.0
+  - gomod: go.opentelemetry.io/collector/receiver/nopreceiver v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver v0.154.0
+
+exporters:
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.153.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.153.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.153.0
+  - gomod: go.opentelemetry.io/collector/exporter/nopexporter v0.153.0
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/exporter/storageexporter
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.154.0
+
+processors:
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.153.0
+  - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/tailsamplingprocessor v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.154.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.154.0
+  - gomod: github.com/jaegertracing/jaeger v0.0.0
+    import: github.com/jaegertracing/jaeger/components/processor/adaptivesampling
+
+connectors:
+  - gomod: go.opentelemetry.io/collector/connector/forwardconnector v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.154.0
+
+replaces:
+  - github.com/jaegertracing/jaeger v0.0.0 => ../../../
