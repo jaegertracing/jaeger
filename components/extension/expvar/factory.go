@@ -3,12 +3,6 @@
 
 package expvar
 
-import (
-	"go.opentelemetry.io/collector/extension"
+import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/expvar"
 
-	bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/expvar"
-)
-
-func NewFactory() extension.Factory {
-	return bridge.NewFactory()
-}
+var NewFactory = bridge.NewFactory

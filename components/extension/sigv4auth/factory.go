@@ -1,0 +1,8 @@
+// Copyright (c) 2025 The Jaeger Authors.
+// SPDX-License-Identifier: Apache-2.0
+
+package sigv4auth
+
+import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/sigv4auth"
+
+var NewFactory = bridge.NewFactory

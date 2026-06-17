@@ -3,12 +3,6 @@
 
 package telemetry
 
-import (
-	coltelemetry "go.opentelemetry.io/collector/service/telemetry"
+import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/telemetry"
 
-	bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/telemetry"
-)
-
-func NewFactory() coltelemetry.Factory {
-	return bridge.NewFactory()
-}
+var NewFactory = bridge.NewFactory

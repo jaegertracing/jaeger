@@ -3,12 +3,6 @@
 
 package jaegerquery
 
-import (
-	"go.opentelemetry.io/collector/extension"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 
-	impl "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
-)
-
-func NewFactory() extension.Factory {
-	return impl.NewFactory()
-}
+var NewFactory = impl.NewFactory

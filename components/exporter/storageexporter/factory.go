@@ -3,12 +3,6 @@
 
 package storageexporter
 
-import (
-	"go.opentelemetry.io/collector/exporter"
+import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter"
 
-	bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter"
-)
-
-func NewFactory() exporter.Factory {
-	return bridge.NewFactory()
-}
+var NewFactory = bridge.NewFactory

@@ -3,12 +3,6 @@
 
 package remotestorage
 
-import (
-	"go.opentelemetry.io/collector/extension"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotestorage"
 
-	impl "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/remotestorage"
-)
-
-func NewFactory() extension.Factory {
-	return impl.NewFactory()
-}
+var NewFactory = impl.NewFactory

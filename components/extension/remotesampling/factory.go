@@ -3,12 +3,6 @@
 
 package remotesampling
 
-import (
-	"go.opentelemetry.io/collector/extension"
+import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotesampling"
 
-	bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotesampling"
-)
-
-func NewFactory() extension.Factory {
-	return bridge.NewFactory()
-}
+var NewFactory = bridge.NewFactory

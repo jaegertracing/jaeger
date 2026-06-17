@@ -3,12 +3,6 @@
 
 package adaptivesampling
 
-import (
-	"go.opentelemetry.io/collector/processor"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/adaptivesampling"
 
-	impl "github.com/jaegertracing/jaeger/cmd/jaeger/internal/processors/adaptivesampling"
-)
-
-func NewFactory() processor.Factory {
-	return impl.NewFactory()
-}
+var NewFactory = impl.NewFactory
