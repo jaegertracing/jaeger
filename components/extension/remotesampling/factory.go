@@ -3,6 +3,6 @@
 
 package remotesampling
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotesampling"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotesampling"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

@@ -40,7 +40,7 @@ The standard mechanism for building custom OTel Collector distributions is [ocb]
 
 ## 3. Current Architecture
 
-All custom Jaeger components reside in `cmd/jaeger/internal/`:
+All custom Jaeger production components reside in `cmd/jaeger/internal/` (test-only helpers like `storagecleaner` also exist there but are excluded from the public API):
 
 | Component Type | Package | Config Type |
 |---|---|---|
@@ -400,7 +400,7 @@ Simply remove `internal` from the path (e.g., `cmd/jaeger/components/...`). This
 
 ---
 
-## 12. References
+## 11. References
 
 - [OpenTelemetry Collector Builder (ocb)](https://github.com/open-telemetry/opentelemetry-collector/tree/main/cmd/builder)
 - [ocb builder.yaml schema](https://github.com/open-telemetry/opentelemetry-collector/blob/main/cmd/builder/internal/builder/config.go)

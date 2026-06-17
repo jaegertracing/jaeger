@@ -176,20 +176,10 @@ build-all-platforms:
 
 # Build Jaeger using ocb (OpenTelemetry Collector Builder).
 # This validates that the public facade packages work correctly with ocb.
-# Install ocb: go install go.opentelemetry.io/collector/cmd/builder@latest
-OCB ?= $(shell which ocb 2>/dev/null || echo $(TOOLS_BIN_DIR)/ocb)
-OCB_VERSION ?= v0.153.0
-
-.PHONY: install-ocb
-install-ocb:
-	@if [ ! -x "$(OCB)" ]; then \
-		echo "Installing ocb $(OCB_VERSION) to $(TOOLS_BIN_DIR)/ocb"; \
-		GOBIN=$(TOOLS_BIN_DIR) $(GO) install go.opentelemetry.io/collector/cmd/builder@$(OCB_VERSION); \
-		mv $(TOOLS_BIN_DIR)/builder $(TOOLS_BIN_DIR)/ocb; \
-	fi
+OCB := $(TOOLS_BIN_DIR)/builder
 
 .PHONY: build-ocb
-build-ocb: install-ocb
+build-ocb: $(OCB)
 	@echo "Building Jaeger with ocb"
 	$(OCB) --config cmd/jaeger/builder.yaml --skip-strict-versioning
 	@echo "✅ ocb build successful: cmd/jaeger/_build/"

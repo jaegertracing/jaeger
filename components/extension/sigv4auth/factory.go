@@ -3,6 +3,6 @@
 
 package sigv4auth
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/sigv4auth"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/sigv4auth"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

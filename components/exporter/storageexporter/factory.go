@@ -3,6 +3,6 @@
 
 package storageexporter
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

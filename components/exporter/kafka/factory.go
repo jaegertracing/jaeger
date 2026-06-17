@@ -3,6 +3,6 @@
 
 package kafka
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/kafka"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/kafka"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

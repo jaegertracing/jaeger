@@ -3,6 +3,6 @@
 
 package healthcheckv2
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/healthcheckv2"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/healthcheckv2"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

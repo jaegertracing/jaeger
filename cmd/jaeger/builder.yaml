@@ -2,8 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Reference builder.yaml for assembling Jaeger using ocb (OpenTelemetry Collector Builder).
-# This manifest reproduces the default Jaeger distribution and serves as both
-# documentation and a CI validation artifact.
+# This manifest reproduces the default Jaeger production distribution and serves as
+# both documentation and a CI validation artifact.
+# Note: test-only components (e.g., storagecleaner) are intentionally excluded.
 #
 # Usage:
 #   ocb --config cmd/jaeger/builder.yaml

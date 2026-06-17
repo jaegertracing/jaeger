@@ -3,6 +3,6 @@
 
 package memorylimiter
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/memorylimiter"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/memorylimiter"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

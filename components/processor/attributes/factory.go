@@ -3,6 +3,6 @@
 
 package attributes
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/attributes"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/attributes"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

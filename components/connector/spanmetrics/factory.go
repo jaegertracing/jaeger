@@ -3,6 +3,6 @@
 
 package spanmetrics
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/connector/spanmetrics"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/connector/spanmetrics"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

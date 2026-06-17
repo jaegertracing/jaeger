@@ -3,6 +3,6 @@
 
 package tailsampling
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/tailsampling"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/tailsampling"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

@@ -3,6 +3,6 @@
 
 package batch
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/batch"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/batch"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

@@ -3,6 +3,6 @@
 
 package adaptivesampling
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/adaptivesampling"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/adaptivesampling"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

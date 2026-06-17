@@ -3,6 +3,6 @@
 
 package basicauth
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/basicauth"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/basicauth"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

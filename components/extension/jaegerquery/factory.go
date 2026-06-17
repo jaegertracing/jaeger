@@ -3,6 +3,6 @@
 
 package jaegerquery
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerquery"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerquery"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

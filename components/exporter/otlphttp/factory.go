@@ -3,6 +3,6 @@
 
 package otlphttp
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/otlphttp"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/otlphttp"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

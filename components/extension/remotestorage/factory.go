@@ -3,6 +3,6 @@
 
 package remotestorage
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotestorage"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotestorage"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

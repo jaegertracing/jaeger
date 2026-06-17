@@ -3,6 +3,6 @@
 
 package telemetry
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/telemetry"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/telemetry"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

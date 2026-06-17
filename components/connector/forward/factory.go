@@ -3,6 +3,6 @@
 
 package forward
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/connector/forward"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/connector/forward"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

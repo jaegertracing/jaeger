@@ -3,6 +3,6 @@
 
 package zipkin
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/receiver/zipkin"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/receiver/zipkin"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

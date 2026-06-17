@@ -3,6 +3,6 @@
 
 package jaeger
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/receiver/jaeger"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/receiver/jaeger"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

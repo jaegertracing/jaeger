@@ -3,6 +3,6 @@
 
 package nop
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/nop"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/nop"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

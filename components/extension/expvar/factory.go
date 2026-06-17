@@ -3,6 +3,6 @@
 
 package expvar
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/expvar"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/expvar"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

@@ -3,6 +3,6 @@
 
 package filter
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/filter"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/filter"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

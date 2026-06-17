@@ -3,6 +3,6 @@
 
 package zpages
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/zpages"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/zpages"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

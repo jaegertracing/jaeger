@@ -3,6 +3,6 @@
 
 package debug
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/debug"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/debug"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory

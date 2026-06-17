@@ -3,6 +3,6 @@
 
 package otlp
 
-import bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/receiver/otlp"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/receiver/otlp"
 
-var NewFactory = bridge.NewFactory
+var NewFactory = impl.NewFactory
