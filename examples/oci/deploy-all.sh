@@ -52,8 +52,8 @@ case "$MODE" in
 esac
 
 if [[ "$MODE" == "upgrade" ]]; then
-  HELM_JAEGER_CMD="upgrade --install --force --wait"
-  HELM_PROM_CMD="upgrade --install --force --wait"
+  HELM_JAEGER_CMD="upgrade --install --wait"
+  HELM_PROM_CMD="upgrade --install --wait"
 else
   echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."
   uninstall_release jaeger
