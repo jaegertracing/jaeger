@@ -55,6 +55,7 @@ jobs:
       JAEGER_DEMO_IMAGE_PULL_POLICY: Always
       JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
       JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
+      JAEGER_OTEL_DEMO_DEPLOY_SCOPE: jaeger
       RUN_PUBLIC_SMOKE_TESTS: "true"
 
     steps:

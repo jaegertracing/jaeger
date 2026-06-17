@@ -16,6 +16,7 @@ HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-1.72.0}"
 IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
 PUBLIC_JAEGER_URL="${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
+DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-all}"
 
 case "$MODE" in
   upgrade|clean)
@@ -35,6 +36,16 @@ case "$MODE" in
     exit 1
     ;;
  esac
+
+case "$DEPLOY_SCOPE" in
+  jaeger|all)
+    ;;
+  *)
+    echo "Error: Invalid deploy scope '$DEPLOY_SCOPE'"
+    echo "Expected JAEGER_OTEL_DEMO_DEPLOY_SCOPE to be 'jaeger' or 'all'"
+    exit 1
+    ;;
+esac
 
 if [[ "$MODE" == "upgrade" ]]; then
   HELM_JAEGER_CMD="upgrade --install --wait"
@@ -140,6 +151,10 @@ smoke_expect() {
   log "Last response:"
   cat "$output" 2>/dev/null || true
   return 1
+}
+
+deploy_full_stack() {
+  [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "all" ]]
 }
 
 cleanup() {
@@ -285,22 +300,25 @@ main() {
   helm repo update >/dev/null
   clone_jaeger_v2
 
-  log "Deploying OpenSearch"
-  helm upgrade --install opensearch opensearch/opensearch \
-    --namespace opensearch --create-namespace \
-    --version 2.19.0 \
-    --set image.tag=2.11.0 \
-    -f "$SCRIPT_DIR/opensearch-values.yaml" \
-    --wait --timeout 10m
-  wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
+  if deploy_full_stack; then
+    log "Deploying OpenSearch"
+    helm upgrade --install opensearch opensearch/opensearch \
+      --namespace opensearch --create-namespace \
+      --version 2.19.0 \
+      --set image.tag=2.11.0 \
+      -f "$SCRIPT_DIR/opensearch-values.yaml" \
+      --wait --timeout 10m
+    wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
 
-  log "Deploying OpenSearch Dashboards"
-  helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
-    --namespace opensearch \
-    -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
-    --wait --timeout 10m
-  wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
-
+    log "Deploying OpenSearch Dashboards"
+    helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
+      --namespace opensearch \
+      -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
+      --wait --timeout 10m
+    wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
+  else
+    log "Skipping OpenSearch refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
 
   log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
   log "Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG}"
@@ -335,14 +353,18 @@ main() {
   kubectl apply -n jaeger -f "$SCRIPT_DIR/load-generator.yaml"
   wait_for_deployment jaeger trace-generator "${ROLLOUT_TIMEOUT}s"
 
-  log "Deploying OpenTelemetry Demo (with in-cluster Collector)"
-  helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
-    -f "$SCRIPT_DIR/otel-demo-values.yaml" \
-    --namespace otel-demo --create-namespace \
-    --wait --timeout 15m
-  wait_for_deployment otel-demo otel-collector "${ROLLOUT_TIMEOUT}s"
-  wait_for_deployment otel-demo frontend "${ROLLOUT_TIMEOUT}s"
-  wait_for_deployment otel-demo load-generator "${ROLLOUT_TIMEOUT}s"
+  if deploy_full_stack; then
+    log "Deploying OpenTelemetry Demo (with in-cluster Collector)"
+    helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
+      -f "$SCRIPT_DIR/otel-demo-values.yaml" \
+      --namespace otel-demo --create-namespace \
+      --wait --timeout 15m
+    wait_for_deployment otel-demo otel-collector "${ROLLOUT_TIMEOUT}s"
+    wait_for_deployment otel-demo frontend "${ROLLOUT_TIMEOUT}s"
+    wait_for_deployment otel-demo load-generator "${ROLLOUT_TIMEOUT}s"
+  else
+    log "Skipping OpenTelemetry Demo refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
 
   log "All components deployed successfully"
 
