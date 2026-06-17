@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/golangci/golangci-lint/v2 v2.12.2
 	github.com/josephspurrier/goversioninfo v1.7.0
-	github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.153.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.154.0
 	github.com/vektra/mockery/v3 v3.7.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	golang.org/x/vuln v1.3.0
