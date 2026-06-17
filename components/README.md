@@ -23,9 +23,9 @@ In your `builder.yaml`, reference these packages:
 
 ```yaml
 extensions:
-  - gomod: github.com/jaegertracing/jaeger v1.72.0
+  - gomod: github.com/jaegertracing/jaeger v2.19.0
     import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
-  - gomod: github.com/jaegertracing/jaeger v1.72.0
+  - gomod: github.com/jaegertracing/jaeger v2.19.0
     import: github.com/jaegertracing/jaeger/components/ext/extension/healthcheckv2extension
 ```
 

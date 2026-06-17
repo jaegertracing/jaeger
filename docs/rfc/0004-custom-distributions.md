@@ -146,31 +146,6 @@ func NewFactory() extension.Factory {
 }
 ```
 
-The convenience package aggregates all factories:
-
-```go
-// components/all.go
-package components
-
-import (
-    "go.opentelemetry.io/collector/connector"
-    "go.opentelemetry.io/collector/exporter"
-    "go.opentelemetry.io/collector/extension"
-    "go.opentelemetry.io/collector/processor"
-    "go.opentelemetry.io/collector/receiver"
-)
-
-type Factories struct {
-    Extensions []extension.Factory
-    Receivers  []receiver.Factory
-    Exporters  []exporter.Factory
-    Processors []processor.Factory
-    Connectors []connector.Factory
-}
-
-func AllFactories() Factories { ... }
-```
-
 **Advantages:**
 - Single `go.mod` — no structural changes to the repo.
 - Clean user-facing import paths: `github.com/jaegertracing/jaeger/components/extension/jaegerstorage`.

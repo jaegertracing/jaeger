@@ -43,7 +43,7 @@ jobs:
 
     - name: Run ocb-built binary
       run: |
-        ./cmd/jaeger/_build/jaeger --config cmd/jaeger/config.yaml &
+        ./cmd/jaeger/_build/jaeger --config cmd/jaeger/config-ocb-smoketest.yaml &
         echo "JAEGER_PID=$!" >> "$GITHUB_ENV"
 
     - name: Run integration tests against ocb binary

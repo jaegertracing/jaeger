@@ -17,6 +17,8 @@
 #
 # All components use "github.com/jaegertracing/jaeger v0.0.0" as gomod to ensure
 # version consistency: actual versions resolve transitively through Jaeger's go.mod.
+# The "v0.0.0" + replaces directive is for in-repo builds only. External users
+# should replace it with a real release version (e.g. v2.19.0) and remove replaces.
 
 dist:
   module: github.com/jaegertracing/jaeger/cmd/jaeger/ocb-build
