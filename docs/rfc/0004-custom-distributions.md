@@ -394,11 +394,9 @@ Simply remove `internal` from the path (e.g., `cmd/jaeger/components/...`). This
 
 3. **Default config embedding:** Not needed. Custom distributions inherently require custom configs to enable their additional components — providing a default `all-in-one.yaml` would be misleading.
 
-## 11. Open Questions
+4. **Facade naming:** `components/` (user-facing) and `cmd/jaeger/components/` (bridge) are acceptable. The goal is to avoid polluting the root or `cmd/jaeger/` with many subdirectories — a single `components/` directory at each level keeps the layout clean.
 
-1. **Facade naming:** The double-dispatch approach gives us `components/` (user-facing) and `cmd/jaeger/components/` (bridge). Are these names clear enough, or should the bridge layer use a different name (e.g., `cmd/jaeger/factories/`) to avoid confusion?
-
-2. **Storage backends:** The `jaegerstorage` extension relies on storage backend implementations that are also internal. Should storage backends (Cassandra, Elasticsearch, ClickHouse, Badger) be individually importable for users who want to build a distribution with only specific backends?
+5. **Storage backends:** The `jaegerstorage` extension is the only entry point users need. Individual storage backends (Cassandra, Elasticsearch, ClickHouse, Badger) do not need separate facades — the only benefit would be saving a few MB of binary size, which does not justify the added complexity.
 
 ---
 
