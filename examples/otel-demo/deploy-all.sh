@@ -8,7 +8,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROLLOUT_TIMEOUT="${ROLLOUT_TIMEOUT:-600}"
 
 MODE="${1:-upgrade}"
-IMAGE_TAG="${2:-latest}"
+IMAGE_TAG="${2:-${JAEGER_DEMO_IMAGE_TAG:-latest}}"
+JAEGER_IMAGE_REPOSITORY="${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY:-jaegertracing/jaeger}"
+HOTROD_IMAGE_REPOSITORY="${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY:-jaegertracing/example-hotrod}"
+JAEGER_IMAGE_TAG="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-$IMAGE_TAG}"
+HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-1.72.0}"
+IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
+PUBLIC_JAEGER_URL="${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}"
+RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 
 case "$MODE" in
   upgrade|clean)
@@ -30,10 +37,10 @@ case "$MODE" in
  esac
 
 if [[ "$MODE" == "upgrade" ]]; then
-  HELM_JAEGER_CMD="upgrade --install --force"
+  HELM_JAEGER_CMD="upgrade --install --wait"
 else
   # For clean mode, use install after cleanup
-  HELM_JAEGER_CMD="install"
+  HELM_JAEGER_CMD="install --wait"
 fi
 
 log() { echo "[$(date +"%F %T")] $*"; }
@@ -112,6 +119,27 @@ wait_for_service_endpoints() {
   kubectl get svc "$service" -n "$namespace" -o wide || true
   kubectl get endpoints "$service" -n "$namespace" -o yaml || true
   err "Service $service in $namespace has no ready endpoints after ${timeout_secs}s"
+}
+
+smoke_expect() {
+  local url=$1
+  local expected=$2
+  local output=$3
+
+  for attempt in $(seq 1 12); do
+    if curl -fsS "$url" -o "$output" && grep -q "$expected" "$output"; then
+      log "Smoke check passed: $url"
+      return 0
+    fi
+    log "Waiting for $url to return expected content (attempt $attempt/12)..."
+    sleep 10
+  done
+
+  log "Smoke check failed: $url"
+  log "Expected content: $expected"
+  log "Last response:"
+  cat "$output" 2>/dev/null || true
+  return 1
 }
 
 cleanup() {
@@ -274,16 +302,21 @@ main() {
   wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
 
 
-  log "Deploying Jaeger (all-in-one, no storage)"
+  log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
+  log "Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG}"
   helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
     --namespace jaeger --create-namespace \
     --set allInOne.enabled=true \
     --set storage.type=none \
-    --set allInOne.image.repository=jaegertracing/jaeger \
-    --set allInOne.image.tag="${IMAGE_TAG}" \
+    --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}" \
+    --set allInOne.image.tag="${JAEGER_IMAGE_TAG}" \
+    --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}" \
+    --set hotrod.image.repository="${HOTROD_IMAGE_REPOSITORY}" \
+    --set hotrod.image.tag="${HOTROD_IMAGE_TAG}" \
+    --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}" \
     --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
     -f "$SCRIPT_DIR/jaeger-values.yaml" \
-    --wait --timeout 10m
+    --timeout 10m
   wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
 
 
@@ -315,6 +348,12 @@ main() {
 
   # Deploy HTTPS ingress
   deploy_ingress
+
+  if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
+    log "Verifying public OTel demo endpoints..."
+    smoke_expect "${PUBLIC_JAEGER_URL}/search" "${JAEGER_IMAGE_TAG}" /tmp/otel-jaeger-search.html
+    smoke_expect "${PUBLIC_JAEGER_URL}/api/services" "otelstore-frontend-ui" /tmp/otel-jaeger-services.json
+  fi
 
   log "🎉 Deployment complete! Stack is ready."
 
