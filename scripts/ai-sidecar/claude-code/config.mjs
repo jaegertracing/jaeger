@@ -12,7 +12,11 @@ import { Logger } from "./logger.mjs";
  * performs validation.
  */
 export class BridgeConfig {
-	static LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
+	static isLoopback(host) {
+		if (host === "::1" || host === "localhost") return true;
+		if (host.startsWith("127.")) return true; // 127.0.0.0/8
+		return false;
+	}
 
 	constructor() {
 		this.host = process.env.HOST ?? "127.0.0.1";
@@ -100,7 +104,7 @@ export class BridgeConfig {
 	}
 
 	_validate() {
-		if (!BridgeConfig.LOOPBACK_HOSTS.has(this.host)) {
+		if (!BridgeConfig.isLoopback(this.host)) {
 			if (!this.allowRemote) {
 				throw new Error(
 					`refusing to bind to non-loopback host ${this.host} without ALLOW_REMOTE=1.\n` +

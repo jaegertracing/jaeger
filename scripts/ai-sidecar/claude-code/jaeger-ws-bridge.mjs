@@ -18,7 +18,11 @@ try {
 	process.exit(2);
 }
 const logger = config.logger;
-const wss = new WebSocketServer({ host: config.host, port: config.port });
+const wss = new WebSocketServer({
+	host: config.host,
+	port: config.port,
+	maxPayload: config.maxInboundLineLength,
+});
 
 logger.info(`listening on ws://${config.host}:${config.port}`);
 logger.info(`agent entry: ${config.agentEntry}`);
@@ -97,11 +101,22 @@ wss.on("connection", (ws) => {
 		// Last element is either "" (payload ended with \n) or a partial line;
 		// retain it for the next message event.
 		wsInboundBuffer = parts.pop();
+		let drained = true;
 		for (const line of parts) {
 			if (line.length === 0) continue;
 			const text = injectMcpServers(line, config.mcpServers);
 			connLogger.debug(`→agent: ${text}`);
-			if (agent.stdin.writable) agent.stdin.write(`${text}\n`);
+			if (agent.stdin.writable) {
+				const ok = agent.stdin.write(`${text}\n`);
+				if (!ok) drained = false;
+			}
+		}
+
+		if (!drained && ws.readyState === WebSocket.OPEN) {
+			ws.pause();
+			agent.stdin.once("drain", () => {
+				if (ws.readyState === WebSocket.OPEN) ws.resume();
+			});
 		}
 	});
 

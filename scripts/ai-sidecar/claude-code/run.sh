@@ -23,6 +23,11 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v npm >/dev/null 2>&1; then
+  ai::log "npm is not installed. See https://nodejs.org/ for installation."
+  exit 1
+fi
+
 ai::log "bootstrapping sidecar toolchain (npm ci)…"
 (cd "$HERE" && npm ci --silent)
 
