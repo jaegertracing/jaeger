@@ -267,7 +267,8 @@ func (r *Reader) FindTraceSummaries(
 
 // scanTraceSummaryRow scans a single aggregated row from the native summary query
 // into a tracestore.TraceSummary. The per-service arrays are index-aligned because
-// both sumMap aggregations key on service_name and ClickHouse returns map keys sorted.
+// both sumMap aggregations key on service_name. The services are explicitly sorted
+// before returning to satisfy the TraceSummary interface contract deterministically.
 func scanTraceSummaryRow(rows driver.Rows) (tracestore.TraceSummary, error) {
 	var (
 		traceIDHex     string
