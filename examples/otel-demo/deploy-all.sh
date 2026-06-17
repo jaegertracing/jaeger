@@ -132,6 +132,29 @@ wait_for_service_endpoints() {
   err "Service $service in $namespace has no ready endpoints after ${timeout_secs}s"
 }
 
+adopt_service_for_helm_release() {
+  local namespace=$1
+  local service=$2
+  local release=$3
+
+  if ! kubectl get service "$service" -n "$namespace" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local managed_by
+  managed_by=$(kubectl get service "$service" -n "$namespace" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' 2>/dev/null || true)
+  if [[ "$managed_by" == "Helm" ]]; then
+    return 0
+  fi
+
+  log "Adopting existing service $namespace/$service into Helm release $release"
+  kubectl label service "$service" -n "$namespace" app.kubernetes.io/managed-by=Helm --overwrite
+  kubectl annotate service "$service" -n "$namespace" \
+    meta.helm.sh/release-name="$release" \
+    meta.helm.sh/release-namespace="$namespace" \
+    --overwrite
+}
+
 smoke_expect() {
   local url=$1
   local expected=$2
@@ -318,6 +341,10 @@ main() {
     wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
   else
     log "Skipping OpenSearch refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
+
+  if [[ "$MODE" == "upgrade" ]]; then
+    adopt_service_for_helm_release jaeger jaeger-hotrod jaeger
   fi
 
   log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
