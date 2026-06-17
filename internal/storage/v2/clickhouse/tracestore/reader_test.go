@@ -1131,6 +1131,27 @@ func TestFindTraceIDs_DecodeErrorStopsIteration(t *testing.T) {
 	require.ErrorContains(t, err, "failed to decode trace ID")
 }
 
+func TestFindTraceIDs_DecodeErrorInvalidLengthStopsIteration(t *testing.T) {
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			sql.SearchTraceIDsBase: {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data: [][]any{
+						{"12345678", time.Now().Add(-2 * time.Hour), time.Now().Add(-2 * time.Minute)},
+					},
+					ScanFn: scanTraceIDFn(),
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes: pcommon.NewMap(),
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "invalid trace ID length")
+}
+
 func TestFindTraceIDs_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -1464,6 +1485,39 @@ func TestFindTraceSummaries_TraceIDDecodeError(t *testing.T) {
 	})
 	_, err := jiter.FlattenWithErrors(iter)
 	require.ErrorContains(t, err, "failed to decode trace ID")
+}
+
+func TestFindTraceSummaries_TraceIDInvalidLength(t *testing.T) {
+	badRow := []any{
+		"12345678", // valid hex, but 4 bytes instead of 16
+		now.Add(-1 * time.Hour),
+		now,
+		uint64(1),
+		uint64(0),
+		"serviceA",
+		"operationA",
+		[]string{"serviceA"},
+		[]uint64{1},
+		[]uint64{0},
+		uint64(0),
+	}
+	conn := &clickhousetest.Driver{
+		QueryResponses: map[string]*clickhousetest.QueryResponse{
+			"argMinIf(s.service_name": {
+				Rows: &clickhousetest.Rows[[]any]{
+					Data:   [][]any{badRow},
+					ScanFn: scanTraceSummaryFn(),
+				},
+			},
+		},
+	}
+	reader := NewReader(conn, testReaderConfig)
+	iter := reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  pcommon.NewMap(),
+		SearchDepth: 10,
+	})
+	_, err := jiter.FlattenWithErrors(iter)
+	require.ErrorContains(t, err, "invalid trace ID length")
 }
 
 func TestFindTraceSummaries_RowsError(t *testing.T) {
