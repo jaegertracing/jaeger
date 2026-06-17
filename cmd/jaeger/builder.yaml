@@ -17,6 +17,10 @@
 #
 # All component versions are managed by Jaeger's go.mod (via renovatebot),
 # so this file never needs version bumps for existing components.
+# The reason external/third-party components are also imported via
+# "github.com/jaegertracing/jaeger v0.0.0" is to ensure version consistency:
+# their actual versions are resolved transitively through Jaeger's go.mod
+# rather than being pinned independently in this file.
 
 dist:
   module: github.com/jaegertracing/jaeger/cmd/jaeger/ocb-build

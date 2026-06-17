@@ -13,7 +13,9 @@ using [ocb](https://github.com/open-telemetry/opentelemetry-collector/tree/main/
 - **`ext/`** — Third-party OTel Collector components (from otel-contrib and collector core).
   These are simple one-line aliases that directly re-export the upstream `NewFactory`.
   They exist so that `builder.yaml` can reference all components via a single `gomod` entry
-  without pinning individual upstream versions.
+  (`github.com/jaegertracing/jaeger`) without pinning individual upstream versions. Their
+  actual versions are resolved transitively through Jaeger's `go.mod`, ensuring version
+  consistency across the distribution.
 
 ## Usage with ocb
 
