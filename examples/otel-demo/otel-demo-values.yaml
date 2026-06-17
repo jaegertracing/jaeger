@@ -13,25 +13,12 @@ grafana:
 opensearch:
   enabled: false
 
-# Preserve default.env (to keep OTEL_SERVICE_NAME and OTEL_COLLECTOR_NAME) and override only what we need
+# Preserve default.env (to keep OTEL_SERVICE_NAME and OTEL_COLLECTOR_NAME) and add only shared attributes.
 default:
   envOverrides:
     # Narrower service namespace + explicit environment tag
     - name: OTEL_RESOURCE_ATTRIBUTES
       value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
-    # Send OTLP over HTTP by default and disable metrics/logs exporters (traces only)
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://otel-collector:4318
-    - name: OTEL_EXPORTER_OTLP_PROTOCOL
-      value: http/protobuf
-    - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
-      value: http/protobuf
-    - name: OTEL_LOGS_EXPORTER
-      value: none
-    - name: OTEL_METRICS_EXPORTER
-      value: none
-    - name: OTEL_TRACES_EXPORTER
-      value: otlp
 
 components:
   accounting:
