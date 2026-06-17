@@ -91,10 +91,22 @@ wait_for_deployment() {
   if ! kubectl rollout status "deployment/$deployment" -n "$namespace" --timeout="$timeout"; then
     kubectl -n "$namespace" get deploy "$deployment" -o wide || true
     kubectl -n "$namespace" describe deploy "$deployment" || true
-    kubectl -n "$namespace" get pods -l app.kubernetes.io/name="$deployment" -o wide || true
+    kubectl -n "$namespace" get pods -o wide || true
     err "Deployment $deployment failed to become ready in $namespace"
   fi
   log "Deployment $deployment is ready"
+}
+
+diagnose_deployment_failure() {
+  local namespace=$1
+  local deployment=$2
+
+  log "Collecting diagnostics for deployment $namespace/$deployment"
+  kubectl -n "$namespace" get deploy,replicaset,pods,svc,endpoints -o wide || true
+  kubectl -n "$namespace" describe deploy "$deployment" || true
+  kubectl -n "$namespace" describe pods -l app.kubernetes.io/instance=jaeger || true
+  kubectl -n "$namespace" logs -l app.kubernetes.io/instance=jaeger --all-containers --tail=200 --prefix || true
+  kubectl -n "$namespace" get events --sort-by=.lastTimestamp | tail -80 || true
 }
 
 wait_for_statefulset() {
@@ -364,10 +376,10 @@ main() {
 
   log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
   log "Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG}"
-  helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
+  if ! helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
     --namespace jaeger --create-namespace \
     --set allInOne.enabled=true \
-    --set storage.type=none \
+    --set storage.type=memory \
     --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}" \
     --set allInOne.image.tag="${JAEGER_IMAGE_TAG}" \
     --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}" \
@@ -376,7 +388,10 @@ main() {
     --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}" \
     --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
     -f "$SCRIPT_DIR/jaeger-values.yaml" \
-    --timeout 10m
+    --timeout 10m; then
+    diagnose_deployment_failure jaeger jaeger
+    err "Helm release jaeger failed"
+  fi
   wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
 
 
