@@ -10,3 +10,4 @@ An RFC is a document that describes a problem, surveys the solution space, and p
 
 - [0001: GenAI Observability Data Layer](./0001-genai-data-layer.md) - GenAI Observability Data Layer
 - [0002: AI Gateway — Frontend-Driven Contextual Tools](./0002-ai-gateway-contextual-tools.md) - Per-turn UI tool registration via ACP extension method
+- [0004: Custom Distributions of Jaeger](./0004-custom-distributions.md) - Public facade packages enabling ocb-based custom builds
