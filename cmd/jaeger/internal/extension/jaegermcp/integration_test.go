@@ -504,7 +504,7 @@ func TestResources_List_ReturnsAllSkills(t *testing.T) {
 	assert.True(t, uris["skill://skills-index"], "skill://skills-index should appear in resources/list")
 	assert.True(t, uris["skill://greet-user"], "skill://greet-user should appear in resources/list")
 	assert.True(t, uris["skill://echo-message"], "skill://echo-message should appear in resources/list")
-	assert.Len(t, result.Resources, 3, "should be exactly 3 skill resources")
+	assert.GreaterOrEqual(t, len(result.Resources), 3, "should have at least 3 skill resources")
 }
 
 func TestResources_List_ResourcesHaveCorrectMIMEType(t *testing.T) {

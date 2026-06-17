@@ -63,7 +63,10 @@ func BuiltinSkills(logger *zap.Logger) []Skill {
 		}
 		builtinCached = result
 	})
-	return builtinCached
+	// Return a copy so callers cannot mutate the global cache across goroutines.
+	out := make([]Skill, len(builtinCached))
+	copy(out, builtinCached)
+	return out
 }
 
 // parseSkill parses one SKILL.md. Body content is not validated; empty bodies are accepted.
@@ -80,8 +83,12 @@ func parseSkill(path string, data []byte, logger *zap.Logger) (Skill, bool) {
 	// Use "\n---\n" not "\n---" to avoid false matches on body lines beginning with "---".
 	end := strings.Index(rest, "\n---\n")
 	if end < 0 {
-		logger.Warn("unclosed frontmatter (no closing ---)", zap.String("path", path))
-		return Skill{}, false
+		// Accept closing delimiter at EOF (no trailing newline) per common editor behaviour.
+		if !strings.HasSuffix(rest, "\n---") {
+			logger.Warn("unclosed frontmatter (no closing ---)", zap.String("path", path))
+			return Skill{}, false
+		}
+		end = len(rest) - 4
 	}
 
 	var fm frontmatter

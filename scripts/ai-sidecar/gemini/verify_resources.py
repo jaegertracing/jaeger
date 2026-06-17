@@ -19,6 +19,33 @@ import sys
 import requests
 
 
+def _extract_json(text: str) -> dict | None:
+    """Extract the last JSON-RPC message from an MCP Streamable HTTP response.
+
+    Handles plain JSON and SSE. SSE events are blank-line-separated; each event
+    may span multiple ``data:`` lines that must be concatenated before parsing.
+    """
+    last: dict | None = None
+    for event in text.split("\n\n"):
+        data_lines: list[str] = []
+        for line in event.splitlines():
+            line = line.strip()
+            if line.startswith("data:"):
+                data_lines.append(line[5:].strip())
+        payload = "".join(data_lines)
+        if payload.startswith("{"):
+            try:
+                last = json.loads(payload)
+            except json.JSONDecodeError:
+                continue
+    if last is not None:
+        return last
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        return None
+
+
 def mcp_call(url: str, session_id: str | None, method: str, params: dict) -> tuple[dict, str | None]:
     body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
     headers = {
@@ -29,16 +56,22 @@ def mcp_call(url: str, session_id: str | None, method: str, params: dict) -> tup
         headers["Mcp-Session-Id"] = session_id
     resp = requests.post(url, json=body, headers=headers, timeout=10)
     resp.raise_for_status()
-    # Streamable HTTP may return SSE or JSON; extract the last JSON object.
-    text = resp.text.strip()
     session_id_out = resp.headers.get("Mcp-Session-Id", session_id)
-    for line in reversed(text.splitlines()):
-        line = line.strip()
-        if line.startswith("data:"):
-            line = line[5:].strip()
-        if line.startswith("{"):
-            return json.loads(line), session_id_out
-    return json.loads(text), session_id_out
+    result = _extract_json(resp.text)
+    if result is None:
+        raise ValueError(f"could not parse MCP response for {method!r}: {resp.text[:200]}")
+    return result, session_id_out
+
+
+def send_initialized(url: str, session_id: str) -> None:
+    """Send the required post-initialize notification before any other request."""
+    body = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "Mcp-Session-Id": session_id,
+    }
+    requests.post(url, json=body, headers=headers, timeout=10).raise_for_status()
 
 
 def run(mcp_url: str) -> bool:
@@ -57,6 +90,8 @@ def run(mcp_url: str) -> bool:
         return False
     print(f"  OK  session_id={sid}")
     print(f"      server={result.get('result', {}).get('serverInfo', {})}")
+    if sid:
+        send_initialized(mcp_url, sid)
 
     # 2. resources/list
     print("\nStep 2: resources/list")

@@ -150,6 +150,17 @@ class JaegerMCPBridge:
                 logger.debug("MCP server did not return a session ID; skipping skills discovery")
                 return None
 
+            # MCP protocol requires sending notifications/initialized before any other request.
+            notif_body = {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized",
+                "params": {},
+            }
+            notif_headers = {**headers, "Mcp-Session-Id": sid}
+            await asyncio.to_thread(
+                lambda: requests.post(self._mcp_url, json=notif_body, headers=notif_headers, timeout=timeout)
+            )
+
             read_body = {
                 "jsonrpc": "2.0",
                 "id": 2,

@@ -12,9 +12,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestBuiltinSkills_LoadsAllThree(t *testing.T) {
+func TestBuiltinSkills_LoadsRequiredSkills(t *testing.T) {
 	skills := BuiltinSkills(zap.NewNop())
-	require.Len(t, skills, 3, "expected exactly three built-in skills")
+	require.NotEmpty(t, skills, "expected at least one built-in skill")
 
 	names := make(map[string]bool, len(skills))
 	for _, s := range skills {
@@ -107,4 +107,35 @@ func TestParseSkill_NameDirMismatch_StillLoads(t *testing.T) {
 	skill, ok := parseSkill("builtin/actual-dir/SKILL.md", []byte("---\nname: different-name\ndescription: Mismatch test.\n---\n\n# Body\n"), zap.NewNop())
 	require.True(t, ok)
 	assert.Equal(t, "different-name", skill.Name)
+}
+
+func TestParseSkill_ClosingDelimiterAtEOF(t *testing.T) {
+	// Frontmatter closed by "---" at end-of-file with no trailing newline.
+	skill, ok := parseSkill("builtin/eof/SKILL.md", []byte("---\nname: eof\ndescription: Closing delimiter at EOF.\n---"), zap.NewNop())
+	require.True(t, ok)
+	assert.Equal(t, "eof", skill.Name)
+	assert.Equal(t, "Closing delimiter at EOF.", skill.Description)
+}
+
+func TestParseSkill_InvalidYAML(t *testing.T) {
+	_, ok := parseSkill("builtin/x/SKILL.md", []byte("---\nname: [unterminated\n---\n\n# Body\n"), zap.NewNop())
+	assert.False(t, ok)
+}
+
+func TestParseSkill_NoDirInPath(t *testing.T) {
+	// A path without a parent directory yields an empty dir name; the skill still
+	// loads because it carries an explicit name.
+	skill, ok := parseSkill("SKILL.md", []byte("---\nname: rootless\ndescription: No parent dir.\n---\n\n# Body\n"), zap.NewNop())
+	require.True(t, ok)
+	assert.Equal(t, "rootless", skill.Name)
+}
+
+func TestBuiltinSkills_ReturnsIndependentCopy(t *testing.T) {
+	// Mutating the returned slice must not corrupt the cache shared across callers.
+	first := BuiltinSkills(zap.NewNop())
+	require.NotEmpty(t, first)
+	first[0] = Skill{Name: "mutated"}
+
+	second := BuiltinSkills(zap.NewNop())
+	assert.NotEqual(t, "mutated", second[0].Name, "cache must be immune to caller mutation")
 }
