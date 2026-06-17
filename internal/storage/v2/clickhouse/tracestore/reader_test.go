@@ -1137,7 +1137,7 @@ func TestFindTraceIDs_DecodeErrorInvalidLengthStopsIteration(t *testing.T) {
 			sql.SearchTraceIDsBase: {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data: [][]any{
-						{"12345678", time.Now().Add(-2 * time.Hour), time.Now().Add(-2 * time.Minute)},
+						{"12345678", now.Add(-2 * time.Hour), now.Add(-2 * time.Minute)},
 					},
 					ScanFn: scanTraceIDFn(),
 				},
