@@ -501,7 +501,7 @@ func TestResources_List_ReturnsAllSkills(t *testing.T) {
 	for _, r := range result.Resources {
 		uris[r.URI] = true
 	}
-	assert.True(t, uris["skill://jaeger-skills-index"], "skill://jaeger-skills-index should appear in resources/list")
+	assert.True(t, uris["skill://skills-index"], "skill://skills-index should appear in resources/list")
 	assert.True(t, uris["skill://greet-user"], "skill://greet-user should appear in resources/list")
 	assert.True(t, uris["skill://echo-message"], "skill://echo-message should appear in resources/list")
 	assert.Len(t, result.Resources, 3, "should be exactly 3 skill resources")
@@ -524,14 +524,14 @@ func TestResources_Read_ReturnsSkillBody(t *testing.T) {
 	s := connectMCPSession(t, nil)
 
 	result, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://jaeger-skills-index",
+		URI: "skill://skills-index",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotEmpty(t, result.Contents, "ReadResource should return content")
 
 	c := result.Contents[0]
-	assert.Equal(t, "skill://jaeger-skills-index", c.URI)
+	assert.Equal(t, "skill://skills-index", c.URI)
 	assert.Equal(t, "text/markdown", c.MIMEType)
 	assert.True(t, strings.HasPrefix(c.Text, "---\n"), "body should start with frontmatter delimiter")
 	assert.Contains(t, c.Text, "greet-user", "index body should reference greet-user")
@@ -577,7 +577,7 @@ func TestResources_EndToEnd_DiscoverThenRead(t *testing.T) {
 
 	// Step 2: read the index skill (entry point for agents)
 	indexResult, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://jaeger-skills-index",
+		URI: "skill://skills-index",
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, indexResult.Contents)

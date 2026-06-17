@@ -19,25 +19,30 @@ from tracing import tracer
 
 logger = logging.getLogger(__name__)
 
-# URI of the skills index resource — the single entry point for skill discovery.
 _SKILLS_INDEX_URI = "skill://skills-index"
 
 
 def _extract_json(text: str) -> dict | None:
-    """Extract the last JSON object from an MCP Streamable HTTP response.
+    """Extract the last JSON-RPC message from an MCP Streamable HTTP response.
 
-    The response may be plain JSON or SSE (data: {...} lines). We scan
-    backwards for the last line that looks like a JSON object.
+    Handles plain JSON and SSE. SSE events are blank-line-separated; each event
+    may span multiple ``data:`` lines that must be concatenated before parsing.
     """
-    for line in reversed(text.strip().splitlines()):
-        line = line.strip()
-        if line.startswith("data:"):
-            line = line[5:].strip()
-        if line.startswith("{"):
+    last: dict | None = None
+    for event in text.split("\n\n"):
+        data_lines: list[str] = []
+        for line in event.splitlines():
+            line = line.strip()
+            if line.startswith("data:"):
+                data_lines.append(line[5:].strip())
+        payload = "".join(data_lines)
+        if payload.startswith("{"):
             try:
-                return json.loads(line)
+                last = json.loads(payload)
             except json.JSONDecodeError:
                 continue
+    if last is not None:
+        return last
     try:
         return json.loads(text.strip())
     except json.JSONDecodeError:
@@ -55,7 +60,7 @@ class JaegerMCPBridge:
         )
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
-        self._skills_index: str | None = None  # cached skills index SKILL.md body
+        self._skills_index: str | None = None
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -65,7 +70,6 @@ class JaegerMCPBridge:
         with tracer().start_as_current_span("mcp.discover_tools", attributes={
             URL_FULL: self._mcp_url,
         }) as span:
-            # Discover available MCP tools once, then expose them to Gemini as function declarations.
             logger.info(
                 f"Initializing MCP tool discovery from {self._mcp_url} "
                 f"(single attempt timeout={self._timeout_sec}s)"
@@ -104,24 +108,24 @@ class JaegerMCPBridge:
                 if declaration is not None:
                     function_declarations.append(declaration)
 
-            if function_declarations:
-                self._gemini_tools = [types.Tool(function_declarations=function_declarations)]
-            else:
-                self._gemini_tools = []
-
+            self._gemini_tools = (
+                [types.Tool(function_declarations=function_declarations)]
+                if function_declarations
+                else []
+            )
             self._initialized = True
 
-        # Discover skills index via resources/read — best-effort, never fails startup.
+        # Best-effort: fetch skills index after tool discovery; never fails startup.
         self._skills_index = await self._fetch_skills_index()
 
     async def _fetch_skills_index(self) -> str | None:
-        """Fetch the skills index via MCP resources/read using a throw-away session.
+        """Fetch skill://skills-index via a throw-away MCP session.
 
-        Returns the SKILL.md body for skill://skills-index, or None if
-        the server does not support resources or the call fails for any reason.
+        Returns the SKILL.md body or None on any failure. Uses self._timeout_sec
+        for all network calls so behaviour is consistent with tool discovery.
         """
+        sid: str | None = None
         try:
-            # Open a minimal MCP session (initialize → resources/read → delete).
             init_body = {
                 "jsonrpc": "2.0",
                 "id": 1,
@@ -136,8 +140,9 @@ class JaegerMCPBridge:
                 "Content-Type": "application/json",
                 "Accept": "application/json, text/event-stream",
             }
+            timeout = self._timeout_sec
             init_resp = await asyncio.to_thread(
-                lambda: requests.post(self._mcp_url, json=init_body, headers=headers, timeout=10)
+                lambda: requests.post(self._mcp_url, json=init_body, headers=headers, timeout=timeout)
             )
             init_resp.raise_for_status()
             sid = init_resp.headers.get("Mcp-Session-Id")
@@ -153,11 +158,10 @@ class JaegerMCPBridge:
             }
             read_headers = {**headers, "Mcp-Session-Id": sid}
             read_resp = await asyncio.to_thread(
-                lambda: requests.post(self._mcp_url, json=read_body, headers=read_headers, timeout=10)
+                lambda: requests.post(self._mcp_url, json=read_body, headers=read_headers, timeout=timeout)
             )
             read_resp.raise_for_status()
 
-            # Extract the JSON result from SSE or plain JSON response.
             result_json = _extract_json(read_resp.text)
             if result_json is None:
                 logger.debug("Could not parse resources/read response for %s", _SKILLS_INDEX_URI)
@@ -175,17 +179,22 @@ class JaegerMCPBridge:
             logger.debug("Skills index discovery failed (non-fatal): %s", exc)
             return None
         finally:
-            # Best-effort session cleanup.
+            # Best-effort cleanup; half of timeout_sec avoids blocking shutdown.
             try:
-                if "sid" in dir() and sid:
+                if sid:
+                    cleanup_timeout = self._timeout_sec / 2
                     await asyncio.to_thread(
-                        lambda: requests.delete(self._mcp_url, headers={"Mcp-Session-Id": sid}, timeout=5)
+                        lambda: requests.delete(
+                            self._mcp_url,
+                            headers={"Mcp-Session-Id": sid},
+                            timeout=cleanup_timeout,
+                        )
                     )
             except Exception:
                 pass
 
     async def get_skills_index(self) -> str | None:
-        """Return the cached skills index body, loading it lazily if needed."""
+        """Return the skills index fetched once at startup; never retried."""
         await self.initialize()
         return self._skills_index
 

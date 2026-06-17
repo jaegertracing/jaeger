@@ -6,22 +6,21 @@ package skills
 import (
 	"embed"
 	"io/fs"
-	"log"
 	"strings"
+	"sync"
 
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
 //go:embed builtin/*/SKILL.md
 var builtinFS embed.FS
 
-// Skill represents a single built-in agent skill loaded from an embedded SKILL.md file.
+// Skill is a built-in agent skill loaded from an embedded SKILL.md file.
 type Skill struct {
-	// Name is the skill identifier (matches the parent directory name).
-	Name string
-	// Description is the short imperative summary used for discovery.
+	Name        string
 	Description string
-	// Body is the full SKILL.md content, including frontmatter, returned verbatim on resources/read.
+	// Body is the full SKILL.md content including frontmatter, returned verbatim on resources/read.
 	Body string
 }
 
@@ -30,90 +29,87 @@ type frontmatter struct {
 	Description string `yaml:"description"`
 }
 
-// BuiltinSkills loads and parses all embedded SKILL.md files, returning one Skill per valid file.
-// Validation is lenient: minor issues (name > 64 chars, name/dir mismatch) produce a log warning
-// but the skill is still included. A skill is skipped only if its YAML is unparseable or its
-// description field is absent.
-func BuiltinSkills() []Skill {
-	var result []Skill
-	err := fs.WalkDir(builtinFS, "builtin", func(path string, d fs.DirEntry, err error) error {
+var (
+	builtinOnce   sync.Once
+	builtinCached []Skill
+)
+
+// BuiltinSkills returns all embedded skills. Validation is lenient: name/dir mismatches
+// and names > 64 chars produce warnings but still load; missing description skips the skill.
+// The FS walk runs once; subsequent calls return the cached result.
+func BuiltinSkills(logger *zap.Logger) []Skill {
+	builtinOnce.Do(func() {
+		var result []Skill
+		err := fs.WalkDir(builtinFS, "builtin", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() || d.Name() != "SKILL.md" {
+				return nil
+			}
+			data, readErr := builtinFS.ReadFile(path)
+			if readErr != nil {
+				logger.Warn("cannot read skill file", zap.String("path", path), zap.Error(readErr))
+				return nil
+			}
+			skill, ok := parseSkill(path, data, logger)
+			if ok {
+				result = append(result, skill)
+			}
+			return nil
+		})
 		if err != nil {
-			return err
+			logger.Error("failed to walk built-in skill FS", zap.Error(err))
 		}
-		if d.IsDir() || d.Name() != "SKILL.md" {
-			return nil
-		}
-		data, readErr := builtinFS.ReadFile(path)
-		if readErr != nil {
-			log.Printf("skills: cannot read %s: %v", path, readErr)
-			return nil
-		}
-		skill, ok := parseSkill(path, data)
-		if ok {
-			result = append(result, skill)
-		}
-		return nil
+		builtinCached = result
 	})
-	if err != nil {
-		log.Printf("skills: failed to walk builtin FS: %v", err)
-	}
-	return result
+	return builtinCached
 }
 
-// parseSkill parses a SKILL.md file at path and returns the resulting Skill.
-// Returns (Skill{}, false) if the file cannot be parsed or is missing required fields.
-func parseSkill(path string, data []byte) (Skill, bool) {
-	body := string(data)
+// parseSkill parses one SKILL.md. Body content is not validated; empty bodies are accepted.
+func parseSkill(path string, data []byte, logger *zap.Logger) (Skill, bool) {
+	// Normalize so CRLF files from Windows or copy-paste parse correctly.
+	body := strings.ReplaceAll(string(data), "\r\n", "\n")
 
-	// Frontmatter must begin with exactly "---\n".
 	if !strings.HasPrefix(body, "---\n") {
-		log.Printf("skills: %s: missing opening frontmatter delimiter", path)
+		logger.Warn("missing opening frontmatter delimiter", zap.String("path", path))
 		return Skill{}, false
 	}
-	rest := body[4:] // skip the opening "---\n"
+	rest := body[4:]
 
-	// The closing delimiter is "\n---" (newline + three dashes).
-	end := strings.Index(rest, "\n---")
+	// Use "\n---\n" not "\n---" to avoid false matches on body lines beginning with "---".
+	end := strings.Index(rest, "\n---\n")
 	if end < 0 {
-		log.Printf("skills: %s: unclosed frontmatter (no closing ---)", path)
+		logger.Warn("unclosed frontmatter (no closing ---)", zap.String("path", path))
 		return Skill{}, false
 	}
-	yamlBlock := rest[:end]
 
 	var fm frontmatter
-	if err := yaml.Unmarshal([]byte(yamlBlock), &fm); err != nil {
-		log.Printf("skills: %s: cannot parse YAML frontmatter: %v", path, err)
+	if err := yaml.Unmarshal([]byte(rest[:end]), &fm); err != nil {
+		logger.Warn("cannot parse YAML frontmatter", zap.String("path", path), zap.Error(err))
 		return Skill{}, false
 	}
 
 	if fm.Description == "" {
-		log.Printf("skills: %s: required 'description' field is missing; skipping skill", path)
+		logger.Warn("required 'description' field is missing; skipping skill", zap.String("path", path))
 		return Skill{}, false
 	}
 
-	// Derive the expected skill name from the parent directory.
 	dirName := dirFromPath(path)
-
 	if fm.Name == "" {
-		log.Printf("skills: %s: 'name' field is absent; using directory name %q", path, dirName)
+		logger.Warn("'name' field is absent; using directory name", zap.String("path", path), zap.String("dir", dirName))
 		fm.Name = dirName
 	} else if fm.Name != dirName {
-		// agentskills.io spec: name must match parent dir name; warn but load.
-		log.Printf("skills: %s: name %q does not match parent directory %q", path, fm.Name, dirName)
+		// agentskills.io spec requires name == parent dir; warn but load so the skill is not silently dropped.
+		logger.Warn("name does not match parent directory", zap.String("path", path), zap.String("name", fm.Name), zap.String("dir", dirName))
 	}
 	if len(fm.Name) > 64 {
-		log.Printf("skills: %s: name %q exceeds the 64-char agentskills.io limit", path, fm.Name)
+		logger.Warn("name exceeds the 64-char agentskills.io limit", zap.String("path", path), zap.String("name", fm.Name))
 	}
 
-	return Skill{
-		Name:        fm.Name,
-		Description: fm.Description,
-		Body:        body,
-	}, true
+	return Skill{Name: fm.Name, Description: fm.Description, Body: body}, true
 }
 
-// dirFromPath extracts the parent directory name from an embedded path like
-// "builtin/greet-user/SKILL.md" → "greet-user".
 func dirFromPath(path string) string {
 	parts := strings.Split(path, "/")
 	if len(parts) >= 2 {

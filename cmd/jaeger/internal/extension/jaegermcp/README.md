@@ -30,7 +30,7 @@ Each skill is addressable via a `skill://` URI and returns a [SKILL.md](https://
 
 | URI | Description |
 |-----|-------------|
-| `skill://jaeger-skills-index` | Index of all available skills. Read this first to discover what capabilities exist. |
+| `skill://skills-index` | Index of all available skills. Read this first to discover what capabilities exist. |
 | `skill://greet-user` | Respond with a personalized greeting when a user introduces themselves. |
 | `skill://echo-message` | Repeat the user's message back in uppercase. |
 
@@ -38,7 +38,7 @@ Each skill is addressable via a `skill://` URI and returns a [SKILL.md](https://
 
 ```
 resources/list                            → see all skill:// resources
-resources/read skill://jaeger-skills-index → discover skills and when to use them
+resources/read skill://skills-index → discover skills and when to use them
 resources/read skill://<name>             → load full instructions for a skill
 ```
 

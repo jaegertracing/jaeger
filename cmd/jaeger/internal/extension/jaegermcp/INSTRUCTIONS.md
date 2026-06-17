@@ -2,11 +2,11 @@ Jaeger is a distributed tracing backend. A trace is a tree of spans representing
 
 ## Skills
 
-At the start of any session, call `resources/list` to discover available skills. Then read the `skill://jaeger-skills-index` resource — it lists all available skills and when to use each one. When a task matches a skill description, read that skill's resource via `resources/read` and follow its instructions.
+At the start of any session, call `resources/list` to discover available skills. Then read the `skill://skills-index` resource — it lists all available skills and when to use each one. When a task matches a skill description, read that skill's resource via `resources/read` and follow its instructions.
 
 Example workflow:
 1. `resources/list` → see all `skill://` resources
-2. `resources/read skill://jaeger-skills-index` → discover which skills exist and what they do
+2. `resources/read skill://skills-index` → discover which skills exist and what they do
 3. `resources/read skill://<name>` → load the full instructions for the matching skill
 
 ## Investigation Strategy
