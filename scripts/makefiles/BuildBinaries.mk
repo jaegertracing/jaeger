@@ -176,8 +176,6 @@ build-all-platforms:
 
 # Build Jaeger using ocb (OpenTelemetry Collector Builder).
 # This validates that the public facade packages work correctly with ocb.
-OCB := $(TOOLS_BIN_DIR)/builder
-
 .PHONY: build-ocb
 build-ocb: $(OCB)
 	@echo "Building Jaeger with ocb"

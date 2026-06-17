@@ -8,7 +8,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/cmd/schemagen v0.154.0
 	github.com/vektra/mockery/v3 v3.7.0
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
-	go.opentelemetry.io/collector/cmd/builder v0.153.0
+	go.opentelemetry.io/collector/cmd/builder v0.154.0
 	golang.org/x/vuln v1.3.0
 	gotest.tools/gotestsum v1.13.0
 	mvdan.cc/gofumpt v0.10.0
@@ -138,7 +138,7 @@ require (
 	github.com/knadh/koanf/providers/fs v1.0.0 // indirect
 	github.com/knadh/koanf/providers/posflag v1.0.1 // indirect
 	github.com/knadh/koanf/providers/structs v1.0.0 // indirect
-	github.com/knadh/koanf/v2 v2.3.4 // indirect
+	github.com/knadh/koanf/v2 v2.3.5 // indirect
 	github.com/kulti/thelper v0.7.1 // indirect
 	github.com/kunwardeep/paralleltest v1.0.15 // indirect
 	github.com/lasiar/canonicalheader v1.1.2 // indirect
