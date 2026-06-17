@@ -374,21 +374,23 @@ Simply remove `internal` from the path (e.g., `cmd/jaeger/components/...`). This
 
 ---
 
-## 10. Open Questions
+## 10. Resolved Questions
+
+1. **Which components to expose:** Only production components get public facades. Testing helpers like `storagecleaner` are excluded.
+
+2. **Telemetry factory wrapper:** Jaeger's `WrapFactory` (`cmd/jaeger/internal/telemetry.go`) replaces the default `CreateTracerProvider` with a filtering implementation that prevents recursive self-tracing. It maintains an allowlist of components (`jaeger_query`, `jaeger_mcp`) that receive the real `TracerProvider`; all other components (receivers, exporters, processors) get a noop tracer. This is critical for any Jaeger distribution where the OTLP receiver is the export destination — without it, the write path would generate traces that feed back into itself. **Decision:** The telemetry wrapper must be exposed as part of the public API (e.g., `components/telemetry.WrapFactory()`), since custom distributions face the same recursive tracing problem.
+
+3. **Default config embedding:** Not needed. Custom distributions inherently require custom configs to enable their additional components — providing a default `all-in-one.yaml` would be misleading.
+
+## 11. Open Questions
 
 1. **Facade naming:** The double-dispatch approach gives us `components/` (user-facing) and `cmd/jaeger/components/` (bridge). Are these names clear enough, or should the bridge layer use a different name (e.g., `cmd/jaeger/factories/`) to avoid confusion?
 
-2. **Which components to expose:** Should `storagecleaner` (an e2e testing helper) be exposed? Likely not — only production components should have public facades.
-
-3. **Storage backends:** The `jaegerstorage` extension relies on storage backend implementations that are also internal. Should storage backends (Cassandra, Elasticsearch, ClickHouse, Badger) be individually importable for users who want to build a distribution with only specific backends?
-
-4. **Telemetry factory wrapper:** Jaeger wraps the OTEL telemetry factory with custom logic (`WrapFactory` in `components.go`). Should this wrapper be part of the public API?
-
-5. **Default config embedding:** Jaeger ships an embedded `all-in-one.yaml` configuration. Should the public API include a way to provide this default config, or is that the user's responsibility in a custom distribution?
+2. **Storage backends:** The `jaegerstorage` extension relies on storage backend implementations that are also internal. Should storage backends (Cassandra, Elasticsearch, ClickHouse, Badger) be individually importable for users who want to build a distribution with only specific backends?
 
 ---
 
-## 11. References
+## 12. References
 
 - [OpenTelemetry Collector Builder (ocb)](https://github.com/open-telemetry/opentelemetry-collector/tree/main/cmd/builder)
 - [ocb builder.yaml schema](https://github.com/open-telemetry/opentelemetry-collector/blob/main/cmd/builder/internal/builder/config.go)
