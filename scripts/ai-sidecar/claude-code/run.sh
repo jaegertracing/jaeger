@@ -23,8 +23,8 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-ai::log "bootstrapping sidecar toolchain (npm install)…"
-(cd "$HERE" && npm install --silent)
+ai::log "bootstrapping sidecar toolchain (npm ci)…"
+(cd "$HERE" && npm ci --silent)
 
 # Preflight check requires node_modules for claude-agent-acp auth status check
 ai::preflight claude-code

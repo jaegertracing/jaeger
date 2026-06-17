@@ -102,17 +102,12 @@ export class BridgeConfig {
 	_validate() {
 		if (!BridgeConfig.LOOPBACK_HOSTS.has(this.host)) {
 			if (!this.allowRemote) {
-				this.logger.error(
-					`refusing to bind to non-loopback host ${this.host} without ALLOW_REMOTE=1`,
+				throw new Error(
+					`refusing to bind to non-loopback host ${this.host} without ALLOW_REMOTE=1.\n` +
+						"The bridge has no auth — exposing it remotely lets any reachable client " +
+						"drive claude-agent-acp with your local credentials. Set ALLOW_REMOTE=1 " +
+						"to acknowledge the risk and proceed.",
 				);
-				this.logger.error(
-					"the bridge has no auth — exposing it remotely lets any reachable client",
-				);
-				this.logger.error(
-					"drive claude-agent-acp with your local credentials. Set ALLOW_REMOTE=1",
-				);
-				this.logger.error("to acknowledge the risk and proceed.");
-				process.exit(2);
 			}
 			this.logger.warn(
 				`binding to ${this.host} with ALLOW_REMOTE=1; ws://${this.host}:${this.port} is unauthenticated`,

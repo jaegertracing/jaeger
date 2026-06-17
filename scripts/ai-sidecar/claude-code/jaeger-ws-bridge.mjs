@@ -10,7 +10,13 @@ import { WebSocket, WebSocketServer } from "ws";
 import { BridgeConfig } from "./config.mjs";
 import { injectMcpServers, normalizeWsPayload } from "./utils.mjs";
 
-const config = new BridgeConfig();
+let config;
+try {
+	config = new BridgeConfig();
+} catch (err) {
+	console.error(`[ERROR] ${err.message}`);
+	process.exit(2);
+}
 const logger = config.logger;
 const wss = new WebSocketServer({ host: config.host, port: config.port });
 
@@ -22,11 +28,14 @@ if (Object.keys(config.mcpServers).length > 0) {
 	);
 }
 
+const activeAgents = new Set();
+
 wss.on("connection", (ws) => {
 	const agent = spawn(process.execPath, [config.agentEntry], {
 		stdio: ["pipe", "pipe", "pipe"],
 		env: process.env,
 	});
+	activeAgents.add(agent);
 	const childPid = agent.pid;
 	const connLogger = logger.child(`bridge:${childPid}`);
 	const agentLogger = logger.child(`agent:${childPid}`);
@@ -123,6 +132,7 @@ wss.on("connection", (ws) => {
 	ws.on("error", (err) => shutdownAgent(`errored: ${err?.message ?? err}`));
 
 	agent.on("exit", (code, signal) => {
+		activeAgents.delete(agent);
 		connLogger.info(
 			`agent exited code=${code ?? "null"} signal=${signal ?? "null"}`,
 		);
@@ -130,6 +140,7 @@ wss.on("connection", (ws) => {
 	});
 
 	agent.on("error", (err) => {
+		activeAgents.delete(agent);
 		connLogger.error(`failed to spawn agent: ${err.message}`);
 		if (ws.readyState === WebSocket.OPEN) ws.close();
 	});
@@ -139,7 +150,9 @@ let shuttingDown = false;
 const stopAll = () => {
 	if (shuttingDown) return;
 	shuttingDown = true;
-	logger.info(`shutting down; closing ${wss.clients.size} open connection(s)`);
+	logger.info(
+		`shutting down; closing ${wss.clients.size} open connection(s) and killing ${activeAgents.size} agent(s)`,
+	);
 
 	for (const client of wss.clients) {
 		try {
@@ -149,14 +162,36 @@ const stopAll = () => {
 		}
 	}
 
+	for (const agent of activeAgents) {
+		try {
+			agent.kill("SIGTERM");
+		} catch {
+			// Best-effort
+		}
+	}
+
 	wss.close(() => process.exit(0));
 
 	setTimeout(() => {
 		logger.error(
-			`shutdown grace exceeded (${config.shutdownTimeoutMs}ms); forcing exit`,
+			`shutdown grace exceeded (${config.shutdownGraceMs}ms); forcing exit`,
 		);
+		for (const client of wss.clients) {
+			try {
+				client.terminate();
+			} catch {
+				// Best-effort
+			}
+		}
+		for (const agent of activeAgents) {
+			try {
+				agent.kill("SIGKILL");
+			} catch {
+				// Best-effort
+			}
+		}
 		process.exit(1);
-	}, config.shutdownTimeoutMs);
+	}, config.shutdownGraceMs).unref();
 };
 
 process.on("SIGTERM", stopAll);
