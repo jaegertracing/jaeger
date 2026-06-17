@@ -93,8 +93,12 @@ rejected by the OTEL Collector community.
 
 ### Move Components Out of `internal`
 
-Remove `internal` from paths. Rejected: exposes all types (Config structs, internal
-helpers), recreating the original problem of uncontrolled external dependencies.
+Restructure to match the OTel Collector project layout where each component is a
+top-level importable package. This would eliminate the double-dispatch entirely.
+Deferred rather than rejected: the approach is sound but requires untangling
+cross-component dependencies that currently exist under `internal/` (e.g. shared
+storage interfaces, telemetry wiring). A future effort may adopt this structure
+incrementally, at which point the facade layers become unnecessary.
 
 ## Consequences
 
