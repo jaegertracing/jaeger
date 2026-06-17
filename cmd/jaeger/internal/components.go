@@ -11,17 +11,9 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
-	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/expvar"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegermcp"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerquery"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotesampling"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotestorage"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/adaptivesampling"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
+	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
 	"github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector"
 	"github.com/jaegertracing/jaeger/components/ext/exporter/debugexporter"
@@ -45,6 +37,14 @@ import (
 	"github.com/jaegertracing/jaeger/components/ext/receiver/nopreceiver"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/otlpreceiver"
 	"github.com/jaegertracing/jaeger/components/ext/receiver/zipkinreceiver"
+	"github.com/jaegertracing/jaeger/components/extension/expvar"
+	"github.com/jaegertracing/jaeger/components/extension/jaegermcp"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/components/extension/remotesampling"
+	"github.com/jaegertracing/jaeger/components/extension/remotestorage"
+	"github.com/jaegertracing/jaeger/components/processor/adaptivesampling"
+	"github.com/jaegertracing/jaeger/components/telemetry"
 )
 
 type builders struct {
@@ -68,7 +68,7 @@ func defaultBuilders() builders {
 func (b builders) build() (otelcol.Factories, error) {
 	var err error
 	factories := otelcol.Factories{
-		Telemetry: WrapFactory(otelconftelemetry.NewFactory()),
+		Telemetry: telemetry.NewFactory(),
 	}
 
 	factories.Extensions, err = b.extension(
