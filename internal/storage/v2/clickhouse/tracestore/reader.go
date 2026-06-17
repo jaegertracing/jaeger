@@ -4,6 +4,7 @@
 package tracestore
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -328,13 +329,7 @@ func scanTraceSummaryRow(rows driver.Rows) (tracestore.TraceSummary, error) {
 	}
 
 	slices.SortFunc(services, func(a, b tracestore.ServiceSummary) int {
-		if a.Name < b.Name {
-			return -1
-		}
-		if a.Name > b.Name {
-			return 1
-		}
-		return 0
+		return cmp.Compare(a.Name, b.Name)
 	})
 
 	return tracestore.TraceSummary{
