@@ -30,15 +30,15 @@ telemetry:
 
 extensions:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/healthcheckv2extension
+    import: github.com/jaegertracing/jaeger/components/ext/extension/healthcheckv2extension
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/pprofextension
+    import: github.com/jaegertracing/jaeger/components/ext/extension/pprofextension
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/zpagesextension
+    import: github.com/jaegertracing/jaeger/components/ext/extension/zpagesextension
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/basicauthextension
+    import: github.com/jaegertracing/jaeger/components/ext/extension/basicauthextension
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/sigv4authextension
+    import: github.com/jaegertracing/jaeger/components/ext/extension/sigv4authextension
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/extension/jaegermcp
   - gomod: github.com/jaegertracing/jaeger v0.0.0
@@ -54,51 +54,51 @@ extensions:
 
 receivers:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/receiver/otlpreceiver
+    import: github.com/jaegertracing/jaeger/components/ext/receiver/otlpreceiver
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/receiver/nopreceiver
+    import: github.com/jaegertracing/jaeger/components/ext/receiver/nopreceiver
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/receiver/jaegerreceiver
+    import: github.com/jaegertracing/jaeger/components/ext/receiver/jaegerreceiver
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/receiver/kafkareceiver
+    import: github.com/jaegertracing/jaeger/components/ext/receiver/kafkareceiver
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/receiver/zipkinreceiver
+    import: github.com/jaegertracing/jaeger/components/ext/receiver/zipkinreceiver
 
 exporters:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/exporter/debugexporter
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/debugexporter
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/exporter/otlpexporter
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/otlpexporter
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/exporter/otlphttpexporter
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/otlphttpexporter
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/exporter/nopexporter
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/nopexporter
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/exporter/storageexporter
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/exporter/kafkaexporter
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/kafkaexporter
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/exporter/prometheusexporter
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/prometheusexporter
 
 processors:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/processor/batchprocessor
+    import: github.com/jaegertracing/jaeger/components/ext/processor/batchprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/processor/memorylimiterprocessor
+    import: github.com/jaegertracing/jaeger/components/ext/processor/memorylimiterprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/processor/tailsamplingprocessor
+    import: github.com/jaegertracing/jaeger/components/ext/processor/tailsamplingprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/processor/attributesprocessor
+    import: github.com/jaegertracing/jaeger/components/ext/processor/attributesprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/processor/filterprocessor
+    import: github.com/jaegertracing/jaeger/components/ext/processor/filterprocessor
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/processor/adaptivesampling
 
 connectors:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/connector/forwardconnector
+    import: github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/connector/spanmetricsconnector
+    import: github.com/jaegertracing/jaeger/components/ext/connector/spanmetricsconnector
 
 replaces:
   - github.com/jaegertracing/jaeger v0.0.0 => ../../../
