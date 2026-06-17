@@ -67,18 +67,21 @@ The binary entry point (`cmd/jaeger/main.go`) calls `internal.Command()` which u
 
 ## 4. Proposed Approaches
 
-### 4.1 Public Facade Packages (Recommended)
+### 4.1 Double-Dispatch Public Facades (Recommended)
 
-Create a public package tree that re-exports only the `NewFactory()` function from each internal component.
+Create a two-layer facade that gives users clean top-level import paths while satisfying Go's `internal` visibility constraint.
 
-Go's `internal` visibility rule is enforced by directory tree: only packages rooted at the *parent* of the `internal/` directory can import from it. Since the internal components live under `cmd/jaeger/internal/`, the facade packages must also live under `cmd/jaeger/` to satisfy this constraint:
+**Background:** Go's `internal` visibility rule is enforced by directory tree — only packages rooted at the *parent* of the `internal/` directory can import from it. Since the internal components live under `cmd/jaeger/internal/`, only packages under `cmd/jaeger/` can access them. However, we want users to import from a clean top-level path like `github.com/jaegertracing/jaeger/components/...` rather than the deeply nested `cmd/jaeger/...` path.
+
+**Solution: double-dispatch.** Two layers of thin packages, each re-exporting `NewFactory()`:
 
 ```
-cmd/jaeger/components/
+# Layer 1: User-facing public API (clean import paths)
+components/
 ├── all.go                    # convenience: returns all Jaeger component factories
 ├── extension/
 │   ├── jaegerstorage/
-│   │   └── factory.go        # re-exports internal NewFactory()
+│   │   └── factory.go        # delegates to cmd/jaeger/components/...
 │   ├── jaegerquery/
 │   │   └── factory.go
 │   ├── remotesampling/
@@ -95,9 +98,23 @@ cmd/jaeger/components/
 └── processor/
     └── adaptivesampling/
         └── factory.go
+
+# Layer 2: Internal-access bridge (can import from cmd/jaeger/internal/)
+cmd/jaeger/components/
+├── all.go
+├── extension/
+│   ├── jaegerstorage/
+│   │   └── factory.go        # imports from cmd/jaeger/internal/...
+│   └── ...
+├── exporter/
+│   └── ...
+└── processor/
+    └── ...
 ```
 
-Each facade file is minimal:
+Layer 2 (under `cmd/jaeger/`) can import from `cmd/jaeger/internal/` due to the directory tree rule. Layer 1 (top-level `components/`) imports from Layer 2 — which is a public (non-internal) path, so this is allowed.
+
+Each Layer 2 file accesses the internal implementation:
 
 ```go
 // cmd/jaeger/components/extension/jaegerstorage/factory.go
@@ -113,10 +130,26 @@ func NewFactory() extension.Factory {
 }
 ```
 
+Each Layer 1 file delegates to Layer 2:
+
+```go
+// components/extension/jaegerstorage/factory.go
+package jaegerstorage
+
+import (
+    "go.opentelemetry.io/collector/extension"
+    bridge "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerstorage"
+)
+
+func NewFactory() extension.Factory {
+    return bridge.NewFactory()
+}
+```
+
 The convenience package aggregates all factories:
 
 ```go
-// cmd/jaeger/components/all.go
+// components/all.go
 package components
 
 import (
@@ -140,13 +173,14 @@ func AllFactories() Factories { ... }
 
 **Advantages:**
 - Single `go.mod` — no structural changes to the repo.
+- Clean user-facing import paths: `github.com/jaegertracing/jaeger/components/extension/jaegerstorage`.
 - Public API is a single function per component (`NewFactory()`). Internal types, configs, and implementation details remain private.
 - Compatible with `ocb` using the `gomod`/`import` field separation (see Section 5).
-- Trivial maintenance: facade files are mechanical and can be code-generated.
-- Clear contract: if a user imports `cmd/jaeger/components/...`, the only guarantee is that `NewFactory()` returns a valid factory. All config and behavior remains internal.
+- Trivial maintenance: all facade files are mechanical one-liners and can be code-generated.
+- Clear contract: if a user imports `components/...`, the only guarantee is that `NewFactory()` returns a valid factory. All config and behavior remains internal.
 
 **Disadvantages:**
-- Facade location is constrained by Go's `internal` visibility rules. Since `internal/` is under `cmd/jaeger/`, facades must also be under `cmd/jaeger/` — the import path `github.com/jaegertracing/jaeger/cmd/jaeger/components/...` is longer than a hypothetical top-level `pkg/components/...`. However, path length is largely irrelevant to users since it only appears in `builder.yaml`.
+- Two layers of indirection instead of one. However, both layers are trivial (single function call forwarding), so cognitive and runtime overhead is negligible.
 - External consumers who `go get` the Jaeger module could technically import the facades directly in their own Go code (not just via `ocb`). This is acceptable since the facade exposes only the `Factory` interface type, not internal structs.
 
 ### 4.2 Multi-Module Repository
@@ -202,9 +236,9 @@ dist:
 
 extensions:
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerstorage
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerquery
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerquery
 
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.154.0
@@ -213,7 +247,7 @@ receivers:
 
 exporters:
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter
+    import: github.com/jaegertracing/jaeger/components/exporter/storageexporter
 ```
 
 This works with `ocb` today without any upstream changes or `replace` directives — the generated `go.mod` will have a single `require github.com/jaegertracing/jaeger v1.72.0` entry, and the generated `components.go` will import each package by its `import` path.
@@ -225,7 +259,7 @@ For users who want *all* Jaeger components and just want to add extras, provide 
 ```yaml
 extensions:
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/all/extensions
+    import: github.com/jaegertracing/jaeger/components/all/extensions
 ```
 
 This would require a slightly different facade design where `all/extensions` exports a slice of factories rather than a single one. However, `ocb` currently expects one factory per entry, so this would require either:
@@ -252,9 +286,9 @@ Jaeger can adopt Go module versioning (`v1.x.y`) for the public facades with the
 
 ### Phase 1: Create Public Facade Packages
 
-1. Create `cmd/jaeger/components/` directory tree with facade files.
-2. Each file exports only `NewFactory()`, delegating to the internal implementation.
-3. Create `cmd/jaeger/components/all.go` that returns all Jaeger factories grouped by type.
+1. Create `cmd/jaeger/components/` (Layer 2) with facade files that import from `cmd/jaeger/internal/`.
+2. Create `components/` (Layer 1) with facade files that delegate to Layer 2.
+3. Create `components/all.go` that returns all Jaeger factories grouped by type.
 4. Add a test that verifies all facades compile and return non-nil factories.
 
 ### Phase 2: Documentation and Examples
@@ -291,26 +325,26 @@ dist:
 
 extensions:
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerstorage
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerquery
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerquery
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/remotesampling
+    import: github.com/jaegertracing/jaeger/components/extension/remotesampling
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/expvar
+    import: github.com/jaegertracing/jaeger/components/extension/expvar
 
 receivers:
   - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.154.0
 
 exporters:
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/exporter/storageexporter
+    import: github.com/jaegertracing/jaeger/components/exporter/storageexporter
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter v0.154.0
 
 processors:
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.154.0
   - gomod: github.com/jaegertracing/jaeger v1.72.0
-    import: github.com/jaegertracing/jaeger/cmd/jaeger/components/processor/adaptivesampling
+    import: github.com/jaegertracing/jaeger/components/processor/adaptivesampling
 
 connectors:
   - gomod: go.opentelemetry.io/collector/connector/forwardconnector v0.154.0
@@ -342,7 +376,7 @@ Simply remove `internal` from the path (e.g., `cmd/jaeger/components/...`). This
 
 ## 10. Open Questions
 
-1. **Facade location:** The facades must live under `cmd/jaeger/` due to Go's `internal` visibility rules. Within that constraint, should they be at `cmd/jaeger/components/` or a different sub-path?
+1. **Facade naming:** The double-dispatch approach gives us `components/` (user-facing) and `cmd/jaeger/components/` (bridge). Are these names clear enough, or should the bridge layer use a different name (e.g., `cmd/jaeger/factories/`) to avoid confusion?
 
 2. **Which components to expose:** Should `storagecleaner` (an e2e testing helper) be exposed? Likely not — only production components should have public facades.
 
