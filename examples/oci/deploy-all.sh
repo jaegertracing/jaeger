@@ -30,6 +30,25 @@ uninstall_release() {
   fi
 }
 
+release_status() {
+  helm status "$1" 2>/dev/null | awk -F': ' '$1 == "STATUS" { print $2; exit }'
+}
+
+prepare_upgrade_release() {
+  local name=$1
+  local status
+
+  status=$(release_status "$name")
+  case "$status" in
+    ""|deployed)
+      ;;
+    *)
+      echo "🟡 Helm release $name is in '$status' state. Reinstalling before upgrade."
+      uninstall_release "$name"
+      ;;
+  esac
+}
+
 case "$MODE" in
   upgrade|clean|local)
     echo "🔵 Running in '$MODE' mode..."
@@ -52,6 +71,8 @@ case "$MODE" in
 esac
 
 if [[ "$MODE" == "upgrade" ]]; then
+  prepare_upgrade_release jaeger
+  prepare_upgrade_release prometheus
   HELM_JAEGER_CMD="upgrade --install --wait"
   HELM_PROM_CMD="upgrade --install --wait"
 else
