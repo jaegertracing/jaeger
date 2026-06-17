@@ -30,6 +30,8 @@ export class BridgeConfig {
 		// Backpressure thresholds for the agent → ws path.
 		this.wsBufferHighWater = 4 * 1024 * 1024;
 		this.wsBufferLowWater = 1 * 1024 * 1024;
+		// DoS protection for inbound ws → agent path.
+		this.maxInboundLineLength = 8 * 1024 * 1024;
 
 		// Shutdown grace periods (ms)
 		this.shutdownGraceMs = 5000;

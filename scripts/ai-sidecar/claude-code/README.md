@@ -19,16 +19,12 @@ The bridge is intentionally minimal:
 
 ## Quick Start
 
-The simplest way to start the sidecar alongside a local Jaeger instance is using the top-level Makefile target. It automatically ensures dependencies are installed, checks for valid authentication, and launches both Jaeger and the bridge with interleaved, color-coded logs.
+The simplest way to start the sidecar alongside a local Jaeger instance is using the top-level Makefile target. It automatically ensures dependencies are installed, checks for valid authentication, and launches both Jaeger and the bridge with interleaved, color-coded logs. By default, it automatically connects Claude to Jaeger's MCP tools.
 
 ```bash
 # In the repository root
-make run-ai-claude ARGS="--mcp-server jaeger=http://127.0.0.1:16687/mcp"
+make run-ai-claude
 ```
-
-> **Note:** The `--mcp-server` flag is what gives Claude access to Jaeger's
-> tracing tools. Without it the bridge runs but the agent has no tools to
-> query traces. See [MCP Servers](#mcp-servers) for details.
 
 ### Authentication
 The launcher auto-detects two types of credentials:
@@ -66,13 +62,16 @@ Optional environment variables:
 
 ### MCP Servers
 
-To give Claude access to Jaeger's tools, pass the `--mcp-server` flag via the `ARGS` variable:
+The bridge accepts a repeatable `--mcp-server name=url` flag to inject MCP servers into the session. By default, the Makefile target automatically injects the Jaeger MCP server.
 
 ```bash
-# Via Makefile
-make run-ai-claude ARGS="--mcp-server jaeger=http://127.0.0.1:16687/mcp"
+# Via Makefile (Jaeger MCP injected by default)
+make run-ai-claude
 
-# Or directly
+# Add an extra custom MCP server
+make run-ai-claude ARGS="--mcp-server custom=http://127.0.0.1:8080/mcp"
+
+# Or directly without the Makefile
 ./run.sh --mcp-server jaeger=http://127.0.0.1:16687/mcp
 ```
 

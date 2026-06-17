@@ -74,6 +74,16 @@ wss.on("connection", (ws) => {
 	let wsInboundBuffer = "";
 	ws.on("message", (data) => {
 		wsInboundBuffer += normalizeWsPayload(data);
+
+		if (wsInboundBuffer.length > config.maxInboundLineLength) {
+			connLogger.error(
+				`inbound message exceeded maximum line length (${config.maxInboundLineLength}); closing connection to prevent memory exhaustion`,
+			);
+			ws.close(1009, "Message Too Big");
+			wsInboundBuffer = "";
+			return;
+		}
+
 		const parts = wsInboundBuffer.split(/\r?\n/);
 		// Last element is either "" (payload ended with \n) or a partial line;
 		// retain it for the next message event.

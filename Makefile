@@ -285,4 +285,4 @@ run-ai-gemini:
 
 .PHONY: run-ai-claude
 run-ai-claude:
-	./scripts/ai-sidecar/claude-code/run.sh $(ARGS)
+	./scripts/ai-sidecar/claude-code/run.sh --mcp-server jaeger=http://127.0.0.1:16687/mcp $(ARGS)
