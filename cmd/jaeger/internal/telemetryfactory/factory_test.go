@@ -32,6 +32,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
 
+func TestNewFactory(t *testing.T) {
+	f := NewFactory()
+	assert.NotNil(t, f)
+}
+
 func TestFilteringTracerProvider_AllowedComponent(t *testing.T) {
 	realTP := sdktrace.NewTracerProvider()
 	defer realTP.Shutdown(context.Background())
