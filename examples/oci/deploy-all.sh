@@ -18,6 +18,7 @@ RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 PROMETHEUS_STACK_CHART="prometheus-community/kube-prometheus-stack"
 PROMETHEUS_STACK_CHART_VERSION="${PROMETHEUS_STACK_CHART_VERSION:-82.10.4}"
 CLEAN_UNINSTALL_TIMEOUT="${JAEGER_DEMO_CLEAN_UNINSTALL_TIMEOUT:-10m0s}"
+DEPLOY_PROMETHEUS=true
 
 uninstall_release() {
   local name=$1
@@ -75,7 +76,21 @@ esac
 
 if [[ "$MODE" == "upgrade" ]]; then
   prepare_upgrade_release jaeger
-  prepare_upgrade_release prometheus
+  PROMETHEUS_RELEASE_STATUS=$(release_status prometheus)
+  case "$PROMETHEUS_RELEASE_STATUS" in
+    deployed)
+      DEPLOY_PROMETHEUS=true
+      ;;
+    "")
+      DEPLOY_PROMETHEUS=false
+      echo "🟡 Prometheus Helm release is not installed. Skipping Prometheus in upgrade mode."
+      ;;
+    *)
+      DEPLOY_PROMETHEUS=false
+      echo "🟡 Prometheus Helm release is in '$PROMETHEUS_RELEASE_STATUS' state. Skipping Prometheus in upgrade mode."
+      echo "🟡 Use clean mode or repair the Prometheus release separately to reinstall monitoring."
+      ;;
+  esac
   HELM_JAEGER_CMD="upgrade --install --wait"
   HELM_PROM_CMD="upgrade --install --wait"
 else
@@ -155,11 +170,15 @@ fi
 
 echo "🟢 Deploying Prometheus..."
 kubectl apply -f prometheus-svc.yaml
-helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
-  --version "$PROMETHEUS_STACK_CHART_VERSION" \
-  --set crds.upgradeJob.enabled=true \
-  --set crds.upgradeJob.forceConflicts=true \
-  -f monitoring-values.yaml
+if [[ "$DEPLOY_PROMETHEUS" == "true" ]]; then
+  helm $HELM_PROM_CMD --timeout 10m0s prometheus "$PROMETHEUS_STACK_CHART" \
+    --version "$PROMETHEUS_STACK_CHART_VERSION" \
+    --set crds.upgradeJob.enabled=true \
+    --set crds.upgradeJob.forceConflicts=true \
+    -f monitoring-values.yaml
+else
+  echo "🟡 Skipped Prometheus Helm deployment."
+fi
 
 # Create ConfigMap for Trace Generator
 echo "🔵 Step 3: Creating ConfigMap for Trace Generator..."
