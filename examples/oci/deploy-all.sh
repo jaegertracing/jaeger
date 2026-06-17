@@ -31,7 +31,10 @@ uninstall_release() {
 }
 
 release_status() {
-  helm status "$1" 2>/dev/null | awk -F': ' '$1 == "STATUS" { print $2; exit }'
+  local output
+
+  output=$(helm status "$1" 2>/dev/null || true)
+  awk -F': ' '$1 == "STATUS" { print $2 }' <<< "$output"
 }
 
 prepare_upgrade_release() {
