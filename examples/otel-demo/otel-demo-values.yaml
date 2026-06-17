@@ -85,6 +85,16 @@ components:
 opentelemetry-collector:
   image:
     repository: docker.io/otel/opentelemetry-collector-contrib
+  presets:
+    hostMetrics:
+      enabled: false
+    kubeletMetrics:
+      enabled: false
+    clusterMetrics:
+      enabled: false
+    annotationDiscovery:
+      metrics:
+        enabled: false
   config:
     receivers:
       otlp:
@@ -119,7 +129,14 @@ opentelemetry-collector:
       debug: null
       otlp: null
     service:
-      telemetry: null
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: ${env:MY_POD_IP}
+                    port: 8888
       pipelines:
         traces:
           receivers: [otlp]
