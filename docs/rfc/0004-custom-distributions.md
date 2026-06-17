@@ -323,6 +323,10 @@ dist:
   name: jaeger-custom
   version: 1.0.0
 
+telemetry:
+  gomod: github.com/jaegertracing/jaeger v1.72.0
+  import: github.com/jaegertracing/jaeger/components/telemetry
+
 extensions:
   - gomod: github.com/jaegertracing/jaeger v1.72.0
     import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
@@ -378,7 +382,15 @@ Simply remove `internal` from the path (e.g., `cmd/jaeger/components/...`). This
 
 1. **Which components to expose:** Only production components get public facades. Testing helpers like `storagecleaner` are excluded.
 
-2. **Telemetry factory wrapper:** Jaeger's `WrapFactory` (`cmd/jaeger/internal/telemetry.go`) replaces the default `CreateTracerProvider` with a filtering implementation that prevents recursive self-tracing. It maintains an allowlist of components (`jaeger_query`, `jaeger_mcp`) that receive the real `TracerProvider`; all other components (receivers, exporters, processors) get a noop tracer. This is critical for any Jaeger distribution where the OTLP receiver is the export destination — without it, the write path would generate traces that feed back into itself. **Decision:** The telemetry wrapper must be exposed as part of the public API (e.g., `components/telemetry.WrapFactory()`), since custom distributions face the same recursive tracing problem.
+2. **Telemetry factory wrapper:** Jaeger's `WrapFactory` (`cmd/jaeger/internal/telemetry.go`) replaces the default `CreateTracerProvider` with a filtering implementation that prevents recursive self-tracing. It maintains an allowlist of components (`jaeger_query`, `jaeger_mcp`) that receive the real `TracerProvider`; all other components (receivers, exporters, processors) get a noop tracer. This is critical for any Jaeger distribution where the OTLP receiver is the export destination — without it, the write path would generate traces that feed back into itself. **Decision:** Expose as `components/telemetry` with a `NewFactory()` that returns the wrapped factory. The `ocb` manifest already supports a custom `telemetry` field — the generated code simply calls `{{package}}.NewFactory()` on whatever is specified:
+
+    ```yaml
+    telemetry:
+      gomod: github.com/jaegertracing/jaeger v1.72.0
+      import: github.com/jaegertracing/jaeger/components/telemetry
+    ```
+
+    This integrates cleanly with `ocb` — no special handling required.
 
 3. **Default config embedding:** Not needed. Custom distributions inherently require custom configs to enable their additional components — providing a default `all-in-one.yaml` would be misleading.
 
