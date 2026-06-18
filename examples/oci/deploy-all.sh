@@ -34,7 +34,13 @@ uninstall_release() {
 release_status() {
   local output
 
-  output=$(helm status "$1" 2>/dev/null || true)
+  if ! output=$(helm status "$1" 2>&1); then
+    if grep -q "release: not found" <<< "$output"; then
+      return 0
+    fi
+    echo "$output" >&2
+    return 1
+  fi
   awk -F': ' '$1 == "STATUS" { print $2 }' <<< "$output"
 }
 

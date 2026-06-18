@@ -14,9 +14,9 @@ HOTROD_IMAGE_REPOSITORY="${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY:-jaegertracing/ex
 JAEGER_IMAGE_TAG="${JAEGER_DEMO_JAEGER_IMAGE_TAG:-$IMAGE_TAG}"
 HOTROD_IMAGE_TAG="${JAEGER_DEMO_HOTROD_IMAGE_TAG:-1.72.0}"
 IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
-PUBLIC_JAEGER_URL="${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}"
+PUBLIC_JAEGER_URL="${JAEGER_DEMO_PUBLIC_JAEGER_URL:-${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
-DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-all}"
+DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}"
 
 case "$MODE" in
   upgrade|clean)
@@ -201,7 +201,7 @@ smoke_expect() {
   local output=$3
 
   for attempt in $(seq 1 12); do
-    if curl -fsS "$url" -o "$output" && grep -q "$expected" "$output"; then
+    if curl --connect-timeout 5 --max-time 20 -fsS "$url" -o "$output" && grep -Fq "$expected" "$output"; then
       log "Smoke check passed: $url"
       return 0
     fi
@@ -394,7 +394,11 @@ main() {
   if ! helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
     --namespace jaeger --create-namespace \
     --set allInOne.enabled=true \
-    --set storage.type=memory \
+    --set storage.type=elasticsearch \
+    --set storage.elasticsearch.anonymous=true \
+    --set storage.elasticsearch.usePassword=false \
+    --set storage.elasticsearch.host=opensearch-cluster-single.opensearch.svc.cluster.local \
+    --set storage.elasticsearch.port=9200 \
     --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}" \
     --set allInOne.image.tag="${JAEGER_IMAGE_TAG}" \
     --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}" \
