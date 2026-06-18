@@ -68,6 +68,31 @@ components:
       repository: docker.io/valkey/valkey
       tag: "8.1.3-alpine"
 
+  postgresql:
+    resources:
+      limits:
+        memory: 256Mi
+
+  product-catalog:
+    env:
+      - name: PRODUCT_CATALOG_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: GOMEMLIMIT
+        value: 48MiB
+      - name: DB_CONNECTION_STRING
+        value: postgres://otelu:otelp@postgresql/otel?sslmode=disable
+      - name: OTEL_SEMCONV_STABILITY_OPT_IN
+        value: database
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 64Mi
+
 # Override Collector config to export traces to Jaeger only and drop demo metrics/logs
 opentelemetry-collector:
   image:
@@ -82,7 +107,20 @@ opentelemetry-collector:
     annotationDiscovery:
       metrics:
         enabled: false
-  config:
+  ports:
+    otlp:
+      hostPort: null
+    otlp-http:
+      hostPort: null
+    jaeger-compact:
+      hostPort: null
+    jaeger-grpc:
+      hostPort: null
+    jaeger-thrift:
+      hostPort: null
+    zipkin:
+      hostPort: null
+  alternateConfig:
     receivers:
       otlp:
         protocols:
@@ -92,8 +130,9 @@ opentelemetry-collector:
               allowed_origins:
                 - http://*
                 - https://*
-      httpcheck/frontend-proxy: null
-      redis: null
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
     processors:
       memory_limiter: {}
       k8sattributes: {}
@@ -102,20 +141,14 @@ opentelemetry-collector:
           - key: service.instance.id
             from_attribute: k8s.pod.uid
             action: insert
-      transform: null
       batch: {}
-    connectors:
-      spanmetrics: null
     exporters:
       otlp/jaeger:
         endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
         tls:
           insecure: true
-      opensearch: null
-      otlphttp/prometheus: null
-      debug: null
-      otlp: null
     service:
+      extensions: [health_check]
       telemetry:
         metrics:
           readers:
@@ -129,5 +162,3 @@ opentelemetry-collector:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
           exporters: [otlp/jaeger]
-        metrics: null
-        logs: null

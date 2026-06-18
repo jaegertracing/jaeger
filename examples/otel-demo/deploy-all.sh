@@ -109,6 +109,21 @@ diagnose_deployment_failure() {
   kubectl -n "$namespace" get events --sort-by=.lastTimestamp | tail -80 || true
 }
 
+diagnose_otel_demo_failure() {
+  log "Collecting diagnostics for namespace otel-demo"
+  kubectl -n otel-demo get deploy,daemonset,replicaset,pods,svc,endpoints -o wide || true
+  kubectl -n otel-demo describe daemonset otel-collector-agent || true
+  kubectl -n otel-demo describe deployment postgresql || true
+  kubectl -n otel-demo describe deployment product-catalog || true
+  kubectl -n otel-demo describe pods -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo || true
+  kubectl -n otel-demo describe pods -l opentelemetry.io/name=postgresql || true
+  kubectl -n otel-demo describe pods -l opentelemetry.io/name=product-catalog || true
+  kubectl -n otel-demo logs -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo --all-containers --tail=200 --prefix || true
+  kubectl -n otel-demo logs -l opentelemetry.io/name=postgresql --all-containers --tail=200 --prefix || true
+  kubectl -n otel-demo logs -l opentelemetry.io/name=product-catalog --all-containers --tail=200 --prefix || true
+  kubectl -n otel-demo get events --sort-by=.lastTimestamp | tail -120 || true
+}
+
 wait_for_statefulset() {
   local namespace="$1"
   local sts="$2"
@@ -412,10 +427,13 @@ main() {
 
   if deploy_full_stack; then
     log "Deploying OpenTelemetry Demo (with in-cluster Collector)"
-    helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
+    if ! helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
       -f "$SCRIPT_DIR/otel-demo-values.yaml" \
       --namespace otel-demo --create-namespace \
-      --wait --timeout 15m
+      --wait --timeout 15m; then
+      diagnose_otel_demo_failure
+      err "Helm release otel-demo failed"
+    fi
     wait_for_deployment otel-demo otel-collector "${ROLLOUT_TIMEOUT}s"
     wait_for_deployment otel-demo frontend "${ROLLOUT_TIMEOUT}s"
     wait_for_deployment otel-demo load-generator "${ROLLOUT_TIMEOUT}s"
