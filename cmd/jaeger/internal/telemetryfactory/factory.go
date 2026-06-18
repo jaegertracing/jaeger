@@ -1,13 +1,14 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package internal
+package telemetryfactory
 
 import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
 	coltelemetry "go.opentelemetry.io/collector/service/telemetry"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/embedded"
@@ -77,6 +78,11 @@ func WrapFactory(delegate coltelemetry.Factory) coltelemetry.Factory {
 		coltelemetry.WithCreateMeterProvider(delegate.CreateMeterProvider),
 		coltelemetry.WithCreateTracerProvider(createTracerProvider),
 	)
+}
+
+// NewFactory returns the Jaeger telemetry factory (wrapping the default otelconf factory).
+func NewFactory() coltelemetry.Factory {
+	return WrapFactory(otelconftelemetry.NewFactory())
 }
 
 // createTracerProvider is the CreateTracerProviderFunc used by WrapFactory.

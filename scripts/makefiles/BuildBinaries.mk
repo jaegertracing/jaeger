@@ -173,3 +173,11 @@ build-all-platforms:
 	  echo "Building binaries for $$platform"; \
 	  $(MAKE) build-binaries-$$platform; \
 	done
+
+# Build Jaeger using ocb (OpenTelemetry Collector Builder).
+# This validates that the public facade packages work correctly with ocb.
+.PHONY: build-ocb
+build-ocb: $(OCB)
+	@echo "Building Jaeger with ocb"
+	$(OCB) --config cmd/jaeger/builder.yaml --skip-strict-versioning
+	@echo "✅ ocb build successful: cmd/jaeger/_build/"

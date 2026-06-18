@@ -1,0 +1,58 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Validates that the ocb (OpenTelemetry Collector Builder) can produce a working
+# Jaeger binary from the public facade packages, and that it passes the same
+# integration tests as the standard build.
+
+name: OCB Build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  ocb-build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
+      with:
+        egress-policy: audit
+
+    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      with:
+        submodules: true
+
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+
+    - uses: ./.github/actions/setup-node.js
+
+    - name: Install tools
+      run: make install-ci
+
+    - name: Build UI
+      run: make build-ui
+
+    - name: Build Jaeger with ocb
+      run: make build-ocb
+
+    - name: Run ocb-built binary
+      run: |
+        ./cmd/jaeger/_build/jaeger --config cmd/jaeger/config-ocb-smoketest.yaml &
+        echo "JAEGER_PID=$!" >> "$GITHUB_ENV"
+
+    - name: Run integration tests against ocb binary
+      run: |
+        HEALTHCHECK_V2=true make all-in-one-integration-test
+
+    - name: Stop Jaeger
+      if: always()
+      run: |
+        if [ -n "${JAEGER_PID:-}" ]; then
+          kill "$JAEGER_PID" 2>/dev/null || true
+        fi
