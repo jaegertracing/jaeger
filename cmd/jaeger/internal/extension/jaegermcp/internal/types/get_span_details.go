@@ -11,7 +11,9 @@ type GetSpanDetailsInput struct {
 	// SpanIDs is a list of span IDs to fetch details for (required).
 	// When a trace has more spans than the server limit, pass all span IDs and
 	// set Offset to the returned NextOffset to paginate through them.
-	SpanIDs []string `json:"span_ids" jsonschema:"List of span IDs to fetch details for"`
+	// WARNING: Passing extremely large span_ids arrays can significantly increase payload size
+	// and bandwidth usage when paginating. Only include span IDs you actually need details for.
+	SpanIDs []string `json:"span_ids" jsonschema:"List of span IDs to fetch details for. WARNING: Avoid passing extremely large arrays unless necessary to reduce payload size during pagination."`
 
 	// Offset is the starting index into SpanIDs for this page (optional, default: 0).
 	// On the first call omit this field or set it to 0. On subsequent calls set it

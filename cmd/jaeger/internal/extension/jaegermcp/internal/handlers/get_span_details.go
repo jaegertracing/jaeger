@@ -55,7 +55,8 @@ func (h *getSpanDetailsHandler) handle(
 	if input.TraceID == "" {
 		return nil, types.GetSpanDetailsOutput{}, errors.New("trace_id is required")
 	}
-	if _, err := parseTraceID(input.TraceID); err != nil {
+	traceID, err := parseTraceID(input.TraceID)
+	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("invalid trace_id: %w", err)
 	}
 	if len(input.SpanIDs) == 0 {
@@ -78,11 +79,8 @@ func (h *getSpanDetailsHandler) handle(
 		}, nil
 	}
 
-	// Build query parameters (includes trace ID validation)
-	params, err := h.buildQuery(input)
-	if err != nil {
-		return nil, types.GetSpanDetailsOutput{}, err
-	}
+	// Build query parameters
+	params := h.buildQuery(traceID)
 
 	end := len(input.SpanIDs)
 	if h.maxSpanDetailsPerRequest > 0 && start+h.maxSpanDetailsPerRequest < end {
@@ -157,28 +155,14 @@ func (h *getSpanDetailsHandler) handle(
 	return nil, output, nil
 }
 
-// buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
-func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
-	// Validate required fields
-	if input.TraceID == "" {
-		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
-	}
-
-	if len(input.SpanIDs) == 0 {
-		return querysvc.GetTraceParams{}, errors.New("span_ids is required and must not be empty")
-	}
-
-	traceID, err := parseTraceID(input.TraceID)
-	if err != nil {
-		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
-	}
-
+// buildQuery builds the query params using the parsed trace ID.
+func (h *getSpanDetailsHandler) buildQuery(traceID pcommon.TraceID) querysvc.GetTraceParams {
 	return querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
 		},
 		RawTraces: false, // We want adjusted traces
-	}, nil
+	}
 }
 
 // buildSpanDetail constructs a SpanDetail from a ptrace.Span.
