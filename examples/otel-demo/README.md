@@ -43,7 +43,7 @@ ROLLOUT_TIMEOUT=900 ./deploy-all.sh clean
   - OpenSearch (single node) StatefulSet
   - OpenSearch Dashboards Deployment
 - Namespace `jaeger`:
-  - Jaeger all-in-one Deployment (storage=none)
+  - Jaeger all-in-one Deployment with OpenSearch-backed trace storage
   - HOTROD application
   - Jaeger Query ClusterIP service (jaeger-query-clusterip)
 - Namespace `otel-demo`:
@@ -69,6 +69,7 @@ kubectl get svc -n otel-demo
  - OpenSearch Dashboards:
 ```bash path=null start=null
 ./start-port-forward.sh
+```
 
 
 ## Customization
@@ -81,6 +82,11 @@ kubectl get svc -n otel-demo
   - `jaeger-query-service.yaml`
 
 You can adjust these files and re-run `./deploy-all.sh upgrade` to apply changes.
+
+The Jaeger deployment uses `jaeger-config.yaml` to configure the Jaeger v2
+`jaeger_storage` extension against the in-cluster OpenSearch service. The Helm
+chart storage type is set to `elasticsearch` for compatibility with the chart's
+persistent-storage wiring, while the Jaeger runtime config points at OpenSearch.
 
 ## Clean-up
 - Clean uninstall using cleanup.sh :
@@ -95,6 +101,5 @@ helm uninstall jaeger -n jaeger || true
 helm uninstall otel-demo -n otel-demo || true
 kubectl delete namespace opensearch jaeger otel-demo --ignore-not-found=true
 ```
-
 
 
