@@ -19,8 +19,41 @@ default:
     # Narrower service namespace + explicit environment tag
     - name: OTEL_RESOURCE_ATTRIBUTES
       value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
+    # The in-cluster collector is traces-only. Disable SDK logs/metrics export noise.
+    - name: OTEL_LOGS_EXPORTER
+      value: none
+    - name: OTEL_METRICS_EXPORTER
+      value: none
 
 components:
+  ad:
+    useDefault:
+      env: false
+    env:
+      - name: OTEL_SERVICE_NAME
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: "metadata.labels['app.kubernetes.io/component']"
+      - name: OTEL_COLLECTOR_NAME
+        value: otel-collector
+      - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+        value: cumulative
+      - name: OTEL_LOGS_EXPORTER
+        value: none
+      - name: OTEL_METRICS_EXPORTER
+        value: none
+      - name: AD_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: OTEL_RESOURCE_ATTRIBUTES
+        value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
+
   accounting:
     initContainers:
       - name: wait-for-kafka

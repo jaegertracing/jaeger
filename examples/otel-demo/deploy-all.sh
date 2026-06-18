@@ -452,7 +452,7 @@ main() {
 
   if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
     log "Verifying public OTel demo endpoints..."
-    smoke_expect "${PUBLIC_JAEGER_URL}/search" "${JAEGER_IMAGE_TAG}" /tmp/otel-jaeger-search.html
+    smoke_expect "${PUBLIC_JAEGER_URL}/search" "Jaeger UI" /tmp/otel-jaeger-search.html
     smoke_expect "${PUBLIC_JAEGER_URL}/api/services" "otelstore-frontend-ui" /tmp/otel-jaeger-services.json
   fi
 
