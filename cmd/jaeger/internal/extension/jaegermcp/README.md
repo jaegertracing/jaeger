@@ -20,28 +20,6 @@ See [ADR-002](/docs/adr/002-mcp-server.md) for full design details.
 
 * `/mcp`
 
-## Skills
-
-The MCP server exposes built-in agent skills as MCP Resources. Any MCP-aware agent can discover and load skills using standard `resources/list` and `resources/read` operations — no custom protocol required.
-
-Each skill is addressable via a `skill://` URI and returns a [SKILL.md](https://agentskills.io) file containing YAML frontmatter (name, description) followed by a Markdown body with step-by-step instructions for the agent.
-
-### Built-in skills
-
-| URI | Description |
-|-----|-------------|
-| `skill://skills-index` | Index of all available skills. Read this first to discover what capabilities exist. |
-| `skill://greet-user` | Respond with a personalized greeting when a user introduces themselves. |
-| `skill://echo-message` | Repeat the user's message back in uppercase. |
-
-### Discovery workflow
-
-```
-resources/list                            → see all skill:// resources
-resources/read skill://skills-index → discover skills and when to use them
-resources/read skill://<name>             → load full instructions for a skill
-```
-
 ## Available Tools
 
 * `get_services`
