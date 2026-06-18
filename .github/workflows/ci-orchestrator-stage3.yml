@@ -14,6 +14,10 @@ jobs:
     uses: ./.github/workflows/ci-build-binaries.yml
     secrets: inherit
 
+  ocb-build:
+    uses: ./.github/workflows/ci-ocb-build.yml
+    secrets: inherit
+
   docker-build:
     uses: ./.github/workflows/ci-docker-build.yml
     secrets: inherit

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package internal
+package telemetryfactory
 
 import (
 	"context"
@@ -31,6 +31,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
+
+func TestNewFactory(t *testing.T) {
+	f := NewFactory()
+	assert.NotNil(t, f)
+}
 
 func TestFilteringTracerProvider_AllowedComponent(t *testing.T) {
 	realTP := sdktrace.NewTracerProvider()
