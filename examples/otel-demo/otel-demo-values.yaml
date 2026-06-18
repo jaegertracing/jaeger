@@ -160,8 +160,10 @@ opentelemetry-collector:
     receivers:
       otlp:
         protocols:
-          grpc: {}
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
           http:
+            endpoint: ${env:MY_POD_IP}:4318
             cors:
               allowed_origins:
                 - http://*

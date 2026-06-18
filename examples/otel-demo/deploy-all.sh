@@ -97,6 +97,20 @@ wait_for_deployment() {
   log "Deployment $deployment is ready"
 }
 
+wait_for_daemonset() {
+  local namespace="$1"
+  local daemonset="$2"
+  local timeout="${3:-${ROLLOUT_TIMEOUT}s}"
+  log "Waiting for daemonset $daemonset in $namespace..."
+  if ! kubectl rollout status "daemonset/$daemonset" -n "$namespace" --timeout="$timeout"; then
+    kubectl -n "$namespace" get daemonset "$daemonset" -o wide || true
+    kubectl -n "$namespace" describe daemonset "$daemonset" || true
+    kubectl -n "$namespace" get pods -o wide || true
+    err "DaemonSet $daemonset failed to become ready in $namespace"
+  fi
+  log "DaemonSet $daemonset is ready"
+}
+
 diagnose_deployment_failure() {
   local namespace=$1
   local deployment=$2
@@ -112,15 +126,27 @@ diagnose_deployment_failure() {
 diagnose_otel_demo_failure() {
   log "Collecting diagnostics for namespace otel-demo"
   kubectl -n otel-demo get deploy,daemonset,replicaset,pods,svc,endpoints -o wide || true
+  kubectl -n otel-demo describe svc otel-collector || true
+  kubectl -n otel-demo get endpoints otel-collector -o yaml || true
   kubectl -n otel-demo describe daemonset otel-collector-agent || true
+  kubectl -n otel-demo describe deployment frontend || true
+  kubectl -n otel-demo describe deployment frontend-proxy || true
+  kubectl -n otel-demo describe deployment load-generator || true
   kubectl -n otel-demo describe deployment postgresql || true
   kubectl -n otel-demo describe deployment product-catalog || true
+  kubectl -n otel-demo logs -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo --all-containers --tail=300 --prefix || true
+  kubectl -n otel-demo logs -l opentelemetry.io/name=frontend --all-containers --tail=200 --prefix || true
+  kubectl -n otel-demo logs -l opentelemetry.io/name=frontend-proxy --all-containers --tail=200 --prefix || true
+  kubectl -n otel-demo logs -l opentelemetry.io/name=load-generator --all-containers --tail=200 --prefix || true
+  kubectl -n otel-demo logs -l opentelemetry.io/name=checkout --all-containers --tail=200 --prefix || true
   kubectl -n otel-demo describe pods -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo || true
   kubectl -n otel-demo describe pods -l opentelemetry.io/name=postgresql || true
   kubectl -n otel-demo describe pods -l opentelemetry.io/name=product-catalog || true
-  kubectl -n otel-demo logs -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo --all-containers --tail=200 --prefix || true
   kubectl -n otel-demo logs -l opentelemetry.io/name=postgresql --all-containers --tail=200 --prefix || true
   kubectl -n otel-demo logs -l opentelemetry.io/name=product-catalog --all-containers --tail=200 --prefix || true
+  log "Collecting Jaeger diagnostics"
+  kubectl -n jaeger get deploy,pods,svc,endpoints -o wide || true
+  kubectl -n jaeger logs deployment/jaeger --all-containers --tail=300 --prefix || true
   kubectl -n otel-demo get events --sort-by=.lastTimestamp | tail -120 || true
 }
 
@@ -438,7 +464,7 @@ main() {
       diagnose_otel_demo_failure
       err "Helm release otel-demo failed"
     fi
-    wait_for_deployment otel-demo otel-collector "${ROLLOUT_TIMEOUT}s"
+    wait_for_daemonset otel-demo otel-collector-agent "${ROLLOUT_TIMEOUT}s"
     wait_for_deployment otel-demo frontend "${ROLLOUT_TIMEOUT}s"
     wait_for_deployment otel-demo load-generator "${ROLLOUT_TIMEOUT}s"
   else
@@ -452,8 +478,14 @@ main() {
 
   if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
     log "Verifying public OTel demo endpoints..."
-    smoke_expect "${PUBLIC_JAEGER_URL}/search" "Jaeger UI" /tmp/otel-jaeger-search.html
-    smoke_expect "${PUBLIC_JAEGER_URL}/api/services" "otelstore-frontend-ui" /tmp/otel-jaeger-services.json
+    if ! smoke_expect "${PUBLIC_JAEGER_URL}/search" "Jaeger UI" /tmp/otel-jaeger-search.html; then
+      diagnose_otel_demo_failure
+      err "Public Jaeger UI smoke check failed"
+    fi
+    if ! smoke_expect "${PUBLIC_JAEGER_URL}/api/services" '"checkout"' /tmp/otel-jaeger-services.json; then
+      diagnose_otel_demo_failure
+      err "Public Jaeger services smoke check failed"
+    fi
   fi
 
   log "🎉 Deployment complete! Stack is ready."
