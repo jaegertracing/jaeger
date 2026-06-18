@@ -13,14 +13,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//go:embed builtin/*/SKILL.md
+//go:embed all:skills
 var builtinFS embed.FS
 
 // Skill is a built-in agent skill loaded from an embedded SKILL.md file.
 type Skill struct {
 	Name        string
 	Description string
-	// Body is the full SKILL.md content including frontmatter, returned verbatim on resources/read.
+	// Body is the full SKILL.md content including frontmatter.
 	Body string
 }
 
@@ -40,7 +40,7 @@ var (
 func BuiltinSkills(logger *zap.Logger) []Skill {
 	builtinOnce.Do(func() {
 		var result []Skill
-		err := fs.WalkDir(builtinFS, "builtin", func(path string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(builtinFS, "skills", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -123,4 +123,8 @@ func dirFromPath(path string) string {
 		return parts[len(parts)-2]
 	}
 	return ""
+}
+
+func ReadFile(path string) ([]byte, error) {
+	return builtinFS.ReadFile(path)
 }

@@ -329,3 +329,59 @@ func TestToRequestErrorWrapsPlainError(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, -32603, got.Code, "plain errors should be wrapped as InternalError")
 }
+
+func TestReadTextFile_ReturnsSkillContent(t *testing.T) {
+	f := freshDispatcher(t)
+
+	params, err := json.Marshal(acp.ReadTextFileRequest{
+		Path: "/skills/greet-user/SKILL.md",
+	})
+	require.NoError(t, err)
+
+	result, reqErr := f.d(t.Context(), acp.ClientMethodFsReadTextFile, params)
+	require.Nil(t, reqErr)
+
+	resp, ok := result.(acp.ReadTextFileResponse)
+	require.True(t, ok, "expected ReadTextFileResponse, got %T", result)
+	assert.Contains(t, resp.Content, "greet-user")
+	assert.Contains(t, resp.Content, "---\n")
+}
+
+func TestReadTextFile_RejectsTraversal(t *testing.T) {
+	f := freshDispatcher(t)
+
+	params, err := json.Marshal(acp.ReadTextFileRequest{
+		Path: "../../etc/passwd",
+	})
+	require.NoError(t, err)
+
+	_, reqErr := f.d(t.Context(), acp.ClientMethodFsReadTextFile, params)
+	require.NotNil(t, reqErr, "directory traversal must be rejected")
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestReadTextFile_UnknownPath(t *testing.T) {
+	f := freshDispatcher(t)
+
+	params, err := json.Marshal(acp.ReadTextFileRequest{
+		Path: "/skills/nonexistent-skill/SKILL.md",
+	})
+	require.NoError(t, err)
+
+	_, reqErr := f.d(t.Context(), acp.ClientMethodFsReadTextFile, params)
+	require.NotNil(t, reqErr, "unknown path must return an error")
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestReadTextFile_AbsolutePath(t *testing.T) {
+	f := freshDispatcher(t)
+
+	params, err := json.Marshal(acp.ReadTextFileRequest{
+		Path: "/etc/passwd",
+	})
+	require.NoError(t, err)
+
+	_, reqErr := f.d(t.Context(), acp.ClientMethodFsReadTextFile, params)
+	require.NotNil(t, reqErr, "absolute path outside embedded FS must be rejected")
+	assert.Equal(t, -32602, reqErr.Code)
+}

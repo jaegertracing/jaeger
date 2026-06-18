@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import asyncio
+import json
 import logging
 from typing import Any
 
+import requests
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.genai import types
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
@@ -29,6 +31,7 @@ class JaegerMCPBridge:
         )
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
+        self._server_instructions: str = ""
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -68,6 +71,10 @@ class JaegerMCPBridge:
                 logger.error("%s Error: %s", message, exc)
                 raise RuntimeError(message) from exc
 
+            self._server_instructions = await asyncio.to_thread(
+                self._fetch_server_instructions
+            )
+
             self._tools_by_name = {tool.name: tool for tool in adk_tools}
             logger.info("Retrieved tools from MCP: %s", list(self._tools_by_name.keys()))
 
@@ -83,6 +90,47 @@ class JaegerMCPBridge:
                 self._gemini_tools = []
 
             self._initialized = True
+
+    def _fetch_server_instructions(self) -> str:
+        """Fetch MCP server instructions via a raw initialize call.
+
+        The ADK MCPToolset does not expose the server's `instructions` field,
+        so we make a lightweight Streamable HTTP request to get it. This is
+        generic MCP behavior — any MCP server can provide instructions.
+        """
+        try:
+            resp = requests.post(
+                self._mcp_url,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "instructions-probe",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": {"name": "jaeger-sidecar-instructions-probe", "version": "1"},
+                    },
+                },
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream",
+                },
+                timeout=5,
+            )
+            for line in resp.text.splitlines():
+                if line.startswith("data: "):
+                    payload = json.loads(line[6:])
+                    instructions = payload.get("result", {}).get("instructions", "")
+                    if instructions:
+                        logger.info("Fetched MCP server instructions (%d chars)", len(instructions))
+                        return instructions
+        except Exception as e:
+            logger.warning("Failed to fetch MCP server instructions: %s", e)
+        return ""
+
+    async def get_server_instructions(self) -> str:
+        await self.initialize()
+        return self._server_instructions
 
     async def get_gemini_tools(self) -> list[types.Tool]:
         await self.initialize()

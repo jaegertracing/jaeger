@@ -182,7 +182,7 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                     {
                         "protocolVersion": PROTOCOL_VERSION,
                         "clientCapabilities": {
-                            "fs": {"readTextFile": False, "writeTextFile": False},
+                            "fs": {"readTextFile": True, "writeTextFile": False},
                             "terminal": False,
                         },
                         "clientInfo": {

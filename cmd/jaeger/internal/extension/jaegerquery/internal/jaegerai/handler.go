@@ -125,7 +125,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
-			Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
+			Fs:       acp.FileSystemCapabilities{ReadTextFile: true, WriteTextFile: false},
 			Terminal: false,
 		},
 		ClientInfo: &acp.Implementation{

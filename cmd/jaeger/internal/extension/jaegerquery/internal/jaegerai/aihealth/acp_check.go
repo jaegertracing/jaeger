@@ -50,7 +50,7 @@ func NewACPCheck(agentURL string, logger *zap.Logger) func(ctx context.Context) 
 		req := acp.InitializeRequest{
 			ProtocolVersion: acp.ProtocolVersionNumber,
 			ClientCapabilities: acp.ClientCapabilities{
-				Fs:       acp.FileSystemCapabilities{ReadTextFile: false, WriteTextFile: false},
+				Fs:       acp.FileSystemCapabilities{ReadTextFile: true, WriteTextFile: false},
 				Terminal: false,
 			},
 			ClientInfo: &acp.Implementation{

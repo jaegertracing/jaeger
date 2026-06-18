@@ -64,6 +64,7 @@ class JaegerSidecarAgent(Agent):
         super().__init__()
         config.validate()
         self._conn: Client | None = None
+        self._client_caps: Any = None
         self._gemini = genai.Client(api_key=config.gemini_api_key)
         self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
         self._next_session_id = 1
@@ -112,6 +113,7 @@ class JaegerSidecarAgent(Agent):
                 f"Unsupported ACP protocol version: {protocol_version}. "
                 f"Supported version: {PROTOCOL_VERSION}."
             )
+        self._client_caps = client_capabilities
         logger.info("Agent initialized with protocol version %s", protocol_version)
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
@@ -195,6 +197,88 @@ class JaegerSidecarAgent(Agent):
         Called by ACP runtime to enumerate available sessions for the client.
         """
         return ListSessionsResponse(sessions=[])
+
+    def _build_acp_tool_declarations(self) -> list[types.FunctionDeclaration]:
+        """Bridge advertised ACP client capabilities into Gemini function declarations.
+
+        Reads clientCapabilities from the initialize handshake and returns
+        FunctionDeclaration objects for each capability the gateway advertised.
+        No skills-specific logic — pure ACP capability bridging.
+        """
+        declarations: list[types.FunctionDeclaration] = []
+        fs = getattr(self._client_caps, "fs", None)
+        if fs and getattr(fs, "read_text_file", False):
+            declarations.append(
+                types.FunctionDeclaration(
+                    name="fs_read_text_file",
+                    description="Read a text file from the workspace.",
+                    parameters_json_schema={
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "string",
+                                "description": "Path to the file to read.",
+                            }
+                        },
+                        "required": ["path"],
+                    },
+                )
+            )
+        return declarations
+
+    async def _execute_acp_function_call(
+        self,
+        session_id: str,
+        name: str,
+        args: dict[str, Any],
+        tool_call_id: str,
+    ) -> str | None:
+        """Execute an ACP function call locally via the ACP connection.
+
+        Returns the result string, or None if this isn't a recognized ACP function
+        (caller should route to MCP or contextual tools instead).
+        """
+        if name != "fs_read_text_file":
+            return None
+
+        with tracer().start_as_current_span("sidecar.execute_acp_call", attributes={
+            GEN_AI_TOOL_NAME: name,
+            GEN_AI_TOOL_CALL_ID: tool_call_id,
+            GEN_AI_CONVERSATION_ID: session_id,
+        }) as span:
+            try:
+                _validate_function_call(name, args, tool_call_id)
+                conn = self._require_conn()
+                await conn.session_update(
+                    session_id,
+                    start_tool_call(
+                        tool_call_id,
+                        name,
+                        kind="search",
+                        status="in_progress",
+                    ),
+                )
+
+                path = args.get("path", "")
+                result = await conn.read_text_file(path=path, session_id=session_id)
+                output_text = result.content
+
+                await conn.session_update(
+                    session_id,
+                    update_tool_call(
+                        tool_call_id,
+                        status="completed",
+                        content=[tool_content(text_block(output_text))],
+                        raw_output={"content": output_text},
+                    ),
+                )
+
+                return output_text
+            except Exception as e:
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                logger.warning("ACP call %s failed for session %s: %s", name, session_id, e)
+                return f"error: {e}"
 
     async def _execute_contextual_tool(
         self,
@@ -312,7 +396,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_REQUEST_MODEL: "gemini-2.5-flash",
         }):
             logger.info("Starting agentic Gemini loop for session %s", session_id)
-            system_instruction = (
+            base_instruction = (
                 "You are Jaeger AI, an assistant for distributed tracing investigations. "
                 "You will be given telemetry information from MCP tool results; treat that data as your source of truth. "
                 "When telemetry evidence is needed, request the MCP tool instead of answering from assumptions. "
@@ -321,6 +405,12 @@ class JaegerSidecarAgent(Agent):
                 "expand the query (service name, operation name, tags, and time range). "
                 "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps."
             )
+
+            mcp_instructions = await self._mcp.get_server_instructions()
+            if mcp_instructions:
+                system_instruction = base_instruction + "\n\n" + mcp_instructions
+            else:
+                system_instruction = base_instruction
 
             mcp_tools = await self._mcp.get_gemini_tools()
             mcp_tool_names: set[str] = set()
@@ -332,13 +422,19 @@ class JaegerSidecarAgent(Agent):
             contextual_tool_names = {t["name"] for t in contextual_tools if t.get("name")}
             contextual_gemini_tool = _build_gemini_contextual_tool(contextual_tools)
 
+            acp_declarations = self._build_acp_tool_declarations()
+            acp_tool_names = {d.name for d in acp_declarations if d.name}
+
             tools_for_gemini: list[Any] = list(mcp_tools)
+            if acp_declarations:
+                tools_for_gemini.append(types.Tool(function_declarations=acp_declarations))
             if contextual_gemini_tool is not None:
                 tools_for_gemini.append(contextual_gemini_tool)
 
             logger.info(
-                "Passing tools to Gemini: mcp=%s contextual=%s",
+                "Passing tools to Gemini: mcp=%s acp=%s contextual=%s",
                 sorted(mcp_tool_names),
+                sorted(acp_tool_names),
                 sorted(contextual_tool_names),
             )
 
@@ -367,7 +463,10 @@ class JaegerSidecarAgent(Agent):
                     name = function_call.name or ""
                     args = function_call.args or dict[str, Any]()
                     call_id = function_call.id or self._new_tool_call_id(name or "unnamed")
-                    if name in contextual_tool_names:
+                    if name in acp_tool_names:
+                        logger.info("Gemini requested ACP call: %s (call_id=%s)", name, call_id)
+                        tool_output = await self._execute_acp_function_call(session_id, name, args, call_id)
+                    elif name in contextual_tool_names:
                         logger.info("Gemini requested contextual tool call: %s (call_id=%s)", name, call_id)
                         tool_output = await self._execute_contextual_tool(session_id, name, args, call_id)
                     else:

@@ -214,7 +214,8 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.NotNil(t, promptReq, "expected prompt request to be captured")
 
 	require.EqualValues(t, acp.ProtocolVersionNumber, initReq.ProtocolVersion, "initialize protocol version mismatch")
-	require.False(t, initReq.ClientCapabilities.Fs.ReadTextFile || initReq.ClientCapabilities.Fs.WriteTextFile || initReq.ClientCapabilities.Terminal, "unexpected client capabilities in initialize: %+v", initReq.ClientCapabilities)
+	require.True(t, initReq.ClientCapabilities.Fs.ReadTextFile, "gateway must advertise readTextFile capability")
+	require.False(t, initReq.ClientCapabilities.Fs.WriteTextFile || initReq.ClientCapabilities.Terminal, "unexpected client capabilities in initialize: %+v", initReq.ClientCapabilities)
 	require.NotNil(t, initReq.ClientInfo, "client info should not be nil")
 	require.Equal(t, "jaeger-ai-gateway", initReq.ClientInfo.Name, "client name mismatch")
 	require.Equal(t, version.Get().GitVersion, initReq.ClientInfo.Version, "client version mismatch")

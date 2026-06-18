@@ -12,4 +12,4 @@ The following specialized skills are available. When a task matches a skill desc
 - **greet-user** — Respond to the user with a friendly greeting that includes their name. Use when starting a new conversation.
 - **echo-message** — Repeat the user's last message back in uppercase. Use when the user explicitly asks to be echoed or wants their message repeated loudly.
 
-> **For MCP clients:** each skill is also addressable as a `skill://` resource (e.g. `skill://greet-user`). Use `resources/read` to fetch its full SKILL.md body.
+> **To read a skill:** use `fs/read_text_file` with path `/skills/<name>/SKILL.md`

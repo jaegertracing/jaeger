@@ -8,10 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/skills"
 )
 
 // ExtMethodJaegerToolCall is the ACP extension method the sidecar invokes
@@ -106,10 +109,41 @@ func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger 
 		case ExtMethodJaegerToolCall:
 			return handleJaegerToolCall(params, store, logger)
 
+		case acp.ClientMethodFsReadTextFile:
+			var p acp.ReadTextFileRequest
+			if err := json.Unmarshal(params, &p); err != nil {
+				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+			}
+			return handleReadTextFile(p, logger)
+
 		default:
 			return nil, acp.NewMethodNotFound(method)
 		}
 	}
+}
+
+func handleReadTextFile(req acp.ReadTextFileRequest, logger *zap.Logger) (acp.ReadTextFileResponse, *acp.RequestError) {
+	rel := strings.TrimPrefix(req.Path, "/")
+
+	if strings.Contains(rel, "..") || filepath.IsAbs(rel) {
+		return acp.ReadTextFileResponse{}, acp.NewInvalidParams(map[string]any{
+			"error": fmt.Sprintf("invalid path: %q", req.Path),
+		})
+	}
+
+	content, err := skills.ReadFile(rel)
+	if err != nil {
+		return acp.ReadTextFileResponse{}, acp.NewInvalidParams(map[string]any{
+			"error": fmt.Sprintf("file not found: %q", req.Path),
+		})
+	}
+
+	logger.Info(
+		"fs/read_text_file served",
+		zap.String("path", req.Path),
+		zap.Int("content_length", len(content)),
+	)
+	return acp.ReadTextFileResponse{Content: string(content)}, nil
 }
 
 // handleJaegerToolCall handles contextual tool dispatches as

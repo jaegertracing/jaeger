@@ -10,7 +10,6 @@ import (
 	"iter"
 	"net/http"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -486,111 +485,4 @@ func toolNamesFromList(tools []*mcp.Tool) []string {
 	}
 	slices.Sort(names)
 	return names
-}
-
-// --- MCP Resources tests ---
-
-func TestResources_List_ReturnsAllSkills(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	result, err := s.ListResources(s.ctx, nil)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-
-	uris := make(map[string]bool, len(result.Resources))
-	for _, r := range result.Resources {
-		uris[r.URI] = true
-	}
-	assert.True(t, uris["skill://skills-index"], "skill://skills-index should appear in resources/list")
-	assert.True(t, uris["skill://greet-user"], "skill://greet-user should appear in resources/list")
-	assert.True(t, uris["skill://echo-message"], "skill://echo-message should appear in resources/list")
-	assert.GreaterOrEqual(t, len(result.Resources), 3, "should have at least 3 skill resources")
-}
-
-func TestResources_List_ResourcesHaveCorrectMIMEType(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	result, err := s.ListResources(s.ctx, nil)
-	require.NoError(t, err)
-
-	for _, r := range result.Resources {
-		assert.Equal(t, "text/markdown", r.MIMEType,
-			"resource %q should have text/markdown MIME type", r.URI)
-		assert.NotEmpty(t, r.Description, "resource %q should have a description", r.URI)
-	}
-}
-
-func TestResources_Read_ReturnsSkillBody(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	result, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://skills-index",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.NotEmpty(t, result.Contents, "ReadResource should return content")
-
-	c := result.Contents[0]
-	assert.Equal(t, "skill://skills-index", c.URI)
-	assert.Equal(t, "text/markdown", c.MIMEType)
-	assert.True(t, strings.HasPrefix(c.Text, "---\n"), "body should start with frontmatter delimiter")
-	assert.Contains(t, c.Text, "greet-user", "index body should reference greet-user")
-	assert.Contains(t, c.Text, "echo-message", "index body should reference echo-message")
-}
-
-func TestResources_Read_GreetUser(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	result, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://greet-user",
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, result.Contents)
-	assert.Contains(t, result.Contents[0].Text, "greet-user")
-}
-
-func TestResources_Read_UnknownSkill_ReturnsError(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	_, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://nonexistent-skill",
-	})
-	assert.Error(t, err, "reading an unknown skill:// URI should return an error")
-}
-
-func TestResources_Read_MalformedURI_ReturnsError(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	_, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "http://not-a-skill",
-	})
-	assert.Error(t, err, "reading a non-skill:// URI should return an error")
-}
-
-func TestResources_EndToEnd_DiscoverThenRead(t *testing.T) {
-	s := connectMCPSession(t, nil)
-
-	// Step 1: discover available resources
-	listResult, err := s.ListResources(s.ctx, nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, listResult.Resources)
-
-	// Step 2: read the index skill (entry point for agents)
-	indexResult, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://skills-index",
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, indexResult.Contents)
-
-	indexBody := indexResult.Contents[0].Text
-	assert.Contains(t, indexBody, "greet-user")
-	assert.Contains(t, indexBody, "echo-message")
-
-	// Step 3: follow a reference from the index to read a concrete skill
-	greetResult, err := s.ReadResource(s.ctx, &mcp.ReadResourceParams{
-		URI: "skill://greet-user",
-	})
-	require.NoError(t, err)
-	require.NotEmpty(t, greetResult.Contents)
-	assert.Contains(t, greetResult.Contents[0].Text, "greeting")
 }
