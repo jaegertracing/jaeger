@@ -98,7 +98,7 @@ func (p IndexPrefix) Apply(indexName string) string {
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
 	// ---- connection related configs ----
-	// Servers is a list of Elasticsearch servers. The strings must must contain full URLs
+	// Servers is a list of Elasticsearch servers. The strings must contain full URLs
 	// (i.e. http://localhost:9200).
 	Servers []string `mapstructure:"server_urls" valid:"required,url"`
 	// RemoteReadClusters is a list of Elasticsearch remote cluster names for cross-cluster
