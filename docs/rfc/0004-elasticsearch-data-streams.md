@@ -312,9 +312,12 @@ Key design choices:
 Jaeger also supports a config option to point to a user-provided policy JSON file:
 
 ```yaml
-es:
-  data_stream:
-    policy_file: "/etc/jaeger/my-policy.json"  # optional, overrides default policy
+elasticsearch:
+  indices:
+    spans:
+      rotation:
+        data_stream:
+          policy_file: "/etc/jaeger/my-policy.json"  # optional, overrides default policy
 ```
 
 When set, Jaeger reads this file and uses its contents instead of the built-in default when creating the policy. This is simpler than requiring users to create a separate k8s job or script just to POST a policy to ES/OpenSearch before Jaeger starts.
@@ -588,7 +591,7 @@ Once all legacy indices have aged out and been deleted by their existing cleanup
 
 ### 4.2 Fresh Installations
 
-For new deployments with no legacy data, no migration steps are needed. Simply set `index_management: data_stream` and leave `read_alias` unset. Jaeger reads and writes directly to/from the data stream.
+For new deployments with no legacy data, no migration steps are needed. Simply configure `rotation.data_stream` for the spans index and leave `read_alias` unset. Jaeger reads and writes directly to/from the data stream.
 
 ### 4.3 Rollback Path
 
@@ -598,7 +601,7 @@ If a user enables data streams and encounters problems, the rollback strategy de
 
 These modes already use a read alias (`jaeger-span-read`). The same forward-migration technique works in reverse — add the data stream to the existing read alias:
 
-1. Set `index_management` back to `manual_rollover` or `auto_rollover`.
+1. Change `spans.rotation` back to `manual_rollover` or `auto_rollover`.
 2. Add the data stream's backing indices to the existing read alias. Since the data stream's index template can include an alias (see Appendix A), add `jaeger-span-read` to the data stream's `@custom` component template:
    ```json
    PUT _component_template/jaeger.spans@custom
@@ -654,19 +657,19 @@ Services index is a deduplication cache (service name → exists). Dependencies 
 
 ### Q2: Feature gate or config flag?
 
-Should data streams be behind a feature gate (enabled by default after N releases) or a permanent config flag?
+Should data streams be behind a feature gate (enabled by default after N releases) or a permanent config option?
 
-Recommendation: Permanent enum value in `index_management`. Feature gates imply eventual removal of the old path. We should support legacy modes indefinitely for users who cannot use data streams (e.g., ES versions < 7.9, restrictive ES policies).
+Recommendation: Permanent variant in the `rotation` one-of. Feature gates imply eventual removal of the old path. We should support legacy modes indefinitely for users who cannot use data streams (e.g., ES versions < 7.9, restrictive ES policies).
 
 ### Q3: Minimum supported version
 
 Data streams require ES 7.9+ or OpenSearch 2.0+. Jaeger currently supports ES 7.x and 8.x, OpenSearch 1.x, 2.x, 3.x.
 
-Recommendation: Require OpenSearch 2.0+ or ES 7.9+ for `index_management: data_stream`. Fail startup with a clear error if the detected version is too old. OpenSearch 1.x users must upgrade before enabling data streams.
+Recommendation: Require OpenSearch 2.0+ or ES 7.9+ for `rotation.data_stream`. Fail startup with a clear error if the detected version is too old. OpenSearch 1.x users must upgrade before enabling data streams.
 
 ### Q4: What happens to `CreateIndexTemplates` flag?
 
-Recommendation: When `index_management: data_stream`, Jaeger ALWAYS creates the composable index template (the internal `create_mappings` flag is set to `true`). Rationale: data stream templates are cheap to create, idempotent, and the `@custom` pattern ensures user customizations are never overwritten.
+Recommendation: When `rotation.data_stream` is configured, Jaeger ALWAYS creates the composable index template (the internal `create_mappings` flag is set to `true`). Rationale: data stream templates are cheap to create, idempotent, and the `@custom` pattern ensures user customizations are never overwritten.
 
 For legacy mode, `create_mappings` continues to work as before. No deprecation needed — it's orthogonal.
 
