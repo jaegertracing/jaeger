@@ -116,7 +116,9 @@ Component templates are reusable building blocks. By splitting mappings and sett
 
 #### What Jaeger Creates on Startup
 
-Jaeger creates three objects on startup (all PUT operations are idempotent — creating a template that already exists with the same content is a no-op, and creating one with updated content overwrites it):
+Jaeger creates three objects on startup (all PUT operations are idempotent — creating a template that already exists with the same content is a no-op, and creating one with updated content overwrites it).
+
+In the examples below, `<prefix>` denotes the fully-resolved prefix **including the trailing dot** when `index_prefix` is set (e.g., `prod.`), or the empty string when no prefix is configured. See the "Index Prefix" table below for concrete examples.
 
 **1. Component template: `<prefix>jaeger.spans@mappings`**
 
@@ -406,7 +408,7 @@ When `read_alias` is set, Jaeger reads from that alias instead of the data strea
 
 **Note (Elasticsearch)**: Elasticsearch 7.9+ supports data stream aliases via the `_aliases` API directly. However, the template-based approach described here works on both platforms and is the recommended method for portability.
 
-**Step 1**: Before switching to `index_management: data_stream`, update the composable index template to include the read alias. This can be done by creating a `@custom` component template:
+**Step 1**: Pre-create the `@custom` component template with the read alias. This template will be picked up automatically once Jaeger starts in data-stream mode (because Jaeger's composable index template references `jaeger.spans@custom` in its `composed_of` list with `ignore_missing_component_templates`):
 
 ```json
 PUT _component_template/jaeger.spans@custom
@@ -419,7 +421,7 @@ PUT _component_template/jaeger.spans@custom
 }
 ```
 
-Alternatively, if you don't want to use `@custom`, you can add the `aliases` block directly to Jaeger's settings component template — but `@custom` is preferred because Jaeger won't overwrite it on restart.
+This can be done before or after switching Jaeger to data-stream mode — the `@custom` component template is standalone and does not require the composable index template to already exist.
 
 **Step 2**: After switching Jaeger to `index_management: data_stream` and writing some data (so the data stream and its backing index exist), add legacy indices to the same alias:
 
@@ -507,7 +509,9 @@ Current behavior: `index_prefix: "prod"` produces `prod-jaeger-span-*`.
 
 With data streams: the prefix applies to the data stream name: `prod.jaeger.spans`.
 
-The component templates and policy names are also prefixed: `prod.jaeger.spans@mappings`, `prod-jaeger-spans-policy`.
+The component templates are also prefixed with dot-notation: `prod.jaeger.spans@mappings`, `prod.jaeger.spans@settings`.
+
+The lifecycle policy name is fully user-configured via `data_stream.policy_name` (default: `jaeger-spans-policy`). It is NOT auto-derived from `index_prefix`. In multi-tenant setups, operators should configure distinct policy names per tenant (e.g., `policy_name: "prod-jaeger-spans-policy"`).
 
 ---
 
