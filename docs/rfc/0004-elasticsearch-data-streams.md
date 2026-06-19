@@ -680,28 +680,61 @@ Should the policy name be configurable or fixed?
 
 ## 6. Implementation Plan
 
-### Phase 1: Core Data Stream Support
-1. Add `@timestamp` field to span dbmodel and mapping template
-2. Implement composable index template creation (with `data_stream: {}`)
-3. Change write path to use op_type=`create` when data stream enabled
-4. Change read path to query data stream name
-5. Implement ISM policy creation for OpenSearch (ILM for ES as follow-up or same PR)
-6. Add `index_management` enum config and validation
+Design principles for phasing:
+- **API changes first**: Config and interface changes that affect all strategies ship early, giving users time to adopt the new config before data streams land.
+- **Incremental delivery**: Each phase is independently shippable and valuable without the next.
+- **CI from the start**: Every phase includes integration tests that validate the change against real ES/OpenSearch instances.
 
-### Phase 2: Migration Support
-7. Add `read_alias` config option to override read target
-8. Document migration procedure (alias setup via `@custom` template + `_aliases` API)
-9. Integration tests with both legacy data and data stream data
+### Phase 1: Config Refactoring & Strategy Interface
 
-### Phase 3: Documentation & Deprecation
-10. Document migration paths for all four existing modes
-11. Deprecate `jaeger-es-rollover` tool (keep functional but log deprecation warning)
-12. Deprecate `jaeger-es-index-cleaner` for spans
-13. Update Jaeger docs with data stream configuration guide
+Introduce the `rotation` one-of config structure and `RotationStrategy` interface. No new functionality — existing strategies are re-expressed through the new abstractions.
 
-### Phase 4: Future (not in initial implementation)
+1. Introduce `Rotation` config struct with `Periodic`, `ManualRollover`, `AutoRollover`, `DataStream` variants (§3.7)
+2. Implement backward-compat parsing: legacy flags (`use_aliases`, `use_ilm`, `create_mappings`, `date_layout`) map to the corresponding `rotation` variant; error if both old and new are set
+3. Introduce `RotationStrategy` interface (§3.7); implement `PeriodicStrategy`, `ManualRolloverStrategy`, `AutoRolloverStrategy`
+4. Refactor writer/reader/factory to accept `RotationStrategy` instead of boolean flags
+5. Add `DataStreamRotation` config variant (validation accepts it, but factory rejects with "not yet implemented")
+6. **CI**: All existing ES/OpenSearch integration tests must pass unchanged (proves the refactor is behavior-preserving)
+
+Deliverable: cleaner config, no spaghetti branching, `data_stream` visible in config schema (but not yet functional).
+
+### Phase 2: Data Stream Write Path
+
+Make data streams functional for writes. Reads still go to the data stream name directly (no migration alias yet).
+
+7. Add `@timestamp` field (date_nanos) to span document at write time
+8. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2)
+9. Implement `DataStreamStrategy.WriteTarget()`: return data stream name
+10. Implement `DataStreamStrategy.OpType()`: return `"create"`
+11. Implement ISM policy creation for OpenSearch, ILM for Elasticsearch (§3.6)
+12. Implement `DataStreamStrategy.ReadTargets()`: return data stream name (no migration alias yet)
+13. **CI**: Integration test — write spans via data stream, read them back, verify end-to-end on both OS and ES
+
+Deliverable: `rotation.data_stream` is fully functional for fresh installations (no legacy data).
+
+### Phase 3: Migration Support
+
+Enable the `read_alias` option for users with existing data.
+
+14. Add `read_alias` field to `DataStreamRotation` config
+15. Implement `DataStreamStrategy.ReadTargets()` override: when `read_alias` is set, read from it instead of data stream name
+16. **CI**: Integration test — write legacy indices, switch to data stream mode with `read_alias`, verify queries return data from both sources
+17. Document migration procedure for all four legacy modes (§4.1)
+
+Deliverable: existing users can safely migrate to data streams with zero data loss during transition.
+
+### Phase 4: Documentation & Deprecation
+
+18. Deprecate `jaeger-es-rollover` tool (keep functional, log deprecation warning when invoked)
+19. Deprecate `jaeger-es-index-cleaner` for spans
+20. Deprecate legacy boolean config flags (`use_aliases`, `use_ilm`, `create_mappings`) — log warning at startup when used
+21. Publish data stream configuration guide in Jaeger docs
+
+### Phase 5: Future (not in initial implementation)
+
 - Graduate from experimental to stable based on community feedback
-- Consider making `data_stream` the default `index_management` value for new installations
+- Consider making `data_stream` the default rotation for spans in new installations
+- In-process index cleaner for services index (§2.1)
 - Deprecation of legacy strategies only after extended period and with clear migration tooling (if ever)
 
 ---
