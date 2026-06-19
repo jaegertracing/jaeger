@@ -77,7 +77,7 @@ For data stream users, the services index can remain on the default `time_based`
 - The `jaeger-es-index-cleaner` (already needed during the span migration period for legacy span indices) handles cleanup.
 - Once legacy span indices have aged out and `jaeger-es-index-cleaner` is no longer needed for spans, it could be retained solely for the services index — but given the trivial data volume, even leaving services indices indefinitely is harmless.
 
-**Future improvement** (not in this RFC's scope): Replace the services index with a single non-rotated index plus in-process staleness management. Jaeger could add a `lastSeen` timestamp to service documents and periodically delete entries not seen within the retention window. This would eliminate the need for any external tooling for services, completing the "zero-cron-jobs" promise of data streams. This is a straightforward follow-up that does not block the current work.
+**Future improvement** (not in this RFC's scope): Keep daily rotation for the services index (it provides natural protection against high-cardinality poisoning from misbehaving instrumentation), but move the cleanup logic in-process — i.e., run the equivalent of `jaeger-es-index-cleaner` as a background goroutine inside Jaeger itself. This eliminates the last external cron job, completing the "zero-external-tooling" promise of data streams, without requiring a schema change or new cardinality safeguards. This is a straightforward follow-up that does not block the current work.
 
 ---
 
