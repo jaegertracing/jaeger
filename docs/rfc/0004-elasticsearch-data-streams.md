@@ -61,8 +61,23 @@ Spans are ideal candidates: they are immutable, append-only, and time-stamped.
 
 - **Native OTLP schema**: The ES storage recently completed migration to v2 Storage API ([#6458](https://github.com/jaegertracing/jaeger/issues/6458)), but still uses the Jaeger `dbmodel` internally. Changing the on-disk schema to native OTLP (tracked by [#8078](https://github.com/jaegertracing/jaeger/issues/8078) for missing scope/link attributes) is orthogonal and should not block data stream adoption. Data streams work with any document schema.
 - **olivere client replacement**: Replacing the olivere/elastic client ([#7612](https://github.com/jaegertracing/jaeger/issues/7612)) is independent. Data stream writes use the same bulk API — only the op_type changes from `index` to `create`. This is a one-line change regardless of which client library is used.
-- **Services/Dependencies indices**: These require document updates (deduplication), which data streams do not support. They remain as standard indices.
+- **Services/Dependencies indices**: These require document updates (deduplication), which data streams do not support. They remain as standard indices. See §2.1 below for discussion of the operational implications.
 - **LogsDB mode, searchable snapshots, advanced ILM phases**: These are ES-specific optimizations users can layer on via `@custom` component templates. Jaeger should not embed these in its configuration.
+
+### Operational Implications for Services and Dependencies Indices
+
+A valid concern is that moving spans to data streams while leaving services and dependencies on legacy indices creates a "dual-management" split. In practice, the burden is minimal:
+
+**Dependencies index**: The dependencies index stores pre-aggregated service dependency graphs (computed by Spark/Flink jobs or the internal dependency calculator). Few deployments use it, and data volume is negligible — a handful of documents per computation interval. The default daily index strategy works without any cron jobs or lifecycle management. No action needed.
+
+**Services index**: This is a deduplication cache of `{serviceName, operationName}` pairs (document ID = FNV hash, so writes are idempotent upserts). Data volume is bounded by `#services × #operations` — typically thousands of documents, not millions. The current daily index rotation provides implicit staleness cleanup: decommissioned services naturally disappear when their daily index ages out.
+
+For data stream users, the services index can remain on the default `time_based` strategy with no additional tooling:
+- Jaeger's built-in daily index creation handles rotation.
+- The `jaeger-es-index-cleaner` (already needed during the span migration period for legacy span indices) handles cleanup.
+- Once legacy span indices have aged out and `jaeger-es-index-cleaner` is no longer needed for spans, it could be retained solely for the services index — but given the trivial data volume, even leaving services indices indefinitely is harmless.
+
+**Future improvement** (not in this RFC's scope): Replace the services index with a single non-rotated index plus in-process staleness management. Jaeger could add a `lastSeen` timestamp to service documents and periodically delete entries not seen within the retention window. This would eliminate the need for any external tooling for services, completing the "zero-cron-jobs" promise of data streams. This is a straightforward follow-up that does not block the current work.
 
 ---
 
@@ -482,7 +497,7 @@ Recommendation: Users on time-based mode who want a safe rollback path should fi
 | Tool | Impact | Migration |
 |------|--------|-----------|
 | `jaeger-es-rollover` | No longer needed | Deprecate; document that data streams handle initialization and rollover |
-| `jaeger-es-index-cleaner` | No longer needed for spans | Deprecate for spans (ISM/ILM handles retention). Still needed for services/dependencies until those are also migrated |
+| `jaeger-es-index-cleaner` | No longer needed for spans | Deprecate for spans (ISM/ILM handles retention). Can be retained for services index cleanup, but given trivial data volume this is optional (see §2.1) |
 | Kibana/Grafana index patterns | `jaeger-span-*` won't match new data | Users update patterns to include `jaeger.spans` or use a wildcard that covers both |
 | Custom Terraform/Helm templates | May conflict | Document that Jaeger creates templates on startup; external templates should use `@custom` pattern |
 
