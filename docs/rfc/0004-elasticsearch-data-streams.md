@@ -496,17 +496,20 @@ This is the most critical section. Existing users have data in one of four modes
 
 ### 4.1 Migration Strategy: Read Alias
 
-When `index_management: data_stream`:
+When spans use `rotation.data_stream`:
 - **Writes** go exclusively to the data stream (`jaeger.spans`)
 - **Reads** go to a configurable read target (default: the data stream name itself)
 
-By default, Jaeger reads from the data stream name (`jaeger.spans`). For users migrating from a legacy strategy who still have old indices containing data, Jaeger accepts a `data_stream.read_alias` config option to override the read target:
+By default, Jaeger reads from the data stream name (`jaeger.spans`). For users migrating from a legacy strategy who still have old indices containing data, the `data_stream.read_alias` config option overrides the read target:
 
 ```yaml
-es:
-  index_management: data_stream
-  data_stream:
-    read_alias: "jaeger.spans-read"  # optional, defaults to the data stream name
+elasticsearch:
+  indices:
+    spans:
+      rotation:
+        data_stream:
+          policy_name: "jaeger-spans-policy"
+          read_alias: "jaeger.spans-read"  # optional, defaults to the data stream name
 ```
 
 When `read_alias` is set, Jaeger reads from that alias instead of the data stream name directly. This allows users to set up a unified alias spanning both the data stream and legacy indices, so that queries return results from both during the migration period.
@@ -517,9 +520,9 @@ When `read_alias` is set, Jaeger reads from that alias instead of the data strea
 
 **Important (OpenSearch)**: Data streams do not support aliases via the standard `_aliases` API in OpenSearch. Instead, the alias must be defined in the data stream's **index template** (see Appendix A for experimental verification on OpenSearch 3.7.0). The template-defined alias is automatically applied to all backing indices, including new ones created by rollover.
 
-**Note (Elasticsearch)**: Elasticsearch 7.9+ supports data stream aliases via the `_aliases` API directly. However, the template-based approach described here works on both platforms and is the recommended method for portability.
+**Note (Elasticsearch)**: Elasticsearch 7.9+ supports data stream aliases via the `_aliases` API directly (the template `aliases` field is ignored for data stream backing indices on ES). On Elasticsearch, use the `_aliases` API to create a data stream alias and add legacy indices to it. The steps below focus on the OpenSearch approach; ES users should substitute the `_aliases` API call in place of the `@custom` template.
 
-**Step 1**: Pre-create the `@custom` component template with the read alias. This template will be picked up automatically once Jaeger starts in data-stream mode (because Jaeger's composable index template references `jaeger.spans@custom` in its `composed_of` list with `ignore_missing_component_templates`):
+**Step 1**: Pre-create the `@custom` component template with the read alias. This **must be done before the first write** to the data stream — index templates are not applied retroactively to existing backing indices, so the alias will only appear on backing indices created after the template is in place.
 
 ```json
 PUT _component_template/jaeger.spans@custom
@@ -532,9 +535,21 @@ PUT _component_template/jaeger.spans@custom
 }
 ```
 
-This can be done before or after switching Jaeger to data-stream mode — the `@custom` component template is standalone and does not require the composable index template to already exist.
+> **Note:** If you have configured `index_prefix` (e.g., `"prod"`), you must include it in all template and alias names:
+> ```json
+> PUT _component_template/prod.jaeger.spans@custom
+> {
+>   "template": {
+>     "aliases": {
+>       "prod.jaeger.spans-read": {}
+>     }
+>   }
+> }
+> ```
 
-**Step 2**: After switching Jaeger to `index_management: data_stream` and writing some data (so the data stream and its backing index exist), add legacy indices to the same alias:
+**Step 2**: Switch Jaeger to data-stream mode. The first span write will create the data stream and its first backing index, which will have the alias from the `@custom` template.
+
+**Step 3**: Add legacy indices to the same alias:
 
 ```json
 POST /_aliases
@@ -547,13 +562,15 @@ POST /_aliases
 
 For users migrating from rollover mode (modes 3-4), `jaeger-span-*` matches the numbered indices. For time-based mode (modes 1-2) with a custom prefix, use `<prefix>-jaeger-span-*`.
 
-**Step 3**: Configure Jaeger to read from the alias:
+**Step 4**: Configure Jaeger to read from the alias:
 
 ```yaml
-es:
-  index_management: data_stream
-  data_stream:
-    read_alias: "jaeger.spans-read"
+elasticsearch:
+  indices:
+    spans:
+      rotation:
+        data_stream:
+          read_alias: "jaeger.spans-read"
 ```
 
 This approach:
