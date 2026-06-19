@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	acp "github.com/coder/acp-go-sdk"
@@ -123,13 +122,13 @@ func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger 
 }
 
 func handleReadTextFile(req acp.ReadTextFileRequest, logger *zap.Logger) (acp.ReadTextFileResponse, *acp.RequestError) {
-	rel := strings.TrimPrefix(req.Path, "/")
-
-	if strings.Contains(rel, "..") || filepath.IsAbs(rel) {
+	if strings.Contains(req.Path, "..") {
 		return acp.ReadTextFileResponse{}, acp.NewInvalidParams(map[string]any{
 			"error": fmt.Sprintf("invalid path: %q", req.Path),
 		})
 	}
+
+	rel := strings.TrimPrefix(req.Path, "/")
 
 	content, err := skills.ReadFile(rel)
 	if err != nil {

@@ -130,6 +130,11 @@ func TestParseSkill_NoDirInPath(t *testing.T) {
 	assert.Equal(t, "rootless", skill.Name)
 }
 
+func TestParseSkill_NoNameNoDirSkipped(t *testing.T) {
+	_, ok := parseSkill("SKILL.md", []byte("---\ndescription: No name and no parent dir.\n---\n\n# Body\n"), zap.NewNop())
+	assert.False(t, ok)
+}
+
 func TestBuiltinSkills_ReturnsIndependentCopy(t *testing.T) {
 	// Mutating the returned slice must not corrupt the cache shared across callers.
 	first := BuiltinSkills(zap.NewNop())

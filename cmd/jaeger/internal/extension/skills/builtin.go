@@ -104,6 +104,10 @@ func parseSkill(path string, data []byte, logger *zap.Logger) (Skill, bool) {
 
 	dirName := dirFromPath(path)
 	if fm.Name == "" {
+		if dirName == "" {
+			logger.Warn("skill has no name and no parent directory; skipping", zap.String("path", path))
+			return Skill{}, false
+		}
 		logger.Warn("'name' field is absent; using directory name", zap.String("path", path), zap.String("dir", dirName))
 		fm.Name = dirName
 	} else if fm.Name != dirName {

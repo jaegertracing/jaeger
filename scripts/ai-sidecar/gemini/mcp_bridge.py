@@ -98,6 +98,11 @@ class JaegerMCPBridge:
         so we make a lightweight Streamable HTTP request to get it. This is
         generic MCP behavior — any MCP server can provide instructions.
         """
+        session_id: str | None = None
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        }
         try:
             resp = requests.post(
                 self._mcp_url,
@@ -111,12 +116,10 @@ class JaegerMCPBridge:
                         "clientInfo": {"name": "jaeger-sidecar-instructions-probe", "version": "1"},
                     },
                 },
-                headers={
-                    "Content-Type": "application/json",
-                    "Accept": "application/json, text/event-stream",
-                },
-                timeout=5,
+                headers=headers,
+                timeout=self._timeout_sec,
             )
+            session_id = resp.headers.get("Mcp-Session-Id")
             for line in resp.text.splitlines():
                 if line.startswith("data: "):
                     payload = json.loads(line[6:])
@@ -126,6 +129,16 @@ class JaegerMCPBridge:
                         return instructions
         except Exception as e:
             logger.warning("Failed to fetch MCP server instructions: %s", e)
+        finally:
+            if session_id:
+                try:
+                    requests.delete(
+                        self._mcp_url,
+                        headers={**headers, "Mcp-Session-Id": session_id},
+                        timeout=self._timeout_sec,
+                    )
+                except Exception:
+                    pass
         return ""
 
     async def get_server_instructions(self) -> str:

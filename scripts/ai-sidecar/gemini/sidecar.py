@@ -278,7 +278,15 @@ class JaegerSidecarAgent(Agent):
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
                 logger.warning("ACP call %s failed for session %s: %s", name, session_id, e)
-                return f"error: {e}"
+                error_msg = f"error: {e}"
+                try:
+                    await self._require_conn().session_update(
+                        session_id,
+                        update_tool_call(tool_call_id, status="completed"),
+                    )
+                except Exception:
+                    pass
+                return error_msg
 
     async def _execute_contextual_tool(
         self,
