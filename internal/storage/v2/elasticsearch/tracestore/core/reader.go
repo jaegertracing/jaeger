@@ -101,14 +101,10 @@ type SpanReader struct {
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
 	serviceOperationStorage *ServiceOperationStorage
-	spanIndexPrefix         string
-	serviceIndexPrefix      string
-	spanIndex               cfg.IndexOptions
-	serviceIndex            cfg.IndexOptions
-	timeRangeIndices        indices.TimeRangeIndexFn
+	spanRotation            indices.Rotation
+	serviceRotation         indices.Rotation
 	sourceFn                sourceFn
 	maxDocCount             int
-	useReadWriteAliases     bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
@@ -130,52 +126,66 @@ type SpanReaderParams struct {
 	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
+	SpanRotation        indices.Rotation
+	ServiceRotation     indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	spanIndexPrefix := p.SpanReadAlias
-	serviceIndexPrefix := p.ServiceReadAlias
-
-	if spanIndexPrefix == "" {
-		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBaseName)
-	}
-	if serviceIndexPrefix == "" {
-		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBaseName)
-	}
+	spanRotation, serviceRotation := buildReaderRotations(p)
 
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	if p.UseReadWriteAliases {
+	if spanRotation.UseTimeRangeFilter() {
 		maxSpanAge = dawnOfTimeSpanAge
-	}
-
-	var timeRangeFn indices.TimeRangeIndexFn
-	if p.SpanReadAlias != "" && p.ServiceReadAlias != "" {
-		// When using explicit aliases, return them directly without any date logic
-		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
-			return []string{indexPrefix}
-		}
-	} else {
-		timeRangeFn = indices.TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
 	}
 
 	return &SpanReader{
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         spanIndexPrefix,
-		serviceIndexPrefix:      serviceIndexPrefix,
-		spanIndex:               p.SpanIndex,
-		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices:        indices.LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
+		spanRotation:            spanRotation,
+		serviceRotation:         serviceRotation,
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     p.UseReadWriteAliases,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
+}
+
+func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation indices.Rotation) {
+	if p.SpanRotation != nil && p.ServiceRotation != nil {
+		return p.SpanRotation, p.ServiceRotation
+	}
+
+	readAliasSuffix := "read"
+	if p.ReadAliasSuffix != "" {
+		readAliasSuffix = p.ReadAliasSuffix
+	}
+
+	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
+	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
+
+	buildOne := func(prefix string, explicitAlias string, idxOpts cfg.IndexOptions) indices.Rotation {
+		opts := indices.RotationBuilderOptions{
+			IndexPrefix:         prefix,
+			DateLayout:          idxOpts.DateLayout,
+			RolloverFrequency:   cfg.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency),
+			UseReadWriteAliases: p.UseReadWriteAliases,
+			ReadSuffix:          readAliasSuffix,
+			RemoteReadClusters:  p.RemoteReadClusters,
+			Logger:              p.Logger,
+		}
+		if explicitAlias != "" {
+			opts.ExplicitReadAlias = explicitAlias
+			opts.ExplicitWriteAlias = explicitAlias
+		}
+		return indices.BuildRotation(opts)
+	}
+
+	return buildOne(spanIndexPrefix, p.SpanReadAlias, p.SpanIndex),
+		buildOne(serviceIndexPrefix, p.ServiceReadAlias, p.ServiceIndex)
 }
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
@@ -231,13 +241,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(
-		s.serviceIndexPrefix,
-		s.serviceIndex.DateLayout,
-		currentTime.Add(-s.maxSpanAge),
-		currentTime,
-		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -249,13 +253,7 @@ func (s *SpanReader) GetOperations(
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(
-		s.serviceIndexPrefix,
-		s.serviceIndex.DateLayout,
-		currentTime.Add(-s.maxSpanAge),
-		currentTime,
-		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
@@ -336,13 +334,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
-	idxList := s.timeRangeIndices(
-		s.spanIndexPrefix,
-		s.spanIndex.DateLayout,
-		startTime.Add(-time.Hour),
-		endTime.Add(time.Hour),
-		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
-	)
+	idxList := s.spanRotation.ReadTargets(startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[dbmodel.TraceID]uint64)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
@@ -353,7 +345,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			traceQuery := buildTraceByIDQuery(traceID)
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
-			if s.useReadWriteAliases {
+			if s.spanRotation.UseTimeRangeFilter() {
 				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
 				query = query.Must(startTimeRangeQuery)
 			}
@@ -498,13 +490,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(
-		s.spanIndexPrefix,
-		s.spanIndex.DateLayout,
-		traceQuery.StartTimeMin,
-		traceQuery.StartTimeMax,
-		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client().Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.

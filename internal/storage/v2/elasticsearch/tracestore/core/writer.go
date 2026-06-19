@@ -35,7 +35,8 @@ type SpanWriter struct {
 	// indexCache       cache.Cache
 	writerMetrics     *spanstoremetrics.WriteMetrics
 	serviceWriter     serviceWriter
-	spanServiceIndex  spanAndServiceIndexFn
+	spanRotation      indices.Rotation
+	serviceRotation   indices.Rotation
 	allTagsAsFields   bool
 	tagDotReplacement string
 	tagKeysAsFields   map[string]bool
@@ -65,6 +66,8 @@ type SpanWriterParams struct {
 	SpanWriteAlias      string
 	ServiceWriteAlias   string
 	ServiceCacheTTL     time.Duration
+	SpanRotation        indices.Rotation
+	ServiceRotation     indices.Rotation
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -72,6 +75,32 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	serviceCacheTTL := p.ServiceCacheTTL
 	if p.ServiceCacheTTL == 0 {
 		serviceCacheTTL = serviceCacheTTLDefault
+	}
+
+	tags := map[string]bool{}
+	for _, k := range p.TagKeysAsFields {
+		tags[k] = true
+	}
+
+	spanRotation, serviceRotation := buildWriterRotations(p)
+
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
+	return &SpanWriter{
+		client:            p.Client,
+		logger:            p.Logger,
+		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
+		serviceWriter:     serviceOperationStorage.Write,
+		spanRotation:      spanRotation,
+		serviceRotation:   serviceRotation,
+		tagKeysAsFields:   tags,
+		allTagsAsFields:   p.AllTagsAsFields,
+		tagDotReplacement: p.TagDotReplacement,
+	}
+}
+
+func buildWriterRotations(p SpanWriterParams) (spanRotation, serviceRotation indices.Rotation) {
+	if p.SpanRotation != nil && p.ServiceRotation != nil {
+		return p.SpanRotation, p.ServiceRotation
 	}
 
 	writeAliasSuffix := ""
@@ -83,26 +112,30 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		}
 	}
 
-	tags := map[string]bool{}
-	for _, k := range p.TagKeysAsFields {
-		tags[k] = true
-	}
-
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
-	return &SpanWriter{
-		client:            p.Client,
-		logger:            p.Logger,
-		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
-		serviceWriter:     serviceOperationStorage.Write,
-		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
-		tagKeysAsFields:   tags,
-		allTagsAsFields:   p.AllTagsAsFields,
-		tagDotReplacement: p.TagDotReplacement,
-	}
+	spanAndServiceFn := getSpanAndServiceIndexFn(p, writeAliasSuffix)
+	return &fnRotation{fn: func(t time.Time) string {
+			span, _ := spanAndServiceFn(t)
+			return span
+		}}, &fnRotation{fn: func(t time.Time) string {
+			_, svc := spanAndServiceFn(t)
+			return svc
+		}}
 }
 
-// spanAndServiceIndexFn returns names of span and service indices
+// spanAndServiceIndexFn returns names of span and service indices.
+//
+// Deprecated: use indices.Rotation instead.
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
+
+// fnRotation adapts the legacy closure to the Rotation interface (write-only).
+type fnRotation struct {
+	fn func(time.Time) string
+}
+
+func (f *fnRotation) WriteTarget(t time.Time) string          { return f.fn(t) }
+func (*fnRotation) ReadTargets(time.Time, time.Time) []string { return nil }
+func (*fnRotation) OpType() string                            { return "index" }
+func (*fnRotation) UseTimeRangeFilter() bool                  { return false }
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	// If explicit write aliases are provided, use them directly without modification
@@ -131,7 +164,8 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
-	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
+	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
+	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}

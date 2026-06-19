@@ -324,8 +324,8 @@ func TestSpanReaderIndices(t *testing.T) {
 		testCase.params.Tracer = tracer.Tracer("test")
 		r := NewSpanReader(testCase.params)
 
-		actualSpan := r.timeRangeIndices(r.spanIndexPrefix, r.spanIndex.DateLayout, date, date, -1*time.Hour)
-		actualService := r.timeRangeIndices(r.serviceIndexPrefix, r.serviceIndex.DateLayout, date, date, -24*time.Hour)
+		actualSpan := r.spanRotation.ReadTargets(date, date)
+		actualService := r.serviceRotation.ReadTargets(date, date)
 		assert.Equal(t, testCase.indices, append(actualSpan, actualService...))
 	}
 }
@@ -634,12 +634,11 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			},
 		},
 	}
-	withSpanReader(t, func(r *spanReaderTest) {
-		for _, testCase := range testCases {
-			actual := r.reader.timeRangeIndices(spanIndexBaseName, dateLayout, testCase.startTime, testCase.endTime, -24*time.Hour)
-			assert.Equal(t, testCase.expected, actual)
-		}
-	})
+	rotation := indices.NewPeriodicRotation(spanIndexBaseName, dateLayout, -24*time.Hour)
+	for _, testCase := range testCases {
+		actual := rotation.ReadTargets(testCase.startTime, testCase.endTime)
+		assert.Equal(t, testCase.expected, actual)
+	}
 }
 
 func TestSpanReaderIndexWithDate(t *testing.T) {

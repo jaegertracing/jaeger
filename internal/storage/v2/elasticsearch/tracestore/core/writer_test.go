@@ -151,7 +151,8 @@ func TestSpanWriterIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		w := NewSpanWriter(testCase.params)
-		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
+		spanIndexName := w.spanRotation.WriteTarget(date)
+		serviceIndexName := w.serviceRotation.WriteTarget(date)
 		assert.Equal(t, []string{spanIndexName, serviceIndexName}, testCase.indices)
 	}
 }
