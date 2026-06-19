@@ -5,7 +5,7 @@ description: Index of available Jaeger skills. Use this skill at the start of an
 
 # Jaeger Skills Index
 
-The following specialized skills are available. When a task matches a skill description below, follow its instructions directly — the full skill text is already available in your context.
+The following specialized skills are available. When a task matches a skill description below, read that skill's file and follow its instructions.
 
 ## Available skills
 
