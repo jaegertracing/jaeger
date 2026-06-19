@@ -121,18 +121,22 @@ Ties everything together:
   "data_stream": {},
   "composed_of": [
     "<prefix>jaeger.spans@mappings",
-    "<prefix>jaeger.spans@settings"
+    "<prefix>jaeger.spans@settings",
+    "<prefix>jaeger.spans@custom"
   ],
-  "priority": 500
+  "priority": 500,
+  "ignore_missing_component_templates": ["<prefix>jaeger.spans@custom"]
 }
 ```
 
 The `data_stream: {}` directive tells ES/OpenSearch that any write to a matching index pattern should be handled as a data stream (auto-creating backing indices, enforcing append-only semantics, etc.).
 
+The `@custom` component template is explicitly listed in `composed_of` (last position = highest priority) but marked in `ignore_missing_component_templates` so that the index template is valid even when the user has not created it. This is required because OpenSearch does not auto-merge `@custom` templates — they must be explicitly referenced.
+
 #### Idempotency and Conflict Handling
 
 - Template creation is idempotent: PUT with the same name overwrites the previous version. This is safe because Jaeger controls these templates.
-- **User customizations are never overwritten** because they live in a separate `<prefix>jaeger.spans@custom` component template (see below) which Jaeger does not touch.
+- **User customizations are never overwritten** because they live in a separate `<prefix>jaeger.spans@custom` component template which Jaeger does not touch. Since `@custom` is listed last in `composed_of`, its settings take highest priority when it exists.
 - On startup, Jaeger always writes its templates (ensuring mappings stay current with the Jaeger version). This is the same behavior as the current `create_mappings: true` mode, applied to the new composable template format.
 
 #### Index Prefix / Custom Names
@@ -148,7 +152,7 @@ This preserves multi-tenancy support for shared ES clusters.
 
 #### User Customization via `@custom` Pattern
 
-ES/OpenSearch supports a convention where users create a component template named `<index-template>@custom`. When this exists, the platform automatically merges it (with highest priority) into the composed template. Jaeger does not need to reference it explicitly — the platform handles it.
+Jaeger's composable index template includes a `<prefix>jaeger.spans@custom` component template reference (with `ignore_missing_component_templates` so it need not exist). When a user creates this component template, its settings are merged with highest priority (last in `composed_of` wins). Jaeger never creates or modifies this template — it is entirely user-controlled.
 
 Example: a user wanting a different ILM policy creates:
 ```json
@@ -162,7 +166,7 @@ PUT _component_template/jaeger.spans@custom
 }
 ```
 
-This overrides Jaeger's default policy without touching any Jaeger config or risking overwrites on upgrade.
+This overrides Jaeger's default policy without touching any Jaeger config or risking overwrites on upgrade. No Jaeger restart is required — the override takes effect on the next index created (i.e., the next rollover).
 
 ### 3.3 The `@timestamp` Field
 
@@ -383,7 +387,9 @@ When `read_alias` is set, Jaeger reads from that alias instead of the data strea
 
 #### Migration Instructions
 
-**Important**: Data streams do not support aliases via the standard `_aliases` API. Instead, the alias must be defined in the data stream's **index template** (see Appendix A for experimental verification). The template-defined alias is automatically applied to all backing indices, including new ones created by rollover.
+**Important (OpenSearch)**: Data streams do not support aliases via the standard `_aliases` API in OpenSearch. Instead, the alias must be defined in the data stream's **index template** (see Appendix A for experimental verification on OpenSearch 3.7.0). The template-defined alias is automatically applied to all backing indices, including new ones created by rollover.
+
+**Note (Elasticsearch)**: Elasticsearch 7.9+ supports data stream aliases via the `_aliases` API directly. However, the template-based approach described here works on both platforms and is the recommended method for portability.
 
 **Step 1**: Before switching to `index_management: data_stream`, update the composable index template to include the read alias. This can be done by creating a `@custom` component template:
 
