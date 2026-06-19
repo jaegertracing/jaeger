@@ -322,30 +322,141 @@ The creation remains idempotent — if a policy with the same name already exist
 
 ### 3.7 Configuration
 
-Recommendation: Replace the current tangle of boolean flags (`use_aliases`, `use_ilm`, `create_mappings`) with a single enum:
+Recommendation: Replace the current tangle of boolean flags (`use_aliases`, `use_ilm`, `create_mappings`) with a one-of configuration structure under `indices.<type>.rotation`:
 
 ```yaml
-es:
-  index_management: data_stream   # one of: time_based, manual_rollover, auto_rollover, data_stream
-  data_stream:
-    policy_name: "jaeger-spans-policy"  # ISM/ILM policy name (default: jaeger-spans-policy)
-    read_alias: "jaeger.spans-read"     # optional, read target override for migration (default: data stream name)
+elasticsearch:
+  indices:
+    index_prefix: "prod"
+    spans:
+      shards: 5
+      replicas: 1
+      rotation:
+        # Exactly one of the following must be set.
+        # Default (when rotation section is omitted entirely): periodic with date_layout "2006-01-02"
+        periodic:
+          date_layout: "2006-01-02"      # "2006-01-02-15" for hourly
+        # manual_rollover:
+        #   read_alias: ""               # optional custom alias override
+        #   write_alias: ""              # optional custom alias override
+        # auto_rollover:
+        #   read_alias: ""               # optional custom alias override
+        #   write_alias: ""              # optional custom alias override
+        #   policy_name: "jaeger-ilm-policy"
+        # data_stream:
+        #   policy_name: "jaeger-spans-policy"
+        #   policy_file: "/etc/jaeger/policy.json"  # optional
+        #   read_alias: "jaeger.spans-read"         # optional, for migration
+    services:
+      shards: 5
+      replicas: 1
+      rotation:
+        periodic:
+          date_layout: "2006-01-02"
+    dependencies:
+      shards: 5
+      replicas: 1
+      rotation:
+        periodic:
+          date_layout: "2006-01-02"
 ```
 
-Mapping of enum values to behavior:
+The rotation strategy is configured **per index type**. This is necessary because services and dependencies cannot use data streams (they require upserts), so they remain on `periodic` even when spans use `data_stream`.
 
-| `index_management` | Equivalent legacy flags | Behavior |
+#### Config Structure in Go
+
+Each rotation variant is a separate struct, composed using `configoptional.Optional` with a default:
+
+```go
+type Rotation struct {
+    Periodic       configoptional.Optional[PeriodicRotation]       `mapstructure:"periodic"`
+    ManualRollover configoptional.Optional[ManualRolloverRotation] `mapstructure:"manual_rollover"`
+    AutoRollover   configoptional.Optional[AutoRolloverRotation]   `mapstructure:"auto_rollover"`
+    DataStream     configoptional.Optional[DataStreamRotation]     `mapstructure:"data_stream"`
+}
+
+type PeriodicRotation struct {
+    DateLayout string `mapstructure:"date_layout"`
+}
+
+type ManualRolloverRotation struct {
+    ReadAlias  string `mapstructure:"read_alias"`
+    WriteAlias string `mapstructure:"write_alias"`
+}
+
+type AutoRolloverRotation struct {
+    ReadAlias  string `mapstructure:"read_alias"`
+    WriteAlias string `mapstructure:"write_alias"`
+    PolicyName string `mapstructure:"policy_name"`
+}
+
+type DataStreamRotation struct {
+    PolicyName string `mapstructure:"policy_name"`
+    PolicyFile string `mapstructure:"policy_file"`
+    ReadAlias  string `mapstructure:"read_alias"`
+}
+```
+
+Validation rejects configs where more than one variant is set (or where an unsupported rotation is used for services/dependencies).
+
+#### Mapping to Existing Behavior
+
+| `rotation` variant | Equivalent legacy flags | Behavior |
 |--------------------|-------------------------|----------|
-| `time_based` (default) | `use_aliases: false`, `use_ilm: false` | Daily/hourly indices, Jaeger creates templates on startup |
+| `periodic` (default) | `use_aliases: false`, `use_ilm: false` | Daily/hourly indices, Jaeger creates templates on startup |
 | `manual_rollover` | `use_aliases: true`, `use_ilm: false` | Numbered indices via aliases, requires `jaeger-es-rollover init` |
 | `auto_rollover` | `use_aliases: true`, `use_ilm: true`, `create_mappings: false` | Rollover managed by ILM/ISM, requires `jaeger-es-rollover init` |
-| `data_stream` | (internal: `use_data_stream: true`, `use_aliases: false`, `use_ilm: false`, `create_mappings: true`) | Data streams, no external tooling needed |
+| `data_stream` | N/A (new) | Data streams, no external tooling needed |
 
-The old boolean flags (`use_aliases`, `use_ilm`, `create_mappings`) remain functional for backward compatibility but are deprecated. If only legacy flags are set, they map to the corresponding enum value internally. If both `index_management` and any legacy flag are set simultaneously, Jaeger fails startup with a validation error directing the user to remove the legacy flags.
+#### Backward Compatibility with Legacy Flags
 
-Note: `use_data_stream` is an internal flag only — it is not exposed in the public configuration. The only way to enable data streams is via `index_management: data_stream`.
+The old boolean flags (`use_aliases`, `use_ilm`, `create_mappings`) remain functional for backward compatibility but are deprecated. On startup, Jaeger resolves them to the equivalent `rotation` variant internally. If both the new `rotation` section and any legacy flag are set simultaneously, Jaeger fails startup with a validation error directing the user to remove the legacy flags.
+
+Note: The legacy `date_layout` field (currently at the top level of each index type) moves into `rotation.periodic`. When the legacy field is present without a `rotation` section, it is treated as `rotation.periodic.date_layout` for backward compatibility.
 
 This eliminates the class of misconfiguration bugs where users set contradictory flag combinations (e.g., `use_ilm: true` without `use_aliases: true`).
+
+#### Strategy Interface (Implementation)
+
+The code currently uses function closures (`spanAndServiceIndexFn`, `TimeRangeIndexFn`) selected at initialization time based on boolean flags. With four strategies and compositions (remote cluster prefixes, debug logging), this becomes harder to follow.
+
+Recommendation: Replace closures with a `RotationStrategy` interface:
+
+```go
+// RotationStrategy encapsulates all index-management behavior for a given rotation mode.
+type RotationStrategy interface {
+    // WriteTarget returns the index/alias/data-stream name to write to.
+    WriteTarget(spanTime time.Time) string
+    // ReadTargets returns the index names to query for a given time range.
+    ReadTargets(indexPrefix string, start, end time.Time) []string
+    // CreateTemplates creates or updates index templates on startup.
+    CreateTemplates(ctx context.Context, client es.Client) error
+    // OpType returns the bulk operation type: "index" (legacy) or "create" (data streams).
+    OpType() string
+}
+```
+
+Each strategy implements this interface. Cross-cutting concerns (remote read clusters, debug logging) are decorators:
+
+```go
+// RemoteClusterStrategy wraps a RotationStrategy to add cross-cluster read indices.
+type RemoteClusterStrategy struct {
+    inner    RotationStrategy
+    clusters []string
+}
+
+func (r *RemoteClusterStrategy) ReadTargets(prefix string, start, end time.Time) []string {
+    targets := r.inner.ReadTargets(prefix, start, end)
+    for _, t := range targets {
+        for _, cluster := range r.clusters {
+            targets = append(targets, cluster+":"+t)
+        }
+    }
+    return targets
+}
+```
+
+The factory creates the concrete strategy from config and passes it to the reader/writer. No boolean flags threaded through multiple files, no branching in the hot path. Each strategy is self-contained and independently testable.
 
 ### 3.8 OpenSearch vs. Elasticsearch
 
