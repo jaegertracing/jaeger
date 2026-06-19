@@ -4,7 +4,7 @@ Jaeger is a distributed tracing backend. A trace is a tree of spans representing
 
 At the start of any session, read the skills index to discover available capabilities:
 
-    fs/read_text_file  path=/skills/skills-index/SKILL.md
+    fs_read_text_file  path=/skills/skills-index/SKILL.md
 
 The index lists all available skills and when to use each one. When a task matches a
 skill description, read that skill's file:
