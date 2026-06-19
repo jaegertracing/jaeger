@@ -17,7 +17,11 @@ var _ Rotation = (*PeriodicRotation)(nil)
 
 // NewPeriodicRotation creates a PeriodicRotation.
 // rolloverFrequency should be negative (e.g., -24*time.Hour for daily, -1*time.Hour for hourly).
+// If zero or positive, it defaults to -24*time.Hour.
 func NewPeriodicRotation(indexPrefix, dateLayout string, rolloverFrequency time.Duration) *PeriodicRotation {
+	if rolloverFrequency >= 0 {
+		rolloverFrequency = -24 * time.Hour
+	}
 	return &PeriodicRotation{
 		indexPrefix:       indexPrefix,
 		dateLayout:        dateLayout,

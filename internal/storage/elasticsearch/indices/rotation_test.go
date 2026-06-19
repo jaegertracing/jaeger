@@ -68,6 +68,13 @@ func TestPeriodicRotation_ReadTargets(t *testing.T) {
 	}
 }
 
+func TestPeriodicRotation_ZeroRolloverFrequencyDefaultsToDaily(t *testing.T) {
+	r := NewPeriodicRotation("jaeger-span-", "2006-01-02", 0)
+	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
+	result := r.ReadTargets(today.Add(-25*time.Hour), today)
+	assert.Equal(t, []string{"jaeger-span-1995-04-21", "jaeger-span-1995-04-20"}, result)
+}
+
 func TestPeriodicRotation_OpType(t *testing.T) {
 	r := NewPeriodicRotation("jaeger-span-", "2006-01-02", -24*time.Hour)
 	assert.Equal(t, "index", r.OpType())
