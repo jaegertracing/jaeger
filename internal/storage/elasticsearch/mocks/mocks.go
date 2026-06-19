@@ -391,6 +391,50 @@ func (_c *Client_IndexExists_Call) RunAndReturn(run func(index string) elasticse
 	return _c
 }
 
+// LastBulkWriteError provides a mock function for the type Client
+func (_mock *Client) LastBulkWriteError() error {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for LastBulkWriteError")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func() error); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Client_LastBulkWriteError_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LastBulkWriteError'
+type Client_LastBulkWriteError_Call struct {
+	*mock.Call
+}
+
+// LastBulkWriteError is a helper method to define mock.On call
+func (_e *Client_Expecter) LastBulkWriteError() *Client_LastBulkWriteError_Call {
+	return &Client_LastBulkWriteError_Call{Call: _e.mock.On("LastBulkWriteError")}
+}
+
+func (_c *Client_LastBulkWriteError_Call) Run(run func()) *Client_LastBulkWriteError_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_LastBulkWriteError_Call) Return(err error) *Client_LastBulkWriteError_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Client_LastBulkWriteError_Call) RunAndReturn(run func() error) *Client_LastBulkWriteError_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MultiSearch provides a mock function for the type Client
 func (_mock *Client) MultiSearch() elasticsearch.MultiSearchService {
 	ret := _mock.Called()

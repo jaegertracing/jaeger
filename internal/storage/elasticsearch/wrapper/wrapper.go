@@ -19,12 +19,21 @@ import (
 
 // This file avoids lint because the Id and Json are required to be capitalized, but must match an outside library.
 
+// BulkErrorTaker is implemented by anything that can consume the most recent
+// asynchronous bulk-write error. The config package's bulkErrorTracker
+// satisfies this interface. Returning nil means no error has been recorded
+// since the previous call.
+type BulkErrorTaker interface {
+	Take() error
+}
+
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
 	client      *elastic.Client
 	bulkService *elastic.BulkProcessor
 	esVersion   uint
 	clientV8    *esv8.Client
+	bulkErrors  BulkErrorTaker
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -32,13 +41,28 @@ func (c ClientWrapper) GetVersion() uint {
 	return c.esVersion
 }
 
-// WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client) ClientWrapper {
+// LastBulkWriteError returns and clears the most recent asynchronous
+// bulk-write error observed by the bulk processor. Returns nil when no error
+// has been recorded since the previous call, or when the wrapper was
+// constructed without an error taker.
+func (c ClientWrapper) LastBulkWriteError() error {
+	if c.bulkErrors == nil {
+		return nil
+	}
+	return c.bulkErrors.Take()
+}
+
+// WrapESClient creates a ESClient out of *elastic.Client. The bulkErrors
+// taker, when non-nil, lets callers surface async bulk failures on subsequent
+// synchronous writes; pass nil to opt out (e.g. in tests that bypass the bulk
+// processor entirely).
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client, bulkErrors BulkErrorTaker) ClientWrapper {
 	return ClientWrapper{
 		client:      client,
 		bulkService: s,
 		esVersion:   esVersion,
 		clientV8:    clientV8,
+		bulkErrors:  bulkErrors,
 	}
 }
 

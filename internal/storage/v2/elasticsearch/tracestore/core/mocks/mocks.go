@@ -449,6 +449,50 @@ func (_c *Writer_Close_Call) RunAndReturn(run func() error) *Writer_Close_Call {
 	return _c
 }
 
+// TakeBulkError provides a mock function for the type Writer
+func (_mock *Writer) TakeBulkError() error {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for TakeBulkError")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func() error); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Writer_TakeBulkError_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TakeBulkError'
+type Writer_TakeBulkError_Call struct {
+	*mock.Call
+}
+
+// TakeBulkError is a helper method to define mock.On call
+func (_e *Writer_Expecter) TakeBulkError() *Writer_TakeBulkError_Call {
+	return &Writer_TakeBulkError_Call{Call: _e.mock.On("TakeBulkError")}
+}
+
+func (_c *Writer_TakeBulkError_Call) Run(run func()) *Writer_TakeBulkError_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Writer_TakeBulkError_Call) Return(err error) *Writer_TakeBulkError_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Writer_TakeBulkError_Call) RunAndReturn(run func() error) *Writer_TakeBulkError_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // WriteSpan provides a mock function for the type Writer
 func (_mock *Writer) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	_mock.Called(spanStartTime, span)
