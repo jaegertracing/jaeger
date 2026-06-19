@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -112,6 +113,8 @@ type SpanReader struct {
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
+	useTraceSummary         bool
+	traceSummaryIndex       string
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -130,6 +133,28 @@ type SpanReaderParams struct {
 	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
+	UseTraceSummary     bool
+	TraceSummaryIndex   string
+}
+
+// TraceSummary represents the aggregated time boundaries for a specific trace,
+// computed by the Elasticsearch transform job.
+type TraceSummary struct {
+	MinStartTime float64 `json:"min_startTime"`
+	MaxEndTime   float64 `json:"max_endTime"`
+	TraceID      string  `json:"traceID"`
+}
+
+// parseTraceSummaryHit extracts a TraceSummary from a raw Elasticsearch hit.
+func parseTraceSummaryHit(hit *elastic.SearchHit) (TraceSummary, error) {
+	var summary TraceSummary
+	if hit.Source == nil {
+		return summary, errors.New("empty hit source")
+	}
+	if err := json.Unmarshal(hit.Source, &summary); err != nil {
+		return summary, err
+	}
+	return summary, nil
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -175,6 +200,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
+		useTraceSummary:         p.UseTraceSummary,
+		traceSummaryIndex:       p.TraceSummaryIndex,
 	}
 }
 
@@ -334,16 +361,24 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		return traces, nil
 	}
 
-	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
-	// i.e starts in one and ends in another.
+	optStart, optEnd, isOptimized := s.optimizeTimeBounds(ctx, traceIDs, startTime, endTime)
+
+	indexStartTime := optStart
+	indexEndTime := optEnd
+	if !isOptimized {
+		// Fallback: Add an hour in both directions so that traces that straddle two indexes are retrieved.
+		indexStartTime = indexStartTime.Add(-time.Hour)
+		indexEndTime = indexEndTime.Add(time.Hour)
+	}
+
 	idxList := s.timeRangeIndices(
 		s.spanIndexPrefix,
 		s.spanIndex.DateLayout,
-		startTime.Add(-time.Hour),
-		endTime.Add(time.Hour),
+		indexStartTime,
+		indexEndTime,
 		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
 	)
-	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
+	nextTime := model.TimeAsEpochMicroseconds(indexStartTime)
 	searchAfterTime := make(map[dbmodel.TraceID]uint64)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
@@ -699,4 +734,92 @@ func (s *SpanReader) convertTagField(k string, v any) dbmodel.KeyValue {
 func logErrorToSpan(span trace.Span, err error) {
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
+}
+
+// optimizeTimeBounds queries the trace-summary index to find the exact start and end times for the requested traces.
+func (s *SpanReader) optimizeTimeBounds(ctx context.Context, traceIDs []dbmodel.TraceID, startTime, endTime time.Time) (optStart time.Time, optEnd time.Time, isOptimized bool) {
+	if !s.useTraceSummary {
+		return startTime, endTime, false
+	}
+	if len(traceIDs) == 0 {
+		return startTime, endTime, false
+	}
+
+	// resolvedSummaryIndex is derived from spanIndexPrefix using the same naming convention
+	// as the factory. Operators using custom prefixes or read aliases should set TraceSummaryIndex
+	// explicitly via SpanReaderParams to avoid derivation mismatches.
+	resolvedSummaryIndex := s.traceSummaryIndex
+	if resolvedSummaryIndex == "" {
+		basePrefix := strings.TrimSuffix(s.spanIndexPrefix, "jaeger-span")
+		resolvedSummaryIndex = basePrefix + "jaeger-trace-summary"
+	}
+
+	// NewTermsQuery requires []any
+	traceIDVals := make([]any, 0, len(traceIDs))
+	for _, id := range traceIDs {
+		traceIDVals = append(traceIDVals, string(id))
+	}
+
+	summaryQuery := elastic.NewTermsQuery("traceID", traceIDVals...)
+	res, err := s.client().Search(resolvedSummaryIndex).
+		Query(summaryQuery).
+		Size(len(traceIDs)).
+		IgnoreUnavailable(true).
+		Do(ctx)
+
+	if err != nil || res == nil || res.Hits == nil {
+		return startTime, endTime, false
+	}
+
+	earliestStart := int64(math.MaxInt64)
+	lastEnd := int64(0)
+	validSummaryCount := 0
+
+	for _, hit := range res.Hits.Hits {
+		summary, err := parseTraceSummaryHit(hit)
+		if err != nil {
+			continue
+		}
+
+		minTime := int64(math.Round(summary.MinStartTime))
+		maxTime := int64(math.Round(summary.MaxEndTime))
+		if minTime == 0 || maxTime == 0 {
+			continue
+		}
+		if minTime < earliestStart {
+			earliestStart = minTime
+		}
+		if maxTime > lastEnd {
+			lastEnd = maxTime
+		}
+
+		validSummaryCount++
+	}
+
+	if validSummaryCount > 0 && earliestStart != math.MaxInt64 && lastEnd != 0 {
+		// Add a 10-minute safety buffer to account for potential clock skew
+		// and the delay in the Elasticsearch transform sync interval.
+		optimizedStart := time.UnixMicro(earliestStart).Add(-10 * time.Minute)
+		optimizedEnd := time.UnixMicro(lastEnd).Add(10 * time.Minute)
+
+		if validSummaryCount == len(traceIDs) {
+			if optimizedStart.Before(startTime) {
+				optimizedStart = startTime
+			}
+			if optimizedEnd.After(endTime) {
+				optimizedEnd = endTime
+			}
+			return optimizedStart, optimizedEnd, true
+		}
+
+		// Partial coverage: extend window to cover summarized traces but do NOT shrink it
+		if optimizedStart.Before(startTime) {
+			startTime = optimizedStart
+		}
+		if optimizedEnd.After(endTime) {
+			endTime = optimizedEnd
+		}
+	}
+
+	return startTime, endTime, false
 }

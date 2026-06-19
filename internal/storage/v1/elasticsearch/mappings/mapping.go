@@ -158,3 +158,34 @@ func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) 
 
 	return writer.String(), nil
 }
+
+// transformParams holds parameters required to render the trace summary transform
+type transformParams struct {
+	TraceSummaryVersion string
+	IndexPrefix         string
+	SummaryIndex        string
+}
+
+// GetTraceSummaryTransform returns the rendered trace summary transform JSON payload
+func (mb *MappingBuilder) GetTraceSummaryTransform(indexPrefix, summaryIndex, version string) (string, error) {
+	// loadMapping is a shared helper used by all mappings in this package.
+	// It currently swallows read errors; improving its error handling is tracked
+	// as a separate cleanup and is out of scope for this change.
+	tmpl, err := mb.TemplateBuilder.Parse(loadMapping("jaeger-trace-summary.json"))
+	if err != nil {
+		return "", err
+	}
+
+	writer := new(bytes.Buffer)
+	options := transformParams{
+		TraceSummaryVersion: version,
+		IndexPrefix:         indexPrefix,
+		SummaryIndex:        summaryIndex,
+	}
+
+	if err := tmpl.Execute(writer, options); err != nil {
+		return "", err
+	}
+
+	return writer.String(), nil
+}

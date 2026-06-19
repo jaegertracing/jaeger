@@ -562,3 +562,85 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
+
+func TestCreateTraceSummaryTransform(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupClient func(*mocks.Client, *mocks.TransformService)
+		expectErr   bool
+	}{
+		{
+			name: "provisions new transform when not found (404)",
+			setupClient: func(c *mocks.Client, ts *mocks.TransformService) {
+				c.On("Transform").Return(ts)
+				// Get returns 404
+				ts.On("Get", mock.Anything, mock.Anything).Return(nil, errors.New("elastic: Error 404 (Not Found)"))
+				// Put is called to create it
+				ts.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+				// Start is called
+				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
+			},
+		},
+		{
+			name: "starts transform immediately if it exists and version matches",
+			setupClient: func(c *mocks.Client, ts *mocks.TransformService) {
+				c.On("Transform").Return(ts)
+
+				// Get returns existing config matching "v1"
+				validJSON := []byte(`{"transforms": [{"dest": {"index": "test-prefix-jaeger-trace-summary"}, "description": "Jaeger Trace Summary - v1"}]}`)
+				ts.On("Get", mock.Anything, mock.Anything).Return(validJSON, nil)
+
+				// Start is called (Put and Delete are skipped!)
+				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
+			},
+		},
+		{
+			name: "recreates transform if version mismatch",
+			setupClient: func(c *mocks.Client, ts *mocks.TransformService) {
+				c.On("Transform").Return(ts)
+
+				// Get returns an existing config, but with an OLD version ("v0" instead of "v1")
+				oldJSON := []byte(`{"transforms": [{"dest": {"index": "test-prefix-jaeger-trace-summary"}, "description": "Jaeger Trace Summary - v0"}]}`)
+				ts.On("Get", mock.Anything, mock.Anything).Return(oldJSON, nil)
+
+				// Because of the mismatch, it MUST call Delete, then Put, then Start
+				ts.On("Delete", mock.Anything, mock.Anything).Return(nil)
+				ts.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+				ts.On("Start", mock.Anything, mock.Anything).Return(nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := &mocks.Client{}
+			mockTransform := &mocks.TransformService{}
+
+			tt.setupClient(mockClient, mockTransform)
+
+			f := &FactoryBase{
+				logger:          zap.NewNop(),
+				templateBuilder: es.TextTemplateBuilder{},
+				config: &escfg.Configuration{
+					Indices: escfg.Indices{
+						IndexPrefix: "test-prefix",
+					},
+				},
+			}
+
+			// Store the mock client safely in the factory
+			var client es.Client = mockClient
+			f.client.Store(&client)
+
+			err := f.createTraceSummaryTransform(context.Background())
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			mockClient.AssertExpectations(t)
+			mockTransform.AssertExpectations(t)
+		})
+	}
+}

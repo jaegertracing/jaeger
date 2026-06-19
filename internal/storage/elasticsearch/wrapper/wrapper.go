@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	esv8 "github.com/elastic/go-elasticsearch/v9"
@@ -30,6 +31,12 @@ type ClientWrapper struct {
 // GetVersion returns the ElasticSearch Version
 func (c ClientWrapper) GetVersion() uint {
 	return c.esVersion
+}
+
+// Transform returns a wrapper around the underlying ES client's Transform APIs.
+func (c ClientWrapper) Transform() es.TransformService {
+	isOS := c.client == nil
+	return WrapESTransformService(c.client, c.clientV8, isOS)
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
@@ -290,4 +297,67 @@ func (s MultiSearchServiceWrapper) Index(indices ...string) es.MultiSearchServic
 // Do calls this function to internal service.
 func (s MultiSearchServiceWrapper) Do(ctx context.Context) (*elastic.MultiSearchResult, error) {
 	return s.multiSearchService.Do(ctx)
+}
+
+// TransformServiceWrapper is a wrapper for managing Elasticsearch Transforms.
+type TransformServiceWrapper struct {
+	client   *elastic.Client
+	clientV8 *esv8.Client
+	isOS     bool
+}
+
+// WrapESTransformService creates an ESTransformService out of *elastic.Client.
+func WrapESTransformService(client *elastic.Client, clientV8 *esv8.Client, isOS bool) TransformServiceWrapper {
+	return TransformServiceWrapper{
+		client:   client,
+		clientV8: clientV8,
+		isOS:     isOS,
+	}
+}
+
+// transformPath routes the API request to the correct endpoint based on the backend.
+func (s TransformServiceWrapper) transformPath(id string) string {
+	if s.isOS {
+		return "/_plugins/_transform/" + url.PathEscape(id)
+	}
+	return "/_transform/" + url.PathEscape(id)
+}
+
+func (s TransformServiceWrapper) Get(ctx context.Context, id string) ([]byte, error) {
+	res, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Method: http.MethodGet,
+		Path:   s.transformPath(id),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return res.Body, nil
+}
+
+// Put calls the internal service.
+func (s TransformServiceWrapper) Put(ctx context.Context, id string, body string) error {
+	_, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Method: http.MethodPut,
+		Path:   s.transformPath(id),
+		Body:   body,
+	})
+	return err
+}
+
+// Start calls the internal service.
+func (s TransformServiceWrapper) Start(ctx context.Context, id string) error {
+	_, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Method: http.MethodPost,
+		Path:   s.transformPath(id) + "/_start",
+	})
+	return err
+}
+
+// Delete calls the internal service.
+func (s TransformServiceWrapper) Delete(ctx context.Context, id string) error {
+	_, err := s.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Method: http.MethodDelete,
+		Path:   s.transformPath(id),
+	})
+	return err
 }

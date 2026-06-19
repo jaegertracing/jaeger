@@ -1,0 +1,23 @@
+{
+  "description": "Jaeger Trace Summary - {{.TraceSummaryVersion}}",
+  "source": {
+    "index": "{{if .IndexPrefix}}{{.IndexPrefix}}-jaeger-span-*{{else}}jaeger-span-*{{end}}",
+    "query": { "match_all": {} }
+  },
+  "dest": { "index": "{{.SummaryIndex}}" },
+  "sync": { "time": { "field": "startTimeMillis", "delay": "60s" } },
+  "pivot": {
+    "group_by": { "traceID": { "terms": { "field": "traceID" } } },
+    "aggregations": {
+      "min_startTime": { "min": { "field": "startTime" } },
+      "max_endTime": {
+        "scripted_metric": {
+          "init_script": "state.timestamp = 0L",
+          "map_script": "long end = doc['startTime'].value + doc['duration'].value; if (end > state.timestamp) { state.timestamp = end }",
+          "combine_script": "return state.timestamp",
+          "reduce_script": "long maxEnd = 0L; for (s in states) { if (s != null && s > maxEnd) { maxEnd = s } } return maxEnd"
+        }
+      }
+    }
+  }
+}

@@ -6,6 +6,7 @@ package elasticsearch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +32,8 @@ import (
 	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 )
 
+const traceSummaryVersion = "v1"
+
 var _ io.Closer = (*FactoryBase)(nil)
 
 // FactoryBase for Elasticsearch backend.
@@ -50,6 +53,18 @@ type FactoryBase struct {
 	templateBuilder es.TemplateBuilder
 
 	tags []string
+
+	authenticator extensionauth.HTTPClient
+}
+
+// TransformConfigResponse represents the JSON structure returned by the ES _transform API.
+type transformConfigResponse struct {
+	Transforms []struct {
+		Description string `json:"description"`
+		Dest        struct {
+			Index string `json:"index"`
+		} `json:"dest"`
+	} `json:"transforms"`
 }
 
 func NewFactoryBase(
@@ -60,9 +75,10 @@ func NewFactoryBase(
 	httpAuth extensionauth.HTTPClient,
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
-		config:      &cfg,
-		newClientFn: config.NewClient,
-		tracer:      otel.GetTracerProvider(),
+		config:        &cfg,
+		newClientFn:   config.NewClient,
+		tracer:        otel.GetTracerProvider(),
+		authenticator: httpAuth,
 	}
 	f.metricsFactory = metricsFactory
 	f.logger = logger
@@ -92,6 +108,14 @@ func NewFactoryBase(
 	err = f.createTemplates(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	err = f.createTraceSummaryTransform(ctx)
+	if err != nil {
+		f.logger.Warn(
+			"Failed to provision trace summary transform; optimization will fall back to global search until transform is available",
+			zap.Error(err),
+		)
 	}
 
 	return f, nil
@@ -267,4 +291,74 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func (f *FactoryBase) resolveTransformNames() (indexPrefix string, summaryIndex string, transformID string) {
+	indexPrefix = strings.TrimSuffix(string(f.config.Indices.IndexPrefix), "-")
+	summaryIndex = f.config.Indices.IndexPrefix.Apply("jaeger-trace-summary")
+	transformID = fmt.Sprintf("%s_%s", summaryIndex, "jaeger_trace_summary_job")
+	return indexPrefix, summaryIndex, transformID
+}
+
+func (f *FactoryBase) checkTransformStatus(ctx context.Context, esClient es.Client, transformID, summaryIndex string) (bool, error) {
+	bodyBytes, err := esClient.Transform().Get(ctx, transformID)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			return true, nil // Doesn't exist, needs creation
+		}
+		return false, fmt.Errorf("failed to check transform status: %w", err)
+	}
+
+	var existingConfig transformConfigResponse
+	if err := json.Unmarshal(bodyBytes, &existingConfig); err == nil && len(existingConfig.Transforms) > 0 {
+		t := existingConfig.Transforms[0]
+		expectedDescription := "Jaeger Trace Summary - " + traceSummaryVersion
+		if t.Dest.Index == summaryIndex && t.Description == expectedDescription {
+			return false, nil // Exists and is up-to-date, do not create
+		}
+		f.logger.Info("Transform version mismatch or config change. Recreating...", zap.String("id", transformID))
+		if err := esClient.Transform().Delete(ctx, transformID); err != nil {
+			// strings.Contains is used here intentionally: the elastic client wraps HTTP errors
+			// in a string message and does not expose a typed status code at this abstraction level.
+			// A structured error type in TransformService.Get is tracked as a follow-up improvement.
+			if strings.Contains(err.Error(), "404") {
+				return true, nil // Doesn't exist, needs creation
+			}
+			return false, fmt.Errorf("failed to delete outdated transform %q: %w", transformID, err)
+		}
+		return true, nil // Needs to be recreated
+	}
+	return false, fmt.Errorf("failed to parse transform check response: %s", string(bodyBytes))
+}
+
+func (f *FactoryBase) putTransformJob(ctx context.Context, esClient es.Client, transformID, indexPrefix, summaryIndex string) error {
+	mappingBuilder := f.mappingBuilderFromConfig(f.config)
+
+	transformPayload, err := mappingBuilder.GetTraceSummaryTransform(indexPrefix, summaryIndex, traceSummaryVersion)
+	if err != nil {
+		return fmt.Errorf("failed to render transform template: %w", err)
+	}
+
+	if err := esClient.Transform().Put(ctx, transformID, transformPayload); err != nil {
+		return fmt.Errorf("failed to create transform job: %w", err)
+	}
+	return nil
+}
+
+func (f *FactoryBase) createTraceSummaryTransform(ctx context.Context) error {
+	indexPrefix, summaryIndex, transformID := f.resolveTransformNames()
+	esClient := f.getClient()
+
+	shouldCreate, err := f.checkTransformStatus(ctx, esClient, transformID, summaryIndex)
+	if err != nil {
+		return err
+	}
+
+	if shouldCreate {
+		if err := f.putTransformJob(ctx, esClient, transformID, indexPrefix, summaryIndex); err != nil {
+			return err
+		}
+	}
+
+	return esClient.Transform().Start(ctx, transformID)
 }
