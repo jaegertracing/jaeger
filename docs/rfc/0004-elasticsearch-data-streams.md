@@ -261,7 +261,7 @@ An ISM policy is a state machine. State names (e.g., `hot`, `delete`) are arbitr
             "rollover": {
               "min_primary_shard_size": "50gb",
               "min_doc_count": 200000000,
-              "min_index_age": "1d"
+              "min_index_age": "7d"
             }
           }
         ],
@@ -297,14 +297,14 @@ An ISM policy is a state machine. State names (e.g., `hot`, `delete`) are arbitr
 
 Reading this policy:
 1. A new backing index starts in the `hot` state.
-2. While in `hot`: the `rollover` action triggers when the primary shard exceeds 50GB or 200M documents, **or** when the index is older than 1 day — whichever comes first. This creates a new backing index (which becomes the new write target).
+2. While in `hot`: the `rollover` action triggers when the primary shard exceeds 50GB or 200M documents, **or** when the index reaches 7 days old — whichever comes first. This creates a new backing index (which becomes the new write target).
 3. The `transitions` condition is evaluated periodically: once the index is older than 7 days, it moves to the `delete` state.
 4. Upon entering `delete`: the `delete` action removes the index.
 
 The `ism_template` field auto-attaches this policy to any new index matching the pattern `jaeger.spans` (i.e., all backing indices of the data stream).
 
 Key design choices:
-- **`min_index_age: 1d` rollover trigger**: Ensures at least daily rollover even in low-volume deployments. Without this, a single backing index could hit the 7-day delete transition without ever rolling over — causing ISM errors (data streams require at least one backing index). High-volume deployments will roll over earlier due to the size/doc-count triggers.
+- **`min_index_age: 7d` rollover trigger**: Ensures rollover before the delete transition fires. Without this, a low-volume deployment that never hits the size/doc-count triggers would have ISM attempt to delete the only backing index — causing errors (data streams require at least one backing index). Setting this equal to the retention period means low-volume deployments create at most one new index per retention cycle, while high-volume deployments roll over earlier due to size/doc-count.
 - **7-day default retention**: Conservative default; users override via their own policy or `@custom` template.
 - **No warm/cold phases**: These are deployment-specific (require dedicated node pools). Users add them via custom policies.
 - **Idempotent creation**: If a policy with the same name already exists, Jaeger does NOT overwrite it. This respects user customizations.
