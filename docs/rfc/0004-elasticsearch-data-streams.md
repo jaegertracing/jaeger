@@ -260,7 +260,8 @@ An ISM policy is a state machine. State names (e.g., `hot`, `delete`) are arbitr
           {
             "rollover": {
               "min_primary_shard_size": "50gb",
-              "min_doc_count": 200000000
+              "min_doc_count": 200000000,
+              "min_index_age": "1d"
             }
           }
         ],
@@ -296,14 +297,14 @@ An ISM policy is a state machine. State names (e.g., `hot`, `delete`) are arbitr
 
 Reading this policy:
 1. A new backing index starts in the `hot` state.
-2. While in `hot`: the `rollover` action triggers when the primary shard exceeds 50GB or 200M documents, creating a new backing index (which becomes the new write target).
+2. While in `hot`: the `rollover` action triggers when the primary shard exceeds 50GB or 200M documents, **or** when the index is older than 1 day — whichever comes first. This creates a new backing index (which becomes the new write target).
 3. The `transitions` condition is evaluated periodically: once the index is older than 7 days, it moves to the `delete` state.
 4. Upon entering `delete`: the `delete` action removes the index.
 
 The `ism_template` field auto-attaches this policy to any new index matching the pattern `jaeger.spans` (i.e., all backing indices of the data stream).
 
 Key design choices:
-- **No `max_age` rollover trigger**: Let shards grow to optimal size. Small deployments shouldn't create unnecessary indices daily.
+- **`min_index_age: 1d` rollover trigger**: Ensures at least daily rollover even in low-volume deployments. Without this, a single backing index could hit the 7-day delete transition without ever rolling over — causing ISM errors (data streams require at least one backing index). High-volume deployments will roll over earlier due to the size/doc-count triggers.
 - **7-day default retention**: Conservative default; users override via their own policy or `@custom` template.
 - **No warm/cold phases**: These are deployment-specific (require dedicated node pools). Users add them via custom policies.
 - **Idempotent creation**: If a policy with the same name already exists, Jaeger does NOT overwrite it. This respects user customizations.
