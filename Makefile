@@ -268,13 +268,16 @@ generate-mocks: $(MOCKERY)
 .PHONY: lint-mocks
 lint-mocks:
 	@echo "Checking if mocks are up to date..."
-	@git diff --quiet -- '*_mock.go' '**/mocks/*' || (echo "Error: Working directory has uncommitted mock modifications. Commit or stash them before running lint-mocks." && exit 1)
-	@($(MAKE) generate-mocks) || (echo "Mock generation failed. Restoring mocks..." && git checkout -- '*_mock.go' '**/mocks/*' 2>/dev/null && git clean -fd -- '*_mock.go' '**/mocks/*' 2>/dev/null && exit 1)
-	@git diff --exit-code -- '*_mock.go' '**/mocks/*' || (echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes." && git checkout -- '*_mock.go' '**/mocks/*' && exit 1)
-	@if git status --porcelain -- '*_mock.go' '**/mocks/*' | grep -q '??'; then \
-		echo "Untracked files found after generating mocks. Please commit them."; \
-		git status --porcelain -- '*_mock.go' '**/mocks/*' | grep '??'; \
-		git clean -fd -- '*_mock.go' '**/mocks/*'; \
+	@if ! git diff --quiet HEAD -- '**/mocks/*.go' || git status --porcelain -- '**/mocks/*.go' | grep -q '??'; then \
+		echo "Error: Working directory has uncommitted mock modifications or untracked mock files. Commit, stash, or clean them before running lint-mocks."; \
+		exit 1; \
+	fi
+	@($(MAKE) generate-mocks) || (echo "Mock generation failed. Restoring mocks..." && git checkout -- '**/mocks/*.go' 2>/dev/null && git clean -fd -- '**/mocks/*.go' 2>/dev/null && exit 1)
+	@if ! git diff --quiet HEAD -- '**/mocks/*.go' || git status --porcelain -- '**/mocks/*.go' | grep -q '??'; then \
+		echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes."; \
+		git status --porcelain -- '**/mocks/*.go'; \
+		git checkout -- '**/mocks/*.go' 2>/dev/null; \
+		git clean -fd -- '**/mocks/*.go' 2>/dev/null; \
 		exit 1; \
 	fi
 	@echo "OK: Mocks are up to date."

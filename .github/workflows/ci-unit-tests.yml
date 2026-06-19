@@ -39,6 +39,8 @@ jobs:
 
     - name: Run coverage check for changed files
       run: make check-coverage
+      env:
+        TARGET_BRANCH: ${{ github.base_ref && format('origin/{0}', github.base_ref) || 'origin/main' }}
 
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
