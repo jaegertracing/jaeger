@@ -685,30 +685,38 @@ Design principles for phasing:
 - **Incremental delivery**: Each phase is independently shippable and valuable without the next.
 - **CI from the start**: Every phase includes integration tests that validate the change against real ES/OpenSearch instances.
 
-### Phase 1: Config Refactoring & Strategy Interface
+### Phase 1a: Strategy Interface Refactoring
 
-Introduce the `rotation` one-of config structure and `RotationStrategy` interface. No new functionality — existing strategies are re-expressed through the new abstractions.
+Pure code refactor — replace function closures and boolean flag branching with a `RotationStrategy` interface. No config changes, no new functionality.
 
-1. Introduce `Rotation` config struct with `Periodic`, `ManualRollover`, `AutoRollover`, `DataStream` variants (§3.7)
-2. Implement backward-compat parsing: legacy flags (`use_aliases`, `use_ilm`, `create_mappings`, `date_layout`) map to the corresponding `rotation` variant; error if both old and new are set
-3. Introduce `RotationStrategy` interface (§3.7); implement `PeriodicStrategy`, `ManualRolloverStrategy`, `AutoRolloverStrategy`
-4. Refactor writer/reader/factory to accept `RotationStrategy` instead of boolean flags
-5. Add `DataStreamRotation` config variant (validation accepts it, but factory rejects with "not yet implemented")
-6. **CI**: All existing ES/OpenSearch integration tests must pass unchanged (proves the refactor is behavior-preserving)
+1. Introduce `RotationStrategy` interface (§3.7); implement `PeriodicStrategy`, `ManualRolloverStrategy`, `AutoRolloverStrategy`
+2. Refactor writer/reader/factory to accept `RotationStrategy` instead of boolean flags
+3. **CI**: All existing ES/OpenSearch integration tests must pass unchanged (proves the refactor is behavior-preserving)
 
-Deliverable: cleaner config, no spaghetti branching, `data_stream` visible in config schema (but not yet functional).
+Deliverable: cleaner internal architecture, no spaghetti branching. Existing config and behavior unchanged.
+
+### Phase 1b: Config Refactoring
+
+Introduce the `rotation` one-of config structure. Existing strategies are now configurable via the new schema.
+
+4. Introduce `Rotation` config struct with `Periodic`, `ManualRollover`, `AutoRollover`, `DataStream` variants (§3.7)
+5. Implement backward-compat parsing: legacy flags (`use_aliases`, `use_ilm`, `create_mappings`, `date_layout`) map to the corresponding `rotation` variant; error if both old and new are set
+6. Add `DataStreamRotation` config variant (validation accepts it, but factory rejects with "not yet implemented")
+7. **CI**: All existing ES/OpenSearch integration tests must pass unchanged
+
+Deliverable: cleaner config API, `data_stream` visible in config schema (but not yet functional).
 
 ### Phase 2: Data Stream Write Path
 
 Make data streams functional for writes. Reads still go to the data stream name directly (no migration alias yet).
 
-7. Add `@timestamp` field (date_nanos) to span document at write time
-8. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2)
-9. Implement `DataStreamStrategy.WriteTarget()`: return data stream name
-10. Implement `DataStreamStrategy.OpType()`: return `"create"`
-11. Implement ISM policy creation for OpenSearch, ILM for Elasticsearch (§3.6)
-12. Implement `DataStreamStrategy.ReadTargets()`: return data stream name (no migration alias yet)
-13. **CI**: Integration test — write spans via data stream, read them back, verify end-to-end on both OS and ES
+8. Add `@timestamp` field (date_nanos) to span document at write time
+9. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2)
+10. Implement `DataStreamStrategy.WriteTarget()`: return data stream name
+11. Implement `DataStreamStrategy.OpType()`: return `"create"`
+12. Implement ISM policy creation for OpenSearch, ILM for Elasticsearch (§3.6)
+13. Implement `DataStreamStrategy.ReadTargets()`: return data stream name (no migration alias yet)
+14. **CI**: Integration test — write spans via data stream, read them back, verify end-to-end on both OS and ES
 
 Deliverable: `rotation.data_stream` is fully functional for fresh installations (no legacy data).
 
@@ -716,19 +724,19 @@ Deliverable: `rotation.data_stream` is fully functional for fresh installations 
 
 Enable the `read_alias` option for users with existing data.
 
-14. Add `read_alias` field to `DataStreamRotation` config
-15. Implement `DataStreamStrategy.ReadTargets()` override: when `read_alias` is set, read from it instead of data stream name
-16. **CI**: Integration test — write legacy indices, switch to data stream mode with `read_alias`, verify queries return data from both sources
-17. Document migration procedure for all four legacy modes (§4.1)
+15. Add `read_alias` field to `DataStreamRotation` config
+16. Implement `DataStreamStrategy.ReadTargets()` override: when `read_alias` is set, read from it instead of data stream name
+17. **CI**: Integration test — write legacy indices, switch to data stream mode with `read_alias`, verify queries return data from both sources
+18. Document migration procedure for all four legacy modes (§4.1)
 
 Deliverable: existing users can safely migrate to data streams with zero data loss during transition.
 
 ### Phase 4: Documentation & Deprecation
 
-18. Deprecate `jaeger-es-rollover` tool (keep functional, log deprecation warning when invoked)
-19. Deprecate `jaeger-es-index-cleaner` for spans
-20. Deprecate legacy boolean config flags (`use_aliases`, `use_ilm`, `create_mappings`) — log warning at startup when used
-21. Publish data stream configuration guide in Jaeger docs
+19. Deprecate `jaeger-es-rollover` tool (keep functional, log deprecation warning when invoked)
+20. Deprecate `jaeger-es-index-cleaner` for spans
+21. Deprecate legacy boolean config flags (`use_aliases`, `use_ilm`, `create_mappings`) — log warning at startup when used
+22. Publish data stream configuration guide in Jaeger docs
 
 ### Phase 5: Future (not in initial implementation)
 
