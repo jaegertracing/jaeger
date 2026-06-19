@@ -277,7 +277,8 @@ class JaegerSidecarAgent(Agent):
             except Exception as e:
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                logger.warning("ACP call %s failed for session %s: %s", name, session_id, e)
+                error_msg = f"ACP call {name} failed: {e}"
+                logger.warning("%s (session=%s)", error_msg, session_id)
                 try:
                     await self._require_conn().session_update(
                         session_id,
