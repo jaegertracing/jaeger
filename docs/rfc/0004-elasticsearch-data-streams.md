@@ -205,15 +205,17 @@ doc["@timestamp"] = span.StartTimestamp().AsTime().UnixNano()
 The field is added to the mapping component template:
 ```json
 {
-  "@timestamp": { "type": "date_nanos", "format": "epoch_nanos" }
+  "@timestamp": { "type": "date_nanos" }
 }
 ```
+
+The `date_nanos` type accepts both epoch nanoseconds (what Jaeger writes) and ISO-8601 strings by default. No explicit `format` restriction is needed — keeping the default allows users to index documents manually or query with human-readable timestamps in Kibana/Grafana.
 
 Note: The existing `startTime` (microseconds) and `startTimeMillis` fields remain for backward compatibility with queries. `@timestamp` is used exclusively by the data stream machinery for rollover and time-based partitioning.
 
 ### 3.4 Write Path Changes
 
-Current write path uses `BulkIndexRequest` (op_type=`index`) via the olivere client. The olivere `BulkIndexRequest` supports `.OpType("create")` — so switching to create semantics does not require a different request type or client library change, just adding `.OpType("create")` to the existing call chain.
+Current write path uses `BulkIndexRequest` (op_type=`index`) via the olivere client. The olivere `BulkIndexRequest` supports `.OpType("create")` natively. However, Jaeger's internal `IndexService` abstraction (`internal/storage/elasticsearch/client.go`) does not currently expose an `OpType` method — the interface only has `Index`, `Type`, `Id`, `BodyJson`, and `Add`. The implementation must extend this interface (and its wrapper + mocks) to pass `op_type=create` through to the bulk processor. This is a straightforward interface extension, not a client library change.
 
 Data streams require op_type=`create` (append-only, no upserts). The target index name becomes the data stream name (e.g., `jaeger.spans`) with no date suffix.
 
