@@ -9,7 +9,7 @@ At the start of any session, read the skills index to discover available capabil
 The index lists all available skills and when to use each one. When a task matches a
 skill description, read that skill's file:
 
-    fs/read_text_file  path=/skills/<name>/SKILL.md
+    fs_read_text_file  path=/skills/<name>/SKILL.md
 
 Example workflow:
 1. Read `/skills/skills-index/SKILL.md` → discover which skills exist
