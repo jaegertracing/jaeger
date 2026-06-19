@@ -11,6 +11,12 @@ JAEGER_UI_DIR="${JAEGER_UI_DIR:-jaeger-ui}"
 
 cd "${JAEGER_UI_DIR}"
 
+# Skip the release check when using a custom JAEGER_UI_DIR (not the submodule),
+# since the intent is to force a source build from that tree.
+if [[ "${JAEGER_UI_DIR}" != "jaeger-ui" ]]; then
+    JAEGER_UI_SKIP_RELEASE_CHECK=1
+fi
+
 # When JAEGER_UI_SKIP_RELEASE_CHECK is set (e.g. snapshot builds pointing at a
 # non-release commit), skip the tag lookup and go straight to the npm build.
 # This avoids a costly git fetch --unshallow + fetch --all --tags on a shallow clone.
