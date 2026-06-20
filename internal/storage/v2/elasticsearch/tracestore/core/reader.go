@@ -200,13 +200,13 @@ func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation ind
 		var r indices.Rotation
 		switch {
 		case explicitAlias != "":
-			r = indices.NewAliasRotation(explicitAlias, explicitAlias)
+			r = indices.NewAliasedRotation(explicitAlias, explicitAlias)
 		case p.UseReadWriteAliases:
 			readAliasSuffix := "read"
 			if p.ReadAliasSuffix != "" {
 				readAliasSuffix = p.ReadAliasSuffix
 			}
-			r = indices.NewAliasRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
+			r = indices.NewAliasedRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
 		default:
 			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, cfg.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
 		}

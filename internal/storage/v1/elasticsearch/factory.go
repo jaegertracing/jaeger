@@ -263,13 +263,13 @@ func (f *FactoryBase) buildReaderRotations() (spanRotation, serviceRotation indi
 		var r indices.Rotation
 		switch {
 		case explicitAlias != "":
-			r = indices.NewAliasRotation(explicitAlias, explicitAlias)
+			r = indices.NewAliasedRotation(explicitAlias, explicitAlias)
 		case f.config.UseReadWriteAliases:
 			readAliasSuffix := "read"
 			if f.config.ReadAliasSuffix != "" {
 				readAliasSuffix = f.config.ReadAliasSuffix
 			}
-			r = indices.NewAliasRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
+			r = indices.NewAliasedRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
 		default:
 			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
 		}
@@ -291,13 +291,13 @@ func (f *FactoryBase) buildWriterRotations() (spanRotation, serviceRotation indi
 	buildOne := func(prefix, explicitAlias string, idxOpts config.IndexOptions) indices.Rotation {
 		switch {
 		case explicitAlias != "":
-			return indices.NewAliasRotation(explicitAlias, explicitAlias)
+			return indices.NewAliasedRotation(explicitAlias, explicitAlias)
 		case f.config.UseReadWriteAliases:
 			writeAliasSuffix := "write"
 			if f.config.WriteAliasSuffix != "" {
 				writeAliasSuffix = f.config.WriteAliasSuffix
 			}
-			return indices.NewAliasRotation(prefix+writeAliasSuffix, prefix+writeAliasSuffix)
+			return indices.NewAliasedRotation(prefix+writeAliasSuffix, prefix+writeAliasSuffix)
 		default:
 			return indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
 		}

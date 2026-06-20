@@ -35,7 +35,7 @@ func TestRemoteClusterRotation(t *testing.T) {
 }
 
 func TestRemoteClusterRotation_WithAlias(t *testing.T) {
-	inner := NewAliasRotation("jaeger-span-write", "jaeger-span-read")
+	inner := NewAliasedRotation("jaeger-span-write", "jaeger-span-read")
 	r := NewRemoteClusterRotation(inner, []string{"cluster_one"})
 
 	expected := []string{
