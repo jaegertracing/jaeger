@@ -545,8 +545,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 }
 
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency as a negative duration.
-//
-// Deprecated: use RolloverFrequencyDuration instead.
 func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
 	return -RolloverFrequencyDuration(frequency)
 }
