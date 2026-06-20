@@ -22,7 +22,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -142,15 +141,8 @@ type SpanReaderParams struct {
 	Client              func() es.Client
 	MaxSpanAge          time.Duration
 	MaxDocCount         int
-	IndexPrefix         cfg.IndexPrefix
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
 	TagDotReplacement   string
-	ReadAliasSuffix     string
 	UseReadWriteAliases bool
-	RemoteReadClusters  []string
-	SpanReadAlias       string
-	ServiceReadAlias    string
 	Logger              *zap.Logger
 	Tracer              trace.Tracer
 	SpanRotation        indices.Rotation
@@ -159,10 +151,8 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	spanRotation, serviceRotation := buildReaderRotations(p)
-
 	maxSpanAge := p.MaxSpanAge
-	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
+	// See timeRangeDesign above.
 	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
@@ -171,8 +161,8 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanRotation:            spanRotation,
-		serviceRotation:         serviceRotation,
+		spanRotation:            p.SpanRotation,
+		serviceRotation:         p.ServiceRotation,
 		useReadWriteAliases:     p.UseReadWriteAliases,
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
@@ -180,50 +170,6 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
 	}
-}
-
-func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation indices.Rotation) {
-	if p.SpanRotation != nil {
-		spanRotation = p.SpanRotation
-	}
-	if p.ServiceRotation != nil {
-		serviceRotation = p.ServiceRotation
-	}
-	if spanRotation != nil && serviceRotation != nil {
-		return spanRotation, serviceRotation
-	}
-
-	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-
-	buildOne := func(prefix string, explicitAlias string, idxOpts cfg.IndexOptions) indices.Rotation {
-		var r indices.Rotation
-		switch {
-		case explicitAlias != "":
-			r = indices.NewAliasedRotation(explicitAlias, explicitAlias)
-		case p.UseReadWriteAliases:
-			readAliasSuffix := "read"
-			if p.ReadAliasSuffix != "" {
-				readAliasSuffix = p.ReadAliasSuffix
-			}
-			r = indices.NewAliasedRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
-		default:
-			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, cfg.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
-		}
-		if len(p.RemoteReadClusters) > 0 {
-			r = indices.NewRemoteClusterRotation(r, p.RemoteReadClusters)
-		}
-		r = indices.NewLoggingRotation(r, p.Logger)
-		return r
-	}
-
-	if spanRotation == nil {
-		spanRotation = buildOne(spanIndexPrefix, p.SpanReadAlias, p.SpanIndex)
-	}
-	if serviceRotation == nil {
-		serviceRotation = buildOne(serviceIndexPrefix, p.ServiceReadAlias, p.ServiceIndex)
-	}
-	return spanRotation, serviceRotation
 }
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource

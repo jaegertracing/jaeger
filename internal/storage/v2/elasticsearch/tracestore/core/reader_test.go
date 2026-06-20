@@ -27,7 +27,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -118,6 +117,8 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			TagDotReplacement: "@",
 			MaxDocCount:       defaultMaxDocCount,
+			SpanRotation:      indices.NewPeriodicRotation(spanIndexBaseName, "2006-01-02", 24*time.Hour),
+			ServiceRotation:   indices.NewPeriodicRotation(serviceIndexBaseName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(r)
@@ -128,6 +129,20 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
+
+	var spanRotation, serviceRotation indices.Rotation
+	if readAlias {
+		suffix := "read"
+		if readAliasSuffix != "" {
+			suffix = readAliasSuffix
+		}
+		spanRotation = indices.NewAliasedRotation(spanIndexBaseName+suffix, spanIndexBaseName+suffix)
+		serviceRotation = indices.NewAliasedRotation(serviceIndexBaseName+suffix, serviceIndexBaseName+suffix)
+	} else {
+		spanRotation = indices.NewPeriodicRotation(spanIndexBaseName, "2006-01-02", 24*time.Hour)
+		serviceRotation = indices.NewPeriodicRotation(serviceIndexBaseName, "2006-01-02", 24*time.Hour)
+	}
+
 	r := &spanReaderTest{
 		client:      client,
 		logger:      logger,
@@ -139,8 +154,9 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 			Tracer:              tracer.Tracer("test"),
 			MaxSpanAge:          0,
 			TagDotReplacement:   "@",
-			ReadAliasSuffix:     readAliasSuffix,
 			UseReadWriteAliases: readAlias,
+			SpanRotation:        spanRotation,
+			ServiceRotation:     serviceRotation,
 		}),
 	}
 	fn(r)
@@ -167,16 +183,6 @@ func TestNewSpanReader(t *testing.T) {
 			},
 			maxSpanAge: time.Hour * 24 * 365 * 50,
 		},
-		{
-			name: "explicit read aliases with UseReadWriteAliases",
-			params: SpanReaderParams{
-				MaxSpanAge:          time.Hour * 72,
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "production-traces-read",
-				ServiceReadAlias:    "production-services-read",
-			},
-			maxSpanAge: time.Hour * 24 * 365 * 50,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -189,144 +195,66 @@ func TestNewSpanReader(t *testing.T) {
 	}
 }
 
-func TestSpanReaderIndices(t *testing.T) {
+func TestSpanReaderRotations(t *testing.T) {
 	client := &mocks.Client{}
 	clientFn := func() es.Client { return client }
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-
-	spanDataLayout := "2006-01-02-15"
-	serviceDataLayout := "2006-01-02"
-	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
-	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
 
 	logger, _ := testutils.NewLogger()
 	tracer, _, closer := tracerProvider(t)
 	defer closer()
 
-	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
-	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
-
 	testCases := []struct {
-		indices []string
-		params  SpanReaderParams
+		name            string
+		spanRotation    indices.Rotation
+		serviceRotation indices.Rotation
+		expectedIndices []string
 	}{
 		{
-			params: SpanReaderParams{
-				SpanIndex:    spanIndexOpts,
-				ServiceIndex: serviceIndexOpts,
-			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			name:            "periodic rotations",
+			spanRotation:    indices.NewPeriodicRotation(spanIndexBaseName, "2006-01-02-15", 24*time.Hour),
+			serviceRotation: indices.NewPeriodicRotation(serviceIndexBaseName, "2006-01-02", 24*time.Hour),
+			expectedIndices: []string{"jaeger-span-2019-10-10-05", "jaeger-service-2019-10-10"},
 		},
 		{
-			params: SpanReaderParams{
-				UseReadWriteAliases: true,
-			},
-			indices: []string{spanIndexBaseName + "read", serviceIndexBaseName + "read"},
+			name:            "aliased rotations",
+			spanRotation:    indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+			serviceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+			expectedIndices: []string{"jaeger-span-read", "jaeger-service-read"},
 		},
 		{
-			params: SpanReaderParams{
-				ReadAliasSuffix: "archive", // ignored because ReadWriteAliases is false
-			},
-			indices: []string{spanIndexBaseName, serviceIndexBaseName},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex:    spanIndexOpts,
-				ServiceIndex: serviceIndexOpts,
-				IndexPrefix:  "foo:",
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
-			},
-			indices: []string{"foo:-" + spanIndexBaseName + "read", "foo:-" + serviceIndexBaseName + "read"},
-		},
-		{
-			params: SpanReaderParams{
-				ReadAliasSuffix:     "archive",
-				UseReadWriteAliases: true,
-			},
-			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true, ReadAliasSuffix: "archive",
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex:        spanIndexOpts,
-				ServiceIndex:     serviceIndexOpts,
-				SpanReadAlias:    "custom-span-read-alias",
-				ServiceReadAlias: "custom-service-read-alias",
-			},
-			indices: []string{"custom-span-read-alias", "custom-service-read-alias"},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex:           spanIndexOpts,
-				ServiceIndex:        serviceIndexOpts,
-				IndexPrefix:         "foo:",
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "production-traces-read",
-				ServiceReadAlias:    "production-services-read",
-			},
-			indices: []string{"production-traces-read", "production-services-read"},
-		},
-		{
-			params: SpanReaderParams{
-				SpanIndex:          spanIndexOpts,
-				ServiceIndex:       serviceIndexOpts,
-				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
-			},
-			indices: []string{
-				spanIndexBaseName + spanDataLayoutFormat,
-				"cluster_one:" + spanIndexBaseName + spanDataLayoutFormat,
-				"cluster_two:" + spanIndexBaseName + spanDataLayoutFormat,
-				serviceIndexBaseName + serviceDataLayoutFormat,
-				"cluster_one:" + serviceIndexBaseName + serviceDataLayoutFormat,
-				"cluster_two:" + serviceIndexBaseName + serviceDataLayoutFormat,
-			},
-		},
-		{
-			params: SpanReaderParams{
-				UseReadWriteAliases: true, ReadAliasSuffix: "archive", RemoteReadClusters: []string{"cluster_one", "cluster_two"},
-			},
-			indices: []string{
-				spanIndexBaseName + "archive",
-				"cluster_one:" + spanIndexBaseName + "archive",
-				"cluster_two:" + spanIndexBaseName + "archive",
-				serviceIndexBaseName + "archive",
-				"cluster_one:" + serviceIndexBaseName + "archive",
-				"cluster_two:" + serviceIndexBaseName + "archive",
-			},
-		},
-		{
-			params: SpanReaderParams{
-				UseReadWriteAliases: true, RemoteReadClusters: []string{"cluster_one", "cluster_two"},
-			},
-			indices: []string{
-				spanIndexBaseName + "read",
-				"cluster_one:" + spanIndexBaseName + "read",
-				"cluster_two:" + spanIndexBaseName + "read",
-				serviceIndexBaseName + "read",
-				"cluster_one:" + serviceIndexBaseName + "read",
-				"cluster_two:" + serviceIndexBaseName + "read",
+			name: "with remote clusters",
+			spanRotation: indices.NewRemoteClusterRotation(
+				indices.NewPeriodicRotation(spanIndexBaseName, "2006-01-02-15", 24*time.Hour),
+				[]string{"cluster_one", "cluster_two"},
+			),
+			serviceRotation: indices.NewRemoteClusterRotation(
+				indices.NewPeriodicRotation(serviceIndexBaseName, "2006-01-02", 24*time.Hour),
+				[]string{"cluster_one", "cluster_two"},
+			),
+			expectedIndices: []string{
+				"jaeger-span-2019-10-10-05",
+				"cluster_one:jaeger-span-2019-10-10-05",
+				"cluster_two:jaeger-span-2019-10-10-05",
+				"jaeger-service-2019-10-10",
+				"cluster_one:jaeger-service-2019-10-10",
+				"cluster_two:jaeger-service-2019-10-10",
 			},
 		},
 	}
-	for _, testCase := range testCases {
-		testCase.params.Client = clientFn
-		testCase.params.Logger = logger
-		testCase.params.Tracer = tracer.Tracer("test")
-		r := NewSpanReader(testCase.params)
-
-		actualSpan := r.spanRotation.ReadTargets(date, date)
-		actualService := r.serviceRotation.ReadTargets(date, date)
-		assert.Equal(t, testCase.indices, append(actualSpan, actualService...))
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := NewSpanReader(SpanReaderParams{
+				Client:          clientFn,
+				Logger:          logger,
+				Tracer:          tracer.Tracer("test"),
+				SpanRotation:    tc.spanRotation,
+				ServiceRotation: tc.serviceRotation,
+			})
+			actualSpan := r.spanRotation.ReadTargets(date, date)
+			actualService := r.serviceRotation.ReadTargets(date, date)
+			assert.Equal(t, tc.expectedIndices, append(actualSpan, actualService...))
+		})
 	}
 }
 
