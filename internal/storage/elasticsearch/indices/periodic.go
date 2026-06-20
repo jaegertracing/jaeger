@@ -5,8 +5,9 @@ package indices
 
 import "time"
 
-// PeriodicRotation writes to dated indices (e.g., "jaeger-span-2024-06-18")
-// and reads by computing which indices fall within a time range.
+// PeriodicRotation writes to time-based indices (e.g., "jaeger-span-2024-06-18" daily
+// or "jaeger-span-2024-06-18-15" hourly) and reads by computing which indices fall
+// within a time range.
 type PeriodicRotation struct {
 	indexPrefix       string
 	dateLayout        string
@@ -16,12 +17,8 @@ type PeriodicRotation struct {
 var _ Rotation = (*PeriodicRotation)(nil)
 
 // NewPeriodicRotation creates a PeriodicRotation.
-// rolloverFrequency should be negative (e.g., -24*time.Hour for daily, -1*time.Hour for hourly).
-// If zero or positive, it defaults to -24*time.Hour.
+// rolloverFrequency must be negative (e.g., -24*time.Hour for daily, -1*time.Hour for hourly).
 func NewPeriodicRotation(indexPrefix, dateLayout string, rolloverFrequency time.Duration) *PeriodicRotation {
-	if rolloverFrequency >= 0 {
-		rolloverFrequency = -24 * time.Hour
-	}
 	return &PeriodicRotation{
 		indexPrefix:       indexPrefix,
 		dateLayout:        dateLayout,
@@ -37,6 +34,4 @@ func (s *PeriodicRotation) ReadTargets(startTime, endTime time.Time) []string {
 	return timeRangeIndices(s.indexPrefix, s.dateLayout, startTime, endTime, s.rolloverFrequency)
 }
 
-func (*PeriodicRotation) OpType() string { return "index" }
-
-func (*PeriodicRotation) UseTimeRangeFilter() bool { return false }
+func (*PeriodicRotation) WriteOpType() string { return "index" }

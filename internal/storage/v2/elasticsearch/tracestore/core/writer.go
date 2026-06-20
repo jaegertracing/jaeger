@@ -99,8 +99,14 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 }
 
 func buildWriterRotations(p SpanWriterParams) (spanRotation, serviceRotation indices.Rotation) {
-	if p.SpanRotation != nil && p.ServiceRotation != nil {
-		return p.SpanRotation, p.ServiceRotation
+	if p.SpanRotation != nil {
+		spanRotation = p.SpanRotation
+	}
+	if p.ServiceRotation != nil {
+		serviceRotation = p.ServiceRotation
+	}
+	if spanRotation != nil && serviceRotation != nil {
+		return spanRotation, serviceRotation
 	}
 
 	writeAliasSuffix := ""
@@ -113,13 +119,19 @@ func buildWriterRotations(p SpanWriterParams) (spanRotation, serviceRotation ind
 	}
 
 	spanAndServiceFn := getSpanAndServiceIndexFn(p, writeAliasSuffix)
-	return &fnRotation{fn: func(t time.Time) string {
+	if spanRotation == nil {
+		spanRotation = &fnRotation{fn: func(t time.Time) string {
 			span, _ := spanAndServiceFn(t)
 			return span
-		}}, &fnRotation{fn: func(t time.Time) string {
+		}}
+	}
+	if serviceRotation == nil {
+		serviceRotation = &fnRotation{fn: func(t time.Time) string {
 			_, svc := spanAndServiceFn(t)
 			return svc
 		}}
+	}
+	return spanRotation, serviceRotation
 }
 
 // spanAndServiceIndexFn returns names of span and service indices.
@@ -134,8 +146,7 @@ type fnRotation struct {
 
 func (f *fnRotation) WriteTarget(t time.Time) string          { return f.fn(t) }
 func (*fnRotation) ReadTargets(time.Time, time.Time) []string { return nil }
-func (*fnRotation) OpType() string                            { return "index" }
-func (*fnRotation) UseTimeRangeFilter() bool                  { return false }
+func (*fnRotation) WriteOpType() string                       { return "index" }
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	// If explicit write aliases are provided, use them directly without modification

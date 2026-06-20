@@ -39,6 +39,4 @@ func (r *RemoteClusterRotation) ReadTargets(startTime, endTime time.Time) []stri
 	return result
 }
 
-func (r *RemoteClusterRotation) OpType() string { return r.inner.OpType() }
-
-func (r *RemoteClusterRotation) UseTimeRangeFilter() bool { return r.inner.UseTimeRangeFilter() }
+func (r *RemoteClusterRotation) WriteOpType() string { return r.inner.WriteOpType() }

@@ -36,6 +36,4 @@ func (l *LoggingRotation) ReadTargets(startTime, endTime time.Time) []string {
 	return targets
 }
 
-func (l *LoggingRotation) OpType() string { return l.inner.OpType() }
-
-func (l *LoggingRotation) UseTimeRangeFilter() bool { return l.inner.UseTimeRangeFilter() }
+func (l *LoggingRotation) WriteOpType() string { return l.inner.WriteOpType() }

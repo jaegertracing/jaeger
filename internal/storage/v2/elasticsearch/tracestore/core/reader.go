@@ -94,6 +94,32 @@ func init() {
 	)
 }
 
+// Time-range design (referenced as "timeRangeDesign" in comments below):
+//
+// There are two read operations with different time-range semantics:
+//
+//  1. FindTraceIDs: the user always supplies [StartTimeMin, StartTimeMax]. No adjustment needed.
+//
+//  2. GetTraces (by trace ID): no time range is known. The reader uses [now-maxSpanAge, now].
+//     - Periodic indices: maxSpanAge should match data retention (e.g., 7d). ReadTargets generates
+//       only existing indices within that window. No extra query filter needed — index selection
+//       IS the time scoping.
+//     - Alias indices: a single alias covers all data. maxSpanAge is overridden to dawnOfTimeSpanAge
+//       (50 years) to ensure old traces are reachable by ID. A time-range filter is added to the ES
+//       query to enable shard pruning (otherwise ES scans all shards behind the alias).
+//
+// multiRead is called from both paths. When called from FindTraces, the time range is the user's
+// search window — but a trace may extend beyond it. The ±1h padding on index selection is a
+// heuristic for traces straddling index boundaries.
+//
+// TODO: future improvements:
+//   - Replace dawnOfTimeSpanAge with a configurable DataRetentionInterval that operators set
+//     to match their ILM/ISM policy. This removes the need for the 50-year hack.
+//   - Replace the hardcoded ±1h padding with a configurable maxTraceDuration, making the read
+//     window [startTime-maxTraceDuration, endTime+maxTraceDuration]. This handles long traces.
+//   - With data streams, store a materialized view of (traceID, minStartTime, maxEndTime) to
+//     enable precise time-range scoping for GetTraces (similar to ClickHouse approach).
+
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	client func() es.Client
@@ -103,6 +129,7 @@ type SpanReader struct {
 	serviceOperationStorage *ServiceOperationStorage
 	spanRotation            indices.Rotation
 	serviceRotation         indices.Rotation
+	useReadWriteAliases     bool
 	sourceFn                sourceFn
 	maxDocCount             int
 	logger                  *zap.Logger
@@ -136,7 +163,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 
 	maxSpanAge := p.MaxSpanAge
 	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	if spanRotation.UseTimeRangeFilter() {
+	if p.UseReadWriteAliases {
 		maxSpanAge = dawnOfTimeSpanAge
 	}
 
@@ -146,6 +173,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanRotation:            spanRotation,
 		serviceRotation:         serviceRotation,
+		useReadWriteAliases:     p.UseReadWriteAliases,
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
 		logger:                  p.Logger,
@@ -155,8 +183,14 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 }
 
 func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation indices.Rotation) {
-	if p.SpanRotation != nil && p.ServiceRotation != nil {
-		return p.SpanRotation, p.ServiceRotation
+	if p.SpanRotation != nil {
+		spanRotation = p.SpanRotation
+	}
+	if p.ServiceRotation != nil {
+		serviceRotation = p.ServiceRotation
+	}
+	if spanRotation != nil && serviceRotation != nil {
+		return spanRotation, serviceRotation
 	}
 
 	readAliasSuffix := "read"
@@ -184,8 +218,13 @@ func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation ind
 		return indices.BuildRotation(opts)
 	}
 
-	return buildOne(spanIndexPrefix, p.SpanReadAlias, p.SpanIndex),
-		buildOne(serviceIndexPrefix, p.ServiceReadAlias, p.ServiceIndex)
+	if spanRotation == nil {
+		spanRotation = buildOne(spanIndexPrefix, p.SpanReadAlias, p.SpanIndex)
+	}
+	if serviceRotation == nil {
+		serviceRotation = buildOne(serviceIndexPrefix, p.ServiceReadAlias, p.ServiceIndex)
+	}
+	return spanRotation, serviceRotation
 }
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
@@ -332,8 +371,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		return traces, nil
 	}
 
-	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
-	// i.e starts in one and ends in another.
+	// See timeRangeDesign above for context on the ±1h padding and the alias filter.
 	idxList := s.spanRotation.ReadTargets(startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[dbmodel.TraceID]uint64)
@@ -345,7 +383,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			traceQuery := buildTraceByIDQuery(traceID)
 			query := elastic.NewBoolQuery().
 				Must(traceQuery)
-			if s.spanRotation.UseTimeRangeFilter() {
+			// See timeRangeDesign above.
+			if s.useReadWriteAliases {
 				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
 				query = query.Must(startTimeRangeQuery)
 			}

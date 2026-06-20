@@ -14,10 +14,6 @@ type Rotation interface {
 	// ReadTargets returns the list of index names to search for the given time range.
 	ReadTargets(startTime, endTime time.Time) []string
 
-	// OpType returns the Elasticsearch operation type for write operations.
-	OpType() string
-
-	// UseTimeRangeFilter returns true if read queries should add a startTime filter
-	// to avoid scanning the full dataset behind an alias.
-	UseTimeRangeFilter() bool
+	// WriteOpType returns the Elasticsearch operation type for write operations.
+	WriteOpType() string
 }

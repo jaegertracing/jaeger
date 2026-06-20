@@ -29,6 +29,4 @@ func (s *AliasRotation) ReadTargets(time.Time, time.Time) []string {
 	return []string{s.readAlias}
 }
 
-func (*AliasRotation) OpType() string { return "index" }
-
-func (*AliasRotation) UseTimeRangeFilter() bool { return true }
+func (*AliasRotation) WriteOpType() string { return "index" }
