@@ -634,7 +634,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			},
 		},
 	}
-	rotation := indices.NewPeriodicRotation(spanIndexBaseName, dateLayout, -24*time.Hour)
+	rotation := indices.NewPeriodicRotation(spanIndexBaseName, dateLayout, 24*time.Hour)
 	for _, testCase := range testCases {
 		actual := rotation.ReadTargets(testCase.startTime, testCase.endTime)
 		assert.Equal(t, testCase.expected, actual)

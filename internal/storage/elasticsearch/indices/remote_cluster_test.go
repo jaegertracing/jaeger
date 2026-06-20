@@ -11,7 +11,7 @@ import (
 )
 
 func TestRemoteClusterRotation(t *testing.T) {
-	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", -24*time.Hour)
+	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
 	r := NewRemoteClusterRotation(inner, []string{"cluster_one", "cluster_two"})
 
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)
@@ -46,7 +46,7 @@ func TestRemoteClusterRotation_WithAlias(t *testing.T) {
 }
 
 func TestRemoteClusterRotation_NoClusters(t *testing.T) {
-	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", -24*time.Hour)
+	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
 	r := NewRemoteClusterRotation(inner, nil)
 
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)

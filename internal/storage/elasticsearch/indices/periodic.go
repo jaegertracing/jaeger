@@ -17,12 +17,12 @@ type PeriodicRotation struct {
 var _ Rotation = (*PeriodicRotation)(nil)
 
 // NewPeriodicRotation creates a PeriodicRotation.
-// rolloverFrequency must be negative (e.g., -24*time.Hour for daily, -1*time.Hour for hourly).
+// rolloverFrequency is the index rotation period (e.g., 24*time.Hour for daily, 1*time.Hour for hourly).
 func NewPeriodicRotation(indexPrefix, dateLayout string, rolloverFrequency time.Duration) *PeriodicRotation {
 	return &PeriodicRotation{
 		indexPrefix:       indexPrefix,
 		dateLayout:        dateLayout,
-		rolloverFrequency: rolloverFrequency,
+		rolloverFrequency: -rolloverFrequency,
 	}
 }
 

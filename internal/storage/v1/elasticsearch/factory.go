@@ -271,7 +271,7 @@ func (f *FactoryBase) buildReaderRotations() (spanRotation, serviceRotation indi
 			}
 			r = indices.NewAliasedRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
 		default:
-			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
+			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
 		}
 		if len(f.config.RemoteReadClusters) > 0 {
 			r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
@@ -299,7 +299,7 @@ func (f *FactoryBase) buildWriterRotations() (spanRotation, serviceRotation indi
 			}
 			return indices.NewAliasedRotation(prefix+writeAliasSuffix, prefix+writeAliasSuffix)
 		default:
-			return indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
+			return indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
 		}
 	}
 

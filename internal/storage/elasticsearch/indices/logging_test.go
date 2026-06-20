@@ -13,14 +13,14 @@ import (
 )
 
 func TestLoggingRotation_NoDebug(t *testing.T) {
-	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", -24*time.Hour)
+	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
 	r := NewLoggingRotation(inner, zap.NewNop())
 	assert.Equal(t, inner, r)
 }
 
 func TestLoggingRotation_WithDebug(t *testing.T) {
 	logger := zaptest.NewLogger(t, zaptest.Level(zap.DebugLevel))
-	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", -24*time.Hour)
+	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
 	r := NewLoggingRotation(inner, logger)
 	assert.IsType(t, &LoggingRotation{}, r)
 

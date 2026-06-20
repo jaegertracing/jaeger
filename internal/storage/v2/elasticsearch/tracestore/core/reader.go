@@ -208,7 +208,7 @@ func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation ind
 			}
 			r = indices.NewAliasedRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
 		default:
-			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, cfg.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
+			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, cfg.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
 		}
 		if len(p.RemoteReadClusters) > 0 {
 			r = indices.NewRemoteClusterRotation(r, p.RemoteReadClusters)

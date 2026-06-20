@@ -544,12 +544,19 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 }
 
-// RolloverFrequencyAsNegativeDuration returns the index rollover frequency duration for the given frequency string
+// RolloverFrequencyAsNegativeDuration returns the index rollover frequency as a negative duration.
+//
+// Deprecated: use RolloverFrequencyDuration instead.
 func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
+	return -RolloverFrequencyDuration(frequency)
+}
+
+// RolloverFrequencyDuration returns the index rollover frequency as a positive duration.
+func RolloverFrequencyDuration(frequency string) time.Duration {
 	if frequency == "hour" {
-		return -1 * time.Hour
+		return time.Hour
 	}
-	return -24 * time.Hour
+	return 24 * time.Hour
 }
 
 // TagKeysAsFields returns tags from the file and command line merged
