@@ -25,6 +25,23 @@ on:
         options:
           - upgrade
           - clean
+      demo_stack:
+        description: 'Demo stack to deploy. Defaults to the original OCI demo.'
+        required: false
+        default: oci
+        type: choice
+        options:
+          - oci
+          - otel
+          - all
+      otel_deploy_scope:
+        description: 'OTel demo deploy scope. Use all to refresh OpenSearch and the OTel app.'
+        required: false
+        default: jaeger
+        type: choice
+        options:
+          - jaeger
+          - all
 
 permissions: read-all
 
@@ -45,6 +62,8 @@ jobs:
       JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_IMAGE_PULL_POLICY: Always
       JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
+      JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
+      JAEGER_OTEL_DEMO_DEPLOY_SCOPE: ${{ github.event.inputs.otel_deploy_scope || 'jaeger' }}
       RUN_PUBLIC_SMOKE_TESTS: "true"
 
     steps:
@@ -62,9 +81,26 @@ jobs:
 
     - name: Deploy using appropriate script
       run: |
-        echo "🔄 Deploying Jaeger snapshot image tag ${JAEGER_DEMO_JAEGER_IMAGE_TAG} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
-        echo "🔄 Deploying HotROD snapshot image tag ${JAEGER_DEMO_HOTROD_IMAGE_TAG} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
-        bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
+        echo "🔄 Deploying demo stack ${JAEGER_DEMO_STACK} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
+        echo "🔄 Deploying Jaeger snapshot image tag ${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+        echo "🔄 Deploying HotROD snapshot image tag ${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
+
+        case "${JAEGER_DEMO_STACK}" in
+          oci)
+            bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
+            ;;
+          otel)
+            bash ./examples/otel-demo/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+            ;;
+          all)
+            bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
+            bash ./examples/otel-demo/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+            ;;
+          *)
+            echo "Unsupported demo stack: ${JAEGER_DEMO_STACK}"
+            exit 1
+            ;;
+        esac
 
     - name: Send detailed Slack notification on failure
       if: failure()
