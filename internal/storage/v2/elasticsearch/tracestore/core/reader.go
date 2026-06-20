@@ -22,7 +22,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -50,7 +49,7 @@ const (
 
 	defaultSearchDepth = 100
 
-	dawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
+	DawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
 )
 
 var (
@@ -94,6 +93,33 @@ func init() {
 	)
 }
 
+// Time-range design (referenced as "timeRangeDesign" in comments below):
+//
+// There are two read operations with different time-range semantics:
+//
+//  1. FindTraceIDs: the user always supplies [StartTimeMin, StartTimeMax]. No adjustment needed.
+//
+//  2. GetTraces (by trace ID): no time range is known. The reader uses [now-maxSpanAge, now].
+//     - Periodic indices: maxSpanAge should match data retention (e.g., 7d). ReadTargets generates
+//       only existing indices within that window.
+//     - Alias indices: a single alias covers all data. The factory overrides maxSpanAge to
+//       DawnOfTimeSpanAge (50 years) to ensure old traces are reachable by ID.
+//
+// multiRead always adds a time-range filter to the ES query for shard pruning (helps ES skip
+// irrelevant shards). This is harmless for periodic indices and essential for aliases.
+//
+// multiRead is called from both paths. When called from FindTraces, the time range is the user's
+// search window — but a trace may extend beyond it. The ±1h padding on index selection is a
+// heuristic for traces straddling index boundaries.
+//
+// TODO: future improvements:
+//   - Replace DawnOfTimeSpanAge with a configurable DataRetentionInterval that operators set
+//     to match their ILM/ISM policy. This removes the need for the 50-year hack.
+//   - Replace the hardcoded ±1h padding with a configurable maxTraceDuration, making the read
+//     window [startTime-maxTraceDuration, endTime+maxTraceDuration]. This handles long traces.
+//   - With data streams, store a materialized view of (traceID, minStartTime, maxEndTime) to
+//     enable precise time-range scoping for GetTraces (similar to ClickHouse approach).
+
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	client func() es.Client
@@ -101,14 +127,10 @@ type SpanReader struct {
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
 	serviceOperationStorage *ServiceOperationStorage
-	spanIndexPrefix         string
-	serviceIndexPrefix      string
-	spanIndex               cfg.IndexOptions
-	serviceIndex            cfg.IndexOptions
-	timeRangeIndices        indices.TimeRangeIndexFn
+	spanRotation            indices.Rotation
+	serviceRotation         indices.Rotation
 	sourceFn                sourceFn
 	maxDocCount             int
-	useReadWriteAliases     bool
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
@@ -116,62 +138,26 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client              func() es.Client
-	MaxSpanAge          time.Duration
-	MaxDocCount         int
-	IndexPrefix         cfg.IndexPrefix
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
-	TagDotReplacement   string
-	ReadAliasSuffix     string
-	UseReadWriteAliases bool
-	RemoteReadClusters  []string
-	SpanReadAlias       string
-	ServiceReadAlias    string
-	Logger              *zap.Logger
-	Tracer              trace.Tracer
+	Client            func() es.Client
+	MaxSpanAge        time.Duration
+	MaxDocCount       int
+	TagDotReplacement string
+	Logger            *zap.Logger
+	Tracer            trace.Tracer
+	SpanRotation      indices.Rotation
+	ServiceRotation   indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	spanIndexPrefix := p.SpanReadAlias
-	serviceIndexPrefix := p.ServiceReadAlias
-
-	if spanIndexPrefix == "" {
-		spanIndexPrefix = p.IndexPrefix.Apply(spanIndexBaseName)
-	}
-	if serviceIndexPrefix == "" {
-		serviceIndexPrefix = p.IndexPrefix.Apply(serviceIndexBaseName)
-	}
-
-	maxSpanAge := p.MaxSpanAge
-	// Setting the maxSpanAge to a large duration will ensure all spans in the "read" alias are accessible by queries (query window = [now - maxSpanAge, now]).
-	if p.UseReadWriteAliases {
-		maxSpanAge = dawnOfTimeSpanAge
-	}
-
-	var timeRangeFn indices.TimeRangeIndexFn
-	if p.SpanReadAlias != "" && p.ServiceReadAlias != "" {
-		// When using explicit aliases, return them directly without any date logic
-		timeRangeFn = func(indexPrefix string, _ string, _ time.Time, _ time.Time, _ time.Duration) []string {
-			return []string{indexPrefix}
-		}
-	} else {
-		timeRangeFn = indices.TimeRangeIndicesFn(p.UseReadWriteAliases, p.ReadAliasSuffix, p.RemoteReadClusters)
-	}
-
 	return &SpanReader{
 		client:                  p.Client,
-		maxSpanAge:              maxSpanAge,
+		maxSpanAge:              p.MaxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         spanIndexPrefix,
-		serviceIndexPrefix:      serviceIndexPrefix,
-		spanIndex:               p.SpanIndex,
-		serviceIndex:            p.ServiceIndex,
-		timeRangeIndices:        indices.LoggingTimeRangeIndexFn(p.Logger, timeRangeFn),
+		spanRotation:            p.SpanRotation,
+		serviceRotation:         p.ServiceRotation,
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
-		useReadWriteAliases:     p.UseReadWriteAliases,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
@@ -231,13 +217,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(
-		s.serviceIndexPrefix,
-		s.serviceIndex.DateLayout,
-		currentTime.Add(-s.maxSpanAge),
-		currentTime,
-		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -249,13 +229,7 @@ func (s *SpanReader) GetOperations(
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(
-		s.serviceIndexPrefix,
-		s.serviceIndex.DateLayout,
-		currentTime.Add(-s.maxSpanAge),
-		currentTime,
-		cfg.RolloverFrequencyAsNegativeDuration(s.serviceIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
@@ -334,15 +308,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		return traces, nil
 	}
 
-	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
-	// i.e starts in one and ends in another.
-	idxList := s.timeRangeIndices(
-		s.spanIndexPrefix,
-		s.spanIndex.DateLayout,
-		startTime.Add(-time.Hour),
-		endTime.Add(time.Hour),
-		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
-	)
+	// See timeRangeDesign above for context on the ±1h padding and the alias filter.
+	idxList := s.spanRotation.ReadTargets(startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 	searchAfterTime := make(map[dbmodel.TraceID]uint64)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
@@ -351,12 +318,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
 			traceQuery := buildTraceByIDQuery(traceID)
+			startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
 			query := elastic.NewBoolQuery().
-				Must(traceQuery)
-			if s.useReadWriteAliases {
-				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
-				query = query.Must(startTimeRangeQuery)
-			}
+				Must(traceQuery).
+				Must(startTimeRangeQuery)
 
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
@@ -498,13 +463,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(
-		s.spanIndexPrefix,
-		s.spanIndex.DateLayout,
-		traceQuery.StartTimeMin,
-		traceQuery.StartTimeMax,
-		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client().Search(jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.

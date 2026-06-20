@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
@@ -106,41 +107,39 @@ func (f *FactoryBase) getClient() es.Client {
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
+	spanRotation, serviceRotation := f.buildRotations()
+	maxSpanAge := f.config.MaxSpanAge
+	// See timeRangeDesign comment in reader.go.
+	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
+	// can reach any trace regardless of age.
+	if f.config.UseReadWriteAliases {
+		maxSpanAge = esspanstore.DawnOfTimeSpanAge
+	}
 	return esspanstore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          f.config.MaxSpanAge,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		ReadAliasSuffix:     f.config.ReadAliasSuffix,
-		RemoteReadClusters:  f.config.RemoteReadClusters,
-		SpanReadAlias:       f.config.SpanReadAlias,
-		ServiceReadAlias:    f.config.ServiceReadAlias,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		Client:            f.getClient,
+		MaxDocCount:       f.config.MaxDocCount,
+		MaxSpanAge:        maxSpanAge,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
+	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		Client:              f.getClient,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		AllTagsAsFields:     f.config.Tags.AllAsFields,
-		TagKeysAsFields:     f.tags,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		WriteAliasSuffix:    f.config.WriteAliasSuffix,
-		SpanWriteAlias:      f.config.SpanWriteAlias,
-		ServiceWriteAlias:   f.config.ServiceWriteAlias,
-		Logger:              f.logger,
-		MetricsFactory:      f.metricsFactory,
-		ServiceCacheTTL:     f.config.ServiceCacheTTL,
+		Client:            f.getClient,
+		AllTagsAsFields:   f.config.Tags.AllAsFields,
+		TagKeysAsFields:   f.tags,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		MetricsFactory:    f.metricsFactory,
+		ServiceCacheTTL:   f.config.ServiceCacheTTL,
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
@@ -246,6 +245,51 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
+	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
+	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
+
+	type aliasConfig struct {
+		explicitWrite string
+		explicitRead  string
+	}
+
+	buildOne := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
+		var r indices.Rotation
+		switch {
+		case aliases.explicitWrite != "" && aliases.explicitRead != "":
+			r = indices.NewAliasedRotation(aliases.explicitWrite, aliases.explicitRead)
+		case f.config.UseReadWriteAliases:
+			writeSuffix := "write"
+			if f.config.WriteAliasSuffix != "" {
+				writeSuffix = f.config.WriteAliasSuffix
+			}
+			readSuffix := "read"
+			if f.config.ReadAliasSuffix != "" {
+				readSuffix = f.config.ReadAliasSuffix
+			}
+			r = indices.NewAliasedRotation(prefix+writeSuffix, prefix+readSuffix)
+		default:
+			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
+		}
+		if len(f.config.RemoteReadClusters) > 0 {
+			r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
+		}
+		r = indices.NewLoggingRotation(r, f.logger)
+		return r
+	}
+
+	spanRotation = buildOne(spanPrefix, aliasConfig{
+		explicitWrite: f.config.SpanWriteAlias,
+		explicitRead:  f.config.SpanReadAlias,
+	}, f.config.Indices.Spans)
+	serviceRotation = buildOne(servicePrefix, aliasConfig{
+		explicitWrite: f.config.ServiceWriteAlias,
+		explicitRead:  f.config.ServiceReadAlias,
+	}, f.config.Indices.Services)
+	return spanRotation, serviceRotation
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
