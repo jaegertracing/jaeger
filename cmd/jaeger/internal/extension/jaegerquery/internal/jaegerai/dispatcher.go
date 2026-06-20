@@ -122,13 +122,13 @@ func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger 
 }
 
 func handleReadTextFile(req acp.ReadTextFileRequest, logger *zap.Logger) (acp.ReadTextFileResponse, *acp.RequestError) {
-	if strings.Contains(req.Path, "..") {
+	rel := strings.TrimPrefix(req.Path, "/")
+
+	if strings.Contains(rel, "..") || !strings.HasPrefix(rel, "skills/") {
 		return acp.ReadTextFileResponse{}, acp.NewInvalidParams(map[string]any{
 			"error": fmt.Sprintf("invalid path: %q", req.Path),
 		})
 	}
-
-	rel := strings.TrimPrefix(req.Path, "/")
 
 	content, err := skills.ReadFile(rel)
 	if err != nil {

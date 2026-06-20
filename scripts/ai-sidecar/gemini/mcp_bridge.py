@@ -104,7 +104,7 @@ class JaegerMCPBridge:
             "Accept": "application/json, text/event-stream",
         }
         try:
-            resp = requests.post(
+            with requests.post(
                 self._mcp_url,
                 json={
                     "jsonrpc": "2.0",
@@ -118,15 +118,15 @@ class JaegerMCPBridge:
                 },
                 headers=headers,
                 timeout=self._timeout_sec,
-            )
-            session_id = resp.headers.get("Mcp-Session-Id")
-            for line in resp.text.splitlines():
-                if line.startswith("data: "):
-                    payload = json.loads(line[6:])
-                    instructions = payload.get("result", {}).get("instructions", "")
-                    if instructions:
-                        logger.info("Fetched MCP server instructions (%d chars)", len(instructions))
-                        return instructions
+            ) as resp:
+                session_id = resp.headers.get("Mcp-Session-Id")
+                for line in resp.text.splitlines():
+                    if line.startswith("data: "):
+                        payload = json.loads(line[6:])
+                        instructions = payload.get("result", {}).get("instructions", "")
+                        if instructions:
+                            logger.info("Fetched MCP server instructions (%d chars)", len(instructions))
+                            return instructions
         except Exception as e:
             logger.warning("Failed to fetch MCP server instructions: %s", e)
         finally:
