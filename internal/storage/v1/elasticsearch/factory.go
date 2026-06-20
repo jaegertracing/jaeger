@@ -256,26 +256,28 @@ func loadTokenFromFile(path string) (string, error) {
 }
 
 func (f *FactoryBase) buildReaderRotations() (spanRotation, serviceRotation indices.Rotation) {
-	readAliasSuffix := "read"
-	if f.config.ReadAliasSuffix != "" {
-		readAliasSuffix = f.config.ReadAliasSuffix
-	}
-
 	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
 	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
 
 	buildOne := func(prefix, explicitAlias string, idxOpts config.IndexOptions) indices.Rotation {
-		return indices.BuildRotation(indices.RotationBuilderOptions{
-			IndexPrefix:         prefix,
-			DateLayout:          idxOpts.DateLayout,
-			RolloverFrequency:   config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency),
-			UseReadWriteAliases: f.config.UseReadWriteAliases,
-			ReadSuffix:          readAliasSuffix,
-			ExplicitReadAlias:   explicitAlias,
-			ExplicitWriteAlias:  explicitAlias,
-			RemoteReadClusters:  f.config.RemoteReadClusters,
-			Logger:              f.logger,
-		})
+		var r indices.Rotation
+		switch {
+		case explicitAlias != "":
+			r = indices.NewAliasRotation(explicitAlias, explicitAlias)
+		case f.config.UseReadWriteAliases:
+			readAliasSuffix := "read"
+			if f.config.ReadAliasSuffix != "" {
+				readAliasSuffix = f.config.ReadAliasSuffix
+			}
+			r = indices.NewAliasRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
+		default:
+			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
+		}
+		if len(f.config.RemoteReadClusters) > 0 {
+			r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
+		}
+		r = indices.NewLoggingRotation(r, f.logger)
+		return r
 	}
 
 	return buildOne(spanPrefix, f.config.SpanReadAlias, f.config.Indices.Spans),
@@ -283,24 +285,22 @@ func (f *FactoryBase) buildReaderRotations() (spanRotation, serviceRotation indi
 }
 
 func (f *FactoryBase) buildWriterRotations() (spanRotation, serviceRotation indices.Rotation) {
-	writeAliasSuffix := "write"
-	if f.config.WriteAliasSuffix != "" {
-		writeAliasSuffix = f.config.WriteAliasSuffix
-	}
-
 	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
 	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
 
 	buildOne := func(prefix, explicitAlias string, idxOpts config.IndexOptions) indices.Rotation {
-		return indices.BuildRotation(indices.RotationBuilderOptions{
-			IndexPrefix:         prefix,
-			DateLayout:          idxOpts.DateLayout,
-			RolloverFrequency:   config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency),
-			UseReadWriteAliases: f.config.UseReadWriteAliases,
-			WriteSuffix:         writeAliasSuffix,
-			ExplicitWriteAlias:  explicitAlias,
-			ExplicitReadAlias:   explicitAlias,
-		})
+		switch {
+		case explicitAlias != "":
+			return indices.NewAliasRotation(explicitAlias, explicitAlias)
+		case f.config.UseReadWriteAliases:
+			writeAliasSuffix := "write"
+			if f.config.WriteAliasSuffix != "" {
+				writeAliasSuffix = f.config.WriteAliasSuffix
+			}
+			return indices.NewAliasRotation(prefix+writeAliasSuffix, prefix+writeAliasSuffix)
+		default:
+			return indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
+		}
 	}
 
 	return buildOne(spanPrefix, f.config.SpanWriteAlias, f.config.Indices.Spans),

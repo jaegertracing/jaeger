@@ -193,29 +193,28 @@ func buildReaderRotations(p SpanReaderParams) (spanRotation, serviceRotation ind
 		return spanRotation, serviceRotation
 	}
 
-	readAliasSuffix := "read"
-	if p.ReadAliasSuffix != "" {
-		readAliasSuffix = p.ReadAliasSuffix
-	}
-
 	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
 	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
 
 	buildOne := func(prefix string, explicitAlias string, idxOpts cfg.IndexOptions) indices.Rotation {
-		opts := indices.RotationBuilderOptions{
-			IndexPrefix:         prefix,
-			DateLayout:          idxOpts.DateLayout,
-			RolloverFrequency:   cfg.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency),
-			UseReadWriteAliases: p.UseReadWriteAliases,
-			ReadSuffix:          readAliasSuffix,
-			RemoteReadClusters:  p.RemoteReadClusters,
-			Logger:              p.Logger,
+		var r indices.Rotation
+		switch {
+		case explicitAlias != "":
+			r = indices.NewAliasRotation(explicitAlias, explicitAlias)
+		case p.UseReadWriteAliases:
+			readAliasSuffix := "read"
+			if p.ReadAliasSuffix != "" {
+				readAliasSuffix = p.ReadAliasSuffix
+			}
+			r = indices.NewAliasRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
+		default:
+			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, cfg.RolloverFrequencyAsNegativeDuration(idxOpts.RolloverFrequency))
 		}
-		if explicitAlias != "" {
-			opts.ExplicitReadAlias = explicitAlias
-			opts.ExplicitWriteAlias = explicitAlias
+		if len(p.RemoteReadClusters) > 0 {
+			r = indices.NewRemoteClusterRotation(r, p.RemoteReadClusters)
 		}
-		return indices.BuildRotation(opts)
+		r = indices.NewLoggingRotation(r, p.Logger)
+		return r
 	}
 
 	if spanRotation == nil {
