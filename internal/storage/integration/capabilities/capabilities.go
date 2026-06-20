@@ -85,12 +85,13 @@ func Badger() Capabilities {
 }
 
 // Elasticsearch defines the capabilities for the Elasticsearch storage backend.
+// FindTraceSummaries is supported natively via tracestore.SummaryReader.
 func Elasticsearch() Capabilities {
 	return Capabilities{
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}
 }
 
@@ -110,10 +111,11 @@ func ElasticsearchSmokeTest() Capabilities {
 }
 
 // OpenSearch defines the capabilities for the OpenSearch storage backend.
+// FindTraceSummaries is supported natively via tracestore.SummaryReader.
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}
 }
 

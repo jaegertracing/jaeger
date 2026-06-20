@@ -5,7 +5,10 @@ package tracestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
+	"time"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -13,6 +16,18 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
+
+var (
+	_ tracestore.Reader        = (*TraceReader)(nil)
+	_ tracestore.SummaryReader = (*TraceReader)(nil)
+)
+
+// summaryAggregator is an optional capability kept out of core.Reader so existing
+// implementations and their generated mocks are unaffected; the wrapper discovers
+// it via a type assertion.
+type summaryAggregator interface {
+	FindTraceSummaries(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error)
+}
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
@@ -112,6 +127,75 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 		}
 		yield(otelTraceIds, nil)
 	}
+}
+
+// FindTraceSummaries implements tracestore.SummaryReader. It yields
+// errors.ErrUnsupported when the core reader has no native summary support, so the
+// query service falls back to client-side aggregation.
+func (t *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		aggregator, ok := t.spanReader.(summaryAggregator)
+		if !ok {
+			yield(nil, fmt.Errorf("native trace summaries are not supported by this reader: %w", errors.ErrUnsupported))
+			return
+		}
+
+		dbSummaries, err := aggregator.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		summaries := make([]tracestore.TraceSummary, 0, len(dbSummaries))
+		for _, dbSummary := range dbSummaries {
+			summary, err := convertTraceSummaryFromDB(dbSummary)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			summaries = append(summaries, summary)
+		}
+		yield(summaries, nil)
+	}
+}
+
+func convertTraceSummaryFromDB(dbSummary dbmodel.TraceSummary) (tracestore.TraceSummary, error) {
+	traceID, err := convertTraceIDFromDB(dbSummary.TraceID)
+	if err != nil {
+		return tracestore.TraceSummary{}, err
+	}
+
+	services := make([]tracestore.ServiceSummary, 0, len(dbSummary.Services))
+	for _, svc := range dbSummary.Services {
+		services = append(services, tracestore.ServiceSummary{
+			Name:           svc.ServiceName,
+			SpanCount:      svc.SpanCount,
+			ErrorSpanCount: svc.ErrorSpanCount,
+		})
+	}
+
+	var minStart, maxEnd time.Time
+	if dbSummary.MinStartTime > 0 {
+		//nolint:gosec // G115: microsecond epoch timestamp is well within int64 range
+		minStart = time.UnixMicro(int64(dbSummary.MinStartTime)).UTC()
+	}
+	if dbSummary.MaxEndTime > 0 {
+		//nolint:gosec // G115: microsecond epoch timestamp is well within int64 range
+		maxEnd = time.UnixMicro(int64(dbSummary.MaxEndTime)).UTC()
+	}
+
+	return tracestore.TraceSummary{
+		TraceID:           traceID,
+		RootServiceName:   dbSummary.RootServiceName,
+		RootOperationName: dbSummary.RootOperationName,
+		MinStartTime:      minStart,
+		MaxEndTime:        maxEnd,
+		SpanCount:         dbSummary.SpanCount,
+		ErrorSpanCount:    dbSummary.ErrorSpanCount,
+		// OrphanSpanCount stays zero on the native path; see FindTraceSummaries.
+		OrphanSpanCount: 0,
+		Services:        services,
+	}, nil
 }
 
 func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryParameters {
