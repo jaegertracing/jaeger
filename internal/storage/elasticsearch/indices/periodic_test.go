@@ -68,5 +68,5 @@ func TestPeriodicRotation_ReadTargets(t *testing.T) {
 
 func TestPeriodicRotation_WriteOpType(t *testing.T) {
 	r := NewPeriodicRotation("jaeger-span-", "2006-01-02", -24*time.Hour)
-	assert.Equal(t, "index", r.WriteOpType())
+	assert.Equal(t, WriteOpIndex, r.WriteOpType())
 }

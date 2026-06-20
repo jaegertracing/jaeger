@@ -146,7 +146,7 @@ type fnRotation struct {
 
 func (f *fnRotation) WriteTarget(t time.Time) string          { return f.fn(t) }
 func (*fnRotation) ReadTargets(time.Time, time.Time) []string { return nil }
-func (*fnRotation) WriteOpType() string                       { return "index" }
+func (*fnRotation) WriteOpType() indices.WriteOpType           { return indices.WriteOpIndex }
 
 func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
 	// If explicit write aliases are provided, use them directly without modification

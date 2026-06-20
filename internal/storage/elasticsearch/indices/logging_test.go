@@ -27,5 +27,5 @@ func TestLoggingRotation_WithDebug(t *testing.T) {
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)
 	assert.Equal(t, "jaeger-span-1995-04-21", r.WriteTarget(date))
 	assert.Equal(t, []string{"jaeger-span-1995-04-21"}, r.ReadTargets(date, date))
-	assert.Equal(t, "index", r.WriteOpType())
+	assert.Equal(t, WriteOpIndex, r.WriteOpType())
 }

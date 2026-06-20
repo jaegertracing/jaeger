@@ -111,7 +111,7 @@ func TestBuildRotation(t *testing.T) {
 			r := BuildRotation(tt.opts)
 			assert.Equal(t, tt.expectedWrite, r.WriteTarget(date))
 			assert.Equal(t, tt.expectedRead, r.ReadTargets(date, date))
-			assert.Equal(t, "index", r.WriteOpType())
+			assert.Equal(t, WriteOpIndex, r.WriteOpType())
 		})
 	}
 }

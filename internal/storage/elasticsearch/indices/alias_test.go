@@ -25,5 +25,5 @@ func TestAliasRotation_ReadTargets(t *testing.T) {
 
 func TestAliasRotation_WriteOpType(t *testing.T) {
 	r := NewAliasRotation("jaeger-span-write", "jaeger-span-read")
-	assert.Equal(t, "index", r.WriteOpType())
+	assert.Equal(t, WriteOpIndex, r.WriteOpType())
 }

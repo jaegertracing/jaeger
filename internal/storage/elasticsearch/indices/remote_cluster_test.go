@@ -30,7 +30,7 @@ func TestRemoteClusterRotation(t *testing.T) {
 	})
 
 	t.Run("WriteOpType delegates to inner", func(t *testing.T) {
-		assert.Equal(t, "index", r.WriteOpType())
+		assert.Equal(t, WriteOpIndex, r.WriteOpType())
 	})
 }
 

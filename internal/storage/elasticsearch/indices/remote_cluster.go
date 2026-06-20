@@ -39,4 +39,4 @@ func (r *RemoteClusterRotation) ReadTargets(startTime, endTime time.Time) []stri
 	return result
 }
 
-func (r *RemoteClusterRotation) WriteOpType() string { return r.inner.WriteOpType() }
+func (r *RemoteClusterRotation) WriteOpType() WriteOpType { return r.inner.WriteOpType() }

@@ -29,4 +29,4 @@ func (s *AliasRotation) ReadTargets(time.Time, time.Time) []string {
 	return []string{s.readAlias}
 }
 
-func (*AliasRotation) WriteOpType() string { return "index" }
+func (*AliasRotation) WriteOpType() WriteOpType { return WriteOpIndex }
