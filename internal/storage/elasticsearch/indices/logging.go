@@ -32,7 +32,7 @@ func (l *LoggingRotation) WriteTarget(spanTime time.Time) string {
 
 func (l *LoggingRotation) ReadTargets(startTime, endTime time.Time) []string {
 	targets := l.inner.ReadTargets(startTime, endTime)
-	l.logger.Debug("Reading from ES indices", zap.Strings("index", targets))
+	l.logger.Debug("Reading from ES indices", zap.Strings("indices", targets))
 	return targets
 }
 
