@@ -113,6 +113,33 @@ func TestSpanReader_FindTraceSummaries_NoAggregations(t *testing.T) {
 	})
 }
 
+func TestSpanReader_FindTraceSummaries_BadRootSource(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		// A malformed root-span _source must surface as an error, not be silently
+		// turned into an empty root service/operation.
+		badRoot := `{
+  "buckets": [
+    {
+      "key": "00000000000000000000000000000001",
+      "doc_count": 1,
+      "min_start": {"value": 1000000},
+      "max_end": {"value": 2000000},
+      "error_count": {"doc_count": 0},
+      "services": {"buckets": []},
+      "root": {"doc_count": 1, "root_hit": {"hits": {"hits": [
+        {"_source": "not-an-object"}
+      ]}}}
+    }
+  ]
+}`
+		aggs := map[string]json.RawMessage{traceSummariesAggregation: []byte(badRoot)}
+		mockSummarySearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(aggs)}, nil)
+		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.Error(t, err)
+	})
+}
+
 func TestSpanReader_FindTraceSummaries_MissingBucketAggregation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		aggs := map[string]json.RawMessage{"other": []byte(`{"buckets": []}`)}

@@ -157,7 +157,11 @@ func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.
 			summary.ErrorSpanCount = int(errorCount.DocCount)
 		}
 		summary.Services = parseServiceSummaries(bucket)
-		summary.RootServiceName, summary.RootOperationName = parseRootSpan(bucket)
+		rootService, rootOperation, err := parseRootSpan(bucket)
+		if err != nil {
+			return nil, fmt.Errorf("trace %s: %w", traceID, err)
+		}
+		summary.RootServiceName, summary.RootOperationName = rootService, rootOperation
 
 		summaries = append(summaries, summary)
 	}
@@ -187,14 +191,17 @@ func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) []dbmodel.S
 	return services
 }
 
-func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName string, operationName string) {
+// parseRootSpan returns empty values with a nil error when the bucket has no root
+// span (a valid outcome); a malformed top-hit _source is surfaced as an error
+// rather than silently dropped.
+func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName, operationName string, err error) {
 	rootAgg, ok := bucket.Filter(rootSubAggregation)
 	if !ok {
-		return "", ""
+		return "", "", nil
 	}
 	topHits, ok := rootAgg.TopHits(rootHitSubAggregation)
 	if !ok || topHits.Hits == nil || len(topHits.Hits.Hits) == 0 {
-		return "", ""
+		return "", "", nil
 	}
 	var source struct {
 		OperationName string `json:"operationName"`
@@ -203,7 +210,7 @@ func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName string
 		} `json:"process"`
 	}
 	if err := json.Unmarshal(topHits.Hits.Hits[0].Source, &source); err != nil {
-		return "", ""
+		return "", "", fmt.Errorf("failed to decode root span source: %w", err)
 	}
-	return source.Process.ServiceName, source.OperationName
+	return source.Process.ServiceName, source.OperationName, nil
 }
