@@ -543,7 +543,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 	assert.IsType(t, core.SpanReaderParams{}, readerParams)
 }
 
-func TestBuildReaderRotations(t *testing.T) {
+func TestBuildRotations(t *testing.T) {
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 	spanDataLayout := "2006-01-02-15"
 	serviceDataLayout := "2006-01-02"
@@ -551,9 +551,10 @@ func TestBuildReaderRotations(t *testing.T) {
 	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
 
 	testCases := []struct {
-		name    string
-		cfg     escfg.Configuration
-		indices []string
+		name         string
+		cfg          escfg.Configuration
+		readIndices  []string
+		writeIndices []string
 	}{
 		{
 			name: "periodic rotation",
@@ -563,30 +564,37 @@ func TestBuildReaderRotations(t *testing.T) {
 					Services: escfg.IndexOptions{DateLayout: serviceDataLayout},
 				},
 			},
-			indices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "alias rotation",
 			cfg: escfg.Configuration{
 				UseReadWriteAliases: true,
 			},
-			indices: []string{"jaeger-span-read", "jaeger-service-read"},
+			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
+			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
 		},
 		{
-			name: "alias with custom suffix",
+			name: "alias with custom suffixes",
 			cfg: escfg.Configuration{
 				UseReadWriteAliases: true,
-				ReadAliasSuffix:     "archive",
+				ReadAliasSuffix:     "archive-read",
+				WriteAliasSuffix:    "archive-write",
 			},
-			indices: []string{"jaeger-span-archive", "jaeger-service-archive"},
+			readIndices:  []string{"jaeger-span-archive-read", "jaeger-service-archive-read"},
+			writeIndices: []string{"jaeger-span-archive-write", "jaeger-service-archive-write"},
 		},
 		{
-			name: "explicit read aliases",
+			name: "explicit aliases",
 			cfg: escfg.Configuration{
-				SpanReadAlias:    "custom-span-read",
-				ServiceReadAlias: "custom-service-read",
+				SpanWriteAlias:    "custom-span-write",
+				SpanReadAlias:     "custom-span-read",
+				ServiceWriteAlias: "custom-service-write",
+				ServiceReadAlias:  "custom-service-read",
 			},
-			indices: []string{"custom-span-read", "custom-service-read"},
+			readIndices:  []string{"custom-span-read", "custom-service-read"},
+			writeIndices: []string{"custom-span-write", "custom-service-write"},
 		},
 		{
 			name: "with index prefix",
@@ -597,7 +605,8 @@ func TestBuildReaderRotations(t *testing.T) {
 					Services:    escfg.IndexOptions{DateLayout: serviceDataLayout},
 				},
 			},
-			indices: []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
+			readIndices:  []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "with remote clusters",
@@ -608,7 +617,7 @@ func TestBuildReaderRotations(t *testing.T) {
 				},
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
-			indices: []string{
+			readIndices: []string{
 				"jaeger-span-" + spanDataLayoutFormat,
 				"cluster_one:jaeger-span-" + spanDataLayoutFormat,
 				"cluster_two:jaeger-span-" + spanDataLayoutFormat,
@@ -616,82 +625,17 @@ func TestBuildReaderRotations(t *testing.T) {
 				"cluster_one:jaeger-service-" + serviceDataLayoutFormat,
 				"cluster_two:jaeger-service-" + serviceDataLayoutFormat,
 			},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
-			spanRotation, serviceRotation := f.buildReaderRotations()
-			actualSpan := spanRotation.ReadTargets(date, date)
-			actualService := serviceRotation.ReadTargets(date, date)
-			assert.Equal(t, tc.indices, append(actualSpan, actualService...))
-		})
-	}
-}
-
-func TestBuildWriterRotations(t *testing.T) {
-	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-	spanDataLayout := "2006-01-02-15"
-	serviceDataLayout := "2006-01-02"
-	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
-	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
-
-	testCases := []struct {
-		name    string
-		cfg     escfg.Configuration
-		indices []string
-	}{
-		{
-			name: "periodic rotation",
-			cfg: escfg.Configuration{
-				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services: escfg.IndexOptions{DateLayout: serviceDataLayout},
-				},
-			},
-			indices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
-		},
-		{
-			name: "alias rotation",
-			cfg: escfg.Configuration{
-				UseReadWriteAliases: true,
-			},
-			indices: []string{"jaeger-span-write", "jaeger-service-write"},
-		},
-		{
-			name: "alias with custom suffix",
-			cfg: escfg.Configuration{
-				UseReadWriteAliases: true,
-				WriteAliasSuffix:    "archive",
-			},
-			indices: []string{"jaeger-span-archive", "jaeger-service-archive"},
-		},
-		{
-			name: "explicit write aliases",
-			cfg: escfg.Configuration{
-				SpanWriteAlias:    "custom-span-write",
-				ServiceWriteAlias: "custom-service-write",
-			},
-			indices: []string{"custom-span-write", "custom-service-write"},
-		},
-		{
-			name: "with index prefix",
-			cfg: escfg.Configuration{
-				Indices: escfg.Indices{
-					IndexPrefix: "foo:",
-					Spans:       escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services:    escfg.IndexOptions{DateLayout: serviceDataLayout},
-				},
-			},
-			indices: []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
-			spanRotation, serviceRotation := f.buildWriterRotations()
-			actual := []string{spanRotation.WriteTarget(date), serviceRotation.WriteTarget(date)}
-			assert.Equal(t, tc.indices, actual)
+			spanRotation, serviceRotation := f.buildRotations()
+			actualRead := append(spanRotation.ReadTargets(date, date), serviceRotation.ReadTargets(date, date)...)
+			assert.Equal(t, tc.readIndices, actualRead)
+			actualWrite := []string{spanRotation.WriteTarget(date), serviceRotation.WriteTarget(date)}
+			assert.Equal(t, tc.writeIndices, actualWrite)
 		})
 	}
 }

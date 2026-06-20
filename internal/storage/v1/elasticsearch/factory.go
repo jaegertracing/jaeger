@@ -107,7 +107,7 @@ func (f *FactoryBase) getClient() es.Client {
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
-	spanRotation, serviceRotation := f.buildReaderRotations()
+	spanRotation, serviceRotation := f.buildRotations()
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
 	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
@@ -129,7 +129,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
-	spanRotation, serviceRotation := f.buildWriterRotations()
+	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
 		Client:            f.getClient,
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
@@ -247,21 +247,30 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
-func (f *FactoryBase) buildReaderRotations() (spanRotation, serviceRotation indices.Rotation) {
+func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
 	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
 	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
 
-	buildOne := func(prefix, explicitAlias string, idxOpts config.IndexOptions) indices.Rotation {
+	type aliasConfig struct {
+		explicitWrite string
+		explicitRead  string
+	}
+
+	buildOne := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
 		var r indices.Rotation
 		switch {
-		case explicitAlias != "":
-			r = indices.NewAliasedRotation(explicitAlias, explicitAlias)
+		case aliases.explicitWrite != "" && aliases.explicitRead != "":
+			r = indices.NewAliasedRotation(aliases.explicitWrite, aliases.explicitRead)
 		case f.config.UseReadWriteAliases:
-			readAliasSuffix := "read"
-			if f.config.ReadAliasSuffix != "" {
-				readAliasSuffix = f.config.ReadAliasSuffix
+			writeSuffix := "write"
+			if f.config.WriteAliasSuffix != "" {
+				writeSuffix = f.config.WriteAliasSuffix
 			}
-			r = indices.NewAliasedRotation(prefix+readAliasSuffix, prefix+readAliasSuffix)
+			readSuffix := "read"
+			if f.config.ReadAliasSuffix != "" {
+				readSuffix = f.config.ReadAliasSuffix
+			}
+			r = indices.NewAliasedRotation(prefix+writeSuffix, prefix+readSuffix)
 		default:
 			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
 		}
@@ -272,31 +281,15 @@ func (f *FactoryBase) buildReaderRotations() (spanRotation, serviceRotation indi
 		return r
 	}
 
-	return buildOne(spanPrefix, f.config.SpanReadAlias, f.config.Indices.Spans),
-		buildOne(servicePrefix, f.config.ServiceReadAlias, f.config.Indices.Services)
-}
-
-func (f *FactoryBase) buildWriterRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
-	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
-
-	buildOne := func(prefix, explicitAlias string, idxOpts config.IndexOptions) indices.Rotation {
-		switch {
-		case explicitAlias != "":
-			return indices.NewAliasedRotation(explicitAlias, explicitAlias)
-		case f.config.UseReadWriteAliases:
-			writeAliasSuffix := "write"
-			if f.config.WriteAliasSuffix != "" {
-				writeAliasSuffix = f.config.WriteAliasSuffix
-			}
-			return indices.NewAliasedRotation(prefix+writeAliasSuffix, prefix+writeAliasSuffix)
-		default:
-			return indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
-		}
-	}
-
-	return buildOne(spanPrefix, f.config.SpanWriteAlias, f.config.Indices.Spans),
-		buildOne(servicePrefix, f.config.ServiceWriteAlias, f.config.Indices.Services)
+	spanRotation = buildOne(spanPrefix, aliasConfig{
+		explicitWrite: f.config.SpanWriteAlias,
+		explicitRead:  f.config.SpanReadAlias,
+	}, f.config.Indices.Spans)
+	serviceRotation = buildOne(servicePrefix, aliasConfig{
+		explicitWrite: f.config.ServiceWriteAlias,
+		explicitRead:  f.config.ServiceReadAlias,
+	}, f.config.Indices.Services)
+	return spanRotation, serviceRotation
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
