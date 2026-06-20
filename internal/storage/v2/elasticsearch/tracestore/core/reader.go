@@ -49,7 +49,7 @@ const (
 
 	defaultSearchDepth = 100
 
-	dawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
+	DawnOfTimeSpanAge = time.Hour * 24 * 365 * 50
 )
 
 var (
@@ -101,18 +101,19 @@ func init() {
 //
 //  2. GetTraces (by trace ID): no time range is known. The reader uses [now-maxSpanAge, now].
 //     - Periodic indices: maxSpanAge should match data retention (e.g., 7d). ReadTargets generates
-//       only existing indices within that window. No extra query filter needed — index selection
-//       IS the time scoping.
-//     - Alias indices: a single alias covers all data. maxSpanAge is overridden to dawnOfTimeSpanAge
-//       (50 years) to ensure old traces are reachable by ID. A time-range filter is added to the ES
-//       query to enable shard pruning (otherwise ES scans all shards behind the alias).
+//       only existing indices within that window.
+//     - Alias indices: a single alias covers all data. The factory overrides maxSpanAge to
+//       DawnOfTimeSpanAge (50 years) to ensure old traces are reachable by ID.
+//
+// multiRead always adds a time-range filter to the ES query for shard pruning (helps ES skip
+// irrelevant shards). This is harmless for periodic indices and essential for aliases.
 //
 // multiRead is called from both paths. When called from FindTraces, the time range is the user's
 // search window — but a trace may extend beyond it. The ±1h padding on index selection is a
 // heuristic for traces straddling index boundaries.
 //
 // TODO: future improvements:
-//   - Replace dawnOfTimeSpanAge with a configurable DataRetentionInterval that operators set
+//   - Replace DawnOfTimeSpanAge with a configurable DataRetentionInterval that operators set
 //     to match their ILM/ISM policy. This removes the need for the 50-year hack.
 //   - Replace the hardcoded ±1h padding with a configurable maxTraceDuration, making the read
 //     window [startTime-maxTraceDuration, endTime+maxTraceDuration]. This handles long traces.
@@ -128,7 +129,6 @@ type SpanReader struct {
 	serviceOperationStorage *ServiceOperationStorage
 	spanRotation            indices.Rotation
 	serviceRotation         indices.Rotation
-	useReadWriteAliases     bool
 	sourceFn                sourceFn
 	maxDocCount             int
 	logger                  *zap.Logger
@@ -138,32 +138,24 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client              func() es.Client
-	MaxSpanAge          time.Duration
-	MaxDocCount         int
-	TagDotReplacement   string
-	UseReadWriteAliases bool
-	Logger              *zap.Logger
-	Tracer              trace.Tracer
-	SpanRotation        indices.Rotation
-	ServiceRotation     indices.Rotation
+	Client            func() es.Client
+	MaxSpanAge        time.Duration
+	MaxDocCount       int
+	TagDotReplacement string
+	Logger            *zap.Logger
+	Tracer            trace.Tracer
+	SpanRotation      indices.Rotation
+	ServiceRotation   indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	maxSpanAge := p.MaxSpanAge
-	// See timeRangeDesign above.
-	if p.UseReadWriteAliases {
-		maxSpanAge = dawnOfTimeSpanAge
-	}
-
 	return &SpanReader{
 		client:                  p.Client,
-		maxSpanAge:              maxSpanAge,
+		maxSpanAge:              p.MaxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
-		useReadWriteAliases:     p.UseReadWriteAliases,
 		sourceFn:                getSourceFn(p.MaxDocCount),
 		maxDocCount:             p.MaxDocCount,
 		logger:                  p.Logger,
@@ -326,13 +318,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
 			traceQuery := buildTraceByIDQuery(traceID)
+			startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
 			query := elastic.NewBoolQuery().
-				Must(traceQuery)
-			// See timeRangeDesign above.
-			if s.useReadWriteAliases {
-				startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-time.Hour*24), endTime.Add(time.Hour*24))
-				query = query.Must(startTimeRangeQuery)
-			}
+				Must(traceQuery).
+				Must(startTimeRangeQuery)
 
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val

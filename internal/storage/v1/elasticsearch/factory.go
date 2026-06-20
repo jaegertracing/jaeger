@@ -108,16 +108,22 @@ func (f *FactoryBase) getClient() es.Client {
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildReaderRotations()
+	maxSpanAge := f.config.MaxSpanAge
+	// See timeRangeDesign comment in reader.go.
+	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
+	// can reach any trace regardless of age.
+	if f.config.UseReadWriteAliases {
+		maxSpanAge = esspanstore.DawnOfTimeSpanAge
+	}
 	return esspanstore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          f.config.MaxSpanAge,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
-		SpanRotation:        spanRotation,
-		ServiceRotation:     serviceRotation,
+		Client:            f.getClient,
+		MaxDocCount:       f.config.MaxDocCount,
+		MaxSpanAge:        maxSpanAge,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 

@@ -149,50 +149,26 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
-			Client:              func() es.Client { return client },
-			Logger:              zap.NewNop(),
-			Tracer:              tracer.Tracer("test"),
-			MaxSpanAge:          0,
-			TagDotReplacement:   "@",
-			UseReadWriteAliases: readAlias,
-			SpanRotation:        spanRotation,
-			ServiceRotation:     serviceRotation,
+			Client:            func() es.Client { return client },
+			Logger:            zap.NewNop(),
+			Tracer:            tracer.Tracer("test"),
+			MaxSpanAge:        0,
+			TagDotReplacement: "@",
+			SpanRotation:      spanRotation,
+			ServiceRotation:   serviceRotation,
 		}),
 	}
 	fn(r)
 }
 
 func TestNewSpanReader(t *testing.T) {
-	tests := []struct {
-		name       string
-		params     SpanReaderParams
-		maxSpanAge time.Duration
-	}{
-		{
-			name: "no rollover",
-			params: SpanReaderParams{
-				MaxSpanAge: time.Hour * 72,
-			},
-			maxSpanAge: time.Hour * 72,
-		},
-		{
-			name: "rollover enabled",
-			params: SpanReaderParams{
-				MaxSpanAge:          time.Hour * 72,
-				UseReadWriteAliases: true,
-			},
-			maxSpanAge: time.Hour * 24 * 365 * 50,
-		},
+	params := SpanReaderParams{
+		MaxSpanAge: time.Hour * 72,
+		Logger:     zaptest.NewLogger(t),
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			params := test.params
-			params.Logger = zaptest.NewLogger(t)
-			reader := NewSpanReader(params)
-			require.NotNil(t, reader)
-			assert.Equal(t, test.maxSpanAge, reader.maxSpanAge)
-		})
-	}
+	reader := NewSpanReader(params)
+	require.NotNil(t, reader)
+	assert.Equal(t, time.Hour*72, reader.maxSpanAge)
 }
 
 func TestSpanReaderRotations(t *testing.T) {
@@ -321,11 +297,12 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
+		startTimeRangeQuery := r.reader.buildStartTimeQuery(date.Add(-time.Hour*24), date.Add(time.Hour*24))
 		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
-		id1Query := elastic.NewBoolQuery().Must(traceID1Query)
+		id1Query := elastic.NewBoolQuery().Must(traceID1Query).Must(startTimeRangeQuery)
 		id1Search := newSearchRequest(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
 		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
-		id2Query := elastic.NewBoolQuery().Must(traceID2Query)
+		id2Query := elastic.NewBoolQuery().Must(traceID2Query).Must(startTimeRangeQuery)
 		id2Search := newSearchRequest(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
 		id1SearchSpanTime := newSearchRequest(r.reader.sourceFn(id1Query, spanID1.StartTime).TrackTotalHits(true))
 
