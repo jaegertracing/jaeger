@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -67,13 +66,7 @@ func (s *SpanReader) FindTraceSummaries(
 
 	aggregation := s.buildTraceSummariesAggregation(traceQuery.SearchDepth)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(
-		s.spanIndexPrefix,
-		s.spanIndex.DateLayout,
-		traceQuery.StartTimeMin,
-		traceQuery.StartTimeMax,
-		cfg.RolloverFrequencyAsNegativeDuration(s.spanIndex.RolloverFrequency),
-	)
+	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchResult, err := s.client().Search(jaegerIndices...).
 		Size(0).
