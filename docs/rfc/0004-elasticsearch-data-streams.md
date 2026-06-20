@@ -487,6 +487,141 @@ else:
 
 Both ES and OpenSearch are supported from the start. The data stream creation, write, and read paths are identical — only the lifecycle policy creation differs (ISM API for OpenSearch, ILM API for ES). CI integration tests run against both backends.
 
+### 3.9 Trace-ID Timestamp Lookup Index
+
+#### Problem
+
+GetTrace (trace by ID) requires querying spans by `traceId`. Without a time-range bound, the query fans out to every shard across the entire retention window.
+
+**At scale (100K spans/sec, 30-day retention):**
+
+| Metric | Value |
+|--------|-------|
+| Ingest rate | 100K spans/sec, ~100 MB/sec |
+| Daily volume | 8.64B spans, ~8.64 TB |
+| 30-day retention | ~260 TB primary (520+ TB with replica) |
+| Shards (50 GB each) | ~5,100 primary shards |
+| Typical AWS cluster | Hot tier (r6g.4xlarge, gp3 EBS, 1–3 days) + UltraWarm (S3-backed, 3–30 days) |
+
+A trace-by-ID query with no time range:
+1. Coordinator resolves `jaeger.spans` (or `jaeger-span-*`) → 5,100 shards
+2. `can_match` pre-filter: only prunes on `@timestamp` ranges — with no time filter, every shard is a candidate
+3. Fan-out to all 5,100 shards (including S3-backed UltraWarm), each does inverted-index lookup for the traceId
+4. **Latency**: 2–10+ seconds (dominated by UltraWarm S3 cache misses for term dictionary blocks)
+
+With a known time range (e.g., 1-hour window):
+- Only ~7 shards are candidates
+- Hits hot tier exclusively for recent traces
+- **Latency**: 5–20 ms
+
+This is a **100–1000× improvement**. A lookup index that maps `trace_id → (min_start, max_end)` makes this possible.
+
+Note: ES/OpenSearch have no bloom-filter-based shard pruning for arbitrary keyword fields. The `can_match` phase only uses min/max timestamp metadata. Custom `routing` by trace_id would help point-gets but breaks time-range queries (FindTraces) and is incompatible with data streams. There is no way to solve this problem from the query side alone.
+
+#### Solution: `jaeger.trace_timestamps` Index
+
+A regular (non-data-stream) index with one document per trace:
+
+```json
+{
+  "_id": "<traceId>",
+  "min_start": 1718700000000000000,
+  "max_end":   1718700005000000000
+}
+```
+
+Mapping:
+```json
+{
+  "min_start": { "type": "date_nanos" },
+  "max_end":   { "type": "date_nanos" }
+}
+```
+
+**Index sizing** (100K spans/sec, ~2K unique traces/sec, 30-day retention):
+- ~5.2M traces over 30 days
+- ~60 bytes per doc on disk → **~300 MB total**
+- Fits comfortably in 1–5 shards, entirely in OS page cache
+- Point-get by `_id`: **1–5 ms**
+
+Multiple shards (e.g., 5) distribute writes across nodes — `_id`-based routing ensures point-gets still hit exactly one shard.
+
+#### Write Path
+
+The write-path uses a cache (in-memory or Redis) to avoid redundant updates to the lookup index. The cache is purely a write-path optimization — it is NOT used during reads. The stored ES data is the source of truth for queries.
+
+**Sequence for each span** `(trace_id, span_start, span_end)`:
+
+1. Check cache: does an entry exist for `trace_id` that fully encloses `[span_start, span_end]`?
+2. If **no** (cache miss or bounds exceeded): add an upsert to the current bulk batch targeting `jaeger.trace_timestamps`
+3. Update cache entry to the new `(min_start, max_end)`
+4. Add the span itself to the same bulk batch
+
+The timestamp upsert and the span insert are in the **same bulk request** — they are not sent independently. This ensures that by the time the span is searchable, its time range is also recorded (both become visible on the same bulk flush).
+
+**ES upsert operation** (scripted, only emitted on cache miss):
+```json
+{"update": {"_index": "jaeger.trace_timestamps", "_id": "<traceId>"}}
+{"script": {"source": "ctx._source.min_start = Math.min(ctx._source.min_start, params.s); ctx._source.max_end = Math.max(ctx._source.max_end, params.e)", "params": {"s": <start>, "e": <end>}}, "upsert": {"min_start": <start>, "max_end": <end>}}
+```
+
+The scripted upsert handles concurrent writes from multiple collectors: `Math.min/max` converges regardless of arrival order.
+
+#### Cache Semantics and the Padding Heuristic
+
+To reduce ES writes, the cache entry stores bounds with a **padding** (e.g., 1 hour):
+- Cache entry for `trace_id`: `[min_start - 1hr, max_end + 1hr]`
+- A new span only triggers an ES upsert if its time range falls **outside** the padded cache entry
+- The read path queries with the same padding: `[es_min_start - 1hr, es_max_end + 1hr]`
+
+This means:
+- For 99%+ of traces (duration < 2 hours): **exactly one ES write per trace** (the initial insert). Subsequent spans fall within the padded window and only update the cache.
+- The ~1% of traces exceeding 2 hours trigger additional upserts — but only when they extend beyond the padded boundary, which happens at most once per padding interval.
+- The padding ensures the read path always finds all spans, even if the ES record is slightly stale relative to the most recent span.
+
+#### Deployment Options for the Cache
+
+| Deployment topology | Cache | Write rate to ES | Notes |
+|---|---|---|---|
+| Kafka partitioned by trace_id → one collector per partition | In-memory map | ~2K inserts/sec (one per new trace) | Perfect coalescing; no concurrent upserts to same trace_id |
+| Multiple collectors, no trace_id partitioning, Redis available | Redis (HSET min/max per trace_id) | ~2K inserts/sec + rare upserts | Redis coalesces across collectors; 100K Redis ops/sec is trivial |
+| Multiple collectors, no partitioning, no Redis | In-memory map per collector | 2K–10K upserts/sec (multiple collectors may upsert same trace concurrently) | Scripted upsert is idempotent; padding heuristic keeps rate low |
+
+**Redis usage** (when deployed): each collector checks Redis before deciding to write to ES. Redis holds exact `(min_start, max_end)` per trace_id with a TTL (e.g., 4 hours, refreshed on update). Memory: 50K concurrent traces × ~100 bytes = ~5 MB.
+
+**In-memory cache sizing**: LRU cache with TTL (e.g., 100K entries, 4hr TTL — same pattern as the existing service operation cache). Memory: ~10–20 MB per collector. When a trace is evicted (inactive), its final bounds are already in ES from the initial write + any triggered upserts.
+
+#### Read Path
+
+GetTrace flow:
+1. Point-get `jaeger.trace_timestamps` by `_id = traceId` → returns `(min_start, max_end)` in 1–5 ms
+2. Query spans with time range `[min_start - padding, max_end + padding]` → only relevant shards are searched
+3. If the lookup returns no result (trace_id not yet in the index, possible during the brief window between span insertion and next bulk flush): fall back to `[now - maxSpanAge, now]` (current behavior — correctness preserved, just slower)
+
+#### Correctness
+
+**Invariant**: For any trace whose spans are searchable in ES, `[es_min_start - padding, es_max_end + padding]` covers all spans of that trace.
+
+This holds because:
+- The timestamp upsert is in the same bulk batch as the span itself — both become visible atomically on bulk acknowledgment
+- Worst case (cache miss on every span, concurrent collectors): the scripted upsert converges to the correct min/max regardless of execution order
+- The padding accounts for the case where an earlier batch established bounds, and a later span within the padding window was cached (not written to ES) — the read path's padding matches the write path's suppression window
+
+**Failure modes**:
+- Collector crash with in-memory cache: trace_id entries lost from cache. Next span for that trace triggers a fresh ES upsert (may re-insert with narrower bounds until more spans arrive). The padding on reads provides a safety margin.
+- Redis failure with Redis-backed cache: collectors fall back to individual upserts (no coalescing). Higher ES write rate but correct.
+- ES bulk request failure: both the span and the timestamp upsert fail together. Neither is visible. Retry delivers both. Consistent.
+
+#### Relationship to TraceSummary
+
+This index solves the GetTrace time-range problem. It does NOT solve TraceSummary (which requires root service/operation, span count, error count, per-service breakdown). Maintaining a full TraceSummary via scripted upserts would require complex scripts with conditional logic (root span detection, counters) and significantly higher update frequency.
+
+Recommendation: TraceSummary remains client-computed via the existing `SummaryReader` fallback (FindTraces + `computeSummaries()` in Go). The trace-timestamps index is focused and minimal.
+
+#### Retention and Cleanup
+
+The lookup index uses an ISM/ILM policy keyed on `max_end`: delete documents where `max_end < now - retention`. Alternatively, since the index is small, a periodic `DELETE BY QUERY` is acceptable (5.2M docs / 300 MB — runs in seconds).
+
 ---
 
 ## 4. Migration & Backward Compatibility
@@ -743,7 +878,19 @@ Deliverable: existing users can safely migrate to data streams with zero data lo
 21. Deprecate legacy boolean config flags (`use_aliases`, `use_ilm`, `create_mappings`) — log warning at startup when used
 22. Publish data stream configuration guide in Jaeger docs
 
-### Phase 5: Future (not in initial implementation)
+### Phase 5: Trace-ID Timestamp Lookup (§3.9)
+
+Implement the `jaeger.trace_timestamps` index to eliminate full-retention scans on GetTrace.
+
+23. Create `jaeger.trace_timestamps` index with mapping (`min_start`, `max_end` as `date_nanos`), managed on startup
+24. Implement write-path cache (LRU, in-memory) with padding heuristic; emit scripted upsert in the same bulk batch as spans
+25. Implement GetTrace read path: point-get by `_id`, then query spans with bounded time range; fall back to full scan on lookup miss
+26. Config: `trace_timestamps.enabled` (default: true for new installations), `trace_timestamps.padding` (default: 1h), optional Redis URL for multi-collector coalescing
+27. **CI**: Integration test — write spans for multiple traces, verify GetTrace uses bounded queries (assert via query logging or index stats that only relevant shards are hit)
+
+Deliverable: GetTrace performance improves from seconds (full-retention scan) to milliseconds (bounded shard query) at scale. Benefits all rotation strategies, not just data streams.
+
+### Phase 6: Future (not in initial implementation)
 
 - Graduate from experimental to stable based on community feedback
 - Consider making `data_stream` the default rotation for spans in new installations
