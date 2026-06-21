@@ -110,11 +110,13 @@ func (f *FactoryBase) getClient() es.Client {
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildRotations()
+	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
+	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
 	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
 	// can reach any trace regardless of age.
-	if f.config.GetUseReadWriteAliases() {
+	if spanRC.ManualRollover.HasValue() || spanRC.AutoRollover.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
@@ -151,7 +153,7 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 		Client:              f.getClient,
 		Logger:              f.logger,
 		IndexPrefix:         f.config.Indices.IndexPrefix,
-		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
+		IndexDateLayout:     f.config.Indices.Dependencies.GetDateLayout(),
 		MaxDocCount:         f.config.MaxDocCount,
 		UseReadWriteAliases: f.config.GetUseReadWriteAliases(),
 	}
@@ -162,8 +164,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		Client:                 f.getClient,
 		Logger:                 f.logger,
 		IndexPrefix:            f.config.Indices.IndexPrefix,
-		IndexDateLayout:        f.config.Indices.Sampling.DateLayout,
-		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
+		IndexDateLayout:        f.config.Indices.Sampling.GetDateLayout(),
+		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.GetRolloverFrequency()),
 		Lookback:               f.config.AdaptiveSamplingLookback,
 		MaxDocCount:            f.config.MaxDocCount,
 	}
@@ -253,96 +255,51 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
 	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
 
-	buildFromRotationConfig := func(prefix string, rc config.RotationConfig) indices.Rotation {
-		var r indices.Rotation
-		switch {
-		case rc.ManualRollover.HasValue():
-			mr := rc.ManualRollover.Get()
-			writeAlias := mr.WriteAlias
-			if writeAlias == "" {
-				writeAlias = prefix + "write"
-			}
-			readAlias := mr.ReadAlias
-			if readAlias == "" {
-				readAlias = prefix + "read"
-			}
-			r = indices.NewAliasedRotation(writeAlias, readAlias)
-		case rc.AutoRollover.HasValue():
-			ar := rc.AutoRollover.Get()
-			writeAlias := ar.WriteAlias
-			if writeAlias == "" {
-				writeAlias = prefix + "write"
-			}
-			readAlias := ar.ReadAlias
-			if readAlias == "" {
-				readAlias = prefix + "read"
-			}
-			r = indices.NewAliasedRotation(writeAlias, readAlias)
-		case rc.Periodic.HasValue():
-			p := rc.Periodic.Get()
-			dateLayout := p.DateLayout
-			if dateLayout == "" {
-				dateLayout = "2006-01-02"
-			}
-			r = indices.NewPeriodicRotation(prefix, dateLayout, config.RolloverFrequencyDuration(p.RolloverFrequency))
-		case rc.DataStream.HasValue():
-			// Rejected by config validation; this path should be unreachable.
-			r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
-		default:
-			r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
-		}
-		return r
-	}
-
-	type aliasConfig struct {
-		explicitWrite string
-		explicitRead  string
-	}
-
-	buildFromLegacy := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
-		var r indices.Rotation
-		switch {
-		case aliases.explicitWrite != "" && aliases.explicitRead != "":
-			r = indices.NewAliasedRotation(aliases.explicitWrite, aliases.explicitRead)
-		case f.config.GetUseReadWriteAliases():
-			writeSuffix := "write"
-			if f.config.WriteAliasSuffix != "" {
-				writeSuffix = f.config.WriteAliasSuffix
-			}
-			readSuffix := "read"
-			if f.config.ReadAliasSuffix != "" {
-				readSuffix = f.config.ReadAliasSuffix
-			}
-			r = indices.NewAliasedRotation(prefix+writeSuffix, prefix+readSuffix)
-		default:
-			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
-		}
-		return r
-	}
-
-	buildOne := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
-		var r indices.Rotation
-		if idxOpts.Rotation.HasRotation() {
-			r = buildFromRotationConfig(prefix, idxOpts.Rotation)
-		} else {
-			r = buildFromLegacy(prefix, aliases, idxOpts)
-		}
-		if len(f.config.RemoteReadClusters) > 0 {
-			r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
-		}
-		r = indices.NewLoggingRotation(r, f.logger)
-		return r
-	}
-
-	spanRotation = buildOne(spanPrefix, aliasConfig{
-		explicitWrite: f.config.GetSpanWriteAlias(),
-		explicitRead:  f.config.GetSpanReadAlias(),
-	}, f.config.Indices.Spans)
-	serviceRotation = buildOne(servicePrefix, aliasConfig{
-		explicitWrite: f.config.GetServiceWriteAlias(),
-		explicitRead:  f.config.GetServiceReadAlias(),
-	}, f.config.Indices.Services)
+	spanRotation = f.buildRotation(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix))
+	serviceRotation = f.buildRotation(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix))
 	return spanRotation, serviceRotation
+}
+
+func (f *FactoryBase) buildRotation(prefix string, rc config.RotationConfig) indices.Rotation {
+	var r indices.Rotation
+	switch {
+	case rc.ManualRollover.HasValue():
+		mr := rc.ManualRollover.Get()
+		writeAlias := mr.WriteAlias
+		if writeAlias == "" {
+			writeAlias = prefix + "write"
+		}
+		readAlias := mr.ReadAlias
+		if readAlias == "" {
+			readAlias = prefix + "read"
+		}
+		r = indices.NewAliasedRotation(writeAlias, readAlias)
+	case rc.AutoRollover.HasValue():
+		ar := rc.AutoRollover.Get()
+		writeAlias := ar.WriteAlias
+		if writeAlias == "" {
+			writeAlias = prefix + "write"
+		}
+		readAlias := ar.ReadAlias
+		if readAlias == "" {
+			readAlias = prefix + "read"
+		}
+		r = indices.NewAliasedRotation(writeAlias, readAlias)
+	case rc.Periodic.HasValue():
+		p := rc.Periodic.Get()
+		dateLayout := p.DateLayout
+		if dateLayout == "" {
+			dateLayout = "2006-01-02"
+		}
+		r = indices.NewPeriodicRotation(prefix, dateLayout, config.RolloverFrequencyDuration(p.RolloverFrequency))
+	default:
+		r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
+	}
+	if len(f.config.RemoteReadClusters) > 0 {
+		r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
+	}
+	r = indices.NewLoggingRotation(r, f.logger)
+	return r
 }
 
 func (f *FactoryBase) shouldCreateTemplates() bool {

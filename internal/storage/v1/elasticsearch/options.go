@@ -13,11 +13,9 @@ import (
 )
 
 var defaultIndexOptions = config.IndexOptions{
-	DateLayout:        initDateLayout("day", "-"),
-	RolloverFrequency: "day",
-	Shards:            5,
-	Replicas:          new(int64(1)),
-	Priority:          0,
+	Shards:   5,
+	Replicas: new(int64(1)),
+	Priority: 0,
 	Rotation: config.RotationConfig{
 		Periodic: configoptional.Some(config.PeriodicRotation{
 			DateLayout:        initDateLayout("day", "-"),

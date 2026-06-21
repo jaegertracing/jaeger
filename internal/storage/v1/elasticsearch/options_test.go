@@ -146,10 +146,10 @@ func TestOptionsWithFlags(t *testing.T) {
 		},
 		Indices: escfg.Indices{
 			Spans: escfg.IndexOptions{
-				DateLayout: "2006010215", // Go reference time formatted for hourly rollover (yyyy-MM-dd-HH)
+				DateLayout: configoptional.Some("2006010215"), // Go reference time formatted for hourly rollover (yyyy-MM-dd-HH)
 			},
 			Services: escfg.IndexOptions{
-				DateLayout: "20060102", // Go reference time formatted for daily rollover (yyyy-MM-dd)
+				DateLayout: configoptional.Some("20060102"), // Go reference time formatted for daily rollover (yyyy-MM-dd)
 			},
 		},
 		UseILM:          configoptional.Some(true),
@@ -192,8 +192,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "./file.txt", primary.Tags.File)
 	assert.Equal(t, "test,tags", primary.Tags.Include)
 	// Indices
-	assert.Equal(t, "20060102", primary.Indices.Services.DateLayout)
-	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
+	assert.Equal(t, "20060102", primary.Indices.Services.GetDateLayout())
+	assert.Equal(t, "2006010215", primary.Indices.Spans.GetDateLayout())
 	// Use ILM
 	assert.True(t, primary.GetUseILM())
 	// HTTP Compression
@@ -711,7 +711,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout: "20060102",
+						DateLayout: configoptional.Some("20060102"),
 					},
 				},
 			},
@@ -722,7 +722,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout: "2006.01.02",
+						DateLayout: configoptional.Some("2006.01.02"),
 					},
 				},
 			},
@@ -733,7 +733,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout: "2006-01-02",
+						DateLayout: configoptional.Some("2006-01-02"),
 					},
 				},
 			},
@@ -744,7 +744,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout: "2006/01/02",
+						DateLayout: configoptional.Some("2006/01/02"),
 					},
 				},
 			},
@@ -755,7 +755,7 @@ func TestIndexDateSeparator(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout: "2006''01''02",
+						DateLayout: configoptional.Some("2006''01''02"),
 					},
 				},
 			},
@@ -764,7 +764,7 @@ func TestIndexDateSeparator(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantDateLayout, tc.config.Indices.Spans.DateLayout)
+			assert.Equal(t, tc.wantDateLayout, tc.config.Indices.Spans.GetDateLayout())
 		})
 	}
 }
@@ -791,12 +791,12 @@ func TestIndexRollover(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout:        "2006-01-02-15",
-						RolloverFrequency: "hour",
+						DateLayout:        configoptional.Some("2006-01-02-15"),
+						RolloverFrequency: configoptional.Some("hour"),
 					},
 					Services: escfg.IndexOptions{
-						DateLayout:        "2006-01-02",
-						RolloverFrequency: "day",
+						DateLayout:        configoptional.Some("2006-01-02"),
+						RolloverFrequency: configoptional.Some("day"),
 					},
 				},
 			},
@@ -810,12 +810,12 @@ func TestIndexRollover(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout:        "2006-01-02",
-						RolloverFrequency: "day",
+						DateLayout:        configoptional.Some("2006-01-02"),
+						RolloverFrequency: configoptional.Some("day"),
 					},
 					Services: escfg.IndexOptions{
-						DateLayout:        "2006-01-02-15",
-						RolloverFrequency: "hour",
+						DateLayout:        configoptional.Some("2006-01-02-15"),
+						RolloverFrequency: configoptional.Some("hour"),
 					},
 				},
 			},
@@ -829,12 +829,12 @@ func TestIndexRollover(t *testing.T) {
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
 					Spans: escfg.IndexOptions{
-						DateLayout:        "2006-01-02",
-						RolloverFrequency: "hours",
+						DateLayout:        configoptional.Some("2006-01-02"),
+						RolloverFrequency: configoptional.Some("hours"),
 					},
 					Services: escfg.IndexOptions{
-						DateLayout:        "2006-01-02",
-						RolloverFrequency: "hours",
+						DateLayout:        configoptional.Some("2006-01-02"),
+						RolloverFrequency: configoptional.Some("hours"),
 					},
 				},
 			},
@@ -846,10 +846,10 @@ func TestIndexRollover(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantSpanDateLayout, tc.config.Indices.Spans.DateLayout)
-			assert.Equal(t, tc.wantServiceDateLayout, tc.config.Indices.Services.DateLayout)
-			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(tc.config.Indices.Spans.RolloverFrequency))
-			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(tc.config.Indices.Services.RolloverFrequency))
+			assert.Equal(t, tc.wantSpanDateLayout, tc.config.Indices.Spans.GetDateLayout())
+			assert.Equal(t, tc.wantServiceDateLayout, tc.config.Indices.Services.GetDateLayout())
+			assert.Equal(t, tc.wantSpanIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(tc.config.Indices.Spans.GetRolloverFrequency()))
+			assert.Equal(t, tc.wantServiceIndexRolloverFrequency, escfg.RolloverFrequencyAsNegativeDuration(tc.config.Indices.Services.GetRolloverFrequency()))
 		})
 	}
 }

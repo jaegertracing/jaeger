@@ -560,8 +560,8 @@ func TestBuildRotations(t *testing.T) {
 			name: "periodic rotation",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services: escfg.IndexOptions{DateLayout: serviceDataLayout},
+					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
 			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
@@ -601,8 +601,8 @@ func TestBuildRotations(t *testing.T) {
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
 					IndexPrefix: "foo:",
-					Spans:       escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services:    escfg.IndexOptions{DateLayout: serviceDataLayout},
+					Spans:       escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services:    escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
 			readIndices:  []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
@@ -612,8 +612,8 @@ func TestBuildRotations(t *testing.T) {
 			name: "with remote clusters",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services: escfg.IndexOptions{DateLayout: serviceDataLayout},
+					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},

@@ -119,10 +119,10 @@ func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery,
 	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-")
 	idxList := q.timeRangeIndices(
 		indexName,
-		q.cfg.Indices.Spans.DateLayout,
+		q.cfg.Indices.Spans.GetDateLayout(),
 		time.UnixMilli(timeRange.extendedStartTimeMillis).UTC(),
 		time.UnixMilli(timeRange.endTimeMillis).UTC(),
-		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Spans.RolloverFrequency),
+		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Spans.GetRolloverFrequency()),
 	)
 
 	return q.client.Search(idxList...).

@@ -64,25 +64,43 @@ var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
 	Priority int64 `mapstructure:"priority"`
-	// Deprecated: superseded by rotation.periodic.date_layout.
 	// DateLayout contains the format string used to format current time to part of the index name.
 	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
 	// If not specified, the default value is "2006-01-02".
 	// See https://pkg.go.dev/time#Layout for more details on the syntax.
-	DateLayout string `mapstructure:"date_layout"`
+	//
+	// Deprecated: superseded by rotation.periodic.date_layout.
+	DateLayout configoptional.Optional[string] `mapstructure:"date_layout"`
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
 	Replicas *int64 `mapstructure:"replicas"`
-	// Deprecated: superseded by rotation.periodic.rollover_frequency.
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
 	// This setting does not affect the index rotation and is simply used for
 	// fetching indices.
-	RolloverFrequency string `mapstructure:"rollover_frequency"`
+	//
+	// Deprecated: superseded by rotation.periodic.rollover_frequency.
+	RolloverFrequency configoptional.Optional[string] `mapstructure:"rollover_frequency"`
 	// Rotation defines the index rotation strategy for this index type.
 	Rotation RotationConfig `mapstructure:"rotation"`
+}
+
+// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
+func (o *IndexOptions) GetDateLayout() string {
+	if p := o.DateLayout.Get(); p != nil {
+		return *p
+	}
+	return "2006-01-02"
+}
+
+// GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".
+func (o *IndexOptions) GetRolloverFrequency() string {
+	if p := o.RolloverFrequency.Get(); p != nil {
+		return *p
+	}
+	return "day"
 }
 
 // RotationConfig defines the index rotation strategy. Exactly one variant should be set.
@@ -200,30 +218,35 @@ type Configuration struct {
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
 
-	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
+	//
+	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
 	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
-	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
 	// SpanReadAlias specifies the exact alias name to use for reading spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	//
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
 	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
-	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
 	// SpanWriteAlias specifies the exact alias name to use for writing spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	//
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
 	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
-	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
 	// ServiceReadAlias specifies the exact alias name to use for reading services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	//
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
 	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
-	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
 	// ServiceWriteAlias specifies the exact alias name to use for writing services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	//
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
 	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
@@ -233,14 +256,16 @@ type Configuration struct {
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
 	WriteAliasSuffix string `mapstructure:"-"`
-	// Deprecated: superseded by indices.<type>.rotation config.
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
+	//
+	// Deprecated: superseded by indices.<type>.rotation config.
 	CreateIndexTemplates configoptional.Optional[bool] `mapstructure:"create_mappings"`
-	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
 	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
 	// Read more about ILM at
 	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
+	//
+	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
 	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
@@ -575,11 +600,11 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Priority = source.Priority
 	}
 
-	if target.DateLayout == "" {
+	if !target.DateLayout.HasValue() && source.DateLayout.HasValue() {
 		target.DateLayout = source.DateLayout
 	}
 
-	if target.RolloverFrequency == "" {
+	if !target.RolloverFrequency.HasValue() && source.RolloverFrequency.HasValue() {
 		target.RolloverFrequency = source.RolloverFrequency
 	}
 }
@@ -1038,6 +1063,55 @@ func (r *RotationConfig) validate(indexType string) error {
 		)
 	}
 	return nil
+}
+
+// ResolvedSpanRotation returns the effective rotation configuration for span indices,
+// resolving legacy flags into the appropriate RotationConfig variant.
+func (c *Configuration) ResolvedSpanRotation(prefix string) RotationConfig {
+	return c.resolvedRotation(&c.Indices.Spans, prefix, c.GetSpanReadAlias(), c.GetSpanWriteAlias())
+}
+
+// ResolvedServiceRotation returns the effective rotation configuration for service indices,
+// resolving legacy flags into the appropriate RotationConfig variant.
+func (c *Configuration) ResolvedServiceRotation(prefix string) RotationConfig {
+	return c.resolvedRotation(&c.Indices.Services, prefix, c.GetServiceReadAlias(), c.GetServiceWriteAlias())
+}
+
+func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicitReadAlias, explicitWriteAlias string) RotationConfig {
+	if idxOpts.Rotation.HasRotation() {
+		return idxOpts.Rotation
+	}
+	switch {
+	case explicitReadAlias != "" && explicitWriteAlias != "":
+		return RotationConfig{
+			ManualRollover: configoptional.Some(ManualRolloverRotation{
+				ReadAlias:  explicitReadAlias,
+				WriteAlias: explicitWriteAlias,
+			}),
+		}
+	case c.GetUseReadWriteAliases():
+		writeSuffix := "write"
+		if c.WriteAliasSuffix != "" {
+			writeSuffix = c.WriteAliasSuffix
+		}
+		readSuffix := "read"
+		if c.ReadAliasSuffix != "" {
+			readSuffix = c.ReadAliasSuffix
+		}
+		return RotationConfig{
+			ManualRollover: configoptional.Some(ManualRolloverRotation{
+				ReadAlias:  prefix + readSuffix,
+				WriteAlias: prefix + writeSuffix,
+			}),
+		}
+	default:
+		return RotationConfig{
+			Periodic: configoptional.Some(PeriodicRotation{
+				DateLayout:        idxOpts.GetDateLayout(),
+				RolloverFrequency: idxOpts.GetRolloverFrequency(),
+			}),
+		}
+	}
 }
 
 // LogDeprecationWarnings logs warnings for any legacy flags that were explicitly set,
