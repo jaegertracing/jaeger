@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -63,6 +64,49 @@ type IndexOptions struct {
 	// This setting does not affect the index rotation and is simply used for
 	// fetching indices.
 	RolloverFrequency string `mapstructure:"rollover_frequency"`
+	// Rotation defines the index rotation strategy for this index type.
+	Rotation RotationConfig `mapstructure:"rotation"`
+}
+
+// RotationConfig defines the index rotation strategy. Exactly one variant should be set.
+// If none is set, the behavior is determined by legacy flags for backward compatibility.
+type RotationConfig struct {
+	Periodic       configoptional.Optional[PeriodicRotation]       `mapstructure:"periodic"`
+	ManualRollover configoptional.Optional[ManualRolloverRotation] `mapstructure:"manual_rollover"`
+	AutoRollover   configoptional.Optional[AutoRolloverRotation]   `mapstructure:"auto_rollover"`
+	DataStream     configoptional.Optional[DataStreamRotation]     `mapstructure:"data_stream"`
+}
+
+// PeriodicRotation configures time-based index rotation (e.g. daily/hourly indices).
+type PeriodicRotation struct {
+	// DateLayout is the Go time format string for the date suffix (e.g. "2006-01-02").
+	DateLayout string `mapstructure:"date_layout"`
+}
+
+// ManualRolloverRotation configures alias-based rotation managed by an external tool.
+type ManualRolloverRotation struct {
+	ReadAlias  string `mapstructure:"read_alias"`
+	WriteAlias string `mapstructure:"write_alias"`
+}
+
+// AutoRolloverRotation configures alias-based rotation managed by ILM/ISM.
+type AutoRolloverRotation struct {
+	ReadAlias  string `mapstructure:"read_alias"`
+	WriteAlias string `mapstructure:"write_alias"`
+	PolicyName string `mapstructure:"policy_name"`
+}
+
+// DataStreamRotation configures data stream-based rotation.
+type DataStreamRotation struct {
+	PolicyName string `mapstructure:"policy_name"`
+	PolicyFile string `mapstructure:"policy_file"`
+	ReadAlias  string `mapstructure:"read_alias"`
+}
+
+// HasRotation returns true if any rotation variant is explicitly configured.
+func (r *RotationConfig) HasRotation() bool {
+	return r.Periodic.HasValue() || r.ManualRollover.HasValue() ||
+		r.AutoRollover.HasValue() || r.DataStream.HasValue()
 }
 
 // Indices describes different configuration options for each index type
@@ -188,6 +232,38 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
+
+	// legacyFlagsSet tracks which deprecated flags were explicitly set in the config file.
+	legacyFlagsSet []string
+}
+
+var _ confmap.Unmarshaler = (*Configuration)(nil)
+
+// Unmarshal implements confmap.Unmarshaler to detect legacy flag usage.
+func (c *Configuration) Unmarshal(conf *confmap.Conf) error {
+	legacyKeys := []string{
+		"use_aliases",
+		"use_ilm",
+		"create_mappings",
+		"span_read_alias",
+		"span_write_alias",
+		"service_read_alias",
+		"service_write_alias",
+	}
+	for _, key := range legacyKeys {
+		if conf.IsSet(key) {
+			c.legacyFlagsSet = append(c.legacyFlagsSet, key)
+		}
+	}
+	// Use a type alias to prevent infinite recursion (conf.Unmarshal would call
+	// this method again if passed a *Configuration directly).
+	type rawConfiguration Configuration
+	return conf.Unmarshal((*rawConfiguration)(c))
+}
+
+// LegacyFlagsSet returns the list of deprecated config keys that were explicitly set.
+func (c *Configuration) LegacyFlagsSet() []string {
+	return c.legacyFlagsSet
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -799,6 +875,12 @@ func (c *Configuration) Validate() error {
 	if err != nil {
 		return err
 	}
+
+	// Validate rotation config for each index type
+	if err := c.validateRotationConfig(); err != nil {
+		return err
+	}
+
 	if c.UseILM && !c.UseReadWriteAliases {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
@@ -827,4 +909,94 @@ func (c *Configuration) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *Configuration) validateRotationConfig() error {
+	hasAnyRotation := c.Indices.Spans.Rotation.HasRotation() ||
+		c.Indices.Services.Rotation.HasRotation() ||
+		c.Indices.Dependencies.Rotation.HasRotation()
+
+	if hasAnyRotation && len(c.legacyFlagsSet) > 0 {
+		return fmt.Errorf(
+			"cannot use both 'rotation' config and legacy flags %v simultaneously; "+
+				"remove the legacy flags and use the 'rotation' section instead",
+			c.legacyFlagsSet,
+		)
+	}
+
+	type rotationEntry struct {
+		name     string
+		rotation *RotationConfig
+	}
+	entries := []rotationEntry{
+		{"spans", &c.Indices.Spans.Rotation},
+		{"services", &c.Indices.Services.Rotation},
+		{"dependencies", &c.Indices.Dependencies.Rotation},
+	}
+	for _, opts := range entries {
+		if err := opts.rotation.validate(opts.name); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *RotationConfig) validate(indexType string) error {
+	count := 0
+	if r.Periodic.HasValue() {
+		count++
+	}
+	if r.ManualRollover.HasValue() {
+		count++
+	}
+	if r.AutoRollover.HasValue() {
+		count++
+	}
+	if r.DataStream.HasValue() {
+		count++
+	}
+	if count > 1 {
+		return fmt.Errorf(
+			"indices.%s.rotation: exactly one rotation strategy must be set, found %d",
+			indexType, count,
+		)
+	}
+	if r.DataStream.HasValue() && (indexType == "services" || indexType == "dependencies") {
+		return fmt.Errorf(
+			"indices.%s.rotation: data_stream is not supported for %s (requires upserts)",
+			indexType, indexType,
+		)
+	}
+	return nil
+}
+
+// LogDeprecationWarnings logs warnings for any legacy flags that were explicitly set,
+// advising users to migrate to the new rotation config.
+func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
+	if len(c.legacyFlagsSet) == 0 {
+		return
+	}
+	for _, key := range c.legacyFlagsSet {
+		var migration string
+		switch key {
+		case "use_aliases":
+			migration = "use 'indices.spans.rotation.manual_rollover' (or auto_rollover) instead"
+		case "use_ilm":
+			migration = "use 'indices.spans.rotation.auto_rollover' instead"
+		case "create_mappings":
+			migration = "when using rotation.data_stream or rotation.auto_rollover, template creation is handled automatically"
+		case "span_read_alias", "span_write_alias":
+			migration = "use 'indices.spans.rotation.manual_rollover.read_alias/write_alias' instead"
+		case "service_read_alias", "service_write_alias":
+			migration = "use 'indices.services.rotation.manual_rollover.read_alias/write_alias' instead"
+		default:
+			migration = "see rotation config documentation for the replacement"
+		}
+		logger.Warn(
+			"Deprecated Elasticsearch configuration flag",
+			zap.String("flag", key),
+			zap.String("migration", migration),
+		)
+	}
 }

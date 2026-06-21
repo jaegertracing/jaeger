@@ -627,6 +627,69 @@ func TestBuildRotations(t *testing.T) {
 			},
 			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
+		{
+			name: "rotation config: periodic",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: spanDataLayout}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: serviceDataLayout}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+		},
+		{
+			name: "rotation config: manual_rollover",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+								ReadAlias:  "my-span-read",
+								WriteAlias: "my-span-write",
+							}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+								ReadAlias:  "my-service-read",
+								WriteAlias: "my-service-write",
+							}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"my-span-read", "my-service-read"},
+			writeIndices: []string{"my-span-write", "my-service-write"},
+		},
+		{
+			name: "rotation config: auto_rollover with defaults",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
+			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

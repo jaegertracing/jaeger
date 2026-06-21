@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
@@ -2063,6 +2064,227 @@ func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
 	require.NotEmpty(t, headers, "fake ES server should have received at least one request")
 	for i, h := range headers {
 		assert.Emptyf(t, h.Get("X-Forwarded-User"), "request #%d unexpectedly carries forwarded header", i)
+	}
+}
+
+func TestRotationConfig_HasRotation(t *testing.T) {
+	tests := []struct {
+		name     string
+		rotation RotationConfig
+		expected bool
+	}{
+		{
+			name:     "empty",
+			rotation: RotationConfig{},
+			expected: false,
+		},
+		{
+			name: "periodic set",
+			rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+			},
+			expected: true,
+		},
+		{
+			name: "manual_rollover set",
+			rotation: RotationConfig{
+				ManualRollover: configoptional.Some(ManualRolloverRotation{
+					ReadAlias:  "read",
+					WriteAlias: "write",
+				}),
+			},
+			expected: true,
+		},
+		{
+			name: "data_stream set",
+			rotation: RotationConfig{
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.rotation.HasRotation())
+		})
+	}
+}
+
+func TestRotationConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		rotation    RotationConfig
+		indexType   string
+		expectedErr string
+	}{
+		{
+			name:      "empty is valid",
+			rotation:  RotationConfig{},
+			indexType: "spans",
+		},
+		{
+			name: "single periodic is valid",
+			rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+			},
+			indexType: "spans",
+		},
+		{
+			name: "data_stream for spans is valid",
+			rotation: RotationConfig{
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			indexType: "spans",
+		},
+		{
+			name: "data_stream for services is invalid",
+			rotation: RotationConfig{
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			indexType:   "services",
+			expectedErr: "data_stream is not supported for services",
+		},
+		{
+			name: "data_stream for dependencies is invalid",
+			rotation: RotationConfig{
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			indexType:   "dependencies",
+			expectedErr: "data_stream is not supported for dependencies",
+		},
+		{
+			name: "multiple rotations set",
+			rotation: RotationConfig{
+				Periodic:   configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			indexType:   "spans",
+			expectedErr: "exactly one rotation strategy must be set, found 2",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.rotation.validate(tc.indexType)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidate_RotationConflictsWithLegacyFlags(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Indices: Indices{
+			Spans: IndexOptions{
+				Rotation: RotationConfig{
+					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				},
+			},
+		},
+		legacyFlagsSet: []string{"use_aliases"},
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy flags")
+	require.ErrorContains(t, err, "use_aliases")
+}
+
+func TestLogDeprecationWarnings(t *testing.T) {
+	tests := []struct {
+		name         string
+		legacyFlags  []string
+		expectedLogs []string
+	}{
+		{
+			name:         "no legacy flags",
+			legacyFlags:  nil,
+			expectedLogs: nil,
+		},
+		{
+			name:        "use_aliases flag",
+			legacyFlags: []string{"use_aliases"},
+			expectedLogs: []string{
+				"Deprecated Elasticsearch configuration flag",
+				"use_aliases",
+				"manual_rollover",
+			},
+		},
+		{
+			name:        "use_ilm flag",
+			legacyFlags: []string{"use_ilm"},
+			expectedLogs: []string{
+				"Deprecated Elasticsearch configuration flag",
+				"use_ilm",
+				"auto_rollover",
+			},
+		},
+		{
+			name:        "multiple flags",
+			legacyFlags: []string{"use_aliases", "span_read_alias"},
+			expectedLogs: []string{
+				"use_aliases",
+				"span_read_alias",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			cfg := &Configuration{
+				legacyFlagsSet: tc.legacyFlags,
+			}
+			cfg.LogDeprecationWarnings(logger)
+			logOutput := buf.String()
+			for _, expected := range tc.expectedLogs {
+				assert.Contains(t, logOutput, expected)
+			}
+			if len(tc.expectedLogs) == 0 {
+				assert.Empty(t, logOutput)
+			}
+		})
+	}
+}
+
+func TestConfiguration_Unmarshal_DetectsLegacyFlags(t *testing.T) {
+	tests := []struct {
+		name          string
+		confMap       map[string]any
+		expectedFlags []string
+	}{
+		{
+			name:          "no legacy flags",
+			confMap:       map[string]any{"server_urls": []string{"http://localhost:9200"}},
+			expectedFlags: nil,
+		},
+		{
+			name: "use_aliases set",
+			confMap: map[string]any{
+				"server_urls": []string{"http://localhost:9200"},
+				"use_aliases": true,
+			},
+			expectedFlags: []string{"use_aliases"},
+		},
+		{
+			name: "multiple legacy flags",
+			confMap: map[string]any{
+				"server_urls":     []string{"http://localhost:9200"},
+				"use_aliases":     true,
+				"use_ilm":         true,
+				"span_read_alias": "test",
+			},
+			expectedFlags: []string{"use_aliases", "use_ilm", "span_read_alias"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := confmap.NewFromStringMap(tc.confMap)
+			cfg := &Configuration{}
+			err := cfg.Unmarshal(conf)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedFlags, cfg.LegacyFlagsSet())
+		})
 	}
 }
 

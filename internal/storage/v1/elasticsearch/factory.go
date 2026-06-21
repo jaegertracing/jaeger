@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -68,6 +69,7 @@ func NewFactoryBase(
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
+	f.config.LogDeprecationWarnings(logger)
 	tags, err := f.config.TagKeysAsFields()
 	if err != nil {
 		return nil, err
@@ -251,12 +253,52 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
 	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
 
+	buildFromRotationConfig := func(prefix string, rc config.RotationConfig) indices.Rotation {
+		var r indices.Rotation
+		switch {
+		case rc.ManualRollover.HasValue():
+			mr := rc.ManualRollover.Get()
+			writeAlias := mr.WriteAlias
+			if writeAlias == "" {
+				writeAlias = prefix + "write"
+			}
+			readAlias := mr.ReadAlias
+			if readAlias == "" {
+				readAlias = prefix + "read"
+			}
+			r = indices.NewAliasedRotation(writeAlias, readAlias)
+		case rc.AutoRollover.HasValue():
+			ar := rc.AutoRollover.Get()
+			writeAlias := ar.WriteAlias
+			if writeAlias == "" {
+				writeAlias = prefix + "write"
+			}
+			readAlias := ar.ReadAlias
+			if readAlias == "" {
+				readAlias = prefix + "read"
+			}
+			r = indices.NewAliasedRotation(writeAlias, readAlias)
+		case rc.Periodic.HasValue():
+			p := rc.Periodic.Get()
+			dateLayout := p.DateLayout
+			if dateLayout == "" {
+				dateLayout = "2006-01-02"
+			}
+			r = indices.NewPeriodicRotation(prefix, dateLayout, 24*time.Hour)
+		case rc.DataStream.HasValue():
+			panic("data_stream rotation is not yet implemented")
+		default:
+			r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
+		}
+		return r
+	}
+
 	type aliasConfig struct {
 		explicitWrite string
 		explicitRead  string
 	}
 
-	buildOne := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
+	buildFromLegacy := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
 		var r indices.Rotation
 		switch {
 		case aliases.explicitWrite != "" && aliases.explicitRead != "":
@@ -273,6 +315,16 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 			r = indices.NewAliasedRotation(prefix+writeSuffix, prefix+readSuffix)
 		default:
 			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
+		}
+		return r
+	}
+
+	buildOne := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
+		var r indices.Rotation
+		if idxOpts.Rotation.HasRotation() {
+			r = buildFromRotationConfig(prefix, idxOpts.Rotation)
+		} else {
+			r = buildFromLegacy(prefix, aliases, idxOpts)
 		}
 		if len(f.config.RemoteReadClusters) > 0 {
 			r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
