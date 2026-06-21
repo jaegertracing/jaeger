@@ -749,7 +749,7 @@ func TestChatHandlerModelContextLimitAndPruning(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Trace too large for local model")
+	assert.Contains(t, rr.Body.String(), "Request too large for local model")
 
 	// 2. Case where context is pruned and fits within limit -> proceeds successfully
 	handlerOk := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20, 70)

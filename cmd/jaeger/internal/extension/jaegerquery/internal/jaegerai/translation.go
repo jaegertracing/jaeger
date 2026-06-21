@@ -296,7 +296,7 @@ const DefaultAIModelContextLimit = 8192
 
 // estimateTokens returns an estimated token count for a text string using the 1 token ≈ 4 characters heuristic.
 func estimateTokens(text string) int {
-	return len(text) / 4
+	return (len(text) + 3) / 4
 }
 
 // isLowValueSpan checks if a span is "low-value" (non-root, duration < 1ms, no error tags, no error status, no error logs).

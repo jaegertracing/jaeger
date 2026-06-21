@@ -80,8 +80,8 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Estimate total tokens of prompt and context values, and prune if needed.
 	totalEstimatedTokens := estimateTokens(prompt)
-	for _, entry := range req.Context {
-		totalEstimatedTokens += estimateTokens(entry.Value)
+	for _, ctxText := range contextTextEntries(req.Context) {
+		totalEstimatedTokens += estimateTokens(ctxText)
 	}
 
 	limit := h.modelContextLimit
@@ -104,14 +104,14 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			req.Context = prunedContext
 			// Re-estimate tokens
 			totalEstimatedTokens = estimateTokens(prompt)
-			for _, entry := range req.Context {
-				totalEstimatedTokens += estimateTokens(entry.Value)
+			for _, ctxText := range contextTextEntries(req.Context) {
+				totalEstimatedTokens += estimateTokens(ctxText)
 			}
 		}
 
 		if totalEstimatedTokens > limit {
 			// Graceful Degradation: return a clear error warning to the UI
-			http.Error(w, "Trace too large for local model. Please filter or prune spans first.", http.StatusBadRequest)
+			http.Error(w, "Request too large for local model. Please filter or prune spans first.", http.StatusBadRequest)
 			return
 		}
 	}
