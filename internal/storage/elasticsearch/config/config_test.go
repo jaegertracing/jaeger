@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/confmap"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
@@ -982,20 +981,20 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:          "ilm disabled and read-write aliases enabled error",
-			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true},
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true)},
 			expectedError: "UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping",
 		},
 		{
 			name:          "ilm and create templates enabled",
-			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true), CreateIndexTemplates: configoptional.Some(true), UseReadWriteAliases: configoptional.Some(true)},
 			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
 		{
 			name: "explicit span aliases without UseReadWriteAliases",
 			config: &Configuration{
 				Servers:        []string{"localhost:8000/dummyserver"},
-				SpanReadAlias:  "custom-span-read",
-				SpanWriteAlias: "custom-span-write",
+				SpanReadAlias:  configoptional.Some("custom-span-read"),
+				SpanWriteAlias: configoptional.Some("custom-span-write"),
 			},
 			expectedError: "explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true",
 		},
@@ -1003,8 +1002,8 @@ func TestValidate(t *testing.T) {
 			name: "only span read alias set",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
 			},
 			expectedError: "both span_read_alias and span_write_alias must be set together",
 		},
@@ -1012,8 +1011,8 @@ func TestValidate(t *testing.T) {
 			name: "only service write alias set",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				ServiceWriteAlias:   "custom-service-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				ServiceWriteAlias:   configoptional.Some("custom-service-write"),
 			},
 			expectedError: "both service_read_alias and service_write_alias must be set together",
 		},
@@ -1021,31 +1020,31 @@ func TestValidate(t *testing.T) {
 			name: "all explicit aliases with UseReadWriteAliases is valid",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
-				SpanWriteAlias:      "custom-span-write",
-				ServiceReadAlias:    "custom-service-read",
-				ServiceWriteAlias:   "custom-service-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
+				SpanWriteAlias:      configoptional.Some("custom-span-write"),
+				ServiceReadAlias:    configoptional.Some("custom-service-read"),
+				ServiceWriteAlias:   configoptional.Some("custom-service-write"),
 			},
 		},
 		{
 			name: "only span aliases with UseReadWriteAliases is valid",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
-				SpanWriteAlias:      "custom-span-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
+				SpanWriteAlias:      configoptional.Some("custom-span-write"),
 			},
 		},
 		{
 			name: "explicit aliases with IndexPrefix is valid",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
-				SpanWriteAlias:      "custom-span-write",
-				ServiceReadAlias:    "custom-service-read",
-				ServiceWriteAlias:   "custom-service-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
+				SpanWriteAlias:      configoptional.Some("custom-span-write"),
+				ServiceReadAlias:    configoptional.Some("custom-service-read"),
+				ServiceWriteAlias:   configoptional.Some("custom-service-write"),
 				Indices: Indices{
 					IndexPrefix: "prod",
 				},
@@ -2184,27 +2183,28 @@ func TestValidate_RotationConflictsWithLegacyFlags(t *testing.T) {
 				},
 			},
 		},
-		legacyFlagsSet: []string{"use_aliases"},
+		UseReadWriteAliases: configoptional.Some(true),
 	}
 	err := cfg.Validate()
 	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy flags")
-	require.ErrorContains(t, err, "use_aliases")
 }
 
 func TestLogDeprecationWarnings(t *testing.T) {
 	tests := []struct {
 		name         string
-		legacyFlags  []string
+		cfg          *Configuration
 		expectedLogs []string
 	}{
 		{
 			name:         "no legacy flags",
-			legacyFlags:  nil,
+			cfg:          &Configuration{},
 			expectedLogs: nil,
 		},
 		{
-			name:        "use_aliases flag",
-			legacyFlags: []string{"use_aliases"},
+			name: "use_aliases flag",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+			},
 			expectedLogs: []string{
 				"Deprecated Elasticsearch configuration flag",
 				"use_aliases",
@@ -2212,8 +2212,10 @@ func TestLogDeprecationWarnings(t *testing.T) {
 			},
 		},
 		{
-			name:        "use_ilm flag",
-			legacyFlags: []string{"use_ilm"},
+			name: "use_ilm flag",
+			cfg: &Configuration{
+				UseILM: configoptional.Some(true),
+			},
 			expectedLogs: []string{
 				"Deprecated Elasticsearch configuration flag",
 				"use_ilm",
@@ -2221,8 +2223,11 @@ func TestLogDeprecationWarnings(t *testing.T) {
 			},
 		},
 		{
-			name:        "multiple flags",
-			legacyFlags: []string{"use_aliases", "span_read_alias"},
+			name: "multiple flags",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom"),
+			},
 			expectedLogs: []string{
 				"use_aliases",
 				"span_read_alias",
@@ -2232,10 +2237,7 @@ func TestLogDeprecationWarnings(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			logger, buf := testutils.NewLogger()
-			cfg := &Configuration{
-				legacyFlagsSet: tc.legacyFlags,
-			}
-			cfg.LogDeprecationWarnings(logger)
+			tc.cfg.LogDeprecationWarnings(logger)
 			logOutput := buf.String()
 			for _, expected := range tc.expectedLogs {
 				assert.Contains(t, logOutput, expected)
@@ -2247,43 +2249,37 @@ func TestLogDeprecationWarnings(t *testing.T) {
 	}
 }
 
-func TestConfiguration_Unmarshal_DetectsLegacyFlags(t *testing.T) {
+func TestConfiguration_HasAnyLegacyRotationFlags(t *testing.T) {
 	tests := []struct {
-		name          string
-		confMap       map[string]any
-		expectedFlags []string
+		name     string
+		cfg      *Configuration
+		expected bool
 	}{
 		{
-			name:          "no legacy flags",
-			confMap:       map[string]any{"server_urls": []string{"http://localhost:9200"}},
-			expectedFlags: nil,
+			name:     "no legacy flags",
+			cfg:      &Configuration{},
+			expected: false,
 		},
 		{
 			name: "use_aliases set",
-			confMap: map[string]any{
-				"server_urls": []string{"http://localhost:9200"},
-				"use_aliases": true,
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
 			},
-			expectedFlags: []string{"use_aliases"},
+			expected: true,
 		},
 		{
 			name: "multiple legacy flags",
-			confMap: map[string]any{
-				"server_urls":     []string{"http://localhost:9200"},
-				"use_aliases":     true,
-				"use_ilm":         true,
-				"span_read_alias": "test",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				UseILM:              configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("test"),
 			},
-			expectedFlags: []string{"use_aliases", "use_ilm", "span_read_alias"},
+			expected: true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			conf := confmap.NewFromStringMap(tc.confMap)
-			cfg := &Configuration{}
-			err := cfg.Unmarshal(conf)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedFlags, cfg.LegacyFlagsSet())
+			assert.Equal(t, tc.expected, tc.cfg.hasAnyLegacyRotationFlags())
 		})
 	}
 }

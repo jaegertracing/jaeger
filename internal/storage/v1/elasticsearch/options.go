@@ -7,6 +7,8 @@ package elasticsearch
 import (
 	"time"
 
+	"go.opentelemetry.io/collector/config/configoptional"
+
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
@@ -55,10 +57,8 @@ func DefaultConfig() config.Configuration {
 			DotReplacement: "@",
 		},
 		Enabled:              true,
-		CreateIndexTemplates: true,
+		CreateIndexTemplates: configoptional.Some(true),
 		Version:              0,
-		UseReadWriteAliases:  false,
-		UseILM:               false,
 		Servers:              []string{"http://127.0.0.1:9200"},
 		RemoteReadClusters:   []string{},
 		MaxDocCount:          10_000,

@@ -152,7 +152,7 @@ func TestOptionsWithFlags(t *testing.T) {
 				DateLayout: "20060102", // Go reference time formatted for daily rollover (yyyy-MM-dd)
 			},
 		},
-		UseILM:          true,
+		UseILM:          configoptional.Some(true),
 		HTTPCompression: true,
 	}
 
@@ -195,7 +195,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "20060102", primary.Indices.Services.DateLayout)
 	assert.Equal(t, "2006010215", primary.Indices.Spans.DateLayout)
 	// Use ILM
-	assert.True(t, primary.UseILM)
+	assert.True(t, primary.GetUseILM())
 	// HTTP Compression
 	assert.True(t, primary.HTTPCompression)
 }

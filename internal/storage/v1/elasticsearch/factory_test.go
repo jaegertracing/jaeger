@@ -281,7 +281,7 @@ func TestCreateTemplates(t *testing.T) {
 		}
 		f.logger = zaptest.NewLogger(t)
 		f.metricsFactory = metrics.NullFactory
-		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{
+		f.config = &escfg.Configuration{CreateIndexTemplates: configoptional.Some(true), Indices: escfg.Indices{
 			IndexPrefix: test.indexPrefix,
 			Spans: escfg.IndexOptions{
 				Shards:   3,
@@ -570,7 +570,7 @@ func TestBuildRotations(t *testing.T) {
 		{
 			name: "alias rotation",
 			cfg: escfg.Configuration{
-				UseReadWriteAliases: true,
+				UseReadWriteAliases: configoptional.Some(true),
 			},
 			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
 			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
@@ -578,7 +578,7 @@ func TestBuildRotations(t *testing.T) {
 		{
 			name: "alias with custom suffixes",
 			cfg: escfg.Configuration{
-				UseReadWriteAliases: true,
+				UseReadWriteAliases: configoptional.Some(true),
 				ReadAliasSuffix:     "archive-read",
 				WriteAliasSuffix:    "archive-write",
 			},
@@ -588,10 +588,10 @@ func TestBuildRotations(t *testing.T) {
 		{
 			name: "explicit aliases",
 			cfg: escfg.Configuration{
-				SpanWriteAlias:    "custom-span-write",
-				SpanReadAlias:     "custom-span-read",
-				ServiceWriteAlias: "custom-service-write",
-				ServiceReadAlias:  "custom-service-read",
+				SpanWriteAlias:    configoptional.Some("custom-span-write"),
+				SpanReadAlias:     configoptional.Some("custom-span-read"),
+				ServiceWriteAlias: configoptional.Some("custom-service-write"),
+				ServiceReadAlias:  configoptional.Some("custom-service-read"),
 			},
 			readIndices:  []string{"custom-span-read", "custom-service-read"},
 			writeIndices: []string{"custom-span-write", "custom-service-write"},

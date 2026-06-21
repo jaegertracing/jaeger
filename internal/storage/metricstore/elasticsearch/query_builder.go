@@ -45,7 +45,7 @@ func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Log
 		cfg:    cfg,
 		timeRangeIndices: indices.LoggingTimeRangeIndexFn(
 			logger,
-			indices.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
+			indices.TimeRangeIndicesFn(cfg.GetUseReadWriteAliases(), cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
 		),
 	}
 }

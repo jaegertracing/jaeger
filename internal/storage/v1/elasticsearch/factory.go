@@ -114,7 +114,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	// See timeRangeDesign comment in reader.go.
 	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
 	// can reach any trace regardless of age.
-	if f.config.UseReadWriteAliases {
+	if f.config.GetUseReadWriteAliases() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
@@ -153,7 +153,7 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 		IndexPrefix:         f.config.Indices.IndexPrefix,
 		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
 		MaxDocCount:         f.config.MaxDocCount,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		UseReadWriteAliases: f.config.GetUseReadWriteAliases(),
 	}
 }
 
@@ -169,7 +169,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	}
 	store := essamplestore.NewSamplingStore(params)
 
-	if f.config.CreateIndexTemplates {
+	if f.config.GetCreateIndexTemplates() {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
@@ -188,7 +188,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
-		UseILM:          cfg.UseILM,
+		UseILM:          cfg.GetUseILM(),
 	}
 }
 
@@ -303,7 +303,7 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 		switch {
 		case aliases.explicitWrite != "" && aliases.explicitRead != "":
 			r = indices.NewAliasedRotation(aliases.explicitWrite, aliases.explicitRead)
-		case f.config.UseReadWriteAliases:
+		case f.config.GetUseReadWriteAliases():
 			writeSuffix := "write"
 			if f.config.WriteAliasSuffix != "" {
 				writeSuffix = f.config.WriteAliasSuffix
@@ -334,18 +334,18 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 	}
 
 	spanRotation = buildOne(spanPrefix, aliasConfig{
-		explicitWrite: f.config.SpanWriteAlias,
-		explicitRead:  f.config.SpanReadAlias,
+		explicitWrite: f.config.GetSpanWriteAlias(),
+		explicitRead:  f.config.GetSpanReadAlias(),
 	}, f.config.Indices.Spans)
 	serviceRotation = buildOne(servicePrefix, aliasConfig{
-		explicitWrite: f.config.ServiceWriteAlias,
-		explicitRead:  f.config.ServiceReadAlias,
+		explicitWrite: f.config.GetServiceWriteAlias(),
+		explicitRead:  f.config.GetServiceReadAlias(),
 	}, f.config.Indices.Services)
 	return spanRotation, serviceRotation
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if f.config.CreateIndexTemplates {
+	if f.config.GetCreateIndexTemplates() {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {

@@ -27,7 +27,6 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -178,31 +177,18 @@ type Configuration struct {
 
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
-	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
-	// Use this option with Elasticsearch rollover API. It requires an external component
-	// to create aliases before startup and then performing its management.
-	UseReadWriteAliases bool `mapstructure:"use_aliases"`
-	// SpanReadAlias specifies the exact alias name to use for reading spans.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// This allows integration with existing Elasticsearch setups that have custom alias names.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-span-reader"
-	SpanReadAlias string `mapstructure:"span_read_alias"`
-	// SpanWriteAlias specifies the exact alias name to use for writing spans.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-span-writer"
-	SpanWriteAlias string `mapstructure:"span_write_alias"`
-	// ServiceReadAlias specifies the exact alias name to use for reading services.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-service-reader"
-	ServiceReadAlias string `mapstructure:"service_read_alias"`
-	// ServiceWriteAlias specifies the exact alias name to use for writing services.
-	// When set, Jaeger will use this alias directly without any modifications.
-	// Can only be used with UseReadWriteAliases=true.
-	// Example: "my-custom-service-writer"
-	ServiceWriteAlias string `mapstructure:"service_write_alias"`
+
+	// Deprecated: UseReadWriteAliases is superseded by indices.<type>.rotation.manual_rollover
+	// or indices.<type>.rotation.auto_rollover.
+	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
+	// Deprecated: SpanReadAlias is superseded by indices.spans.rotation.manual_rollover.read_alias.
+	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
+	// Deprecated: SpanWriteAlias is superseded by indices.spans.rotation.manual_rollover.write_alias.
+	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
+	// Deprecated: ServiceReadAlias is superseded by indices.services.rotation.manual_rollover.read_alias.
+	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
+	// Deprecated: ServiceWriteAlias is superseded by indices.services.rotation.manual_rollover.write_alias.
+	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -211,13 +197,11 @@ type Configuration struct {
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
 	WriteAliasSuffix string `mapstructure:"-"`
-	// CreateIndexTemplates, if set to true, creates index templates at application startup.
-	// This configuration should be set to false when templates are installed manually.
-	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
-	// Read more about ILM at
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
-	UseILM bool `mapstructure:"use_ilm"`
+	// Deprecated: CreateIndexTemplates is superseded by rotation config;
+	// data_stream and auto_rollover handle template creation automatically.
+	CreateIndexTemplates configoptional.Optional[bool] `mapstructure:"create_mappings"`
+	// Deprecated: UseILM is superseded by indices.<type>.rotation.auto_rollover.
+	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
@@ -232,38 +216,73 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
-
-	// legacyFlagsSet tracks which deprecated flags were explicitly set in the config file.
-	legacyFlagsSet []string
 }
 
-var _ confmap.Unmarshaler = (*Configuration)(nil)
-
-// Unmarshal implements confmap.Unmarshaler to detect legacy flag usage.
-func (c *Configuration) Unmarshal(conf *confmap.Conf) error {
-	legacyKeys := []string{
-		"use_aliases",
-		"use_ilm",
-		"create_mappings",
-		"span_read_alias",
-		"span_write_alias",
-		"service_read_alias",
-		"service_write_alias",
+// GetUseReadWriteAliases returns the effective value of the deprecated UseReadWriteAliases flag.
+func (c *Configuration) GetUseReadWriteAliases() bool {
+	if p := c.UseReadWriteAliases.Get(); p != nil {
+		return *p
 	}
-	for _, key := range legacyKeys {
-		if conf.IsSet(key) {
-			c.legacyFlagsSet = append(c.legacyFlagsSet, key)
-		}
-	}
-	// Use a type alias to prevent infinite recursion (conf.Unmarshal would call
-	// this method again if passed a *Configuration directly).
-	type rawConfiguration Configuration
-	return conf.Unmarshal((*rawConfiguration)(c))
+	return false
 }
 
-// LegacyFlagsSet returns the list of deprecated config keys that were explicitly set.
-func (c *Configuration) LegacyFlagsSet() []string {
-	return c.legacyFlagsSet
+// GetCreateIndexTemplates returns the effective value of the deprecated CreateIndexTemplates flag.
+func (c *Configuration) GetCreateIndexTemplates() bool {
+	if p := c.CreateIndexTemplates.Get(); p != nil {
+		return *p
+	}
+	return false
+}
+
+// GetUseILM returns the effective value of the deprecated UseILM flag.
+func (c *Configuration) GetUseILM() bool {
+	if p := c.UseILM.Get(); p != nil {
+		return *p
+	}
+	return false
+}
+
+// GetSpanReadAlias returns the effective value of the deprecated SpanReadAlias flag.
+func (c *Configuration) GetSpanReadAlias() string {
+	if p := c.SpanReadAlias.Get(); p != nil {
+		return *p
+	}
+	return ""
+}
+
+// GetSpanWriteAlias returns the effective value of the deprecated SpanWriteAlias flag.
+func (c *Configuration) GetSpanWriteAlias() string {
+	if p := c.SpanWriteAlias.Get(); p != nil {
+		return *p
+	}
+	return ""
+}
+
+// GetServiceReadAlias returns the effective value of the deprecated ServiceReadAlias flag.
+func (c *Configuration) GetServiceReadAlias() string {
+	if p := c.ServiceReadAlias.Get(); p != nil {
+		return *p
+	}
+	return ""
+}
+
+// GetServiceWriteAlias returns the effective value of the deprecated ServiceWriteAlias flag.
+func (c *Configuration) GetServiceWriteAlias() string {
+	if p := c.ServiceWriteAlias.Get(); p != nil {
+		return *p
+	}
+	return ""
+}
+
+// hasAnyLegacyRotationFlags returns true if any deprecated rotation-related flag was explicitly set.
+func (c *Configuration) hasAnyLegacyRotationFlags() bool {
+	return c.UseReadWriteAliases.HasValue() ||
+		c.UseILM.HasValue() ||
+		c.CreateIndexTemplates.HasValue() ||
+		c.SpanReadAlias.HasValue() ||
+		c.SpanWriteAlias.HasValue() ||
+		c.ServiceReadAlias.HasValue() ||
+		c.ServiceWriteAlias.HasValue()
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -881,30 +900,28 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
-	if c.UseILM && !c.UseReadWriteAliases {
+	if c.GetUseILM() && !c.GetUseReadWriteAliases() {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	if c.CreateIndexTemplates && c.UseILM {
+	if c.GetCreateIndexTemplates() && c.GetUseILM() {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
-	// Validate explicit alias settings require UseReadWriteAliases
-	hasAnyExplicitAlias := c.SpanReadAlias != "" || c.SpanWriteAlias != "" ||
-		c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+	hasAnyExplicitAlias := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != "" ||
+		c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
 
-	if hasAnyExplicitAlias && !c.UseReadWriteAliases {
+	if hasAnyExplicitAlias && !c.GetUseReadWriteAliases() {
 		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
 	}
 
-	// Validate that if any alias is set, all four should be set (for consistency)
-	hasSpanAliases := c.SpanReadAlias != "" || c.SpanWriteAlias != ""
-	hasServiceAliases := c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+	hasSpanAliases := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != ""
+	hasServiceAliases := c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
 
-	if hasSpanAliases && (c.SpanReadAlias == "" || c.SpanWriteAlias == "") {
+	if hasSpanAliases && (c.GetSpanReadAlias() == "" || c.GetSpanWriteAlias() == "") {
 		return errors.New("both span_read_alias and span_write_alias must be set together")
 	}
 
-	if hasServiceAliases && (c.ServiceReadAlias == "" || c.ServiceWriteAlias == "") {
+	if hasServiceAliases && (c.GetServiceReadAlias() == "" || c.GetServiceWriteAlias() == "") {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
@@ -916,11 +933,11 @@ func (c *Configuration) validateRotationConfig() error {
 		c.Indices.Services.Rotation.HasRotation() ||
 		c.Indices.Dependencies.Rotation.HasRotation()
 
-	if hasAnyRotation && len(c.legacyFlagsSet) > 0 {
-		return fmt.Errorf(
-			"cannot use both 'rotation' config and legacy flags %v simultaneously; "+
+	if hasAnyRotation && c.hasAnyLegacyRotationFlags() {
+		return errors.New(
+			"cannot use both 'rotation' config and legacy flags (use_aliases, use_ilm, " +
+				"create_mappings, span_read_alias, etc.) simultaneously; " +
 				"remove the legacy flags and use the 'rotation' section instead",
-			c.legacyFlagsSet,
 		)
 	}
 
@@ -974,29 +991,28 @@ func (r *RotationConfig) validate(indexType string) error {
 // LogDeprecationWarnings logs warnings for any legacy flags that were explicitly set,
 // advising users to migrate to the new rotation config.
 func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
-	if len(c.legacyFlagsSet) == 0 {
-		return
+	type deprecation struct {
+		flag      string
+		isSet     bool
+		migration string
 	}
-	for _, key := range c.legacyFlagsSet {
-		var migration string
-		switch key {
-		case "use_aliases":
-			migration = "use 'indices.spans.rotation.manual_rollover' (or auto_rollover) instead"
-		case "use_ilm":
-			migration = "use 'indices.spans.rotation.auto_rollover' instead"
-		case "create_mappings":
-			migration = "when using rotation.data_stream or rotation.auto_rollover, template creation is handled automatically"
-		case "span_read_alias", "span_write_alias":
-			migration = "use 'indices.spans.rotation.manual_rollover.read_alias/write_alias' instead"
-		case "service_read_alias", "service_write_alias":
-			migration = "use 'indices.services.rotation.manual_rollover.read_alias/write_alias' instead"
-		default:
-			migration = "see rotation config documentation for the replacement"
+	deprecations := []deprecation{
+		{"use_aliases", c.UseReadWriteAliases.HasValue(), "use 'indices.spans.rotation.manual_rollover' (or auto_rollover) instead"},
+		{"use_ilm", c.UseILM.HasValue(), "use 'indices.spans.rotation.auto_rollover' instead"},
+		{"create_mappings", c.CreateIndexTemplates.HasValue(), "when using rotation.data_stream or rotation.auto_rollover, template creation is handled automatically"},
+		{"span_read_alias", c.SpanReadAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.read_alias' instead"},
+		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
+		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},
+		{"service_write_alias", c.ServiceWriteAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.write_alias' instead"},
+	}
+	for _, d := range deprecations {
+		if !d.isSet {
+			continue
 		}
 		logger.Warn(
 			"Deprecated Elasticsearch configuration flag",
-			zap.String("flag", key),
-			zap.String("migration", migration),
+			zap.String("flag", d.flag),
+			zap.String("migration", d.migration),
 		)
 	}
 }
