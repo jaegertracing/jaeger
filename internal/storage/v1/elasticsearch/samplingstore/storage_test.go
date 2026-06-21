@@ -17,6 +17,7 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
@@ -32,7 +33,15 @@ type samplingStorageTest struct {
 	storage   *SamplingStore
 }
 
-func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxDocCount int, fn func(w *samplingStorageTest)) {
+func samplingRotation(prefix config.IndexPrefix) indices.Rotation {
+	return indices.NewPeriodicRotation(
+		prefix.Apply("jaeger-sampling-"),
+		"2006-01-02",
+		config.RolloverFrequencyDuration("day"),
+	)
+}
+
+func withEsSampling(prefix config.IndexPrefix, maxDocCount int, fn func(w *samplingStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	w := &samplingStorageTest{
@@ -40,189 +49,114 @@ func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 		logger:    logger,
 		logBuffer: logBuffer,
 		storage: NewSamplingStore(Params{
-			Client:          func() es.Client { return client },
-			Logger:          logger,
-			IndexPrefix:     indexPrefix,
-			IndexDateLayout: indexDateLayout,
-			MaxDocCount:     maxDocCount,
+			Client:      func() es.Client { return client },
+			Logger:      logger,
+			MaxDocCount: maxDocCount,
+			Rotation:    samplingRotation(prefix),
 		}),
 	}
 	fn(w)
 }
 
-func TestNewIndexPrefix(t *testing.T) {
+func TestGetLatestIndex(t *testing.T) {
 	tests := []struct {
-		name     string
-		prefix   config.IndexPrefix
-		expected string
+		name          string
+		lookback      time.Duration
+		expectedError string
+		indexError    error
+		indexExist    bool
 	}{
 		{
-			name:     "without prefix",
-			prefix:   "",
-			expected: "",
+			name:       "with index",
+			lookback:   24 * time.Hour,
+			indexExist: true,
 		},
 		{
-			name:     "with prefix",
-			prefix:   "foo",
-			expected: "foo-",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			client := &mocks.Client{}
-			r := NewSamplingStore(Params{
-				Client:          func() es.Client { return client },
-				Logger:          zap.NewNop(),
-				IndexPrefix:     test.prefix,
-				IndexDateLayout: "2006-01-02",
-				MaxDocCount:     defaultMaxDocCount,
-			})
-			assert.Equal(t, test.expected+samplingIndexBaseName+config.IndexPrefixSeparator, r.samplingIndexPrefix)
-		})
-	}
-}
-
-func TestGetReadIndices(t *testing.T) {
-	test := struct {
-		name  string
-		start time.Time
-		end   time.Time
-	}{
-		name:  "",
-		start: time.Date(2024, time.February, 10, 0, 0, 0, 0, time.UTC),
-		end:   time.Date(2024, time.February, 12, 0, 0, 0, 0, time.UTC),
-	}
-	t.Run(test.name, func(t *testing.T) {
-		expectedIndices := []string{
-			"prefix-jaeger-sampling-2024-02-12",
-			"prefix-jaeger-sampling-2024-02-11",
-			"prefix-jaeger-sampling-2024-02-10",
-		}
-		rollover := -time.Hour * 24
-		indices := getReadIndices("prefix-jaeger-sampling-", "2006-01-02", test.start, test.end, rollover)
-		assert.Equal(t, expectedIndices, indices)
-	})
-}
-
-func TestGetLatestIndices(t *testing.T) {
-	tests := []struct {
-		name            string
-		indexDateLayout string
-		maxDuration     time.Duration
-		expectedIndices []string
-		expectedError   string
-		IndexExistError error
-		indexExist      bool
-	}{
-		{
-			name:            "with index",
-			indexDateLayout: "2006-01-02",
-			maxDuration:     24 * time.Hour,
-			expectedIndices: []string{indexWithDate("", "2006-01-02", time.Now().UTC())},
-			expectedError:   "",
-			indexExist:      true,
+			name:          "without index",
+			lookback:      72 * time.Hour,
+			expectedError: "failed to find latest index",
+			indexExist:    false,
 		},
 		{
-			name:            "without index",
-			indexDateLayout: "2006-01-02",
-			maxDuration:     72 * time.Hour,
-			expectedError:   "falied to find latest index",
-			indexExist:      false,
-		},
-		{
-			name:            "check index existence",
-			indexDateLayout: "2006-01-02",
-			maxDuration:     24 * time.Hour,
-			expectedError:   "failed to check index existence: fail",
-			indexExist:      true,
-			IndexExistError: errors.New("fail"),
+			name:          "check index existence error",
+			lookback:      24 * time.Hour,
+			expectedError: "failed to check index existence: fail",
+			indexExist:    true,
+			indexError:    errors.New("fail"),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling("", test.indexDateLayout, defaultMaxDocCount, func(w *samplingStorageTest) {
-				indexService := &mocks.IndicesExistsService{}
-				w.client.On("IndexExists", mock.Anything).Return(indexService)
-				indexService.On("Do", mock.Anything).Return(test.indexExist, test.IndexExistError)
-				clientFnMock := w.storage.client()
-				actualIndices, err := getLatestIndices("", test.indexDateLayout, clientFnMock, -24*time.Hour, test.maxDuration)
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-					assert.Nil(t, actualIndices)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, test.expectedIndices, actualIndices)
-				}
+			client := &mocks.Client{}
+			store := NewSamplingStore(Params{
+				Client:      func() es.Client { return client },
+				Logger:      zap.NewNop(),
+				MaxDocCount: defaultMaxDocCount,
+				Lookback:    test.lookback,
+				Rotation:    samplingRotation(""),
 			})
+			indexService := &mocks.IndicesExistsService{}
+			client.On("IndexExists", mock.Anything).Return(indexService)
+			indexService.On("Do", mock.Anything).Return(test.indexExist, test.indexError)
+
+			if test.indexExist && test.indexError == nil {
+				searchService := &mocks.SearchService{}
+				client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
+				searchService.On("Size", mock.Anything).Return(searchService)
+				searchService.On("IgnoreUnavailable", true).Return(searchService)
+				emptyResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: []*elastic.SearchHit{}}}
+				searchService.On("Do", mock.Anything).Return(emptyResult, nil)
+			}
+
+			actual, err := store.GetLatestProbabilities()
+			if test.expectedError != "" {
+				require.ErrorContains(t, err, test.expectedError)
+				assert.Nil(t, actual)
+			} else {
+				require.NoError(t, err)
+				assert.Nil(t, actual)
+			}
 		})
 	}
 }
 
 func TestInsertThroughput(t *testing.T) {
-	test := struct {
-		name          string
-		expectedError string
-	}{
-		name:          "insert throughput",
-		expectedError: "",
-	}
-
-	t.Run(test.name, func(t *testing.T) {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			throughputs := []*samplemodel.Throughput{
-				{Service: "my-svc", Operation: "op"},
-				{Service: "our-svc", Operation: "op2"},
-			}
-			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything)
-			err := w.storage.InsertThroughput(throughputs)
-			if test.expectedError != "" {
-				require.EqualError(t, err, test.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+	withEsSampling("", defaultMaxDocCount, func(w *samplingStorageTest) {
+		throughputs := []*samplemodel.Throughput{
+			{Service: "my-svc", Operation: "op"},
+			{Service: "our-svc", Operation: "op2"},
+		}
+		fixedTime := time.Now()
+		indexName := "jaeger-sampling-" + fixedTime.UTC().Format("2006-01-02")
+		writeService := &mocks.IndexService{}
+		w.client.On("Index").Return(writeService)
+		writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+		writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
+		writeService.On("BodyJson", mock.Anything).Return(writeService)
+		writeService.On("Add", mock.Anything)
+		err := w.storage.InsertThroughput(throughputs)
+		require.NoError(t, err)
 	})
 }
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
-	test := struct {
-		name          string
-		expectedError string
-	}{
-		name:          "insert probabilities and qps",
-		expectedError: "",
-	}
-
-	t.Run(test.name, func(t *testing.T) {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			pAQ := dbmodel.ProbabilitiesAndQPS{
-				Hostname:      "dell11eg843d",
-				Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
-				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
-			}
-			fixedTime := time.Now()
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything)
-			err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
-			if test.expectedError != "" {
-				require.EqualError(t, err, test.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+	withEsSampling("", defaultMaxDocCount, func(w *samplingStorageTest) {
+		pAQ := dbmodel.ProbabilitiesAndQPS{
+			Hostname:      "dell11eg843d",
+			Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+			QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+		}
+		fixedTime := time.Now()
+		indexName := "jaeger-sampling-" + fixedTime.UTC().Format("2006-01-02")
+		writeService := &mocks.IndexService{}
+		w.client.On("Index").Return(writeService)
+		writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+		writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
+		writeService.On("BodyJson", mock.Anything).Return(writeService)
+		writeService.On("Add", mock.Anything)
+		err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
+		require.NoError(t, err)
 	})
 }
 
@@ -246,19 +180,6 @@ func TestGetThroughput(t *testing.T) {
 		maxDocCount    int
 		index          string
 	}{
-		{
-			name:         "good throughputs without prefix",
-			searchResult: createSearchResult(goodThroughputs),
-			expectedOutput: []*samplemodel.Throughput{
-				{
-					Service:   "my-svc",
-					Operation: "op",
-					Count:     10,
-				},
-			},
-			index:       mockIndex,
-			maxDocCount: 1000,
-		},
 		{
 			name:         "good throughputs without prefix",
 			searchResult: createSearchResult(goodThroughputs),
@@ -301,12 +222,13 @@ func TestGetThroughput(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
+			withEsSampling(test.indexPrefix, defaultMaxDocCount, func(w *samplingStorageTest) {
 				searchService := &mocks.SearchService{}
-				if test.indexPrefix != "" {
-					test.indexPrefix += "-"
+				prefix := test.indexPrefix
+				if prefix != "" {
+					prefix += "-"
 				}
-				index := test.indexPrefix.Apply(test.index)
+				index := prefix.Apply(test.index)
 				w.client.On("Search", []string{index}).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("Query", mock.Anything).Return(searchService)
@@ -400,27 +322,34 @@ func TestGetLatestProbabilities(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-				searchService := &mocks.SearchService{}
-				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", []string{index}).Return(searchService)
-				searchService.On("Size", mock.Anything).Return(searchService)
-				searchService.On("IgnoreUnavailable", true).Return(searchService)
-				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
-
-				indicesexistsservice := &mocks.IndicesExistsService{}
-				w.client.On("IndexExists", index).Return(indicesexistsservice)
-				indicesexistsservice.On("Do", mock.Anything).Return(test.indexPresent, test.indexError)
-
-				actual, err := w.storage.GetLatestProbabilities()
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-					assert.Nil(t, actual)
-				} else {
-					require.NoError(t, err)
-					assert.Equal(t, test.expectedOutput, actual)
-				}
+			client := &mocks.Client{}
+			store := NewSamplingStore(Params{
+				Client:      func() es.Client { return client },
+				Logger:      zap.NewNop(),
+				MaxDocCount: defaultMaxDocCount,
+				Lookback:    72 * time.Hour,
+				Rotation:    samplingRotation(test.indexPrefix),
 			})
+
+			searchService := &mocks.SearchService{}
+			index := test.indexPrefix.Apply(test.index)
+			client.On("Search", []string{index}).Return(searchService)
+			searchService.On("Size", mock.Anything).Return(searchService)
+			searchService.On("IgnoreUnavailable", true).Return(searchService)
+			searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
+
+			indicesexistsservice := &mocks.IndicesExistsService{}
+			client.On("IndexExists", index).Return(indicesexistsservice)
+			indicesexistsservice.On("Do", mock.Anything).Return(test.indexPresent, test.indexError)
+
+			actual, err := store.GetLatestProbabilities()
+			if test.expectedError != "" {
+				require.EqualError(t, err, test.expectedError)
+				assert.Nil(t, actual)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.expectedOutput, actual)
+			}
 		})
 	}
 }

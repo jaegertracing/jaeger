@@ -155,13 +155,11 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
-		Client:                 f.getClient,
-		Logger:                 f.logger,
-		IndexPrefix:            f.config.Indices.IndexPrefix,
-		IndexDateLayout:        f.config.Indices.Sampling.DateLayout,
-		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
-		Lookback:               f.config.AdaptiveSamplingLookback,
-		MaxDocCount:            f.config.MaxDocCount,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		Lookback:    f.config.AdaptiveSamplingLookback,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildSamplingRotation(),
 	}
 	store := essamplestore.NewSamplingStore(params)
 
@@ -171,7 +169,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+		templateName := f.config.Indices.IndexPrefix.Apply("jaeger-sampling")
+		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -243,6 +242,11 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
+	samplingPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-sampling-")
+	return indices.NewPeriodicRotation(samplingPrefix, f.config.Indices.Sampling.DateLayout, config.RolloverFrequencyDuration(f.config.Indices.Sampling.RolloverFrequency))
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
