@@ -197,18 +197,18 @@ func (s *StorageIntegration) waitForBackendReady(t *testing.T, traces map[string
 		// Get one non-service.name attribute to test metadata lookup
 		// Try resource attributes first
 		pos.Resource.Resource().Attributes().Range(func(k string, v pcommon.Value) bool {
-			if k != "service.name" && sampleAttrs.Len() == 0 {
-				v.CopyTo(sampleAttrs.PutEmpty(k))
-				return false // stop after first attribute
+			if k != "service.name" && sampleAttrs.Len() == 0 && v.Type() == pcommon.ValueTypeStr {
+				sampleAttrs.PutStr(k, v.Str())
+				return false // stop after first queryable attribute
 			}
 			return true
 		})
 		// If no resource attributes, try span attributes
 		if sampleAttrs.Len() == 0 {
 			span.Attributes().Range(func(k string, v pcommon.Value) bool {
-				if sampleAttrs.Len() == 0 {
-					v.CopyTo(sampleAttrs.PutEmpty(k))
-					return false // stop after first attribute
+				if sampleAttrs.Len() == 0 && v.Type() == pcommon.ValueTypeStr {
+					sampleAttrs.PutStr(k, v.Str())
+					return false // stop after first queryable attribute
 				}
 				return true
 			})
