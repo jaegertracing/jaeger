@@ -669,3 +669,55 @@ func (*mockFailingProvider) GetSamplingStrategy(_ context.Context, _ string) (*a
 func (*mockFailingProvider) Close() error {
 	return errors.New("mock provider close error")
 }
+
+func TestShutdownBlocksUntilServersExit(t *testing.T) {
+	ext := &rsExtension{
+		cfg:       &Config{},
+		telemetry: componenttest.NewNopTelemetrySettings(),
+	}
+
+	srv := &http.Server{
+		Addr: "localhost:0",
+	}
+	ln, err := net.Listen("tcp", srv.Addr)
+	require.NoError(t, err)
+
+	ext.httpServer = srv
+
+	serveFinished := make(chan struct{})
+	ext.shutdownWG.Go(func() {
+		defer close(serveFinished)
+		_ = ext.httpServer.Serve(ln)
+	})
+
+	grpcSrv := grpc.NewServer()
+	gln, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	ext.grpcServer = grpcSrv
+
+	grpcFinished := make(chan struct{})
+	ext.shutdownWG.Go(func() {
+		defer close(grpcFinished)
+		_ = ext.grpcServer.Serve(gln)
+	})
+
+	// Call Shutdown
+	err = ext.Shutdown(context.Background())
+	require.NoError(t, err)
+
+	// Since Shutdown should block on shutdownWG.Wait(), both goroutines should have completed and closed their channels.
+	select {
+	case <-serveFinished:
+		// HTTP goroutine finished
+	default:
+		t.Fatal("Shutdown returned before the HTTP serve goroutine finished")
+	}
+
+	select {
+	case <-grpcFinished:
+		// gRPC goroutine finished
+	default:
+		t.Fatal("Shutdown returned before the gRPC serve goroutine finished")
+	}
+}
