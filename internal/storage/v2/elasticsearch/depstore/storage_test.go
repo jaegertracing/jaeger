@@ -19,6 +19,7 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -33,7 +34,7 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(indexPrefix config.IndexPrefix, indexDateLayout string, maxDocCount int, fn func(r *depStorageTest)) {
+func withDepStorage(rotation indices.Rotation, maxDocCount int, fn func(r *depStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
@@ -41,40 +42,24 @@ func withDepStorage(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 		logger:    logger,
 		logBuffer: logBuffer,
 		storage: NewDependencyStore(Params{
-			Client:          func() es.Client { return client },
-			Logger:          logger,
-			IndexPrefix:     indexPrefix,
-			IndexDateLayout: indexDateLayout,
-			MaxDocCount:     maxDocCount,
+			Client:      func() es.Client { return client },
+			Logger:      logger,
+			MaxDocCount: maxDocCount,
+			Rotation:    rotation,
 		}),
 	}
 	fn(r)
 }
 
-var _ CoreDependencyStore = &DependencyStore{} // check API conformance
-
-func TestNewSpanReaderIndexPrefix(t *testing.T) {
-	testCases := []struct {
-		prefix   config.IndexPrefix
-		expected string
-	}{
-		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo-"},
-		{prefix: ":", expected: ":-"},
-	}
-	for _, testCase := range testCases {
-		client := &mocks.Client{}
-		r := NewDependencyStore(Params{
-			Client:          func() es.Client { return client },
-			Logger:          zap.NewNop(),
-			IndexPrefix:     testCase.prefix,
-			IndexDateLayout: "2006-01-02",
-			MaxDocCount:     defaultMaxDocCount,
-		})
-
-		assert.Equal(t, testCase.expected+dependencyIndexBaseName, r.dependencyIndexPrefix)
-	}
+func periodicRotation(prefix config.IndexPrefix, dateLayout string) indices.Rotation {
+	return indices.NewPeriodicRotation(
+		prefix.Apply(dependencyIndexBaseName),
+		dateLayout,
+		config.RolloverFrequencyDuration("day"),
+	)
 }
+
+var _ CoreDependencyStore = &DependencyStore{} // check API conformance
 
 func TestWriteDependencies(t *testing.T) {
 	testCases := []struct {
@@ -88,15 +73,16 @@ func TestWriteDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage("", "2006-01-02", defaultMaxDocCount, func(r *depStorageTest) {
+		rotation := periodicRotation("", "2006-01-02")
+		withDepStorage(rotation, defaultMaxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexWithDate("", "2006-01-02", fixedTime)
+			expectedIndex := "jaeger-dependencies-1995-04-21"
 			writeService := &mocks.IndexService{}
 
 			r.client.On("Index").Return(writeService)
 			r.client.On("GetVersion").Return(testCase.esVersion)
 
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
+			writeService.On("Index", stringMatcher(expectedIndex)).Return(writeService)
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
@@ -141,7 +127,7 @@ func TestGetDependencies(t *testing.T) {
 				},
 			},
 			indices:     []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
-			maxDocCount: 1000, // can be anything, assertion will check this value is used in search query.
+			maxDocCount: 1000,
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
@@ -161,7 +147,8 @@ func TestGetDependencies(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage(testCase.indexPrefix, "2006-01-02", testCase.maxDocCount, func(r *depStorageTest) {
+		rotation := periodicRotation(testCase.indexPrefix, "2006-01-02")
+		withDepStorage(rotation, testCase.maxDocCount, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 
 			searchService := &mocks.SearchService{}
@@ -196,22 +183,22 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 	return searchResult
 }
 
-func TestGetReadIndices(t *testing.T) {
+func TestReadTargets(t *testing.T) {
 	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	testCases := []struct {
-		indices  []string
+		rotation indices.Rotation
 		lookback time.Duration
-		params   Params
+		indices  []string
 	}{
 		{
-			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			rotation: indices.NewAliasedRotation(dependencyIndexBaseName+"write", dependencyIndexBaseName+"read"),
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndexBaseName + "read",
 			},
 		},
 		{
-			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
+			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 23 * time.Hour,
 			indices: []string{
 				dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
@@ -219,7 +206,7 @@ func TestGetReadIndices(t *testing.T) {
 			},
 		},
 		{
-			params:   Params{IndexPrefix: "", IndexDateLayout: "2006-01-02"},
+			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 13 * time.Hour,
 			indices: []string{
 				dependencyIndexBaseName + fixedTime.UTC().Format("2006-01-02"),
@@ -227,14 +214,14 @@ func TestGetReadIndices(t *testing.T) {
 			},
 		},
 		{
-			params:   Params{IndexPrefix: "foo:", IndexDateLayout: "2006-01-02"},
+			rotation: periodicRotation("foo:", "2006-01-02"),
 			lookback: 1 * time.Hour,
 			indices: []string{
 				"foo:" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
-			params:   Params{IndexPrefix: "foo-", IndexDateLayout: "2006-01-02"},
+			rotation: periodicRotation("foo-", "2006-01-02"),
 			lookback: 0,
 			indices: []string{
 				"foo" + config.IndexPrefixSeparator + dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
@@ -242,30 +229,29 @@ func TestGetReadIndices(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		s := NewDependencyStore(testCase.params)
-		assert.Equal(t, testCase.indices, s.getReadIndices(fixedTime, testCase.lookback))
+		actual := testCase.rotation.ReadTargets(fixedTime.Add(-testCase.lookback), fixedTime)
+		assert.Equal(t, testCase.indices, actual)
 	}
 }
 
-func TestGetWriteIndex(t *testing.T) {
+func TestWriteTarget(t *testing.T) {
 	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	testCases := []struct {
+		rotation   indices.Rotation
 		writeIndex string
-		lookback   time.Duration
-		params     Params
 	}{
 		{
-			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: true},
+			rotation:   indices.NewAliasedRotation(dependencyIndexBaseName+"write", dependencyIndexBaseName+"read"),
 			writeIndex: dependencyIndexBaseName + "write",
 		},
 		{
-			params:     Params{IndexPrefix: "", IndexDateLayout: "2006-01-02", UseReadWriteAliases: false},
+			rotation:   periodicRotation("", "2006-01-02"),
 			writeIndex: dependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 		},
 	}
 	for _, testCase := range testCases {
-		s := NewDependencyStore(testCase.params)
-		assert.Equal(t, testCase.writeIndex, s.getWriteIndex(fixedTime))
+		actual := testCase.rotation.WriteTarget(fixedTime)
+		assert.Equal(t, testCase.writeIndex, actual)
 	}
 }
 

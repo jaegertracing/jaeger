@@ -20,6 +20,24 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
+func buildSpanRotation(cfg config.Configuration, logger *zap.Logger) indices.Rotation {
+	spanPrefix := cfg.Indices.IndexPrefix.Apply("jaeger-span-")
+	var r indices.Rotation
+	if cfg.UseReadWriteAliases {
+		readSuffix := "read"
+		if cfg.ReadAliasSuffix != "" {
+			readSuffix = cfg.ReadAliasSuffix
+		}
+		r = indices.NewAliasedRotation(spanPrefix+"write", spanPrefix+readSuffix)
+	} else {
+		r = indices.NewPeriodicRotation(spanPrefix, cfg.Indices.Spans.DateLayout, config.RolloverFrequencyDuration(cfg.Indices.Spans.RolloverFrequency))
+	}
+	if len(cfg.RemoteReadClusters) > 0 {
+		r = indices.NewRemoteClusterRotation(r, cfg.RemoteReadClusters)
+	}
+	return indices.NewLoggingRotation(r, logger)
+}
+
 // These constants define the specific names of aggregations used within Elasticsearch
 // queries. They are crucial for both constructing the query sent to Elasticsearch
 // and for correctly extracting the corresponding data from the Elasticsearch response.
@@ -33,20 +51,17 @@ const (
 // QueryBuilder is responsible for constructing Elasticsearch queries (bool and aggregation)
 // based on provided parameters and executing them to retrieve raw search results.
 type QueryBuilder struct {
-	client           es.Client
-	cfg              config.Configuration
-	timeRangeIndices indices.TimeRangeIndexFn
+	client       es.Client
+	cfg          config.Configuration
+	spanRotation indices.Rotation
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
 func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Logger) *QueryBuilder {
 	return &QueryBuilder{
-		client: client,
-		cfg:    cfg,
-		timeRangeIndices: indices.LoggingTimeRangeIndexFn(
-			logger,
-			indices.TimeRangeIndicesFn(cfg.UseReadWriteAliases, cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
-		),
+		client:       client,
+		cfg:          cfg,
+		spanRotation: buildSpanRotation(cfg, logger),
 	}
 }
 
@@ -116,13 +131,9 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
 func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation, timeRange TimeRange) (*elastic.SearchResult, error) {
-	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-")
-	idxList := q.timeRangeIndices(
-		indexName,
-		q.cfg.Indices.Spans.DateLayout,
+	idxList := q.spanRotation.ReadTargets(
 		time.UnixMilli(timeRange.extendedStartTimeMillis).UTC(),
 		time.UnixMilli(timeRange.endTimeMillis).UTC(),
-		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Spans.RolloverFrequency),
 	)
 
 	return q.client.Search(idxList...).

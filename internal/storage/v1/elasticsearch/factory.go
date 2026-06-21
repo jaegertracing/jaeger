@@ -146,12 +146,10 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 // GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
-		Client:              f.getClient,
-		Logger:              f.logger,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
-		MaxDocCount:         f.config.MaxDocCount,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildDependencyRotation(),
 	}
 }
 
@@ -245,6 +243,28 @@ func loadTokenFromFile(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
+	depPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-dependencies-")
+	var r indices.Rotation
+	if f.config.UseReadWriteAliases {
+		writeSuffix := "write"
+		if f.config.WriteAliasSuffix != "" {
+			writeSuffix = f.config.WriteAliasSuffix
+		}
+		readSuffix := "read"
+		if f.config.ReadAliasSuffix != "" {
+			readSuffix = f.config.ReadAliasSuffix
+		}
+		r = indices.NewAliasedRotation(depPrefix+writeSuffix, depPrefix+readSuffix)
+	} else {
+		r = indices.NewPeriodicRotation(depPrefix, f.config.Indices.Dependencies.DateLayout, config.RolloverFrequencyDuration(f.config.Indices.Dependencies.RolloverFrequency))
+	}
+	if len(f.config.RemoteReadClusters) > 0 {
+		r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
+	}
+	return indices.NewLoggingRotation(r, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
