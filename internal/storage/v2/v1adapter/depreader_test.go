@@ -38,7 +38,8 @@ func TestGetV1DependencyReader(t *testing.T) {
 		var dr *DependencyReader = nil
 		var reader depstore.Reader = dr // typed nil
 		require.NotPanics(t, func() {
-			GetV1DependencyReader(reader)
+			v1Reader := GetV1DependencyReader(reader)
+			require.Nil(t, v1Reader)
 		})
 	})
 }

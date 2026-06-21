@@ -26,7 +26,8 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		var tr *TraceReader = nil
 		var reader tracestore.Reader = tr // typed nil
 		require.NotPanics(t, func() {
-			GetV1Reader(reader)
+			v1Reader := GetV1Reader(reader)
+			require.Nil(t, v1Reader)
 		})
 	})
 

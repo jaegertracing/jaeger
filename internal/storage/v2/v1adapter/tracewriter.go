@@ -21,7 +21,13 @@ type TraceWriter struct {
 }
 
 func GetV1Writer(writer tracestore.Writer) spanstore.Writer {
-	if tw, ok := writer.(*TraceWriter); ok && tw != nil {
+	if writer == nil {
+		return nil
+	}
+	if tw, ok := writer.(*TraceWriter); ok {
+		if tw == nil {
+			return nil
+		}
 		return tw.spanWriter
 	}
 	return &SpanWriter{

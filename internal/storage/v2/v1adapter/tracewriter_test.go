@@ -91,7 +91,8 @@ func TestGetV1Writer(t *testing.T) {
 	t.Run("typed nil panic", func(t *testing.T) {
 		var tw *TraceWriter = nil
 		require.NotPanics(t, func() {
-			GetV1Writer(tw) // typed nil
+			v1Writer := GetV1Writer(tw) // typed nil
+			require.Nil(t, v1Writer)
 		})
 	})
 }
