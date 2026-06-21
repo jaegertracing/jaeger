@@ -170,9 +170,26 @@ func (s *StorageIntegration) waitForBackendReady(t *testing.T, traces map[string
 	// Pick a trace that has attributes to test attribute metadata availability
 	var sampleTrace ptrace.Traces
 	for _, trace := range traces {
-		// Look for a trace with resource or span attributes
+		// Look for a trace with at least one queryable (string) attribute besides service.name.
 		for pos, span := range jptrace.SpanIter(trace) {
-			if pos.Resource.Resource().Attributes().Len() > 0 || span.Attributes().Len() > 0 {
+			hasQueryableAttr := false
+			pos.Resource.Resource().Attributes().Range(func(k string, v pcommon.Value) bool {
+				if k != "service.name" && v.Type() == pcommon.ValueTypeStr {
+					hasQueryableAttr = true
+					return false
+				}
+				return true
+			})
+			if !hasQueryableAttr {
+				span.Attributes().Range(func(_ string, v pcommon.Value) bool {
+					if v.Type() == pcommon.ValueTypeStr {
+						hasQueryableAttr = true
+						return false
+					}
+					return true
+				})
+			}
+			if hasQueryableAttr {
 				sampleTrace = trace
 				break
 			}
