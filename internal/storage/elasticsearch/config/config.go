@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/extension/extensionauth"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
@@ -43,21 +42,6 @@ import (
 
 const (
 	IndexPrefixSeparator = "-"
-)
-
-// RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
-// to reject deprecated rotation-related flags (use_aliases, use_ilm, create_mappings,
-// span_read_alias, span_write_alias, service_read_alias, service_write_alias).
-// Once promoted to Stable, users must migrate to the new rotation config.
-var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
-	"es.config.rejectLegacyRotationFlags",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.9.0"),
-	featuregate.WithRegisterDescription(
-		"When enabled, the use of deprecated ES rotation flags "+
-			"(use_aliases, use_ilm, create_mappings, span_read_alias, etc.) "+
-			"becomes a validation error instead of a deprecation warning.",
-	),
 )
 
 // IndexOptions describes the index format and rollover frequency
@@ -318,73 +302,6 @@ type Configuration struct {
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
-}
-
-// GetUseReadWriteAliases returns the effective value of the deprecated UseReadWriteAliases flag.
-func (c *Configuration) GetUseReadWriteAliases() bool {
-	if p := c.UseReadWriteAliases.Get(); p != nil {
-		return *p
-	}
-	return false
-}
-
-// GetCreateIndexTemplates returns the effective value of the deprecated CreateIndexTemplates flag.
-func (c *Configuration) GetCreateIndexTemplates() bool {
-	if p := c.CreateIndexTemplates.Get(); p != nil {
-		return *p
-	}
-	return false
-}
-
-// GetUseILM returns the effective value of the deprecated UseILM flag.
-func (c *Configuration) GetUseILM() bool {
-	if p := c.UseILM.Get(); p != nil {
-		return *p
-	}
-	return false
-}
-
-// GetSpanReadAlias returns the effective value of the deprecated SpanReadAlias flag.
-func (c *Configuration) GetSpanReadAlias() string {
-	if p := c.SpanReadAlias.Get(); p != nil {
-		return *p
-	}
-	return ""
-}
-
-// GetSpanWriteAlias returns the effective value of the deprecated SpanWriteAlias flag.
-func (c *Configuration) GetSpanWriteAlias() string {
-	if p := c.SpanWriteAlias.Get(); p != nil {
-		return *p
-	}
-	return ""
-}
-
-// GetServiceReadAlias returns the effective value of the deprecated ServiceReadAlias flag.
-func (c *Configuration) GetServiceReadAlias() string {
-	if p := c.ServiceReadAlias.Get(); p != nil {
-		return *p
-	}
-	return ""
-}
-
-// GetServiceWriteAlias returns the effective value of the deprecated ServiceWriteAlias flag.
-func (c *Configuration) GetServiceWriteAlias() string {
-	if p := c.ServiceWriteAlias.Get(); p != nil {
-		return *p
-	}
-	return ""
-}
-
-// hasAnyLegacyRotationFlags returns true if any deprecated rotation-related flag was explicitly set.
-func (c *Configuration) hasAnyLegacyRotationFlags() bool {
-	return c.UseReadWriteAliases.HasValue() ||
-		c.UseILM.HasValue() ||
-		c.CreateIndexTemplates.HasValue() ||
-		c.SpanReadAlias.HasValue() ||
-		c.SpanWriteAlias.HasValue() ||
-		c.ServiceReadAlias.HasValue() ||
-		c.ServiceWriteAlias.HasValue()
 }
 
 // TagsAsFields holds configuration for tag schema.
@@ -1019,21 +936,21 @@ func (c *Configuration) Validate() error {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
-	hasAnyExplicitAlias := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != "" ||
-		c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
+	hasAnyExplicitAlias := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != "" ||
+		c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
 	if hasAnyExplicitAlias && !c.GetUseReadWriteAliases() {
 		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
 	}
 
-	hasSpanAliases := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != ""
-	hasServiceAliases := c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
+	hasSpanAliases := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != ""
+	hasServiceAliases := c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasSpanAliases && (c.GetSpanReadAlias() == "" || c.GetSpanWriteAlias() == "") {
+	if hasSpanAliases && (c.getSpanReadAlias() == "" || c.getSpanWriteAlias() == "") {
 		return errors.New("both span_read_alias and span_write_alias must be set together")
 	}
 
-	if hasServiceAliases && (c.GetServiceReadAlias() == "" || c.GetServiceWriteAlias() == "") {
+	if hasServiceAliases && (c.getServiceReadAlias() == "" || c.getServiceWriteAlias() == "") {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
@@ -1100,82 +1017,4 @@ func (r *RotationConfig) validate(indexType string) error {
 		)
 	}
 	return nil
-}
-
-// ResolvedSpanRotation returns the effective rotation configuration for span indices,
-// resolving legacy flags into the appropriate RotationConfig variant.
-func (c *Configuration) ResolvedSpanRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, prefix, c.GetSpanReadAlias(), c.GetSpanWriteAlias())
-}
-
-// ResolvedServiceRotation returns the effective rotation configuration for service indices,
-// resolving legacy flags into the appropriate RotationConfig variant.
-func (c *Configuration) ResolvedServiceRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Services, prefix, c.GetServiceReadAlias(), c.GetServiceWriteAlias())
-}
-
-func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicitReadAlias, explicitWriteAlias string) RotationConfig {
-	if idxOpts.Rotation.HasRotation() {
-		return idxOpts.Rotation
-	}
-	switch {
-	case explicitReadAlias != "" && explicitWriteAlias != "":
-		return RotationConfig{
-			ManualRollover: configoptional.Some(ManualRolloverRotation{
-				ReadAlias:  explicitReadAlias,
-				WriteAlias: explicitWriteAlias,
-			}),
-		}
-	case c.GetUseReadWriteAliases():
-		writeSuffix := "write"
-		if c.WriteAliasSuffix != "" {
-			writeSuffix = c.WriteAliasSuffix
-		}
-		readSuffix := "read"
-		if c.ReadAliasSuffix != "" {
-			readSuffix = c.ReadAliasSuffix
-		}
-		return RotationConfig{
-			ManualRollover: configoptional.Some(ManualRolloverRotation{
-				ReadAlias:  prefix + readSuffix,
-				WriteAlias: prefix + writeSuffix,
-			}),
-		}
-	default:
-		return RotationConfig{
-			Periodic: configoptional.Some(PeriodicRotation{
-				DateLayout:        idxOpts.GetDateLayout(),
-				RolloverFrequency: idxOpts.GetRolloverFrequency(),
-			}),
-		}
-	}
-}
-
-// LogDeprecationWarnings logs warnings for any legacy flags that were explicitly set,
-// advising users to migrate to the new rotation config.
-func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
-	type deprecation struct {
-		flag      string
-		isSet     bool
-		migration string
-	}
-	deprecations := []deprecation{
-		{"use_aliases", c.UseReadWriteAliases.HasValue(), "use 'indices.spans.rotation.manual_rollover' (or auto_rollover) instead"},
-		{"use_ilm", c.UseILM.HasValue(), "use 'indices.spans.rotation.auto_rollover' instead"},
-		{"create_mappings", c.CreateIndexTemplates.HasValue(), "this flag will be removed in a future version; use 'indices.<type>.rotation' config instead"},
-		{"span_read_alias", c.SpanReadAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.read_alias' instead"},
-		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
-		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},
-		{"service_write_alias", c.ServiceWriteAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.write_alias' instead"},
-	}
-	for _, d := range deprecations {
-		if !d.isSet {
-			continue
-		}
-		logger.Warn(
-			"Deprecated Elasticsearch configuration flag",
-			zap.String("flag", d.flag),
-			zap.String("migration", d.migration),
-		)
-	}
 }
