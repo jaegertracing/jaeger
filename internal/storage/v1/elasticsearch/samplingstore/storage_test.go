@@ -316,7 +316,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 		{
 			name:          "index check fail",
 			indexError:    errors.New("index check failure"),
-			expectedError: "failed to get latest indices: failed to check index existence: index check failure",
+			expectedError: "failed to get latest index: failed to check index existence: index check failure",
 			index:         mockIndex,
 		},
 	}

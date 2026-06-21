@@ -108,7 +108,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	clientFn := s.client()
 	index, err := s.getLatestIndex(ctx, clientFn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest indices: %w", err)
+		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
 	searchResult, err := clientFn.Search(index).
 		Size(s.maxDocCount).
