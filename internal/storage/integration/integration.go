@@ -266,9 +266,7 @@ func (s *StorageIntegration) waitForBackendReady(t *testing.T, traces map[string
 		return true
 	})
 
-	if !found {
-		t.Log("Warning: Backend did not become ready within timeout, but proceeding with tests")
-	}
+	require.True(t, found, "timed out waiting for backend to be ready for attribute-based queries (service=%s, attribute count=%d)", serviceName, sampleAttrs.Len())
 }
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
