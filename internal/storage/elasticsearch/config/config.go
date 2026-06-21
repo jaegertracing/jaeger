@@ -64,6 +64,7 @@ var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
 	Priority int64 `mapstructure:"priority"`
+	// Deprecated: superseded by rotation.periodic.date_layout.
 	// DateLayout contains the format string used to format current time to part of the index name.
 	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
 	// If not specified, the default value is "2006-01-02".
@@ -73,6 +74,7 @@ type IndexOptions struct {
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
 	Replicas *int64 `mapstructure:"replicas"`
+	// Deprecated: superseded by rotation.periodic.rollover_frequency.
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
 	// Valid configuration options are: [hour, day].
@@ -96,9 +98,13 @@ type RotationConfig struct {
 type PeriodicRotation struct {
 	// DateLayout is the Go time format string for the date suffix (e.g. "2006-01-02").
 	DateLayout string `mapstructure:"date_layout"`
+	// RolloverFrequency determines how often a new index is created.
+	// Valid values: "hour", "day". Defaults to "day".
+	RolloverFrequency string `mapstructure:"rollover_frequency"`
 }
 
-// ManualRolloverRotation configures alias-based rotation managed by an external tool.
+// ManualRolloverRotation configures alias-based rotation managed by an external tool
+// (e.g. the es-rollover job).
 type ManualRolloverRotation struct {
 	ReadAlias  string `mapstructure:"read_alias"`
 	WriteAlias string `mapstructure:"write_alias"`
@@ -111,7 +117,7 @@ type AutoRolloverRotation struct {
 	PolicyName string `mapstructure:"policy_name"`
 }
 
-// DataStreamRotation configures data stream-based rotation.
+// DataStreamRotation configures data stream-based rotation (not yet implemented).
 type DataStreamRotation struct {
 	PolicyName string `mapstructure:"policy_name"`
 	PolicyFile string `mapstructure:"policy_file"`
@@ -194,16 +200,30 @@ type Configuration struct {
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
 
-	// Deprecated: UseReadWriteAliases is superseded by indices.<type>.rotation.manual_rollover
-	// or indices.<type>.rotation.auto_rollover.
+	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
+	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
+	// Use this option with Elasticsearch rollover API. It requires an external component
+	// to create aliases before startup and then performing its management.
 	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
-	// Deprecated: SpanReadAlias is superseded by indices.spans.rotation.manual_rollover.read_alias.
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
+	// SpanReadAlias specifies the exact alias name to use for reading spans.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
 	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
-	// Deprecated: SpanWriteAlias is superseded by indices.spans.rotation.manual_rollover.write_alias.
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
+	// SpanWriteAlias specifies the exact alias name to use for writing spans.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
 	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
-	// Deprecated: ServiceReadAlias is superseded by indices.services.rotation.manual_rollover.read_alias.
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
+	// ServiceReadAlias specifies the exact alias name to use for reading services.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
 	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
-	// Deprecated: ServiceWriteAlias is superseded by indices.services.rotation.manual_rollover.write_alias.
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
+	// ServiceWriteAlias specifies the exact alias name to use for writing services.
+	// When set, Jaeger will use this alias directly without any modifications.
+	// Can only be used with UseReadWriteAliases=true.
 	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
@@ -213,10 +233,14 @@ type Configuration struct {
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
 	WriteAliasSuffix string `mapstructure:"-"`
-	// Deprecated: CreateIndexTemplates is superseded by rotation config;
-	// data_stream and auto_rollover handle template creation automatically.
+	// Deprecated: superseded by indices.<type>.rotation config.
+	// CreateIndexTemplates, if set to true, creates index templates at application startup.
+	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates configoptional.Optional[bool] `mapstructure:"create_mappings"`
-	// Deprecated: UseILM is superseded by indices.<type>.rotation.auto_rollover.
+	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
+	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
+	// Read more about ILM at
+	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
 	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
@@ -920,7 +944,8 @@ func (c *Configuration) Validate() error {
 		return errors.New(
 			"deprecated ES rotation flags (use_aliases, use_ilm, create_mappings, " +
 				"span_read_alias, span_write_alias, service_read_alias, service_write_alias) " +
-				"are no longer supported; migrate to 'indices.<type>.rotation' config; " +
+				"are no longer supported; migrate to 'indices.<type>.rotation' config " +
+				"(see https://github.com/jaegertracing/jaeger/pull/8823); " +
 				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
 		)
 	}
@@ -956,7 +981,8 @@ func (c *Configuration) Validate() error {
 func (c *Configuration) validateRotationConfig() error {
 	hasAnyRotation := c.Indices.Spans.Rotation.HasRotation() ||
 		c.Indices.Services.Rotation.HasRotation() ||
-		c.Indices.Dependencies.Rotation.HasRotation()
+		c.Indices.Dependencies.Rotation.HasRotation() ||
+		c.Indices.Sampling.Rotation.HasRotation()
 
 	if hasAnyRotation && c.hasAnyLegacyRotationFlags() {
 		return errors.New(
@@ -974,6 +1000,7 @@ func (c *Configuration) validateRotationConfig() error {
 		{"spans", &c.Indices.Spans.Rotation},
 		{"services", &c.Indices.Services.Rotation},
 		{"dependencies", &c.Indices.Dependencies.Rotation},
+		{"sampling", &c.Indices.Sampling.Rotation},
 	}
 	for _, opts := range entries {
 		if err := opts.rotation.validate(opts.name); err != nil {
@@ -1004,10 +1031,10 @@ func (r *RotationConfig) validate(indexType string) error {
 			indexType, count,
 		)
 	}
-	if r.DataStream.HasValue() && (indexType == "services" || indexType == "dependencies") {
+	if r.DataStream.HasValue() {
 		return fmt.Errorf(
-			"indices.%s.rotation: data_stream is not supported for %s (requires upserts)",
-			indexType, indexType,
+			"indices.%s.rotation: data_stream is not yet implemented",
+			indexType,
 		)
 	}
 	return nil
@@ -1024,7 +1051,7 @@ func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
 	deprecations := []deprecation{
 		{"use_aliases", c.UseReadWriteAliases.HasValue(), "use 'indices.spans.rotation.manual_rollover' (or auto_rollover) instead"},
 		{"use_ilm", c.UseILM.HasValue(), "use 'indices.spans.rotation.auto_rollover' instead"},
-		{"create_mappings", c.CreateIndexTemplates.HasValue(), "when using rotation.data_stream or rotation.auto_rollover, template creation is handled automatically"},
+		{"create_mappings", c.CreateIndexTemplates.HasValue(), "this flag will be removed in a future version; use 'indices.<type>.rotation' config instead"},
 		{"span_read_alias", c.SpanReadAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.read_alias' instead"},
 		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
 		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},

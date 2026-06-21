@@ -2130,27 +2130,12 @@ func TestRotationConfig_Validate(t *testing.T) {
 			indexType: "spans",
 		},
 		{
-			name: "data_stream for spans is valid",
+			name: "data_stream is not yet implemented",
 			rotation: RotationConfig{
 				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
 			},
-			indexType: "spans",
-		},
-		{
-			name: "data_stream for services is invalid",
-			rotation: RotationConfig{
-				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
-			},
-			indexType:   "services",
-			expectedErr: "data_stream is not supported for services",
-		},
-		{
-			name: "data_stream for dependencies is invalid",
-			rotation: RotationConfig{
-				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
-			},
-			indexType:   "dependencies",
-			expectedErr: "data_stream is not supported for dependencies",
+			indexType:   "spans",
+			expectedErr: "data_stream is not yet implemented",
 		},
 		{
 			name: "multiple rotations set",

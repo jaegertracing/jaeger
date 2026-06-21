@@ -284,9 +284,10 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 			if dateLayout == "" {
 				dateLayout = "2006-01-02"
 			}
-			r = indices.NewPeriodicRotation(prefix, dateLayout, 24*time.Hour)
+			r = indices.NewPeriodicRotation(prefix, dateLayout, config.RolloverFrequencyDuration(p.RolloverFrequency))
 		case rc.DataStream.HasValue():
-			panic("data_stream rotation is not yet implemented")
+			// Rejected by config validation; this path should be unreachable.
+			r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
 		default:
 			r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
 		}
