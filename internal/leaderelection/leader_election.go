@@ -16,6 +16,7 @@ import (
 
 const (
 	acquireLockErrMsg = "Failed to acquire lock"
+	forfeitLockErrMsg = "Failed to forfeit lock"
 )
 
 // ElectionParticipant partakes in leader election to become leader.
@@ -64,6 +65,11 @@ func (p *DistributedElectionParticipant) Start() error {
 func (p *DistributedElectionParticipant) Close() error {
 	close(p.closeChan)
 	p.wg.Wait()
+	if p.IsLeader() {
+		if _, err := p.lock.Forfeit(p.resourceName); err != nil {
+			p.Logger.Error(forfeitLockErrMsg, zap.Error(err))
+		}
+	}
 	return nil
 }
 
