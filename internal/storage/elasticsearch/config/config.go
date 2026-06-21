@@ -106,40 +106,72 @@ func (o *IndexOptions) GetRolloverFrequency() string {
 // RotationConfig defines the index rotation strategy. Exactly one variant should be set.
 // If none is set, the behavior is determined by legacy flags for backward compatibility.
 type RotationConfig struct {
-	Periodic       configoptional.Optional[PeriodicRotation]       `mapstructure:"periodic"`
+	// Periodic configures time-based index rotation where a new index is created
+	// on a regular schedule (e.g. daily or hourly). Use this when you want Jaeger
+	// to manage index creation automatically. This is the default rotation strategy.
+	Periodic configoptional.Optional[PeriodicRotation] `mapstructure:"periodic"`
+	// ManualRollover configures alias-based rotation managed by an external tool
+	// (e.g. the jaeger-es-rollover job). Use this when you want to control index
+	// rollover externally and point Jaeger at fixed read/write aliases.
+	// If not set, Jaeger writes directly to time-stamped indices.
 	ManualRollover configoptional.Optional[ManualRolloverRotation] `mapstructure:"manual_rollover"`
-	AutoRollover   configoptional.Optional[AutoRolloverRotation]   `mapstructure:"auto_rollover"`
-	DataStream     configoptional.Optional[DataStreamRotation]     `mapstructure:"data_stream"`
+	// AutoRollover configures alias-based rotation managed by ILM (Index Lifecycle
+	// Management) or ISM (Index State Management). Use this when Elasticsearch/OpenSearch
+	// handles rollover automatically based on a lifecycle policy.
+	// If not set, no ILM/ISM integration is configured.
+	AutoRollover configoptional.Optional[AutoRolloverRotation] `mapstructure:"auto_rollover"`
+	// DataStream configures data stream-based storage (not yet implemented).
+	// If not set, traditional indices are used.
+	DataStream configoptional.Optional[DataStreamRotation] `mapstructure:"data_stream"`
 }
 
 // PeriodicRotation configures time-based index rotation (e.g. daily/hourly indices).
 type PeriodicRotation struct {
-	// DateLayout is the Go time format string for the date suffix (e.g. "2006-01-02").
+	// DateLayout is the Go time format string for the date suffix appended to index names.
+	// For example, "2006-01-02" produces "jaeger-span-2024-01-15".
+	// If empty, defaults to "2006-01-02" (daily granularity with dash separators).
 	DateLayout string `mapstructure:"date_layout"`
-	// RolloverFrequency determines how often a new index is created.
-	// Valid values: "hour", "day". Defaults to "day".
+	// RolloverFrequency determines how often a new index is created and controls the
+	// time range when searching for indices.
+	// Valid values: "hour", "day". If empty or invalid, defaults to "day".
 	RolloverFrequency string `mapstructure:"rollover_frequency"`
 }
 
 // ManualRolloverRotation configures alias-based rotation managed by an external tool
 // (e.g. the es-rollover job).
 type ManualRolloverRotation struct {
-	ReadAlias  string `mapstructure:"read_alias"`
+	// ReadAlias is the Elasticsearch alias used for read queries.
+	// If empty, defaults to "<index-prefix>read" (e.g. "jaeger-span-read").
+	ReadAlias string `mapstructure:"read_alias"`
+	// WriteAlias is the Elasticsearch alias used for write operations.
+	// If empty, defaults to "<index-prefix>write" (e.g. "jaeger-span-write").
 	WriteAlias string `mapstructure:"write_alias"`
 }
 
 // AutoRolloverRotation configures alias-based rotation managed by ILM/ISM.
 type AutoRolloverRotation struct {
-	ReadAlias  string `mapstructure:"read_alias"`
+	// ReadAlias is the Elasticsearch alias used for read queries.
+	// If empty, defaults to "<index-prefix>read" (e.g. "jaeger-span-read").
+	ReadAlias string `mapstructure:"read_alias"`
+	// WriteAlias is the Elasticsearch alias used for write operations.
+	// If empty, defaults to "<index-prefix>write" (e.g. "jaeger-span-write").
 	WriteAlias string `mapstructure:"write_alias"`
+	// PolicyName is the name of the ILM/ISM policy that manages index rollover.
+	// If empty, the policy must be configured externally.
 	PolicyName string `mapstructure:"policy_name"`
 }
 
 // DataStreamRotation configures data stream-based rotation (not yet implemented).
 type DataStreamRotation struct {
+	// PolicyName is the name of the ILM/ISM policy applied to the data stream.
+	// If empty, the cluster default policy is used.
 	PolicyName string `mapstructure:"policy_name"`
+	// PolicyFile is the path to a JSON file containing the ILM/ISM policy definition.
+	// If empty, the policy must already exist in the cluster.
 	PolicyFile string `mapstructure:"policy_file"`
-	ReadAlias  string `mapstructure:"read_alias"`
+	// ReadAlias is an optional alias for read operations on the data stream.
+	// If empty, the data stream name is used directly.
+	ReadAlias string `mapstructure:"read_alias"`
 }
 
 // HasRotation returns true if any rotation variant is explicitly configured.
@@ -226,25 +258,30 @@ type Configuration struct {
 	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
 	// SpanReadAlias specifies the exact alias name to use for reading spans.
 	// When set, Jaeger will use this alias directly without any modifications.
+	// This allows integration with existing Elasticsearch setups that have custom alias names.
 	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-span-reader"
 	//
 	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
 	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
 	// SpanWriteAlias specifies the exact alias name to use for writing spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-span-writer"
 	//
 	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
 	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
 	// ServiceReadAlias specifies the exact alias name to use for reading services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-service-reader"
 	//
 	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
 	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
 	// ServiceWriteAlias specifies the exact alias name to use for writing services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
+	// Example: "my-custom-service-writer"
 	//
 	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
 	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
