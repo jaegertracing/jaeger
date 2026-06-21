@@ -17,7 +17,7 @@ var defaultIndexOptions = config.IndexOptions{
 	Replicas: new(int64(1)),
 	Priority: 0,
 	Rotation: config.RotationConfig{
-		Periodic: configoptional.Some(config.PeriodicRotation{
+		Periodic: configoptional.Default(config.PeriodicRotation{
 			DateLayout:        initDateLayout("day", "-"),
 			RolloverFrequency: "day",
 		}),
