@@ -155,7 +155,7 @@ func (sH *StaticAssetsHandler) checkAndReloadConfig() {
 		sH.options.Logger.Warn("failed to stat UI config file", zap.String("filename", sH.options.ConfigFile), zap.Error(err))
 		return
 	}
-	if info.ModTime().After(sH.lastModTime) {
+	if !info.ModTime().Equal(sH.lastModTime) {
 		sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.ConfigFile))
 		content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
 		if err != nil {
