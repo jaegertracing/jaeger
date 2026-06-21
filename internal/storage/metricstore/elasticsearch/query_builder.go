@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -19,24 +18,6 @@ import (
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
-
-func buildSpanRotation(cfg config.Configuration, logger *zap.Logger) indices.Rotation {
-	spanPrefix := cfg.Indices.IndexPrefix.Apply("jaeger-span-")
-	var r indices.Rotation
-	if cfg.UseReadWriteAliases {
-		readSuffix := "read"
-		if cfg.ReadAliasSuffix != "" {
-			readSuffix = cfg.ReadAliasSuffix
-		}
-		r = indices.NewAliasedRotation(spanPrefix+"write", spanPrefix+readSuffix)
-	} else {
-		r = indices.NewPeriodicRotation(spanPrefix, cfg.Indices.Spans.DateLayout, config.RolloverFrequencyDuration(cfg.Indices.Spans.RolloverFrequency))
-	}
-	if len(cfg.RemoteReadClusters) > 0 {
-		r = indices.NewRemoteClusterRotation(r, cfg.RemoteReadClusters)
-	}
-	return indices.NewLoggingRotation(r, logger)
-}
 
 // These constants define the specific names of aggregations used within Elasticsearch
 // queries. They are crucial for both constructing the query sent to Elasticsearch
@@ -57,11 +38,11 @@ type QueryBuilder struct {
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
-func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Logger) *QueryBuilder {
+func NewQueryBuilder(client es.Client, cfg config.Configuration, spanRotation indices.Rotation) *QueryBuilder {
 	return &QueryBuilder{
 		client:       client,
 		cfg:          cfg,
-		spanRotation: buildSpanRotation(cfg, logger),
+		spanRotation: spanRotation,
 	}
 }
 

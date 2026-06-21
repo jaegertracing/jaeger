@@ -245,74 +245,44 @@ func loadTokenFromFile(path string) (string, error) {
 }
 
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
-	samplingPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-sampling-")
-	return indices.NewPeriodicRotation(samplingPrefix, f.config.Indices.Sampling.DateLayout, config.RolloverFrequencyDuration(f.config.Indices.Sampling.RolloverFrequency))
+	return config.BuildRotation(config.RotationParams{
+		IndexPrefix:  f.config.Indices.IndexPrefix.Apply("jaeger-sampling-"),
+		IndexOptions: f.config.Indices.Sampling,
+	}, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
-	depPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-dependencies-")
-	var r indices.Rotation
-	if f.config.UseReadWriteAliases {
-		writeSuffix := "write"
-		if f.config.WriteAliasSuffix != "" {
-			writeSuffix = f.config.WriteAliasSuffix
-		}
-		readSuffix := "read"
-		if f.config.ReadAliasSuffix != "" {
-			readSuffix = f.config.ReadAliasSuffix
-		}
-		r = indices.NewAliasedRotation(depPrefix+writeSuffix, depPrefix+readSuffix)
-	} else {
-		r = indices.NewPeriodicRotation(depPrefix, f.config.Indices.Dependencies.DateLayout, config.RolloverFrequencyDuration(f.config.Indices.Dependencies.RolloverFrequency))
-	}
-	if len(f.config.RemoteReadClusters) > 0 {
-		r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
-	}
-	return indices.NewLoggingRotation(r, f.logger)
+	return config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-dependencies-"),
+		IndexOptions:   f.config.Indices.Dependencies,
+		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
-	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
-
-	type aliasConfig struct {
-		explicitWrite string
-		explicitRead  string
-	}
-
-	buildOne := func(prefix string, aliases aliasConfig, idxOpts config.IndexOptions) indices.Rotation {
-		var r indices.Rotation
-		switch {
-		case aliases.explicitWrite != "" && aliases.explicitRead != "":
-			r = indices.NewAliasedRotation(aliases.explicitWrite, aliases.explicitRead)
-		case f.config.UseReadWriteAliases:
-			writeSuffix := "write"
-			if f.config.WriteAliasSuffix != "" {
-				writeSuffix = f.config.WriteAliasSuffix
-			}
-			readSuffix := "read"
-			if f.config.ReadAliasSuffix != "" {
-				readSuffix = f.config.ReadAliasSuffix
-			}
-			r = indices.NewAliasedRotation(prefix+writeSuffix, prefix+readSuffix)
-		default:
-			r = indices.NewPeriodicRotation(prefix, idxOpts.DateLayout, config.RolloverFrequencyDuration(idxOpts.RolloverFrequency))
-		}
-		if len(f.config.RemoteReadClusters) > 0 {
-			r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
-		}
-		r = indices.NewLoggingRotation(r, f.logger)
-		return r
-	}
-
-	spanRotation = buildOne(spanPrefix, aliasConfig{
-		explicitWrite: f.config.SpanWriteAlias,
-		explicitRead:  f.config.SpanReadAlias,
-	}, f.config.Indices.Spans)
-	serviceRotation = buildOne(servicePrefix, aliasConfig{
-		explicitWrite: f.config.ServiceWriteAlias,
-		explicitRead:  f.config.ServiceReadAlias,
-	}, f.config.Indices.Services)
+	spanRotation = config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-span-"),
+		IndexOptions:   f.config.Indices.Spans,
+		ExplicitWrite:  f.config.SpanWriteAlias,
+		ExplicitRead:   f.config.SpanReadAlias,
+		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
+	serviceRotation = config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-service-"),
+		IndexOptions:   f.config.Indices.Services,
+		ExplicitWrite:  f.config.ServiceWriteAlias,
+		ExplicitRead:   f.config.ServiceReadAlias,
+		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
 	return spanRotation, serviceRotation
 }
 
