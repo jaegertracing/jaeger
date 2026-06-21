@@ -146,7 +146,8 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 }
 
 func (s *SamplingStore) getLatestIndex(ctx context.Context, client es.Client) (string, error) {
-	candidates := s.rotation.ReadTargets(time.Now().UTC().Add(-s.lookback), time.Now().UTC())
+	now := time.Now().UTC()
+	candidates := s.rotation.ReadTargets(now.Add(-s.lookback), now)
 	for _, idx := range candidates {
 		exists, err := client.IndexExists(idx).Do(ctx)
 		if err != nil {
