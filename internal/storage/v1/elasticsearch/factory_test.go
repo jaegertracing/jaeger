@@ -497,7 +497,7 @@ func TestPasswordFromFileErrors(t *testing.T) {
 	f.onPasswordChange()
 }
 
-func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
+func TestFactoryBase_NewClient_PasswordFileError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://localhost:9200"},
 		LogLevel: "debug",

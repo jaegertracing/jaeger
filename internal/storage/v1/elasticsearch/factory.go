@@ -6,7 +6,6 @@ package elasticsearch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,13 +13,14 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"time"
+
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/fswatcher"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -46,7 +46,7 @@ type FactoryBase struct {
 
 	client atomic.Pointer[es.Client]
 
-	pwdFileWatcher *fswatcher.FSWatcher
+	pwdRefreshStop chan struct{}
 
 	templateBuilder es.TemplateBuilder
 
@@ -82,11 +82,11 @@ func NewFactoryBase(
 
 	if f.config.Authentication.BasicAuthentication.HasValue() {
 		if file := f.config.Authentication.BasicAuthentication.Get().PasswordFilePath; file != "" {
-			watcher, err := fswatcher.New([]string{file}, f.onPasswordChange, f.logger)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
+			if _, err := loadTokenFromFile(file); err != nil {
+				return nil, fmt.Errorf("failed to initialize basic authentication: %w", fmt.Errorf("failed to get token from file: %w", err))
 			}
-			f.pwdFileWatcher = watcher
+			f.pwdRefreshStop = make(chan struct{})
+			go f.refreshPasswordFromFile(file)
 		}
 	}
 
@@ -192,14 +192,23 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 
 // Close closes the resources held by the factory
 func (f *FactoryBase) Close() error {
-	var errs []error
-
-	if f.pwdFileWatcher != nil {
-		errs = append(errs, f.pwdFileWatcher.Close())
+	if f.pwdRefreshStop != nil {
+		close(f.pwdRefreshStop)
 	}
-	errs = append(errs, f.getClient().Close())
+	return f.getClient().Close()
+}
 
-	return errors.Join(errs...)
+func (f *FactoryBase) refreshPasswordFromFile(filePath string) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			f.onPasswordChange()
+		case <-f.pwdRefreshStop:
+			return
+		}
+	}
 }
 
 func (f *FactoryBase) onPasswordChange() {
