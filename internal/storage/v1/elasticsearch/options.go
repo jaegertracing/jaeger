@@ -18,6 +18,12 @@ var defaultIndexOptions = config.IndexOptions{
 	Shards:            5,
 	Replicas:          new(int64(1)),
 	Priority:          0,
+	Rotation: config.RotationConfig{
+		Periodic: configoptional.Some(config.PeriodicRotation{
+			DateLayout:        initDateLayout("day", "-"),
+			RolloverFrequency: "day",
+		}),
+	},
 }
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -56,15 +62,14 @@ func DefaultConfig() config.Configuration {
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
-		Enabled:              true,
-		CreateIndexTemplates: configoptional.Some(true),
-		Version:              0,
-		Servers:              []string{"http://127.0.0.1:9200"},
-		RemoteReadClusters:   []string{},
-		MaxDocCount:          10_000,
-		LogLevel:             "error",
-		SendGetBodyAs:        "",
-		HTTPCompression:      true,
+		Enabled:            true,
+		Version:            0,
+		Servers:            []string{"http://127.0.0.1:9200"},
+		RemoteReadClusters: []string{},
+		MaxDocCount:        10_000,
+		LogLevel:           "error",
+		SendGetBodyAs:      "",
+		HTTPCompression:    true,
 		Indices: config.Indices{
 			Spans:        defaultIndexOptions,
 			Services:     defaultIndexOptions,
