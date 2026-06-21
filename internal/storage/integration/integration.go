@@ -243,13 +243,27 @@ func (s *StorageIntegration) waitForBackendReady(t *testing.T, traces map[string
 	t.Logf("Waiting for backend to be ready for attribute-based queries (testing with service=%s, attribute count=%d)",
 		serviceName, sampleAttrs.Len())
 
+	// Derive a tight time range from the sample trace so the readiness query can match
+	// fixtures that use fixed historical timestamps.
+	var minStart, maxEnd time.Time
+	for _, span := range jptrace.SpanIter(sampleTrace) {
+		start := span.StartTimestamp().AsTime()
+		end := span.EndTimestamp().AsTime()
+		if minStart.IsZero() || start.Before(minStart) {
+			minStart = start
+		}
+		if maxEnd.IsZero() || end.After(maxEnd) {
+			maxEnd = end
+		}
+	}
+
 	// Try a simple query with the sample attribute to ensure attribute metadata is available
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		query := tracestore.TraceQueryParams{
 			ServiceName:  serviceName,
 			Attributes:   sampleAttrs,
-			StartTimeMin: time.Now().Add(-72 * time.Hour),
-			StartTimeMax: time.Now().Add(1 * time.Hour),
+			StartTimeMin: minStart.Add(-time.Minute),
+			StartTimeMax: maxEnd.Add(time.Minute),
 			SearchDepth:  10,
 		}
 		iterTraces := s.TraceReader.FindTraces(context.Background(), query)
