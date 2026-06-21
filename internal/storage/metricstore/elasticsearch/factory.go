@@ -50,7 +50,10 @@ func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	spanRotation := config.BuildRotation(config.RotationParams{
 		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName),
 		IndexOptions:   f.config.Indices.Spans,
+		ExplicitWrite:  f.config.SpanWriteAlias,
+		ExplicitRead:   f.config.SpanReadAlias,
 		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
 		ReadAlias:      f.config.ReadAliasSuffix,
 		RemoteClusters: f.config.RemoteReadClusters,
 	}, f.telset.Logger)
