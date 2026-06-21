@@ -10,6 +10,7 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -47,7 +48,7 @@ func NewFactory(
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
 	spanRotation := config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-span-"),
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName),
 		IndexOptions:   f.config.Indices.Spans,
 		UseAliases:     f.config.UseReadWriteAliases,
 		ReadAlias:      f.config.ReadAliasSuffix,

@@ -20,10 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 )
 
-const (
-	dependencyType          = "dependencies"
-	dependencyIndexBaseName = "jaeger-dependencies-"
-)
+const dependencyType = "dependencies"
 
 // CoreDependencyStore is a DB Level abstraction which directly read/write dependencies into ElasticSearch
 type CoreDependencyStore interface {

@@ -21,9 +21,8 @@ import (
 )
 
 const (
-	samplingIndexBaseName = "jaeger-sampling"
-	throughputType        = "throughput-sampling"
-	probabilitiesType     = "probabilities-sampling"
+	throughputType    = "throughput-sampling"
+	probabilitiesType = "probabilities-sampling"
 )
 
 type SamplingStore struct {

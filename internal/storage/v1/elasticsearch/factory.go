@@ -246,14 +246,14 @@ func loadTokenFromFile(path string) (string, error) {
 
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
 	return config.BuildRotation(config.RotationParams{
-		IndexPrefix:  f.config.Indices.IndexPrefix.Apply("jaeger-sampling-"),
+		IndexPrefix:  f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName),
 		IndexOptions: f.config.Indices.Sampling,
 	}, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
 	return config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-dependencies-"),
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName),
 		IndexOptions:   f.config.Indices.Dependencies,
 		UseAliases:     f.config.UseReadWriteAliases,
 		WriteAlias:     f.config.WriteAliasSuffix,
@@ -264,7 +264,7 @@ func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
 	spanRotation = config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-span-"),
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName),
 		IndexOptions:   f.config.Indices.Spans,
 		ExplicitWrite:  f.config.SpanWriteAlias,
 		ExplicitRead:   f.config.SpanReadAlias,
@@ -274,7 +274,7 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 		RemoteClusters: f.config.RemoteReadClusters,
 	}, f.logger)
 	serviceRotation = config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply("jaeger-service-"),
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName),
 		IndexOptions:   f.config.Indices.Services,
 		ExplicitWrite:  f.config.ServiceWriteAlias,
 		ExplicitRead:   f.config.ServiceReadAlias,
