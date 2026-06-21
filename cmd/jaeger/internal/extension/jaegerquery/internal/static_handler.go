@@ -14,13 +14,14 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/fswatcher"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -51,10 +52,12 @@ func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOpt
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
-	options   StaticAssetsHandlerOptions
-	indexHTML atomic.Value // stores []byte
-	assetsFS  http.FileSystem
-	watcher   *fswatcher.FSWatcher
+	options     StaticAssetsHandlerOptions
+	indexHTML   atomic.Value // stores []byte
+	assetsFS    http.FileSystem
+	lastModTime time.Time
+	closeChan   chan struct{}
+	wg          sync.WaitGroup
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
@@ -63,6 +66,7 @@ type StaticAssetsHandlerOptions struct {
 	BasePath            string
 	StorageCapabilities querysvc.StorageCapabilities
 	Logger              *zap.Logger
+	ReloadInterval      time.Duration
 }
 
 type loadedConfig struct {
@@ -78,23 +82,44 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 	}
 
 	h := &StaticAssetsHandler{
-		options:  options,
-		assetsFS: assetsFS,
+		options:   options,
+		assetsFS:  assetsFS,
+		closeChan: make(chan struct{}),
 	}
 
 	indexHTML, err := h.loadAndEnrichIndexHTML(assetsFS.Open)
 	if err != nil {
 		return nil, err
 	}
-
-	options.Logger.Info("Using UI configuration", zap.String("path", options.ConfigFile))
-	watcher, err := fswatcher.New([]string{options.ConfigFile}, h.reloadUIConfig, h.options.Logger)
-	if err != nil {
-		return nil, err
-	}
-	h.watcher = watcher
-
 	h.indexHTML.Store(indexHTML)
+
+	if options.ConfigFile != "" {
+		if info, err := os.Stat(options.ConfigFile); err == nil {
+			h.lastModTime = info.ModTime()
+		}
+
+		options.Logger.Info("Using UI configuration", zap.String("path", options.ConfigFile))
+		interval := options.ReloadInterval
+		if interval == 0 {
+			interval = 10 * time.Second
+		}
+		if interval > 0 {
+			h.wg.Add(1)
+			go func() {
+				defer h.wg.Done()
+				ticker := time.NewTicker(interval)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-h.closeChan:
+						return
+					case <-ticker.C:
+						h.checkAndReloadConfig()
+					}
+				}
+			}()
+		}
+	}
 
 	return h, nil
 }
@@ -124,14 +149,23 @@ func (sH *StaticAssetsHandler) loadAndEnrichIndexHTML(open func(string) (http.Fi
 	return indexBytes, nil
 }
 
-func (sH *StaticAssetsHandler) reloadUIConfig() {
-	sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.ConfigFile))
-	content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
+func (sH *StaticAssetsHandler) checkAndReloadConfig() {
+	info, err := os.Stat(sH.options.ConfigFile)
 	if err != nil {
-		sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+		sH.options.Logger.Warn("failed to stat UI config file", zap.String("filename", sH.options.ConfigFile), zap.Error(err))
+		return
 	}
-	sH.indexHTML.Store(content)
-	sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.ConfigFile))
+	if info.ModTime().After(sH.lastModTime) {
+		sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.ConfigFile))
+		content, err := sH.loadAndEnrichIndexHTML(sH.assetsFS.Open)
+		if err != nil {
+			sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+			return
+		}
+		sH.indexHTML.Store(content)
+		sH.lastModTime = info.ModTime()
+		sH.options.Logger.Info("reloaded UI config", zap.String("filename", sH.options.ConfigFile))
+	}
 }
 
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
@@ -236,5 +270,7 @@ func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, _ *http.Request) 
 }
 
 func (sH *StaticAssetsHandler) Close() error {
-	return sH.watcher.Close()
+	close(sH.closeChan)
+	sH.wg.Wait()
+	return nil
 }

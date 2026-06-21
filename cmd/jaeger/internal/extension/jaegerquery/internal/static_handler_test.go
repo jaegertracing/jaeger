@@ -28,13 +28,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-//go:generate mockery -all -dir ../../../internal/fswatcher
-
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{
 		Logger: zap.NewNop(),
 	})
-	require.ErrorContains(t, err, "no such file or directory")
+	require.Error(t, err)
+	errStr := err.Error()
+	if !strings.Contains(errStr, "no such file or directory") && !strings.Contains(errStr, "cannot find the") {
+		t.Fatalf("expected error to contain 'no such file or directory' or 'cannot find the', got: %v", err)
+	}
 	assert.Nil(t, handler)
 }
 
@@ -54,7 +56,10 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 		defer closer.Close()
 	})
 	assert.Contains(t, buf.String(), "Could not create static assets handler")
-	assert.Contains(t, buf.String(), "no such file or directory")
+	logStr := buf.String()
+	if !strings.Contains(logStr, "no such file or directory") && !strings.Contains(logStr, "cannot find the") {
+		t.Fatalf("expected log to contain 'no such file or directory' or 'cannot find the', got: %s", logStr)
+	}
 }
 
 func TestRegisterStaticHandler(t *testing.T) {
@@ -177,17 +182,18 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 	cfgFile, err := os.CreateTemp(dir, "*.json")
 	require.NoError(t, err)
-	defer cfgFile.Close()
 	cfgFileName := cfgFile.Name()
+	cfgFile.Close()
 
 	tmpFile, err := os.CreateTemp(dir, "*.json")
 	require.NoError(t, err)
-	defer tmpFile.Close()
+	tmpFileName := tmpFile.Name()
+	tmpFile.Close()
 
 	content, err := os.ReadFile("fixture/ui-config-hotreload.json")
 	require.NoError(t, err)
 
-	err = syncWrite(cfgFile, tmpFile, content)
+	err = syncWrite(cfgFileName, tmpFileName, content)
 	require.NoError(t, err)
 
 	zcore, logObserver := observer.New(zapcore.InfoLevel)
@@ -196,7 +202,8 @@ func TestHotReloadUIConfig(t *testing.T) {
 		UIConfig: UIConfig{
 			ConfigFile: cfgFileName,
 		},
-		Logger: logger,
+		ReloadInterval: 10 * time.Millisecond,
+		Logger:         logger,
 	})
 	require.NoError(t, err)
 	defer h.Close()
@@ -205,7 +212,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 	assert.Contains(t, c, "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
-	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
+	err = syncWrite(cfgFileName, tmpFileName, []byte(newContent))
 	require.NoError(t, err)
 
 	waitUntil(t, func() bool {
@@ -235,7 +242,12 @@ func TestLoadUIConfig(t *testing.T) {
 		t.Run(description, func(t *testing.T) {
 			config, err := loadUIConfig(testCase.configFile)
 			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
+				errStr := err.Error()
+				expectedUnix := testCase.expectedError
+				expectedWin := strings.ReplaceAll(expectedUnix, "no such file or directory", "The system cannot find the file specified.")
+				if errStr != expectedUnix && errStr != expectedWin {
+					t.Fatalf("expected error to be %q or %q, got: %q", expectedUnix, expectedWin, errStr)
+				}
 			} else {
 				require.NoError(t, err)
 			}
@@ -342,17 +354,20 @@ func waitUntil(t *testing.T, f func() bool, iterations int, sleepInterval time.D
 
 // syncWrite ensures data is written to the given filename and flushed to disk.
 // This ensures that any watchers looking for file system changes can be reliably alerted.
-func syncWrite(target *os.File, temp *os.File, data []byte) error {
-	f, err := os.OpenFile(temp.Name(), os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0o644)
-	if err != nil {
-		return err
+func syncWrite(target string, temp string, data []byte) error {
+	writeErr := func() error {
+		f, err := os.OpenFile(temp, os.O_WRONLY|os.O_CREATE|os.O_TRUNC|os.O_SYNC, 0o644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if _, err = f.Write(data); err != nil {
+			return err
+		}
+		return f.Sync()
+	}()
+	if writeErr != nil {
+		return writeErr
 	}
-	defer f.Close()
-	if _, err = f.Write(data); err != nil {
-		return err
-	}
-	if err := f.Sync(); err != nil {
-		return err
-	}
-	return os.Rename(temp.Name(), target.Name())
+	return os.Rename(temp, target)
 }

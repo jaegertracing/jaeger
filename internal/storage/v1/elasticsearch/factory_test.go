@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
@@ -134,7 +133,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		LogLevel: "debug",
 	}
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
-	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
+	require.ErrorContains(t, err, "file-does-not-exist.txt")
 	assert.Nil(t, f)
 }
 
@@ -351,13 +350,6 @@ func TestPasswordFromFile(t *testing.T) {
 	t.Run("primary client", func(t *testing.T) {
 		runPasswordFromFileTest(t)
 	})
-
-	t.Run("load token error", func(t *testing.T) {
-		file := filepath.Join(t.TempDir(), "does not exist")
-		token, err := loadTokenFromFile(file)
-		require.Error(t, err)
-		assert.Empty(t, token)
-	})
 }
 
 func runPasswordFromFileTest(t *testing.T) {
@@ -396,6 +388,7 @@ func runPasswordFromFileTest(t *testing.T) {
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				Username:         "user",
 				PasswordFilePath: pwdFile,
+				ReloadInterval:   10 * time.Millisecond,
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
@@ -409,11 +402,8 @@ func runPasswordFromFileTest(t *testing.T) {
 		require.NoError(t, f.Close())
 	})
 
-	writer := core.NewSpanWriter(f.GetSpanWriterParams())
-	span1 := &dbmodel.Span{
-		Process: dbmodel.Process{ServiceName: "foo"},
-	}
-	writer.WriteSpan(time.Now(), span1)
+	// Make a synchronous request to trigger the first check and cache
+	_, _ = f.getClient().IndexExists("foo").Do(context.Background())
 	assert.Eventually(
 		t,
 		func() bool {
@@ -425,32 +415,19 @@ func runPasswordFromFileTest(t *testing.T) {
 	)
 
 	t.Log("replace password in the file")
-	client1 := f.getClient()
 	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
 	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
 
+	// Make synchronous requests repeatedly until the new password is sent (due to reload interval expiry)
 	assert.Eventually(
 		t,
 		func() bool {
-			client2 := f.getClient()
-			return client1 != client2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to change for the new password",
-	)
-
-	span2 := &dbmodel.Span{
-		Process: dbmodel.Process{ServiceName: "foo"},
-	}
-	writer.WriteSpan(time.Now(), span2)
-	assert.Eventually(
-		t,
-		func() bool {
+			_, _ = f.getClient().IndexExists("foo").Do(context.Background())
 			pwd, ok := authReceived.Load(upwd2)
 			return ok && pwd == upwd2
 		},
-		5*time.Second, time.Millisecond,
+		5*time.Second, 10*time.Millisecond,
 		"expecting es.Client to send the new password",
 	)
 }
@@ -458,43 +435,6 @@ func runPasswordFromFileTest(t *testing.T) {
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &FactoryBase{}
 	assert.Nil(t, f.getClient())
-}
-
-func TestPasswordFromFileErrors(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	defer server.Close()
-
-	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
-
-	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
-		Authentication: escfg.Authentication{
-			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-				PasswordFilePath: pwdFile,
-			}),
-		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates error paths
-		},
-	}
-
-	logger, buf := testutils.NewEchoLogger(t)
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger, nil)
-	require.NoError(t, err)
-	defer f.Close()
-
-	f.config.Servers = []string{}
-	f.onPasswordChange()
-	assert.Contains(t, buf.String(), "no servers specified")
-
-	require.NoError(t, os.Remove(pwdFile))
-	f.onPasswordChange()
 }
 
 func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
