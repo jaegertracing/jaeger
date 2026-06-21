@@ -10,6 +10,8 @@ import (
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 func TestLatestUserMessageTextPicksMostRecentUser(t *testing.T) {
@@ -298,4 +300,139 @@ func TestValidateContextualToolNamesReportsFirstOffendingIndex(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tools[2].name",
 		"the index of the first invalid tool must be in the error so frontend devs can locate it")
+}
+
+func TestEstimateTokens(t *testing.T) {
+	assert.Equal(t, 0, estimateTokens(""))
+	assert.Equal(t, 1, estimateTokens("abcd"))
+	assert.Equal(t, 2, estimateTokens("abcdefgh"))
+}
+
+func TestIsLowValueSpan(t *testing.T) {
+	// Case 1: Root span (ParentSpanID is empty, no References) -> NOT low-value
+	rootSpan := uimodel.Span{
+		SpanID: "root",
+	}
+	assert.False(t, isLowValueSpan(rootSpan))
+
+	// Case 2: Non-root span, duration >= 1ms -> NOT low-value
+	longSpan := uimodel.Span{
+		SpanID:       "child",
+		ParentSpanID: "root",
+		Duration:     1000,
+	}
+	assert.False(t, isLowValueSpan(longSpan))
+
+	// Case 3: Non-root span, duration < 1ms, no error tags -> low-value
+	shortSpan := uimodel.Span{
+		SpanID:       "child",
+		ParentSpanID: "root",
+		Duration:     500,
+	}
+	assert.True(t, isLowValueSpan(shortSpan))
+
+	// Case 4: Non-root span, duration < 1ms, error tag = true (bool) -> NOT low-value
+	errSpanBool := uimodel.Span{
+		SpanID:       "child",
+		ParentSpanID: "root",
+		Duration:     500,
+		Tags: []uimodel.KeyValue{
+			{Key: "error", Value: true},
+		},
+	}
+	assert.False(t, isLowValueSpan(errSpanBool))
+
+	// Case 5: Non-root span, duration < 1ms, error tag = "true" (string) -> NOT low-value
+	errSpanStr := uimodel.Span{
+		SpanID:       "child",
+		ParentSpanID: "root",
+		Duration:     500,
+		Tags: []uimodel.KeyValue{
+			{Key: "error", Value: "true"},
+		},
+	}
+	assert.False(t, isLowValueSpan(errSpanStr))
+
+	// Case 6: Non-root span, duration < 1ms, http.status_code = 500 -> NOT low-value
+	errSpanHTTP := uimodel.Span{
+		SpanID:       "child",
+		ParentSpanID: "root",
+		Duration:     500,
+		Tags: []uimodel.KeyValue{
+			{Key: "http.status_code", Value: int64(500)},
+		},
+	}
+	assert.False(t, isLowValueSpan(errSpanHTTP))
+
+	// Case 7: Non-root span, duration < 1ms, error log -> NOT low-value
+	errSpanLog := uimodel.Span{
+		SpanID:       "child",
+		ParentSpanID: "root",
+		Duration:     500,
+		Logs: []uimodel.Log{
+			{
+				Fields: []uimodel.KeyValue{
+					{Key: "error", Value: "something failed"},
+				},
+			},
+		},
+	}
+	assert.False(t, isLowValueSpan(errSpanLog))
+}
+
+func TestTryPruneTraceContext(t *testing.T) {
+	// Let's create a trace JSON
+	trace := uimodel.Trace{
+		TraceID: "t1",
+		Spans: []uimodel.Span{
+			{SpanID: "root"}, // Root span: keep
+			{SpanID: "c1", ParentSpanID: "root", Duration: 2000}, // Long span: keep
+			{SpanID: "c2", ParentSpanID: "root", Duration: 500}, // Short normal: prune
+			{SpanID: "c3", ParentSpanID: "root", Duration: 500, Tags: []uimodel.KeyValue{{Key: "error", Value: true}}}, // Short error: keep
+		},
+	}
+	bytes, err := json.Marshal(trace)
+	require.NoError(t, err)
+
+	prunedJSON, pruned := tryPruneTraceContext(string(bytes))
+	assert.True(t, pruned)
+
+	var prunedTrace uimodel.Trace
+	err = json.Unmarshal([]byte(prunedJSON), &prunedTrace)
+	require.NoError(t, err)
+
+	require.Len(t, prunedTrace.Spans, 3)
+	assert.Equal(t, uimodel.SpanID("root"), prunedTrace.Spans[0].SpanID)
+	assert.Equal(t, uimodel.SpanID("c1"), prunedTrace.Spans[1].SpanID)
+	assert.Equal(t, uimodel.SpanID("c3"), prunedTrace.Spans[2].SpanID)
+}
+
+func TestTryPruneTraceContextEnvelope(t *testing.T) {
+	type envelope struct {
+		Data []uimodel.Trace `json:"data"`
+	}
+	env := envelope{
+		Data: []uimodel.Trace{
+			{
+				TraceID: "t1",
+				Spans: []uimodel.Span{
+					{SpanID: "root"}, // Root span: keep
+					{SpanID: "c1", ParentSpanID: "root", Duration: 500}, // Short normal: prune
+				},
+			},
+		},
+	}
+	bytes, err := json.Marshal(env)
+	require.NoError(t, err)
+
+	prunedJSON, pruned := tryPruneTraceContext(string(bytes))
+	assert.True(t, pruned)
+
+	var prunedEnv envelope
+	err = json.Unmarshal([]byte(prunedJSON), &prunedEnv)
+	require.NoError(t, err)
+
+	require.Len(t, prunedEnv.Data, 1)
+	require.Len(t, prunedEnv.Data[0].Spans, 1)
+	assert.Equal(t, uimodel.SpanID("root"), prunedEnv.Data[0].Spans[0].SpanID)
 }

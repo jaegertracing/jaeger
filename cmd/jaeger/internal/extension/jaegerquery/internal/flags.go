@@ -35,6 +35,7 @@ const (
 	DefaultAIMaxRequestBodySize  int64 = 1 << 20 // 1 MiB
 	DefaultAIHealthCheckInterval       = 30 * time.Second
 	DefaultAIHealthCheckTimeout        = 2 * time.Second
+	DefaultAIModelContextLimit         = 8192
 )
 
 // AIConfig is the AI-related slice of QueryOptions. All defaults are seeded
@@ -57,6 +58,9 @@ type AIConfig struct {
 	// HealthCheckTimeout is the per-check timeout. Must be positive when
 	// HealthCheckInterval > 0; ignored when the checker is disabled.
 	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
+	// ModelContextLimit is the maximum number of tokens allowed in the model's context window.
+	// Defaults to 8192 if not specified.
+	ModelContextLimit int `mapstructure:"model_context_limit" valid:"optional"`
 }
 
 // DefaultOTLPProxyTarget is the loopback endpoint of the bundled OTel-collector
@@ -94,6 +98,9 @@ func (c *AIConfig) Validate() error {
 	}
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
+	}
+	if c.ModelContextLimit < 0 {
+		return errors.New("ai.model_context_limit must not be negative")
 	}
 	return nil
 }
@@ -135,6 +142,7 @@ func DefaultQueryOptions() QueryOptions {
 			MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
 			HealthCheckInterval: DefaultAIHealthCheckInterval,
 			HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
+			ModelContextLimit:   DefaultAIModelContextLimit,
 		}),
 		OTLPProxy: configoptional.Default(OTLPProxyConfig{
 			Target: DefaultOTLPProxyTarget,

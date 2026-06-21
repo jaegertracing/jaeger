@@ -23,6 +23,7 @@ func TestDefaultQueryOptions(t *testing.T) {
 	require.Equal(t, DefaultAIMaxRequestBodySize, aiCfg.MaxRequestBodySize)
 	require.Equal(t, DefaultAIHealthCheckInterval, aiCfg.HealthCheckInterval)
 	require.Equal(t, DefaultAIHealthCheckTimeout, aiCfg.HealthCheckTimeout)
+	require.Equal(t, DefaultAIModelContextLimit, aiCfg.ModelContextLimit)
 	require.NoError(t, aiCfg.Validate())
 
 	require.False(t, qo.OTLPProxy.HasValue())
@@ -46,6 +47,7 @@ func validAIConfig() AIConfig {
 		MaxRequestBodySize:  DefaultAIMaxRequestBodySize,
 		HealthCheckInterval: DefaultAIHealthCheckInterval,
 		HealthCheckTimeout:  DefaultAIHealthCheckTimeout,
+		ModelContextLimit:   DefaultAIModelContextLimit,
 	}
 }
 
@@ -91,4 +93,10 @@ func TestAIConfigValidateRejectsNonPositiveHealthCheckTimeoutWhenEnabled(t *test
 		require.EqualError(t, cfg.Validate(),
 			"ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
+}
+
+func TestAIConfigValidateRejectsNegativeModelContextLimit(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.ModelContextLimit = -1
+	require.EqualError(t, cfg.Validate(), "ai.model_context_limit must not be negative")
 }

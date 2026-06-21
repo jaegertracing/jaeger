@@ -32,6 +32,7 @@ type ChatHandler struct {
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
+	modelContextLimit  int
 }
 
 // NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
@@ -40,13 +41,14 @@ type ChatHandler struct {
 // on the handler for consistency with other route handlers in this
 // package (APIHandler, static_handler) even though ServeHTTP does not
 // currently read it.
-func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *ChatHandler {
+func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64, modelContextLimit int) *ChatHandler {
 	return &ChatHandler{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
+		modelContextLimit:  modelContextLimit,
 	}
 }
 
@@ -74,6 +76,44 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "messages must include a user message with text content", http.StatusBadRequest)
 		return
+	}
+
+	// Estimate total tokens of prompt and context values, and prune if needed.
+	totalEstimatedTokens := estimateTokens(prompt)
+	for _, entry := range req.Context {
+		totalEstimatedTokens += estimateTokens(entry.Value)
+	}
+
+	limit := h.modelContextLimit
+	if limit <= 0 {
+		limit = DefaultAIModelContextLimit
+	}
+
+	if totalEstimatedTokens > limit {
+		// Attempt to prune trace context values to fit within the limit.
+		prunedContext := make([]aguitypes.Context, len(req.Context))
+		copy(prunedContext, req.Context)
+		anyPruned := false
+		for i, entry := range prunedContext {
+			if newVal, pruned := tryPruneTraceContext(entry.Value); pruned {
+				prunedContext[i].Value = newVal
+				anyPruned = true
+			}
+		}
+		if anyPruned {
+			req.Context = prunedContext
+			// Re-estimate tokens
+			totalEstimatedTokens = estimateTokens(prompt)
+			for _, entry := range req.Context {
+				totalEstimatedTokens += estimateTokens(entry.Value)
+			}
+		}
+
+		if totalEstimatedTokens > limit {
+			// Graceful Degradation: return a clear error warning to the UI
+			http.Error(w, "Trace too large for local model. Please filter or prune spans first.", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Reject blank tool names up front. Empty or whitespace-only names
