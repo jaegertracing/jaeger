@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
@@ -2282,6 +2283,34 @@ func TestConfiguration_HasAnyLegacyRotationFlags(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.cfg.hasAnyLegacyRotationFlags())
 		})
 	}
+}
+
+func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+	})
+
+	cfg := &Configuration{
+		Servers:             []string{"localhost:8000/dummyserver"},
+		UseReadWriteAliases: configoptional.Some(true),
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "deprecated ES rotation flags")
+	require.ErrorContains(t, err, "no longer supported")
+}
+
+func TestValidate_LegacyFlagsAllowedWhenGateDisabled(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+
+	cfg := &Configuration{
+		Servers:              []string{"localhost:8000/dummyserver"},
+		UseReadWriteAliases:  configoptional.Some(true),
+		UseILM:               configoptional.Some(true),
+		CreateIndexTemplates: configoptional.Some(false),
+	}
+	err := cfg.Validate()
+	require.NoError(t, err)
 }
 
 func TestMain(m *testing.M) {

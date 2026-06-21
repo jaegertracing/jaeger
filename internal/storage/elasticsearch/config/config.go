@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/extension/extensionauth"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zapgrpc"
@@ -42,6 +43,21 @@ import (
 
 const (
 	IndexPrefixSeparator = "-"
+)
+
+// RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
+// to reject deprecated rotation-related flags (use_aliases, use_ilm, create_mappings,
+// span_read_alias, span_write_alias, service_read_alias, service_write_alias).
+// Once promoted to Stable, users must migrate to the new rotation config.
+var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
+	"es.config.rejectLegacyRotationFlags",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.9.0"),
+	featuregate.WithRegisterDescription(
+		"When enabled, the use of deprecated ES rotation flags "+
+			"(use_aliases, use_ilm, create_mappings, span_read_alias, etc.) "+
+			"becomes a validation error instead of a deprecation warning.",
+	),
 )
 
 // IndexOptions describes the index format and rollover frequency
@@ -898,6 +914,15 @@ func (c *Configuration) Validate() error {
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
+	}
+
+	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {
+		return errors.New(
+			"deprecated ES rotation flags (use_aliases, use_ilm, create_mappings, " +
+				"span_read_alias, span_write_alias, service_read_alias, service_write_alias) " +
+				"are no longer supported; migrate to 'indices.<type>.rotation' config; " +
+				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
+		)
 	}
 
 	if c.GetUseILM() && !c.GetUseReadWriteAliases() {
