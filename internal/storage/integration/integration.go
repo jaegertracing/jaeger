@@ -248,7 +248,7 @@ func (s *StorageIntegration) waitForBackendReady(t *testing.T, traces map[string
 		query := tracestore.TraceQueryParams{
 			ServiceName:  serviceName,
 			Attributes:   sampleAttrs,
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMin: time.Now().Add(-72 * time.Hour),
 			StartTimeMax: time.Now().Add(1 * time.Hour),
 			SearchDepth:  10,
 		}
