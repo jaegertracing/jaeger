@@ -6,7 +6,6 @@ package core
 
 import (
 	"encoding/json"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -299,11 +298,11 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	span := &dbmodel.Span{TraceID: "abc", SpanID: "def"}
 	writer.WriteSpan(date, span)
 
-	// The data stream write path stamps @timestamp with the start time in epoch nanos.
-	assert.Equal(t, uint64(date.UnixNano()), span.Timestamp)
+	// The data stream write path stamps @timestamp as an RFC 3339 nanosecond string.
+	assert.Equal(t, date.UTC().Format(time.RFC3339Nano), span.Timestamp)
 	out, err := json.Marshal(span)
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"@timestamp":`+strconv.FormatInt(date.UnixNano(), 10))
+	assert.Contains(t, string(out), `"@timestamp":"`+date.UTC().Format(time.RFC3339Nano)+`"`)
 }
 
 func TestWriteSpan_LegacyOmitsTimestamp(t *testing.T) {

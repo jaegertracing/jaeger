@@ -94,7 +94,9 @@ func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.convertNestedTagsToFieldTags(span)
 	if s.spanRotation.WriteOpType() == indices.WriteOpCreate {
 		// Data streams require an @timestamp field (date_nanos) on every document.
-		span.Timestamp = uint64(spanStartTime.UnixNano())
+		// Use an RFC 3339 nanosecond string: a numeric value would be read as
+		// epoch milliseconds by ES/OpenSearch.
+		span.Timestamp = spanStartTime.UTC().Format(time.RFC3339Nano)
 	}
 	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
 	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)

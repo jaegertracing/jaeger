@@ -49,11 +49,14 @@ type Span struct {
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`
-	// Timestamp is the span start time in epoch nanoseconds. It is emitted only
-	// when writing to a data stream (mapped as date_nanos), which requires an
-	// @timestamp field on every document for rollover and time-based partitioning.
-	// Legacy index strategies leave it zero so omitempty drops it. See RFC 0004 §3.3.
-	Timestamp uint64 `json:"@timestamp,omitempty"`
+	// Timestamp is the span start time as an RFC 3339 string with nanosecond
+	// precision. It is emitted only when writing to a data stream (mapped as
+	// date_nanos), which requires an @timestamp field on every document for
+	// rollover and time-based partitioning. A string is used rather than an epoch
+	// number because ES/OpenSearch interpret a numeric date_nanos value as
+	// milliseconds, which would lose precision and misplace the date. Legacy index
+	// strategies leave it empty so omitempty drops it. See RFC 0004 section 3.3.
+	Timestamp string `json:"@timestamp,omitempty"`
 	StartTime uint64 `json:"startTime"` // microseconds since Unix epoch
 	// ElasticSearch does not support a UNIX Epoch timestamp in microseconds,
 	// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field
