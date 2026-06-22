@@ -144,7 +144,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	}
 	store := essamplestore.NewSamplingStore(params)
 
-	if f.shouldCreateTemplates() {
+	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		samplingMapping, err := mappingBuilder.GetSamplingMappings()
 		if err != nil {
@@ -211,12 +211,8 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 	return spanRotation, serviceRotation
 }
 
-func (f *FactoryBase) shouldCreateTemplates() bool {
-	return f.config.CreateIndexTemplates
-}
-
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if f.shouldCreateTemplates() {
+	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
