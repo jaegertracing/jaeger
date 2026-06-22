@@ -5,6 +5,8 @@
 package core
 
 import (
+	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -262,6 +264,55 @@ func TestWriteSpanToIndex_DataStreamOpType(t *testing.T) {
 
 	indexService.AssertCalled(t, "OpType", stringMatcher("create"))
 	indexService.AssertNumberOfCalls(t, "Add", 1)
+}
+
+// noWriteRotation is a stub whose WriteTarget is empty, so WriteSpan skips the
+// service write and we can assert on the span write in isolation.
+type noWriteRotation struct{}
+
+func (noWriteRotation) WriteTarget(time.Time) string              { return "" }
+func (noWriteRotation) ReadTargets(time.Time, time.Time) []string { return nil }
+func (noWriteRotation) WriteOpType() indices.WriteOpType          { return indices.WriteOpIndex }
+
+func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
+	date := time.Date(2024, time.June, 18, 10, 0, 0, 0, time.UTC)
+
+	client := &mocks.Client{}
+	logger, _ := testutils.NewLogger()
+	metricsFactory := metricstest.NewFactory(0)
+	writer := NewSpanWriter(SpanWriterParams{
+		Client:          func() es.Client { return client },
+		Logger:          logger,
+		MetricsFactory:  metricsFactory,
+		SpanRotation:    indices.NewDataStreamRotation("jaeger.spans", ""),
+		ServiceRotation: noWriteRotation{},
+	})
+
+	indexService := &mocks.IndexService{}
+	indexService.On("Index", stringMatcher("jaeger.spans")).Return(indexService)
+	indexService.On("Type", stringMatcher(spanType)).Return(indexService)
+	indexService.On("OpType", stringMatcher("create")).Return(indexService)
+	indexService.On("BodyJson", mock.Anything).Return(indexService)
+	indexService.On("Add")
+	client.On("Index").Return(indexService)
+
+	span := &dbmodel.Span{TraceID: "abc", SpanID: "def"}
+	writer.WriteSpan(date, span)
+
+	// The data stream write path stamps @timestamp with the start time in epoch nanos.
+	assert.Equal(t, uint64(date.UnixNano()), span.Timestamp)
+	out, err := json.Marshal(span)
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `"@timestamp":`+strconv.FormatInt(date.UnixNano(), 10))
+}
+
+func TestWriteSpan_LegacyOmitsTimestamp(t *testing.T) {
+	// Legacy (non-data-stream) writes must not emit @timestamp, keeping the
+	// document schema unchanged.
+	span := &dbmodel.Span{TraceID: "abc", SpanID: "def"}
+	out, err := json.Marshal(span)
+	require.NoError(t, err)
+	assert.NotContains(t, string(out), "@timestamp")
 }
 
 func TestSpanWriterParamsTTL(t *testing.T) {

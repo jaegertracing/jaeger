@@ -92,6 +92,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
+	if s.spanRotation.WriteOpType() == indices.WriteOpCreate {
+		// Data streams require an @timestamp field (date_nanos) on every document.
+		span.Timestamp = uint64(spanStartTime.UnixNano())
+	}
 	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
 	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)
 	if serviceIndexName != "" {
