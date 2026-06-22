@@ -70,6 +70,7 @@ func (p *DistributedElectionParticipant) Close() error {
 			p.Logger.Error(forfeitLockErrMsg, zap.Error(err))
 		}
 	}
+	p.setLeader(false)
 	return nil
 }
 
