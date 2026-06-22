@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -1092,7 +1093,8 @@ func setupMetricsReaderFromServer(t *testing.T, mockServer *httptest.Server) (*M
 	}
 
 	client := clientProvider(t, &cfg, logger, esmetrics.NullFactory)
-	reader := NewMetricsReader(client, cfg, logger, tracer)
+	spanRotation := indices.NewPeriodicRotation("jaeger-span-", "2006-01-02", config.RolloverFrequencyDuration("day"))
+	reader := NewMetricsReader(client, cfg, logger, tracer, spanRotation)
 	require.NotNil(t, reader)
 
 	return reader, exporter

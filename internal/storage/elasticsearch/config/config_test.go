@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/auth"
@@ -981,20 +982,20 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:          "ilm disabled and read-write aliases enabled error",
-			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true},
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true)},
 			expectedError: "UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping",
 		},
 		{
 			name:          "ilm and create templates enabled",
-			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: true, CreateIndexTemplates: true, UseReadWriteAliases: true},
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true), CreateIndexTemplates: true, UseReadWriteAliases: configoptional.Some(true)},
 			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
 		{
 			name: "explicit span aliases without UseReadWriteAliases",
 			config: &Configuration{
 				Servers:        []string{"localhost:8000/dummyserver"},
-				SpanReadAlias:  "custom-span-read",
-				SpanWriteAlias: "custom-span-write",
+				SpanReadAlias:  configoptional.Some("custom-span-read"),
+				SpanWriteAlias: configoptional.Some("custom-span-write"),
 			},
 			expectedError: "explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true",
 		},
@@ -1002,8 +1003,8 @@ func TestValidate(t *testing.T) {
 			name: "only span read alias set",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
 			},
 			expectedError: "both span_read_alias and span_write_alias must be set together",
 		},
@@ -1011,8 +1012,8 @@ func TestValidate(t *testing.T) {
 			name: "only service write alias set",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				ServiceWriteAlias:   "custom-service-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				ServiceWriteAlias:   configoptional.Some("custom-service-write"),
 			},
 			expectedError: "both service_read_alias and service_write_alias must be set together",
 		},
@@ -1020,31 +1021,31 @@ func TestValidate(t *testing.T) {
 			name: "all explicit aliases with UseReadWriteAliases is valid",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
-				SpanWriteAlias:      "custom-span-write",
-				ServiceReadAlias:    "custom-service-read",
-				ServiceWriteAlias:   "custom-service-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
+				SpanWriteAlias:      configoptional.Some("custom-span-write"),
+				ServiceReadAlias:    configoptional.Some("custom-service-read"),
+				ServiceWriteAlias:   configoptional.Some("custom-service-write"),
 			},
 		},
 		{
 			name: "only span aliases with UseReadWriteAliases is valid",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
-				SpanWriteAlias:      "custom-span-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
+				SpanWriteAlias:      configoptional.Some("custom-span-write"),
 			},
 		},
 		{
 			name: "explicit aliases with IndexPrefix is valid",
 			config: &Configuration{
 				Servers:             []string{"localhost:8000/dummyserver"},
-				UseReadWriteAliases: true,
-				SpanReadAlias:       "custom-span-read",
-				SpanWriteAlias:      "custom-span-write",
-				ServiceReadAlias:    "custom-service-read",
-				ServiceWriteAlias:   "custom-service-write",
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom-span-read"),
+				SpanWriteAlias:      configoptional.Some("custom-span-write"),
+				ServiceReadAlias:    configoptional.Some("custom-service-read"),
+				ServiceWriteAlias:   configoptional.Some("custom-service-write"),
 				Indices: Indices{
 					IndexPrefix: "prod",
 				},
@@ -2064,6 +2065,460 @@ func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
 	for i, h := range headers {
 		assert.Emptyf(t, h.Get("X-Forwarded-User"), "request #%d unexpectedly carries forwarded header", i)
 	}
+}
+
+func TestRotationConfig_HasRotation(t *testing.T) {
+	tests := []struct {
+		name     string
+		rotation RotationConfig
+		expected bool
+	}{
+		{
+			name:     "empty",
+			rotation: RotationConfig{},
+			expected: false,
+		},
+		{
+			name: "periodic set",
+			rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+			},
+			expected: true,
+		},
+		{
+			name: "manual_rollover set",
+			rotation: RotationConfig{
+				ManualRollover: configoptional.Some(ManualRolloverRotation{
+					ReadAlias:  "read",
+					WriteAlias: "write",
+				}),
+			},
+			expected: true,
+		},
+		{
+			name: "data_stream set",
+			rotation: RotationConfig{
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.rotation.HasRotation())
+		})
+	}
+}
+
+func TestRotationConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name        string
+		rotation    RotationConfig
+		indexType   string
+		expectedErr string
+	}{
+		{
+			name:      "empty is valid",
+			rotation:  RotationConfig{},
+			indexType: "spans",
+		},
+		{
+			name: "single periodic is valid",
+			rotation: RotationConfig{
+				Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+			},
+			indexType: "spans",
+		},
+		{
+			name: "data_stream is not yet implemented",
+			rotation: RotationConfig{
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			indexType:   "spans",
+			expectedErr: "data_stream is not yet implemented",
+		},
+		{
+			name: "multiple rotations set",
+			rotation: RotationConfig{
+				Periodic:   configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
+			},
+			indexType:   "spans",
+			expectedErr: "exactly one rotation strategy must be set, found 2",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.rotation.validate(tc.indexType)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidate_RotationConflictsWithLegacyFlags(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Indices: Indices{
+			Spans: IndexOptions{
+				Rotation: RotationConfig{
+					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				},
+			},
+		},
+		UseReadWriteAliases: configoptional.Some(true),
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy flags")
+}
+
+func TestLogDeprecationWarnings(t *testing.T) {
+	tests := []struct {
+		name         string
+		cfg          *Configuration
+		expectedLogs []string
+	}{
+		{
+			name:         "no legacy flags",
+			cfg:          &Configuration{},
+			expectedLogs: nil,
+		},
+		{
+			name: "use_aliases flag",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+			},
+			expectedLogs: []string{
+				"Deprecated Elasticsearch configuration flag",
+				"use_aliases",
+				"manual_rollover",
+			},
+		},
+		{
+			name: "use_ilm flag",
+			cfg: &Configuration{
+				UseILM: configoptional.Some(true),
+			},
+			expectedLogs: []string{
+				"Deprecated Elasticsearch configuration flag",
+				"use_ilm",
+				"auto_rollover",
+			},
+		},
+		{
+			name: "multiple flags",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("custom"),
+			},
+			expectedLogs: []string{
+				"use_aliases",
+				"span_read_alias",
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			tc.cfg.LogDeprecationWarnings(logger)
+			logOutput := buf.String()
+			for _, expected := range tc.expectedLogs {
+				assert.Contains(t, logOutput, expected)
+			}
+			if len(tc.expectedLogs) == 0 {
+				assert.Empty(t, logOutput)
+			}
+		})
+	}
+}
+
+func TestConfiguration_HasAnyLegacyRotationFlags(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfg      *Configuration
+		expected bool
+	}{
+		{
+			name:     "no legacy flags",
+			cfg:      &Configuration{},
+			expected: false,
+		},
+		{
+			name: "use_aliases set",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+			},
+			expected: true,
+		},
+		{
+			name: "multiple legacy flags",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				UseILM:              configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("test"),
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.cfg.hasAnyLegacyRotationFlags())
+		})
+	}
+}
+
+func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+	})
+
+	cfg := &Configuration{
+		Servers:             []string{"localhost:8000/dummyserver"},
+		UseReadWriteAliases: configoptional.Some(true),
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "deprecated ES rotation flags")
+	require.ErrorContains(t, err, "no longer supported")
+}
+
+func TestValidate_LegacyFlagsAllowedWhenGateDisabled(t *testing.T) {
+	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+
+	cfg := &Configuration{
+		Servers:              []string{"localhost:8000/dummyserver"},
+		UseReadWriteAliases:  configoptional.Some(true),
+		UseILM:               configoptional.Some(true),
+		CreateIndexTemplates: false,
+	}
+	err := cfg.Validate()
+	require.NoError(t, err)
+}
+
+func TestResolvedRotation(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *Configuration
+		prefix  string
+		checkFn func(t *testing.T, rc RotationConfig)
+	}{
+		{
+			name:   "default periodic when no flags set",
+			cfg:    &Configuration{},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.Periodic.HasValue())
+				assert.Equal(t, "2006-01-02", rc.Periodic.Get().DateLayout)
+			},
+		},
+		{
+			name: "explicit rotation takes precedence",
+			cfg: &Configuration{
+				Indices: Indices{
+					Spans: IndexOptions{
+						Rotation: RotationConfig{
+							ManualRollover: configoptional.Some(ManualRolloverRotation{
+								ReadAlias:  "custom-read",
+								WriteAlias: "custom-write",
+							}),
+						},
+					},
+				},
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.ManualRollover.HasValue())
+				assert.Equal(t, "custom-read", rc.ManualRollover.Get().ReadAlias)
+				assert.Equal(t, "custom-write", rc.ManualRollover.Get().WriteAlias)
+			},
+		},
+		{
+			name: "use_aliases resolves to manual_rollover",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.ManualRollover.HasValue())
+				assert.Equal(t, "jaeger-span-read", rc.ManualRollover.Get().ReadAlias)
+				assert.Equal(t, "jaeger-span-write", rc.ManualRollover.Get().WriteAlias)
+			},
+		},
+		{
+			name: "use_ilm resolves to auto_rollover",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				UseILM:              configoptional.Some(true),
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.AutoRollover.HasValue())
+				assert.Equal(t, "jaeger-span-read", rc.AutoRollover.Get().ReadAlias)
+				assert.Equal(t, "jaeger-span-write", rc.AutoRollover.Get().WriteAlias)
+			},
+		},
+		{
+			name: "use_ilm with explicit aliases resolves to auto_rollover with those aliases",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				UseILM:              configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("my-read"),
+				SpanWriteAlias:      configoptional.Some("my-write"),
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.AutoRollover.HasValue())
+				assert.Equal(t, "my-read", rc.AutoRollover.Get().ReadAlias)
+				assert.Equal(t, "my-write", rc.AutoRollover.Get().WriteAlias)
+			},
+		},
+		{
+			name: "explicit aliases without use_ilm resolves to manual_rollover",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				SpanReadAlias:       configoptional.Some("my-read"),
+				SpanWriteAlias:      configoptional.Some("my-write"),
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.ManualRollover.HasValue())
+				assert.Equal(t, "my-read", rc.ManualRollover.Get().ReadAlias)
+				assert.Equal(t, "my-write", rc.ManualRollover.Get().WriteAlias)
+			},
+		},
+		{
+			name: "custom alias suffixes",
+			cfg: &Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				ReadAliasSuffix:     "reader",
+				WriteAliasSuffix:    "writer",
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.ManualRollover.HasValue())
+				assert.Equal(t, "jaeger-span-reader", rc.ManualRollover.Get().ReadAlias)
+				assert.Equal(t, "jaeger-span-writer", rc.ManualRollover.Get().WriteAlias)
+			},
+		},
+		{
+			name: "custom date_layout in legacy field",
+			cfg: &Configuration{
+				Indices: Indices{
+					Spans: IndexOptions{
+						DateLayout: configoptional.Some("2006010215"),
+					},
+				},
+			},
+			prefix: "jaeger-span-",
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.Periodic.HasValue())
+				assert.Equal(t, "2006010215", rc.Periodic.Get().DateLayout)
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rc := tc.cfg.ResolvedSpanRotation(tc.prefix)
+			tc.checkFn(t, rc)
+		})
+	}
+}
+
+func TestResolvedServiceRotation(t *testing.T) {
+	cfg := &Configuration{
+		UseReadWriteAliases: configoptional.Some(true),
+		ServiceReadAlias:    configoptional.Some("svc-read"),
+		ServiceWriteAlias:   configoptional.Some("svc-write"),
+	}
+	rc := cfg.ResolvedServiceRotation("jaeger-service-")
+	assert.True(t, rc.ManualRollover.HasValue())
+	assert.Equal(t, "svc-read", rc.ManualRollover.Get().ReadAlias)
+	assert.Equal(t, "svc-write", rc.ManualRollover.Get().WriteAlias)
+}
+
+func TestResolvedDependencyRotation(t *testing.T) {
+	cfg := &Configuration{
+		UseReadWriteAliases: configoptional.Some(true),
+	}
+	rc := cfg.ResolvedDependencyRotation("jaeger-dependencies-")
+	assert.True(t, rc.ManualRollover.HasValue())
+	assert.Equal(t, "jaeger-dependencies-read", rc.ManualRollover.Get().ReadAlias)
+}
+
+func TestResolvedSamplingRotation(t *testing.T) {
+	cfg := &Configuration{}
+	rc := cfg.ResolvedSamplingRotation("jaeger-sampling-")
+	assert.True(t, rc.Periodic.HasValue())
+	assert.Equal(t, "2006-01-02", rc.Periodic.Get().DateLayout)
+}
+
+func TestResolvedRotation_UseILMWithCustomSuffixes(t *testing.T) {
+	cfg := &Configuration{
+		UseReadWriteAliases: configoptional.Some(true),
+		UseILM:              configoptional.Some(true),
+		ReadAliasSuffix:     "reader",
+		WriteAliasSuffix:    "writer",
+	}
+	rc := cfg.ResolvedSpanRotation("jaeger-span-")
+	assert.True(t, rc.AutoRollover.HasValue())
+	assert.Equal(t, "jaeger-span-reader", rc.AutoRollover.Get().ReadAlias)
+	assert.Equal(t, "jaeger-span-writer", rc.AutoRollover.Get().WriteAlias)
+}
+
+func TestValidateRotationConfig_DateLayoutConflict(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Indices: Indices{
+			Spans: IndexOptions{
+				DateLayout: configoptional.Some("2006010215"),
+				Rotation: RotationConfig{
+					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				},
+			},
+		},
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy")
+	require.ErrorContains(t, err, "date_layout")
+}
+
+func TestValidateRotationConfig_RolloverFrequencyConflict(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Indices: Indices{
+			Spans: IndexOptions{
+				RolloverFrequency: configoptional.Some("hour"),
+				Rotation: RotationConfig{
+					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				},
+			},
+		},
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy")
+	require.ErrorContains(t, err, "rollover_frequency")
+}
+
+func TestRotationConfig_ValidateAutoRollover(t *testing.T) {
+	rc := RotationConfig{
+		AutoRollover: configoptional.Some(AutoRolloverRotation{
+			ReadAlias:  "read",
+			WriteAlias: "write",
+		}),
+	}
+	require.NoError(t, rc.validate("spans"))
+}
+
+func TestRotationConfig_ValidateMultipleWithAutoRollover(t *testing.T) {
+	rc := RotationConfig{
+		AutoRollover: configoptional.Some(AutoRolloverRotation{}),
+		Periodic:     configoptional.Some(PeriodicRotation{}),
+	}
+	err := rc.validate("spans")
+	require.ErrorContains(t, err, "exactly one rotation strategy must be set, found 2")
 }
 
 func TestMain(m *testing.M) {

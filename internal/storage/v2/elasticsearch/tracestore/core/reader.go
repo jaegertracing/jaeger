@@ -28,8 +28,6 @@ import (
 )
 
 const (
-	spanIndexBaseName    = "jaeger-span-"
-	serviceIndexBaseName = "jaeger-service-"
 	traceIDAggregation   = "traceIDs"
 	indexPrefixSeparator = "-"
 
