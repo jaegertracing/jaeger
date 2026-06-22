@@ -18,7 +18,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -41,118 +40,57 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		logger:    logger,
 		logBuffer: logBuffer,
 		writer: NewSpanWriter(SpanWriterParams{
-			Client: func() es.Client { return client },
-			Logger: logger, MetricsFactory: metricsFactory,
-			SpanIndex:    config.IndexOptions{DateLayout: "2006-01-02"},
-			ServiceIndex: config.IndexOptions{DateLayout: "2006-01-02"},
+			Client:          func() es.Client { return client },
+			Logger:          logger,
+			MetricsFactory:  metricsFactory,
+			SpanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", 24*time.Hour),
+			ServiceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(w)
 }
 
-func TestSpanWriterIndices(t *testing.T) {
+func TestSpanWriterRotations(t *testing.T) {
 	client := &mocks.Client{}
 	clientFn := func() es.Client { return client }
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
-	date := time.Now()
-	spanDataLayout := "2006-01-02-15"
-	serviceDataLayout := "2006-01-02"
-	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
-	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
-
-	spanIndexOpts := config.IndexOptions{DateLayout: spanDataLayout}
-	serviceIndexOpts := config.IndexOptions{DateLayout: serviceDataLayout}
+	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 
 	testCases := []struct {
-		indices []string
-		params  SpanWriterParams
+		name            string
+		spanRotation    indices.Rotation
+		serviceRotation indices.Rotation
+		expectedSpan    string
+		expectedService string
 	}{
 		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
+			name:            "periodic rotations",
+			spanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
+			serviceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+			expectedSpan:    "jaeger-span-2019-10-10-05",
+			expectedService: "jaeger-service-2019-10-10",
 		},
 		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, UseReadWriteAliases: true,
-			},
-			indices: []string{spanIndexBaseName + "write", serviceIndexBaseName + "write"},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				WriteAliasSuffix: "archive", // ignored because UseReadWriteAliases is false
-			},
-			indices: []string{spanIndexBaseName + spanDataLayoutFormat, serviceIndexBaseName + serviceDataLayoutFormat},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + spanDataLayoutFormat, "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + serviceDataLayoutFormat},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", UseReadWriteAliases: true,
-			},
-			indices: []string{"foo:-" + spanIndexBaseName + "write", "foo:-" + serviceIndexBaseName + "write"},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, WriteAliasSuffix: "archive", UseReadWriteAliases: true,
-			},
-			indices: []string{spanIndexBaseName + "archive", serviceIndexBaseName + "archive"},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:", WriteAliasSuffix: "archive", UseReadWriteAliases: true,
-			},
-			indices: []string{"foo:" + config.IndexPrefixSeparator + spanIndexBaseName + "archive", "foo:" + config.IndexPrefixSeparator + serviceIndexBaseName + "archive"},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				UseReadWriteAliases: true,
-				SpanWriteAlias:      "custom-span-write-alias", ServiceWriteAlias: "custom-service-write-alias",
-			},
-			indices: []string{"custom-span-write-alias", "custom-service-write-alias"},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts,
-				UseReadWriteAliases: true,
-				SpanWriteAlias:      "custom-span-write-alias",
-				ServiceWriteAlias:   "custom-service-write-alias",
-				WriteAliasSuffix:    "archive", // Ignored when explicit aliases are used
-			},
-			indices: []string{"custom-span-write-alias", "custom-service-write-alias"},
-		},
-		{
-			params: SpanWriterParams{
-				Client: clientFn, Logger: logger, MetricsFactory: metricsFactory,
-				SpanIndex: spanIndexOpts, ServiceIndex: serviceIndexOpts, IndexPrefix: "foo:",
-				UseReadWriteAliases: true,
-				SpanWriteAlias:      "production-traces-write",
-				ServiceWriteAlias:   "production-services-write",
-			},
-			indices: []string{"production-traces-write", "production-services-write"},
+			name:            "aliased rotations",
+			spanRotation:    indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+			serviceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+			expectedSpan:    "jaeger-span-write",
+			expectedService: "jaeger-service-write",
 		},
 	}
-	for _, testCase := range testCases {
-		w := NewSpanWriter(testCase.params)
-		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
-		assert.Equal(t, []string{spanIndexName, serviceIndexName}, testCase.indices)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := NewSpanWriter(SpanWriterParams{
+				Client:          clientFn,
+				Logger:          logger,
+				MetricsFactory:  metricsFactory,
+				SpanRotation:    tc.spanRotation,
+				ServiceRotation: tc.serviceRotation,
+			})
+			assert.Equal(t, tc.expectedSpan, w.spanRotation.WriteTarget(date))
+			assert.Equal(t, tc.expectedService, w.serviceRotation.WriteTarget(date))
+		})
 	}
 }
 
@@ -247,8 +185,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indices.IndexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
-	serviceIndexName := indices.IndexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
+	spanIndexName := indices.IndexWithDate(indices.SpanIndexBaseName, "2006-01-02", span.StartTime)
+	serviceIndexName := indices.IndexWithDate(indices.ServiceIndexBaseName, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

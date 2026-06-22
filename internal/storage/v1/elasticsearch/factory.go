@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
@@ -106,65 +107,59 @@ func (f *FactoryBase) getClient() es.Client {
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
+	spanRotation, serviceRotation := f.buildRotations()
+	maxSpanAge := f.config.MaxSpanAge
+	// See timeRangeDesign comment in reader.go.
+	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
+	// can reach any trace regardless of age.
+	if f.config.UseReadWriteAliases {
+		maxSpanAge = esspanstore.DawnOfTimeSpanAge
+	}
 	return esspanstore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          f.config.MaxSpanAge,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		ReadAliasSuffix:     f.config.ReadAliasSuffix,
-		RemoteReadClusters:  f.config.RemoteReadClusters,
-		SpanReadAlias:       f.config.SpanReadAlias,
-		ServiceReadAlias:    f.config.ServiceReadAlias,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		Client:            f.getClient,
+		MaxDocCount:       f.config.MaxDocCount,
+		MaxSpanAge:        maxSpanAge,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
+	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		Client:              f.getClient,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		AllTagsAsFields:     f.config.Tags.AllAsFields,
-		TagKeysAsFields:     f.tags,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		WriteAliasSuffix:    f.config.WriteAliasSuffix,
-		SpanWriteAlias:      f.config.SpanWriteAlias,
-		ServiceWriteAlias:   f.config.ServiceWriteAlias,
-		Logger:              f.logger,
-		MetricsFactory:      f.metricsFactory,
-		ServiceCacheTTL:     f.config.ServiceCacheTTL,
+		Client:            f.getClient,
+		AllTagsAsFields:   f.config.Tags.AllAsFields,
+		TagKeysAsFields:   f.tags,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		MetricsFactory:    f.metricsFactory,
+		ServiceCacheTTL:   f.config.ServiceCacheTTL,
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
 // GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
-		Client:              f.getClient,
-		Logger:              f.logger,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
-		MaxDocCount:         f.config.MaxDocCount,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildDependencyRotation(),
 	}
 }
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
-		Client:                 f.getClient,
-		Logger:                 f.logger,
-		IndexPrefix:            f.config.Indices.IndexPrefix,
-		IndexDateLayout:        f.config.Indices.Sampling.DateLayout,
-		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
-		Lookback:               f.config.AdaptiveSamplingLookback,
-		MaxDocCount:            f.config.MaxDocCount,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		Lookback:    f.config.AdaptiveSamplingLookback,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildSamplingRotation(),
 	}
 	store := essamplestore.NewSamplingStore(params)
 
@@ -174,7 +169,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+		templateName := f.config.Indices.IndexPrefix.Apply(indices.SamplingTemplateName)
+		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -248,6 +244,50 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
+// TODO: Support UseAliases/RemoteClusters for sampling via a feature flag.
+// Currently these params are silently ignored for sampling indices.
+func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
+	return config.BuildRotation(config.RotationParams{
+		IndexPrefix:  f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName),
+		IndexOptions: f.config.Indices.Sampling,
+	}, f.logger)
+}
+
+func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
+	return config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName),
+		IndexOptions:   f.config.Indices.Dependencies,
+		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
+}
+
+func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
+	spanRotation = config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName),
+		IndexOptions:   f.config.Indices.Spans,
+		ExplicitWrite:  f.config.SpanWriteAlias,
+		ExplicitRead:   f.config.SpanReadAlias,
+		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
+	serviceRotation = config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName),
+		IndexOptions:   f.config.Indices.Services,
+		ExplicitWrite:  f.config.ServiceWriteAlias,
+		ExplicitRead:   f.config.ServiceReadAlias,
+		UseAliases:     f.config.UseReadWriteAliases,
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
+	return spanRotation, serviceRotation
+}
+
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
 	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
@@ -255,8 +295,8 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply("jaeger-service")
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(indices.SpanTemplateName)
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(indices.ServiceTemplateName)
 		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
