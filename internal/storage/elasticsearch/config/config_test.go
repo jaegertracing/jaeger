@@ -2071,10 +2071,10 @@ func TestBuildRotation(t *testing.T) {
 	ts := time.Date(2024, time.March, 15, 0, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name         string
-		params       RotationParams
-		wantWrite    string
-		wantRead     []string
+		name      string
+		params    RotationParams
+		wantWrite string
+		wantRead  []string
 	}{
 		{
 			name: "periodic rotation",
