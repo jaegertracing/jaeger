@@ -88,23 +88,35 @@ func (f *FactoryBase) getClient() es.Client {
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
 	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
+	serviceRC := f.config.ResolvedServiceRotation(servicePrefix)
+	// See timeRangeDesign comment in reader.go. A single alias or data stream
+	// covers all data, so for those strategies we use a large lookback to ensure
+	// reads can reach any record regardless of age. Periodic indices keep the
+	// configured MaxSpanAge so ReadTargets enumerates only a bounded set of indices.
 	maxSpanAge := f.config.MaxSpanAge
-	// See timeRangeDesign comment in reader.go.
-	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
-	// can reach any trace regardless of age.
 	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
+	// Service/operation queries hit the service index, which is independent of the
+	// span rotation (it cannot be a data stream). Bound their lookback by the
+	// service rotation so a data_stream span config does not blow up the periodic
+	// service-index enumeration.
+	servicesMaxLookback := f.config.MaxSpanAge
+	if !serviceRC.Periodic.HasValue() {
+		servicesMaxLookback = esspanstore.DawnOfTimeSpanAge
+	}
 	return esspanstore.SpanReaderParams{
-		Client:            f.getClient,
-		MaxDocCount:       f.config.MaxDocCount,
-		MaxSpanAge:        maxSpanAge,
-		TagDotReplacement: f.config.Tags.DotReplacement,
-		Logger:            f.logger,
-		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
-		SpanRotation:      spanRotation,
-		ServiceRotation:   serviceRotation,
+		Client:              f.getClient,
+		MaxDocCount:         f.config.MaxDocCount,
+		MaxSpanAge:          maxSpanAge,
+		ServicesMaxLookback: servicesMaxLookback,
+		TagDotReplacement:   f.config.Tags.DotReplacement,
+		Logger:              f.logger,
+		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:        spanRotation,
+		ServiceRotation:     serviceRotation,
 	}
 }
 
