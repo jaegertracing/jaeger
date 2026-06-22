@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -251,72 +250,22 @@ func loadTokenFromFile(path string) (string, error) {
 // TODO: Support UseAliases/RemoteClusters for sampling via a feature flag.
 // Currently these params are silently ignored for sampling indices.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
-	return config.BuildRotation(config.RotationParams{
-		IndexPrefix:  f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName),
-		IndexOptions: f.config.Indices.Sampling,
-	}, f.logger)
+	prefix := f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName)
+	return indices.BuildFromConfig(prefix, f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
-	return config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName),
-		IndexOptions:   f.config.Indices.Dependencies,
-		UseAliases:     f.config.GetUseReadWriteAliases(),
-		WriteAlias:     f.config.WriteAliasSuffix,
-		ReadAlias:      f.config.ReadAliasSuffix,
-		RemoteClusters: f.config.RemoteReadClusters,
-	}, f.logger)
+	prefix := f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName)
+	return indices.BuildFromConfig(prefix, f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
 	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
 	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
 
-	spanRotation = f.buildRotation(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix))
-	serviceRotation = f.buildRotation(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix))
+	spanRotation = indices.BuildFromConfig(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.logger)
+	serviceRotation = indices.BuildFromConfig(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
 	return spanRotation, serviceRotation
-}
-
-func (f *FactoryBase) buildRotation(prefix string, rc config.RotationConfig) indices.Rotation {
-	var r indices.Rotation
-	switch {
-	case rc.ManualRollover.HasValue():
-		mr := rc.ManualRollover.Get()
-		writeAlias := mr.WriteAlias
-		if writeAlias == "" {
-			writeAlias = prefix + "write"
-		}
-		readAlias := mr.ReadAlias
-		if readAlias == "" {
-			readAlias = prefix + "read"
-		}
-		r = indices.NewAliasedRotation(writeAlias, readAlias)
-	case rc.AutoRollover.HasValue():
-		ar := rc.AutoRollover.Get()
-		writeAlias := ar.WriteAlias
-		if writeAlias == "" {
-			writeAlias = prefix + "write"
-		}
-		readAlias := ar.ReadAlias
-		if readAlias == "" {
-			readAlias = prefix + "read"
-		}
-		r = indices.NewAliasedRotation(writeAlias, readAlias)
-	case rc.Periodic.HasValue():
-		p := rc.Periodic.Get()
-		dateLayout := p.DateLayout
-		if dateLayout == "" {
-			dateLayout = "2006-01-02"
-		}
-		r = indices.NewPeriodicRotation(prefix, dateLayout, config.RolloverFrequencyDuration(p.RolloverFrequency))
-	default:
-		r = indices.NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
-	}
-	if len(f.config.RemoteReadClusters) > 0 {
-		r = indices.NewRemoteClusterRotation(r, f.config.RemoteReadClusters)
-	}
-	r = indices.NewLoggingRotation(r, f.logger)
-	return r
 }
 
 func (f *FactoryBase) shouldCreateTemplates() bool {

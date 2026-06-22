@@ -99,6 +99,16 @@ func (c *Configuration) ResolvedServiceRotation(prefix string) RotationConfig {
 	return c.resolvedRotation(&c.Indices.Services, prefix, c.GetServiceReadAlias(), c.GetServiceWriteAlias())
 }
 
+// ResolvedDependencyRotation returns the effective rotation configuration for dependency indices.
+func (c *Configuration) ResolvedDependencyRotation(prefix string) RotationConfig {
+	return c.resolvedRotation(&c.Indices.Dependencies, prefix, "", "")
+}
+
+// ResolvedSamplingRotation returns the effective rotation configuration for sampling indices.
+func (c *Configuration) ResolvedSamplingRotation(prefix string) RotationConfig {
+	return c.resolvedRotation(&c.Indices.Sampling, prefix, "", "")
+}
+
 func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicitReadAlias, explicitWriteAlias string) RotationConfig {
 	if idxOpts.Rotation.HasRotation() {
 		return idxOpts.Rotation

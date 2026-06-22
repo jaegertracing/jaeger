@@ -47,16 +47,8 @@ func NewFactory(
 
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	spanRotation := config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName),
-		IndexOptions:   f.config.Indices.Spans,
-		ExplicitWrite:  f.config.GetSpanWriteAlias(),
-		ExplicitRead:   f.config.GetSpanReadAlias(),
-		UseAliases:     f.config.GetUseReadWriteAliases(),
-		WriteAlias:     f.config.WriteAliasSuffix,
-		ReadAlias:      f.config.ReadAliasSuffix,
-		RemoteClusters: f.config.RemoteReadClusters,
-	}, f.telset.Logger)
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	spanRotation := indices.BuildFromConfig(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.telset.Logger)
 	mr := NewMetricsReader(f.client, f.config, f.telset.Logger, f.telset.TracerProvider, spanRotation)
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
