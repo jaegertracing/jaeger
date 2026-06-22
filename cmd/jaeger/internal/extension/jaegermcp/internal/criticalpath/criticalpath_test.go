@@ -161,6 +161,7 @@ func TestComputeCriticalPath_ZeroDurationRoot(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, criticalPath)
 	assert.Empty(t, criticalPath)
+}
 
 func TestComputeCriticalPath_RecoversFromPanic(t *testing.T) {
 	// The computation runs under a deferred recover() that converts any panic into
