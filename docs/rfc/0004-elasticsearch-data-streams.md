@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-06-18
-- **Last Updated:** 2026-06-18
+- **Last Updated:** 2026-06-21
 - **Issue:** [#4708](https://github.com/jaegertracing/jaeger/issues/4708)
 - **Supersedes:** [Google Doc proposal](https://docs.google.com/document/d/1WDQJmHGjnyck5h1DDvZf4ZJnTaXEF-wUvR6k_lipWJ4), [Draft ADR PR #7974](https://github.com/jaegertracing/jaeger/pull/7974)
 
@@ -328,7 +328,7 @@ The creation remains idempotent — if a policy with the same name already exist
 
 ### 3.7 Configuration
 
-Recommendation: Replace the current tangle of boolean flags (`use_aliases`, `use_ilm`, `create_mappings`) with a one-of configuration structure under `indices.<type>.rotation`:
+Recommendation: Replace the current tangle of boolean flags (`use_aliases`, `use_ilm`, alias names) with a one-of configuration structure under `indices.<type>.rotation`:
 
 ```yaml
 elasticsearch:
@@ -418,7 +418,7 @@ Note: `create_mappings` is orthogonal — it applies independently to any rotati
 
 #### Backward Compatibility with Legacy Flags
 
-The old boolean flags (`use_aliases`, `use_ilm`, `create_mappings`) remain functional for backward compatibility but are deprecated. On startup, Jaeger resolves them to the equivalent `rotation` variant internally. If both the new `rotation` section and any legacy flag are set simultaneously, Jaeger fails startup with a validation error directing the user to remove the legacy flags.
+The old rotation flags (`use_aliases`, `use_ilm`, alias names) remain functional for backward compatibility but are deprecated. On startup, Jaeger resolves them to the equivalent `rotation` variant internally. If both the new `rotation` section and any legacy rotation flag are set simultaneously, Jaeger fails startup with a validation error directing the user to remove the legacy flags. Note: `create_mappings` is NOT a rotation flag and is not deprecated (see Q4).
 
 Note: The legacy `date_layout` field (currently at the top level of each index type) moves into `rotation.periodic`. When the legacy field is present without a `rotation` section, it is treated as `rotation.periodic.date_layout` for backward compatibility.
 
@@ -842,26 +842,32 @@ Design principles for phasing:
 - **Incremental delivery**: Each phase is independently shippable and valuable without the next.
 - **CI from the start**: Every phase includes integration tests that validate the change against real ES/OpenSearch instances.
 
-### Phase 1a: Strategy Interface Refactoring
+### Phase 1a: Strategy Interface Refactoring ✅
 
-Pure code refactor — replace function closures and boolean flag branching with a `RotationStrategy` interface. No config changes, no new functionality.
+Pure code refactor — replace function closures and boolean flag branching with a `Rotation` interface. No config changes, no new functionality.
 
-1. Introduce `RotationStrategy` interface (§3.7); implement `PeriodicStrategy`, `ManualRolloverStrategy`, `AutoRolloverStrategy`
-2. Refactor writer/reader/factory to accept `RotationStrategy` instead of boolean flags
-3. **CI**: All existing ES/OpenSearch integration tests must pass unchanged (proves the refactor is behavior-preserving)
+1. Introduce `Rotation` interface (§3.7); implement `PeriodicRotation`, `AliasedRotation`, `RemoteClusterRotation`, `LoggingRotation`
+2. Refactor writer/reader/factory to accept `Rotation` instead of boolean flags
+3. **CI**: All existing ES/OpenSearch integration tests pass unchanged
 
 Deliverable: cleaner internal architecture, no spaghetti branching. Existing config and behavior unchanged.
 
-### Phase 1b: Config Refactoring
+PRs: [#8808](https://github.com/jaegertracing/jaeger/pull/8808), [#8826](https://github.com/jaegertracing/jaeger/pull/8826)
+
+### Phase 1b: Config Refactoring ✅
 
 Introduce the `rotation` one-of config structure. Existing strategies are now configurable via the new schema.
 
-4. Introduce `Rotation` config struct with `Periodic`, `ManualRollover`, `AutoRollover`, `DataStream` variants (§3.7)
-5. Implement backward-compat parsing: legacy flags (`use_aliases`, `use_ilm`, `create_mappings`, `date_layout`) map to the corresponding `rotation` variant; error if both old and new are set
+4. Introduce `RotationConfig` struct with `Periodic`, `ManualRollover`, `AutoRollover`, `DataStream` variants (§3.7)
+5. Implement backward-compat parsing: legacy flags (`use_aliases`, `use_ilm`, alias names) resolve to the corresponding `rotation` variant via `ResolvedXxxRotation()` methods; error if both old and new are set
 6. Add `DataStreamRotation` config variant (validation accepts it, but factory rejects with "not yet implemented")
-7. **CI**: All existing ES/OpenSearch integration tests must pass unchanged
+7. `BuildFromConfig` in `indices/` package constructs a `Rotation` from `RotationConfig`
+8. Legacy rotation flags deprecated with feature gate `es.config.rejectLegacyRotationFlags`
+9. **CI**: All existing ES/OpenSearch integration tests pass unchanged
 
 Deliverable: cleaner config API, `data_stream` visible in config schema (but not yet functional).
+
+PR: [#8823](https://github.com/jaegertracing/jaeger/pull/8823)
 
 ### Phase 2: Data Stream Write Path
 
@@ -892,7 +898,7 @@ Deliverable: existing users can safely migrate to data streams with zero data lo
 
 19. Deprecate `jaeger-es-rollover` tool (keep functional, log deprecation warning when invoked)
 20. Deprecate `jaeger-es-index-cleaner` for spans
-21. Deprecate legacy boolean config flags (`use_aliases`, `use_ilm`, `create_mappings`) — log warning at startup when used
+21. Deprecate legacy boolean config flags (`use_aliases`, `use_ilm`, alias names) — log warning at startup when used (already implemented in Phase 1b via feature gate)
 22. Publish data stream configuration guide in Jaeger docs
 
 ### Phase 5: Trace-ID Timestamp Lookup (§3.9)
