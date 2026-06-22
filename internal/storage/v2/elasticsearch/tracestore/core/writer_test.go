@@ -43,8 +43,8 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 			Client:          func() es.Client { return client },
 			Logger:          logger,
 			MetricsFactory:  metricsFactory,
-			SpanRotation:    indices.NewPeriodicRotation(spanIndexBaseName, "2006-01-02", 24*time.Hour),
-			ServiceRotation: indices.NewPeriodicRotation(serviceIndexBaseName, "2006-01-02", 24*time.Hour),
+			SpanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", 24*time.Hour),
+			ServiceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(w)
@@ -66,8 +66,8 @@ func TestSpanWriterRotations(t *testing.T) {
 	}{
 		{
 			name:            "periodic rotations",
-			spanRotation:    indices.NewPeriodicRotation(spanIndexBaseName, "2006-01-02-15", 24*time.Hour),
-			serviceRotation: indices.NewPeriodicRotation(serviceIndexBaseName, "2006-01-02", 24*time.Hour),
+			spanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
+			serviceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
 			expectedSpan:    "jaeger-span-2019-10-10-05",
 			expectedService: "jaeger-service-2019-10-10",
 		},
@@ -185,8 +185,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indices.IndexWithDate(spanIndexBaseName, "2006-01-02", span.StartTime)
-	serviceIndexName := indices.IndexWithDate(serviceIndexBaseName, "2006-01-02", span.StartTime)
+	spanIndexName := indices.IndexWithDate(indices.SpanIndexBaseName, "2006-01-02", span.StartTime)
+	serviceIndexName := indices.IndexWithDate(indices.ServiceIndexBaseName, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
