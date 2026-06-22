@@ -115,17 +115,25 @@ func (c *Configuration) validateRotationConfig() error {
 
 	type rotationEntry struct {
 		name     string
+		opts     *IndexOptions
 		rotation *RotationConfig
 	}
 	entries := []rotationEntry{
-		{"spans", &c.Indices.Spans.Rotation},
-		{"services", &c.Indices.Services.Rotation},
-		{"dependencies", &c.Indices.Dependencies.Rotation},
-		{"sampling", &c.Indices.Sampling.Rotation},
+		{"spans", &c.Indices.Spans, &c.Indices.Spans.Rotation},
+		{"services", &c.Indices.Services, &c.Indices.Services.Rotation},
+		{"dependencies", &c.Indices.Dependencies, &c.Indices.Dependencies.Rotation},
+		{"sampling", &c.Indices.Sampling, &c.Indices.Sampling.Rotation},
 	}
-	for _, opts := range entries {
-		if err := opts.rotation.validate(opts.name); err != nil {
+	for _, e := range entries {
+		if err := e.rotation.validate(e.name); err != nil {
 			return err
+		}
+		if e.rotation.HasRotation() && (e.opts.DateLayout.HasValue() || e.opts.RolloverFrequency.HasValue()) {
+			return fmt.Errorf(
+				"indices.%s: cannot use both 'rotation' config and legacy "+
+					"'date_layout'/'rollover_frequency' fields; use 'rotation.periodic' instead",
+				e.name,
+			)
 		}
 	}
 
