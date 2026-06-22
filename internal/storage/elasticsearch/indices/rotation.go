@@ -10,6 +10,10 @@ const (
 	ServiceIndexBaseName    = "jaeger-service-"
 	DependencyIndexBaseName = "jaeger-dependencies-"
 	SamplingIndexBaseName   = "jaeger-sampling-"
+
+	SpanTemplateName       = "jaeger-span"
+	ServiceTemplateName    = "jaeger-service"
+	SamplingTemplateName   = "jaeger-sampling"
 )
 
 // WriteOpType represents the Elasticsearch bulk operation type.

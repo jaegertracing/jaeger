@@ -169,7 +169,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		templateName := f.config.Indices.IndexPrefix.Apply("jaeger-sampling")
+		templateName := f.config.Indices.IndexPrefix.Apply(indices.SamplingTemplateName)
 		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
@@ -244,6 +244,8 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
+// TODO: Support UseAliases/RemoteClusters for sampling via a feature flag.
+// Currently these params are silently ignored for sampling indices.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
 	return config.BuildRotation(config.RotationParams{
 		IndexPrefix:  f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName),
@@ -293,8 +295,8 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply("jaeger-service")
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(indices.SpanTemplateName)
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(indices.ServiceTemplateName)
 		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
