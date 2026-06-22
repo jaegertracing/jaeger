@@ -24,8 +24,7 @@ var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
 	),
 )
 
-// GetUseReadWriteAliases returns the effective value of the deprecated UseReadWriteAliases flag.
-func (c *Configuration) GetUseReadWriteAliases() bool {
+func (c *Configuration) getUseReadWriteAliases() bool {
 	if p := c.UseReadWriteAliases.Get(); p != nil {
 		return *p
 	}
@@ -48,28 +47,28 @@ func (c *Configuration) GetUseILM() bool {
 	return false
 }
 
-func (c *Configuration) GetSpanReadAlias() string {
+func (c *Configuration) getSpanReadAlias() string {
 	if p := c.SpanReadAlias.Get(); p != nil {
 		return *p
 	}
 	return ""
 }
 
-func (c *Configuration) GetSpanWriteAlias() string {
+func (c *Configuration) getSpanWriteAlias() string {
 	if p := c.SpanWriteAlias.Get(); p != nil {
 		return *p
 	}
 	return ""
 }
 
-func (c *Configuration) GetServiceReadAlias() string {
+func (c *Configuration) getServiceReadAlias() string {
 	if p := c.ServiceReadAlias.Get(); p != nil {
 		return *p
 	}
 	return ""
 }
 
-func (c *Configuration) GetServiceWriteAlias() string {
+func (c *Configuration) getServiceWriteAlias() string {
 	if p := c.ServiceWriteAlias.Get(); p != nil {
 		return *p
 	}
@@ -90,13 +89,13 @@ func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 // ResolvedSpanRotation returns the effective rotation configuration for span indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedSpanRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, prefix, c.GetSpanReadAlias(), c.GetSpanWriteAlias())
+	return c.resolvedRotation(&c.Indices.Spans, prefix, c.getSpanReadAlias(), c.getSpanWriteAlias())
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedServiceRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Services, prefix, c.GetServiceReadAlias(), c.GetServiceWriteAlias())
+	return c.resolvedRotation(&c.Indices.Services, prefix, c.getServiceReadAlias(), c.getServiceWriteAlias())
 }
 
 // ResolvedDependencyRotation returns the effective rotation configuration for dependency indices.
@@ -121,7 +120,7 @@ func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicit
 				WriteAlias: explicitWriteAlias,
 			}),
 		}
-	case c.GetUseReadWriteAliases():
+	case c.getUseReadWriteAliases():
 		writeSuffix := "write"
 		if c.WriteAliasSuffix != "" {
 			writeSuffix = c.WriteAliasSuffix

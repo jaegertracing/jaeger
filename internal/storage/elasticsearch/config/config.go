@@ -71,74 +71,85 @@ type IndexOptions struct {
 	Rotation RotationConfig `mapstructure:"rotation"`
 }
 
-// RotationConfig defines the index rotation strategy. Exactly one variant should be set.
-// If none is set, the behavior is determined by legacy flags for backward compatibility.
+// RotationConfig defines how Jaeger manages index naming and lookup for a given
+// index type (spans, services, etc.). Exactly one variant should be set.
+// If none is set, legacy flags (use_aliases, use_ilm, etc.) determine behavior.
 type RotationConfig struct {
-	// Periodic configures time-based index rotation where a new index is created
-	// on a regular schedule (e.g. daily or hourly). Use this when you want Jaeger
-	// to manage index creation automatically. This is the default rotation strategy.
+	// Periodic creates a new time-stamped index on a regular schedule (e.g. daily).
+	// Jaeger computes the index name from a date suffix and writes directly to it.
+	// This is the default strategy when no rotation is explicitly configured.
 	Periodic configoptional.Optional[PeriodicRotation] `mapstructure:"periodic"`
-	// ManualRollover configures alias-based rotation managed by an external tool
-	// (e.g. the jaeger-es-rollover job). Use this when you want to control index
-	// rollover externally and point Jaeger at fixed read/write aliases.
-	// If not set, Jaeger writes directly to time-stamped indices.
+	// ManualRollover uses fixed read/write aliases instead of time-stamped indices.
+	// An external tool (e.g. jaeger-es-rollover) must create the aliases and trigger
+	// rollover; Jaeger only reads from/writes to the configured alias names.
 	ManualRollover configoptional.Optional[ManualRolloverRotation] `mapstructure:"manual_rollover"`
-	// AutoRollover configures alias-based rotation managed by ILM (Index Lifecycle
-	// Management) or ISM (Index State Management). Use this when Elasticsearch/OpenSearch
-	// handles rollover automatically based on a lifecycle policy.
-	// If not set, no ILM/ISM integration is configured.
+	// AutoRollover uses read/write aliases like ManualRollover, but the rollover is
+	// triggered automatically by an ILM (Index Lifecycle Management) or ISM (Index
+	// State Management) policy attached to the index template. Jaeger embeds the
+	// policy name into the template so ES/OpenSearch can manage the lifecycle.
 	AutoRollover configoptional.Optional[AutoRolloverRotation] `mapstructure:"auto_rollover"`
-	// DataStream configures data stream-based storage (not yet implemented).
-	// If not set, traditional indices are used.
+	// DataStream uses ES/OpenSearch data streams for append-only span storage.
+	// Not yet implemented.
 	DataStream configoptional.Optional[DataStreamRotation] `mapstructure:"data_stream"`
 }
 
-// PeriodicRotation configures time-based index rotation (e.g. daily/hourly indices).
+// PeriodicRotation configures time-stamped index rotation. Jaeger appends a
+// formatted date to the index prefix (e.g. "jaeger-span-2024-03-15") and creates
+// a new index each time the date rolls over.
 type PeriodicRotation struct {
-	// DateLayout is the Go time format string for the date suffix appended to index names.
-	// For example, "2006-01-02" produces "jaeger-span-2024-01-15".
-	// If empty, defaults to "2006-01-02" (daily granularity with dash separators).
+	// DateLayout is the Go time format string for the date suffix.
+	// It controls index granularity: "2006-01-02" → daily, "2006-01-02-15" → hourly.
+	// Defaults to "2006-01-02".
 	DateLayout string `mapstructure:"date_layout"`
-	// RolloverFrequency determines how often a new index is created and controls the
-	// time range when searching for indices.
-	// Valid values: "hour", "day". If empty or invalid, defaults to "day".
+	// RolloverFrequency controls how many indices are scanned during reads.
+	// Must match DateLayout granularity: "hour" if layout includes hours, else "day".
+	// Defaults to "day".
 	RolloverFrequency string `mapstructure:"rollover_frequency"`
 }
 
-// ManualRolloverRotation configures alias-based rotation managed by an external tool
-// (e.g. the es-rollover job).
+// ManualRolloverRotation configures alias-based rotation managed externally
+// (e.g. by the jaeger-es-rollover job or a cron script).
 type ManualRolloverRotation struct {
-	// ReadAlias is the Elasticsearch alias used for read queries.
-	// If empty, defaults to "<index-prefix>read" (e.g. "jaeger-span-read").
+	// ReadAlias is the alias Jaeger queries for read operations.
+	// The external tool must point this alias at all indices that should be searchable.
+	// Defaults to "<index-prefix>read" (e.g. "jaeger-span-read").
 	ReadAlias string `mapstructure:"read_alias"`
-	// WriteAlias is the Elasticsearch alias used for write operations.
-	// If empty, defaults to "<index-prefix>write" (e.g. "jaeger-span-write").
+	// WriteAlias is the alias Jaeger writes to.
+	// The external tool must point this alias at the current active index.
+	// Defaults to "<index-prefix>write" (e.g. "jaeger-span-write").
 	WriteAlias string `mapstructure:"write_alias"`
 }
 
-// AutoRolloverRotation configures alias-based rotation managed by ILM/ISM.
+// AutoRolloverRotation configures alias-based rotation where ES/OpenSearch
+// automatically triggers rollover via an ILM/ISM policy.
 type AutoRolloverRotation struct {
-	// ReadAlias is the Elasticsearch alias used for read queries.
-	// If empty, defaults to "<index-prefix>read" (e.g. "jaeger-span-read").
+	// ReadAlias is the alias Jaeger queries for read operations.
+	// Defaults to "<index-prefix>read" (e.g. "jaeger-span-read").
 	ReadAlias string `mapstructure:"read_alias"`
-	// WriteAlias is the Elasticsearch alias used for write operations.
-	// If empty, defaults to "<index-prefix>write" (e.g. "jaeger-span-write").
+	// WriteAlias is the alias Jaeger writes to. ES/OpenSearch automatically
+	// rolls over to a new backing index when the policy conditions are met.
+	// Defaults to "<index-prefix>write" (e.g. "jaeger-span-write").
 	WriteAlias string `mapstructure:"write_alias"`
-	// PolicyName is the name of the ILM/ISM policy that manages index rollover.
-	// If empty, the policy must be configured externally.
+	// PolicyName is embedded into the index template so that ES/OpenSearch
+	// attaches this lifecycle policy to every new index created by rollover.
+	// If empty, the template is created without a policy reference and the
+	// policy must be attached to indices through other means.
 	PolicyName string `mapstructure:"policy_name"`
 }
 
-// DataStreamRotation configures data stream-based rotation (not yet implemented).
+// DataStreamRotation configures data stream-based storage (not yet implemented).
 type DataStreamRotation struct {
-	// PolicyName is the name of the ILM/ISM policy applied to the data stream.
-	// If empty, the cluster default policy is used.
+	// PolicyName is embedded into the data stream's index template so that
+	// ES/OpenSearch manages the lifecycle (rollover, retention) automatically.
+	// If empty, the cluster's default lifecycle policy applies.
 	PolicyName string `mapstructure:"policy_name"`
-	// PolicyFile is the path to a JSON file containing the ILM/ISM policy definition.
-	// If empty, the policy must already exist in the cluster.
+	// PolicyFile is a path to a JSON file containing the ILM/ISM policy definition.
+	// When set, Jaeger creates or updates the policy at startup before creating
+	// the data stream. If empty, the policy must already exist in the cluster.
 	PolicyFile string `mapstructure:"policy_file"`
-	// ReadAlias is an optional alias for read operations on the data stream.
-	// If empty, the data stream name is used directly.
+	// ReadAlias is an optional alias layered on top of the data stream for reads.
+	// Useful for cross-cluster search or to decouple consumer queries from the
+	// underlying data stream name. If empty, reads go directly to the data stream.
 	ReadAlias string `mapstructure:"read_alias"`
 }
 
@@ -929,28 +940,28 @@ func (c *Configuration) Validate() error {
 		)
 	}
 
-	if c.GetUseILM() && !c.GetUseReadWriteAliases() {
+	if c.GetUseILM() && !c.getUseReadWriteAliases() {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
 	if c.GetCreateIndexTemplates() && c.GetUseILM() {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
-	hasAnyExplicitAlias := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != "" ||
-		c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
+	hasAnyExplicitAlias := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != "" ||
+		c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasAnyExplicitAlias && !c.GetUseReadWriteAliases() {
+	if hasAnyExplicitAlias && !c.getUseReadWriteAliases() {
 		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
 	}
 
-	hasSpanAliases := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != ""
-	hasServiceAliases := c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
+	hasSpanAliases := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != ""
+	hasServiceAliases := c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasSpanAliases && (c.GetSpanReadAlias() == "" || c.GetSpanWriteAlias() == "") {
+	if hasSpanAliases && (c.getSpanReadAlias() == "" || c.getSpanWriteAlias() == "") {
 		return errors.New("both span_read_alias and span_write_alias must be set together")
 	}
 
-	if hasServiceAliases && (c.GetServiceReadAlias() == "" || c.GetServiceWriteAlias() == "") {
+	if hasServiceAliases && (c.getServiceReadAlias() == "" || c.getServiceWriteAlias() == "") {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
