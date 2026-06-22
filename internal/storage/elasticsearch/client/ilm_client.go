@@ -64,3 +64,22 @@ func (i ILMClient) Exists(name string) (bool, error) {
 	}
 	return true, nil
 }
+
+// Create installs an ILM policy (PUT _ilm/policy/<name>). Callers should create
+// only when Exists reports false, so existing (possibly user-customized) policies
+// are never overwritten. See RFC 0004 section 3.6.
+func (i ILMClient) Create(name, policy string) error {
+	_, err := i.request(elasticRequest{
+		endpoint: "_ilm/policy/" + name,
+		method:   http.MethodPut,
+		body:     []byte(policy),
+	})
+	if err != nil {
+		var responseError ResponseError
+		if errors.As(err, &responseError) && responseError.StatusCode != http.StatusOK {
+			return responseError.prefixMessage("failed to create ILM policy: " + name)
+		}
+		return fmt.Errorf("failed to create ILM policy: %s, %w", name, err)
+	}
+	return nil
+}
