@@ -93,7 +93,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	// See timeRangeDesign comment in reader.go.
 	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
 	// can reach any trace regardless of age.
-	if spanRC.ManualRollover.HasValue() || spanRC.AutoRollover.HasValue() {
+	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
