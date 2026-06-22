@@ -14,53 +14,46 @@ import (
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
 
 const (
-	samplingIndexBaseName = "jaeger-sampling"
-	throughputType        = "throughput-sampling"
-	probabilitiesType     = "probabilities-sampling"
+	throughputType    = "throughput-sampling"
+	probabilitiesType = "probabilities-sampling"
 )
 
 type SamplingStore struct {
-	client                 func() es.Client
-	logger                 *zap.Logger
-	samplingIndexPrefix    string
-	indexDateLayout        string
-	maxDocCount            int
-	indexRolloverFrequency time.Duration
-	lookback               time.Duration
+	client      func() es.Client
+	logger      *zap.Logger
+	maxDocCount int
+	lookback    time.Duration
+	rotation    indices.Rotation
 }
 
 type Params struct {
-	Client                 func() es.Client
-	Logger                 *zap.Logger
-	IndexPrefix            config.IndexPrefix
-	IndexDateLayout        string
-	IndexRolloverFrequency time.Duration
-	Lookback               time.Duration
-	MaxDocCount            int
+	Client      func() es.Client
+	Logger      *zap.Logger
+	Lookback    time.Duration
+	MaxDocCount int
+	Rotation    indices.Rotation
 }
 
 func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
-		client:                 p.Client,
-		logger:                 p.Logger,
-		samplingIndexPrefix:    p.PrefixedIndexName() + config.IndexPrefixSeparator,
-		indexDateLayout:        p.IndexDateLayout,
-		maxDocCount:            p.MaxDocCount,
-		indexRolloverFrequency: p.IndexRolloverFrequency,
-		lookback:               p.Lookback,
+		client:      p.Client,
+		logger:      p.Logger,
+		maxDocCount: p.MaxDocCount,
+		lookback:    p.Lookback,
+		rotation:    p.Rotation,
 	}
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := time.Now()
-	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	indexName := s.rotation.WriteTarget(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
 		s.client().Index().Index(indexName).Type(throughputType).
 			BodyJson(&dbmodel.TimeThroughput{
@@ -73,8 +66,8 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
-	searchResult, err := s.client().Search(indices...).
+	readIndices := s.rotation.ReadTargets(start, end)
+	searchResult, err := s.client().Search(readIndices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
 		IgnoreUnavailable(true).
@@ -100,7 +93,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	qps model.ServiceOperationQPS,
 ) error {
 	ts := time.Now()
-	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	writeIndexName := s.rotation.WriteTarget(ts)
 	val := dbmodel.ProbabilitiesAndQPS{
 		Hostname:      hostname,
 		Probabilities: probabilities,
@@ -113,11 +106,11 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
 	clientFn := s.client()
-	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.indexRolloverFrequency, s.lookback)
+	index, err := s.getLatestIndex(ctx, clientFn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest indices: %w", err)
+		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
-	searchResult, err := clientFn.Search(indices...).
+	searchResult, err := clientFn.Search(index).
 		Size(s.maxDocCount).
 		IgnoreUnavailable(true).
 		Do(ctx)
@@ -152,48 +145,21 @@ func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time,
 		}).Add()
 }
 
-func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
-	ctx := context.Background()
+func (s *SamplingStore) getLatestIndex(ctx context.Context, client es.Client) (string, error) {
 	now := time.Now().UTC()
-	earliest := now.Add(-maxDuration)
-	earliestIndex := indexWithDate(indexPrefix, indexDateLayout, earliest)
-	for {
-		currentIndex := indexWithDate(indexPrefix, indexDateLayout, now)
-		exists, err := clientFn.IndexExists(currentIndex).Do(ctx)
+	candidates := s.rotation.ReadTargets(now.Add(-s.lookback), now)
+	for _, idx := range candidates {
+		exists, err := client.IndexExists(idx).Do(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to check index existence: %w", err)
+			return "", fmt.Errorf("failed to check index existence: %w", err)
 		}
 		if exists {
-			return []string{currentIndex}, nil
+			return idx, nil
 		}
-		if currentIndex == earliestIndex {
-			return nil, errors.New("falied to find latest index")
-		}
-		now = now.Add(rollover) // rollover is negative
 	}
-}
-
-func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
-	var indices []string
-	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
-	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		endTime = endTime.Add(rollover) // rollover is negative
-		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
-	}
-	indices = append(indices, firstIndex)
-	return indices
-}
-
-func (p *Params) PrefixedIndexName() string {
-	return p.IndexPrefix.Apply(samplingIndexBaseName)
+	return "", errors.New("failed to find latest index")
 }
 
 func buildTSQuery(start, end time.Time) elastic.Query {
 	return esquery.NewRangeQuery("timestamp").Gte(start).Lte(end)
-}
-
-func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format(indexDateLayout)
 }
