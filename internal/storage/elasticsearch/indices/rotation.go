@@ -6,14 +6,15 @@ package indices
 import "time"
 
 const (
-	SpanIndexBaseName       = "jaeger-span-"
-	ServiceIndexBaseName    = "jaeger-service-"
-	DependencyIndexBaseName = "jaeger-dependencies-"
-	SamplingIndexBaseName   = "jaeger-sampling-"
-
 	SpanTemplateName       = "jaeger-span"
 	ServiceTemplateName    = "jaeger-service"
+	DependencyTemplateName = "jaeger-dependencies"
 	SamplingTemplateName   = "jaeger-sampling"
+
+	SpanIndexBaseName       = SpanTemplateName + "-"
+	ServiceIndexBaseName    = ServiceTemplateName + "-"
+	DependencyIndexBaseName = DependencyTemplateName + "-"
+	SamplingIndexBaseName   = SamplingTemplateName + "-"
 )
 
 // WriteOpType represents the Elasticsearch bulk operation type.

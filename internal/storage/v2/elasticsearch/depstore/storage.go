@@ -67,7 +67,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel
 
 // CreateTemplates creates index templates.
 func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	_, err := s.client().CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
+	_, err := s.client().CreateTemplate(indices.DependencyTemplateName).Body(dependenciesTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
