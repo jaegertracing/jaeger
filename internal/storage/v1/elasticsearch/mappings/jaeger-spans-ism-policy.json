@@ -1,0 +1,44 @@
+{
+  "policy": {
+    "description": "Jaeger span data stream rollover and retention",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [
+          {
+            "rollover": {
+              "min_primary_shard_size": "50gb",
+              "min_doc_count": 200000000,
+              "min_index_age": "5d"
+            }
+          }
+        ],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": {
+              "min_index_age": "7d"
+            }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [
+          {
+            "delete": {}
+          }
+        ]
+      }
+    ],
+    "ism_template": [
+      {
+        "index_patterns": [
+          "{{ .DataStream }}"
+        ],
+        "priority": 100
+      }
+    ]
+  }
+}
