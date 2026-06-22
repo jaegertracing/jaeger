@@ -292,9 +292,7 @@ type Configuration struct {
 	WriteAliasSuffix string `mapstructure:"-"`
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
-	//
-	// Deprecated: superseded by indices.<type>.rotation config.
-	CreateIndexTemplates configoptional.Optional[bool] `mapstructure:"create_mappings"`
+	CreateIndexTemplates bool `mapstructure:"create_mappings"`
 	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
 	// Read more about ILM at
 	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
@@ -945,7 +943,7 @@ func (c *Configuration) Validate() error {
 	if c.getUseILM() && !c.getUseReadWriteAliases() {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	if c.GetCreateIndexTemplates() && c.getUseILM() {
+	if c.CreateIndexTemplates && c.getUseILM() {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 

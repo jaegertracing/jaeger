@@ -31,14 +31,6 @@ func (c *Configuration) getUseReadWriteAliases() bool {
 	return false
 }
 
-// GetCreateIndexTemplates returns the effective value of the deprecated CreateIndexTemplates flag.
-func (c *Configuration) GetCreateIndexTemplates() bool {
-	if p := c.CreateIndexTemplates.Get(); p != nil {
-		return *p
-	}
-	return false
-}
-
 func (c *Configuration) getUseILM() bool {
 	if p := c.UseILM.Get(); p != nil {
 		return *p

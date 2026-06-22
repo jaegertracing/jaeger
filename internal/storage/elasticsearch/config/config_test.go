@@ -987,7 +987,7 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:          "ilm and create templates enabled",
-			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true), CreateIndexTemplates: configoptional.Some(true), UseReadWriteAliases: configoptional.Some(true)},
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true), CreateIndexTemplates: true, UseReadWriteAliases: configoptional.Some(true)},
 			expectedError: "when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app",
 		},
 		{
@@ -2292,7 +2292,7 @@ func TestValidate_LegacyFlagsAllowedWhenGateDisabled(t *testing.T) {
 		Servers:              []string{"localhost:8000/dummyserver"},
 		UseReadWriteAliases:  configoptional.Some(true),
 		UseILM:               configoptional.Some(true),
-		CreateIndexTemplates: configoptional.Some(false),
+		CreateIndexTemplates: false,
 	}
 	err := cfg.Validate()
 	require.NoError(t, err)

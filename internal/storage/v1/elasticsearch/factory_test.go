@@ -271,7 +271,7 @@ func TestCreateTemplates(t *testing.T) {
 		}
 		f.logger = zaptest.NewLogger(t)
 		f.metricsFactory = metrics.NullFactory
-		f.config = &escfg.Configuration{CreateIndexTemplates: configoptional.Some(true), Indices: escfg.Indices{
+		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{
 			IndexPrefix: test.indexPrefix,
 			Spans: escfg.IndexOptions{
 				Shards:   3,

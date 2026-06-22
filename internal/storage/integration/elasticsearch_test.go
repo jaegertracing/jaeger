@@ -113,7 +113,7 @@ func (s *ESStorageIntegration) esCleanUp(t *testing.T) {
 
 func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool) {
 	cfg := es.DefaultConfig()
-	cfg.CreateIndexTemplates = configoptional.Some(true)
+	cfg.CreateIndexTemplates = true
 	cfg.BulkProcessing = escfg.BulkProcessing{
 		MaxActions:    1,
 		FlushInterval: time.Nanosecond,

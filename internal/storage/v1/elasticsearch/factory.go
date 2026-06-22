@@ -212,13 +212,7 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 }
 
 func (f *FactoryBase) shouldCreateTemplates() bool {
-	if f.config.CreateIndexTemplates.HasValue() {
-		return f.config.GetCreateIndexTemplates()
-	}
-	// When not explicitly set, create templates only when the user explicitly
-	// configured periodic or manual_rollover rotation.
-	return f.config.Indices.Spans.Rotation.Periodic.HasValue() ||
-		f.config.Indices.Spans.Rotation.ManualRollover.HasValue()
+	return f.config.CreateIndexTemplates
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
