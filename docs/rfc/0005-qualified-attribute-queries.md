@@ -58,6 +58,19 @@ The solution must account for four layers of the system, each with different com
 
 A key architectural choice is that **the old unqualified path can coexist with a new qualified path** at every layer — they are not mutually exclusive.
 
+### 1.6 Per-Backend Tag Query Summary
+
+Each backend has a different storage model for attributes, which affects how easily scoped queries can be implemented:
+
+| Backend | Storage Model | Scope Differentiation | Scoped Query Feasibility |
+|---------|--------------|----------------------|--------------------------|
+| **ClickHouse** | Typed Map columns per scope (`str_attributes`, `resource_str_attributes`, etc.) + nested arrays for events/links | Full — each scope is a separate column family | Native support. Scoped query skips irrelevant columns. |
+| **Elasticsearch/OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span vs. resource vs. logs are separate fields, but no scope/event/link distinction in v1 schema | Good support for span/resource/log scoping. Event/link would need schema evolution. |
+| **Cassandra** | Flat inverted index (`tag_index` table) keyed by `service_name + tag_key + tag_value` | None — all tags indexed identically regardless of origin | Cannot restrict scope at query time. Would return superset results (same as today). Acceptable: Cassandra is a legacy backend. |
+| **Badger** | Flat KV index keyed by `service_name + key + value` | None — same as Cassandra | Same as Cassandra — returns superset results. Acceptable: Badger is intended for local/dev use. |
+
+**Key insight:** Backends that lack scope differentiation (Cassandra, Badger) can simply ignore the scope qualifier and return results from all scopes — this is semantically a superset of the correct answer, which is safe (the user gets extra results, not missing results). The API contract can document this as "scope restriction is best-effort; backends that do not support it return unfiltered results."
+
 ---
 
 ## 2. Options
