@@ -194,6 +194,19 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Empty(t, response.Errors)
 }
 
+func TestGetTraceBase64Success(t *testing.T) {
+	ts := initializeTestServer(t)
+	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
+		Return(tracesIter(makeMockPTrace())).Once()
+
+	// base64 of [16]byte{0,0,0,0,0,0,0,0xFF, 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}
+	// contains "/" which is percent-encoded in the URL
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/AAAAAAAAAP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2Fw==`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
 func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
 	var traces []ui.Trace
 	b, err := json.Marshal(response.Data)
