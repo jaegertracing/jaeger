@@ -72,22 +72,6 @@ type IndexOptions struct {
 	Rotation RotationConfig `mapstructure:"rotation"`
 }
 
-// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
-func (o *IndexOptions) GetDateLayout() string {
-	if p := o.DateLayout.Get(); p != nil {
-		return *p
-	}
-	return "2006-01-02"
-}
-
-// GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".
-func (o *IndexOptions) GetRolloverFrequency() string {
-	if p := o.RolloverFrequency.Get(); p != nil {
-		return *p
-	}
-	return "day"
-}
-
 // RotationConfig defines the index rotation strategy. Exactly one variant should be set.
 // If none is set, the behavior is determined by legacy flags for backward compatibility.
 type RotationConfig struct {
@@ -159,12 +143,6 @@ type DataStreamRotation struct {
 	ReadAlias string `mapstructure:"read_alias"`
 }
 
-// HasRotation returns true if any rotation variant is explicitly configured.
-func (r *RotationConfig) HasRotation() bool {
-	return r.Periodic.HasValue() || r.ManualRollover.HasValue() ||
-		r.AutoRollover.HasValue() || r.DataStream.HasValue()
-}
-
 // Indices describes different configuration options for each index type
 type Indices struct {
 	// IndexPrefix is an optional prefix to prepend to Jaeger indices.
@@ -183,6 +161,28 @@ type bulkCallback struct {
 }
 
 type IndexPrefix string
+
+// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
+func (o *IndexOptions) GetDateLayout() string {
+	if p := o.DateLayout.Get(); p != nil {
+		return *p
+	}
+	return "2006-01-02"
+}
+
+// GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".
+func (o *IndexOptions) GetRolloverFrequency() string {
+	if p := o.RolloverFrequency.Get(); p != nil {
+		return *p
+	}
+	return "day"
+}
+
+// HasRotation returns true if any rotation variant is explicitly configured.
+func (r *RotationConfig) HasRotation() bool {
+	return r.Periodic.HasValue() || r.ManualRollover.HasValue() ||
+		r.AutoRollover.HasValue() || r.DataStream.HasValue()
+}
 
 func (p IndexPrefix) Apply(indexName string) string {
 	ps := string(p)
