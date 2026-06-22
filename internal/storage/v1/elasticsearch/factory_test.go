@@ -618,6 +618,85 @@ func TestBuildRotations(t *testing.T) {
 	}
 }
 
+func TestMappingBuilderFromConfig(t *testing.T) {
+	tests := []struct {
+		name               string
+		cfg                escfg.Configuration
+		expectedUseILM     bool
+		expectedPolicyName string
+	}{
+		{
+			name:           "periodic rotation - no ILM",
+			cfg:            escfg.Configuration{},
+			expectedUseILM: false,
+		},
+		{
+			name: "auto_rollover with policy name",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{
+								PolicyName: "my-policy",
+							}),
+						},
+					},
+				},
+			},
+			expectedUseILM:     true,
+			expectedPolicyName: "my-policy",
+		},
+		{
+			name: "auto_rollover without policy name",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+				},
+			},
+			expectedUseILM: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
+			mb := f.mappingBuilderFromConfig(f.config)
+			assert.Equal(t, tc.expectedUseILM, mb.UseILM)
+			assert.Equal(t, tc.expectedPolicyName, mb.ILMPolicyName)
+		})
+	}
+}
+
+func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
+	cfg := escfg.Configuration{
+		Indices: escfg.Indices{
+			Spans: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "span-read",
+						WriteAlias: "span-write",
+					}),
+				},
+			},
+			Services: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "svc-read",
+						WriteAlias: "svc-write",
+					}),
+				},
+			},
+		},
+		MaxSpanAge: 72 * time.Hour,
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	params := f.GetSpanReaderParams()
+	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
+}
+
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
 type mockHTTPAuthenticator struct{}
 

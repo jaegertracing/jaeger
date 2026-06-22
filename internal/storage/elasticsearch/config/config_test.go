@@ -2455,6 +2455,19 @@ func TestResolvedSamplingRotation(t *testing.T) {
 	assert.Equal(t, "2006-01-02", rc.Periodic.Get().DateLayout)
 }
 
+func TestResolvedRotation_UseILMWithCustomSuffixes(t *testing.T) {
+	cfg := &Configuration{
+		UseReadWriteAliases: configoptional.Some(true),
+		UseILM:              configoptional.Some(true),
+		ReadAliasSuffix:     "reader",
+		WriteAliasSuffix:    "writer",
+	}
+	rc := cfg.ResolvedSpanRotation("jaeger-span-")
+	assert.True(t, rc.AutoRollover.HasValue())
+	assert.Equal(t, "jaeger-span-reader", rc.AutoRollover.Get().ReadAlias)
+	assert.Equal(t, "jaeger-span-writer", rc.AutoRollover.Get().WriteAlias)
+}
+
 func TestValidateRotationConfig_DateLayoutConflict(t *testing.T) {
 	cfg := &Configuration{
 		Servers: []string{"localhost:8000/dummyserver"},
@@ -2470,6 +2483,42 @@ func TestValidateRotationConfig_DateLayoutConflict(t *testing.T) {
 	err := cfg.Validate()
 	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy")
 	require.ErrorContains(t, err, "date_layout")
+}
+
+func TestValidateRotationConfig_RolloverFrequencyConflict(t *testing.T) {
+	cfg := &Configuration{
+		Servers: []string{"localhost:8000/dummyserver"},
+		Indices: Indices{
+			Spans: IndexOptions{
+				RolloverFrequency: configoptional.Some("hour"),
+				Rotation: RotationConfig{
+					Periodic: configoptional.Some(PeriodicRotation{DateLayout: "2006-01-02"}),
+				},
+			},
+		},
+	}
+	err := cfg.Validate()
+	require.ErrorContains(t, err, "cannot use both 'rotation' config and legacy")
+	require.ErrorContains(t, err, "rollover_frequency")
+}
+
+func TestRotationConfig_ValidateAutoRollover(t *testing.T) {
+	rc := RotationConfig{
+		AutoRollover: configoptional.Some(AutoRolloverRotation{
+			ReadAlias:  "read",
+			WriteAlias: "write",
+		}),
+	}
+	require.NoError(t, rc.validate("spans"))
+}
+
+func TestRotationConfig_ValidateMultipleWithAutoRollover(t *testing.T) {
+	rc := RotationConfig{
+		AutoRollover: configoptional.Some(AutoRolloverRotation{}),
+		Periodic:     configoptional.Some(PeriodicRotation{}),
+	}
+	err := rc.validate("spans")
+	require.ErrorContains(t, err, "exactly one rotation strategy must be set, found 2")
 }
 
 func TestMain(m *testing.M) {
