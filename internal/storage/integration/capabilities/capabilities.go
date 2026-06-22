@@ -78,9 +78,7 @@ func ClickHouse() Capabilities {
 // Badger defines the capabilities for the Badger storage backend.
 func Badger() Capabilities {
 	return Capabilities{
-		// TODO: remove this once Badger supports returning spanKind from GetOperations
-		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList: []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}
 }
 

@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestEncodingTypes(t *testing.T) {
@@ -217,15 +218,15 @@ func TestOldReads(t *testing.T) {
 
 		nuTid := tid.Add(1 * time.Hour)
 
-		cache.Update("service1", "operation1", uint64(tid.Unix()))
+		cache.Update("service1", "", "operation1", uint64(tid.Unix()))
 		cache.services["service1"] = uint64(nuTid.Unix())
-		cache.operations["service1"]["operation1"] = uint64(nuTid.Unix())
+		cache.operations["service1"][tracestore.Operation{Name: "operation1"}] = uint64(nuTid.Unix())
 
 		// This is equivalent to populate caches of cache
 		_ = NewTraceReader(store, cache, true)
 
 		// Now make sure we didn't use the older timestamps from the DB
 		assert.Equal(t, uint64(nuTid.Unix()), cache.services["service1"])
-		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"]["operation1"])
+		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"][tracestore.Operation{Name: "operation1"}])
 	})
 }

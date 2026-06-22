@@ -363,6 +363,39 @@ func TestMenuSeeks(t *testing.T) {
 	})
 }
 
+func TestSpanKindAppearsInGetOperations(t *testing.T) {
+	runFactoryTest(t, func(_ testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		err := sw.WriteSpan(context.Background(), &model.Span{
+			TraceID:       model.TraceID{Low: 1, High: 1},
+			SpanID:        model.SpanID(1),
+			OperationName: "checkout",
+			Process:       &model.Process{ServiceName: "shop"},
+			Tags: model.KeyValues{
+				{Key: model.SpanKindKey, VStr: "server", VType: model.StringType},
+			},
+			StartTime: time.Now(),
+			Duration:  time.Millisecond,
+		})
+		require.NoError(t, err)
+
+		ops, err := sr.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "shop"})
+		require.NoError(t, err)
+		require.Len(t, ops, 1)
+		assert.Equal(t, "checkout", ops[0].Name)
+		assert.Equal(t, "server", ops[0].SpanKind)
+
+		// SpanKind filter matches
+		ops, err = sr.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "shop", SpanKind: "server"})
+		require.NoError(t, err)
+		assert.Len(t, ops, 1)
+
+		// SpanKind filter excludes
+		ops, err = sr.GetOperations(context.Background(), tracestore.OperationQueryParams{ServiceName: "shop", SpanKind: "client"})
+		require.NoError(t, err)
+		assert.Empty(t, ops)
+	})
+}
+
 func TestPersist(t *testing.T) {
 	dir := t.TempDir()
 

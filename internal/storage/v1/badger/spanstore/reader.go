@@ -243,12 +243,12 @@ func (r *TraceReader) GetServices(context.Context) ([]string, error) {
 	return r.cache.GetServices()
 }
 
-// GetOperations fetches operations in the service and empty slice if service does not exists
+// GetOperations returns operations for the given service, optionally filtered by SpanKind.
 func (r *TraceReader) GetOperations(
 	_ context.Context,
 	query tracestore.OperationQueryParams,
 ) ([]tracestore.Operation, error) {
-	return r.cache.GetOperations(query.ServiceName)
+	return r.cache.GetOperations(query)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set
@@ -657,7 +657,7 @@ func (r *TraceReader) preloadOperations(service string) {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
 			keyTTL := it.Item().ExpiresAt()
-			r.cache.AddOperation(service, operationName, keyTTL)
+			r.cache.AddOperation(service, "", operationName, keyTTL)
 		}
 		return nil
 	})
