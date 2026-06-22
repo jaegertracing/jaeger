@@ -38,13 +38,15 @@ func (mb *MappingBuilder) SpanDataStreamMappings() (string, error) {
 	if err := json.Unmarshal([]byte(rendered), &tmpl); err != nil {
 		return "", fmt.Errorf("failed to parse span mapping: %w", err)
 	}
-	template, ok := tmpl["template"].(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("span mapping is missing the 'template' object")
+	// The composable (v8) template nests mappings under "template", while the
+	// legacy (v7, also used for OpenSearch) template puts them at the root.
+	mappingsSource := tmpl
+	if template, ok := tmpl["template"].(map[string]any); ok {
+		mappingsSource = template
 	}
-	spanMappings, ok := template["mappings"].(map[string]any)
+	spanMappings, ok := mappingsSource["mappings"].(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("span mapping is missing the 'template.mappings' object")
+		return "", fmt.Errorf("span mapping is missing the 'mappings' object")
 	}
 	properties, ok := spanMappings["properties"].(map[string]any)
 	if !ok {
@@ -72,21 +74,29 @@ func (mb *MappingBuilder) SpanDataStreamSettings(useILM bool, ilmPolicyName stri
 }
 
 // SpanDataStreamIndexTemplate renders the composable index template that turns
-// writes to dataStreamName into a data stream. It composes the @mappings,
-// @settings, and (optional, user-owned) @custom component templates. See RFC 0004
-// section 3.2.
-func SpanDataStreamIndexTemplate(dataStreamName string) (string, error) {
+// writes to dataStreamName into a data stream. It always composes the @mappings
+// and @settings component templates.
+//
+// On Elasticsearch it also references the optional, user-owned @custom component
+// template, made optional via ignore_missing_component_templates (RFC 0004
+// section 3.2). OpenSearch does not support that field, so @custom is omitted
+// there; the @custom-based migration alias is a Phase 3 concern and is not needed
+// for the Phase 2 fresh-install write path.
+func SpanDataStreamIndexTemplate(dataStreamName string, isOpenSearch bool) (string, error) {
+	composedOf := []string{
+		dataStreamName + DataStreamMappingsSuffix,
+		dataStreamName + DataStreamSettingsSuffix,
+	}
 	body := map[string]any{
 		"index_patterns": []string{dataStreamName},
 		"data_stream":    map[string]any{},
-		"composed_of": []string{
-			dataStreamName + DataStreamMappingsSuffix,
-			dataStreamName + DataStreamSettingsSuffix,
-			dataStreamName + DataStreamCustomSuffix,
-		},
-		"priority":                           dataStreamTemplatePriority,
-		"ignore_missing_component_templates": []string{dataStreamName + DataStreamCustomSuffix},
+		"priority":       dataStreamTemplatePriority,
 	}
+	if !isOpenSearch {
+		composedOf = append(composedOf, dataStreamName+DataStreamCustomSuffix)
+		body["ignore_missing_component_templates"] = []string{dataStreamName + DataStreamCustomSuffix}
+	}
+	body["composed_of"] = composedOf
 	b, err := json.Marshal(body)
 	if err != nil {
 		return "", err

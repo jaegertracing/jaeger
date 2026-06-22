@@ -160,9 +160,10 @@ func (r *RotationConfig) validate(indexType string) error {
 			indexType, count,
 		)
 	}
-	if r.DataStream.HasValue() {
+	if r.DataStream.HasValue() && indexType != "spans" {
 		return fmt.Errorf(
-			"indices.%s.rotation: data_stream is not yet implemented",
+			"indices.%s.rotation: data_stream rotation is only supported for the spans index; "+
+				"services and dependencies require document updates, which data streams do not allow",
 			indexType,
 		)
 	}

@@ -4,11 +4,18 @@
 package elasticsearch
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -117,4 +124,95 @@ func TestDataStreamBootstrap_PropagatesErrors(t *testing.T) {
 		err := newBootstrap(&fakeTemplates{err: errors.New("boom")}, &fakeLifecycle{exists: true}, false).run()
 		require.Error(t, err)
 	})
+}
+
+func TestDataStreamPolicyBody(t *testing.T) {
+	mb := bootstrapMappingBuilder()
+
+	t.Run("elasticsearch uses built-in ILM policy", func(t *testing.T) {
+		body, err := dataStreamPolicyBody(&config.DataStreamRotation{}, false, "jaeger.spans", mb)
+		require.NoError(t, err)
+		assert.Contains(t, body, "phases")
+	})
+	t.Run("opensearch uses built-in ISM policy", func(t *testing.T) {
+		body, err := dataStreamPolicyBody(&config.DataStreamRotation{}, true, "jaeger.spans", mb)
+		require.NoError(t, err)
+		assert.Contains(t, body, "ism_template")
+	})
+	t.Run("policy file overrides built-in", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "policy.json")
+		require.NoError(t, os.WriteFile(path, []byte(`{"custom":true}`), 0o600))
+		body, err := dataStreamPolicyBody(&config.DataStreamRotation{PolicyFile: path}, true, "jaeger.spans", mb)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"custom":true}`, body)
+	})
+	t.Run("missing policy file is an error", func(t *testing.T) {
+		_, err := dataStreamPolicyBody(&config.DataStreamRotation{PolicyFile: "/no/such/file.json"}, true, "jaeger.spans", mb)
+		require.ErrorContains(t, err, "failed to read data stream policy file")
+	})
+}
+
+func TestBootstrapSpanDataStream_OpenSearch(t *testing.T) {
+	var puts []string
+	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		switch {
+		case req.Method == http.MethodGet && req.URL.Path == "/":
+			res.Write([]byte(`{"version":{"number":"3.7.0"},"tagline":"The OpenSearch Project"}`))
+		case req.Method == http.MethodGet: // ISM policy existence check
+			res.WriteHeader(http.StatusNotFound)
+		case req.Method == http.MethodPut:
+			puts = append(puts, req.URL.Path)
+			res.WriteHeader(http.StatusCreated)
+		default:
+			res.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	replicas := int64(1)
+	cfg := &config.Configuration{
+		Servers: []string{server.URL},
+		Version: 7,
+		Indices: config.Indices{
+			Spans: config.IndexOptions{
+				Shards:   1,
+				Replicas: &replicas,
+				Rotation: config.RotationConfig{DataStream: configoptional.Some(config.DataStreamRotation{})},
+			},
+		},
+	}
+	f := &FactoryBase{config: cfg, logger: zap.NewNop(), templateBuilder: es.TextTemplateBuilder{}}
+	mb := f.mappingBuilderFromConfig(cfg)
+
+	require.NoError(t, f.bootstrapSpanDataStream(context.Background(), &mb))
+
+	// ISM policy, both component templates, and the index template must be created.
+	assert.Contains(t, puts, "/_plugins/_ism/policies/jaeger-spans-policy")
+	assert.Contains(t, puts, "/_component_template/jaeger.spans@mappings")
+	assert.Contains(t, puts, "/_component_template/jaeger.spans@settings")
+	assert.Contains(t, puts, "/_index_template/jaeger.spans")
+}
+
+func TestBootstrapSpanDataStream_FlavorError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+		res.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	replicas := int64(1)
+	cfg := &config.Configuration{
+		Servers: []string{server.URL},
+		Version: 7,
+		Indices: config.Indices{
+			Spans: config.IndexOptions{
+				Shards:   1,
+				Replicas: &replicas,
+				Rotation: config.RotationConfig{DataStream: configoptional.Some(config.DataStreamRotation{})},
+			},
+		},
+	}
+	f := &FactoryBase{config: cfg, logger: zap.NewNop(), templateBuilder: es.TextTemplateBuilder{}}
+	mb := f.mappingBuilderFromConfig(cfg)
+	err := f.bootstrapSpanDataStream(context.Background(), &mb)
+	require.ErrorContains(t, err, "failed to detect Elasticsearch/OpenSearch flavor")
 }

@@ -4,10 +4,21 @@
 package elasticsearch
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
+
+// defaultDataStreamPolicyName is the lifecycle policy name used when the
+// data_stream rotation does not specify one. See RFC 0004 section 3.6 (Q5).
+const defaultDataStreamPolicyName = "jaeger-spans-policy"
 
 // componentTemplateCreator creates the composable templates that define a data
 // stream. Satisfied by the REST IndicesClient.
@@ -70,9 +81,78 @@ func (b dataStreamBootstrap) run() error {
 		return err
 	}
 
-	indexTemplate, err := mappings.SpanDataStreamIndexTemplate(b.dataStreamName)
+	indexTemplate, err := mappings.SpanDataStreamIndexTemplate(b.dataStreamName, !b.useILM)
 	if err != nil {
 		return fmt.Errorf("failed to build data stream index template: %w", err)
 	}
 	return b.templates.CreateIndexTemplate(b.dataStreamName, indexTemplate)
+}
+
+// bootstrapSpanDataStream creates the composable templates and lifecycle policy
+// for the spans data stream. It builds a direct REST client from the same config
+// as the main client, detects the backend flavor to choose ISM (OpenSearch) or
+// ILM (Elasticsearch), and runs the idempotent bootstrap.
+func (f *FactoryBase) bootstrapSpanDataStream(ctx context.Context, mb *mappings.MappingBuilder) error {
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
+	ds := spanRC.DataStream.Get()
+
+	transport, err := config.GetHTTPRoundTripper(ctx, f.config, f.logger, f.httpAuth)
+	if err != nil {
+		return fmt.Errorf("failed to build HTTP transport for data stream bootstrap: %w", err)
+	}
+	rawClient := client.Client{
+		Client:   &http.Client{Transport: transport},
+		Endpoint: strings.TrimSuffix(f.config.Servers[0], "/"),
+	}
+
+	clusterClient := client.ClusterClient{Client: rawClient}
+	isOpenSearch, err := clusterClient.IsOpenSearch()
+	if err != nil {
+		return fmt.Errorf("failed to detect Elasticsearch/OpenSearch flavor: %w", err)
+	}
+
+	dataStreamName := indices.DataStreamName(string(f.config.Indices.IndexPrefix), indices.SpanDataStreamBaseName)
+	policyName := ds.PolicyName
+	if policyName == "" {
+		policyName = defaultDataStreamPolicyName
+	}
+	policyBody, err := dataStreamPolicyBody(ds, isOpenSearch, dataStreamName, mb)
+	if err != nil {
+		return err
+	}
+
+	var lifecycle lifecyclePolicyManager
+	if isOpenSearch {
+		lifecycle = client.ISMClient{Client: rawClient, Logger: f.logger}
+	} else {
+		lifecycle = client.ILMClient{Client: rawClient, Logger: f.logger}
+	}
+
+	return dataStreamBootstrap{
+		templates:      client.IndicesClient{Client: rawClient},
+		lifecycle:      lifecycle,
+		mappingBuilder: mb,
+		dataStreamName: dataStreamName,
+		policyName:     policyName,
+		policyBody:     policyBody,
+		useILM:         !isOpenSearch,
+	}.run()
+}
+
+// dataStreamPolicyBody returns the lifecycle policy to install: a user-provided
+// file when configured, otherwise the built-in ISM (OpenSearch) or ILM
+// (Elasticsearch) default. See RFC 0004 section 3.6.
+func dataStreamPolicyBody(ds *config.DataStreamRotation, isOpenSearch bool, dataStreamName string, mb *mappings.MappingBuilder) (string, error) {
+	if ds.PolicyFile != "" {
+		body, err := os.ReadFile(ds.PolicyFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read data stream policy file %q: %w", ds.PolicyFile, err)
+		}
+		return string(body), nil
+	}
+	if isOpenSearch {
+		return mb.SpanDataStreamISMPolicy(dataStreamName)
+	}
+	return mappings.SpanDataStreamILMPolicy(), nil
 }

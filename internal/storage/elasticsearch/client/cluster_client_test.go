@@ -258,3 +258,41 @@ func TestVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestClusterClient_IsOpenSearch(t *testing.T) {
+	tests := []struct {
+		name     string
+		response string
+		want     bool
+	}{
+		{name: "opensearch", response: `{"tagline":"The OpenSearch Project: https://opensearch.org/"}`, want: true},
+		{name: "elasticsearch", response: `{"tagline":"You Know, for Search"}`, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var gotPath string
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				gotPath = req.URL.Path
+				res.WriteHeader(http.StatusOK)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+			c := &ClusterClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
+
+			got, err := c.IsOpenSearch()
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+			assert.Equal(t, "/", gotPath)
+		})
+	}
+}
+
+func TestClusterClient_IsOpenSearch_Error(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+		res.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer testServer.Close()
+	c := &ClusterClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
+	_, err := c.IsOpenSearch()
+	require.Error(t, err)
+}

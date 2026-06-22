@@ -41,6 +41,11 @@ type FactoryBase struct {
 
 	templateBuilder es.TemplateBuilder
 
+	// httpAuth is retained so the data stream bootstrap can build its own direct
+	// REST client (for composable templates and ISM/ILM policies) with the same
+	// transport/auth as the main client.
+	httpAuth extensionauth.HTTPClient
+
 	tags []string
 }
 
@@ -55,6 +60,7 @@ func NewFactoryBase(
 		config:      &cfg,
 		newClientFn: config.NewClient,
 		tracer:      otel.GetTracerProvider(),
+		httpAuth:    httpAuth,
 	}
 	f.metricsFactory = metricsFactory
 	f.logger = logger
@@ -223,22 +229,30 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if f.config.CreateIndexTemplates {
-		mappingBuilder := f.mappingBuilderFromConfig(f.config)
-		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-		if err != nil {
-			return err
-		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(indices.SpanTemplateName)
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(indices.ServiceTemplateName)
-		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
-		}
-		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
-		}
+	if !f.config.CreateIndexTemplates {
+		return nil
+	}
+	mappingBuilder := f.mappingBuilderFromConfig(f.config)
+	spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+	if err != nil {
+		return err
+	}
+	// The service index is always a regular index (services cannot use data streams).
+	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(indices.ServiceTemplateName)
+	if _, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
+	}
+
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	if f.config.ResolvedSpanRotation(spanPrefix).DataStream.HasValue() {
+		// Spans use a data stream: create composable templates and a lifecycle
+		// policy instead of the legacy "jaeger-span-*" index template.
+		return f.bootstrapSpanDataStream(ctx, &mappingBuilder)
+	}
+
+	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(indices.SpanTemplateName)
+	if _, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
 	}
 	return nil
 }

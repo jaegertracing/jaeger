@@ -78,27 +78,43 @@ func TestSpanDataStreamSettings(t *testing.T) {
 }
 
 func TestSpanDataStreamIndexTemplate(t *testing.T) {
-	got, err := SpanDataStreamIndexTemplate("prod.jaeger.spans")
-	require.NoError(t, err)
-
-	var doc struct {
+	type indexTemplate struct {
 		IndexPatterns                   []string       `json:"index_patterns"`
 		DataStream                      map[string]any `json:"data_stream"`
 		ComposedOf                      []string       `json:"composed_of"`
 		Priority                        int            `json:"priority"`
 		IgnoreMissingComponentTemplates []string       `json:"ignore_missing_component_templates"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(got), &doc))
 
-	assert.Equal(t, []string{"prod.jaeger.spans"}, doc.IndexPatterns)
-	assert.NotNil(t, doc.DataStream, "data_stream directive must be present")
-	assert.Equal(t, []string{
-		"prod.jaeger.spans@mappings",
-		"prod.jaeger.spans@settings",
-		"prod.jaeger.spans@custom",
-	}, doc.ComposedOf)
-	assert.Equal(t, 500, doc.Priority)
-	assert.Equal(t, []string{"prod.jaeger.spans@custom"}, doc.IgnoreMissingComponentTemplates)
+	t.Run("elasticsearch references optional @custom", func(t *testing.T) {
+		got, err := SpanDataStreamIndexTemplate("prod.jaeger.spans", false)
+		require.NoError(t, err)
+		var doc indexTemplate
+		require.NoError(t, json.Unmarshal([]byte(got), &doc))
+
+		assert.Equal(t, []string{"prod.jaeger.spans"}, doc.IndexPatterns)
+		assert.NotNil(t, doc.DataStream, "data_stream directive must be present")
+		assert.Equal(t, []string{
+			"prod.jaeger.spans@mappings",
+			"prod.jaeger.spans@settings",
+			"prod.jaeger.spans@custom",
+		}, doc.ComposedOf)
+		assert.Equal(t, 500, doc.Priority)
+		assert.Equal(t, []string{"prod.jaeger.spans@custom"}, doc.IgnoreMissingComponentTemplates)
+	})
+
+	t.Run("opensearch omits @custom and ignore_missing", func(t *testing.T) {
+		// OpenSearch does not support ignore_missing_component_templates, so @custom
+		// is not referenced (it cannot be made optional there).
+		got, err := SpanDataStreamIndexTemplate("jaeger.spans", true)
+		require.NoError(t, err)
+		var doc indexTemplate
+		require.NoError(t, json.Unmarshal([]byte(got), &doc))
+
+		assert.Equal(t, []string{"jaeger.spans@mappings", "jaeger.spans@settings"}, doc.ComposedOf)
+		assert.Nil(t, doc.IgnoreMissingComponentTemplates)
+		assert.NotContains(t, got, "@custom")
+	})
 }
 
 func TestSpanDataStreamISMPolicy(t *testing.T) {

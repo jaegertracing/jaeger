@@ -80,7 +80,9 @@ func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode != http.StatusOK {
+	// Any 2xx is success. Creation endpoints (templates, ISM/ILM policies, data
+	// streams) return 201 Created rather than 200 OK.
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return []byte{}, c.handleFailedRequest(res)
 	}
 

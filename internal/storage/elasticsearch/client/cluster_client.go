@@ -52,3 +52,25 @@ func (c *ClusterClient) Version() (uint, error) {
 	}
 	return uint(major), nil
 }
+
+// IsOpenSearch reports whether the cluster is OpenSearch (as opposed to
+// Elasticsearch), detected from the root endpoint's tagline. This selects the
+// lifecycle management style for data streams: ISM on OpenSearch, ILM on
+// Elasticsearch. See RFC 0004 section 3.8.
+func (c *ClusterClient) IsOpenSearch() (bool, error) {
+	type clusterInfo struct {
+		TagLine string `json:"tagline"`
+	}
+	body, err := c.request(elasticRequest{
+		endpoint: "",
+		method:   http.MethodGet,
+	})
+	if err != nil {
+		return false, err
+	}
+	var info clusterInfo
+	if err := json.Unmarshal(body, &info); err != nil {
+		return false, err
+	}
+	return strings.Contains(info.TagLine, "OpenSearch"), nil
+}

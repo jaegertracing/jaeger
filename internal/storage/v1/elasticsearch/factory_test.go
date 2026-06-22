@@ -716,3 +716,52 @@ func (m *mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
+
+func TestCreateTemplates_DataStream(t *testing.T) {
+	var puts []string
+	server := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		switch {
+		case req.Method == http.MethodGet && req.URL.Path == "/":
+			res.Write([]byte(`{"version":{"number":"3.7.0"},"tagline":"The OpenSearch Project"}`))
+		case req.Method == http.MethodGet: // ISM policy existence check -> absent
+			res.WriteHeader(http.StatusNotFound)
+		case req.Method == http.MethodPut:
+			puts = append(puts, req.URL.Path)
+			res.WriteHeader(http.StatusCreated)
+		default:
+			res.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	serviceTmpl := &mocks.TemplateCreateService{}
+	serviceTmpl.On("Body", mock.Anything).Return(serviceTmpl)
+	serviceTmpl.On("Do", mock.Anything).Return(nil, nil)
+	mockClient := &mocks.Client{}
+	mockClient.On("CreateTemplate", "jaeger-service").Return(serviceTmpl)
+
+	f := FactoryBase{
+		client:          mockClient,
+		logger:          zap.NewNop(),
+		templateBuilder: es.TextTemplateBuilder{},
+		config: &escfg.Configuration{
+			Servers:              []string{server.URL},
+			Version:              7,
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Spans: escfg.IndexOptions{
+					Shards:   1,
+					Replicas: new(int64(0)),
+					Rotation: escfg.RotationConfig{DataStream: configoptional.Some(escfg.DataStreamRotation{})},
+				},
+				Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0))},
+			},
+		},
+	}
+
+	require.NoError(t, f.createTemplates(context.Background()))
+	// The legacy span template is skipped; the data stream objects are created instead.
+	serviceTmpl.AssertCalled(t, "Do", mock.Anything)
+	assert.Contains(t, puts, "/_index_template/jaeger.spans")
+	assert.Contains(t, puts, "/_plugins/_ism/policies/jaeger-spans-policy")
+}
