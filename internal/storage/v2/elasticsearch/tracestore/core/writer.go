@@ -128,7 +128,11 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	// The op type comes from the rotation strategy: "create" for append-only data
+	// streams, "index" (the default) for all legacy index strategies.
+	s.client().Index().Index(indexName).Type(spanType).
+		OpType(string(s.spanRotation.WriteOpType())).
+		BodyJson(&jsonSpan).Add()
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {

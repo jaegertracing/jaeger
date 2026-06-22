@@ -225,6 +225,11 @@ func (i IndexServiceWrapper) Type(typ string) es.IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.esVersion)
 }
 
+// OpType sets the bulk operation type ("index" or "create") on the request.
+func (i IndexServiceWrapper) OpType(opType string) es.IndexService {
+	return WrapESIndexService(i.bulkIndexReq.OpType(opType), i.bulkService, i.esVersion)
+}
+
 // Add adds the request to bulk service
 func (i IndexServiceWrapper) Add() {
 	i.bulkService.Add(i.bulkIndexReq)

@@ -52,6 +52,9 @@ type IndexService interface {
 	Type(typ string) IndexService
 	Id(id string) IndexService
 	BodyJson(body any) IndexService
+	// OpType sets the bulk operation type ("index" or "create"). Data streams
+	// require "create" (append-only); legacy indices use the default "index".
+	OpType(opType string) IndexService
 	Add()
 }
 

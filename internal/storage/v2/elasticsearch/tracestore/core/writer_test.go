@@ -154,6 +154,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexServicePut.On("Add")
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
+				indexSpanPut.On("OpType", stringMatcher("index")).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Add")
 
@@ -198,6 +199,7 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
+		indexService.On("OpType", stringMatcher("index")).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
@@ -218,6 +220,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
+		indexService.On("OpType", stringMatcher("index")).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
@@ -231,6 +234,34 @@ func TestWriteSpanInternalError(t *testing.T) {
 		w.writer.writeSpanToIndex(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
+}
+
+func TestWriteSpanToIndex_DataStreamOpType(t *testing.T) {
+	// A data stream rotation must drive the bulk op type to "create" (append-only)
+	// rather than the legacy "index".
+	client := &mocks.Client{}
+	logger, _ := testutils.NewLogger()
+	metricsFactory := metricstest.NewFactory(0)
+	writer := NewSpanWriter(SpanWriterParams{
+		Client:          func() es.Client { return client },
+		Logger:          logger,
+		MetricsFactory:  metricsFactory,
+		SpanRotation:    indices.NewDataStreamRotation("jaeger.spans", ""),
+		ServiceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+	})
+
+	indexService := &mocks.IndexService{}
+	indexService.On("Index", stringMatcher("jaeger.spans")).Return(indexService)
+	indexService.On("Type", stringMatcher(spanType)).Return(indexService)
+	indexService.On("OpType", stringMatcher("create")).Return(indexService)
+	indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
+	indexService.On("Add")
+	client.On("Index").Return(indexService)
+
+	writer.writeSpanToIndex("jaeger.spans", &dbmodel.Span{})
+
+	indexService.AssertCalled(t, "OpType", stringMatcher("create"))
+	indexService.AssertNumberOfCalls(t, "Add", 1)
 }
 
 func TestSpanWriterParamsTTL(t *testing.T) {
