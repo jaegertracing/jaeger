@@ -150,24 +150,20 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 // GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
-		Client:              f.getClient,
-		Logger:              f.logger,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		IndexDateLayout:     f.config.Indices.Dependencies.GetDateLayout(),
-		MaxDocCount:         f.config.MaxDocCount,
-		UseReadWriteAliases: f.config.GetUseReadWriteAliases(),
+		Client:      f.getClient,
+		Logger:      f.logger,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildDependencyRotation(),
 	}
 }
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
-		Client:                 f.getClient,
-		Logger:                 f.logger,
-		IndexPrefix:            f.config.Indices.IndexPrefix,
-		IndexDateLayout:        f.config.Indices.Sampling.GetDateLayout(),
-		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.GetRolloverFrequency()),
-		Lookback:               f.config.AdaptiveSamplingLookback,
-		MaxDocCount:            f.config.MaxDocCount,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		Lookback:    f.config.AdaptiveSamplingLookback,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildSamplingRotation(),
 	}
 	store := essamplestore.NewSamplingStore(params)
 
@@ -177,7 +173,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+		templateName := f.config.Indices.IndexPrefix.Apply(indices.SamplingTemplateName)
+		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -251,9 +248,29 @@ func loadTokenFromFile(path string) (string, error) {
 	return strings.TrimRight(string(b), "\r\n"), nil
 }
 
+// TODO: Support UseAliases/RemoteClusters for sampling via a feature flag.
+// Currently these params are silently ignored for sampling indices.
+func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
+	return config.BuildRotation(config.RotationParams{
+		IndexPrefix:  f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName),
+		IndexOptions: f.config.Indices.Sampling,
+	}, f.logger)
+}
+
+func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
+	return config.BuildRotation(config.RotationParams{
+		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName),
+		IndexOptions:   f.config.Indices.Dependencies,
+		UseAliases:     f.config.GetUseReadWriteAliases(),
+		WriteAlias:     f.config.WriteAliasSuffix,
+		ReadAlias:      f.config.ReadAliasSuffix,
+		RemoteClusters: f.config.RemoteReadClusters,
+	}, f.logger)
+}
+
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
-	servicePrefix := f.config.Indices.IndexPrefix.Apply("jaeger-service-")
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
 
 	spanRotation = f.buildRotation(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix))
 	serviceRotation = f.buildRotation(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix))
@@ -319,8 +336,8 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply("jaeger-service")
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(indices.SpanTemplateName)
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(indices.ServiceTemplateName)
 		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)

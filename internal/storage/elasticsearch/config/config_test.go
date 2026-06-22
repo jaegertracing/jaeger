@@ -2067,6 +2067,80 @@ func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
 	}
 }
 
+func TestBuildRotation(t *testing.T) {
+	logger := zap.NewNop()
+	ts := time.Date(2024, time.March, 15, 0, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name      string
+		params    RotationParams
+		wantWrite string
+		wantRead  []string
+	}{
+		{
+			name: "periodic rotation",
+			params: RotationParams{
+				IndexPrefix:  "jaeger-span-",
+				IndexOptions: IndexOptions{DateLayout: configoptional.Some("2006-01-02"), RolloverFrequency: configoptional.Some("day")},
+			},
+			wantWrite: "jaeger-span-2024-03-15",
+			wantRead:  []string{"jaeger-span-2024-03-15"},
+		},
+		{
+			name: "explicit aliases",
+			params: RotationParams{
+				IndexPrefix:   "jaeger-span-",
+				IndexOptions:  IndexOptions{DateLayout: configoptional.Some("2006-01-02"), RolloverFrequency: configoptional.Some("day")},
+				ExplicitWrite: "my-write-alias",
+				ExplicitRead:  "my-read-alias",
+			},
+			wantWrite: "my-write-alias",
+			wantRead:  []string{"my-read-alias"},
+		},
+		{
+			name: "use aliases with defaults",
+			params: RotationParams{
+				IndexPrefix:  "jaeger-span-",
+				IndexOptions: IndexOptions{DateLayout: configoptional.Some("2006-01-02"), RolloverFrequency: configoptional.Some("day")},
+				UseAliases:   true,
+			},
+			wantWrite: "jaeger-span-write",
+			wantRead:  []string{"jaeger-span-read"},
+		},
+		{
+			name: "use aliases with custom suffixes",
+			params: RotationParams{
+				IndexPrefix:  "jaeger-span-",
+				IndexOptions: IndexOptions{DateLayout: configoptional.Some("2006-01-02"), RolloverFrequency: configoptional.Some("day")},
+				UseAliases:   true,
+				WriteAlias:   "w",
+				ReadAlias:    "r",
+			},
+			wantWrite: "jaeger-span-w",
+			wantRead:  []string{"jaeger-span-r"},
+		},
+		{
+			name: "with remote clusters",
+			params: RotationParams{
+				IndexPrefix:    "jaeger-span-",
+				IndexOptions:   IndexOptions{DateLayout: configoptional.Some("2006-01-02"), RolloverFrequency: configoptional.Some("day")},
+				UseAliases:     true,
+				RemoteClusters: []string{"cluster-a", "cluster-b"},
+			},
+			wantWrite: "jaeger-span-write",
+			wantRead:  []string{"jaeger-span-read", "cluster-a:jaeger-span-read", "cluster-b:jaeger-span-read"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := BuildRotation(tt.params, logger)
+			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
+			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
+		})
+	}
+}
+
 func TestRotationConfig_HasRotation(t *testing.T) {
 	tests := []struct {
 		name     string

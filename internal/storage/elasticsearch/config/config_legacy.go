@@ -48,28 +48,28 @@ func (c *Configuration) GetUseILM() bool {
 	return false
 }
 
-func (c *Configuration) getSpanReadAlias() string {
+func (c *Configuration) GetSpanReadAlias() string {
 	if p := c.SpanReadAlias.Get(); p != nil {
 		return *p
 	}
 	return ""
 }
 
-func (c *Configuration) getSpanWriteAlias() string {
+func (c *Configuration) GetSpanWriteAlias() string {
 	if p := c.SpanWriteAlias.Get(); p != nil {
 		return *p
 	}
 	return ""
 }
 
-func (c *Configuration) getServiceReadAlias() string {
+func (c *Configuration) GetServiceReadAlias() string {
 	if p := c.ServiceReadAlias.Get(); p != nil {
 		return *p
 	}
 	return ""
 }
 
-func (c *Configuration) getServiceWriteAlias() string {
+func (c *Configuration) GetServiceWriteAlias() string {
 	if p := c.ServiceWriteAlias.Get(); p != nil {
 		return *p
 	}
@@ -90,13 +90,13 @@ func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 // ResolvedSpanRotation returns the effective rotation configuration for span indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedSpanRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, prefix, c.getSpanReadAlias(), c.getSpanWriteAlias())
+	return c.resolvedRotation(&c.Indices.Spans, prefix, c.GetSpanReadAlias(), c.GetSpanWriteAlias())
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedServiceRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Services, prefix, c.getServiceReadAlias(), c.getServiceWriteAlias())
+	return c.resolvedRotation(&c.Indices.Services, prefix, c.GetServiceReadAlias(), c.GetServiceWriteAlias())
 }
 
 func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicitReadAlias, explicitWriteAlias string) RotationConfig {

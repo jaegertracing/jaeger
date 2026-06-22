@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/olivere/elastic/v7"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -33,20 +32,17 @@ const (
 // QueryBuilder is responsible for constructing Elasticsearch queries (bool and aggregation)
 // based on provided parameters and executing them to retrieve raw search results.
 type QueryBuilder struct {
-	client           es.Client
-	cfg              config.Configuration
-	timeRangeIndices indices.TimeRangeIndexFn
+	client       es.Client
+	cfg          config.Configuration
+	spanRotation indices.Rotation
 }
 
 // NewQueryBuilder creates a new QueryBuilder instance.
-func NewQueryBuilder(client es.Client, cfg config.Configuration, logger *zap.Logger) *QueryBuilder {
+func NewQueryBuilder(client es.Client, cfg config.Configuration, spanRotation indices.Rotation) *QueryBuilder {
 	return &QueryBuilder{
-		client: client,
-		cfg:    cfg,
-		timeRangeIndices: indices.LoggingTimeRangeIndexFn(
-			logger,
-			indices.TimeRangeIndicesFn(cfg.GetUseReadWriteAliases(), cfg.ReadAliasSuffix, cfg.RemoteReadClusters),
-		),
+		client:       client,
+		cfg:          cfg,
+		spanRotation: spanRotation,
 	}
 }
 
@@ -116,13 +112,9 @@ func (*QueryBuilder) buildTimeSeriesAggQuery(params metricstore.BaseQueryParamet
 
 // Execute runs the Elasticsearch search with the provided bool and aggregation queries.
 func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery, aggQuery elastic.Aggregation, timeRange TimeRange) (*elastic.SearchResult, error) {
-	indexName := q.cfg.Indices.IndexPrefix.Apply("jaeger-span-")
-	idxList := q.timeRangeIndices(
-		indexName,
-		q.cfg.Indices.Spans.GetDateLayout(),
+	idxList := q.spanRotation.ReadTargets(
 		time.UnixMilli(timeRange.extendedStartTimeMillis).UTC(),
 		time.UnixMilli(timeRange.endTimeMillis).UTC(),
-		config.RolloverFrequencyAsNegativeDuration(q.cfg.Indices.Spans.GetRolloverFrequency()),
 	)
 
 	return q.client.Search(idxList...).

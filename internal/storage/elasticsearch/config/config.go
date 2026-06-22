@@ -36,6 +36,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
@@ -671,6 +672,43 @@ func RolloverFrequencyDuration(frequency string) time.Duration {
 	return 24 * time.Hour
 }
 
+// RotationParams holds parameters for BuildRotation.
+type RotationParams struct {
+	IndexPrefix    string
+	IndexOptions   IndexOptions
+	ExplicitWrite  string
+	ExplicitRead   string
+	UseAliases     bool
+	WriteAlias     string
+	ReadAlias      string
+	RemoteClusters []string
+}
+
+// BuildRotation constructs the appropriate Rotation from the given parameters.
+func BuildRotation(p RotationParams, logger *zap.Logger) indices.Rotation {
+	var r indices.Rotation
+	switch {
+	case p.ExplicitWrite != "" && p.ExplicitRead != "":
+		r = indices.NewAliasedRotation(p.ExplicitWrite, p.ExplicitRead)
+	case p.UseAliases:
+		writeSuffix := "write"
+		if p.WriteAlias != "" {
+			writeSuffix = p.WriteAlias
+		}
+		readSuffix := "read"
+		if p.ReadAlias != "" {
+			readSuffix = p.ReadAlias
+		}
+		r = indices.NewAliasedRotation(p.IndexPrefix+writeSuffix, p.IndexPrefix+readSuffix)
+	default:
+		r = indices.NewPeriodicRotation(p.IndexPrefix, p.IndexOptions.GetDateLayout(), RolloverFrequencyDuration(p.IndexOptions.GetRolloverFrequency()))
+	}
+	if len(p.RemoteClusters) > 0 {
+		r = indices.NewRemoteClusterRotation(r, p.RemoteClusters)
+	}
+	return indices.NewLoggingRotation(r, logger)
+}
+
 // TagKeysAsFields returns tags from the file and command line merged
 func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	var tags []string
@@ -936,21 +974,21 @@ func (c *Configuration) Validate() error {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
-	hasAnyExplicitAlias := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != "" ||
-		c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
+	hasAnyExplicitAlias := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != "" ||
+		c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
 
 	if hasAnyExplicitAlias && !c.GetUseReadWriteAliases() {
 		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
 	}
 
-	hasSpanAliases := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != ""
-	hasServiceAliases := c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
+	hasSpanAliases := c.GetSpanReadAlias() != "" || c.GetSpanWriteAlias() != ""
+	hasServiceAliases := c.GetServiceReadAlias() != "" || c.GetServiceWriteAlias() != ""
 
-	if hasSpanAliases && (c.getSpanReadAlias() == "" || c.getSpanWriteAlias() == "") {
+	if hasSpanAliases && (c.GetSpanReadAlias() == "" || c.GetSpanWriteAlias() == "") {
 		return errors.New("both span_read_alias and span_write_alias must be set together")
 	}
 
-	if hasServiceAliases && (c.getServiceReadAlias() == "" || c.getServiceWriteAlias() == "") {
+	if hasServiceAliases && (c.GetServiceReadAlias() == "" || c.GetServiceWriteAlias() == "") {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 

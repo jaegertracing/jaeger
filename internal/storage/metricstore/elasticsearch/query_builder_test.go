@@ -18,6 +18,7 @@ import (
 
 	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -40,12 +41,20 @@ var testIndicesConfig = config.Indices{
 	},
 }
 
+func testSpanRotation() indices.Rotation {
+	return indices.NewPeriodicRotation(
+		testIndicesConfig.IndexPrefix.Apply("jaeger-span-"),
+		testIndicesConfig.Spans.GetDateLayout(),
+		config.RolloverFrequencyDuration(testIndicesConfig.Spans.GetRolloverFrequency()),
+	)
+}
+
 // Test helper functions
 func setupTestQB() *QueryBuilder {
 	return NewQueryBuilder(nil, config.Configuration{
 		Indices: testIndicesConfig,
 		Tags:    config.TagsAsFields{DotReplacement: "_"},
-	}, zap.NewNop())
+	}, testSpanRotation())
 }
 
 func testAggregationStructure(t *testing.T, agg elastic.Aggregation, expectedInterval string, validateSubAggs func(map[string]any)) {
@@ -153,7 +162,7 @@ func TestExecute(t *testing.T) {
 		LogLevel: "debug",
 	}
 	client := clientProvider(t, cfg, zap.NewNop(), esmetrics.NullFactory)
-	qb := NewQueryBuilder(client, *cfg, zap.NewNop())
+	qb := NewQueryBuilder(client, *cfg, testSpanRotation())
 
 	boolQuery := elastic.NewBoolQuery()
 	aggQuery := elastic.NewDateHistogramAggregation().Field("startTimeMillis").FixedInterval("60000ms")
