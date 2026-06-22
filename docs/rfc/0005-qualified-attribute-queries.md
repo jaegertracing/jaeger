@@ -1,4 +1,4 @@
-# RFC 0004: Qualified Attribute Queries
+# RFC 0005: Qualified Attribute Queries
 
 - **Status:** Draft
 - **Author:** Yuri Shkuro
