@@ -11,8 +11,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// BuildFromConfig constructs the appropriate Rotation from a resolved RotationConfig.
-func BuildFromConfig(prefix string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
+// BuildRotation constructs the appropriate Rotation from a resolved RotationConfig.
+func BuildRotation(prefix string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
 	var r Rotation
 	switch {
 	case rc.ManualRollover.HasValue():

@@ -14,7 +14,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-func TestBuildFromConfig(t *testing.T) {
+func TestBuildRotation(t *testing.T) {
 	logger := zap.NewNop()
 	ts := time.Date(2024, time.March, 15, 0, 0, 0, 0, time.UTC)
 
@@ -113,7 +113,7 @@ func TestBuildFromConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := BuildFromConfig(tt.prefix, tt.rc, tt.remoteClusters, logger)
+			r := BuildRotation(tt.prefix, tt.rc, tt.remoteClusters, logger)
 			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
 		})
