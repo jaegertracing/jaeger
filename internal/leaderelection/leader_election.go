@@ -70,7 +70,7 @@ func (p *DistributedElectionParticipant) Close() error {
 	if wasLeader {
 		forfeited, err := p.lock.Forfeit(p.resourceName)
 		if err != nil {
-			p.Logger.Error(forfeitLockErrMsg, zap.Error(err))
+			p.Logger.Error(forfeitLockErrMsg, zap.String("resource", p.resourceName), zap.Error(err))
 		} else if !forfeited {
 			p.Logger.Warn("Lock was not forfeited", zap.String("resource", p.resourceName))
 		}
