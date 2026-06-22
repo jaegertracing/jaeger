@@ -110,6 +110,21 @@ func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicit
 				WriteAlias: explicitWriteAlias,
 			}),
 		}
+	case c.getUseILM():
+		writeSuffix := "write"
+		if c.WriteAliasSuffix != "" {
+			writeSuffix = c.WriteAliasSuffix
+		}
+		readSuffix := "read"
+		if c.ReadAliasSuffix != "" {
+			readSuffix = c.ReadAliasSuffix
+		}
+		return RotationConfig{
+			AutoRollover: configoptional.Some(AutoRolloverRotation{
+				ReadAlias:  prefix + readSuffix,
+				WriteAlias: prefix + writeSuffix,
+			}),
+		}
 	case c.getUseReadWriteAliases():
 		writeSuffix := "write"
 		if c.WriteAliasSuffix != "" {
