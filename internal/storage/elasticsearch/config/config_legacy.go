@@ -103,6 +103,13 @@ func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicit
 		return idxOpts.Rotation
 	}
 	switch {
+	case c.getUseILM() && explicitReadAlias != "" && explicitWriteAlias != "":
+		return RotationConfig{
+			AutoRollover: configoptional.Some(AutoRolloverRotation{
+				ReadAlias:  explicitReadAlias,
+				WriteAlias: explicitWriteAlias,
+			}),
+		}
 	case explicitReadAlias != "" && explicitWriteAlias != "":
 		return RotationConfig{
 			ManualRollover: configoptional.Some(ManualRolloverRotation{

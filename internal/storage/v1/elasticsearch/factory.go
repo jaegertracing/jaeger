@@ -162,16 +162,15 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
 	spanPrefix := cfg.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
 	spanRC := cfg.ResolvedSpanRotation(spanPrefix)
-	useILM := spanRC.AutoRollover.HasValue()
 	var ilmPolicyName string
-	if useILM {
+	if spanRC.AutoRollover.HasValue() {
 		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
 	}
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
-		UseILM:          useILM,
+		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
 	}
 }
@@ -190,8 +189,7 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 	return err
 }
 
-// TODO: Support UseAliases/RemoteClusters for sampling via a feature flag.
-// Currently these params are silently ignored for sampling indices.
+// TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
 	prefix := f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName)
 	return indices.BuildRotation(prefix, f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
