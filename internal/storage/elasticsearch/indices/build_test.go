@@ -21,6 +21,7 @@ func TestBuildRotation(t *testing.T) {
 	tests := []struct {
 		name           string
 		prefix         string
+		dataStream     string
 		rc             config.RotationConfig
 		remoteClusters []string
 		wantWrite      string
@@ -109,11 +110,31 @@ func TestBuildRotation(t *testing.T) {
 			wantWrite: "jaeger-span-2024-03-15",
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
+		{
+			name:       "data stream reads/writes the data stream name",
+			prefix:     "jaeger-span-",
+			dataStream: "jaeger.spans",
+			rc: config.RotationConfig{
+				DataStream: configoptional.Some(config.DataStreamRotation{}),
+			},
+			wantWrite: "jaeger.spans",
+			wantRead:  []string{"jaeger.spans"},
+		},
+		{
+			name:       "data stream with migration read alias",
+			prefix:     "jaeger-span-",
+			dataStream: "jaeger.spans",
+			rc: config.RotationConfig{
+				DataStream: configoptional.Some(config.DataStreamRotation{ReadAlias: "jaeger.spans-read"}),
+			},
+			wantWrite: "jaeger.spans",
+			wantRead:  []string{"jaeger.spans-read"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := BuildRotation(tt.prefix, tt.rc, tt.remoteClusters, logger)
+			r := BuildRotation(tt.prefix, tt.dataStream, tt.rc, tt.remoteClusters, logger)
 			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
 		})

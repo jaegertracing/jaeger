@@ -3,7 +3,10 @@
 
 package indices
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	SpanTemplateName       = "jaeger-span"
@@ -15,7 +18,26 @@ const (
 	ServiceIndexBaseName    = ServiceTemplateName + "-"
 	DependencyIndexBaseName = DependencyTemplateName + "-"
 	SamplingIndexBaseName   = SamplingTemplateName + "-"
+
+	// SpanDataStreamBaseName is the dot-notation name of the spans data stream.
+	// Dot-notation (vs. "jaeger-span-") aligns with ES/OpenSearch conventions and
+	// enables the "@custom" component-template override pattern. See RFC 0004 §3.1.
+	SpanDataStreamBaseName = "jaeger.spans"
 )
+
+// DataStreamName builds the fully-qualified data stream name for the given raw
+// index prefix, joining with a dot so the prefix participates in the dot-notation
+// hierarchy (e.g. "" -> "jaeger.spans", "prod" -> "prod.jaeger.spans"). See
+// RFC 0004 §3.1.
+func DataStreamName(indexPrefix, base string) string {
+	if indexPrefix == "" {
+		return base
+	}
+	if strings.HasSuffix(indexPrefix, ".") {
+		return indexPrefix + base
+	}
+	return indexPrefix + "." + base
+}
 
 // WriteOpType represents the Elasticsearch bulk operation type.
 type WriteOpType string

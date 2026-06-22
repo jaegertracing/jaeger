@@ -12,9 +12,15 @@ import (
 )
 
 // BuildRotation constructs the appropriate Rotation from a resolved RotationConfig.
-func BuildRotation(prefix string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
+// dataStreamName is the resolved data stream name (e.g. "prod.jaeger.spans") used
+// only by the data_stream variant; it is empty for index types that do not support
+// data streams.
+func BuildRotation(prefix, dataStreamName string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
 	var r Rotation
 	switch {
+	case rc.DataStream.HasValue():
+		ds := rc.DataStream.Get()
+		r = NewDataStreamRotation(dataStreamName, ds.ReadAlias)
 	case rc.ManualRollover.HasValue():
 		mr := rc.ManualRollover.Get()
 		writeAlias := mr.WriteAlias

@@ -38,3 +38,21 @@ func TestDataStreamRotation_WriteOpType(t *testing.T) {
 	// Data streams are append-only and require the "create" bulk op type.
 	assert.Equal(t, WriteOpCreate, r.WriteOpType())
 }
+
+func TestDataStreamName(t *testing.T) {
+	tests := []struct {
+		name        string
+		indexPrefix string
+		want        string
+	}{
+		{name: "no prefix", indexPrefix: "", want: "jaeger.spans"},
+		{name: "simple prefix joins with a dot", indexPrefix: "prod", want: "prod.jaeger.spans"},
+		{name: "prefix already ending in a dot", indexPrefix: "prod.", want: "prod.jaeger.spans"},
+		{name: "dashed prefix is preserved", indexPrefix: "my-team", want: "my-team.jaeger.spans"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, DataStreamName(tt.indexPrefix, SpanDataStreamBaseName))
+		})
+	}
+}
