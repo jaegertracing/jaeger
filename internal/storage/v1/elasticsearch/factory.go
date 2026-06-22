@@ -87,7 +87,7 @@ func (f *FactoryBase) getClient() es.Client {
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildRotations()
-	spanPrefix := f.config.Indices.IndexPrefix.Apply("jaeger-span-")
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
 	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
