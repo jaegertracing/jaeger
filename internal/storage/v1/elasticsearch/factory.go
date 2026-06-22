@@ -59,6 +59,7 @@ func NewFactoryBase(
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
+	f.config.LogDeprecationWarnings(logger)
 	tags, err := f.config.TagKeysAsFields()
 	if err != nil {
 		return nil, err
@@ -86,11 +87,13 @@ func (f *FactoryBase) getClient() es.Client {
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildRotations()
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
 	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
 	// can reach any trace regardless of age.
-	if f.config.UseReadWriteAliases {
+	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
@@ -157,11 +160,18 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 }
 
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+	spanPrefix := cfg.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	spanRC := cfg.ResolvedSpanRotation(spanPrefix)
+	var ilmPolicyName string
+	if spanRC.AutoRollover.HasValue() {
+		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
+	}
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
-		UseILM:          cfg.UseILM,
+		UseILM:          ilmPolicyName != "",
+		ILMPolicyName:   ilmPolicyName,
 	}
 }
 
@@ -179,47 +189,23 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 	return err
 }
 
-// TODO: Support UseAliases/RemoteClusters for sampling via a feature flag.
-// Currently these params are silently ignored for sampling indices.
+// TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
-	return config.BuildRotation(config.RotationParams{
-		IndexPrefix:  f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName),
-		IndexOptions: f.config.Indices.Sampling,
-	}, f.logger)
+	prefix := f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName)
+	return indices.BuildRotation(prefix, f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
-	return config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName),
-		IndexOptions:   f.config.Indices.Dependencies,
-		UseAliases:     f.config.UseReadWriteAliases,
-		WriteAlias:     f.config.WriteAliasSuffix,
-		ReadAlias:      f.config.ReadAliasSuffix,
-		RemoteClusters: f.config.RemoteReadClusters,
-	}, f.logger)
+	prefix := f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName)
+	return indices.BuildRotation(prefix, f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanRotation = config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName),
-		IndexOptions:   f.config.Indices.Spans,
-		ExplicitWrite:  f.config.SpanWriteAlias,
-		ExplicitRead:   f.config.SpanReadAlias,
-		UseAliases:     f.config.UseReadWriteAliases,
-		WriteAlias:     f.config.WriteAliasSuffix,
-		ReadAlias:      f.config.ReadAliasSuffix,
-		RemoteClusters: f.config.RemoteReadClusters,
-	}, f.logger)
-	serviceRotation = config.BuildRotation(config.RotationParams{
-		IndexPrefix:    f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName),
-		IndexOptions:   f.config.Indices.Services,
-		ExplicitWrite:  f.config.ServiceWriteAlias,
-		ExplicitRead:   f.config.ServiceReadAlias,
-		UseAliases:     f.config.UseReadWriteAliases,
-		WriteAlias:     f.config.WriteAliasSuffix,
-		ReadAlias:      f.config.ReadAliasSuffix,
-		RemoteClusters: f.config.RemoteReadClusters,
-	}, f.logger)
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
+
+	spanRotation = indices.BuildRotation(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.logger)
+	serviceRotation = indices.BuildRotation(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
 	return spanRotation, serviceRotation
 }
 

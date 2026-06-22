@@ -13,6 +13,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
 	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
@@ -31,20 +32,20 @@ var commonTimeRange = TimeRange{
 var testIndicesConfig = config.Indices{
 	IndexPrefix: "test-jaeger",
 	Spans: config.IndexOptions{
-		DateLayout:        "2006-01-02",
-		RolloverFrequency: "day",
+		DateLayout:        configoptional.Some("2006-01-02"),
+		RolloverFrequency: configoptional.Some("day"),
 	},
 	Services: config.IndexOptions{
-		DateLayout:        "2006-01-02-15",
-		RolloverFrequency: "hour",
+		DateLayout:        configoptional.Some("2006-01-02-15"),
+		RolloverFrequency: configoptional.Some("hour"),
 	},
 }
 
 func testSpanRotation() indices.Rotation {
 	return indices.NewPeriodicRotation(
 		testIndicesConfig.IndexPrefix.Apply("jaeger-span-"),
-		testIndicesConfig.Spans.DateLayout,
-		config.RolloverFrequencyDuration(testIndicesConfig.Spans.RolloverFrequency),
+		testIndicesConfig.Spans.GetDateLayout(),
+		config.RolloverFrequencyDuration(testIndicesConfig.Spans.GetRolloverFrequency()),
 	)
 }
 

@@ -475,8 +475,8 @@ func TestBuildRotations(t *testing.T) {
 			name: "periodic rotation",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services: escfg.IndexOptions{DateLayout: serviceDataLayout},
+					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
 			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
@@ -485,7 +485,7 @@ func TestBuildRotations(t *testing.T) {
 		{
 			name: "alias rotation",
 			cfg: escfg.Configuration{
-				UseReadWriteAliases: true,
+				UseReadWriteAliases: configoptional.Some(true),
 			},
 			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
 			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
@@ -493,7 +493,7 @@ func TestBuildRotations(t *testing.T) {
 		{
 			name: "alias with custom suffixes",
 			cfg: escfg.Configuration{
-				UseReadWriteAliases: true,
+				UseReadWriteAliases: configoptional.Some(true),
 				ReadAliasSuffix:     "archive-read",
 				WriteAliasSuffix:    "archive-write",
 			},
@@ -503,10 +503,10 @@ func TestBuildRotations(t *testing.T) {
 		{
 			name: "explicit aliases",
 			cfg: escfg.Configuration{
-				SpanWriteAlias:    "custom-span-write",
-				SpanReadAlias:     "custom-span-read",
-				ServiceWriteAlias: "custom-service-write",
-				ServiceReadAlias:  "custom-service-read",
+				SpanWriteAlias:    configoptional.Some("custom-span-write"),
+				SpanReadAlias:     configoptional.Some("custom-span-read"),
+				ServiceWriteAlias: configoptional.Some("custom-service-write"),
+				ServiceReadAlias:  configoptional.Some("custom-service-read"),
 			},
 			readIndices:  []string{"custom-span-read", "custom-service-read"},
 			writeIndices: []string{"custom-span-write", "custom-service-write"},
@@ -516,8 +516,8 @@ func TestBuildRotations(t *testing.T) {
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
 					IndexPrefix: "foo:",
-					Spans:       escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services:    escfg.IndexOptions{DateLayout: serviceDataLayout},
+					Spans:       escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services:    escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
 			readIndices:  []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
@@ -527,8 +527,8 @@ func TestBuildRotations(t *testing.T) {
 			name: "with remote clusters",
 			cfg: escfg.Configuration{
 				Indices: escfg.Indices{
-					Spans:    escfg.IndexOptions{DateLayout: spanDataLayout},
-					Services: escfg.IndexOptions{DateLayout: serviceDataLayout},
+					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
@@ -542,6 +542,69 @@ func TestBuildRotations(t *testing.T) {
 			},
 			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
+		{
+			name: "rotation config: periodic",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: spanDataLayout}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: serviceDataLayout}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+		},
+		{
+			name: "rotation config: manual_rollover",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+								ReadAlias:  "my-span-read",
+								WriteAlias: "my-span-write",
+							}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+								ReadAlias:  "my-service-read",
+								WriteAlias: "my-service-write",
+							}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"my-span-read", "my-service-read"},
+			writeIndices: []string{"my-span-write", "my-service-write"},
+		},
+		{
+			name: "rotation config: auto_rollover with defaults",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
+			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -553,6 +616,85 @@ func TestBuildRotations(t *testing.T) {
 			assert.Equal(t, tc.writeIndices, actualWrite)
 		})
 	}
+}
+
+func TestMappingBuilderFromConfig(t *testing.T) {
+	tests := []struct {
+		name               string
+		cfg                escfg.Configuration
+		expectedUseILM     bool
+		expectedPolicyName string
+	}{
+		{
+			name:           "periodic rotation - no ILM",
+			cfg:            escfg.Configuration{},
+			expectedUseILM: false,
+		},
+		{
+			name: "auto_rollover with policy name",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{
+								PolicyName: "my-policy",
+							}),
+						},
+					},
+				},
+			},
+			expectedUseILM:     true,
+			expectedPolicyName: "my-policy",
+		},
+		{
+			name: "auto_rollover without policy name",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+				},
+			},
+			expectedUseILM: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
+			mb := f.mappingBuilderFromConfig(f.config)
+			assert.Equal(t, tc.expectedUseILM, mb.UseILM)
+			assert.Equal(t, tc.expectedPolicyName, mb.ILMPolicyName)
+		})
+	}
+}
+
+func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
+	cfg := escfg.Configuration{
+		Indices: escfg.Indices{
+			Spans: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "span-read",
+						WriteAlias: "span-write",
+					}),
+				},
+			},
+			Services: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "svc-read",
+						WriteAlias: "svc-write",
+					}),
+				},
+			},
+		},
+		MaxSpanAge: 72 * time.Hour,
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	params := f.GetSpanReaderParams()
+	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
 }
 
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
