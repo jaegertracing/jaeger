@@ -364,10 +364,10 @@ type BasicAuthentication struct {
 	// Password contains The password required by Elasticsearch
 	Password string `mapstructure:"password" json:"-"`
 	// PasswordFilePath contains the path to a file containing password.
-	// This file is watched for changes.
+	// The file is re-read periodically according to ReloadInterval.
 	PasswordFilePath string `mapstructure:"password_file"`
-	// ReloadInterval contains the interval at which the password file is reloaded.
-	// If set to 0 then the file is only loaded once on startup.
+	// ReloadInterval is how often the password file is re-read.
+	// Defaults to 0, which means the file is read once at startup and never reloaded.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
