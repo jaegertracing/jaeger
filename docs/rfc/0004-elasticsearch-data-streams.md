@@ -409,10 +409,12 @@ Validation rejects configs where more than one variant is set (or where an unsup
 
 | `rotation` variant | Equivalent legacy flags | Behavior |
 |--------------------|-------------------------|----------|
-| `periodic` (default) | `use_aliases: false`, `use_ilm: false` | Daily/hourly indices, Jaeger creates templates on startup |
-| `manual_rollover` | `use_aliases: true`, `use_ilm: false` | Numbered indices via aliases, requires `jaeger-es-rollover init` |
-| `auto_rollover` | `use_aliases: true`, `use_ilm: true`, `create_mappings: false` | Rollover managed by ILM/ISM, requires `jaeger-es-rollover init` |
-| `data_stream` | N/A (new) | Data streams, no external tooling needed |
+| `periodic` (default) | `use_aliases: false`, `use_ilm: false` | Daily/hourly indices, Jaeger writes to time-stamped index names |
+| `manual_rollover` | `use_aliases: true`, `use_ilm: false` | Numbered indices via aliases, requires `jaeger-es-rollover init` for first index + alias bootstrap |
+| `auto_rollover` | `use_aliases: true`, `use_ilm: true` | Rollover managed by ILM/ISM, requires `jaeger-es-rollover init` for first index + alias bootstrap |
+| `data_stream` | N/A (new) | Data streams, no external initialization needed (first write auto-creates the stream) |
+
+Note: `create_mappings` is orthogonal — it applies independently to any rotation strategy (see Q4).
 
 #### Backward Compatibility with Legacy Flags
 
@@ -806,9 +808,24 @@ Recommendation: Require OpenSearch 2.0+ or ES 7.9+ for `rotation.data_stream`. F
 
 ### Q4: What happens to `CreateIndexTemplates` flag?
 
-Recommendation: When `rotation.data_stream` is configured, Jaeger ALWAYS creates the composable index template (the internal `create_mappings` flag is set to `true`). Rationale: data stream templates are cheap to create, idempotent, and the `@custom` pattern ensures user customizations are never overwritten.
+`create_mappings` is orthogonal to the rotation strategy. It answers "should Jaeger create index templates at startup, or does an external process (Terraform, Helm, es-rollover init, etc.) handle that?" The rotation strategy determines WHAT goes into the template; `create_mappings` controls WHETHER Jaeger is the one creating it.
 
-For legacy mode, `create_mappings` continues to work as before. No deprecation needed — it's orthogonal.
+**Historical note**: With the old config, ILM mode required `create_mappings: false` because the factory didn't have the ILM policy name — only the es-rollover init tool did (via `--ilm-policy-name`). Without the policy name, factory-created templates would have an empty lifecycle reference. With the new `auto_rollover.policy_name` field, this accidental coupling disappears: the factory can render valid ILM templates itself.
+
+**Recommendation**: `create_mappings` is NOT deprecated. It remains a standalone setting independent of rotation strategy. Valid combinations include:
+
+| Rotation | `create_mappings` | Use case |
+|----------|-------------------|----------|
+| `periodic` | `true` (default) | Jaeger manages simple date-based templates |
+| `periodic` | `false` | User manages templates externally (Terraform, etc.) |
+| `manual_rollover` | `false` (typical) | es-rollover init creates templates as part of alias+index bootstrap |
+| `manual_rollover` | `true` | Jaeger creates templates; user still needs es-rollover init for first index + aliases |
+| `auto_rollover` | `true` | Jaeger creates ILM-aware templates (policy name from config); user still needs es-rollover init for first index + aliases |
+| `auto_rollover` | `false` | es-rollover init handles everything (legacy behavior) |
+| `data_stream` | `true` (default) | Jaeger creates composable templates + lifecycle policy |
+| `data_stream` | `false` | User pre-creates templates externally |
+
+The old validation rule "when UseILM is set true, CreateIndexTemplates must be set to false" should be removed once `auto_rollover.policy_name` is wired into the factory's `MappingBuilder`.
 
 ### Q5: Naming the lifecycle policy
 

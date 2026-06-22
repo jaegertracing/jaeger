@@ -195,7 +195,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "20060102", primary.Indices.Services.GetDateLayout())
 	assert.Equal(t, "2006010215", primary.Indices.Spans.GetDateLayout())
 	// Use ILM
-	assert.True(t, primary.GetUseILM())
+	assert.True(t, primary.UseILM.HasValue() && *primary.UseILM.Get())
 	// HTTP Compression
 	assert.True(t, primary.HTTPCompression)
 }

@@ -160,11 +160,19 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 }
 
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+	spanPrefix := cfg.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
+	spanRC := cfg.ResolvedSpanRotation(spanPrefix)
+	useILM := spanRC.AutoRollover.HasValue()
+	var ilmPolicyName string
+	if useILM {
+		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
+	}
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
 		EsVersion:       cfg.Version,
-		UseILM:          cfg.GetUseILM(),
+		UseILM:          useILM,
+		ILMPolicyName:   ilmPolicyName,
 	}
 }
 

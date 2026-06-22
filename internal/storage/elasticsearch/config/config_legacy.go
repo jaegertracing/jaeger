@@ -10,7 +10,7 @@ import (
 )
 
 // RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
-// to reject deprecated rotation-related flags (use_aliases, use_ilm, create_mappings,
+// to reject deprecated rotation-related flags (use_aliases, use_ilm,
 // span_read_alias, span_write_alias, service_read_alias, service_write_alias).
 // Once promoted to Stable, users must migrate to the new rotation config.
 var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
@@ -19,7 +19,7 @@ var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterFromVersion("v2.9.0"),
 	featuregate.WithRegisterDescription(
 		"When enabled, the use of deprecated ES rotation flags "+
-			"(use_aliases, use_ilm, create_mappings, span_read_alias, etc.) "+
+			"(use_aliases, use_ilm, span_read_alias, etc.) "+
 			"becomes a validation error instead of a deprecation warning.",
 	),
 )
@@ -39,8 +39,7 @@ func (c *Configuration) GetCreateIndexTemplates() bool {
 	return false
 }
 
-// GetUseILM returns the effective value of the deprecated UseILM flag.
-func (c *Configuration) GetUseILM() bool {
+func (c *Configuration) getUseILM() bool {
 	if p := c.UseILM.Get(); p != nil {
 		return *p
 	}
@@ -79,7 +78,6 @@ func (c *Configuration) getServiceWriteAlias() string {
 func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 	return c.UseReadWriteAliases.HasValue() ||
 		c.UseILM.HasValue() ||
-		c.CreateIndexTemplates.HasValue() ||
 		c.SpanReadAlias.HasValue() ||
 		c.SpanWriteAlias.HasValue() ||
 		c.ServiceReadAlias.HasValue() ||
@@ -156,7 +154,6 @@ func (c *Configuration) LogDeprecationWarnings(logger *zap.Logger) {
 	deprecations := []deprecation{
 		{"use_aliases", c.UseReadWriteAliases.HasValue(), "use 'indices.spans.rotation.manual_rollover' (or auto_rollover) instead"},
 		{"use_ilm", c.UseILM.HasValue(), "use 'indices.spans.rotation.auto_rollover' instead"},
-		{"create_mappings", c.CreateIndexTemplates.HasValue(), "this flag will be removed in a future version; use 'indices.<type>.rotation' config instead"},
 		{"span_read_alias", c.SpanReadAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.read_alias' instead"},
 		{"span_write_alias", c.SpanWriteAlias.HasValue(), "use 'indices.spans.rotation.manual_rollover.write_alias' instead"},
 		{"service_read_alias", c.ServiceReadAlias.HasValue(), "use 'indices.services.rotation.manual_rollover.read_alias' instead"},

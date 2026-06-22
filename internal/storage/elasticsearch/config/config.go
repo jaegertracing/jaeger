@@ -42,6 +42,8 @@ import (
 
 const (
 	IndexPrefixSeparator = "-"
+
+	legacyRotationFlagsList = "use_aliases, use_ilm, span_read_alias, span_write_alias, service_read_alias, service_write_alias"
 )
 
 // IndexOptions describes the index format and rollover frequency
@@ -931,19 +933,19 @@ func (c *Configuration) Validate() error {
 	}
 
 	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {
-		return errors.New(
-			"deprecated ES rotation flags (use_aliases, use_ilm, create_mappings, " +
-				"span_read_alias, span_write_alias, service_read_alias, service_write_alias) " +
-				"are no longer supported; migrate to 'indices.<type>.rotation' config " +
-				"(see https://github.com/jaegertracing/jaeger/pull/8823); " +
+		return fmt.Errorf(
+			"deprecated ES rotation flags (%s) "+
+				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
+				"(see https://github.com/jaegertracing/jaeger/pull/8823); "+
 				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
+			legacyRotationFlagsList,
 		)
 	}
 
-	if c.GetUseILM() && !c.getUseReadWriteAliases() {
+	if c.getUseILM() && !c.getUseReadWriteAliases() {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	if c.GetCreateIndexTemplates() && c.GetUseILM() {
+	if c.GetCreateIndexTemplates() && c.getUseILM() {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
@@ -975,10 +977,10 @@ func (c *Configuration) validateRotationConfig() error {
 		c.Indices.Sampling.Rotation.HasRotation()
 
 	if hasAnyRotation && c.hasAnyLegacyRotationFlags() {
-		return errors.New(
-			"cannot use both 'rotation' config and legacy flags (use_aliases, use_ilm, " +
-				"create_mappings, span_read_alias, etc.) simultaneously; " +
+		return fmt.Errorf(
+			"cannot use both 'rotation' config and legacy flags (%s) simultaneously; "+
 				"remove the legacy flags and use the 'rotation' section instead",
+			legacyRotationFlagsList,
 		)
 	}
 
