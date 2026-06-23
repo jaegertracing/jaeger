@@ -35,6 +35,9 @@ jobs:
           storage_test: e2e
         - major: 9.x
           distribution: elasticsearch
+          storage_test: direct
+        - major: 9.x
+          distribution: elasticsearch
           storage_test: e2e
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
     steps:
