@@ -32,6 +32,9 @@ jobs:
           storage_test: e2e
         - major: 3.x
           distribution: opensearch
+          storage_test: direct
+        - major: 3.x
+          distribution: opensearch
           storage_test: e2e
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
     steps:

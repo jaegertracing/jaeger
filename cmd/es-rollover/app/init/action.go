@@ -45,6 +45,9 @@ func (c Action) Do() error {
 		if !version.SupportsILM() {
 			return fmt.Errorf("ILM/ISM is not supported in %s", version)
 		}
+		if ilm, ok := c.ILMClient.(*client.ILMClient); ok && version.IsOpenSearch() {
+			ilm.UseOpenSearchISM = true
+		}
 		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
 		if err != nil {
 			return err
