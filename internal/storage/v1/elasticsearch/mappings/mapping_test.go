@@ -27,18 +27,18 @@ var FIXTURES embed.FS
 
 func TestMappingBuilderGetMapping(t *testing.T) {
 	tests := []struct {
-		mapping   MappingType
-		esVersion uint
+		mapping MappingType
+		version es.BackendVersion
 	}{
-		{mapping: SpanMapping, esVersion: 8},
-		{mapping: SpanMapping, esVersion: 7},
-		{mapping: SpanMapping, esVersion: 6},
-		{mapping: ServiceMapping, esVersion: 8},
-		{mapping: ServiceMapping, esVersion: 7},
-		{mapping: ServiceMapping, esVersion: 6},
-		{mapping: DependenciesMapping, esVersion: 8},
-		{mapping: DependenciesMapping, esVersion: 7},
-		{mapping: DependenciesMapping, esVersion: 6},
+		{mapping: SpanMapping, version: es.ElasticV8},
+		{mapping: SpanMapping, version: es.ElasticV7},
+		{mapping: SpanMapping, version: es.ElasticV6},
+		{mapping: ServiceMapping, version: es.ElasticV8},
+		{mapping: ServiceMapping, version: es.ElasticV7},
+		{mapping: ServiceMapping, version: es.ElasticV6},
+		{mapping: DependenciesMapping, version: es.ElasticV8},
+		{mapping: DependenciesMapping, version: es.ElasticV7},
+		{mapping: DependenciesMapping, version: es.ElasticV6},
 	}
 	for _, tt := range tests {
 		templateName := tt.mapping.String()
@@ -64,15 +64,68 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 					Dependencies: dependenciesOps,
 					Sampling:     samplingOps,
 				},
-				EsVersion:     tt.esVersion,
+				Version:       tt.version,
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
 			got, err := mb.GetMapping(tt.mapping)
 			require.NoError(t, err)
 			var wantbytes []byte
-			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
+			fileSuffix := fmt.Sprintf("-%d", tt.version.TemplateVersion())
 			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
+			require.NoError(t, err)
+			want := string(wantbytes)
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+func TestMappingBuilderGetMapping_OpenSearch(t *testing.T) {
+	tests := []struct {
+		mapping MappingType
+		version es.BackendVersion
+	}{
+		{mapping: SpanMapping, version: es.OpenSearch2},
+		{mapping: SpanMapping, version: es.OpenSearch1},
+		{mapping: ServiceMapping, version: es.OpenSearch2},
+		{mapping: ServiceMapping, version: es.OpenSearch1},
+		{mapping: DependenciesMapping, version: es.OpenSearch2},
+		{mapping: DependenciesMapping, version: es.OpenSearch1},
+		{mapping: SamplingMapping, version: es.OpenSearch2},
+		{mapping: SamplingMapping, version: es.OpenSearch1},
+	}
+	for _, tt := range tests {
+		templateName := tt.mapping.String()
+
+		t.Run(fmt.Sprintf("%s/%s", templateName, tt.version), func(t *testing.T) {
+			defaultOpts := func(p int64) config.IndexOptions {
+				return config.IndexOptions{
+					Shards:   3,
+					Replicas: new(int64(3)),
+					Priority: p,
+				}
+			}
+			serviceOps := defaultOpts(501)
+			dependenciesOps := defaultOpts(502)
+			samplingOps := defaultOpts(503)
+
+			mb := &MappingBuilder{
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					IndexPrefix:  "test-",
+					Spans:        defaultOpts(500),
+					Services:     serviceOps,
+					Dependencies: dependenciesOps,
+					Sampling:     samplingOps,
+				},
+				Version:       tt.version,
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
+			}
+			got, err := mb.GetMapping(tt.mapping)
+			require.NoError(t, err)
+			fileSuffix := fmt.Sprintf("-%d-opensearch", tt.version.TemplateVersion())
+			wantbytes, err := FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
 			require.NoError(t, err)
 			want := string(wantbytes)
 			assert.Equal(t, want, got)
@@ -187,7 +240,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 					Dependencies: indexTemOps,
 					Sampling:     indexTemOps,
 				},
-				EsVersion:     7,
+				Version:       es.ElasticV7,
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
@@ -203,7 +256,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
-		esVersion     uint
+		version       es.BackendVersion
 		indexPrefix   string
 		useILM        bool
 		ilmPolicyName string
@@ -217,7 +270,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7",
 			args: args{
-				esVersion:     7,
+				version:       es.ElasticV7,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -234,7 +287,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7 Service Error",
 			args: args{
-				esVersion:     7,
+				version:       es.ElasticV7,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -253,7 +306,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7",
 			args: args{
-				esVersion:     6,
+				version:       es.ElasticV6,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -270,7 +323,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Service Error",
 			args: args{
-				esVersion:     6,
+				version:       es.ElasticV6,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -288,7 +341,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Span Error",
 			args: args{
-				esVersion:     6,
+				version:       es.ElasticV6,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -305,7 +358,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
-				esVersion:     7,
+				version:       es.ElasticV7,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -335,7 +388,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 					Dependencies: indexTemOps,
 					Sampling:     indexTemOps,
 				},
-				EsVersion:     test.args.esVersion,
+				Version:       test.args.version,
 				UseILM:        test.args.useILM,
 				ILMPolicyName: test.args.ilmPolicyName,
 			}

@@ -40,6 +40,29 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
+// TODO(decouple): config imports es for two things:
+//  1. es.Client — NewClient() returns es.Client (interface in internal/storage/elasticsearch/client.go)
+//  2. eswrapper — it calls eswrapper.WrapESClient(...) to construct the concrete client
+//
+// This creates awkward layering where config is responsible for constructing the
+// client, not just holding configuration. Config should ideally be a leaf package
+// with no upward dependencies.
+//
+// Plan to decouple:
+//  1. Extract client construction from config — move NewClient() into a separate
+//     clientbuilder package (or into the wrapper package itself). The function
+//     takes a config.Configuration and returns an es.Client. This removes config's
+//     import of both es and eswrapper.
+//  2. Move BackendVersion detection into the builder — the builder does the ping,
+//     calls DetectBackendVersion(), and sets cfg.Version before constructing the
+//     wrapper. Config remains a pure data struct.
+//  3. Update FactoryBase — instead of newClientFn pointing at config.NewClient,
+//     it points at the new builder function. The factory already lives at the
+//     right layer for this.
+//  4. Result: config becomes a pure data package (structs + validation), es defines
+//     interfaces + BackendVersion, and client construction lives in a package that
+//     is allowed to depend on both.
+
 const IndexPrefixSeparator = "-"
 
 // IndexOptions describes the index format and rollover frequency
@@ -145,9 +168,9 @@ type Configuration struct {
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
-	// Version contains the major Elasticsearch version. If this field is not specified,
-	// the value will be auto-detected from Elasticsearch.
-	Version uint `mapstructure:"version"`
+	// Version contains the backend version (Elasticsearch or OpenSearch).
+	// If not specified, it will be auto-detected from the server.
+	Version es.BackendVersion `mapstructure:"version"`
 	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
 	// are: [debug, info, error]
 	LogLevel string `mapstructure:"log_level"`
@@ -318,7 +341,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 	}
 
 	if c.Version == 0 {
-		// Determine ElasticSearch Version
+		// Determine backend version
 		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
@@ -336,31 +359,16 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
 		}
 
-		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+		majorVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 		if err != nil {
 			return nil, err
 		}
-		// OpenSearch is based on ES 7.x
-		if strings.Contains(pingResult.TagLine, "OpenSearch") {
-			if pingResult.Version.Number[0] == '1' {
-				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '2' {
-				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '3' {
-				logger.Info("OpenSearch 3.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-		}
-		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		c.Version = uint(esVersion)
+		c.Version = es.DetectBackendVersion(pingResult.TagLine, majorVersion)
+		logger.Info("Backend detected", zap.Stringer("version", c.Version))
 	}
 
 	var rawClientV8 *esv8.Client
-	if c.Version >= 8 {
+	if c.Version.UsesV8API() {
 		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)

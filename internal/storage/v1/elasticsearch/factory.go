@@ -169,7 +169,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
-		EsVersion:       cfg.Version,
+		Version:         cfg.Version,
 		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
 	}

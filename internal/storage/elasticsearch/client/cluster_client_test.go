@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 const badVersionType = `
@@ -168,43 +170,43 @@ func TestVersion(t *testing.T) {
 		responseCode   int
 		response       string
 		errContains    string
-		expectedResult uint
+		expectedResult es.BackendVersion
 	}{
 		{
 			name:           "success with elasticsearch 6",
 			responseCode:   http.StatusOK,
 			response:       elasticsearch6,
-			expectedResult: 6,
+			expectedResult: es.ElasticV6,
 		},
 		{
 			name:           "success with elasticsearch 7",
 			responseCode:   http.StatusOK,
 			response:       elasticsearch7,
-			expectedResult: 7,
+			expectedResult: es.ElasticV7,
 		},
 		{
 			name:           "success with elasticsearch 8",
 			responseCode:   http.StatusOK,
 			response:       elasticsearch8,
-			expectedResult: 8,
+			expectedResult: es.ElasticV8,
 		},
 		{
 			name:           "success with opensearch 1",
 			responseCode:   http.StatusOK,
 			response:       opensearch1,
-			expectedResult: 7,
+			expectedResult: es.OpenSearch1,
 		},
 		{
 			name:           "success with opensearch 2",
 			responseCode:   http.StatusOK,
 			response:       opensearch2,
-			expectedResult: 7,
+			expectedResult: es.OpenSearch2,
 		},
 		{
 			name:           "success with opensearch 3",
 			responseCode:   http.StatusOK,
 			response:       opensearch3,
-			expectedResult: 7,
+			expectedResult: es.OpenSearch3,
 		},
 		{
 			name:         "client error",

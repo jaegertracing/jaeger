@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -569,22 +570,22 @@ func (_m *ClusterAPI) EXPECT() *ClusterAPI_Expecter {
 }
 
 // Version provides a mock function for the type ClusterAPI
-func (_mock *ClusterAPI) Version() (uint, error) {
+func (_mock *ClusterAPI) Version() (elasticsearch.BackendVersion, error) {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for Version")
 	}
 
-	var r0 uint
+	var r0 elasticsearch.BackendVersion
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() (uint, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func() (elasticsearch.BackendVersion, error)); ok {
 		return returnFunc()
 	}
-	if returnFunc, ok := ret.Get(0).(func() uint); ok {
+	if returnFunc, ok := ret.Get(0).(func() elasticsearch.BackendVersion); ok {
 		r0 = returnFunc()
 	} else {
-		r0 = ret.Get(0).(uint)
+		r0 = ret.Get(0).(elasticsearch.BackendVersion)
 	}
 	if returnFunc, ok := ret.Get(1).(func() error); ok {
 		r1 = returnFunc()
@@ -611,12 +612,12 @@ func (_c *ClusterAPI_Version_Call) Run(run func()) *ClusterAPI_Version_Call {
 	return _c
 }
 
-func (_c *ClusterAPI_Version_Call) Return(v uint, err error) *ClusterAPI_Version_Call {
-	_c.Call.Return(v, err)
+func (_c *ClusterAPI_Version_Call) Return(backendVersion elasticsearch.BackendVersion, err error) *ClusterAPI_Version_Call {
+	_c.Call.Return(backendVersion, err)
 	return _c
 }
 
-func (_c *ClusterAPI_Version_Call) RunAndReturn(run func() (uint, error)) *ClusterAPI_Version_Call {
+func (_c *ClusterAPI_Version_Call) RunAndReturn(run func() (elasticsearch.BackendVersion, error)) *ClusterAPI_Version_Call {
 	_c.Call.Return(run)
 	return _c
 }
