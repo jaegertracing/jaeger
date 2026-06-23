@@ -48,6 +48,7 @@ func TestDataStreamName(t *testing.T) {
 		{name: "no prefix", indexPrefix: "", want: "jaeger.spans"},
 		{name: "simple prefix joins with a dot", indexPrefix: "prod", want: "prod.jaeger.spans"},
 		{name: "prefix already ending in a dot", indexPrefix: "prod.", want: "prod.jaeger.spans"},
+		{name: "prefix ending in the legacy dash separator", indexPrefix: "prod-", want: "prod.jaeger.spans"},
 		{name: "dashed prefix is preserved", indexPrefix: "my-team", want: "my-team.jaeger.spans"},
 	}
 	for _, tt := range tests {
