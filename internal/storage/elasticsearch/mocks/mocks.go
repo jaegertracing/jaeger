@@ -391,6 +391,50 @@ func (_c *Client_IndexExists_Call) RunAndReturn(run func(index string) elasticse
 	return _c
 }
 
+// IsOpenSearch provides a mock function for the type Client
+func (_mock *Client) IsOpenSearch() bool {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for IsOpenSearch")
+	}
+
+	var r0 bool
+	if returnFunc, ok := ret.Get(0).(func() bool); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	return r0
+}
+
+// Client_IsOpenSearch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsOpenSearch'
+type Client_IsOpenSearch_Call struct {
+	*mock.Call
+}
+
+// IsOpenSearch is a helper method to define mock.On call
+func (_e *Client_Expecter) IsOpenSearch() *Client_IsOpenSearch_Call {
+	return &Client_IsOpenSearch_Call{Call: _e.mock.On("IsOpenSearch")}
+}
+
+func (_c *Client_IsOpenSearch_Call) Run(run func()) *Client_IsOpenSearch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *Client_IsOpenSearch_Call) Return(b bool) *Client_IsOpenSearch_Call {
+	_c.Call.Return(b)
+	return _c
+}
+
+func (_c *Client_IsOpenSearch_Call) RunAndReturn(run func() bool) *Client_IsOpenSearch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // MultiSearch provides a mock function for the type Client
 func (_mock *Client) MultiSearch() elasticsearch.MultiSearchService {
 	ret := _mock.Called()

@@ -148,10 +148,6 @@ type Configuration struct {
 	// Version contains the major Elasticsearch version. If this field is not specified,
 	// the value will be auto-detected from Elasticsearch.
 	Version uint `mapstructure:"version"`
-	// IsOpenSearch is set to true when the backend is detected as OpenSearch
-	// (based on the ping response tagline). This affects how index templates
-	// are rendered (e.g., ISM vs ILM lifecycle settings).
-	IsOpenSearch bool `mapstructure:"-"`
 	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
 	// are: [debug, info, error]
 	LogLevel string `mapstructure:"log_level"`
@@ -321,6 +317,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		logger: logger,
 	}
 
+	var isOpenSearch bool
 	if c.Version == 0 {
 		// Determine ElasticSearch Version
 		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
@@ -346,7 +343,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		}
 		// OpenSearch is based on ES 7.x
 		if strings.Contains(pingResult.TagLine, "OpenSearch") {
-			c.IsOpenSearch = true
+			isOpenSearch = true
 			if pingResult.Version.Number[0] == '1' {
 				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
 				esVersion = 7
@@ -386,7 +383,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		return nil, err
 	}
 
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8, isOpenSearch), nil
 }
 
 func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {

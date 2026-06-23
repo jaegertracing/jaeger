@@ -21,10 +21,11 @@ import (
 
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
-	client      *elastic.Client
-	bulkService *elastic.BulkProcessor
-	esVersion   uint
-	clientV8    *esv8.Client
+	client       *elastic.Client
+	bulkService  *elastic.BulkProcessor
+	esVersion    uint
+	clientV8     *esv8.Client
+	isOpenSearch bool
 }
 
 // GetVersion returns the ElasticSearch Version
@@ -32,13 +33,19 @@ func (c ClientWrapper) GetVersion() uint {
 	return c.esVersion
 }
 
+// IsOpenSearch returns true if the backend is OpenSearch.
+func (c ClientWrapper) IsOpenSearch() bool {
+	return c.isOpenSearch
+}
+
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client, isOpenSearch bool) ClientWrapper {
 	return ClientWrapper{
-		client:      client,
-		bulkService: s,
-		esVersion:   esVersion,
-		clientV8:    clientV8,
+		client:       client,
+		bulkService:  s,
+		isOpenSearch: isOpenSearch,
+		esVersion:    esVersion,
+		clientV8:     clientV8,
 	}
 }
 

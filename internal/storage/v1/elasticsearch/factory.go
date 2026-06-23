@@ -37,7 +37,8 @@ type FactoryBase struct {
 
 	config *config.Configuration
 
-	client es.Client
+	client       es.Client
+	isOpenSearch bool
 
 	templateBuilder es.TemplateBuilder
 
@@ -71,6 +72,7 @@ func NewFactoryBase(
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 	f.client = client
+	f.isOpenSearch = client.IsOpenSearch()
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -172,7 +174,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		EsVersion:       cfg.Version,
 		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
-		IsOpenSearch:    cfg.IsOpenSearch,
+		IsOpenSearch:    f.isOpenSearch,
 	}
 }
 

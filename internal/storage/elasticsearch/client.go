@@ -22,6 +22,7 @@ type Client interface {
 	DeleteIndex(index string) IndicesDeleteService
 	io.Closer
 	GetVersion() uint
+	IsOpenSearch() bool
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
