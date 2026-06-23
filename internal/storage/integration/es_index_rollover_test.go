@@ -139,7 +139,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version e
 	indices, err := client.IndexNames()
 	require.NoError(t, err)
 
-	// Get settings and verify ILM/ISM policy is attached
+	// Get settings and verify ILM policy name (ES) or ISM rollover alias (OpenSearch)
 	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
 	require.NoError(t, err)
 	for _, v := range settings {
