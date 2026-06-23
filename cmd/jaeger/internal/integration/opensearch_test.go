@@ -23,3 +23,33 @@ func TestOpenSearchStorage(t *testing.T) {
 	s.e2eInitialize(t, "opensearch")
 	s.RunSpanStoreTests(t)
 }
+
+func TestOpenSearchStorage_ManualRollover(t *testing.T) {
+	integration.SkipUnlessEnv(t, "opensearch")
+	setupManualRolloverIndices(t, "jaeger-mr")
+
+	s := &E2EStorageIntegration{
+		ConfigFile: "../../config-opensearch-manual-rollover.yaml",
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp:      purge,
+			Capabilities: capabilities.OpenSearch(),
+		},
+	}
+	s.e2eInitialize(t, "opensearch")
+	s.RunSpanStoreTests(t)
+}
+
+func TestOpenSearchStorage_AutoRollover(t *testing.T) {
+	integration.SkipUnlessEnv(t, "opensearch")
+	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+
+	s := &E2EStorageIntegration{
+		ConfigFile: "../../config-opensearch-auto-rollover.yaml",
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp:      purge,
+			Capabilities: capabilities.OpenSearch(),
+		},
+	}
+	s.e2eInitialize(t, "opensearch")
+	s.RunSpanStoreTests(t)
+}

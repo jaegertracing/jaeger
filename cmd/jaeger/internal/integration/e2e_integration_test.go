@@ -9,6 +9,10 @@ func TestCreateStorageCleanerConfig(t *testing.T) {
 	// Ensure that we can parse the existing configs correctly.
 	// This is faster to run than the full integration test.
 	createStorageCleanerConfig(t, "../../config-elasticsearch.yaml", "elasticsearch")
+	createStorageCleanerConfig(t, "../../config-elasticsearch-manual-rollover.yaml", "elasticsearch")
+	createStorageCleanerConfig(t, "../../config-elasticsearch-auto-rollover.yaml", "elasticsearch")
 	createStorageCleanerConfig(t, "../../config-opensearch.yaml", "opensearch")
+	createStorageCleanerConfig(t, "../../config-opensearch-manual-rollover.yaml", "opensearch")
+	createStorageCleanerConfig(t, "../../config-opensearch-auto-rollover.yaml", "opensearch")
 	createStorageCleanerConfig(t, "../../config-remote-storage-backend.yaml", "memory")
 }
