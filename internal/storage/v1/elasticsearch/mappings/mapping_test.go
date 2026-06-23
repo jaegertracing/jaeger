@@ -80,6 +80,60 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 	}
 }
 
+func TestMappingBuilderGetMapping_OpenSearch(t *testing.T) {
+	tests := []struct {
+		mapping   MappingType
+		esVersion uint
+	}{
+		{mapping: SpanMapping, esVersion: 8},
+		{mapping: SpanMapping, esVersion: 7},
+		{mapping: ServiceMapping, esVersion: 8},
+		{mapping: ServiceMapping, esVersion: 7},
+		{mapping: DependenciesMapping, esVersion: 8},
+		{mapping: DependenciesMapping, esVersion: 7},
+		{mapping: SamplingMapping, esVersion: 8},
+		{mapping: SamplingMapping, esVersion: 7},
+	}
+	for _, tt := range tests {
+		templateName := tt.mapping.String()
+
+		t.Run(fmt.Sprintf("%s/%d", templateName, tt.esVersion), func(t *testing.T) {
+			defaultOpts := func(p int64) config.IndexOptions {
+				return config.IndexOptions{
+					Shards:   3,
+					Replicas: new(int64(3)),
+					Priority: p,
+				}
+			}
+			serviceOps := defaultOpts(501)
+			dependenciesOps := defaultOpts(502)
+			samplingOps := defaultOpts(503)
+
+			mb := &MappingBuilder{
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					IndexPrefix:  "test-",
+					Spans:        defaultOpts(500),
+					Services:     serviceOps,
+					Dependencies: dependenciesOps,
+					Sampling:     samplingOps,
+				},
+				EsVersion:     tt.esVersion,
+				UseILM:        true,
+				ILMPolicyName: "jaeger-test-policy",
+				IsOpenSearch:  true,
+			}
+			got, err := mb.GetMapping(tt.mapping)
+			require.NoError(t, err)
+			fileSuffix := fmt.Sprintf("-%d-opensearch", tt.esVersion)
+			wantbytes, err := FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
+			require.NoError(t, err)
+			want := string(wantbytes)
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
 func TestMappingTypeFromString(t *testing.T) {
 	tests := []struct {
 		input    string

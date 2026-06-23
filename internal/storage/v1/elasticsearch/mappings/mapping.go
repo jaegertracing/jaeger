@@ -34,12 +34,14 @@ type MappingBuilder struct {
 	EsVersion       uint
 	UseILM          bool
 	ILMPolicyName   string
+	IsOpenSearch    bool
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
 type templateParams struct {
 	UseILM        bool
 	ILMPolicyName string
+	IsOpenSearch  bool
 	IndexPrefix   string
 	Shards        int64
 	Replicas      int64
@@ -50,6 +52,7 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
+	mappingOpts.IsOpenSearch = mb.IsOpenSearch
 
 	switch mappingType {
 	case SpanMapping:

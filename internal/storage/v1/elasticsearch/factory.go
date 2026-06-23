@@ -172,6 +172,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 		EsVersion:       cfg.Version,
 		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
+		IsOpenSearch:    cfg.IsOpenSearch,
 	}
 }
 
