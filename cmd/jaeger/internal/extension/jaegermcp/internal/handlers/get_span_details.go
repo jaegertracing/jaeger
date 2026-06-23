@@ -80,7 +80,7 @@ func (h *getSpanDetailsHandler) handle(
 	}
 
 	// Build query parameters
-	params := h.buildQuery(traceID)
+	params := buildQuery(traceID)
 
 	end := len(input.SpanIDs)
 	if h.maxSpanDetailsPerRequest > 0 && start+h.maxSpanDetailsPerRequest < end {
@@ -156,7 +156,7 @@ func (h *getSpanDetailsHandler) handle(
 }
 
 // buildQuery builds the query params using the parsed trace ID.
-func (h *getSpanDetailsHandler) buildQuery(traceID pcommon.TraceID) querysvc.GetTraceParams {
+func buildQuery(traceID pcommon.TraceID) querysvc.GetTraceParams {
 	return querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
