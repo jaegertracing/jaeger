@@ -45,9 +45,9 @@ func (c *ClusterClient) Version() (es.BackendVersion, error) {
 		return 0, fmt.Errorf("invalid version format: %v", versionField)
 	}
 	version := strings.Split(versionNumber, ".")
-	major, err := strconv.ParseUint(version[0], 10, 32)
+	major, err := strconv.Atoi(version[0])
 	if err != nil {
 		return 0, fmt.Errorf("invalid version format: %s", version[0])
 	}
-	return es.DetectBackendVersion(info.TagLine, int(major)), nil
+	return es.DetectBackendVersion(info.TagLine, major), nil
 }

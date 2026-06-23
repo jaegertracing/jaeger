@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package elasticsearch
@@ -75,6 +75,12 @@ func (v BackendVersion) UsesV8API() bool {
 // Only ES 6.x requires this; ES 7+ and all OpenSearch versions ignore it.
 func (v BackendVersion) SupportsTypedIndices() bool {
 	return v == ElasticV6
+}
+
+// SupportsILM returns true if the backend supports Index Lifecycle Management.
+// ILM requires ES 7+ or OpenSearch (which uses ISM, the equivalent feature).
+func (v BackendVersion) SupportsILM() bool {
+	return v != ElasticV6
 }
 
 // DetectBackendVersion determines the BackendVersion from the ping response.

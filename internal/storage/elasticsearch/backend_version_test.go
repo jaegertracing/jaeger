@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package elasticsearch
@@ -97,6 +97,24 @@ func TestBackendVersion_SupportsTypedIndices(t *testing.T) {
 	}
 	for _, tt := range tests {
 		assert.Equal(t, tt.expected, tt.version.SupportsTypedIndices(), tt.version.String())
+	}
+}
+
+func TestBackendVersion_SupportsILM(t *testing.T) {
+	tests := []struct {
+		version  BackendVersion
+		expected bool
+	}{
+		{ElasticV6, false},
+		{ElasticV7, true},
+		{ElasticV8, true},
+		{ElasticV9, true},
+		{OpenSearch1, true},
+		{OpenSearch2, true},
+		{OpenSearch3, true},
+	}
+	for _, tt := range tests {
+		assert.Equal(t, tt.expected, tt.version.SupportsILM(), tt.version.String())
 	}
 }
 

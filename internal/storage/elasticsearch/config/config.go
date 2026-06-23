@@ -40,9 +40,28 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
-// TODO(decouple): This package imports es for Client interface and eswrapper for
-// WrapESClient, which means config constructs clients — creating awkward layering.
-// Plan: extract client construction into a builder so config becomes pure data.
+// TODO(decouple): config imports es for two things:
+//  1. es.Client — NewClient() returns es.Client (interface in internal/storage/elasticsearch/client.go)
+//  2. eswrapper — it calls eswrapper.WrapESClient(...) to construct the concrete client
+//
+// This creates awkward layering where config is responsible for constructing the
+// client, not just holding configuration. Config should ideally be a leaf package
+// with no upward dependencies.
+//
+// Plan to decouple:
+//  1. Extract client construction from config — move NewClient() into a separate
+//     clientbuilder package (or into the wrapper package itself). The function
+//     takes a config.Configuration and returns an es.Client. This removes config's
+//     import of both es and eswrapper.
+//  2. Move BackendVersion detection into the builder — the builder does the ping,
+//     calls DetectBackendVersion(), and sets cfg.Version before constructing the
+//     wrapper. Config remains a pure data struct.
+//  3. Update FactoryBase — instead of newClientFn pointing at config.NewClient,
+//     it points at the new builder function. The factory already lives at the
+//     right layer for this.
+//  4. Result: config becomes a pure data package (structs + validation), es defines
+//     interfaces + BackendVersion, and client construction lives in a package that
+//     is allowed to depend on both.
 
 const IndexPrefixSeparator = "-"
 

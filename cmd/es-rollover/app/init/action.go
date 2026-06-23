@@ -4,7 +4,6 @@
 package init
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
@@ -43,8 +42,8 @@ func (c Action) Do() error {
 		return err
 	}
 	if c.Config.UseILM {
-		if version.SupportsTypedIndices() {
-			return errors.New("ILM is supported only for ES version 7+")
+		if !version.SupportsILM() {
+			return fmt.Errorf("ILM/ISM is not supported in %s", version)
 		}
 		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
 		if err != nil {

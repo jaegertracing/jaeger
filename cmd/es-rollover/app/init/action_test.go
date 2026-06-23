@@ -100,7 +100,7 @@ func TestRolloverAction(t *testing.T) {
 					UseILM:  true,
 				},
 			},
-			expectedErr: errors.New("ILM is supported only for ES version 7+"),
+			expectedErr: errors.New("ILM/ISM is not supported in Elasticsearch 6.x"),
 		},
 		{
 			name: "error getting version",

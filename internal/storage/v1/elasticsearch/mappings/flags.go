@@ -21,6 +21,10 @@ type Options struct {
 }
 
 // BackendVersion returns the BackendVersion corresponding to the EsVersion flag.
+// TODO: This unsafe cast only works for Elasticsearch versions (6, 7, 8, 9).
+// OpenSearch cannot be specified because its enum values (101, 102, 103) are
+// internal. Add an --opensearch-version flag and use it to return the correct
+// OpenSearch BackendVersion variant.
 func (o *Options) BackendVersion() es.BackendVersion {
 	return es.BackendVersion(o.EsVersion)
 }
