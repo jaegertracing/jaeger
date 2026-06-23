@@ -670,6 +670,11 @@ func TestTraceIDFromString(t *testing.T) {
 			input:   "not-a-valid-id!",
 			wantErr: true,
 		},
+		{
+			name:    "too long for trace ID",
+			input:   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAlong",
+			wantErr: true,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

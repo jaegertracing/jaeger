@@ -195,12 +195,15 @@ func TestGetTraceSuccess(t *testing.T) {
 }
 
 func TestGetTraceBase64Success(t *testing.T) {
-	ts := initializeTestServer(t)
-	ts.traceReader.On("GetTraces", mock.Anything, mock.Anything).
-		Return(tracesIter(makeMockPTrace())).Once()
+	// base64 "AAAAAAAAAP///////////w==" decodes to traceID {High: 0xFF, Low: 0xFFFFFFFFFFFFFFFF}
+	expectedTraceID := v1adapter.FromV1TraceID(model.NewTraceID(0xFF, 0xFFFFFFFFFFFFFFFF))
 
-	// base64 of [16]byte{0,0,0,0,0,0,0,0xFF, 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF}
-	// contains "/" which is percent-encoded in the URL
+	ts := initializeTestServer(t)
+	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
+		return len(params) == 1 && params[0].TraceID == expectedTraceID
+	})).Return(tracesIter(makeMockPTrace())).Once()
+
+	// "/" in base64 is percent-encoded as %2F in the URL path
 	var response structuredResponse
 	err := getJSON(ts.server.URL+`/api/traces/AAAAAAAAAP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2Fw==`, &response)
 	require.NoError(t, err)
