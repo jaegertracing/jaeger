@@ -140,7 +140,10 @@ func deleteILMPolicy(t *testing.T, policyName string) {
 			t.Logf("warning: failed to delete ISM policy: %v", err)
 			return
 		}
-		resp.Body.Close()
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+			t.Logf("warning: ISM policy delete returned status %d", resp.StatusCode)
+		}
 	} else {
 		_, err := client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
 		if err != nil && !elastic.IsNotFound(err) {
