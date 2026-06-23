@@ -5,6 +5,8 @@ package mappings
 
 import (
 	"github.com/spf13/cobra"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 // Options represent configurable parameters for jaeger-esmapping-generator
@@ -16,6 +18,11 @@ type Options struct {
 	IndexPrefix   string
 	UseILM        string // using string as util is being used in python and using bool leads to type issues.
 	ILMPolicyName string
+}
+
+// BackendVersion returns the BackendVersion corresponding to the EsVersion flag.
+func (o *Options) BackendVersion() es.BackendVersion {
+	return es.BackendVersion(o.EsVersion)
 }
 
 const (

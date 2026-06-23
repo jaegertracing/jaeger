@@ -31,10 +31,9 @@ const (
 type MappingBuilder struct {
 	TemplateBuilder es.TemplateBuilder
 	Indices         config.Indices
-	EsVersion       uint
+	Version         es.BackendVersion
 	UseILM          bool
 	ILMPolicyName   string
-	IsOpenSearch    bool
 }
 
 // templateParams holds parameters required to render an elasticsearch index template
@@ -52,7 +51,7 @@ func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) temp
 	mappingOpts := templateParams{}
 	mappingOpts.UseILM = mb.UseILM
 	mappingOpts.ILMPolicyName = mb.ILMPolicyName
-	mappingOpts.IsOpenSearch = mb.IsOpenSearch
+	mappingOpts.IsOpenSearch = mb.Version.IsOpenSearch()
 
 	switch mappingType {
 	case SpanMapping:
@@ -115,8 +114,7 @@ func MappingTypeFromString(val string) (MappingType, error) {
 // GetMapping returns the rendered mapping based on elasticsearch version
 func (mb *MappingBuilder) GetMapping(mappingType MappingType) (string, error) {
 	templateOpts := mb.getMappingTemplateOptions(mappingType)
-	esVersion := min(mb.EsVersion, 8) // Elasticsearch v9 uses the same template as v8
-	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), esVersion), templateOpts)
+	return mb.renderMapping(fmt.Sprintf("%s-%d.json", mappingType.String(), mb.Version.TemplateVersion()), templateOpts)
 }
 
 // GetSpanServiceMappings returns span and service mappings

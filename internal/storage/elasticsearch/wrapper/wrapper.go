@@ -21,31 +21,24 @@ import (
 
 // ClientWrapper is a wrapper around elastic.Client
 type ClientWrapper struct {
-	client       *elastic.Client
-	bulkService  *elastic.BulkProcessor
-	esVersion    uint
-	clientV8     *esv8.Client
-	isOpenSearch bool
+	client      *elastic.Client
+	bulkService *elastic.BulkProcessor
+	version     es.BackendVersion
+	clientV8    *esv8.Client
 }
 
-// GetVersion returns the ElasticSearch Version
-func (c ClientWrapper) GetVersion() uint {
-	return c.esVersion
-}
-
-// IsOpenSearch returns true if the backend is OpenSearch.
-func (c ClientWrapper) IsOpenSearch() bool {
-	return c.isOpenSearch
+// GetVersion returns the backend version.
+func (c ClientWrapper) GetVersion() es.BackendVersion {
+	return c.version
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint, clientV8 *esv8.Client, isOpenSearch bool) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, version es.BackendVersion, clientV8 *esv8.Client) ClientWrapper {
 	return ClientWrapper{
-		client:       client,
-		bulkService:  s,
-		isOpenSearch: isOpenSearch,
-		esVersion:    esVersion,
-		clientV8:     clientV8,
+		client:      client,
+		bulkService: s,
+		version:     version,
+		clientV8:    clientV8,
 	}
 }
 
@@ -66,7 +59,7 @@ func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
 
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
-	if c.esVersion >= 8 {
+	if c.version.UsesV8API() {
 		return TemplateCreatorWrapperV8{
 			indicesV8:    c.clientV8.Indices,
 			templateName: ttype,
@@ -78,13 +71,13 @@ func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 // Index calls this function to internal client.
 func (c ClientWrapper) Index() es.IndexService {
 	r := elastic.NewBulkIndexRequest()
-	return WrapESIndexService(r, c.bulkService, c.esVersion)
+	return WrapESIndexService(r, c.bulkService, c.version)
 }
 
 // Search calls this function to internal client.
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
 	searchService := c.client.Search(indices...)
-	if c.esVersion >= 7 {
+	if !c.version.SupportsTypedIndices() {
 		searchService = searchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESSearchService(searchService)
@@ -211,25 +204,25 @@ func (c TemplateCreatorWrapperV8) Do(context.Context) (*elastic.IndicesPutTempla
 type IndexServiceWrapper struct {
 	bulkIndexReq *elastic.BulkIndexRequest
 	bulkService  *elastic.BulkProcessor
-	esVersion    uint
+	version      es.BackendVersion
 }
 
 // WrapESIndexService creates an ESIndexService out of *elastic.ESIndexService.
-func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor, esVersion uint) IndexServiceWrapper {
-	return IndexServiceWrapper{bulkIndexReq: indexService, bulkService: bulkService, esVersion: esVersion}
+func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor, version es.BackendVersion) IndexServiceWrapper {
+	return IndexServiceWrapper{bulkIndexReq: indexService, bulkService: bulkService, version: version}
 }
 
 // Index calls this function to internal service.
 func (i IndexServiceWrapper) Index(index string) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService, i.esVersion)
+	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService, i.version)
 }
 
 // Type calls this function to internal service.
 func (i IndexServiceWrapper) Type(typ string) es.IndexService {
-	if i.esVersion >= 7 {
-		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.esVersion)
+	if !i.version.SupportsTypedIndices() {
+		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.version)
 	}
-	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.esVersion)
+	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.version)
 }
 
 // Add adds the request to bulk service

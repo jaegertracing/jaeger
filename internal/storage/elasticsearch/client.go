@@ -21,8 +21,7 @@ type Client interface {
 	MultiSearch() MultiSearchService
 	DeleteIndex(index string) IndicesDeleteService
 	io.Closer
-	GetVersion() uint
-	IsOpenSearch() bool
+	GetVersion() BackendVersion
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService

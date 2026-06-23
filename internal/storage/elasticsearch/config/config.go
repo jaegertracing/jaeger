@@ -40,6 +40,10 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
+// TODO(decouple): This package imports es for Client interface and eswrapper for
+// WrapESClient, which means config constructs clients — creating awkward layering.
+// Plan: extract client construction into a builder so config becomes pure data.
+
 const IndexPrefixSeparator = "-"
 
 // IndexOptions describes the index format and rollover frequency
@@ -145,9 +149,9 @@ type Configuration struct {
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
-	// Version contains the major Elasticsearch version. If this field is not specified,
-	// the value will be auto-detected from Elasticsearch.
-	Version uint `mapstructure:"version"`
+	// Version contains the backend version (Elasticsearch or OpenSearch).
+	// If not specified, it will be auto-detected from the server.
+	Version es.BackendVersion `mapstructure:"version"`
 	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
 	// are: [debug, info, error]
 	LogLevel string `mapstructure:"log_level"`
@@ -317,9 +321,8 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		logger: logger,
 	}
 
-	var isOpenSearch bool
 	if c.Version == 0 {
-		// Determine ElasticSearch Version
+		// Determine backend version
 		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
@@ -337,32 +340,16 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
 		}
 
-		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+		majorVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 		if err != nil {
 			return nil, err
 		}
-		// OpenSearch is based on ES 7.x
-		if strings.Contains(pingResult.TagLine, "OpenSearch") {
-			isOpenSearch = true
-			if pingResult.Version.Number[0] == '1' {
-				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '2' {
-				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '3' {
-				logger.Info("OpenSearch 3.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-		}
-		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		c.Version = uint(esVersion)
+		c.Version = es.DetectBackendVersion(pingResult.TagLine, majorVersion)
+		logger.Info("Backend detected", zap.Stringer("version", c.Version))
 	}
 
 	var rawClientV8 *esv8.Client
-	if c.Version >= 8 {
+	if c.Version.UsesV8API() {
 		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
@@ -383,7 +370,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 		return nil, err
 	}
 
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8, isOpenSearch), nil
+	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
 }
 
 func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {

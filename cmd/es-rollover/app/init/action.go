@@ -15,8 +15,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
 
-const ilmVersionSupport = 7
-
 // Action holds the configuration and clients for init action
 type Action struct {
 	Config        Config
@@ -25,14 +23,14 @@ type Action struct {
 	ILMClient     client.IndexManagementLifecycleAPI
 }
 
-func (c Action) getMapping(version uint, mappingType mappings.MappingType) (string, error) {
+func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
 	c.Config.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
 	mappingBuilder := mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
 		Indices:         c.Config.Indices,
 		UseILM:          c.Config.UseILM,
 		ILMPolicyName:   c.Config.ILMPolicyName,
-		EsVersion:       version,
+		Version:         version,
 	}
 
 	return mappingBuilder.GetMapping(mappingType)
@@ -45,7 +43,7 @@ func (c Action) Do() error {
 		return err
 	}
 	if c.Config.UseILM {
-		if version < ilmVersionSupport {
+		if version.SupportsTypedIndices() {
 			return errors.New("ILM is supported only for ES version 7+")
 		}
 		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
@@ -83,7 +81,7 @@ func createIndexIfNotExist(c client.IndexAPI, index string) error {
 	return c.CreateIndex(index)
 }
 
-func (c Action) init(version uint, indexopt app.IndexOption) error {
+func (c Action) init(version es.BackendVersion, indexopt app.IndexOption) error {
 	mappingType, err := mappings.MappingTypeFromString(indexopt.Mapping)
 	if err != nil {
 		return err
