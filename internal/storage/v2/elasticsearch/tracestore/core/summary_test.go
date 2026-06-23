@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,12 +33,28 @@ const summaryAggregationJSON = `{
         {"key": "svcB", "doc_count": 1, "service_errors": {"doc_count": 0}},
         {"key": "svcA", "doc_count": 2, "service_errors": {"doc_count": 1}}
       ]},
-      "root": {"doc_count": 1, "root_hit": {"hits": {"hits": [
-        {"_source": {"operationName": "root-op", "process": {"serviceName": "svcA"}}}
-      ]}}}
+      "root_candidates": {"hits": {"hits": [
+        {"_source": {"operationName": "root-op", "traceID": "00000000000000000000000000000001", "process": {"serviceName": "svcA"}, "references": []}}
+      ]}}
     }
   ]
 }`
+
+// Phase 1 (findTraceIDsFromQuery) reads this "traceIDs" aggregation; phase 2 reads
+// "trace_summaries". A single mocked search result carries both so the two-phase
+// FindTraceSummaries can run end to end.
+const traceIDsAggregationJSON = `{
+  "buckets": [
+    {"key": "00000000000000000000000000000001", "doc_count": 3, "startTime": {"value": 1500000}}
+  ]
+}`
+
+func summaryResult(summaryJSON string) *elastic.SearchResult {
+	return &elastic.SearchResult{Aggregations: elastic.Aggregations{
+		traceIDAggregation:        []byte(traceIDsAggregationJSON),
+		traceSummariesAggregation: []byte(summaryJSON),
+	}}
+}
 
 func mockSummarySearchService(r *spanReaderTest) *mock.Call {
 	searchService := &mocks.SearchService{}
@@ -60,9 +77,8 @@ func validSummaryQuery() dbmodel.TraceQueryParameters {
 
 func TestSpanReader_FindTraceSummaries(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		aggs := map[string]json.RawMessage{traceSummariesAggregation: []byte(summaryAggregationJSON)}
 		mockSummarySearchService(r).
-			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(aggs)}, nil)
+			Return(summaryResult(summaryAggregationJSON), nil)
 
 		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.NoError(t, err)
@@ -126,15 +142,14 @@ func TestSpanReader_FindTraceSummaries_BadRootSource(t *testing.T) {
       "max_end": {"value": 2000000},
       "error_count": {"doc_count": 0},
       "services": {"buckets": []},
-      "root": {"doc_count": 1, "root_hit": {"hits": {"hits": [
+      "root_candidates": {"hits": {"hits": [
         {"_source": "not-an-object"}
-      ]}}}
+      ]}}
     }
   ]
 }`
-		aggs := map[string]json.RawMessage{traceSummariesAggregation: []byte(badRoot)}
 		mockSummarySearchService(r).
-			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(aggs)}, nil)
+			Return(summaryResult(badRoot), nil)
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.Error(t, err)
 	})
@@ -148,4 +163,99 @@ func TestSpanReader_FindTraceSummaries_MissingBucketAggregation(t *testing.T) {
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.ErrorIs(t, err, ErrUnableToFindTraceIDAggregation)
 	})
+}
+
+func TestSpanReader_FindTraceSummaries_NoMatchingTraces(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		// Phase 1 finds no trace IDs, so no phase-2 aggregation runs.
+		emptyIDs := `{"buckets": []}`
+		result := &elastic.SearchResult{Aggregations: elastic.Aggregations{
+			traceIDAggregation: []byte(emptyIDs),
+		}}
+		mockSummarySearchService(r).Return(result, nil)
+		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.NoError(t, err)
+		assert.Empty(t, summaries)
+	})
+}
+
+// TestSpanReader_FindTraceSummaries_RootReferenceCases covers the reference cases
+// flagged in review: root selection must match getParentSpanId, where cross-trace
+// references (span links) are ignored and a same-trace reference of any type marks
+// a non-root span.
+func TestSpanReader_FindTraceSummaries_RootReferenceCases(t *testing.T) {
+	const traceID = "00000000000000000000000000000001"
+	tests := []struct {
+		name           string
+		rootCandidates string
+		wantService    string
+		wantOperation  string
+	}{
+		{
+			name: "root with only a cross-trace child-of link is still root",
+			rootCandidates: `{"hits": {"hits": [
+				{"_source": {"operationName": "entry", "traceID": "` + traceID + `", "process": {"serviceName": "svcRoot"},
+					"references": [{"refType": "CHILD_OF", "traceID": "00000000000000000000000000000099", "spanID": "abc"}]}}
+			]}}`,
+			wantService:   "svcRoot",
+			wantOperation: "entry",
+		},
+		{
+			name: "earliest span with a same-trace follows-from parent is skipped",
+			rootCandidates: `{"hits": {"hits": [
+				{"_source": {"operationName": "child", "traceID": "` + traceID + `", "process": {"serviceName": "svcChild"},
+					"references": [{"refType": "FOLLOWS_FROM", "traceID": "` + traceID + `", "spanID": "def"}]}},
+				{"_source": {"operationName": "entry", "traceID": "` + traceID + `", "process": {"serviceName": "svcRoot"}, "references": []}}
+			]}}`,
+			wantService:   "svcRoot",
+			wantOperation: "entry",
+		},
+		{
+			name: "no root among candidates yields empty root",
+			rootCandidates: `{"hits": {"hits": [
+				{"_source": {"operationName": "child", "traceID": "` + traceID + `", "process": {"serviceName": "svcChild"},
+					"references": [{"refType": "CHILD_OF", "traceID": "` + traceID + `", "spanID": "def"}]}}
+			]}}`,
+			wantService:   "",
+			wantOperation: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withSpanReader(t, func(r *spanReaderTest) {
+				summaryJSON := fmt.Sprintf(`{"buckets": [{
+					"key": "%s", "doc_count": 2,
+					"min_start": {"value": 1000000}, "max_end": {"value": 2000000},
+					"error_count": {"doc_count": 0}, "services": {"buckets": []},
+					"root_candidates": %s
+				}]}`, traceID, tt.rootCandidates)
+				mockSummarySearchService(r).Return(summaryResult(summaryJSON), nil)
+				summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+				require.NoError(t, err)
+				require.Len(t, summaries, 1)
+				assert.Equal(t, tt.wantService, summaries[0].RootServiceName)
+				assert.Equal(t, tt.wantOperation, summaries[0].RootOperationName)
+			})
+		})
+	}
+}
+
+func TestIsRootSpan(t *testing.T) {
+	const traceID = "00000000000000000000000000000001"
+	const otherTraceID = "00000000000000000000000000000099"
+	tests := []struct {
+		name string
+		refs []rootSpanRef
+		want bool
+	}{
+		{name: "no references is root", refs: nil, want: true},
+		{name: "same-trace reference is not root", refs: []rootSpanRef{{TraceID: traceID}}, want: false},
+		{name: "only cross-trace reference is root", refs: []rootSpanRef{{TraceID: otherTraceID}}, want: true},
+		{name: "mixed cross- and same-trace is not root", refs: []rootSpanRef{{TraceID: otherTraceID}, {TraceID: traceID}}, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isRootSpan(traceID, tt.refs))
+		})
+	}
 }
