@@ -9,20 +9,21 @@ import (
 	"io"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/require"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 const (
-	esHostPort    = "localhost:9200"
-	esBaseURL     = "http://" + esHostPort
-	rolloverImage = "localhost:5000/jaegertracing/jaeger-es-rollover:local-test"
+	esHostPort = "localhost:9200"
+	esBaseURL  = "http://" + esHostPort
 )
 
 // runRotationSmokeTest is a helper that reduces boilerplate for rotation strategy
@@ -39,40 +40,36 @@ func runRotationSmokeTest(t *testing.T, configFile string, storage string) {
 	s.RunSpanStoreTests(t)
 }
 
-// setupManualRolloverIndices uses the production jaeger-es-rollover tool to
-// create the initial indices and aliases for the manual_rollover strategy.
+// setupManualRolloverIndices uses the jaeger-es-rollover tool to create the
+// initial indices and aliases for the manual_rollover strategy.
 func setupManualRolloverIndices(t *testing.T, indexPrefix string) {
-	runEsRollover(t, "init", []string{"INDEX_PREFIX=" + indexPrefix})
+	runEsRollover(t, "init", "--index-prefix="+indexPrefix)
 	t.Cleanup(func() {
 		deleteIndicesByPrefix(t, indexPrefix+"-")
 	})
 }
 
 // setupAutoRolloverIndices creates an ILM/ISM policy and then uses the
-// production jaeger-es-rollover tool to create initial indices and aliases
-// for the auto_rollover strategy.
+// jaeger-es-rollover tool to create initial indices and aliases for the
+// auto_rollover strategy.
 func setupAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
 	createILMPolicy(t, policyName)
-	runEsRollover(t, "init", []string{
-		"INDEX_PREFIX=" + indexPrefix,
-		"ES_USE_ILM=true",
-		"ES_ILM_POLICY_NAME=" + policyName,
-	})
+	runEsRollover(t, "init",
+		"--index-prefix="+indexPrefix,
+		"--es.use-ilm=true",
+		"--es.ilm-policy-name="+policyName,
+	)
 	t.Cleanup(func() {
 		deleteIndicesByPrefix(t, indexPrefix+"-")
 		deleteILMPolicy(t, policyName)
 	})
 }
 
-func runEsRollover(t *testing.T, action string, envVars []string) {
-	var dockerEnv strings.Builder
-	for _, e := range envVars {
-		dockerEnv.WriteString(" -e ")
-		dockerEnv.WriteString(e)
-	}
-	args := fmt.Sprintf("docker run %s --rm --net=host %s %s http://%s",
-		dockerEnv.String(), rolloverImage, action, esHostPort)
-	cmd := exec.Command("/bin/sh", "-c", args)
+func runEsRollover(t *testing.T, action string, flags ...string) {
+	args := append([]string{"run", "./cmd/es-rollover", action}, flags...)
+	args = append(args, esBaseURL)
+	cmd := exec.Command("go", args...)
+	cmd.Dir = "../../../.."
 	out, err := cmd.CombinedOutput()
 	t.Logf("jaeger-es-rollover %s output:\n%s", action, string(out))
 	require.NoError(t, err, "jaeger-es-rollover %s failed", action)
@@ -80,8 +77,7 @@ func runEsRollover(t *testing.T, action string, envVars []string) {
 
 func createILMPolicy(t *testing.T, policyName string) {
 	client := newESClient(t)
-	version := detectVersion(t, client)
-	if version == "opensearch" {
+	if getBackendVersion(t, client).IsOpenSearch() {
 		createISMPolicy(t, policyName)
 	} else {
 		_, err := client.XPackIlmPutLifecycle().
@@ -118,8 +114,7 @@ func createISMPolicy(t *testing.T, policyName string) {
 
 func deleteILMPolicy(t *testing.T, policyName string) {
 	client := newESClient(t)
-	version := detectVersion(t, client)
-	if version == "opensearch" {
+	if getBackendVersion(t, client).IsOpenSearch() {
 		url := fmt.Sprintf("%s/_plugins/_ism/policies/%s", esBaseURL, policyName)
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, url, http.NoBody)
 		if err != nil {
@@ -158,12 +153,11 @@ func newESClient(t *testing.T) *elastic.Client {
 	return client
 }
 
-func detectVersion(t *testing.T, client *elastic.Client) string {
+func getBackendVersion(t *testing.T, client *elastic.Client) es.BackendVersion {
 	ping, _, err := client.Ping(esBaseURL).Do(context.Background())
 	require.NoError(t, err)
-	if strings.Contains(strings.ToLower(ping.TagLine), "opensearch") ||
-		strings.Contains(strings.ToLower(ping.Version.BuildFlavor), "opensearch") {
-		return "opensearch"
-	}
-	return "elasticsearch"
+	parts := strings.SplitN(ping.Version.Number, ".", 2)
+	major, err := strconv.Atoi(parts[0])
+	require.NoError(t, err)
+	return es.DetectBackendVersion(ping.TagLine, major)
 }
