@@ -6,6 +6,7 @@ package mappings
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -46,11 +47,11 @@ func (mb *MappingBuilder) SpanDataStreamMappings() (string, error) {
 	}
 	spanMappings, ok := mappingsSource["mappings"].(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("span mapping is missing the 'mappings' object")
+		return "", errors.New("span mapping is missing the 'mappings' object")
 	}
 	properties, ok := spanMappings["properties"].(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("span mapping is missing the 'template.mappings.properties' object")
+		return "", errors.New("span mapping is missing the 'template.mappings.properties' object")
 	}
 	properties["@timestamp"] = map[string]any{"type": "date_nanos"}
 	return marshalComponent(map[string]any{"mappings": spanMappings})

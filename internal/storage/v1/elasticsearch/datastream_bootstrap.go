@@ -107,7 +107,7 @@ func (f *FactoryBase) bootstrapSpanDataStream(ctx context.Context, mb *mappings.
 	}
 
 	clusterClient := client.ClusterClient{Client: rawClient}
-	isOpenSearch, err := clusterClient.IsOpenSearch()
+	isOpenSearch, err := clusterClient.IsOpenSearch(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to detect Elasticsearch/OpenSearch flavor: %w", err)
 	}

@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -279,7 +280,7 @@ func TestClusterClient_IsOpenSearch(t *testing.T) {
 			defer testServer.Close()
 			c := &ClusterClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
 
-			got, err := c.IsOpenSearch()
+			got, err := c.IsOpenSearch(context.Background())
 			require.NoError(t, err)
 			assert.Equal(t, test.want, got)
 			assert.Equal(t, "/", gotPath)
@@ -293,6 +294,6 @@ func TestClusterClient_IsOpenSearch_Error(t *testing.T) {
 	}))
 	defer testServer.Close()
 	c := &ClusterClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
-	_, err := c.IsOpenSearch()
+	_, err := c.IsOpenSearch(context.Background())
 	require.Error(t, err)
 }

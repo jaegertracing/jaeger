@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -57,11 +58,11 @@ func (c *ClusterClient) Version() (uint, error) {
 // Elasticsearch), detected from the root endpoint's tagline. This selects the
 // lifecycle management style for data streams: ISM on OpenSearch, ILM on
 // Elasticsearch. See RFC 0004 section 3.8.
-func (c *ClusterClient) IsOpenSearch() (bool, error) {
+func (c *ClusterClient) IsOpenSearch(ctx context.Context) (bool, error) {
 	type clusterInfo struct {
 		TagLine string `json:"tagline"`
 	}
-	body, err := c.request(elasticRequest{
+	body, err := c.requestContext(ctx, elasticRequest{
 		endpoint: "",
 		method:   http.MethodGet,
 	})
