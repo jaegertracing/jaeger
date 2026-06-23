@@ -40,9 +40,30 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
-const (
-	IndexPrefixSeparator = "-"
-)
+// TODO(decouple): config imports es for two things:
+//  1. es.Client — NewClient() returns es.Client (interface in internal/storage/elasticsearch/client.go)
+//  2. eswrapper — it calls eswrapper.WrapESClient(...) to construct the concrete client
+//
+// This creates awkward layering where config is responsible for constructing the
+// client, not just holding configuration. Config should ideally be a leaf package
+// with no upward dependencies.
+//
+// Plan to decouple:
+//  1. Extract client construction from config — move NewClient() into a separate
+//     clientbuilder package (or into the wrapper package itself). The function
+//     takes a config.Configuration and returns an es.Client. This removes config's
+//     import of both es and eswrapper.
+//  2. Move BackendVersion detection into the builder — the builder does the ping,
+//     calls DetectBackendVersion(), and sets cfg.Version before constructing the
+//     wrapper. Config remains a pure data struct.
+//  3. Update FactoryBase — instead of newClientFn pointing at config.NewClient,
+//     it points at the new builder function. The factory already lives at the
+//     right layer for this.
+//  4. Result: config becomes a pure data package (structs + validation), es defines
+//     interfaces + BackendVersion, and client construction lives in a package that
+//     is allowed to depend on both.
+
+const IndexPrefixSeparator = "-"
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
@@ -52,7 +73,9 @@ type IndexOptions struct {
 	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
 	// If not specified, the default value is "2006-01-02".
 	// See https://pkg.go.dev/time#Layout for more details on the syntax.
-	DateLayout string `mapstructure:"date_layout"`
+	//
+	// Deprecated: superseded by rotation.periodic.date_layout.
+	DateLayout configoptional.Optional[string] `mapstructure:"date_layout"`
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
@@ -62,7 +85,11 @@ type IndexOptions struct {
 	// Valid configuration options are: [hour, day].
 	// This setting does not affect the index rotation and is simply used for
 	// fetching indices.
-	RolloverFrequency string `mapstructure:"rollover_frequency"`
+	//
+	// Deprecated: superseded by rotation.periodic.rollover_frequency.
+	RolloverFrequency configoptional.Optional[string] `mapstructure:"rollover_frequency"`
+	// Rotation defines the index rotation strategy for this index type.
+	Rotation RotationConfig `mapstructure:"rotation"`
 }
 
 // Indices describes different configuration options for each index type
@@ -83,6 +110,22 @@ type bulkCallback struct {
 }
 
 type IndexPrefix string
+
+// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
+func (o *IndexOptions) GetDateLayout() string {
+	if p := o.DateLayout.Get(); p != nil {
+		return *p
+	}
+	return "2006-01-02"
+}
+
+// GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".
+func (o *IndexOptions) GetRolloverFrequency() string {
+	if p := o.RolloverFrequency.Get(); p != nil {
+		return *p
+	}
+	return "day"
+}
 
 func (p IndexPrefix) Apply(indexName string) string {
 	ps := string(p)
@@ -125,40 +168,51 @@ type Configuration struct {
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
-	// Version contains the major Elasticsearch version. If this field is not specified,
-	// the value will be auto-detected from Elasticsearch.
-	Version uint `mapstructure:"version"`
+	// Version contains the backend version (Elasticsearch or OpenSearch).
+	// If not specified, it will be auto-detected from the server.
+	Version es.BackendVersion `mapstructure:"version"`
 	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
 	// are: [debug, info, error]
 	LogLevel string `mapstructure:"log_level"`
 
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
+
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
-	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	//
+	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
+	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
 	// SpanReadAlias specifies the exact alias name to use for reading spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// This allows integration with existing Elasticsearch setups that have custom alias names.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-span-reader"
-	SpanReadAlias string `mapstructure:"span_read_alias"`
+	//
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
+	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
 	// SpanWriteAlias specifies the exact alias name to use for writing spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-span-writer"
-	SpanWriteAlias string `mapstructure:"span_write_alias"`
+	//
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
+	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
 	// ServiceReadAlias specifies the exact alias name to use for reading services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-service-reader"
-	ServiceReadAlias string `mapstructure:"service_read_alias"`
+	//
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
+	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
 	// ServiceWriteAlias specifies the exact alias name to use for writing services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-service-writer"
-	ServiceWriteAlias string `mapstructure:"service_write_alias"`
+	//
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
+	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -170,10 +224,12 @@ type Configuration struct {
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
+	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
 	// Read more about ILM at
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
-	UseILM bool `mapstructure:"use_ilm"`
+	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
+	//
+	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
+	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
@@ -250,10 +306,10 @@ type BasicAuthentication struct {
 	// Password contains The password required by Elasticsearch
 	Password string `mapstructure:"password" json:"-"`
 	// PasswordFilePath contains the path to a file containing password.
-	// This file is watched for changes.
+	// The file is re-read periodically according to ReloadInterval.
 	PasswordFilePath string `mapstructure:"password_file"`
-	// ReloadInterval contains the interval at which the password file is reloaded.
-	// If set to 0 then the file is only loaded once on startup.
+	// ReloadInterval is how often the password file is re-read.
+	// Defaults to 0, which means the file is read once at startup and never reloaded.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
@@ -285,7 +341,7 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 	}
 
 	if c.Version == 0 {
-		// Determine ElasticSearch Version
+		// Determine backend version
 		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
 			return nil, err
@@ -303,31 +359,16 @@ func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metric
 			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
 		}
 
-		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+		majorVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
 		if err != nil {
 			return nil, err
 		}
-		// OpenSearch is based on ES 7.x
-		if strings.Contains(pingResult.TagLine, "OpenSearch") {
-			if pingResult.Version.Number[0] == '1' {
-				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '2' {
-				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '3' {
-				logger.Info("OpenSearch 3.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-		}
-		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		c.Version = uint(esVersion)
+		c.Version = es.DetectBackendVersion(pingResult.TagLine, majorVersion)
+		logger.Info("Backend detected", zap.Stringer("version", c.Version))
 	}
 
 	var rawClientV8 *esv8.Client
-	if c.Version >= 8 {
+	if c.Version.UsesV8API() {
 		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
 		if err != nil {
 			return nil, fmt.Errorf("error creating v8 client: %w", err)
@@ -440,11 +481,11 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Priority = source.Priority
 	}
 
-	if target.DateLayout == "" {
+	if !target.DateLayout.HasValue() && source.DateLayout.HasValue() {
 		target.DateLayout = source.DateLayout
 	}
 
-	if target.RolloverFrequency == "" {
+	if !target.RolloverFrequency.HasValue() && source.RolloverFrequency.HasValue() {
 		target.RolloverFrequency = source.RolloverFrequency
 	}
 }
@@ -799,30 +840,44 @@ func (c *Configuration) Validate() error {
 	if err != nil {
 		return err
 	}
-	if c.UseILM && !c.UseReadWriteAliases {
+
+	// Validate rotation config for each index type
+	if err := c.validateRotationConfig(); err != nil {
+		return err
+	}
+
+	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {
+		return fmt.Errorf(
+			"deprecated ES rotation flags (%s) "+
+				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
+				"(see https://github.com/jaegertracing/jaeger/pull/8823); "+
+				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
+			legacyRotationFlagsList,
+		)
+	}
+
+	if c.getUseILM() && !c.getUseReadWriteAliases() {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	if c.CreateIndexTemplates && c.UseILM {
+	if c.CreateIndexTemplates && c.getUseILM() {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
-	// Validate explicit alias settings require UseReadWriteAliases
-	hasAnyExplicitAlias := c.SpanReadAlias != "" || c.SpanWriteAlias != "" ||
-		c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+	hasAnyExplicitAlias := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != "" ||
+		c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasAnyExplicitAlias && !c.UseReadWriteAliases {
+	if hasAnyExplicitAlias && !c.getUseReadWriteAliases() {
 		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
 	}
 
-	// Validate that if any alias is set, all four should be set (for consistency)
-	hasSpanAliases := c.SpanReadAlias != "" || c.SpanWriteAlias != ""
-	hasServiceAliases := c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+	hasSpanAliases := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != ""
+	hasServiceAliases := c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasSpanAliases && (c.SpanReadAlias == "" || c.SpanWriteAlias == "") {
+	if hasSpanAliases && (c.getSpanReadAlias() == "" || c.getSpanWriteAlias() == "") {
 		return errors.New("both span_read_alias and span_write_alias must be set together")
 	}
 
-	if hasServiceAliases && (c.ServiceReadAlias == "" || c.ServiceWriteAlias == "") {
+	if hasServiceAliases && (c.getServiceReadAlias() == "" || c.getServiceWriteAlias() == "") {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 

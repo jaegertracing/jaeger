@@ -10,10 +10,10 @@ import es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 
 // Id calls this function to internal service.
 func (i IndexServiceWrapper) Id(id string) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService, i.esVersion)
+	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService, i.version)
 }
 
 // BodyJson calls this function to internal service.
 func (i IndexServiceWrapper) BodyJson(body any) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService, i.esVersion)
+	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService, i.version)
 }

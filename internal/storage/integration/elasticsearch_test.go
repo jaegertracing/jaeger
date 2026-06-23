@@ -17,6 +17,7 @@ import (
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -129,7 +130,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg := es.DefaultConfig()
 	acfg.ReadAliasSuffix = archiveAliasSuffix
 	acfg.WriteAliasSuffix = archiveAliasSuffix
-	acfg.UseReadWriteAliases = true
+	acfg.UseReadWriteAliases = configoptional.Some(true)
 	acfg.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)

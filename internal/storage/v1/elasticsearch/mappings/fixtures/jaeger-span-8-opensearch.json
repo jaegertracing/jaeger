@@ -1,28 +1,16 @@
 {
-  "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
+  "priority": 500,
+  "index_patterns": "test-jaeger-span-*",
   "template": {
-
-    {{- if .UseILM}}
     "aliases": {
-      "{{ .IndexPrefix }}jaeger-span-read": {}
+      "test-jaeger-span-read": {}
     },
-    {{- end}}
     "settings": {
-      "index.number_of_shards": {{ .Shards }},
-      "index.number_of_replicas": {{ .Replicas }},
+      "index.number_of_shards": 3,
+      "index.number_of_replicas": 3,
       "index.mapping.nested_fields.limit": 50,
-      "index.requests.cache.enable": true
-      {{- if .UseILM }},
-      {{- if .IsOpenSearch }}
-      "plugins.index_state_management.rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
-      {{- else }}
-      "lifecycle": {
-        "name": "{{ .ILMPolicyName }}",
-        "rollover_alias": "{{ .IndexPrefix }}jaeger-span-write"
-      }
-      {{- end }}
-      {{- end }}
+      "index.requests.cache.enable": true,
+      "plugins.index_state_management.rollover_alias": "test-jaeger-span-write"
     },
     "mappings": {
       "dynamic_templates": [

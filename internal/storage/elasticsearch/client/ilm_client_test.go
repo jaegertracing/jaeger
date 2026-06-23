@@ -69,6 +69,60 @@ func TestExists(t *testing.T) {
 	}
 }
 
+func TestExists_OpenSearchISM(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		responseCode   int
+		response       string
+		errContains    string
+		expectedResult bool
+	}{
+		{
+			name:           "found",
+			responseCode:   http.StatusOK,
+			expectedResult: true,
+		},
+		{
+			name:         "not found",
+			responseCode: http.StatusNotFound,
+			response:     esErrResponse,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to get ILM policy: jaeger-ilm-policy",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "_plugins/_ism/policies/jaeger-ilm-policy"))
+				assert.Equal(t, http.MethodGet, req.Method)
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &ILMClient{
+				Client: Client{
+					Client:   testServer.Client(),
+					Endpoint: testServer.URL,
+				},
+				Logger:           zap.NewNop(),
+				UseOpenSearchISM: true,
+			}
+			result, err := c.Exists("jaeger-ilm-policy")
+			if test.errContains != "" {
+				require.ErrorContains(t, err, test.errContains)
+			}
+			assert.Equal(t, test.expectedResult, result)
+		})
+	}
+}
+
 func TestExists_Retries(t *testing.T) {
 	t.Parallel()
 	var callCount int
