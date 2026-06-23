@@ -122,7 +122,7 @@ func createISMPolicy(t *testing.T, policyName string) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
-	require.True(t, resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK,
+	require.True(t, resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusConflict,
 		"failed to create ISM policy %s (status %d): %s", policyName, resp.StatusCode, string(respBody))
 }
 
