@@ -11,7 +11,7 @@ import (
 )
 
 func TestElasticsearchStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "elasticsearch")
+	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-elasticsearch.yaml",
@@ -26,13 +26,13 @@ func TestElasticsearchStorage(t *testing.T) {
 }
 
 func TestElasticsearchStorage_ManualRollover(t *testing.T) {
-	integration.SkipUnlessEnv(t, "elasticsearch")
+	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	setupManualRolloverIndices(t, "jaeger-mr")
 	runRotationSmokeTest(t, "../../config-elasticsearch-manual-rollover.yaml", "elasticsearch")
 }
 
 func TestElasticsearchStorage_AutoRollover(t *testing.T) {
-	integration.SkipUnlessEnv(t, "elasticsearch")
+	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
 	runRotationSmokeTest(t, "../../config-elasticsearch-auto-rollover.yaml", "elasticsearch")
 }
@@ -55,6 +55,6 @@ func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 // once the composable template is in place.
 func TestElasticsearchStorage_DataStream(t *testing.T) {
 	t.Skip("data_stream rotation not yet implemented (see RFC 0004 Phase 2)")
-	integration.SkipUnlessEnv(t, "elasticsearch")
+	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch")
 }

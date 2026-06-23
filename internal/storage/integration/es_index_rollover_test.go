@@ -25,7 +25,7 @@ const (
 )
 
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
@@ -44,7 +44,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 }
 
 func TestIndexRollover_Idempotency(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
@@ -61,7 +61,7 @@ func TestIndexRollover_Idempotency(t *testing.T) {
 }
 
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
