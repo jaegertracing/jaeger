@@ -158,9 +158,14 @@ func deleteIndicesByPrefix(t *testing.T, prefix string) {
 }
 
 func newESClient(t *testing.T) *elastic.Client {
+	tr := &http.Transport{}
+	t.Cleanup(func() {
+		tr.CloseIdleConnections()
+	})
 	client, err := elastic.NewClient(
 		elastic.SetURL(esBaseURL),
 		elastic.SetSniff(false),
+		elastic.SetHttpClient(&http.Client{Transport: tr}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { client.Stop() })
