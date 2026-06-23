@@ -198,7 +198,8 @@ func createISMPolicy(t *testing.T, policyName string) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
-	require.Equal(t, http.StatusCreated, resp.StatusCode, "failed to create ISM policy: %s", string(body))
+	require.True(t, resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK,
+		"failed to create ISM policy (status %d): %s", resp.StatusCode, string(body))
 }
 
 func deleteISMPolicy(t *testing.T, policyName string) {
