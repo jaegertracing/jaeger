@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -291,10 +292,10 @@ func TestRolloverAction(t *testing.T) {
 func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	// Verify that when the backend is OpenSearch, the concrete ILMClient
 	// gets UseOpenSearchISM=true and queries the ISM endpoint.
-	var ismEndpointCalled bool
+	var ismEndpointCalled atomic.Bool
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 		if strings.Contains(req.URL.String(), "_plugins/_ism/policies/") {
-			ismEndpointCalled = true
+			ismEndpointCalled.Store(true)
 		}
 		res.WriteHeader(http.StatusOK)
 	}))
@@ -330,5 +331,5 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	err := action.Do()
 	require.NoError(t, err)
 	assert.True(t, ilmClient.UseOpenSearchISM)
-	assert.True(t, ismEndpointCalled, "expected ISM endpoint to be called")
+	assert.True(t, ismEndpointCalled.Load(), "expected ISM endpoint to be called")
 }
