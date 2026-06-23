@@ -28,11 +28,16 @@ const (
 
 // runRotationSmokeTest is a helper that reduces boilerplate for rotation strategy
 // e2e tests. It starts Jaeger with the given config and runs the smoke test battery.
-func runRotationSmokeTest(t *testing.T, configFile string, storage string) {
+// The setupFn is called after each purge to re-create rollover indices/aliases that
+// purge deletes (purge does DELETE /*).
+func runRotationSmokeTest(t *testing.T, configFile string, storage string, setupFn func(t *testing.T)) {
 	s := &E2EStorageIntegration{
 		ConfigFile: configFile,
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
+			CleanUp: func(t *testing.T) {
+				purge(t)
+				setupFn(t)
+			},
 			Capabilities: capabilities.ElasticsearchSmokeTest(),
 		},
 	}
@@ -43,26 +48,35 @@ func runRotationSmokeTest(t *testing.T, configFile string, storage string) {
 // setupManualRolloverIndices uses the jaeger-es-rollover tool to create the
 // initial indices and aliases for the manual_rollover strategy.
 func setupManualRolloverIndices(t *testing.T, indexPrefix string) {
-	runEsRollover(t, "init", "--index-prefix="+indexPrefix)
+	initManualRolloverIndices(t, indexPrefix)
 	t.Cleanup(func() {
 		deleteIndicesByPrefix(t, indexPrefix+"-")
 	})
+}
+
+func initManualRolloverIndices(t *testing.T, indexPrefix string) {
+	runEsRollover(t, "init", "--index-prefix="+indexPrefix)
 }
 
 // setupAutoRolloverIndices creates an ILM/ISM policy and then uses the
 // jaeger-es-rollover tool to create initial indices and aliases for the
 // auto_rollover strategy.
 func setupAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
-	createILMPolicy(t, policyName)
-	runEsRollover(t, "init",
-		"--index-prefix="+indexPrefix,
-		"--es.use-ilm=true",
-		"--es.ilm-policy-name="+policyName,
-	)
+	initAutoRolloverIndices(t, indexPrefix, policyName)
 	t.Cleanup(func() {
 		deleteIndicesByPrefix(t, indexPrefix+"-")
 		deleteILMPolicy(t, policyName)
 	})
+}
+
+func initAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
+	createILMPolicy(t, policyName)
+	runEsRollover(
+		t, "init",
+		"--index-prefix="+indexPrefix,
+		"--es.use-ilm=true",
+		"--es.ilm-policy-name="+policyName,
+	)
 }
 
 func runEsRollover(t *testing.T, action string, flags ...string) {

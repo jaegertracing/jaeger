@@ -28,13 +28,17 @@ func TestElasticsearchStorage(t *testing.T) {
 func TestElasticsearchStorage_ManualRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	setupManualRolloverIndices(t, "jaeger-mr")
-	runRotationSmokeTest(t, "../../config-elasticsearch-manual-rollover.yaml", "elasticsearch")
+	runRotationSmokeTest(t, "../../config-elasticsearch-manual-rollover.yaml", "elasticsearch", func(t *testing.T) {
+		initManualRolloverIndices(t, "jaeger-mr")
+	})
 }
 
 func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
-	runRotationSmokeTest(t, "../../config-elasticsearch-auto-rollover.yaml", "elasticsearch")
+	runRotationSmokeTest(t, "../../config-elasticsearch-auto-rollover.yaml", "elasticsearch", func(t *testing.T) {
+		initAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+	})
 }
 
 func TestElasticsearchStorage_DataStream(t *testing.T) {
@@ -43,5 +47,5 @@ func TestElasticsearchStorage_DataStream(t *testing.T) {
 	// No setup helper is needed because data streams auto-create on first write
 	// once the composable template is in place.
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
-	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch")
+	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch", func(*testing.T) {})
 }
