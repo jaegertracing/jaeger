@@ -69,34 +69,32 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 		name      string
 		attrValue string
 		metadata  attributeMetadata
+		// additional typed columns that should appear in the fallback (beyond the always-present str/bytes/map/slice)
+		extraParsableTypes []pcommon.ValueType
 	}{
 		{
-			name:      "parse bool fails falls back to str",
-			attrValue: "not-bool",
-			metadata: attributeMetadata{
-				"k": {span: []pcommon.ValueType{pcommon.ValueTypeBool}},
-			},
+			name:               "parse bool fails falls back to str",
+			attrValue:          "not-bool",
+			metadata:           attributeMetadata{"k": {span: []pcommon.ValueType{pcommon.ValueTypeBool}}},
+			extraParsableTypes: nil,
 		},
 		{
-			name:      "parse double fails falls back to str",
-			attrValue: "not-float",
-			metadata: attributeMetadata{
-				"k": {span: []pcommon.ValueType{pcommon.ValueTypeDouble}},
-			},
+			name:               "parse double fails falls back to str",
+			attrValue:          "not-float",
+			metadata:           attributeMetadata{"k": {span: []pcommon.ValueType{pcommon.ValueTypeDouble}}},
+			extraParsableTypes: nil,
 		},
 		{
-			name:      "parse int fails falls back to str",
-			attrValue: "not-int",
-			metadata: attributeMetadata{
-				"k": {span: []pcommon.ValueType{pcommon.ValueTypeInt}},
-			},
+			name:               "parse int fails falls back to str",
+			attrValue:          "not-int",
+			metadata:           attributeMetadata{"k": {span: []pcommon.ValueType{pcommon.ValueTypeInt}}},
+			extraParsableTypes: nil,
 		},
 		{
-			name:      "unsupported type falls back to str",
-			attrValue: "whatever",
-			metadata: attributeMetadata{
-				"k": {span: []pcommon.ValueType{pcommon.ValueTypeEmpty}},
-			},
+			name:               "unsupported type falls back to str",
+			attrValue:          "whatever",
+			metadata:           attributeMetadata{"k": {span: []pcommon.ValueType{pcommon.ValueTypeEmpty}}},
+			extraParsableTypes: nil,
 		},
 	}
 
@@ -114,9 +112,29 @@ func TestBuildStringAttributeCondition_Fallbacks(t *testing.T) {
 			assert.Contains(t, query, "scope_str_attributes")
 			assert.Contains(t, query, "events")
 			assert.Contains(t, query, "links")
-			assert.Len(t, args, 10)
+			// str always parses; bool/int/double only if value is parseable
+			alwaysTypes := 1 // str
+			extraTypes := len(tc.extraParsableTypes)
+			assert.Len(t, args, (alwaysTypes+extraTypes)*5*2)
 		})
 	}
+}
+
+func TestBuildStringAttributeCondition_FallbackWithNumericValue(t *testing.T) {
+	// When metadata is empty and value is numeric "123", the fallback should
+	// generate conditions for str, int, double (3 types)
+	attr := pcommon.NewValueStr("123")
+	var q strings.Builder
+	var args []any
+
+	args = buildStringAttributeCondition(&q, args, "k", attr, attributeMetadata{})
+
+	query := q.String()
+	assert.Contains(t, query, "str_attributes")
+	assert.Contains(t, query, "int_attributes")
+	assert.Contains(t, query, "double_attributes")
+	assert.NotContains(t, query, "complex_attributes")
+	assert.Len(t, args, 30) // 3 types × 5 levels × 2 args
 }
 
 func TestBuildGetTracesQuery(t *testing.T) {

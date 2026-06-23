@@ -17,6 +17,9 @@ type Capabilities struct {
 	getDependenciesMissingSource bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+	// Number of wait iterations for tag-based queries when metadata might not be available.
+	// 0 means use default (100 iterations).
+	waitTagIterations int
 }
 
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
@@ -32,6 +35,12 @@ func (c Capabilities) GetDependenciesMissingSource() bool {
 // SkipList returns a list of tests that should be skipped for this storage backend.
 func (c Capabilities) SkipList() []string {
 	return c.skipList
+}
+
+// GetTagQueryWaitIterations returns the number of wait iterations for tag-based queries.
+// If 0, the default (100) is used.
+func (c Capabilities) GetTagQueryWaitIterations() int {
+	return c.waitTagIterations
 }
 
 // Memory returns the capabilities for the in-process memory storage backend.
@@ -71,7 +80,8 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
+		waitTagIterations: 150,
+		skipList:          []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
 	}
 }
 

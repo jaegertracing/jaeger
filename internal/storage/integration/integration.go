@@ -172,8 +172,11 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	}
 }
 
-func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
-	const iterations = 100 // Will wait at most 100 seconds.
+func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+	return s.waitForConditionWithIters(t, 100, predicate)
+}
+
+func (s *StorageIntegration) waitForConditionWithIters(t *testing.T, iterations int, predicate func(t *testing.T) bool) bool {
 	for i := range iterations {
 		if predicate(t) {
 			return true
@@ -583,8 +586,17 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 }
 
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
+	// Use backend-specific wait iterations for tag-based queries to account for
+	// asynchronous metadata indexing (e.g. ClickHouse materialized views).
+	iters := 100
+	if query.Attributes.Len() > 0 {
+		if w := s.Capabilities.GetTagQueryWaitIterations(); w > 0 {
+			iters = w
+		}
+	}
+
 	var traces []ptrace.Traces
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForConditionWithIters(t, iters, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
 		var err error
 		traces, err = jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))

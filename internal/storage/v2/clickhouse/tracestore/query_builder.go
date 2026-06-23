@@ -80,20 +80,42 @@ func appendNestedArrayExists(q *strings.Builder, indent int, nestedArray string,
 }
 
 func appendStringAttributeFallback(q *strings.Builder, args []any, key string, attr pcommon.Value) []any {
-	appendArrayExists(q, 2, "", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR")
-	appendArrayExists(q, 2, "resource", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR")
-	appendArrayExists(q, 2, "scope", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "events", pcommon.ValueTypeStr)
-	appendNewlineAndIndent(q, 2)
-	q.WriteString("OR")
-	appendNestedArrayExists(q, 2, "links", pcommon.ValueTypeStr)
-	return append(args, key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str(), key, attr.Str())
+	// When attribute metadata is unavailable (e.g. materialized views not yet populated),
+	// search the most common typed columns (str, bool, int, double) to find matches
+	// regardless of storage format. Complex types (bytes, map, slice) are excluded
+	// from this fallback since they are rarely used as query filters.
+	// Try parsing the string value as each possible type and generate OR conditions.
+	generatedCondition := false
+	for _, t := range []pcommon.ValueType{
+		pcommon.ValueTypeStr,
+		pcommon.ValueTypeBool,
+		pcommon.ValueTypeInt,
+		pcommon.ValueTypeDouble,
+	} {
+		tav, err := parseStringToTypedValue(key, attr, t)
+		if err != nil {
+			continue
+		}
+		for _, level := range []struct {
+			prefix string
+			fn     arrayExistsFn
+		}{
+			{"", appendArrayExists},
+			{"resource", appendArrayExists},
+			{"scope", appendArrayExists},
+			{"events", appendNestedArrayExists},
+			{"links", appendNestedArrayExists},
+		} {
+			if generatedCondition {
+				appendNewlineAndIndent(q, 2)
+				q.WriteString("OR")
+			}
+			generatedCondition = true
+			level.fn(q, 2, level.prefix, tav.valueType)
+			args = append(args, tav.key, tav.value)
+		}
+	}
+	return args
 }
 
 func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
