@@ -322,7 +322,7 @@ class JaegerSidecarAgent(Agent):
                 "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps.\n\n"
                 "IMPORTANT — Pagination rule for get_span_details:\n"
                 "- If the response contains has_more=true, you MUST call get_span_details again\n"
-                "  with the SAME span_ids and offset=next_offset from the previous response.\n"
+                "  with the SAME trace_id and span_ids, and offset=next_offset from the previous response.\n"
                 "- Keep paginating until has_more=false.\n"
                 "- Always report the total number of spans fetched across all pages."
             )
