@@ -178,3 +178,59 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	_, err = client.IndexDeleteTemplate("*").Do(context.Background())
 	require.NoError(t, err)
 }
+
+func TestIndexRollover_ArchiveIndicesWithILM(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
+
+	client, err := createESClient(t, getESHttpClient(t))
+	require.NoError(t, err)
+	esVersion, err := getVersion(client)
+	require.NoError(t, err)
+
+	if esVersion < 7 {
+		t.Skip("ILM is only supported in ES 7+")
+	}
+
+	ilmPolicyName := defaultILMPolicyName
+	envVars := []string{
+		"ES_USE_ILM=true",
+		"ARCHIVE=true",
+		"INDEX_PREFIX=",
+	}
+
+	expectedIndex := "jaeger-span-archive-000001"
+	expectedWriteAlias := "jaeger-span-archive-write"
+
+	// Ensure ES is completely clean before and after the test
+	cleanES(t, client, ilmPolicyName)
+	v8Client, err := createESV8Client(getESHttpClient(t).Transport)
+	require.NoError(t, err)
+	defer cleanES(t, client, ilmPolicyName)
+	defer cleanESIndexTemplates(t, client, v8Client, "")
+
+	err = createILMPolicy(client, ilmPolicyName)
+	require.NoError(t, err)
+
+	// Run the es-rollover init command with the archive flag
+	err = runEsRollover("init", envVars, false)
+	require.NoError(t, err)
+
+	// Fetch the actual indices created in the database
+	indices, err := client.IndexNames()
+	require.NoError(t, err)
+	assert.Contains(t, indices, expectedIndex)
+
+	// Fetch the settings injected into the archive index
+	settings, err := client.IndexGetSettings(expectedIndex).FlatSettings(true).Do(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, settings, 1)
+	for _, v := range settings {
+		assert.Equal(t, ilmPolicyName, v.Settings["index.lifecycle.name"])
+		assert.Equal(t, expectedWriteAlias, v.Settings["index.lifecycle.rollover_alias"],
+			"The rollover alias must match the archive write alias to prevent ILM collisions")
+	}
+}
