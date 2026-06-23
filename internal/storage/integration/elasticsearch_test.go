@@ -6,7 +6,9 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,6 +62,11 @@ type ESStorageIntegration struct {
 
 	factory        *esv2.Factory
 	archiveFactory *esv2.Factory
+
+	// spanRotation, when set, overrides the default periodic rotation for the
+	// spans index (e.g. to exercise the data_stream strategy). nil keeps the
+	// default periodic behavior used by the other tests.
+	spanRotation *escfg.RotationConfig
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
@@ -121,6 +128,9 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	cfg.Tags.AllAsFields = allTagsAsFields
 	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
+	if s.spanRotation != nil {
+		cfg.Indices.Spans.Rotation = *s.spanRotation
+	}
 	var err error
 	f, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
@@ -222,6 +232,107 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}
 	s.cleanESIndexTemplates(t, indexPrefix)
+}
+
+// TestElasticsearchStorage_DataStreams runs the full storage suite with the spans
+// index configured to use the data_stream rotation strategy (RFC 0004 Phase 2).
+// Writes go to the data stream via op_type=create and reads target the data stream
+// name directly, exercising the end-to-end path on both Elasticsearch and
+// OpenSearch. Services/dependencies/sampling keep the default periodic rotation.
+func TestElasticsearchStorage_DataStreams(t *testing.T) {
+	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnceForES(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+	// Data streams require Elasticsearch 7.9+ or OpenSearch 2.0+ (RFC 0004 §3.8);
+	// older backends in the CI matrix (ES 6.x, OpenSearch 1.x) are skipped.
+	skipUnlessDataStreamsSupported(t, c)
+	dataStreamName := indexPrefix + ".jaeger.spans"
+	// The shared Purge (DeleteIndex "*") cannot remove a data stream or its hidden
+	// backing indices, so the test deletes its own data stream artifacts.
+	t.Cleanup(func() { cleanESDataStream(t, c, dataStreamName) })
+
+	s := &ESStorageIntegration{
+		StorageIntegration: StorageIntegration{
+			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.Elasticsearch(),
+		},
+		spanRotation: &escfg.RotationConfig{
+			DataStream: configoptional.Some(escfg.DataStreamRotation{}),
+		},
+	}
+	s.initializeES(t, c, false)
+	// Data streams only affect spans; services/dependencies/sampling stay periodic,
+	// so only the span read/write path is exercised here (RFC 0004 Phase 2 item 14).
+	s.RunSpanStoreTests(t)
+
+	// After writing spans, the data stream must exist with at least one backing
+	// index, proving spans were routed to the data stream rather than a dated index.
+	requireDataStreamExists(t, c, dataStreamName)
+}
+
+// skipUnlessDataStreamsSupported skips the test on backends that predate data
+// stream support, since the bootstrap (composable templates with data_stream:{})
+// would otherwise fail on ES 6.x or OpenSearch 1.x.
+func skipUnlessDataStreamsSupported(t *testing.T, c *http.Client) {
+	resp, err := c.Get(queryURL)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	var info struct {
+		Version struct {
+			Number string `json:"number"`
+		} `json:"version"`
+		TagLine string `json:"tagline"`
+	}
+	require.NoError(t, json.Unmarshal(body, &info))
+	parts := strings.Split(info.Version.Number, ".")
+	major, _ := strconv.Atoi(parts[0])
+	minor := 0
+	if len(parts) > 1 {
+		minor, _ = strconv.Atoi(parts[1])
+	}
+	if strings.Contains(info.TagLine, "OpenSearch") {
+		if major < 2 {
+			t.Skipf("data streams require OpenSearch 2.0+, got %s", info.Version.Number)
+		}
+		return
+	}
+	if major < 7 || (major == 7 && minor < 9) {
+		t.Skipf("data streams require Elasticsearch 7.9+, got %s", info.Version.Number)
+	}
+}
+
+func requireDataStreamExists(t *testing.T, c *http.Client, name string) {
+	resp, err := c.Get(queryURL + "/_data_stream/" + name)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "data stream %q should exist: %s", name, body)
+	assert.Contains(t, string(body), ".ds-"+name, "data stream should have a backing index")
+}
+
+func cleanESDataStream(t *testing.T, c *http.Client, name string) {
+	del := func(path string) {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, queryURL+path, http.NoBody)
+		require.NoError(t, err)
+		resp, err := c.Do(req)
+		if err == nil {
+			resp.Body.Close()
+		}
+	}
+	// Order matters: the data stream references the index template, which composes
+	// the component templates. The lifecycle policy is deleted last.
+	del("/_data_stream/" + name)
+	del("/_index_template/" + name)
+	del("/_component_template/" + name + "@mappings")
+	del("/_component_template/" + name + "@settings")
+	del("/_plugins/_ism/policies/jaeger-spans-policy") // OpenSearch (ISM)
+	del("/_ilm/policy/jaeger-spans-policy")            // Elasticsearch (ILM)
 }
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) error {
