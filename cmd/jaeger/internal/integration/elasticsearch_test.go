@@ -25,39 +25,16 @@ func TestElasticsearchStorage(t *testing.T) {
 	s.RunSpanStoreTests(t)
 }
 
-// TestElasticsearchStorage_ManualRollover validates the full config → storage → query
-// pipeline using the manual_rollover rotation strategy. It creates the initial
-// indices and aliases that Jaeger expects, then writes and reads traces.
 func TestElasticsearchStorage_ManualRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, "elasticsearch")
 	setupManualRolloverIndices(t, "jaeger-mr")
-
-	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch-manual-rollover.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Capabilities: capabilities.ElasticsearchSmokeTest(),
-		},
-	}
-	s.e2eInitialize(t, "elasticsearch")
-	s.RunSpanStoreTests(t)
+	runRotationSmokeTest(t, "../../config-elasticsearch-manual-rollover.yaml", "elasticsearch")
 }
 
-// TestElasticsearchStorage_AutoRollover validates the full config → storage → query
-// pipeline using the auto_rollover rotation strategy with an ILM/ISM policy.
 func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, "elasticsearch")
 	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
-
-	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch-auto-rollover.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Capabilities: capabilities.ElasticsearchSmokeTest(),
-		},
-	}
-	s.e2eInitialize(t, "elasticsearch")
-	s.RunSpanStoreTests(t)
+	runRotationSmokeTest(t, "../../config-elasticsearch-auto-rollover.yaml", "elasticsearch")
 }
 
 // TestElasticsearchStorage_DataStream is a placeholder for the data_stream rotation
@@ -74,20 +51,10 @@ func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 //   - DataStreamStrategy.OpType() returns "create"
 //   - ISM/ILM policy creation for the data stream lifecycle
 //
-// The test config would use:
-//
-//	indices:
-//	  index_prefix: "jaeger-ds"
-//	  spans:
-//	    rotation:
-//	      data_stream:
-//	        policy_name: "jaeger-spans-lifecycle"
-//	  services:
-//	    rotation:
-//	      periodic: { date_layout: "2006-01-02" }
-//
 // No setup helper is needed because data streams auto-create on first write
 // once the composable template is in place.
 func TestElasticsearchStorage_DataStream(t *testing.T) {
 	t.Skip("data_stream rotation not yet implemented (see RFC 0004 Phase 2)")
+	integration.SkipUnlessEnv(t, "elasticsearch")
+	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch")
 }

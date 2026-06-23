@@ -8,86 +8,81 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
-const esURL = "http://localhost:9200"
+const (
+	esHostPort    = "localhost:9200"
+	esBaseURL     = "http://" + esHostPort
+	rolloverImage = "localhost:5000/jaegertracing/jaeger-es-rollover:local-test"
+)
 
-// setupManualRolloverIndices creates the initial indices and aliases that the
-// manual_rollover strategy expects to find. It mirrors what `jaeger-es-rollover init`
-// does, but without requiring the Docker image.
-func setupManualRolloverIndices(t *testing.T, indexPrefix string) {
-	client := newESClient(t)
-	prefix := indexPrefix + "-"
-	indexTypes := []string{"jaeger-span", "jaeger-service", "jaeger-dependencies", "jaeger-sampling"}
-	for _, indexType := range indexTypes {
-		initialIndex := prefix + indexType + "-000001"
-		writeAlias := prefix + indexType + "-write"
-		readAlias := prefix + indexType + "-read"
-		createIndexWithAliases(t, client, initialIndex, writeAlias, readAlias)
+// runRotationSmokeTest is a helper that reduces boilerplate for rotation strategy
+// e2e tests. It starts Jaeger with the given config and runs the smoke test battery.
+func runRotationSmokeTest(t *testing.T, configFile string, storage string) {
+	s := &E2EStorageIntegration{
+		ConfigFile: configFile,
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp:      purge,
+			Capabilities: capabilities.ElasticsearchSmokeTest(),
+		},
 	}
+	s.e2eInitialize(t, storage)
+	s.RunSpanStoreTests(t)
+}
+
+// setupManualRolloverIndices uses the production jaeger-es-rollover tool to
+// create the initial indices and aliases for the manual_rollover strategy.
+func setupManualRolloverIndices(t *testing.T, indexPrefix string) {
+	runEsRollover(t, "init", []string{"INDEX_PREFIX=" + indexPrefix})
 	t.Cleanup(func() {
-		deleteIndicesByPrefix(t, client, prefix)
+		deleteIndicesByPrefix(t, indexPrefix+"-")
 	})
 }
 
-// setupAutoRolloverIndices creates the ILM/ISM policy and initial indices/aliases
+// setupAutoRolloverIndices creates an ILM/ISM policy and then uses the
+// production jaeger-es-rollover tool to create initial indices and aliases
 // for the auto_rollover strategy.
 func setupAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
-	client := newESClient(t)
-	prefix := indexPrefix + "-"
-
-	createTestILMPolicy(t, client, policyName)
-
-	indexTypes := []string{"jaeger-span", "jaeger-service", "jaeger-dependencies", "jaeger-sampling"}
-	for _, indexType := range indexTypes {
-		initialIndex := prefix + indexType + "-000001"
-		writeAlias := prefix + indexType + "-write"
-		readAlias := prefix + indexType + "-read"
-		createIndexWithAliases(t, client, initialIndex, writeAlias, readAlias)
-	}
+	createILMPolicy(t, policyName)
+	runEsRollover(t, "init", []string{
+		"INDEX_PREFIX=" + indexPrefix,
+		"ES_USE_ILM=true",
+		"ES_ILM_POLICY_NAME=" + policyName,
+	})
 	t.Cleanup(func() {
-		deleteIndicesByPrefix(t, client, prefix)
+		deleteIndicesByPrefix(t, indexPrefix+"-")
 		deleteILMPolicy(t, policyName)
 	})
 }
 
-func newESClient(t *testing.T) *elastic.Client {
-	client, err := elastic.NewClient(
-		elastic.SetURL(esURL),
-		elastic.SetSniff(false),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { client.Stop() })
-	return client
-}
-
-func createIndexWithAliases(t *testing.T, client *elastic.Client, indexName, writeAlias, readAlias string) {
-	_, err := client.CreateIndex(indexName).Do(context.Background())
-	require.NoError(t, err, "failed to create index %s", indexName)
-
-	_, err = client.Alias().
-		Add(indexName, writeAlias).
-		AddWithFilter(indexName, readAlias, nil).
-		Do(context.Background())
-	require.NoError(t, err, "failed to create aliases for %s", indexName)
-}
-
-func deleteIndicesByPrefix(t *testing.T, client *elastic.Client, prefix string) {
-	_, err := client.DeleteIndex(prefix + "*").Do(context.Background())
-	if err != nil && !elastic.IsNotFound(err) {
-		t.Logf("warning: failed to delete indices with prefix %s: %v", prefix, err)
+func runEsRollover(t *testing.T, action string, envVars []string) {
+	var dockerEnv strings.Builder
+	for _, e := range envVars {
+		dockerEnv.WriteString(" -e ")
+		dockerEnv.WriteString(e)
 	}
+	args := fmt.Sprintf("docker run %s --rm --net=host %s %s http://%s",
+		dockerEnv.String(), rolloverImage, action, esHostPort)
+	cmd := exec.Command("/bin/sh", "-c", args)
+	out, err := cmd.CombinedOutput()
+	t.Logf("jaeger-es-rollover %s output:\n%s", action, string(out))
+	require.NoError(t, err, "jaeger-es-rollover %s failed", action)
 }
 
-func createTestILMPolicy(t *testing.T, client *elastic.Client, policyName string) {
+func createILMPolicy(t *testing.T, policyName string) {
+	client := newESClient(t)
 	version := detectVersion(t, client)
 	if version == "opensearch" {
-		createTestISMPolicy(t, policyName)
+		createISMPolicy(t, policyName)
 	} else {
 		_, err := client.XPackIlmPutLifecycle().
 			Policy(policyName).
@@ -97,7 +92,7 @@ func createTestILMPolicy(t *testing.T, client *elastic.Client, policyName string
 	}
 }
 
-func createTestISMPolicy(t *testing.T, policyName string) {
+func createISMPolicy(t *testing.T, policyName string) {
 	body := `{
 		"policy": {
 			"description": "Jaeger e2e test policy",
@@ -109,7 +104,7 @@ func createTestISMPolicy(t *testing.T, policyName string) {
 			}]
 		}
 	}`
-	url := fmt.Sprintf("%s/_plugins/_ism/policies/%s", esURL, policyName)
+	url := fmt.Sprintf("%s/_plugins/_ism/policies/%s", esBaseURL, policyName)
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, url, strings.NewReader(body))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -122,9 +117,10 @@ func createTestISMPolicy(t *testing.T, policyName string) {
 }
 
 func deleteILMPolicy(t *testing.T, policyName string) {
-	version := detectVersion(t, newESClient(t))
+	client := newESClient(t)
+	version := detectVersion(t, client)
 	if version == "opensearch" {
-		url := fmt.Sprintf("%s/_plugins/_ism/policies/%s", esURL, policyName)
+		url := fmt.Sprintf("%s/_plugins/_ism/policies/%s", esBaseURL, policyName)
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, url, http.NoBody)
 		if err != nil {
 			t.Logf("warning: failed to build ISM delete request: %v", err)
@@ -137,7 +133,6 @@ func deleteILMPolicy(t *testing.T, policyName string) {
 		}
 		resp.Body.Close()
 	} else {
-		client := newESClient(t)
 		_, err := client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
 		if err != nil && !elastic.IsNotFound(err) {
 			t.Logf("warning: failed to delete ILM policy: %v", err)
@@ -145,8 +140,26 @@ func deleteILMPolicy(t *testing.T, policyName string) {
 	}
 }
 
+func deleteIndicesByPrefix(t *testing.T, prefix string) {
+	client := newESClient(t)
+	_, err := client.DeleteIndex(prefix + "*").Do(context.Background())
+	if err != nil && !elastic.IsNotFound(err) {
+		t.Logf("warning: failed to delete indices with prefix %s: %v", prefix, err)
+	}
+}
+
+func newESClient(t *testing.T) *elastic.Client {
+	client, err := elastic.NewClient(
+		elastic.SetURL(esBaseURL),
+		elastic.SetSniff(false),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Stop() })
+	return client
+}
+
 func detectVersion(t *testing.T, client *elastic.Client) string {
-	ping, _, err := client.Ping(esURL).Do(context.Background())
+	ping, _, err := client.Ping(esBaseURL).Do(context.Background())
 	require.NoError(t, err)
 	if strings.Contains(strings.ToLower(ping.TagLine), "opensearch") ||
 		strings.Contains(strings.ToLower(ping.Version.BuildFlavor), "opensearch") {

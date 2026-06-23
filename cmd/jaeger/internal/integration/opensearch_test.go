@@ -27,29 +27,17 @@ func TestOpenSearchStorage(t *testing.T) {
 func TestOpenSearchStorage_ManualRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, "opensearch")
 	setupManualRolloverIndices(t, "jaeger-mr")
-
-	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-opensearch-manual-rollover.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Capabilities: capabilities.ElasticsearchSmokeTest(),
-		},
-	}
-	s.e2eInitialize(t, "opensearch")
-	s.RunSpanStoreTests(t)
+	runRotationSmokeTest(t, "../../config-opensearch-manual-rollover.yaml", "opensearch")
 }
 
 func TestOpenSearchStorage_AutoRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, "opensearch")
 	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+	runRotationSmokeTest(t, "../../config-opensearch-auto-rollover.yaml", "opensearch")
+}
 
-	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-opensearch-auto-rollover.yaml",
-		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Capabilities: capabilities.ElasticsearchSmokeTest(),
-		},
-	}
-	s.e2eInitialize(t, "opensearch")
-	s.RunSpanStoreTests(t)
+func TestOpenSearchStorage_DataStream(t *testing.T) {
+	t.Skip("data_stream rotation not yet implemented (see RFC 0004 Phase 2)")
+	integration.SkipUnlessEnv(t, "opensearch")
+	runRotationSmokeTest(t, "../../config-opensearch-data-stream.yaml", "opensearch")
 }
