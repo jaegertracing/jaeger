@@ -161,7 +161,8 @@ func getBackendVersion(client *elastic.Client) (es.BackendVersion, error) {
 	if err != nil {
 		return 0, err
 	}
-	majorVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+	parts := strings.SplitN(pingResult.Version.Number, ".", 2)
+	majorVersion, err := strconv.Atoi(parts[0])
 	if err != nil {
 		return 0, err
 	}

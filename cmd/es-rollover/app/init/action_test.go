@@ -5,28 +5,40 @@ package init
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 func applyTestDefaults(cfg *Config) {
-	// Set defaults only if missing
-	if cfg.Indices.Spans.Shards == 0 {
-		cfg.Indices.Spans.Shards = 3
+	indices := []*config.IndexOptions{
+		&cfg.Indices.Spans,
+		&cfg.Indices.Services,
+		&cfg.Indices.Dependencies,
+		&cfg.Indices.Sampling,
 	}
-	if cfg.Indices.Spans.Replicas == nil {
-		cfg.Indices.Spans.Replicas = new(int64(1))
-	}
-	if cfg.Indices.Spans.Priority == 0 {
-		cfg.Indices.Spans.Priority = 10
+	for _, idx := range indices {
+		if idx.Shards == 0 {
+			idx.Shards = 3
+		}
+		if idx.Replicas == nil {
+			idx.Replicas = new(int64(1))
+		}
+		if idx.Priority == 0 {
+			idx.Priority = 10
+		}
 	}
 }
 
@@ -274,4 +286,49 @@ func TestRolloverAction(t *testing.T) {
 			ilmClient.AssertExpectations(t)
 		})
 	}
+}
+
+func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
+	// Verify that when the backend is OpenSearch, the concrete ILMClient
+	// gets UseOpenSearchISM=true and queries the ISM endpoint.
+	var ismEndpointCalled bool
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		if strings.Contains(req.URL.String(), "_plugins/_ism/policies/") {
+			ismEndpointCalled = true
+		}
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	clusterClient := &mocks.ClusterAPI{}
+	clusterClient.On("Version").Return(es.OpenSearch2, nil)
+
+	ilmClient := &client.ILMClient{
+		Client: client.Client{
+			Client:   testServer.Client(),
+			Endpoint: testServer.URL,
+		},
+		Logger: zap.NewNop(),
+	}
+
+	cfg := Config{Config: app.Config{UseILM: true, ILMPolicyName: "test-policy"}}
+	applyTestDefaults(&cfg)
+
+	indexClient := &mocks.IndexAPI{}
+	indexClient.On("CreateTemplate", mock.Anything, mock.Anything).Return(nil)
+	indexClient.On("IndexExists", mock.Anything).Return(true, nil)
+	indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
+	indexClient.On("CreateAlias", mock.Anything).Return(nil)
+
+	action := Action{
+		Config:        cfg,
+		IndicesClient: indexClient,
+		ClusterClient: clusterClient,
+		ILMClient:     ilmClient,
+	}
+
+	err := action.Do()
+	require.NoError(t, err)
+	assert.True(t, ilmClient.UseOpenSearchISM)
+	assert.True(t, ismEndpointCalled, "expected ISM endpoint to be called")
 }
