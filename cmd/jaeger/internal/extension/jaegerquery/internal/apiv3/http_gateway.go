@@ -4,6 +4,7 @@
 package apiv3
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -140,7 +141,7 @@ func (*HTTPGateway) marshalResponse(response proto.Message, w http.ResponseWrite
 
 func (h *HTTPGateway) getTrace(w http.ResponseWriter, r *http.Request) {
 	traceIDVar := r.PathValue(paramTraceID)
-	traceID, err := model.TraceIDFromString(traceIDVar)
+	traceID, err := TraceIDFromString(traceIDVar)
 	if h.tryParamError(w, err, paramTraceID) {
 		return
 	}
@@ -242,4 +243,29 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
+}
+
+// TraceIDFromString parses a trace ID from either a hex string or a base64 string.
+// It supports both standard and URL-safe base64, with or without padding.
+func TraceIDFromString(s string) (model.TraceID, error) {
+	traceID, err := model.TraceIDFromString(s)
+	if err == nil {
+		return traceID, nil
+	}
+	// 128-bit trace ID = 24 base64 chars with padding, 22 without.
+	if len(s) > 24 {
+		return model.TraceID{}, err
+	}
+	encodings := []*base64.Encoding{
+		base64.StdEncoding,
+		base64.URLEncoding,
+		base64.RawStdEncoding,
+		base64.RawURLEncoding,
+	}
+	for _, enc := range encodings {
+		if b, b64Err := enc.DecodeString(s); b64Err == nil {
+			return model.TraceIDFromBytes(b)
+		}
+	}
+	return model.TraceID{}, err
 }
