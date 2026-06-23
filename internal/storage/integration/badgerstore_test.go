@@ -50,7 +50,7 @@ func (s *BadgerIntegrationStorage) cleanUp(t *testing.T) {
 }
 
 func TestBadgerStorage(t *testing.T) {
-	SkipUnlessEnv(t, "badger")
+	SkipUnlessEnv(t, StorageBadger)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

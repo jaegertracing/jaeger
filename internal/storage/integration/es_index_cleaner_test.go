@@ -31,7 +31,7 @@ const (
 )
 
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
@@ -54,7 +54,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 }
 
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
@@ -79,7 +79,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 }
 
 func TestIndexCleaner(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
