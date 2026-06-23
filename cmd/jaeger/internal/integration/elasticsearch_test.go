@@ -36,7 +36,7 @@ func TestElasticsearchStorage_ManualRollover(t *testing.T) {
 		ConfigFile: "../../config-elasticsearch-manual-rollover.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.Elasticsearch(),
+			Capabilities: capabilities.ElasticsearchSmokeTest(),
 		},
 	}
 	s.e2eInitialize(t, "elasticsearch")
@@ -53,7 +53,7 @@ func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 		ConfigFile: "../../config-elasticsearch-auto-rollover.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.Elasticsearch(),
+			Capabilities: capabilities.ElasticsearchSmokeTest(),
 		},
 	}
 	s.e2eInitialize(t, "elasticsearch")

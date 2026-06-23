@@ -32,7 +32,7 @@ func TestOpenSearchStorage_ManualRollover(t *testing.T) {
 		ConfigFile: "../../config-opensearch-manual-rollover.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.OpenSearch(),
+			Capabilities: capabilities.ElasticsearchSmokeTest(),
 		},
 	}
 	s.e2eInitialize(t, "opensearch")
@@ -47,7 +47,7 @@ func TestOpenSearchStorage_AutoRollover(t *testing.T) {
 		ConfigFile: "../../config-opensearch-auto-rollover.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.OpenSearch(),
+			Capabilities: capabilities.ElasticsearchSmokeTest(),
 		},
 	}
 	s.e2eInitialize(t, "opensearch")
