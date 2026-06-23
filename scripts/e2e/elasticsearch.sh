@@ -139,8 +139,6 @@ main() {
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   elif [[ "${storage_test}" == "direct" ]]; then
     STORAGE=${distro} make storage-integration-test
-    cp cover.out cover-index-cleaner.out
-    cp cover.out cover-index-rollover.out
   else
     echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
     exit 1
