@@ -44,7 +44,7 @@ func (i ILMClient) Exists(name string) (bool, error) {
 		})
 		if err != nil {
 			i.Logger.Warn(
-				"Retryable error while getting ILM policy",
+				"Retryable error while getting ILM/ISM policy",
 				zap.String("name", name),
 				zap.Error(err),
 			)
