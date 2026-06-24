@@ -91,8 +91,10 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
-	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
-	// can reach any trace regardless of age.
+	// For alias-based rotation, ReadTargets ignores the time range (always returns
+	// the alias), so max_span_age is irrelevant for index selection. We override it
+	// to DawnOfTimeSpanAge so the time-range filter in the ES query doesn't exclude
+	// old traces.
 	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
@@ -100,6 +102,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		Client:            f.getClient,
 		MaxDocCount:       f.config.MaxDocCount,
 		MaxSpanAge:        maxSpanAge,
+		MaxTraceDuration:  f.config.MaxTraceDuration,
 		TagDotReplacement: f.config.Tags.DotReplacement,
 		Logger:            f.logger,
 		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
@@ -169,7 +172,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
-		EsVersion:       cfg.Version,
+		Version:         cfg.Version,
 		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
 	}

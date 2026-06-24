@@ -43,7 +43,7 @@ func TestDependencyReader_GetDependencies(t *testing.T) {
 		EndTime:   end,
 	}
 	expectedDeps := []model.DependencyLink{{Parent: "parent", Child: "child", CallCount: 12}}
-	mr := new(dependencystoremocks.Reader)
+	mr := dependencystoremocks.NewReader(t)
 	mr.On("GetDependencies", mock.Anything, end, time.Minute).Return(expectedDeps, nil)
 	dr := NewDependencyReader(mr)
 	deps, err := dr.GetDependencies(context.Background(), query)
@@ -59,7 +59,7 @@ func TestDowngradedDependencyReader_GetDependencies(t *testing.T) {
 		EndTime:   end,
 	}
 	expectedDeps := []model.DependencyLink{{Parent: "parent", Child: "child", CallCount: 12}}
-	mr := new(depstoremocks.Reader)
+	mr := depstoremocks.NewReader(t)
 	mr.On("GetDependencies", mock.Anything, query).Return(expectedDeps, nil)
 	dr := &DowngradedDependencyReader{
 		reader: mr,

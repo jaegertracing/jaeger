@@ -249,18 +249,18 @@ func (_c *Client_DeleteIndex_Call) RunAndReturn(run func(index string) elasticse
 }
 
 // GetVersion provides a mock function for the type Client
-func (_mock *Client) GetVersion() uint {
+func (_mock *Client) GetVersion() elasticsearch.BackendVersion {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetVersion")
 	}
 
-	var r0 uint
-	if returnFunc, ok := ret.Get(0).(func() uint); ok {
+	var r0 elasticsearch.BackendVersion
+	if returnFunc, ok := ret.Get(0).(func() elasticsearch.BackendVersion); ok {
 		r0 = returnFunc()
 	} else {
-		r0 = ret.Get(0).(uint)
+		r0 = ret.Get(0).(elasticsearch.BackendVersion)
 	}
 	return r0
 }
@@ -282,12 +282,12 @@ func (_c *Client_GetVersion_Call) Run(run func()) *Client_GetVersion_Call {
 	return _c
 }
 
-func (_c *Client_GetVersion_Call) Return(v uint) *Client_GetVersion_Call {
-	_c.Call.Return(v)
+func (_c *Client_GetVersion_Call) Return(backendVersion elasticsearch.BackendVersion) *Client_GetVersion_Call {
+	_c.Call.Return(backendVersion)
 	return _c
 }
 
-func (_c *Client_GetVersion_Call) RunAndReturn(run func() uint) *Client_GetVersion_Call {
+func (_c *Client_GetVersion_Call) RunAndReturn(run func() elasticsearch.BackendVersion) *Client_GetVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }

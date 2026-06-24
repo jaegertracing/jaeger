@@ -264,17 +264,13 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	return err
 }
 
-func (i IndicesClient) version() (uint, error) {
-	cl := ClusterClient{Client: i.Client}
-	return cl.Version()
-}
-
 // CreateTemplate an ES index template
 func (i IndicesClient) CreateTemplate(template, name string) error {
 	endpointFmt := "_template/%s"
-	if v, err := i.version(); err != nil {
+	cl := ClusterClient{Client: i.Client}
+	if v, err := cl.Version(); err != nil {
 		return err
-	} else if v >= 8 {
+	} else if v.UsesV8API() {
 		endpointFmt = "_index_template/%s"
 	}
 	_, err := i.request(elasticRequest{
