@@ -115,6 +115,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
+			MaxTraceDuration:  24 * time.Hour,
 			TagDotReplacement: "@",
 			MaxDocCount:       defaultMaxDocCount,
 			SpanRotation:      indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", 24*time.Hour),
@@ -153,6 +154,7 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
+			MaxTraceDuration:  24 * time.Hour,
 			TagDotReplacement: "@",
 			SpanRotation:      spanRotation,
 			ServiceRotation:   serviceRotation,
@@ -297,13 +299,13 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		startTimeRangeQuery := r.reader.buildStartTimeQuery(date.Add(-time.Hour*24), date.Add(time.Hour*24))
+		startTimeRangeQuery := r.reader.buildStartTimeQuery(date.Add(-24*time.Hour), date.Add(24*time.Hour))
 		traceID1Query := elastic.NewTermQuery(traceIDField, string(traceID1))
 		id1Query := elastic.NewBoolQuery().Must(traceID1Query).Must(startTimeRangeQuery)
-		id1Search := newSearchRequest(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
+		id1Search := newSearchRequest(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-24*time.Hour))).TrackTotalHits(true))
 		traceID2Query := elastic.NewTermQuery(traceIDField, string(traceID2))
 		id2Query := elastic.NewBoolQuery().Must(traceID2Query).Must(startTimeRangeQuery)
-		id2Search := newSearchRequest(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))).TrackTotalHits(true))
+		id2Search := newSearchRequest(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-24*time.Hour))).TrackTotalHits(true))
 		id1SearchSpanTime := newSearchRequest(r.reader.sourceFn(id1Query, spanID1.StartTime).TrackTotalHits(true))
 
 		multiSearchService := &mocks.MultiSearchService{}
