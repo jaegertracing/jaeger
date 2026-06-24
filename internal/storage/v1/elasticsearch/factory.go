@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"time"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
@@ -97,7 +96,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	// We use DawnOfTimeSpanAge to ensure GetTraces can reach any trace within the
 	// data retention window. Operators should set max_span_age to match their
 	// ILM/ISM retention policy to avoid this fallback.
-	if !spanRC.Periodic.HasValue() && f.config.MaxSpanAge <= 72*time.Hour {
+	if !spanRC.Periodic.HasValue() && f.config.MaxSpanAge == defaultMaxSpanAge {
 		f.logger.Warn(
 			"Using default max_span_age with alias-based rotation; " +
 				"set max_span_age to your data retention period for optimal performance",
