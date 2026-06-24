@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
@@ -91,15 +92,23 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
-	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
-	// can reach any trace regardless of age.
-	if !spanRC.Periodic.HasValue() {
+	// For alias-based rotation, ReadTargets ignores the time range (always returns
+	// the alias), but maxSpanAge still controls the time-range filter in the ES query.
+	// We use DawnOfTimeSpanAge to ensure GetTraces can reach any trace within the
+	// data retention window. Operators should set max_span_age to match their
+	// ILM/ISM retention policy to avoid this fallback.
+	if !spanRC.Periodic.HasValue() && f.config.MaxSpanAge <= 72*time.Hour {
+		f.logger.Warn(
+			"Using default max_span_age with alias-based rotation; " +
+				"set max_span_age to your data retention period for optimal performance",
+		)
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
 		Client:            f.getClient,
 		MaxDocCount:       f.config.MaxDocCount,
 		MaxSpanAge:        maxSpanAge,
+		MaxTraceDuration:  f.config.MaxTraceDuration,
 		TagDotReplacement: f.config.Tags.DotReplacement,
 		Logger:            f.logger,
 		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),

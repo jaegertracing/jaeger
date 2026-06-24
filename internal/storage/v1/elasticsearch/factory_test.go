@@ -697,6 +697,35 @@ func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
 }
 
+func TestGetSpanReaderParams_NonPeriodicExplicitMaxSpanAge(t *testing.T) {
+	cfg := escfg.Configuration{
+		Indices: escfg.Indices{
+			Spans: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "span-read",
+						WriteAlias: "span-write",
+					}),
+				},
+			},
+			Services: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "svc-read",
+						WriteAlias: "svc-write",
+					}),
+				},
+			},
+		},
+		MaxSpanAge:       30 * 24 * time.Hour, // 30 days — explicitly set to match retention
+		MaxTraceDuration: 2 * time.Hour,
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	params := f.GetSpanReaderParams()
+	assert.Equal(t, 30*24*time.Hour, params.MaxSpanAge)
+	assert.Equal(t, 2*time.Hour, params.MaxTraceDuration)
+}
+
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
 type mockHTTPAuthenticator struct{}
 

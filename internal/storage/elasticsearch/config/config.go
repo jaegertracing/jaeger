@@ -235,7 +235,16 @@ type Configuration struct {
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
 	// MaxSpanAge configures the maximum lookback on span reads.
+	// For alias-based rotation (manual_rollover/auto_rollover), this should be set
+	// to match the ILM/ISM data retention policy so that GetTraces can find traces
+	// up to that age.
 	MaxSpanAge time.Duration `mapstructure:"max_span_age"`
+	// MaxTraceDuration is the maximum expected duration of a single trace
+	// (time between the earliest and latest span in the trace).
+	// Used to widen time-range filters when reading spans, ensuring that all spans
+	// of a trace are found even if they extend beyond the search window.
+	// Defaults to 24h.
+	MaxTraceDuration time.Duration `mapstructure:"max_trace_duration"`
 	// ServiceCacheTTL contains the TTL for the cache of known service names.
 	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
 	// AdaptiveSamplingLookback contains the duration to look back for the
@@ -528,6 +537,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
+	}
+	if c.MaxTraceDuration == 0 {
+		c.MaxTraceDuration = source.MaxTraceDuration
 	}
 	if c.AdaptiveSamplingLookback == 0 {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
