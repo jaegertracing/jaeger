@@ -26,23 +26,23 @@ func TestNewCommand(t *testing.T) {
 	assert.Equal(t, description, cmd.Short)
 	require.NotNil(t, cmd.RunE)
 
-	cmd.ParseFlags([]string{"--config", "bad-file-name"})
+	cmd.SetArgs([]string{"--config", "bad-file-name"})
 	err = cmd.Execute()
 	require.ErrorContains(t, err, "bad-file-name")
 }
 
 func TestCheckConfigAndRun(t *testing.T) {
 	cmd := &cobra.Command{
-		RunE: func(_ *cobra.Command, _ /* args */ []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			return nil
 		},
 	}
 	cmd.Flags().String("config", "", "path to config file")
 
-	getCfg := func( /* name */ string) ([]byte, error) {
+	getCfg := func(string) ([]byte, error) {
 		return []byte("default-config"), nil
 	}
-	runE := func(_ *cobra.Command, _ /* args */ []string) error {
+	runE := func(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
@@ -51,7 +51,7 @@ func TestCheckConfigAndRun(t *testing.T) {
 	assert.True(t, strings.HasPrefix(cmd.Flag("config").Value.String(), "yaml:"), "expected config flag to be set to yaml: payload")
 
 	errGetCfg := errors.New("error")
-	getCfgErr := func( /* name */ string) ([]byte, error) {
+	getCfgErr := func(string) ([]byte, error) {
 		return nil, errGetCfg
 	}
 	err = checkConfigAndRun(cmd, nil, getCfgErr, runE)
