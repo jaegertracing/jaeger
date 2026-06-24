@@ -65,7 +65,7 @@ func getMappingAsString(builder es.TemplateBuilder, opt Options) (string, error)
 			Dependencies: indexOpts,
 			Sampling:     indexOpts,
 		},
-		EsVersion:     opt.EsVersion,
+		Version:       opt.BackendVersion(),
 		UseILM:        enableILM,
 		ILMPolicyName: opt.ILMPolicyName,
 	}

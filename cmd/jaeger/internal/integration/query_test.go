@@ -10,7 +10,7 @@ import (
 )
 
 func TestJaegerQueryService(t *testing.T) {
-	integration.SkipUnlessEnv(t, "query")
+	integration.SkipUnlessEnv(t, integration.StorageQuery)
 
 	// Start instance of Jaeger with jaeger_query reading from Remote Storage, which
 	// will be started in GRPCStorageIntegration below
