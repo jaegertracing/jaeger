@@ -555,3 +555,103 @@ func TestParseTraceID(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSpanID(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantError bool
+	}{
+		{
+			name:      "valid span ID",
+			input:     "0000000000000001",
+			wantError: false,
+		},
+		{
+			name:      "valid span ID - all lowercase hex",
+			input:     "abcdef0123456789",
+			wantError: false,
+		},
+		{
+			name:      "invalid span ID - too short",
+			input:     "abc",
+			wantError: true,
+		},
+		{
+			name:      "invalid span ID - too long",
+			input:     "000000000000000001",
+			wantError: true,
+		},
+		{
+			name:      "invalid span ID - non-hex characters",
+			input:     "ZZZZZZZZZZZZZZZZ",
+			wantError: true,
+		},
+		{
+			name:      "invalid span ID - contains dash",
+			input:     "not-a-hex-id!!--",
+			wantError: true,
+		},
+		{
+			name:      "empty span ID",
+			input:     "",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSpanID(tt.input)
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestGetSpanDetailsHandler_Handle_InvalidSpanIDs(t *testing.T) {
+	tests := []struct {
+		name           string
+		spanIDs        []string
+		wantErrContain string
+	}{
+		{
+			name:           "span ID too short",
+			spanIDs:        []string{"abc"},
+			wantErrContain: "invalid span_id",
+		},
+		{
+			name:           "span ID with non-hex characters",
+			spanIDs:        []string{"not-a-hex-id!!!!"},
+			wantErrContain: "invalid span_id",
+		},
+		{
+			name:           "span ID too long",
+			spanIDs:        []string{"000000000000000001"},
+			wantErrContain: "invalid span_id",
+		},
+		{
+			name:           "one valid one invalid span ID",
+			spanIDs:        []string{spanIDToHex("span001"), "tooshort"},
+			wantErrContain: "invalid span_id",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := NewGetSpanDetailsHandler(nil, 50)
+
+			input := types.GetSpanDetailsInput{
+				TraceID: testTraceID,
+				SpanIDs: tt.spanIDs,
+			}
+
+			_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErrContain)
+		})
+	}
+}

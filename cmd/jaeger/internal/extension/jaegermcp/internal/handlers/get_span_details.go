@@ -137,6 +137,12 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 		)
 	}
 
+	for _, spanID := range input.SpanIDs {
+		if err := validateSpanID(spanID); err != nil {
+			return querysvc.GetTraceParams{}, fmt.Errorf("invalid span_id %q: %w", spanID, err)
+		}
+	}
+
 	traceID, err := parseTraceID(input.TraceID)
 	if err != nil {
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
@@ -267,4 +273,15 @@ func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
 
 	copy(traceID[:], bytes)
 	return traceID, nil
+}
+
+// validateSpanID checks that a span ID string is a valid 16-character hex string.
+func validateSpanID(spanIDStr string) error {
+	if len(spanIDStr) != 16 {
+		return fmt.Errorf("span ID must be 16 hex characters, got %d", len(spanIDStr))
+	}
+	if _, err := hex.DecodeString(spanIDStr); err != nil {
+		return fmt.Errorf("invalid hex string: %w", err)
+	}
+	return nil
 }
