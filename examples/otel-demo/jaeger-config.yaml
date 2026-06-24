@@ -26,6 +26,7 @@ extensions:
     backends:
       some_storage: &opensearch_config
         opensearch:
+          max_span_age: 720h
           server_urls:
             - http://opensearch-cluster-single.opensearch.svc.cluster.local:9200
           indices:
