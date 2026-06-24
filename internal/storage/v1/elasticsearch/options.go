@@ -50,6 +50,7 @@ func DefaultConfig() config.Configuration {
 		},
 		DisableHealthCheck:       false,
 		MaxSpanAge:               72 * time.Hour,
+		MaxTraceDuration:         24 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
 			MaxBytes:      5 * 1000 * 1000,

@@ -3,6 +3,8 @@
 
 package client
 
+import es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+
 type IndexAPI interface {
 	GetJaegerIndices(prefix string) ([]Index, error)
 	IndexExists(index string) (bool, error)
@@ -16,7 +18,7 @@ type IndexAPI interface {
 }
 
 type ClusterAPI interface {
-	Version() (uint, error)
+	Version() (es.BackendVersion, error)
 }
 
 type IndexManagementLifecycleAPI interface {

@@ -166,7 +166,7 @@ func healthCheck(c *http.Client) error {
 }
 
 func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
@@ -195,7 +195,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
-	SkipUnlessEnv(t, "elasticsearch", "opensearch")
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
