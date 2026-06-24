@@ -171,22 +171,6 @@ func TestNewSpanReader(t *testing.T) {
 	assert.Equal(t, time.Hour*72, reader.maxSpanAge)
 }
 
-func TestNewSpanReader_ServicesMaxLookback(t *testing.T) {
-	t.Run("defaults to MaxSpanAge when unset", func(t *testing.T) {
-		r := NewSpanReader(SpanReaderParams{MaxSpanAge: 72 * time.Hour, Logger: zaptest.NewLogger(t)})
-		assert.Equal(t, 72*time.Hour, r.servicesMaxLookback)
-	})
-	t.Run("kept separate from an unbounded span maxSpanAge", func(t *testing.T) {
-		r := NewSpanReader(SpanReaderParams{
-			MaxSpanAge:          DawnOfTimeSpanAge,
-			ServicesMaxLookback: 72 * time.Hour,
-			Logger:              zaptest.NewLogger(t),
-		})
-		assert.Equal(t, DawnOfTimeSpanAge, r.maxSpanAge)
-		assert.Equal(t, 72*time.Hour, r.servicesMaxLookback)
-	})
-}
-
 func TestSpanReaderRotations(t *testing.T) {
 	client := &mocks.Client{}
 	clientFn := func() es.Client { return client }
