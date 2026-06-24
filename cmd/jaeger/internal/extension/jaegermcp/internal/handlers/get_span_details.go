@@ -142,6 +142,14 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
 	}
 
+	// Validate every span_id up front so a malformed value fails fast instead of
+	// triggering a backend query that can never match a real span ID.
+	for _, spanIDStr := range input.SpanIDs {
+		if _, err := parseSpanID(spanIDStr); err != nil {
+			return querysvc.GetTraceParams{}, fmt.Errorf("invalid span_id %q: %w", spanIDStr, err)
+		}
+	}
+
 	return querysvc.GetTraceParams{
 		TraceIDs: []tracestore.GetTraceParams{
 			{TraceID: traceID},
@@ -267,4 +275,21 @@ func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
 
 	copy(traceID[:], bytes)
 	return traceID, nil
+}
+
+// parseSpanID parses a span ID string into a pcommon.SpanID.
+func parseSpanID(spanIDStr string) (pcommon.SpanID, error) {
+	// Parse hex string - SpanID is 8 bytes (16 hex characters)
+	if len(spanIDStr) != 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID must be 16 hex characters, got %d", len(spanIDStr))
+	}
+
+	var spanID pcommon.SpanID
+	bytes, err := hex.DecodeString(spanIDStr)
+	if err != nil {
+		return pcommon.SpanID{}, fmt.Errorf("invalid hex string: %w", err)
+	}
+
+	copy(spanID[:], bytes)
+	return spanID, nil
 }

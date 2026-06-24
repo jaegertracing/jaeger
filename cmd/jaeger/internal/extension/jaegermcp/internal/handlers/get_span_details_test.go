@@ -555,3 +555,61 @@ func TestParseTraceID(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSpanDetailsHandler_Handle_InvalidSpanID(t *testing.T) {
+	// A malformed span_id must fail validation before any backend query runs,
+	// so a nil queryService is safe here: reaching it would panic.
+	handler := NewGetSpanDetailsHandler(nil, 50)
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{spanIDToHex("span001"), "abc"},
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid span_id "abc"`)
+	assert.Contains(t, err.Error(), "span ID must be 16 hex characters, got 3")
+}
+
+func TestParseSpanID(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantError bool
+	}{
+		{
+			name:      "valid span ID",
+			input:     "0000000000000001",
+			wantError: false,
+		},
+		{
+			name:      "invalid span ID - wrong length",
+			input:     "abc",
+			wantError: true,
+		},
+		{
+			name:      "invalid span ID - non-hex characters",
+			input:     "ZZZZZZZZZZZZZZZZ",
+			wantError: true,
+		},
+		{
+			name:      "empty span ID",
+			input:     "",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseSpanID(tt.input)
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.False(t, result.IsEmpty())
+			}
+		})
+	}
+}
