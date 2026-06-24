@@ -101,8 +101,7 @@ func init() {
 //     - Periodic indices: maxSpanAge should match data retention (e.g., 7d). ReadTargets generates
 //       only existing indices within that window.
 //     - Alias indices: a single alias covers all data. The factory overrides maxSpanAge to
-//       DawnOfTimeSpanAge (50 years) when the operator hasn't explicitly configured max_span_age
-//       beyond the default. Operators should set max_span_age to their ILM/ISM retention period.
+//       DawnOfTimeSpanAge (50 years) so the time-range filter doesn't exclude old traces.
 //
 // multiRead always adds a time-range filter to the ES query for shard pruning (helps ES skip
 // irrelevant shards). This is harmless for periodic indices and essential for aliases.

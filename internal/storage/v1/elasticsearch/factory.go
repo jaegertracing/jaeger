@@ -92,15 +92,10 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	maxSpanAge := f.config.MaxSpanAge
 	// See timeRangeDesign comment in reader.go.
 	// For alias-based rotation, ReadTargets ignores the time range (always returns
-	// the alias), but maxSpanAge still controls the time-range filter in the ES query.
-	// We use DawnOfTimeSpanAge to ensure GetTraces can reach any trace within the
-	// data retention window. Operators should set max_span_age to match their
-	// ILM/ISM retention policy to avoid this fallback.
-	if !spanRC.Periodic.HasValue() && f.config.MaxSpanAge == defaultMaxSpanAge {
-		f.logger.Warn(
-			"Using default max_span_age with alias-based rotation; " +
-				"set max_span_age to your data retention period for optimal performance",
-		)
+	// the alias), so max_span_age is irrelevant for index selection. We override it
+	// to DawnOfTimeSpanAge so the time-range filter in the ES query doesn't exclude
+	// old traces.
+	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
