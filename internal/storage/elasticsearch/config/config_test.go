@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -585,7 +586,7 @@ func TestNewClientVersionDetection(t *testing.T) {
 	tests := []struct {
 		name            string
 		serverResponse  []byte
-		expectedVersion uint
+		expectedVersion es.BackendVersion
 		expectedError   string
 	}{
 		{
@@ -595,7 +596,7 @@ func TestNewClientVersionDetection(t *testing.T) {
                     "Number": "7.x.1"
                 }
             }`),
-			expectedVersion: 7,
+			expectedVersion: es.ElasticV7,
 			expectedError:   "",
 		},
 		{

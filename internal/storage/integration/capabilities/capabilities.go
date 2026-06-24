@@ -94,6 +94,21 @@ func Elasticsearch() Capabilities {
 	}
 }
 
+// ElasticsearchSmokeTest defines capabilities for lightweight rotation strategy
+// validation tests that skip expensive subtests (large traces, duplicates).
+func ElasticsearchSmokeTest() Capabilities {
+	return Capabilities{
+		getOperationsMissingSpanKind: true,
+		skipList: []string{
+			scopeAttributesTest,
+			linkAttributesTest,
+			FindTraceSummariesTest,
+			"GetLargeTrace",
+			"GetTraceWithDuplicateSpans",
+		},
+	}
+}
+
 // OpenSearch defines the capabilities for the OpenSearch storage backend.
 func OpenSearch() Capabilities {
 	return Capabilities{

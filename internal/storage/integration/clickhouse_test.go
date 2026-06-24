@@ -60,7 +60,7 @@ func (s *ClickHouseStorageIntegration) cleanUp(t *testing.T) {
 }
 
 func TestClickHouseStorage(t *testing.T) {
-	SkipUnlessEnv(t, "clickhouse")
+	SkipUnlessEnv(t, StorageClickHouse)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
