@@ -21,7 +21,6 @@ func TestBuildRotation(t *testing.T) {
 	tests := []struct {
 		name           string
 		prefix         string
-		dataStream     string
 		rc             config.RotationConfig
 		remoteClusters []string
 		wantWrite      string
@@ -111,21 +110,19 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
-			name:       "data stream reads/writes the data stream name",
-			prefix:     "jaeger-span-",
-			dataStream: "jaeger.spans",
+			name:   "data stream reads/writes the data stream name",
+			prefix: "jaeger-span-",
 			rc: config.RotationConfig{
-				DataStream: configoptional.Some(config.DataStreamRotation{}),
+				DataStream: configoptional.Some(config.DataStreamRotation{Name: "jaeger.spans"}),
 			},
 			wantWrite: "jaeger.spans",
 			wantRead:  []string{"jaeger.spans"},
 		},
 		{
-			name:       "data stream with migration read alias",
-			prefix:     "jaeger-span-",
-			dataStream: "jaeger.spans",
+			name:   "data stream with migration read alias",
+			prefix: "jaeger-span-",
 			rc: config.RotationConfig{
-				DataStream: configoptional.Some(config.DataStreamRotation{ReadAlias: "jaeger.spans-read"}),
+				DataStream: configoptional.Some(config.DataStreamRotation{Name: "jaeger.spans", ReadAlias: "jaeger.spans-read"}),
 			},
 			wantWrite: "jaeger.spans",
 			wantRead:  []string{"jaeger.spans-read"},
@@ -134,9 +131,22 @@ func TestBuildRotation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := BuildRotation(tt.prefix, tt.dataStream, tt.rc, tt.remoteClusters, logger)
+			r := BuildRotation(tt.prefix, tt.rc, tt.remoteClusters, logger)
 			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
 		})
 	}
+}
+
+func TestResolveSpanDataStreamName(t *testing.T) {
+	t.Run("sets the resolved name for a data_stream rotation", func(t *testing.T) {
+		rc := config.RotationConfig{DataStream: configoptional.Some(config.DataStreamRotation{})}
+		ResolveSpanDataStreamName(&rc, "prod")
+		assert.Equal(t, "prod.jaeger.spans", rc.DataStream.Get().Name)
+	})
+	t.Run("is a no-op for non data_stream rotations", func(t *testing.T) {
+		rc := config.RotationConfig{Periodic: configoptional.Some(config.PeriodicRotation{})}
+		ResolveSpanDataStreamName(&rc, "prod")
+		assert.False(t, rc.DataStream.HasValue())
+	})
 }

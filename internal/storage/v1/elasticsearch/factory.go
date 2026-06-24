@@ -88,35 +88,23 @@ func (f *FactoryBase) getClient() es.Client {
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
 	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
-	serviceRC := f.config.ResolvedServiceRotation(servicePrefix)
-	// See timeRangeDesign comment in reader.go. A single alias or data stream
-	// covers all data, so for those strategies we use a large lookback to ensure
-	// reads can reach any record regardless of age. Periodic indices keep the
-	// configured MaxSpanAge so ReadTargets enumerates only a bounded set of indices.
 	maxSpanAge := f.config.MaxSpanAge
+	// See timeRangeDesign comment in reader.go.
+	// Aliases cover all data, so we use a large maxSpanAge to ensure GetTraces by ID
+	// can reach any trace regardless of age.
 	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
-	// Service/operation queries hit the service index, which is independent of the
-	// span rotation (it cannot be a data stream). Bound their lookback by the
-	// service rotation so a data_stream span config does not blow up the periodic
-	// service-index enumeration.
-	servicesMaxLookback := f.config.MaxSpanAge
-	if !serviceRC.Periodic.HasValue() {
-		servicesMaxLookback = esspanstore.DawnOfTimeSpanAge
-	}
 	return esspanstore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          maxSpanAge,
-		ServicesMaxLookback: servicesMaxLookback,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
-		SpanRotation:        spanRotation,
-		ServiceRotation:     serviceRotation,
+		Client:            f.getClient,
+		MaxDocCount:       f.config.MaxDocCount,
+		MaxSpanAge:        maxSpanAge,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
@@ -204,21 +192,22 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 // TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
 	prefix := f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName)
-	return indices.BuildRotation(prefix, "", f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
+	return indices.BuildRotation(prefix, f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
 	prefix := f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName)
-	return indices.BuildRotation(prefix, "", f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
+	return indices.BuildRotation(prefix, f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
 	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
 	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
-	spanDataStream := indices.DataStreamName(string(f.config.Indices.IndexPrefix), indices.SpanDataStreamBaseName)
 
-	spanRotation = indices.BuildRotation(spanPrefix, spanDataStream, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.logger)
-	serviceRotation = indices.BuildRotation(servicePrefix, "", f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
+	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
+	indices.ResolveSpanDataStreamName(&spanRC, string(f.config.Indices.IndexPrefix))
+	spanRotation = indices.BuildRotation(spanPrefix, spanRC, f.config.RemoteReadClusters, f.logger)
+	serviceRotation = indices.BuildRotation(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
 	return spanRotation, serviceRotation
 }
 
