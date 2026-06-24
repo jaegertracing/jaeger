@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	lmocks "github.com/jaegertracing/jaeger/internal/distributedlock/mocks"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -96,17 +97,21 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	assert.False(t, p.IsLeader())
 }
 
-func TestCloseForfeitsLeaderLock(t *testing.T) {
+type closeTestSetup struct {
+	mockLock  *lmocks.Lock
+	logger    *zap.Logger
+	logBuffer *testutils.Buffer
+	p         *DistributedElectionParticipant
+}
+
+func newCloseTestSetup(t *testing.T) *closeTestSetup {
+	t.Helper()
 	const (
 		leaderInterval   = time.Millisecond
 		followerInterval = 5 * time.Millisecond
 	)
-
 	mockLock := lmocks.NewLock(t)
-	mockLock.On("Acquire", "sampling_lock", followerInterval).Return(true, nil)
-	mockLock.On("Forfeit", "sampling_lock").Return(true, nil)
-
-	logger, _ := testutils.NewLogger()
+	logger, logBuffer := testutils.NewLogger()
 	p := NewElectionParticipant(
 		mockLock, "sampling_lock", ElectionParticipantOptions{
 			LeaderLeaseRefreshInterval:   leaderInterval,
@@ -114,103 +119,85 @@ func TestCloseForfeitsLeaderLock(t *testing.T) {
 			Logger:                       logger,
 		},
 	)
+	return &closeTestSetup{
+		mockLock:  mockLock,
+		logger:    logger,
+		logBuffer: logBuffer,
+		p:         p,
+	}
+}
 
-	require.NoError(t, p.Start())
-	require.Eventually(t, p.IsLeader, time.Second, time.Millisecond,
+func TestCloseForfeitsLeaderLock(t *testing.T) {
+	s := newCloseTestSetup(t)
+	s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).Return(true, nil)
+	s.mockLock.On("Forfeit", "sampling_lock").Return(true, nil)
+
+	require.NoError(t, s.p.Start())
+	require.Eventually(t, s.p.IsLeader, time.Second, time.Millisecond,
 		"participant should become leader")
 
-	require.NoError(t, p.Close())
-	mockLock.AssertCalled(t, "Forfeit", "sampling_lock")
+	require.NoError(t, s.p.Close())
+	s.mockLock.AssertCalled(t, "Forfeit", "sampling_lock")
 }
 
 func TestCloseDoesNotForfeitIfFollower(t *testing.T) {
-	const (
-		leaderInterval   = time.Millisecond
-		followerInterval = 5 * time.Millisecond
-	)
+	s := newCloseTestSetup(t)
+	s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).Return(false, nil)
 
-	mockLock := lmocks.NewLock(t)
-	mockLock.On("Acquire", "sampling_lock", followerInterval).Return(false, nil)
+	require.NoError(t, s.p.Start())
+	require.Eventually(t, func() bool {
+		return !s.p.IsLeader()
+	}, time.Second, time.Millisecond, "participant should remain follower")
 
-	logger, _ := testutils.NewLogger()
-	p := NewElectionParticipant(
-		mockLock, "sampling_lock", ElectionParticipantOptions{
-			LeaderLeaseRefreshInterval:   leaderInterval,
-			FollowerLeaseRefreshInterval: followerInterval,
-			Logger:                       logger,
-		},
-	)
-
-	require.NoError(t, p.Start())
-	// Give the loop a chance to run at least once.
-	time.Sleep(10 * time.Millisecond)
-	assert.False(t, p.IsLeader())
-
-	require.NoError(t, p.Close())
-	mockLock.AssertNotCalled(t, "Forfeit", "sampling_lock")
+	require.NoError(t, s.p.Close())
+	s.mockLock.AssertNotCalled(t, "Forfeit", "sampling_lock")
 }
 
 func TestCloseForfeitError(t *testing.T) {
-	const (
-		leaderInterval   = time.Millisecond
-		followerInterval = 5 * time.Millisecond
-	)
+	s := newCloseTestSetup(t)
+	s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).Return(true, nil)
+	s.mockLock.On("Forfeit", "sampling_lock").Return(false, errTestLock)
 
-	mockLock := lmocks.NewLock(t)
-	mockLock.On("Acquire", "sampling_lock", followerInterval).Return(true, nil)
-	mockLock.On("Forfeit", "sampling_lock").Return(false, errTestLock)
-
-	logger, logBuffer := testutils.NewLogger()
-	p := NewElectionParticipant(
-		mockLock, "sampling_lock", ElectionParticipantOptions{
-			LeaderLeaseRefreshInterval:   leaderInterval,
-			FollowerLeaseRefreshInterval: followerInterval,
-			Logger:                       logger,
-		},
-	)
-
-	require.NoError(t, p.Start())
-	require.Eventually(t, p.IsLeader, time.Second, time.Millisecond,
+	require.NoError(t, s.p.Start())
+	require.Eventually(t, s.p.IsLeader, time.Second, time.Millisecond,
 		"participant should become leader")
 
 	// Close should not return an error even if Forfeit fails.
-	require.NoError(t, p.Close())
-	mockLock.AssertCalled(t, "Forfeit", "sampling_lock")
+	require.NoError(t, s.p.Close())
+	s.mockLock.AssertCalled(t, "Forfeit", "sampling_lock")
 
-	match, errMsg := testutils.LogMatcher(1, forfeitLockErrMsg, logBuffer.Lines())
+	match, errMsg := testutils.LogMatcher(1, forfeitLockErrMsg, s.logBuffer.Lines())
 	assert.True(t, match, errMsg)
 }
 
-func TestCloseForfeitNotOwner(t *testing.T) {
-	const (
-		leaderInterval   = time.Millisecond
-		followerInterval = 5 * time.Millisecond
-	)
+func TestCloseForfeitNotForfeited(t *testing.T) {
+	s := newCloseTestSetup(t)
+	s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).Return(true, nil)
+	s.mockLock.On("Forfeit", "sampling_lock").Return(false, nil)
 
-	errNotOwner := errors.New("failed to forfeit resource lock: this host does not own the resource lock")
-
-	mockLock := lmocks.NewLock(t)
-	mockLock.On("Acquire", "sampling_lock", followerInterval).Return(true, nil)
-	mockLock.On("Forfeit", "sampling_lock").Return(false, errNotOwner)
-
-	logger, logBuffer := testutils.NewLogger()
-	p := NewElectionParticipant(
-		mockLock, "sampling_lock", ElectionParticipantOptions{
-			LeaderLeaseRefreshInterval:   leaderInterval,
-			FollowerLeaseRefreshInterval: followerInterval,
-			Logger:                       logger,
-		},
-	)
-
-	require.NoError(t, p.Start())
-	require.Eventually(t, p.IsLeader, time.Second, time.Millisecond,
+	require.NoError(t, s.p.Start())
+	require.Eventually(t, s.p.IsLeader, time.Second, time.Millisecond,
 		"participant should become leader")
 
-	require.NoError(t, p.Close())
-	mockLock.AssertCalled(t, "Forfeit", "sampling_lock")
+	require.NoError(t, s.p.Close())
+	s.mockLock.AssertCalled(t, "Forfeit", "sampling_lock")
 
-	match, errMsg := testutils.LogMatcher(1, forfeitLockErrMsg, logBuffer.Lines())
+	match, errMsg := testutils.LogMatcher(1, forfeitLockWarnMsg, s.logBuffer.Lines())
 	assert.True(t, match, errMsg)
+}
+
+func TestCloseIsIdempotent(t *testing.T) {
+	s := newCloseTestSetup(t)
+	s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).Return(true, nil)
+	s.mockLock.On("Forfeit", "sampling_lock").Return(true, nil)
+
+	require.NoError(t, s.p.Start())
+	require.Eventually(t, s.p.IsLeader, time.Second, time.Millisecond,
+		"participant should become leader")
+
+	require.NoError(t, s.p.Close())
+	// Second close must not panic.
+	require.NoError(t, s.p.Close())
 }
 
 func TestMain(m *testing.M) {
