@@ -659,10 +659,7 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 	logger := zap.NewNop()
 	defer mf.Stop()
 
-	var m sync.Map
 	batchID := int64(1)
-	start := time.Now().Add(-100 * time.Millisecond)
-	m.Store(batchID, start)
 
 	fakeRequests := []elastic.BulkableRequest{nil, nil}
 	response := &elastic.BulkResponse{
@@ -687,6 +684,7 @@ func TestHandleBulkAfterCallback_ErrorMetricsEmitted(t *testing.T) {
 		sm:     sm,
 		logger: logger,
 	}
+	bcb.startTimes.Store(batchID, time.Now().Add(-100*time.Millisecond))
 	bcb.invoke(batchID, fakeRequests, response, assert.AnError)
 
 	mf.AssertCounterMetrics(
@@ -1296,6 +1294,59 @@ func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
 			Value: 1,
 		},
 	)
+}
+
+func TestBulkCallbackInvoke_SuccessPath(t *testing.T) {
+	mf := metricstest.NewFactory(time.Minute)
+	sm := spanstoremetrics.NewWriter(mf, "bulk_index")
+	logger := zap.NewNop()
+	defer mf.Stop()
+
+	batchID := int64(7)
+
+	bcb := bulkCallback{
+		sm:     sm,
+		logger: logger,
+	}
+	bcb.startTimes.Store(batchID, time.Now().Add(-50*time.Millisecond))
+	bcb.invoke(batchID, []elastic.BulkableRequest{nil, nil}, &elastic.BulkResponse{}, nil)
+
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.errors",
+			Value: 0,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.inserts",
+			Value: 2,
+		},
+		metricstest.ExpectedMetric{
+			Name:  "bulk_index.attempts",
+			Value: 2,
+		},
+	)
+}
+
+func TestInitAuthNilInputs(t *testing.T) {
+	logger := zap.NewNop()
+
+	method, err := initBearerAuth(nil, logger)
+	require.NoError(t, err)
+	assert.Nil(t, method)
+
+	method, err = initAPIKeyAuth(nil, logger)
+	require.NoError(t, err)
+	assert.Nil(t, method)
+
+	method, err = initBasicAuth(nil, logger)
+	require.NoError(t, err)
+	assert.Nil(t, method)
+
+	// Empty username returns nil
+	method, err = initBasicAuth(&config.BasicAuthentication{Username: ""}, logger)
+	require.NoError(t, err)
+	assert.Nil(t, method)
 }
 
 func TestNewClientWithCustomHeaders(t *testing.T) {
