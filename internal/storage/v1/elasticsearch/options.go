@@ -12,8 +12,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-const defaultMaxSpanAge = 72 * time.Hour
-
 var defaultIndexOptions = config.IndexOptions{
 	Shards:   5,
 	Replicas: new(int64(1)),
@@ -51,7 +49,7 @@ func DefaultConfig() config.Configuration {
 			Enabled: false,
 		},
 		DisableHealthCheck:       false,
-		MaxSpanAge:               defaultMaxSpanAge,
+		MaxSpanAge:               72 * time.Hour,
 		MaxTraceDuration:         24 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
