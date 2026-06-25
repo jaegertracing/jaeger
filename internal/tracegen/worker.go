@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -36,7 +37,11 @@ const (
 func (w *worker) simulateTraces() {
 	for atomic.LoadUint32(w.running) == 1 {
 		svcNo := w.traceNo % len(w.tracers)
-		w.simulateOneTrace(w.tracers[svcNo])
+		if w.Scenario == "genai" {
+			w.simulateGenAITrace(w.tracers[svcNo])
+		} else {
+			w.simulateOneTrace(w.tracers[svcNo])
+		}
 		w.traceNo++
 		if w.Traces != 0 {
 			if w.traceNo >= w.Traces {
@@ -111,5 +116,101 @@ func (w *worker) simulateChildSpans(ctx context.Context, start time.Time, tracer
 				trace.WithTimestamp(childStart.Add(fakeSpanDuration)),
 			)
 		}
+	}
+}
+
+// simulateGenAITrace emits a multi-span trace following OpenTelemetry GenAI
+// semantic conventions. The trace shape mirrors a realistic agentic workflow:
+//
+//	gen_ai.execute_agent (root)
+//	└── gen_ai.chat      (LLM call with token usage)
+//	    └── gen_ai.execute_tool  (tool invocation)
+//	        └── HTTP POST /tool-api  (downstream infra span, no gen_ai.* attrs)
+//	└── gen_ai.retrieve  (RAG retrieval)
+//
+// Token counts are varied per trace using the worker's trace counter so that
+// consecutive traces produce distinct attribute values.
+func (w *worker) simulateGenAITrace(tracer trace.Tracer) {
+	ctx := context.Background()
+	start := time.Now()
+
+	inputTokens := 100 + (w.traceNo*37)%900
+	outputTokens := 20 + (w.traceNo*13)%480
+
+	useFakeTime := w.Pause == 0
+
+	startSpanOpts := func(offset time.Duration, kind trace.SpanKind, attrs ...attribute.KeyValue) []trace.SpanStartOption {
+		opts := []trace.SpanStartOption{
+			trace.WithSpanKind(kind),
+			trace.WithAttributes(attrs...),
+		}
+		if useFakeTime {
+			opts = append(opts, trace.WithTimestamp(start.Add(offset)))
+		}
+		return opts
+	}
+
+	// Root: agent span
+	ctx, agentSpan := tracer.Start(ctx, "gen_ai.execute_agent",
+		startSpanOpts(0, trace.SpanKindServer,
+			attribute.String("gen_ai.operation.name", "execute_agent"),
+			attribute.String("gen_ai.system", "openai"),
+			attribute.String("gen_ai.agent.name", "tracegen-agent"),
+		)...,
+	)
+
+	// Child 1: LLM chat span
+	chatCtx, chatSpan := tracer.Start(ctx, "gen_ai.chat",
+		startSpanOpts(10*fakeSpanDuration, trace.SpanKindClient,
+			attribute.String("gen_ai.operation.name", "chat"),
+			attribute.String("gen_ai.system", "openai"),
+			attribute.String("gen_ai.request.model", "gpt-4o"),
+			attribute.Int("gen_ai.usage.input_tokens", inputTokens),
+			attribute.Int("gen_ai.usage.output_tokens", outputTokens),
+		)...,
+	)
+
+	// Child 1.1: tool call span
+	toolCtx, toolSpan := tracer.Start(chatCtx, "gen_ai.execute_tool",
+		startSpanOpts(50*fakeSpanDuration, trace.SpanKindClient,
+			attribute.String("gen_ai.operation.name", "execute_tool"),
+			attribute.String("gen_ai.tool.name", "get_weather"),
+			attribute.String("gen_ai.tool.call.id", fmt.Sprintf("call-%d", w.traceNo)),
+		)...,
+	)
+
+	// Child 1.1.1: infra HTTP span (no gen_ai.* attrs — used to test logical view filter)
+	_, httpSpan := tracer.Start(toolCtx, "HTTP POST /tool-api",
+		startSpanOpts(60*fakeSpanDuration, trace.SpanKindClient,
+			attribute.String("http.method", "POST"),
+			attribute.String("http.url", "http://tool-api/get_weather"),
+			attribute.Int("http.status_code", 200),
+		)...,
+	)
+
+	// Child 2: retrieval span (sibling of chat, child of agent)
+	_, retrieveSpan := tracer.Start(ctx, "gen_ai.retrieve",
+		startSpanOpts(420*fakeSpanDuration, trace.SpanKindClient,
+			attribute.String("gen_ai.operation.name", "retrieve"),
+			attribute.String("gen_ai.system", "openai"),
+			attribute.String("gen_ai.retrieval.query", fmt.Sprintf("tracegen query %d", w.traceNo)),
+		)...,
+	)
+
+	if w.Pause != 0 {
+		time.Sleep(w.Pause)
+		httpSpan.End()
+		toolSpan.End()
+		chatSpan.End()
+		retrieveSpan.End()
+		agentSpan.SetStatus(codes.Ok, "")
+		agentSpan.End()
+	} else {
+		httpSpan.End(trace.WithTimestamp(start.Add(160 * fakeSpanDuration)))
+		toolSpan.End(trace.WithTimestamp(start.Add(250 * fakeSpanDuration)))
+		chatSpan.End(trace.WithTimestamp(start.Add(400 * fakeSpanDuration)))
+		retrieveSpan.End(trace.WithTimestamp(start.Add(490 * fakeSpanDuration)))
+		agentSpan.SetStatus(codes.Ok, "")
+		agentSpan.End(trace.WithTimestamp(start.Add(500 * fakeSpanDuration)))
 	}
 }

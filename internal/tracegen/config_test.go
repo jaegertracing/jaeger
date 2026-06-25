@@ -76,6 +76,7 @@ func Test_Flags(t *testing.T) {
 		Service:       "tracegen",
 		Services:      1,
 		TraceExporter: "otlp-http",
+		Scenario:      "default",
 	}
 
 	config.Flags(fs)
