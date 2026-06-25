@@ -36,7 +36,7 @@ func freshDispatcher(t *testing.T) dispatcherFixture {
 	store := NewContextualToolsStore()
 	core, logs := observer.New(zap.InfoLevel)
 	return dispatcherFixture{
-		d:     newDispatcher(client, store, zap.New(core)),
+		d:     newDispatcher(client, store, nil, nil, zap.New(core)),
 		store: store,
 		rr:    rr,
 		logs:  logs,
@@ -211,7 +211,7 @@ func TestDispatcherToolCallRejectsWhenStoreIsNil(t *testing.T) {
 	// dispatch becomes a hard rejection rather than a silent ack.
 	rr := httptest.NewRecorder()
 	client := newStreamingClient(t.Context(), rr, "thread-test", "run-test")
-	d := newDispatcher(client, nil, zap.NewNop())
+	d := newDispatcher(client, nil, nil, nil, zap.NewNop())
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "sess-abc",

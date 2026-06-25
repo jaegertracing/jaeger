@@ -169,6 +169,7 @@ type httpServer struct {
 var _ io.Closer = (*httpServer)(nil)
 
 func initRouter(
+	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
@@ -212,7 +213,7 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(ctx, r)
 			}
 		}
 	}
@@ -302,7 +303,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, staticHandlerCloser, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
 	if err != nil {
 		return nil, err
 	}

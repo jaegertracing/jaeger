@@ -55,7 +55,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", tc.basePath, 1<<20)
 			mux := http.NewServeMux()
-			h.RegisterRoutes(mux)
+			h.RegisterRoutes(t.Context(), mux)
 
 			// Chat endpoint: GET (wrong method) is enough to confirm the
 			// route is mounted — the handler returns 405 instead of the
