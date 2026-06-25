@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -556,6 +557,52 @@ func TestParseTraceID(t *testing.T) {
 	}
 }
 
+func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
+	// An uppercase hex span_id passes hex validation but must still match the
+	// canonical lowercase ID the trace iterator emits, instead of being reported
+	// as "spans not found".
+	traceID := testTraceID
+	spanID := "span001"
+
+	testTrace := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: spanID, operation: "/api/test"},
+	})
+
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: []string{strings.ToUpper(spanIDToHex(spanID))},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Spans, 1)
+	assert.Equal(t, "/api/test", output.Spans[0].SpanName)
+	assert.Empty(t, output.Error)
+}
+
+func TestGetSpanDetailsHandler_Handle_ZeroSpanID(t *testing.T) {
+	// The all-zero span_id is syntactically valid hex but can never identify a
+	// real span, so it must be rejected before any backend query runs. A nil
+	// queryService is safe here: reaching it would panic.
+	handler := NewGetSpanDetailsHandler(nil, 50)
+
+	input := types.GetSpanDetailsInput{
+		TraceID: testTraceID,
+		SpanIDs: []string{"0000000000000000"},
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid span_id "0000000000000000"`)
+	assert.Contains(t, err.Error(), "span ID must not be all zero")
+}
+
 func TestGetSpanDetailsHandler_Handle_InvalidSpanID(t *testing.T) {
 	// A malformed span_id must fail validation before any backend query runs,
 	// so a nil queryService is safe here: reaching it would panic.
@@ -597,6 +644,11 @@ func TestParseSpanID(t *testing.T) {
 		{
 			name:      "empty span ID",
 			input:     "",
+			wantError: true,
+		},
+		{
+			name:      "invalid span ID - all zero",
+			input:     "0000000000000000",
 			wantError: true,
 		},
 	}
