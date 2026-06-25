@@ -20,6 +20,23 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM)
 	go clean -testcache
 	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 
+# Backward compatibility test for jaeger-v2 storage: writes traces with a binary
+# built from the main branch, then reads them back with the binary built from
+# the current branch (a rolling-upgrade simulation). The main binary is fetched
+# over the network, so the test is gated behind BACKWARD_COMPATIBILITY and lives
+# outside the regular offline storage integration run.
+.PHONY: jaeger-v2-backward-compatibility-test
+jaeger-v2-backward-compatibility-test: $(GOTESTSUM)
+	(cd cmd/jaeger/ && go build .)
+	go clean -testcache
+	tmp_bin=$$(mktemp -d) && \
+	trap 'rm -rf "$$tmp_bin"' EXIT && \
+	GOBIN=$$tmp_bin go install github.com/jaegertracing/jaeger/cmd/jaeger@main && \
+	BACKWARD_COMPATIBILITY=true \
+	JAEGER_BACKWARD_COMPAT_BINARY=$$tmp_bin/jaeger \
+	STORAGE=badger \
+	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -run TestBadgerBackwardCompatibility $(JAEGER_V2_STORAGE_PKGS)
+
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)
 ifndef STORAGE
