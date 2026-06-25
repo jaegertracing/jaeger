@@ -38,6 +38,7 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 		{
 			spanID:    rootSpanID,
 			operation: "/api/checkout",
+			kind:      ptrace.SpanKindServer,
 			attributes: map[string]string{
 				"http.method": "GET",
 			},
@@ -70,6 +71,7 @@ func TestGetTraceTopologyHandler_Handle_Success(t *testing.T) {
 	root := findSpanByName(output.Spans, "/api/checkout")
 	require.NotNil(t, root)
 	assert.Equal(t, "Ok", root.Status)
+	assert.Equal(t, "Server", root.SpanKind)
 
 	getCart := findSpanByName(output.Spans, "getCart")
 	require.NotNil(t, getCart)

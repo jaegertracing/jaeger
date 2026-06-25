@@ -31,6 +31,7 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 		{
 			spanID:    spanID1,
 			operation: "/api/test1",
+			kind:      ptrace.SpanKindServer,
 			attributes: map[string]string{
 				"http.method": "GET",
 				"http.url":    "/api/test1",
@@ -88,6 +89,7 @@ func TestGetSpanDetailsHandler_Handle_Success(t *testing.T) {
 
 	require.NotNil(t, span1)
 	assert.Equal(t, "/api/test1", span1.SpanName)
+	assert.Equal(t, "Server", span1.SpanKind)
 	assert.Equal(t, "Ok", span1.Status.Code)
 	assert.Equal(t, "GET", span1.Attributes["http.method"])
 	assert.Equal(t, "/api/test1", span1.Attributes["http.url"])

@@ -23,6 +23,7 @@ type spanConfig struct {
 	spanID       string
 	parentSpanID string
 	operation    string
+	kind         ptrace.SpanKind
 	hasError     bool
 	errorMessage string
 	attributes   map[string]string
@@ -173,6 +174,7 @@ func createTestTraceWithSpans(traceID string, spanConfigs []spanConfig) ptrace.T
 		}
 
 		span.SetName(config.operation)
+		span.SetKind(config.kind)
 		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(-5 * time.Second)))
 		span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now()))
 
