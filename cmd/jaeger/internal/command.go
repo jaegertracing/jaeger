@@ -9,6 +9,7 @@ import (
 	"log"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -18,6 +19,9 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/jaegertracing/jaeger/cmd/internal/docs"
+	"github.com/jaegertracing/jaeger/internal/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -26,7 +30,11 @@ var yamlAllInOne embed.FS
 
 const description = "Jaeger backend v2"
 
-func Command() *cobra.Command {
+// NewCommand builds the root Jaeger cobra command from the given component
+// factories. Taking the factories as a parameter lets custom OCB-based
+// distributions reuse Jaeger's full CLI — the embedded all-in-one default
+// config and the Jaeger-specific subcommands — with their own component set.
+func NewCommand(factories otelcol.Factories) *cobra.Command {
 	info := component.BuildInfo{
 		Command:     "jaeger",
 		Description: description,
@@ -35,7 +43,7 @@ func Command() *cobra.Command {
 
 	settings := otelcol.CollectorSettings{
 		BuildInfo: info,
-		Factories: Components,
+		Factories: func() (otelcol.Factories, error) { return factories, nil },
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
 				ProviderFactories: []confmap.ProviderFactory{
@@ -61,6 +69,12 @@ func Command() *cobra.Command {
 
 	cmd.Short = description
 	cmd.Long = description
+
+	v := viper.New()
+	cmd.AddCommand(version.Command())
+	cmd.AddCommand(docs.Command(v))
+	cmd.AddCommand(mappings.Command())
+	config.AddFlags(v, cmd)
 
 	return cmd
 }
