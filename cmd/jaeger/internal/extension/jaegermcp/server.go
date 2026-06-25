@@ -4,12 +4,15 @@
 package jaegermcp
 
 import (
+	"bytes"
 	"context"
-	_ "embed"
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -18,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
@@ -27,6 +31,9 @@ import (
 
 //go:embed INSTRUCTIONS.md
 var serverInstructions string
+
+//go:embed all:skills
+var skillsEmbedFS embed.FS
 
 var (
 	_ extension.Extension             = (*server)(nil)
@@ -197,4 +204,61 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+
+	sFS, _ := fs.Sub(skillsEmbedFS, "skills")
+	gateway := buildSkillsGateway(sFS)
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "read_skill",
+		Description: "Read skills available for trace analysis. " +
+			"Call with no path to get a catalog of all available skills with descriptions. " +
+			"Call with '<skill-name>/SKILL.md' to load a skill's full procedure.",
+	}, handlers.NewReadSkillHandler(sFS, s.config.MaxReadFileSize, gateway))
+}
+
+type skillFrontmatter struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+}
+
+func buildSkillsGateway(skillsFS fs.FS) string {
+	entries, err := fs.ReadDir(skillsFS, ".")
+	if err != nil {
+		return "# Available Skills\n\nNo skills found.\n"
+	}
+	var b strings.Builder
+	b.WriteString("# Available Skills\n")
+	b.WriteString("Call read_skill(\"<skill-name>/SKILL.md\") to load a skill's full procedure before applying it.\n\n")
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		data, err := fs.ReadFile(skillsFS, e.Name()+"/SKILL.md")
+		if err != nil {
+			continue
+		}
+		fm := extractFrontmatter(data)
+		if fm.Name != "" && fm.Description != "" {
+			fmt.Fprintf(&b, "- %s — %s\n", fm.Name, fm.Description)
+		}
+	}
+	return b.String()
+}
+
+func extractFrontmatter(content []byte) skillFrontmatter {
+	const fence = "---"
+	s := string(content)
+	if !strings.HasPrefix(s, fence) {
+		return skillFrontmatter{}
+	}
+	rest := s[len(fence):]
+	idx := strings.Index(rest, "\n"+fence)
+	if idx < 0 {
+		return skillFrontmatter{}
+	}
+	var fm skillFrontmatter
+	dec := yaml.NewDecoder(bytes.NewReader([]byte(rest[:idx])))
+	if err := dec.Decode(&fm); err != nil {
+		return skillFrontmatter{}
+	}
+	return fm
 }
