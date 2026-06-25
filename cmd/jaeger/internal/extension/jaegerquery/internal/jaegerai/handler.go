@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
@@ -32,6 +33,18 @@ type ChatHandler struct {
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
+	// streams is the registry the MCP proxy reads to find the SSE
+	// stream for a UI-tool dispatch. Optional — when nil, ServeHTTP
+	// simply skips the session/stream bookkeeping and the MCP proxy
+	// returns "no active chat session" for any tools/call. Tests
+	// that don't exercise the MCP proxy can leave it unset.
+	streams *SessionStreams
+	// mcpProxy is the MCP-over-ACP target the dispatcher routes mcp/*
+	// requests to when the agent advertises mcp_capabilities.acp.
+	// Optional — when nil the three mcp/* methods land on
+	// MethodNotFound, signalling to the agent that the gateway is
+	// not an MCP-over-ACP endpoint for this chat.
+	mcpProxy *MCPProxy
 }
 
 // NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
@@ -48,6 +61,27 @@ func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarW
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
 	}
+}
+
+// withSessionStreams attaches the per-process SessionStreams registry so
+// the chat handler can register the live streaming client under the ACP
+// session id once it's allocated, letting the MCP proxy find the SSE
+// stream for UI-tool dispatch. Package-private builder rather than a
+// constructor arg so existing test call sites — which never need the
+// MCP proxy path — don't have to thread `nil` through.
+func (h *ChatHandler) withSessionStreams(streams *SessionStreams) *ChatHandler {
+	h.streams = streams
+	return h
+}
+
+// withMCPProxy attaches the shared MCPProxy so the dispatcher can route
+// mcp/connect, mcp/disconnect, and mcp/message into the proxy's
+// HandleConnect / HandleDisconnect / HandleMessage methods. Builder
+// rather than constructor arg for the same reason as withSessionStreams
+// — keeps existing test call sites untouched.
+func (h *ChatHandler) withMCPProxy(proxy *MCPProxy) *ChatHandler {
+	h.mcpProxy = proxy
+	return h
 }
 
 func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +154,16 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// extension method (ExtMethodJaegerToolCall) — the SDK's
 	// NewClientSideConnection has a hardcoded dispatcher that returns
 	// MethodNotFound for any extension method we add.
-	acpConn := acp.NewConnection(newDispatcher(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
+	// sessionIDRef carries the AG-UI session id from the chat goroutine
+	// (where session/new returns) to the dispatcher goroutine (where
+	// mcp/connect lands). Stays nil until session/new succeeds, at which
+	// point we Store the id; until then mcp/connect would error with a
+	// "not ready" hint instead of routing to an unknown session.
+	var sessionIDRef atomic.Pointer[string]
+	acpConn := acp.NewConnection(
+		newDispatcher(clientImpl, h.ctxTools, h.mcpProxy, &sessionIDRef, h.Logger),
+		adapter, adapter,
+	)
 
 	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
@@ -143,7 +186,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Initialize, so Cwd is never resolved against a real filesystem.
 		// ACP requires the field to be non-empty, hence this constant.
 		Cwd:        "/",
-		McpServers: []acp.McpServer{},
+		McpServers: announceMCPServers(init, h.mcpProxy),
 	}
 	if len(prefixedTools) > 0 {
 		newSessionReq.Meta = map[string]any{
@@ -160,6 +203,13 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
 
+	// Publish the session id to the dispatcher so any subsequent
+	// mcp/connect from the agent can be routed to this AG-UI session.
+	// Storing a fresh string (not &sess.SessionId direct) keeps the
+	// atomic's lifetime independent of the SessionId value's storage.
+	sessIDValue := string(sess.SessionId)
+	sessionIDRef.Store(&sessIDValue)
+
 	// Publish the unprefixed snapshot under the assigned ACP session id so
 	// handleJaegerToolCall can confirm dispatches by their post-strip
 	// (frontend) name. Cleared at turn end regardless of success.
@@ -167,6 +217,19 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sessionID := string(sess.SessionId)
 		h.ctxTools.SetForSession(sessionID, rawTools)
 		defer h.ctxTools.DeleteForSession(sessionID)
+	}
+
+	// Register the live streaming client under the ACP session id so the
+	// MCP proxy can find it when an agent invokes a UI tool. Optional —
+	// when h.streams is nil (tests, deployments without the MCP route
+	// wired in) we skip both Set and Delete, and the proxy simply returns
+	// "no active chat session" for any tools/call. Keying by session id
+	// matches the URL the gateway hands the agent at
+	// /api/ai/mcp/<sessionId>.
+	if h.streams != nil {
+		sessionID := string(sess.SessionId)
+		h.streams.Set(sessionID, clientImpl)
+		defer h.streams.Delete(sessionID)
 	}
 
 	// Set streaming headers just before Prompt: SessionUpdate callbacks

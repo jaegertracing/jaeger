@@ -618,6 +618,59 @@ func TestStreamingClientSessionUpdateToolCallUpdateSkipsEndForInProgress(t *test
 		"in_progress tool call updates with no content should emit no SSE events")
 }
 
+func TestStreamingClientEmitContextualToolCallEmitsStartArgsEnd(t *testing.T) {
+	// The MCP proxy calls EmitContextualToolCall whenever an agent
+	// invokes a UI tool via /api/ai/mcp/.../tools/call. The contract:
+	// emit START + ARGS + END for the same toolCallId, NEVER RESULT.
+	// (RESULT would short-circuit assistant-ui — the browser is the
+	// executor.) Args carried verbatim as the delta string.
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+	c.EmitContextualToolCall("call-id-1", "ui_highlight_span", map[string]any{
+		"spanId": "abc123",
+	})
+
+	events := parseSSEEvents(t, rec.Body.String())
+	types := eventTypes(events)
+	assert.Equal(t,
+		[]string{"TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END"},
+		types,
+		"the MCP-proxy UI-tool dispatch must emit exactly START + ARGS + END with no RESULT in between")
+
+	startEvt := events[0]
+	assert.Equal(t, "call-id-1", startEvt["toolCallId"])
+	assert.Equal(t, "ui_highlight_span", startEvt["toolCallName"])
+
+	argsEvt := events[1]
+	assert.Equal(t, "call-id-1", argsEvt["toolCallId"])
+	delta, ok := argsEvt["delta"].(string)
+	require.True(t, ok, "TOOL_CALL_ARGS.delta must be a string")
+	assert.JSONEq(t, `{"spanId":"abc123"}`, delta)
+
+	endEvt := events[2]
+	assert.Equal(t, "call-id-1", endEvt["toolCallId"])
+}
+
+func TestStreamingClientEmitContextualToolCallSkipsArgsForNilPayload(t *testing.T) {
+	// An MCP tool with an empty `{}` parameters block can legitimately
+	// arrive with no `Arguments` field (the agent's MCP client elides
+	// it). The browser doesn't need an ARGS event in that case — START
+	// + END is enough to drive assistant-ui's local executor. Skipping
+	// the empty event keeps the SSE stream uncluttered and matches the
+	// ACP-driven SessionUpdate path, which also conditions ARGS on a
+	// non-nil RawInput.
+	rec := httptest.NewRecorder()
+	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
+
+	c.EmitContextualToolCall("call-id-2", "ui_clear_filters", nil)
+
+	events := parseSSEEvents(t, rec.Body.String())
+	types := eventTypes(events)
+	assert.Equal(t, []string{"TOOL_CALL_START", "TOOL_CALL_END"}, types,
+		"nil args means no TOOL_CALL_ARGS event; START and END still bracket the call")
+}
+
 func TestStreamingClientUtilityMethods(t *testing.T) {
 	assert.Equal(t, "unknown", valueOrUnknown(nil))
 	status := acp.ToolCallStatusInProgress
