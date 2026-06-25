@@ -44,6 +44,8 @@ type E2EStorageIntegration struct {
 	BinaryName         string
 	BinaryPath         string // overrides default "./cmd/jaeger/jaeger"; resolved relative to the repo root
 
+	SkipMetricsScraping bool // disables metrics snapshot scraped during cleanup
+
 	MetricsPort     int // overridable, default to 8888
 	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
 
@@ -127,7 +129,9 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		s.scrapeMetrics(t, storage)
+		if !s.SkipMetricsScraping {
+			s.scrapeMetrics(t, storage)
+		}
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
 		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
