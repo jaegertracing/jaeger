@@ -15,7 +15,9 @@ import (
 )
 
 const (
-	acquireLockErrMsg = "Failed to acquire lock"
+	acquireLockErrMsg                   = "Failed to acquire lock"
+	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
+	defaultFollowerLeaseRefreshInterval = 10 * time.Second
 )
 
 // ElectionParticipant partakes in leader election to become leader.
@@ -36,7 +38,10 @@ type DistributedElectionParticipant struct {
 	wg           sync.WaitGroup
 }
 
-// ElectionParticipantOptions control behavior of the election participant. TODO func applyDefaults(), parameter error checking, etc.
+// ElectionParticipantOptions control behavior of the election participant.
+// If LeaderLeaseRefreshInterval or FollowerLeaseRefreshInterval are zero or negative,
+// they will be replaced with sensible defaults (5 seconds and 10 seconds, respectively).
+// A warning will be logged when this occurs to help detect configuration issues.
 type ElectionParticipantOptions struct {
 	LeaderLeaseRefreshInterval   time.Duration
 	FollowerLeaseRefreshInterval time.Duration
@@ -44,7 +49,32 @@ type ElectionParticipantOptions struct {
 }
 
 // NewElectionParticipant returns a ElectionParticipant which attempts to become leader.
+// Invalid duration values (zero or negative) will be replaced with sensible defaults and a warning will be logged.
 func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) *DistributedElectionParticipant {
+	defaultDuration := func(optionName string, currentValue, defaultValue time.Duration) time.Duration {
+		if currentValue <= 0 {
+			if options.Logger != nil {
+				options.Logger.Warn(optionName+" is invalid, using default",
+					zap.Duration("invalid_value", currentValue),
+					zap.Duration("default_value", defaultValue))
+			}
+			return defaultValue
+		}
+		return currentValue
+	}
+
+	// Set sensible defaults if durations are zero or negative
+	options.LeaderLeaseRefreshInterval = defaultDuration(
+		"LeaderLeaseRefreshInterval",
+		options.LeaderLeaseRefreshInterval,
+		defaultLeaderLeaseRefreshInterval,
+	)
+	options.FollowerLeaseRefreshInterval = defaultDuration(
+		"FollowerLeaseRefreshInterval",
+		options.FollowerLeaseRefreshInterval,
+		defaultFollowerLeaseRefreshInterval,
+	)
+
 	return &DistributedElectionParticipant{
 		ElectionParticipantOptions: options,
 		lock:                       lock,

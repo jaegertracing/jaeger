@@ -96,6 +96,71 @@ func TestRunAcquireLockLoopFollowerOnly(t *testing.T) {
 	assert.False(t, p.IsLeader())
 }
 
+func TestNewElectionParticipantWithInvalidDurations(t *testing.T) {
+	tests := []struct {
+		name                     string
+		leaderInterval           time.Duration
+		followerInterval         time.Duration
+		expectedLeaderInterval   time.Duration
+		expectedFollowerInterval time.Duration
+	}{
+		{
+			name:                     "zero leader and follower intervals",
+			leaderInterval:           0,
+			followerInterval:         0,
+			expectedLeaderInterval:   defaultLeaderLeaseRefreshInterval,
+			expectedFollowerInterval: defaultFollowerLeaseRefreshInterval,
+		},
+		{
+			name:                     "negative leader interval",
+			leaderInterval:           -1 * time.Second,
+			followerInterval:         5 * time.Millisecond,
+			expectedLeaderInterval:   defaultLeaderLeaseRefreshInterval,
+			expectedFollowerInterval: 5 * time.Millisecond,
+		},
+		{
+			name:                     "negative follower interval",
+			leaderInterval:           1 * time.Millisecond,
+			followerInterval:         -10 * time.Second,
+			expectedLeaderInterval:   1 * time.Millisecond,
+			expectedFollowerInterval: defaultFollowerLeaseRefreshInterval,
+		},
+		{
+			name:                     "both negative intervals",
+			leaderInterval:           -5 * time.Second,
+			followerInterval:         -10 * time.Second,
+			expectedLeaderInterval:   defaultLeaderLeaseRefreshInterval,
+			expectedFollowerInterval: defaultFollowerLeaseRefreshInterval,
+		},
+		{
+			name:                     "valid positive intervals unchanged",
+			leaderInterval:           2 * time.Second,
+			followerInterval:         8 * time.Second,
+			expectedLeaderInterval:   2 * time.Second,
+			expectedFollowerInterval: 8 * time.Second,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			logger, _ := testutils.NewLogger()
+			mockLock := &lmocks.Lock{}
+
+			p := NewElectionParticipant(
+				mockLock, "test_lock", ElectionParticipantOptions{
+					LeaderLeaseRefreshInterval:   test.leaderInterval,
+					FollowerLeaseRefreshInterval: test.followerInterval,
+					Logger:                       logger,
+				},
+			)
+
+			assert.Equal(t, test.expectedLeaderInterval, p.LeaderLeaseRefreshInterval)
+			assert.Equal(t, test.expectedFollowerInterval, p.FollowerLeaseRefreshInterval)
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
