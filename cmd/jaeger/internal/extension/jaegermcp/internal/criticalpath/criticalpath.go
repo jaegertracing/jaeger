@@ -5,7 +5,6 @@ package criticalpath
 
 import (
 	"errors"
-	"fmt"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -104,13 +103,8 @@ func computeCriticalPath(
 	return criticalPath
 }
 
-// computeCriticalPathFn indirects the recursive computation so the deferred
-// recover() path in ComputeCriticalPathFromTraces can be exercised in tests.
-// Production code always uses computeCriticalPath.
-var computeCriticalPathFn = computeCriticalPath
-
 // ComputeCriticalPathFromTraces computes the critical path for a given trace
-func ComputeCriticalPathFromTraces(traces ptrace.Traces) (criticalPath []Section, err error) {
+func ComputeCriticalPathFromTraces(traces ptrace.Traces) ([]Section, error) {
 	// Find the root span (the one with no parent)
 	var rootSpanID pcommon.SpanID
 	found := false
@@ -140,19 +134,10 @@ func ComputeCriticalPathFromTraces(traces ptrace.Traces) (criticalPath []Section
 		return nil, errors.New("empty trace")
 	}
 
-	// Recover from any panic in the algorithm and surface it as an error.
-	// Named return values (criticalPath, err) are required so these assignments
-	// actually affect what the function returns.
-	defer func() {
-		if r := recover(); r != nil {
-			criticalPath, err = nil, fmt.Errorf("panic while computing critical path: %v", r)
-		}
-	}()
-
 	sanitizedSpanMap := removeOverflowingChildren(spanMap)
 	// An empty critical path is a valid result (e.g. a single zero-duration root
 	// span), so start from a non-nil slice and never treat emptiness as an error.
-	criticalPath = computeCriticalPathFn(sanitizedSpanMap, rootSpanID, []Section{}, nil)
+	criticalPath := computeCriticalPath(sanitizedSpanMap, rootSpanID, []Section{}, nil)
 
 	return criticalPath, nil
 }
