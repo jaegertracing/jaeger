@@ -16,6 +16,16 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 )
 
+// getSpanKind extracts the span.kind tag value from a span's tags.
+func getSpanKind(span *model.Span) string {
+	for _, tag := range span.Tags {
+		if tag.Key == model.SpanKindKey {
+			return tag.VStr
+		}
+	}
+	return ""
+}
+
 /*
 	This store should be easily modified to use any sorted KV-store, which allows set/get/iterators.
 	That includes RocksDB also (this key structure should work as-is with RocksDB)
@@ -67,11 +77,12 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		return err
 	}
 
+	spanKind := getSpanKind(span)
 	entriesToStore = append(
 		entriesToStore,
 		trace,
 		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
-		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
+		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), []byte(spanKind), expireTime),
 	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
@@ -112,7 +123,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	})
 
 	// Do cache refresh here to release the transaction earlier
-	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
+	w.cache.Update(span.Process.ServiceName, span.OperationName, spanKind, expireTime)
 
 	return err
 }
