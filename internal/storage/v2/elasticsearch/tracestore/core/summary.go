@@ -93,8 +93,8 @@ func (s *SpanReader) FindTraceSummaries(
 	aggregation := s.buildTraceSummariesAggregation(traceQuery.SearchDepth)
 	boolQuery := s.buildTraceSummariesByIDsQuery(traceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	jaegerIndices := s.spanRotation.ReadTargets(
-		traceQuery.StartTimeMin.Add(-time.Hour),
-		traceQuery.StartTimeMax.Add(time.Hour),
+		traceQuery.StartTimeMin.Add(-s.maxTraceDuration),
+		traceQuery.StartTimeMax.Add(s.maxTraceDuration),
 	)
 
 	searchResult, err := s.client().Search(jaegerIndices...).
@@ -126,8 +126,11 @@ func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, s
 	for i, id := range traceIDs {
 		ids[i] = string(id)
 	}
-	// Mirror multiRead's ±24h padding so a trace's earlier/later spans are included.
-	startTimeQuery := s.buildStartTimeQuery(startMin.Add(-24*time.Hour), startMax.Add(24*time.Hour))
+	// Mirror multiRead's ±maxTraceDuration padding so a trace's earlier/later spans
+	// are included, and so this filter window matches the indices selected by
+	// ReadTargets above (otherwise spans in adjacent indices would be filtered in but
+	// never searched, yielding partial summaries).
+	startTimeQuery := s.buildStartTimeQuery(startMin.Add(-s.maxTraceDuration), startMax.Add(s.maxTraceDuration))
 	return elastic.NewBoolQuery().
 		Must(elastic.NewTermsQuery(traceIDField, ids...)).
 		Must(startTimeQuery)

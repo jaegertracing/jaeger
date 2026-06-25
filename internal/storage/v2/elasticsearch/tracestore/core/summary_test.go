@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
@@ -73,6 +74,38 @@ func validSummaryQuery() dbmodel.TraceQueryParameters {
 		StartTimeMax: time.Now(),
 		SearchDepth:  10,
 	}
+}
+
+func TestSpanReader_FindTraceSummaries_IndexWindowMatchesMaxTraceDuration(t *testing.T) {
+	// Regression test for the phase-2 index selection window. The summary aggregation
+	// must search the same ±maxTraceDuration window of indices that multiRead uses,
+	// not a narrower ±1h window. With daily indices, a trace matched in the middle of
+	// a day can have spans in the adjacent day within maxTraceDuration; if those
+	// indices are not searched the summary (SpanCount, services, errors, duration) is
+	// partial. The withSpanReader fixture uses daily indices and MaxTraceDuration=24h.
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockSummarySearchService(r).Return(summaryResult(summaryAggregationJSON), nil)
+
+		const maxTraceDuration = 24 * time.Hour // matches the withSpanReader fixture
+		day := time.Date(2019, 10, 10, 12, 0, 0, 0, time.UTC)
+		query := dbmodel.TraceQueryParameters{
+			ServiceName:  serviceName,
+			StartTimeMin: day,
+			StartTimeMax: day,
+			SearchDepth:  10,
+		}
+
+		_, err := r.reader.FindTraceSummaries(context.Background(), query)
+		require.NoError(t, err)
+
+		rotation := indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", maxTraceDuration)
+		wideWindow := rotation.ReadTargets(day.Add(-maxTraceDuration), day.Add(maxTraceDuration))
+		narrowWindow := rotation.ReadTargets(day.Add(-time.Hour), day.Add(time.Hour))
+		// Guard: the fixture must actually distinguish the two windows, otherwise the
+		// assertion below would pass even with the old ±1h padding.
+		require.Greater(t, len(wideWindow), len(narrowWindow))
+		r.client.AssertCalled(t, "Search", wideWindow)
+	})
 }
 
 func TestSpanReader_FindTraceSummaries(t *testing.T) {
