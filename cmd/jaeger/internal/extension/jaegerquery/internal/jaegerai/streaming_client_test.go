@@ -500,31 +500,6 @@ func TestStreamingClientSessionUpdateToolCallEmitsStartAndArgs(t *testing.T) {
 		"TOOL_CALL_ARGS.delta must be the JSON-encoded args string")
 }
 
-func TestStreamingClientSessionUpdateToolCallStripsUIPrefixForName(t *testing.T) {
-	rec := httptest.NewRecorder()
-	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")
-
-	// Contextual UI tools are registered with the LLM under a UIToolPrefix
-	// namespace so they never collide with built-in MCP tool names. The
-	// frontend, however, registered them under their unprefixed names —
-	// TOOL_CALL_START.toolCallName must be stripped so it round-trips.
-	err := c.SessionUpdate(context.Background(), acp.SessionNotification{
-		Update: acp.SessionUpdate{
-			ToolCall: &acp.SessionUpdateToolCall{
-				ToolCallId: "tool-2",
-				Title:      UIToolPrefix + "render_chart",
-				Kind:       acp.ToolKindOther,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	events := parseSSEEvents(t, rec.Body.String())
-	require.Len(t, events, 1)
-	assert.Equal(t, "render_chart", events[0]["toolCallName"],
-		"contextual tool names must have %q stripped before being sent to the frontend", UIToolPrefix)
-}
-
 func TestStreamingClientSessionUpdateToolCallUpdateEmitsResultAndEnd(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := newStreamingClient(context.Background(), rec, "thread-1", "run-1")

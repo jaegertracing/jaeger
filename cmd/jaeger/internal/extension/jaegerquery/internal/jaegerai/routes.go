@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strings"
 
+	"go.opentelemetry.io/otel/trace"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 )
 
@@ -34,6 +36,7 @@ func normalizeBasePath(basePath string) string {
 // AI dependencies inside the jaegerai package.
 type Handler struct {
 	logger             *zap.Logger
+	tracerProvider     trace.TracerProvider
 	store              *ContextualToolsStore
 	streams            *SessionStreams
 	agentURL           string
@@ -52,11 +55,19 @@ type Handler struct {
 // used to prefix the AI routes. maxRequestBodySize bounds the chat
 // request body to prevent abuse.
 //
+// tracerProvider is wired into the MCP proxy so dispatch_ui_tool and
+// forward_upstream spans appear alongside jaeger_mcp's tool-level
+// spans. Pass nil to disable tracing — useful in tests.
+//
 // basePath is normalized once so the registered mux pattern uses a single
 // canonical prefix.
-func NewHandler(logger *zap.Logger, agentURL, basePath string, maxRequestBodySize int64) *Handler {
+func NewHandler(logger *zap.Logger, tracerProvider trace.TracerProvider, agentURL, basePath string, maxRequestBodySize int64) *Handler {
+	if tracerProvider == nil {
+		tracerProvider = nooptrace.NewTracerProvider()
+	}
 	return &Handler{
 		logger:             logger,
+		tracerProvider:     tracerProvider,
 		store:              NewContextualToolsStore(),
 		streams:            NewSessionStreams(),
 		agentURL:           agentURL,
@@ -67,18 +78,20 @@ func NewHandler(logger *zap.Logger, agentURL, basePath string, maxRequestBodySiz
 
 // RegisterRoutes mounts the AI gateway endpoints on the provided mux.
 //
-//   - /api/ai/chat        — streams ACP turns to/from the sidecar.
-//   - /api/ai/mcp/<id>/   — MCP server endpoint each ACP agent dials as
-//     its single MCP egress. Per-session UI tools advertised here are
-//     dispatched back to the browser via the SSE stream the chat
-//     endpoint keeps open for the same <id>. (See mcp_proxy.go for the
-//     dispatch model.)
+//   - /api/ai/chat         — streams ACP turns to/from the sidecar.
+//   - /api/ai/mcp/<uuid>/  — MCP server endpoint each ACP agent dials
+//     as its single MCP egress. The chat handler mints a fresh uuid
+//     per turn and embeds it in the URL announced via mcpServers; the
+//     proxy resolves the uuid to the AG-UI session id on every
+//     request so per-session UI tools are dispatched back to the
+//     correct browser SSE stream. (See mcp_proxy.go for the dispatch
+//     model.)
 //
 // The MCP route is mounted with a trailing slash so it acts as a prefix
-// match; the proxy peels the session id off the next path segment and
-// hands the remainder to the wrapped streamable handler.
+// match; the proxy peels the uuid off the next path segment and hands
+// the remainder to the wrapped streamable handler.
 func (h *Handler) RegisterRoutes(ctx context.Context, router *http.ServeMux) {
-	h.mcpProxy = NewMCPProxy(ctx, h.logger, h.store, h.streams)
+	h.mcpProxy = NewMCPProxy(ctx, h.logger, h.tracerProvider, h.basePath, h.store, h.streams)
 	router.Handle(h.basePath+routeMCPPrefix, h.mcpProxy)
 
 	// Chat handler must learn about the proxy AFTER it's constructed

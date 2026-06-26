@@ -69,8 +69,14 @@ func newMCPProxyFixture(t *testing.T, sessionID string, uiTools []json.RawMessag
 	f.stream.startRun()
 	f.streams.Set(sessionID, f.stream)
 
-	f.proxy = newMCPProxyWithUpstream(t.Context(), zap.NewNop(), f.ctxTools, f.streams, upstreamURL)
+	f.proxy = newMCPProxyWithUpstream(t.Context(), zap.NewNop(), nil, "", f.ctxTools, f.streams, upstreamURL)
 	t.Cleanup(func() { _ = f.proxy.Close() })
+
+	// Real chat handlers mint a fresh UUID and register it against the
+	// sidecar-allocated session id. Tests use the session id directly as
+	// the URL path segment, so register a uuid==sessionID mapping so
+	// ServeHTTP's uuid→session resolve succeeds.
+	f.proxy.RegisterUUIDForSession(sessionID, sessionID)
 
 	mux := http.NewServeMux()
 	mux.Handle(routeMCPPrefix, f.proxy)
@@ -112,18 +118,35 @@ func sampleUITool(t *testing.T, name, description string, params map[string]any)
 	return raw
 }
 
-func TestMCPProxyServeHTTPRejectsMissingSessionID(t *testing.T) {
+func TestMCPProxyServeHTTPRejectsMissingUUID(t *testing.T) {
 	// The proxy mounts at /api/ai/mcp/ as a prefix; an immediately-closed
-	// path (no <sessionId> segment) is a malformed call and should be a
-	// 400 so the operator notices in logs, not a silent 200.
-	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), NewContextualToolsStore(), NewSessionStreams(), "")
+	// path (no <uuid> segment) is a malformed call and should be a 400
+	// so the operator notices in logs, not a silent 200.
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), nil, "", NewContextualToolsStore(), NewSessionStreams(), "")
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, routeMCPPrefix, http.NoBody)
 
 	proxy.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code,
-		"empty session id segment must be a 400 with a clear hint")
+		"empty uuid segment must be a 400 with a clear hint")
+}
+
+func TestMCPProxyServeHTTPRejectsUnknownUUID(t *testing.T) {
+	// A uuid that wasn't registered (already-expired turn, malicious
+	// caller, or just-too-early dial) must 404 rather than fall through
+	// to a generic handler. The chat handler registers uuid→session in
+	// RegisterUUIDForSession; any uuid the proxy hasn't seen returns
+	// nothing from resolveSessionFromUUID, which ServeHTTP turns into a
+	// 404 with a clear hint.
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), nil, "", NewContextualToolsStore(), NewSessionStreams(), "")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, routeMCPPrefix+"never-registered/", http.NoBody)
+
+	proxy.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusNotFound, rec.Code,
+		"a uuid the proxy hasn't seen must 404, not fall through to the wrapped handler")
 }
 
 func TestMCPProxyServeHTTPRejectsBadPrefix(t *testing.T) {
@@ -131,7 +154,7 @@ func TestMCPProxyServeHTTPRejectsBadPrefix(t *testing.T) {
 	// (e.g. a misconfigured mux) should 404 instead of falling through
 	// to the streamable handler with an empty session id, which would
 	// register MCP sessions against the empty string.
-	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), NewContextualToolsStore(), NewSessionStreams(), "")
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), nil, "", NewContextualToolsStore(), NewSessionStreams(), "")
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/not/the/prefix", http.NoBody)
 
@@ -492,18 +515,23 @@ func TestMCPProxyUITakesPrecedenceOverUpstreamOnNameCollision(t *testing.T) {
 	defer cancel()
 
 	// Only one tool with that name should be advertised — the UI one.
+	// UI tools carry UIToolPrefix on the wire so they never collide
+	// with upstream telemetry names even when ctxTools and upstream
+	// both registered "shared_name".
 	listed, err := f.mcpClient.ListTools(ctx, &mcp.ListToolsParams{})
 	require.NoError(t, err)
 	require.Len(t, listed.Tools, 1, "collision must not produce a duplicate")
+	assert.Equal(t, "ui_shared_name", listed.Tools[0].Name,
+		"UI tools must be ui_-prefixed on the wire so they replace, not collide with, upstream entries")
 	assert.Equal(t, "frontend-declared UI tool", listed.Tools[0].Description,
 		"the UI tool's description must win over the upstream's")
 
-	// Calling the shared name should dispatch via SSE (the UI path), not
-	// hit the upstream. Verifying that the SSE recorder gained a
-	// TOOL_CALL_START is enough — the upstream's echo would have come
-	// back as the tool result text otherwise.
+	// Calling the prefixed name should dispatch via SSE (the UI path),
+	// not hit the upstream. TOOL_CALL_START on the SSE stream is the
+	// load-bearing assertion — the upstream echo would never have come
+	// back as TOOL_CALL_START.
 	_, err = f.mcpClient.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "shared_name",
+		Name:      "ui_shared_name",
 		Arguments: map[string]any{},
 	})
 	require.NoError(t, err)

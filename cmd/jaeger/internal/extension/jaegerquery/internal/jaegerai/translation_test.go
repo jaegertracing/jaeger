@@ -236,26 +236,6 @@ func TestFlattenToolResultContentFallsBackOnMarshalError(t *testing.T) {
 			"otherwise the SDK's Validate step rejects the event and the frame is dropped")
 }
 
-func TestStripUIToolPrefixStripsRealName(t *testing.T) {
-	assert.Equal(t, "render_chart", stripUIToolPrefix(UIToolPrefix+"render_chart"))
-}
-
-func TestStripUIToolPrefixPassesThroughUnprefixed(t *testing.T) {
-	assert.Equal(t, "search_traces", stripUIToolPrefix("search_traces"),
-		"built-in MCP tool names must not be touched")
-}
-
-func TestStripUIToolPrefixFallsBackOnEmptyStrip(t *testing.T) {
-	// An input of exactly the prefix would strip to "", which AG-UI tool-call
-	// events reject and which would break SSE encoding. The streaming path
-	// must defend itself even though handleJaegerToolCall already rejects
-	// this shape on the ext_method side — the streaming client receives ACP
-	// session/update notifications independently, so a malformed upstream
-	// name must not terminate the run.
-	assert.Equal(t, UIToolPrefix, stripUIToolPrefix(UIToolPrefix),
-		"a name that is exactly the prefix must NOT strip to empty — fall back to the original")
-}
-
 func TestValidateContextualToolNamesAcceptsEmptyAndValidSlices(t *testing.T) {
 	// A request with no tools is the common case (no contextual tools
 	// declared) — validate must accept it without trying to read the

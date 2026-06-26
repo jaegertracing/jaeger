@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"sync/atomic"
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
@@ -126,15 +125,11 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		promptBlocks = append(promptBlocks, acp.TextBlock(ctxText))
 	}
 
-	// Build two snapshots from the same input:
-	//   - prefixedTools (Meta wire shape): names are UIToolPrefix-namespaced
-	//     so the sidecar registers them with the LLM under the prefix, which
-	//     guarantees no collision with built-in Jaeger MCP tool names.
-	//   - rawTools (ContextualToolsStore): the original frontend names, so
-	//     handleJaegerToolCall can validate dispatches against the unprefixed
-	//     name it gets after stripping. Storing prefixed bytes here would
-	//     force every consumer to know about the transport-level prefix.
-	prefixedTools := prefixContextualTools(req.Tools)
+	// rawTools is the per-turn snapshot the MCPProxy reads in
+	// listToolsForSession / callToolForSession to advertise and route
+	// UI tools. Names are stored unprefixed (matching what the frontend
+	// sent); the UIToolPrefix is applied on the MCP wire by the proxy
+	// when emitting tools/list and stripped back before lookup.
 	rawTools := encodeToolsAsRaw(req.Tools)
 
 	ctx := r.Context()
@@ -148,20 +143,25 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer adapter.Close()
 
+	// Mint the per-turn UUID up front so it can be embedded in the
+	// announced mcpServers entry (the agent receives the URL before
+	// the gateway knows the sidecar's session id). The mapping
+	// uuid → sessionId is registered after session/new returns and
+	// torn down in defer on turn end.
+	var sessionUUID string
+	if h.mcpProxy != nil {
+		sessionUUID = NewSessionUUID()
+		defer h.mcpProxy.UnregisterUUID(sessionUUID)
+	}
+
 	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
 	// Build the ACP connection ourselves so the inbound dispatcher can
-	// route both standard ACP methods (session/update etc.) and our
-	// extension method (ExtMethodJaegerToolCall) — the SDK's
-	// NewClientSideConnection has a hardcoded dispatcher that returns
-	// MethodNotFound for any extension method we add.
-	// sessionIDRef carries the AG-UI session id from the chat goroutine
-	// (where session/new returns) to the dispatcher goroutine (where
-	// mcp/connect lands). Stays nil until session/new succeeds, at which
-	// point we Store the id; until then mcp/connect would error with a
-	// "not ready" hint instead of routing to an unknown session.
-	var sessionIDRef atomic.Pointer[string]
+	// route both standard ACP methods (session/update etc.) and the
+	// MCP-over-ACP method family — the SDK's NewClientSideConnection
+	// has a hardcoded dispatcher that returns MethodNotFound for any
+	// extension method we add.
 	acpConn := acp.NewConnection(
-		newDispatcher(clientImpl, h.ctxTools, h.mcpProxy, &sessionIDRef, h.Logger),
+		newDispatcher(clientImpl, h.mcpProxy),
 		adapter, adapter,
 	)
 
@@ -186,14 +186,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Initialize, so Cwd is never resolved against a real filesystem.
 		// ACP requires the field to be non-empty, hence this constant.
 		Cwd:        "/",
-		McpServers: announceMCPServers(init, h.mcpProxy),
-	}
-	if len(prefixedTools) > 0 {
-		newSessionReq.Meta = map[string]any{
-			ContextualToolsMetaKey: map[string]any{
-				"tools": prefixedTools,
-			},
-		}
+		McpServers: announceMCPServers(init, h.mcpProxy, sessionUUID),
 	}
 	sess, err := acp.SendRequest[acp.NewSessionResponse](acpConn, acpCtx, acp.AgentMethodSessionNew, newSessionReq)
 	if err != nil {
@@ -203,16 +196,16 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
 
-	// Publish the session id to the dispatcher so any subsequent
-	// mcp/connect from the agent can be routed to this AG-UI session.
-	// Storing a fresh string (not &sess.SessionId direct) keeps the
-	// atomic's lifetime independent of the SessionId value's storage.
-	sessIDValue := string(sess.SessionId)
-	sessionIDRef.Store(&sessIDValue)
+	// Register the uuid → sessionID mapping so subsequent dials from
+	// the sidecar — HTTP via the announced URL, or ACP via mcp/connect
+	// with the same uuid as acpId — resolve to this turn's session.
+	if h.mcpProxy != nil {
+		h.mcpProxy.RegisterUUIDForSession(sessionUUID, string(sess.SessionId))
+	}
 
-	// Publish the unprefixed snapshot under the assigned ACP session id so
-	// handleJaegerToolCall can confirm dispatches by their post-strip
-	// (frontend) name. Cleared at turn end regardless of success.
+	// Publish the per-session UI-tool snapshot so the MCP proxy can
+	// expose them via tools/list and dispatch them via tools/call.
+	// Cleared at turn end regardless of success.
 	if h.ctxTools != nil && len(rawTools) > 0 {
 		sessionID := string(sess.SessionId)
 		h.ctxTools.SetForSession(sessionID, rawTools)
@@ -223,9 +216,9 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// MCP proxy can find it when an agent invokes a UI tool. Optional —
 	// when h.streams is nil (tests, deployments without the MCP route
 	// wired in) we skip both Set and Delete, and the proxy simply returns
-	// "no active chat session" for any tools/call. Keying by session id
-	// matches the URL the gateway hands the agent at
-	// /api/ai/mcp/<sessionId>.
+	// "no active chat session" for any tools/call. The MCP proxy
+	// resolves the uuid in the announced URL back to this session id
+	// via the uuidToSession map before consulting streams.
 	if h.streams != nil {
 		sessionID := string(sess.SessionId)
 		h.streams.Set(sessionID, clientImpl)

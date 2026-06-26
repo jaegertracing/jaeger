@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -77,43 +78,60 @@ func (c *mcpACPConnections) delete(connectionID string) {
 // originating acpId, collisions are impossible across goroutines.
 var mcpACPConnIDSeq atomic.Uint64
 
-// mcpACPServerIDSeq is the sibling counter for the McpServerAcp.Id we
-// announce in NewSessionRequest.mcpServers. Distinct from the
-// connection counter because the announced id outlives any single
-// connection (the agent could in principle open multiple connections
-// to the same announced server).
-var mcpACPServerIDSeq atomic.Uint64
+// gatewayHTTPHost is the scheme+authority the gateway announces for
+// its own HTTP MCP endpoint. Hardcoded for the POC; a follow-up will
+// derive it from the jaeger_query http endpoint config and expose an
+// ai.gateway_public_url override. The full URL is assembled as
+// "<gatewayHTTPHost><basePath><routeMCPPrefix><uuid>/" so the
+// announced path tracks whatever basePath the operator mounts
+// jaeger-query under.
+const gatewayHTTPHost = "http://127.0.0.1:16686"
 
 // announceMCPServers builds the NewSessionRequest.mcpServers list for a
-// chat turn. Today there's at most one entry — the MCP-over-ACP
-// callback the agent uses to reach the gateway-side MCP server — and
-// we add it only when:
+// chat turn. The chat handler has already minted the per-turn UUID via
+// MCPProxy.NewSessionUUID(); this function bakes it into the announced
+// URLs (HTTP) and ids (ACP) so the sidecar can dial either transport
+// and the gateway can resolve uuid → sessionID through one map.
 //
-//   - the chat handler has a proxy wired in (proxy != nil), AND
-//   - the agent advertised mcp_capabilities.acp = true in its
-//     InitializeResponse.
+// Two entries are emitted, capability-gated:
 //
-// When either condition is false we return an empty slice so the
-// gateway behaves exactly as it did before this feature: no MCP
-// servers announced over the ACP wire. Agents that can't speak
-// MCP-over-ACP keep using the HTTP MCP endpoint instead, and the
-// dispatcher's mcp/* method handlers degrade to MethodNotFound for
-// them too (proxy stays unused on that path).
+//   - HTTP entry, gated on mcp_capabilities.http (defaults true for
+//     most agents). The URL embeds the UUID at the path segment the
+//     gateway's MCPProxy.ServeHTTP looks up. This is the transport
+//     the Gemini sidecar uses today.
+//   - ACP entry, gated on mcp_capabilities.acp. The id is the same
+//     UUID so HandleConnect can resolve through the same uuid→session
+//     map. Used by MCP-over-ACP-aware agents (none in-tree today; the
+//     mock-acp-agent demonstrates the path).
+//
+// proxy == nil disables both announcements — the dispatcher's mcp/*
+// handlers degrade to MethodNotFound and the HTTP path 404s in tandem.
 //
 // The returned slice is always non-nil — ACP requires the field to be
 // a JSON array, not null.
-func announceMCPServers(init acp.InitializeResponse, proxy *MCPProxy) []acp.McpServer {
-	servers := make([]acp.McpServer, 0, 1)
-	if proxy == nil || !init.AgentCapabilities.McpCapabilities.Acp {
+func announceMCPServers(init acp.InitializeResponse, proxy *MCPProxy, uuid string) []acp.McpServer {
+	servers := make([]acp.McpServer, 0, 2)
+	if proxy == nil || uuid == "" {
 		return servers
 	}
-	acpID := fmt.Sprintf("jaeger-mcp-%d-%d", time.Now().UnixNano(), mcpACPServerIDSeq.Add(1))
-	servers = append(servers, acp.McpServer{
-		Acp: &acp.McpServerAcpInline{
-			Id:   acp.McpServerAcpId(acpID),
-			Name: "jaeger",
-		},
-	})
+	caps := init.AgentCapabilities.McpCapabilities
+	if caps.Http {
+		servers = append(servers, acp.McpServer{
+			Http: &acp.McpServerHttpInline{
+				Name:    "jaeger",
+				Url:     gatewayHTTPHost + proxy.basePath + routeMCPPrefix + uuid + "/",
+				Headers: []acp.HttpHeader{},
+			},
+		})
+	}
+	if caps.Acp {
+		servers = append(servers, acp.McpServer{
+			Acp: &acp.McpServerAcpInline{
+				Id:   acp.McpServerAcpId(uuid),
+				Name: "jaeger",
+			},
+		})
+	}
 	return servers
 }
 
@@ -126,18 +144,21 @@ func newMCPACPConnectionID(acpID string) string {
 // in NewSessionRequest.mcpServers and wants to open a callback channel
 // for it.
 //
-// The gateway announces exactly one ACP McpServer per session and
-// generates a fresh acpId for it before session/new is dispatched, so
-// there's nothing to validate the inbound acpId against beyond
-// non-emptiness — the per-connection sessionID comes from the chat
-// handler's atomic (sessionIDRef in newDispatcher), not from the
-// request. Future-proof: the SDK allows multiple connections per
-// announced server, so we don't reject a second mcp/connect for the
-// same acpId.
-func (p *MCPProxy) HandleConnect(_ context.Context, sessionID string, req acp.UnstableConnectMcpRequest) (acp.UnstableConnectMcpResponse, error) {
+// The acpId in the request is the per-turn UUID the gateway announced
+// in mcpServers. We resolve it through the same uuid→session map the
+// HTTP transport uses, so both transports share one source of truth for
+// "which AG-UI session does this connection belong to?" An unknown
+// UUID — already-expired turn, malicious caller, or just-too-early
+// dial before RegisterUUIDForSession ran — is rejected; the agent
+// can retry later or fall back to the HTTP transport.
+func (p *MCPProxy) HandleConnect(_ context.Context, req acp.UnstableConnectMcpRequest) (acp.UnstableConnectMcpResponse, error) {
 	acpID := string(req.AcpId)
 	if acpID == "" {
 		return acp.UnstableConnectMcpResponse{}, errors.New("mcp/connect: acpId is required")
+	}
+	sessionID := p.resolveSessionFromUUID(acpID)
+	if sessionID == "" {
+		return acp.UnstableConnectMcpResponse{}, fmt.Errorf("mcp/connect: unknown acpId %q", acpID)
 	}
 	conn := &mcpACPConnection{
 		connectionID: newMCPACPConnectionID(acpID),
@@ -246,7 +267,7 @@ func (p *MCPProxy) HandleMessage(ctx context.Context, req acp.UnstableMessageMcp
 // they advertise the same catalogue.
 func (p *MCPProxy) listToolsForSession(sessionID string) []*mcp.Tool {
 	uiTools := p.ctxTools.GetContextualToolsForSession(sessionID)
-	out := make([]*mcp.Tool, 0, len(uiTools)+len(p.upstreamTools))
+	out := make([]*mcp.Tool, 0, len(uiTools)+len(p.upstreamToolList()))
 
 	for _, raw := range uiTools {
 		entry, ok := raw.(map[string]any)
@@ -259,18 +280,25 @@ func (p *MCPProxy) listToolsForSession(sessionID string) []*mcp.Tool {
 		}
 		description, _ := entry["description"].(string)
 		out = append(out, &mcp.Tool{
-			Name:        name,
+			// Names are prefixed on the wire to keep frontend-supplied
+			// names from colliding with built-in telemetry tool names.
+			// callToolForSession strips the prefix on lookup so the
+			// internal ctxTools store stays keyed by the raw name.
+			Name:        applyUIToolPrefix(name),
 			Description: description,
 			InputSchema: normalizeUIToolSchema(entry["parameters"]),
 		})
 	}
 
-	for _, tool := range p.upstreamTools {
+	for _, tool := range p.upstreamToolList() {
 		if tool == nil || tool.Name == "" {
 			continue
 		}
 		// Same precedence rule as serverForRequest: UI tools win on
-		// name collision.
+		// name collision. Both sides are compared by raw frontend name
+		// (ctxTools stores unprefixed entries; upstream tools never
+		// carry the ui_ prefix) — the prefix only appears on the wire
+		// output of tools/list above.
 		if uiToolNameRegistered(uiTools, tool.Name) {
 			continue
 		}
@@ -284,17 +312,45 @@ func (p *MCPProxy) listToolsForSession(sessionID string) []*mcp.Tool {
 // the SDK's per-tool handlers (uiToolHandler / upstreamToolHandler)
 // which already encode the same routing decision through their
 // per-tool closures, so the two paths emit identical behaviour.
+//
+// toolName arrives on the wire as the agent saw it in tools/list —
+// UI tools therefore carry the UIToolPrefix and must be stripped
+// before consulting ctxTools (which stores the raw frontend name).
 func (p *MCPProxy) callToolForSession(ctx context.Context, sessionID, toolName string, rawArgs json.RawMessage) (*mcp.CallToolResult, error) {
 	// UI tools first — frontend-declared tools take precedence over
-	// upstream entries with the same name (see serverForRequest's
-	// collision rule).
-	if uiToolNameRegistered(p.ctxTools.GetContextualToolsForSession(sessionID), toolName) {
-		return p.dispatchUITool(sessionID, toolName, rawArgs), nil
+	// upstream entries with the same name.
+	if stripped, ok := stripUIToolPrefixOK(toolName); ok {
+		if uiToolNameRegistered(p.ctxTools.GetContextualToolsForSession(sessionID), stripped) {
+			return p.dispatchUITool(ctx, sessionID, stripped, rawArgs), nil
+		}
 	}
-	for _, tool := range p.upstreamTools {
+	for _, tool := range p.upstreamToolList() {
 		if tool != nil && tool.Name == toolName {
-			return p.forwardToUpstream(ctx, toolName, rawArgs)
+			return p.forwardToUpstream(ctx, sessionID, toolName, rawArgs)
 		}
 	}
 	return errorResult(fmt.Sprintf("unknown tool %q", toolName)), nil
+}
+
+// applyUIToolPrefix is the idempotent inverse of stripUIToolPrefixOK.
+// Names already starting with UIToolPrefix pass through unchanged so a
+// frontend that pre-prefixes (or a misconfigured caller) doesn't end
+// up with double-prefixed wire shapes like "ui_ui_highlight_span".
+func applyUIToolPrefix(name string) string {
+	if strings.HasPrefix(name, UIToolPrefix) {
+		return name
+	}
+	return UIToolPrefix + name
+}
+
+// stripUIToolPrefixOK returns (stripped, true) when name starts with
+// UIToolPrefix and the remainder is non-empty; otherwise (name, false).
+// The boolean lets callToolForSession distinguish "this is a UI tool
+// candidate" from "this is a telemetry tool" without re-checking
+// HasPrefix afterwards.
+func stripUIToolPrefixOK(name string) (string, bool) {
+	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok && stripped != "" {
+		return stripped, true
+	}
+	return name, false
 }

@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewHandlerInitialisesStore(t *testing.T) {
-	h := NewHandler(zap.NewNop(), "ws://example", "/jaeger", 1<<20)
+	h := NewHandler(zap.NewNop(), nil, "ws://example", "/jaeger", 1<<20)
 	require.NotNil(t, h.store, "NewHandler must allocate a ContextualToolsStore")
 	assert.Equal(t, "ws://example", h.agentURL)
 	assert.Equal(t, "/jaeger", h.basePath)
@@ -53,7 +53,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", tc.basePath, 1<<20)
+			h := NewHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", tc.basePath, 1<<20)
 			mux := http.NewServeMux()
 			h.RegisterRoutes(t.Context(), mux)
 
@@ -70,6 +70,6 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 }
 
 func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
-	h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", "/jaeger/", 1<<20)
+	h := NewHandler(zap.NewNop(), nil, "ws://127.0.0.1:1", "/jaeger/", 1<<20)
 	assert.Equal(t, "/jaeger", h.basePath, "NewHandler must trim the trailing slash")
 }

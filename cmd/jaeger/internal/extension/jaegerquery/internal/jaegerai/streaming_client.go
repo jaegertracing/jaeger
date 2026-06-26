@@ -230,13 +230,12 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 		}
 	}
 	if u.ToolCall != nil {
-		// The sidecar populates ACP Title with the tool identifier (prefixed
-		// with UIToolPrefix for contextual tools). The prefix is stripped
-		// here so the frontend sees the same name it registered the tool
-		// under, regardless of the wire-level namespace.
+		// ACP-delivered tool calls arrive with the raw tool name in
+		// Title (no prefix — UIToolPrefix is a wire convention applied
+		// only on the gateway's MCP tools/list output).
 		c.emit(aguievents.NewToolCallStartEvent(
 			string(u.ToolCall.ToolCallId),
-			stripUIToolPrefix(u.ToolCall.Title),
+			u.ToolCall.Title,
 		))
 		if u.ToolCall.RawInput != nil {
 			c.emit(aguievents.NewToolCallArgsEvent(
@@ -269,14 +268,12 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 
 // EmitContextualToolCall fires a TOOL_CALL_START / TOOL_CALL_ARGS /
 // TOOL_CALL_END sequence on the SSE stream for a UI tool the agent
-// invoked via the gateway's MCP proxy endpoint. It mirrors the lifecycle
-// the SessionUpdate path emits for ACP-delivered contextual tool calls,
-// but does NOT emit TOOL_CALL_RESULT: UI tools are dispatched into the
-// browser, the browser is the actual executor, and the MCP proxy returns
-// a synthetic ack to the agent so the LLM loop can continue. Emitting
-// a server-side RESULT would let assistant-ui short-circuit and skip
-// the local execute() — same constraint the ACP-dispatch path
-// honours.
+// invoked via the gateway's MCP proxy endpoint. Does NOT emit
+// TOOL_CALL_RESULT: UI tools are dispatched into the browser, the
+// browser is the actual executor, and the MCP proxy returns a synthetic
+// ack to the agent so the LLM loop can continue. Emitting a server-side
+// RESULT would let assistant-ui short-circuit and skip the local
+// execute().
 //
 // rawArgs is the parsed MCP tool-call argument object; we forward it
 // verbatim as the delta payload (AG-UI concatenates deltas; the gateway
@@ -291,6 +288,33 @@ func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, ra
 	if rawArgs != nil {
 		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
 	}
+	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
+}
+
+// EmitUpstreamToolCall fires the full TOOL_CALL_START / TOOL_CALL_ARGS /
+// TOOL_CALL_RESULT / TOOL_CALL_END lifecycle for an upstream telemetry
+// tool the agent invoked via the gateway's MCP proxy. Unlike
+// EmitContextualToolCall (which deliberately skips RESULT because the
+// browser is the executor), upstream tools have a real server-side
+// result the agent and the browser both need to see, so RESULT carries
+// the flattened content.
+//
+// resultText is the already-flattened textual representation of the MCP
+// CallToolResult — the caller is responsible for collapsing whatever
+// Content blocks came back into one string (matching the shape
+// flattenToolResultContent uses for the ACP-delivered path).
+func (c *streamingClient) EmitUpstreamToolCall(toolCallID, toolName string, rawArgs any, resultText string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
+	if rawArgs != nil {
+		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
+	}
+	c.emit(aguievents.NewToolCallResultEvent(
+		toolResultMessageID(acp.ToolCallId(toolCallID)),
+		toolCallID,
+		resultText,
+	))
 	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
 }
 

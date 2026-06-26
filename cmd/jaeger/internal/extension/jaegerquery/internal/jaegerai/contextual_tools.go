@@ -11,10 +11,11 @@ import (
 // ContextualToolsStore stores the AG-UI tools that the frontend provided
 // for a given ACP turn, keyed by the ACP session id assigned by the
 // sidecar. The chat handler writes the snapshot once NewSessionResponse
-// returns and before Prompt is sent; the dispatcher (see dispatcher.go)
-// reads the snapshot when the sidecar dispatches a contextual tool call
-// back via the ExtMethodJaegerToolCall ACP extension method, which carries
-// the same session id on its payload.
+// returns and before Prompt is sent. The MCP proxy reads it from
+// listToolsForSession (advertising UI tools alongside upstream telemetry
+// tools on its tools/list endpoint) and callToolForSession (resolving a
+// tools/call against the per-session catalog before dispatching to the
+// browser SSE stream).
 //
 // Entries are kept as []json.RawMessage so that GetContextualToolsForSession
 // can unmarshal a fresh tree per reader. That guarantees callers cannot

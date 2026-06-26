@@ -46,14 +46,13 @@ func contextTextEntries(entries []aguitypes.Context) []string {
 	return result
 }
 
-// validateContextualToolNames rejects requests carrying tools with empty
-// or whitespace-only names. Such names would prefix to "ui_" / "ui_   ",
-// which the dispatcher's handleJaegerToolCall later rejects as
-// InvalidParams and which would land in both NewSessionRequest.Meta and
-// ContextualToolsStore as unusable entries. Returning a 400 from the
-// caller (handler.go) keeps both data structures clean and surfaces
-// frontend bugs immediately instead of allowing them to fail mid-turn
-// after a sidecar round-trip.
+// validateContextualToolNames rejects requests carrying tools with
+// empty or whitespace-only names. Such entries would land in
+// ContextualToolsStore as unusable rows and would produce the wire
+// shape "ui_" / "ui_   " when the proxy prefixes them, breaking the
+// MCP tools/list payload. Returning a 400 from the caller (handler.go)
+// surfaces frontend bugs immediately instead of letting them fail
+// mid-turn.
 //
 // The reported error names the first offending tool index so the
 // frontend developer can locate the broken declaration; it does not
@@ -67,30 +66,9 @@ func validateContextualToolNames(tools []aguitypes.Tool) error {
 	return nil
 }
 
-// prefixContextualTools returns a copy of the supplied tools with each
-// name prefixed by UIToolPrefix. The original slice is not mutated so the
-// caller can keep it for logging/inspection. Empty input returns nil so
-// callers can branch on the length to decide whether to attach Meta and
-// SetForSession at all.
-//
-// Callers must invoke validateContextualToolNames first to guarantee no
-// blank names slip through. This function does not re-validate so a stray
-// caller cannot accidentally bypass the boundary check.
-func prefixContextualTools(tools []aguitypes.Tool) []aguitypes.Tool {
-	if len(tools) == 0 {
-		return nil
-	}
-	out := make([]aguitypes.Tool, len(tools))
-	for i, tool := range tools {
-		out[i] = tool
-		out[i].Name = UIToolPrefix + tool.Name
-	}
-	return out
-}
-
-// encodeToolsAsRaw marshals each AG-UI tool into its JSON representation so
-// that it can be forwarded verbatim to downstream consumers (the per-session
-// contextual tools store and the NewSessionRequest.Meta payload).
+// encodeToolsAsRaw marshals each AG-UI tool into its JSON representation
+// so the per-session ContextualToolsStore can hand a fresh tree to each
+// reader (the MCP proxy unmarshals them on every tools/list / tools/call).
 func encodeToolsAsRaw(tools []aguitypes.Tool) []json.RawMessage {
 	result := make([]json.RawMessage, 0, len(tools))
 	for _, tool := range tools {
@@ -224,24 +202,6 @@ func valueOrUnknown(v *acp.ToolCallStatus) string {
 // id stable across retries of the same tool call without per-instance state.
 func toolResultMessageID(toolCallID acp.ToolCallId) string {
 	return "tool-msg-" + string(toolCallID)
-}
-
-// stripUIToolPrefix removes the contextual-tool namespace from a tool name
-// so the frontend sees the original name it registered. Non-prefixed
-// names (e.g. built-in MCP tools) are returned unchanged.
-//
-// A name that is exactly UIToolPrefix (e.g. "ui_") would strip to "", which
-// AG-UI tool-call events reject and which would break SSE encoding. That
-// shape is already rejected as InvalidParams by handleJaegerToolCall on the
-// ext_method path, so it should never reach the streaming client; here we
-// defend the streaming path independently by falling back to the original
-// (still non-empty) name so the run does not terminate over a malformed
-// upstream tool name.
-func stripUIToolPrefix(name string) string {
-	if stripped, ok := strings.CutPrefix(name, UIToolPrefix); ok && stripped != "" {
-		return stripped
-	}
-	return name
 }
 
 // marshalToolArgsDelta serializes the sidecar's raw tool arguments to a

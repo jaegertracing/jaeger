@@ -265,21 +265,17 @@ func TestChatHandlerAppendsContextEntriesToPromptBlocks(t *testing.T) {
 	require.Equal(t, "user pressed checkout", promptReq.Prompt[2].Text.Text)
 }
 
-func TestChatHandlerAttachesContextualToolsToMetaAndStore(t *testing.T) {
-	// AG-UI tools on the request should land both on NewSessionRequest._meta
-	// (so the sidecar can register them with the LLM) and in
-	// ContextualToolsStore (so handleJaegerToolCall can resolve callbacks).
-	// Names are UIToolPrefix-prefixed in Meta — the prefix guarantees no
-	// collision with built-in MCP tool names — but the store keeps the
-	// original *unprefixed* names because handleJaegerToolCall validates
-	// the post-strip name (what the frontend registered). The store entry
-	// must be cleared once the turn ends.
+func TestChatHandlerOmitsMetaForAllRequests(t *testing.T) {
+	// After the ext_method / meta-packing was retired (Child 2 of
+	// #8853), the gateway no longer ships contextual tools through
+	// NewSessionRequest._meta. Tools are exposed exclusively via the
+	// MCP proxy's tools/list at the announced URL, so Meta must stay
+	// nil/empty regardless of whether the request carried tools.
 	agent := &mockACPAgent{}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
 	defer cleanup()
 
-	store := NewContextualToolsStore()
-	handler := NewChatHandler(zap.NewNop(), store, wsURL, "", 1<<20)
+	handler := NewChatHandler(zap.NewNop(), NewContextualToolsStore(), wsURL, "", 1<<20)
 
 	reqBody, err := json.Marshal(ChatRequest{
 		Messages: []aguitypes.Message{{Role: aguitypes.RoleUser, Content: "hello"}},
@@ -297,46 +293,8 @@ func TestChatHandlerAttachesContextualToolsToMetaAndStore(t *testing.T) {
 
 	_, sessionReq, _ := agent.snapshot()
 	require.NotNil(t, sessionReq)
-	require.NotEmpty(t, sessionReq.Meta, "Meta must be populated when the request carries tools")
-	// Meta is map[string]any, so after JSON round-trip the contextual tools
-	// payload arrives as a generic decoded shape rather than typed slices.
-	payload, ok := sessionReq.Meta[ContextualToolsMetaKey].(map[string]any)
-	require.True(t, ok, "Meta must contain the contextual tools key as a map")
-	tools, ok := payload["tools"].([]any)
-	require.True(t, ok, "Meta tools entry must decode as a JSON array")
-	require.Len(t, tools, 1)
-	first, ok := tools[0].(map[string]any)
-	require.True(t, ok, "tool entry must decode as an object")
-	assert.Equal(t, UIToolPrefix+"render_chart", first["name"],
-		"the gateway must prepend UIToolPrefix before exposing the tool")
-
-	// SetForSession was called with the unprefixed snapshot (so dispatch
-	// can validate by frontend name), and DeleteForSession must have run
-	// via defer once the turn finished.
-	assert.Nil(t, store.GetContextualToolsForSession("sess-test"),
-		"store entry should be cleared after the turn ends")
-}
-
-func TestChatHandlerOmitsMetaWhenNoTools(t *testing.T) {
-	agent := &mockACPAgent{}
-	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
-	defer cleanup()
-
-	handler := NewChatHandler(zap.NewNop(), NewContextualToolsStore(), wsURL, "", 1<<20)
-
-	reqBody, err := json.Marshal(newAGUIRequest("hello"))
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
-	rr := httptest.NewRecorder()
-
-	handler.ServeHTTP(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code)
-
-	_, sessionReq, _ := agent.snapshot()
-	require.NotNil(t, sessionReq)
 	require.Empty(t, sessionReq.Meta,
-		"Meta must stay nil/empty when no tools are sent so the sidecar does not see a stale snapshot")
+		"Meta must stay nil/empty — tools are advertised via MCP, not via _meta")
 }
 
 func TestChatHandlerEmitsRunFinishedWithStopReasonInResult(t *testing.T) {

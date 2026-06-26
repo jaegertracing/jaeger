@@ -15,10 +15,15 @@ import (
 	"go.uber.org/zap"
 )
 
-// newACPProxyHarness wires the same in-memory fixture the HTTP tests use,
-// minus the wrapped streamable HTTP handler: tests here exercise the
-// gateway-side mcp/connect, mcp/message, mcp/disconnect handlers
+// newACPProxyHarness wires the same in-memory fixture the HTTP tests
+// use, minus the wrapped streamable HTTP handler: tests here exercise
+// the gateway-side mcp/connect, mcp/message, mcp/disconnect handlers
 // directly, so they don't need an MCP HTTP client.
+//
+// The returned proxy already has a uuid → sessionID mapping registered
+// for `acpID = "jaeger-mcp"` so individual test cases can call
+// HandleConnect without re-doing the chat-handler setup. Tests that
+// want to assert resolve-failure behaviour pass a different acpId.
 func newACPProxyHarness(t *testing.T, sessionID string, uiTools []json.RawMessage, upstreamURL string) (*MCPProxy, *streamingClient, *httptest.ResponseRecorder) {
 	t.Helper()
 	ctxTools := NewContextualToolsStore()
@@ -32,66 +37,105 @@ func newACPProxyHarness(t *testing.T, sessionID string, uiTools []json.RawMessag
 	sc.startRun()
 	streams.Set(sessionID, sc)
 
-	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), ctxTools, streams, upstreamURL)
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), nil, "", ctxTools, streams, upstreamURL)
+	proxy.RegisterUUIDForSession("jaeger-mcp", sessionID)
 	t.Cleanup(func() { _ = proxy.Close() })
 	return proxy, sc, rec
 }
 
 func TestAnnounceMCPServersGatedByAgentCapability(t *testing.T) {
-	// Capability handshake: gateway must NOT advertise type:"acp" when the
-	// agent didn't say it supports it. Sending an Acp McpServer to a
-	// non-supporting agent risks at-best a silent drop, at-worst a hard
-	// validation error — neither is operator-friendly.
+	// Capability handshake: gateway must NOT advertise type:"acp" when
+	// the agent didn't say it supports it; conversely it must always
+	// advertise type:"http" when the agent supports HTTP (today's
+	// default for every shipping ACP agent). A nil proxy or empty
+	// UUID short-circuits to an empty list regardless of caps.
 	proxy, _, _ := newACPProxyHarness(t, "sess-cap", nil, "")
 
-	cases := []struct {
-		name       string
-		init       acp.InitializeResponse
-		proxy      *MCPProxy
-		wantLen    int
-		assertAcp  bool
-		assertName string
-	}{
-		{
-			name:    "agent supports acp + proxy present → announce one entry",
-			init:    acp.InitializeResponse{AgentCapabilities: acp.AgentCapabilities{McpCapabilities: acp.McpCapabilities{Acp: true}}},
-			proxy:   proxy,
-			wantLen: 1, assertAcp: true, assertName: "jaeger",
-		},
-		{
-			name:    "agent does NOT support acp → empty list",
-			init:    acp.InitializeResponse{AgentCapabilities: acp.AgentCapabilities{McpCapabilities: acp.McpCapabilities{Acp: false}}},
-			proxy:   proxy,
-			wantLen: 0,
-		},
-		{
-			name:    "nil proxy → empty list even if agent supports acp",
-			init:    acp.InitializeResponse{AgentCapabilities: acp.AgentCapabilities{McpCapabilities: acp.McpCapabilities{Acp: true}}},
-			proxy:   nil,
-			wantLen: 0,
+	httpOnly := acp.InitializeResponse{
+		AgentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true},
 		},
 	}
+	httpAndAcp := acp.InitializeResponse{
+		AgentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true, Acp: true},
+		},
+	}
+	none := acp.InitializeResponse{}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got := announceMCPServers(tc.init, tc.proxy)
-			require.NotNil(t, got, "must be a non-nil slice; ACP forbids null on this field")
-			require.Len(t, got, tc.wantLen)
-			if tc.assertAcp {
-				require.NotNil(t, got[0].Acp)
-				assert.Equal(t, tc.assertName, got[0].Acp.Name)
-				assert.NotEmpty(t, string(got[0].Acp.Id), "Id must be unique per announcement; the proxy uses it as routing key")
-			}
-		})
-	}
+	t.Run("http only → one entry with type http", func(t *testing.T) {
+		got := announceMCPServers(httpOnly, proxy, "u-1")
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].Http)
+		assert.Contains(t, got[0].Http.Url, "/u-1/", "URL must embed the uuid")
+		assert.Equal(t, "jaeger", got[0].Http.Name)
+	})
+	t.Run("http + acp → two entries", func(t *testing.T) {
+		got := announceMCPServers(httpAndAcp, proxy, "u-2")
+		require.Len(t, got, 2)
+		require.NotNil(t, got[0].Http)
+		require.NotNil(t, got[1].Acp)
+		assert.Equal(t, "u-2", string(got[1].Acp.Id),
+			"the announced acpId must be the uuid so HandleConnect can resolve through the same map")
+	})
+	t.Run("no capabilities → empty list", func(t *testing.T) {
+		got := announceMCPServers(none, proxy, "u-3")
+		require.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+	t.Run("nil proxy → empty list even with caps", func(t *testing.T) {
+		got := announceMCPServers(httpAndAcp, nil, "u-4")
+		require.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+	t.Run("empty uuid → empty list even with caps", func(t *testing.T) {
+		got := announceMCPServers(httpAndAcp, proxy, "")
+		require.NotNil(t, got)
+		assert.Empty(t, got)
+	})
+	t.Run("http url embeds proxy.basePath", func(t *testing.T) {
+		// Operators run jaeger-query behind a non-empty basePath
+		// (e.g. /jaeger); the announced URL must include it or the
+		// agent dials a 404 against the bare /api/ai/mcp/ path that
+		// the proxy never mounted at.
+		ctxTools := NewContextualToolsStore()
+		streams := NewSessionStreams()
+		proxyWithBase := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), nil, "/jaeger", ctxTools, streams, "")
+		t.Cleanup(func() { _ = proxyWithBase.Close() })
+
+		got := announceMCPServers(httpOnly, proxyWithBase, "u-base")
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].Http)
+		assert.Equal(t, "http://127.0.0.1:16686/jaeger/api/ai/mcp/u-base/", got[0].Http.Url)
+	})
+}
+
+func TestUUIDMapRegisterAndResolve(t *testing.T) {
+	// The uuid→session map is the single source of truth both transports
+	// resolve against. Register, resolve, unregister, and verify empty
+	// inputs are no-ops.
+	proxy, _, _ := newACPProxyHarness(t, "sess-map", nil, "")
+	uuid := NewSessionUUID()
+	assert.Empty(t, proxy.resolveSessionFromUUID(uuid),
+		"unregistered uuid must resolve to empty string")
+
+	proxy.RegisterUUIDForSession(uuid, "sess-X")
+	assert.Equal(t, "sess-X", proxy.resolveSessionFromUUID(uuid))
+
+	proxy.UnregisterUUID(uuid)
+	assert.Empty(t, proxy.resolveSessionFromUUID(uuid),
+		"unregister must drop the mapping cleanly")
+
+	// Empty inputs are no-ops — the chat handler can pass pre-init
+	// state through without guarding every call site.
+	proxy.RegisterUUIDForSession("", "sess-X")
+	proxy.RegisterUUIDForSession(uuid, "")
+	proxy.UnregisterUUID("")
+	assert.Empty(t, proxy.resolveSessionFromUUID(""),
+		"empty uuid lookup must not surface a stale entry")
 }
 
 func TestMCPACPConnectionsLifecycle(t *testing.T) {
-	// The connection registry is the routing table the mcp/message
-	// handler reads on every inbound inner-MCP request. set/get/delete
-	// must be straightforward; nothing complex to assert beyond
-	// idempotent delete (the mcp/disconnect path doesn't error on
-	// unknown ids, so the registry mustn't either).
 	conns := newMCPACPConnections()
 	conn := &mcpACPConnection{connectionID: "c1", acpID: "a1", sessionID: "s1"}
 
@@ -104,16 +148,16 @@ func TestMCPACPConnectionsLifecycle(t *testing.T) {
 }
 
 func TestHandleConnectAllocatesUniqueConnectionIDs(t *testing.T) {
-	// Two mcp/connect calls with the same acpId should yield two
-	// distinct connectionIds — the SDK allows multiple connections per
+	// Two mcp/connect calls with the same acpId yield two distinct
+	// connectionIds — the SDK allows multiple connections per
 	// announced server, and a future agent might open more than one
 	// for retry or multiplexing.
 	proxy, _, _ := newACPProxyHarness(t, "sess-conn", nil, "")
-	req := acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp-1"}
+	req := acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"}
 
-	resp1, err := proxy.HandleConnect(t.Context(), "sess-conn", req)
+	resp1, err := proxy.HandleConnect(t.Context(), req)
 	require.NoError(t, err)
-	resp2, err := proxy.HandleConnect(t.Context(), "sess-conn", req)
+	resp2, err := proxy.HandleConnect(t.Context(), req)
 	require.NoError(t, err)
 	assert.NotEqual(t, resp1.ConnectionId, resp2.ConnectionId,
 		"connection ids must be unique even when acpId is reused")
@@ -121,19 +165,23 @@ func TestHandleConnectAllocatesUniqueConnectionIDs(t *testing.T) {
 }
 
 func TestHandleConnectRejectsEmptyAcpID(t *testing.T) {
-	// An empty acpId is the only thing HandleConnect validates — the
-	// session id comes from the dispatcher (already authenticated),
-	// not from the request body, so there's nothing else to gate on.
 	proxy, _, _ := newACPProxyHarness(t, "sess-empty", nil, "")
-	_, err := proxy.HandleConnect(t.Context(), "sess-empty", acp.UnstableConnectMcpRequest{AcpId: ""})
+	_, err := proxy.HandleConnect(t.Context(), acp.UnstableConnectMcpRequest{AcpId: ""})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "acpId is required")
 }
 
+func TestHandleConnectRejectsUnknownAcpID(t *testing.T) {
+	// An acpId that doesn't appear in the uuid→session map is the
+	// already-expired / never-registered / malicious case. Reject with a
+	// clear message so the agent can fall back to HTTP or retry.
+	proxy, _, _ := newACPProxyHarness(t, "sess-unknown", nil, "")
+	_, err := proxy.HandleConnect(t.Context(), acp.UnstableConnectMcpRequest{AcpId: "stale-uuid"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown acpId")
+}
+
 func TestHandleDisconnectIsIdempotent(t *testing.T) {
-	// A flaky agent re-sending mcp/disconnect, or a disconnect arriving
-	// after the chat handler already tore everything down, must not
-	// surface as an error. HandleDisconnect drops the entry quietly.
 	proxy, _, _ := newACPProxyHarness(t, "sess-dc", nil, "")
 	resp, err := proxy.HandleDisconnect(t.Context(), acp.UnstableDisconnectMcpRequest{ConnectionId: "never-existed"})
 	require.NoError(t, err)
@@ -142,13 +190,14 @@ func TestHandleDisconnectIsIdempotent(t *testing.T) {
 
 func TestHandleMessageReturnsToolsListForKnownSession(t *testing.T) {
 	// End-to-end: open a connection, then send a tools/list as an inner
-	// MCP message. The response should be a ListToolsResult that mirrors
-	// what listToolsForSession produces for that session id.
-	highlight := sampleUITool(t, "ui_highlight_span", "Highlight a span",
+	// MCP message. The response should be a ListToolsResult whose UI
+	// tool names are UIToolPrefix-namespaced on the wire — that's the
+	// collision-safe shape the agent sees.
+	highlight := sampleUITool(t, "highlight_span", "Highlight a span",
 		map[string]any{"type": "object"})
 	proxy, _, _ := newACPProxyHarness(t, "sess-list", []json.RawMessage{highlight}, "")
 
-	connectResp, err := proxy.HandleConnect(t.Context(), "sess-list", acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
+	connectResp, err := proxy.HandleConnect(t.Context(), acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
 	require.NoError(t, err)
 
 	rawResp, err := proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
@@ -160,22 +209,23 @@ func TestHandleMessageReturnsToolsListForKnownSession(t *testing.T) {
 	listed, ok := rawResp.(*mcp.ListToolsResult)
 	require.True(t, ok, "tools/list response must be *mcp.ListToolsResult; got %T", rawResp)
 	require.Len(t, listed.Tools, 1)
-	assert.Equal(t, "ui_highlight_span", listed.Tools[0].Name)
+	assert.Equal(t, "ui_highlight_span", listed.Tools[0].Name,
+		"UI tool names must carry UIToolPrefix on the wire")
 }
 
 func TestHandleMessageRoutesToolCallToSSEForUITool(t *testing.T) {
-	// The whole point of MCP-over-ACP: an inner tools/call for a UI
-	// tool must surface as TOOL_CALL_START/ARGS/END on the SSE stream,
-	// the same way the HTTP path does. This is the load-bearing test
-	// for the two-transport dispatch sharing the same logic.
-	highlight := sampleUITool(t, "ui_highlight_span", "Highlight a span",
+	// The whole point of MCP-over-ACP: an inner tools/call for a
+	// (prefixed) UI tool must strip the prefix, find the unprefixed
+	// entry in ctxTools, and surface TOOL_CALL_START/ARGS/END on the
+	// SSE stream — same contract as the HTTP transport.
+	highlight := sampleUITool(t, "highlight_span", "Highlight a span",
 		map[string]any{
 			"type":       "object",
 			"properties": map[string]any{"spanId": map[string]any{"type": "string"}},
 		})
 	proxy, _, rec := newACPProxyHarness(t, "sess-call", []json.RawMessage{highlight}, "")
 
-	connectResp, err := proxy.HandleConnect(t.Context(), "sess-call", acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
+	connectResp, err := proxy.HandleConnect(t.Context(), acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
 	require.NoError(t, err)
 
 	rawResp, err := proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
@@ -198,14 +248,10 @@ func TestHandleMessageRoutesToolCallToSSEForUITool(t *testing.T) {
 	require.Contains(t, types, "TOOL_CALL_ARGS")
 	require.Contains(t, types, "TOOL_CALL_END")
 	assert.NotContains(t, types, "TOOL_CALL_RESULT",
-		"UI dispatch through MCP-over-ACP must not emit TOOL_CALL_RESULT — same contract as the HTTP transport and the original ACP ext_method path")
+		"UI dispatch must not emit TOOL_CALL_RESULT — browser is the executor")
 }
 
 func TestHandleMessageReturnsErrorOnUnknownConnection(t *testing.T) {
-	// A stale connection id is a real-world failure mode (agent reuses
-	// a disconnected id, or sends mcp/message before mcp/connect). The
-	// handler should return an explicit error so the dispatcher can
-	// surface it as an ACP InvalidParams to the agent.
 	proxy, _, _ := newACPProxyHarness(t, "sess-stale", nil, "")
 	_, err := proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
 		ConnectionId: "ghost-connection",
@@ -216,13 +262,8 @@ func TestHandleMessageReturnsErrorOnUnknownConnection(t *testing.T) {
 }
 
 func TestHandleMessageReturnsInitializeShape(t *testing.T) {
-	// The inner MCP `initialize` method must succeed because the
-	// agent's MCP client expects to complete the handshake before
-	// emitting tools/list. Returning a minimum-viable InitializeResult
-	// — protocol version, tools capability, server info — is enough
-	// for the SDK's client to proceed.
 	proxy, _, _ := newACPProxyHarness(t, "sess-init", nil, "")
-	connectResp, err := proxy.HandleConnect(t.Context(), "sess-init", acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
+	connectResp, err := proxy.HandleConnect(t.Context(), acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
 	require.NoError(t, err)
 
 	rawResp, err := proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
@@ -242,13 +283,8 @@ func TestHandleMessageReturnsInitializeShape(t *testing.T) {
 }
 
 func TestHandleMessageRejectsUnknownMethod(t *testing.T) {
-	// We deliberately only implement the subset agents need to call
-	// tools (initialize, tools/list, tools/call, notifications/initialized).
-	// Anything else — resources/*, prompts/*, logging/* — surfaces as
-	// an explicit "not supported" so the operator sees the call rather
-	// than a confusing silent failure.
 	proxy, _, _ := newACPProxyHarness(t, "sess-unk", nil, "")
-	connectResp, err := proxy.HandleConnect(t.Context(), "sess-unk", acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
+	connectResp, err := proxy.HandleConnect(t.Context(), acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
 	require.NoError(t, err)
 
 	_, err = proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
@@ -260,15 +296,8 @@ func TestHandleMessageRejectsUnknownMethod(t *testing.T) {
 }
 
 func TestListToolsForSessionMergesUIAndUpstream(t *testing.T) {
-	// listToolsForSession is the shared catalogue both transports read.
-	// Verifying it produces a merged list independently of the
-	// transport, with UI tools first and upstream tools second — and
-	// no duplicates when a UI tool shadows an upstream tool of the
-	// same name. (Same precedence rule the HTTP-path tests cover end-
-	// to-end; here we assert at the helper level so future changes
-	// don't drift the two paths apart.)
 	upstream := startFakeUpstreamMCP(t, "get_services")
-	highlight := sampleUITool(t, "ui_highlight_span", "Highlight a span",
+	highlight := sampleUITool(t, "highlight_span", "Highlight a span",
 		map[string]any{"type": "object"})
 	proxy, _, _ := newACPProxyHarness(t, "sess-merge", []json.RawMessage{highlight}, upstream)
 
@@ -277,5 +306,33 @@ func TestListToolsForSessionMergesUIAndUpstream(t *testing.T) {
 	for _, tool := range tools {
 		names = append(names, tool.Name)
 	}
-	assert.ElementsMatch(t, []string{"ui_highlight_span", "get_services"}, names)
+	assert.ElementsMatch(t, []string{"ui_highlight_span", "get_services"}, names,
+		"UI tools carry the ui_ prefix on the wire; upstream tools never do")
+}
+
+func TestApplyUIToolPrefixIsIdempotent(t *testing.T) {
+	// Frontends that pre-prefix their names (or paths that round-trip
+	// through the wire and back) must not end up with double prefixes.
+	assert.Equal(t, "ui_highlight_span", applyUIToolPrefix("highlight_span"))
+	assert.Equal(t, "ui_highlight_span", applyUIToolPrefix("ui_highlight_span"))
+}
+
+func TestStripUIToolPrefixOKDistinguishesUIFromTelemetry(t *testing.T) {
+	// callToolForSession uses the bool to skip the UI lookup path
+	// entirely when the name lacks the prefix — without it, telemetry
+	// tool calls would spuriously consult ctxTools.
+	stripped, ok := stripUIToolPrefixOK("ui_highlight_span")
+	assert.True(t, ok)
+	assert.Equal(t, "highlight_span", stripped)
+
+	stripped, ok = stripUIToolPrefixOK("get_services")
+	assert.False(t, ok, "names without the prefix are telemetry tools, not UI tools")
+	assert.Equal(t, "get_services", stripped)
+
+	// Exactly "ui_" strips to "" which isn't a valid tool name — fall
+	// through to telemetry semantics (the lookup will then fail at the
+	// upstream-tools loop with a clean "unknown tool" error).
+	stripped, ok = stripUIToolPrefixOK("ui_")
+	assert.False(t, ok)
+	assert.Equal(t, "ui_", stripped)
 }

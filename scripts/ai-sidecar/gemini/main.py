@@ -16,7 +16,6 @@ from tracing import init_tracing
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MCP_URL = "http://127.0.0.1:16687/mcp"
 DEFAULT_SIDECAR_PORT = 16688
 DEFAULT_MCP_DISCOVERY_TIMEOUT_SEC = 15.0
 DEFAULT_OTLP_ENDPOINT = "http://localhost:4317"
@@ -28,7 +27,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default="localhost", help="Host interface to bind")
     parser.add_argument("--port", type=int, default=DEFAULT_SIDECAR_PORT, help="Port to listen on")
     parser.add_argument("--gemini-api-key", default=os.environ.get("GEMINI_API_KEY", ""), help="Gemini API key")
-    parser.add_argument("--mcp-url", default=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL), help="Jaeger MCP URL")
     parser.add_argument(
         "--mcp-discovery-timeout-sec",
         type=float,
@@ -38,7 +36,7 @@ def parse_args() -> argparse.Namespace:
                 str(DEFAULT_MCP_DISCOVERY_TIMEOUT_SEC),
             )
         ),
-        help="Timeout (seconds) for single MCP tool discovery attempt",
+        help="Timeout (seconds) for the per-session MCP handshake against the gateway",
     )
     parser.add_argument(
         "--otlp-endpoint",
@@ -59,7 +57,6 @@ def parse_config() -> tuple[str, int, SidecarConfig]:
 
     config = SidecarConfig(
         gemini_api_key=args.gemini_api_key,
-        mcp_url=args.mcp_url,
         mcp_discovery_timeout_sec=args.mcp_discovery_timeout_sec,
         otlp_endpoint=args.otlp_endpoint,
         otlp_insecure=args.otlp_insecure,
