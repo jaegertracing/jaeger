@@ -53,7 +53,7 @@ func withDepStorage(rotation indices.Rotation, maxDocCount int, fn func(r *depSt
 
 func periodicRotation(prefix config.IndexPrefix, dateLayout string) indices.Rotation {
 	return indices.NewPeriodicRotation(
-		prefix.Apply(config.DependencyIndexBaseName),
+		prefix.Apply(config.DependencyIndexName),
 		dateLayout,
 		config.RolloverFrequencyDuration("day"),
 	)
@@ -191,40 +191,40 @@ func TestReadTargets(t *testing.T) {
 		indices  []string
 	}{
 		{
-			rotation: indices.NewAliasedRotation(config.DependencyIndexBaseName+"write", config.DependencyIndexBaseName+"read"),
+			rotation: indices.NewAliasedRotation(config.DependencyIndexName+config.IndexSeparator+"write", config.DependencyIndexName+config.IndexSeparator+"read"),
 			lookback: 23 * time.Hour,
 			indices: []string{
-				config.DependencyIndexBaseName + "read",
+				"jaeger-dependencies-read",
 			},
 		},
 		{
 			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 23 * time.Hour,
 			indices: []string{
-				config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
-				config.DependencyIndexBaseName + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 13 * time.Hour,
 			indices: []string{
-				config.DependencyIndexBaseName + fixedTime.UTC().Format("2006-01-02"),
-				config.DependencyIndexBaseName + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.UTC().Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("foo:", "2006-01-02"),
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + config.IndexPrefixSeparator + config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				"foo:-jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("foo-", "2006-01-02"),
 			lookback: 0,
 			indices: []string{
-				"foo" + config.IndexPrefixSeparator + config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				"foo-jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}
@@ -241,12 +241,12 @@ func TestWriteTarget(t *testing.T) {
 		writeIndex string
 	}{
 		{
-			rotation:   indices.NewAliasedRotation(config.DependencyIndexBaseName+"write", config.DependencyIndexBaseName+"read"),
-			writeIndex: config.DependencyIndexBaseName + "write",
+			rotation:   indices.NewAliasedRotation(config.DependencyIndexName+config.IndexSeparator+"write", config.DependencyIndexName+config.IndexSeparator+"read"),
+			writeIndex: "jaeger-dependencies-write",
 		},
 		{
 			rotation:   periodicRotation("", "2006-01-02"),
-			writeIndex: config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+			writeIndex: "jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
 		},
 	}
 	for _, testCase := range testCases {

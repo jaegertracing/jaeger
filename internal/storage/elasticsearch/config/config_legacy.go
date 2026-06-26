@@ -79,23 +79,23 @@ func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 // ResolvedSpanRotation returns the effective rotation configuration for span indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedSpanRotation() RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, c.Indices.IndexPrefix.Apply(SpanIndexBaseName), c.getSpanReadAlias(), c.getSpanWriteAlias())
+	return c.resolvedRotation(&c.Indices.Spans, c.Indices.IndexPrefix.Apply(SpanIndexName), c.getSpanReadAlias(), c.getSpanWriteAlias())
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
 func (c *Configuration) ResolvedServiceRotation() RotationConfig {
-	return c.resolvedRotation(&c.Indices.Services, c.Indices.IndexPrefix.Apply(ServiceIndexBaseName), c.getServiceReadAlias(), c.getServiceWriteAlias())
+	return c.resolvedRotation(&c.Indices.Services, c.Indices.IndexPrefix.Apply(ServiceIndexName), c.getServiceReadAlias(), c.getServiceWriteAlias())
 }
 
 // ResolvedDependencyRotation returns the effective rotation configuration for dependency indices.
 func (c *Configuration) ResolvedDependencyRotation() RotationConfig {
-	return c.resolvedRotation(&c.Indices.Dependencies, c.Indices.IndexPrefix.Apply(DependencyIndexBaseName), "", "")
+	return c.resolvedRotation(&c.Indices.Dependencies, c.Indices.IndexPrefix.Apply(DependencyIndexName), "", "")
 }
 
 // ResolvedSamplingRotation returns the effective rotation configuration for sampling indices.
 func (c *Configuration) ResolvedSamplingRotation() RotationConfig {
-	return c.resolvedRotation(&c.Indices.Sampling, c.Indices.IndexPrefix.Apply(SamplingIndexBaseName), "", "")
+	return c.resolvedRotation(&c.Indices.Sampling, c.Indices.IndexPrefix.Apply(SamplingIndexName), "", "")
 }
 
 func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicitReadAlias, explicitWriteAlias string) RotationConfig {
@@ -128,8 +128,8 @@ func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicit
 		}
 		return RotationConfig{
 			AutoRollover: configoptional.Some(AutoRolloverRotation{
-				ReadAlias:  prefix + readSuffix,
-				WriteAlias: prefix + writeSuffix,
+				ReadAlias:  prefix + IndexSeparator + readSuffix,
+				WriteAlias: prefix + IndexSeparator + writeSuffix,
 			}),
 		}
 	case c.getUseReadWriteAliases():
@@ -143,8 +143,8 @@ func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicit
 		}
 		return RotationConfig{
 			ManualRollover: configoptional.Some(ManualRolloverRotation{
-				ReadAlias:  prefix + readSuffix,
-				WriteAlias: prefix + writeSuffix,
+				ReadAlias:  prefix + IndexSeparator + readSuffix,
+				WriteAlias: prefix + IndexSeparator + writeSuffix,
 			}),
 		}
 	default:

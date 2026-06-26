@@ -290,8 +290,8 @@ func TestCreateTemplates(t *testing.T) {
 		require.NoError(t, err)
 		f.client = client
 		f.templateBuilder = es.TextTemplateBuilder{}
-		jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
-		jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
+		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 		err = f.createTemplates(context.Background())
@@ -521,8 +521,8 @@ func TestBuildRotations(t *testing.T) {
 					Services:    escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
-			readIndices:  []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
-			writeIndices: []string{"foo:" + escfg.IndexPrefixSeparator + "jaeger-span-" + spanDataLayoutFormat, "foo:" + escfg.IndexPrefixSeparator + "jaeger-service-" + serviceDataLayoutFormat},
+			readIndices:  []string{"foo:-jaeger-span-" + spanDataLayoutFormat, "foo:-jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"foo:-jaeger-span-" + spanDataLayoutFormat, "foo:-jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "with remote clusters",

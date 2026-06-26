@@ -8,10 +8,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 func TestRemoteClusterRotation(t *testing.T) {
-	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
+	inner := NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour)
 	r := NewRemoteClusterRotation(inner, []string{"cluster_one", "cluster_two"})
 
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)
@@ -35,7 +37,7 @@ func TestRemoteClusterRotation(t *testing.T) {
 }
 
 func TestRemoteClusterRotation_WithAlias(t *testing.T) {
-	inner := NewAliasedRotation("jaeger-span-write", "jaeger-span-read")
+	inner := NewAliasedRotation(config.SpanIndexName+config.IndexSeparator+"write", config.SpanIndexName+config.IndexSeparator+"read")
 	r := NewRemoteClusterRotation(inner, []string{"cluster_one"})
 
 	expected := []string{
@@ -46,7 +48,7 @@ func TestRemoteClusterRotation_WithAlias(t *testing.T) {
 }
 
 func TestRemoteClusterRotation_NoClusters(t *testing.T) {
-	inner := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
+	inner := NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour)
 	r := NewRemoteClusterRotation(inner, nil)
 
 	date := time.Date(1995, time.April, 21, 4, 0, 0, 0, time.UTC)
