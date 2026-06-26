@@ -20,22 +20,28 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM)
 	go clean -testcache
 	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 
-# Backward compatibility test for jaeger-v2 storage: writes traces with a binary
-# built from the main branch, then reads them back with the binary built from
-# the current branch (a rolling-upgrade simulation). The main binary is fetched
-# over the network, so the test is gated behind BACKWARD_COMPATIBILITY and lives
-# outside the regular offline storage integration run.
+# Directory where the @main jaeger binary is installed by install-jaeger-at-main.
+# Override JAEGER_MAIN_INSTALL_DIR to use a different location.
+JAEGER_MAIN_INSTALL_DIR ?= /tmp/jaeger-at-main
+
+# Installs the @main jaeger binary into JAEGER_MAIN_INSTALL_DIR.
+# Reusable by other backward-compatibility targets (e.g. for future backends).
+.PHONY: install-jaeger-at-main
+install-jaeger-at-main:
+	mkdir -p $(JAEGER_MAIN_INSTALL_DIR)
+	GOBIN=$(JAEGER_MAIN_INSTALL_DIR) go install github.com/jaegertracing/jaeger/cmd/jaeger@main
+
+# Backward compatibility test for jaeger-v2 storage: writes traces with the @main
+# binary, then reads them back with the current-branch binary, simulating a rolling
+# upgrade against a shared Badger store. The build-and-run logic is reused from
+# jaeger-v2-storage-integration-test; only the @main binary provisioning and the
+# BACKWARD_COMPATIBILITY toggle are layered on top.
 .PHONY: jaeger-v2-backward-compatibility-test
-jaeger-v2-backward-compatibility-test: $(GOTESTSUM)
-	(cd cmd/jaeger/ && go build .)
-	go clean -testcache
-	tmp_bin=$$(mktemp -d) && \
-	trap 'rm -rf "$$tmp_bin"' EXIT && \
-	GOBIN=$$tmp_bin go install github.com/jaegertracing/jaeger/cmd/jaeger@main && \
+jaeger-v2-backward-compatibility-test: install-jaeger-at-main
 	BACKWARD_COMPATIBILITY=true \
-	JAEGER_BACKWARD_COMPAT_BINARY=$$tmp_bin/jaeger \
+	JAEGER_BACKWARD_COMPAT_BINARY=$(JAEGER_MAIN_INSTALL_DIR)/jaeger \
 	STORAGE=badger \
-	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -run TestBadgerBackwardCompatibility $(JAEGER_V2_STORAGE_PKGS)
+	$(MAKE) jaeger-v2-storage-integration-test
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)
