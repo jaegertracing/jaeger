@@ -730,6 +730,18 @@ func TestGetSpanDetailsHandler_Pagination_OffsetEqualsLength(t *testing.T) {
 		TraceID: testTraceID,
 		SpanIDs: []string{"a", "b", "c"},
 		Offset:  3, // Offset == len(span_ids)
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	// Should return an empty terminal page without querying storage.
+	require.NoError(t, err)
+	assert.Empty(t, output.Spans)
+	assert.False(t, output.HasMore)
+	assert.Equal(t, 0, output.NextOffset)
+	assert.Equal(t, testTraceID, output.TraceID)
+}
+
 func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
 	// An uppercase hex span_id passes hex validation but must still match the
 	// canonical lowercase ID the trace iterator emits, instead of being reported
