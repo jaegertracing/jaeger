@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -118,8 +119,8 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 			MaxTraceDuration:  24 * time.Hour,
 			TagDotReplacement: "@",
 			MaxDocCount:       defaultMaxDocCount,
-			SpanRotation:      indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", 24*time.Hour),
-			ServiceRotation:   indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+			SpanRotation:      indices.NewPeriodicRotation(config.SpanIndexBaseName, "2006-01-02", 24*time.Hour),
+			ServiceRotation:   indices.NewPeriodicRotation(config.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(r)
@@ -137,11 +138,11 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 		if readAliasSuffix != "" {
 			suffix = readAliasSuffix
 		}
-		spanRotation = indices.NewAliasedRotation(indices.SpanIndexBaseName+suffix, indices.SpanIndexBaseName+suffix)
-		serviceRotation = indices.NewAliasedRotation(indices.ServiceIndexBaseName+suffix, indices.ServiceIndexBaseName+suffix)
+		spanRotation = indices.NewAliasedRotation(config.SpanIndexBaseName+suffix, config.SpanIndexBaseName+suffix)
+		serviceRotation = indices.NewAliasedRotation(config.ServiceIndexBaseName+suffix, config.ServiceIndexBaseName+suffix)
 	} else {
-		spanRotation = indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", 24*time.Hour)
-		serviceRotation = indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour)
+		spanRotation = indices.NewPeriodicRotation(config.SpanIndexBaseName, "2006-01-02", 24*time.Hour)
+		serviceRotation = indices.NewPeriodicRotation(config.ServiceIndexBaseName, "2006-01-02", 24*time.Hour)
 	}
 
 	r := &spanReaderTest{
@@ -190,8 +191,8 @@ func TestSpanReaderRotations(t *testing.T) {
 	}{
 		{
 			name:            "periodic rotations",
-			spanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
-			serviceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+			spanRotation:    indices.NewPeriodicRotation(config.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
+			serviceRotation: indices.NewPeriodicRotation(config.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
 			expectedIndices: []string{"jaeger-span-2019-10-10-05", "jaeger-service-2019-10-10"},
 		},
 		{
@@ -203,11 +204,11 @@ func TestSpanReaderRotations(t *testing.T) {
 		{
 			name: "with remote clusters",
 			spanRotation: indices.NewRemoteClusterRotation(
-				indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
+				indices.NewPeriodicRotation(config.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
 				[]string{"cluster_one", "cluster_two"},
 			),
 			serviceRotation: indices.NewRemoteClusterRotation(
-				indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+				indices.NewPeriodicRotation(config.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
 				[]string{"cluster_one", "cluster_two"},
 			),
 			expectedIndices: []string{
@@ -520,28 +521,28 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indices.IndexWithDate(indices.SpanIndexBaseName, dateLayout, today),
+				indices.IndexWithDate(config.SpanIndexBaseName, dateLayout, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indices.IndexWithDate(indices.SpanIndexBaseName, dateLayout, today),
-				indices.IndexWithDate(indices.SpanIndexBaseName, dateLayout, yesterday),
+				indices.IndexWithDate(config.SpanIndexBaseName, dateLayout, today),
+				indices.IndexWithDate(config.SpanIndexBaseName, dateLayout, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indices.IndexWithDate(indices.SpanIndexBaseName, dateLayout, today),
-				indices.IndexWithDate(indices.SpanIndexBaseName, dateLayout, yesterday),
-				indices.IndexWithDate(indices.SpanIndexBaseName, dateLayout, twoDaysAgo),
+				indices.IndexWithDate(config.SpanIndexBaseName, dateLayout, today),
+				indices.IndexWithDate(config.SpanIndexBaseName, dateLayout, yesterday),
+				indices.IndexWithDate(config.SpanIndexBaseName, dateLayout, twoDaysAgo),
 			},
 		},
 	}
-	rotation := indices.NewPeriodicRotation(indices.SpanIndexBaseName, dateLayout, 24*time.Hour)
+	rotation := indices.NewPeriodicRotation(config.SpanIndexBaseName, dateLayout, 24*time.Hour)
 	for _, testCase := range testCases {
 		actual := rotation.ReadTargets(testCase.startTime, testCase.endTime)
 		assert.Equal(t, testCase.expected, actual)
@@ -550,7 +551,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReaderIndexWithDate(t *testing.T) {
 	withSpanReader(t, func(_ *spanReaderTest) {
-		actual := indices.IndexWithDate(indices.SpanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indices.IndexWithDate(config.SpanIndexBaseName, "2006-01-02", time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }

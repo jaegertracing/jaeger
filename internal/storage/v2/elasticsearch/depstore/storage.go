@@ -15,6 +15,7 @@ import (
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
@@ -67,7 +68,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel
 
 // CreateTemplates creates index templates.
 func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	_, err := s.client().CreateTemplate(indices.DependencyTemplateName).Body(dependenciesTemplate).Do(context.Background())
+	_, err := s.client().CreateTemplate(config.DependencyTemplateName).Body(dependenciesTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
