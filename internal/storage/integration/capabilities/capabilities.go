@@ -34,6 +34,12 @@ func (c Capabilities) SkipList() []string {
 	return c.skipList
 }
 
+// WithSkip returns a copy with additional test names appended to the skip list.
+func (c Capabilities) WithSkip(tests ...string) Capabilities {
+	c.skipList = append(append([]string{}, c.skipList...), tests...)
+	return c
+}
+
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
