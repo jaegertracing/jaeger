@@ -26,22 +26,22 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 		mr := rc.ManualRollover.Get()
 		writeAlias := mr.WriteAlias
 		if writeAlias == "" {
-			writeAlias = prefix + "write"
+			writeAlias = prefix + config.IndexSeparator + "write"
 		}
 		readAlias := mr.ReadAlias
 		if readAlias == "" {
-			readAlias = prefix + "read"
+			readAlias = prefix + config.IndexSeparator + "read"
 		}
 		r = NewAliasedRotation(writeAlias, readAlias)
 	case rc.AutoRollover.HasValue():
 		ar := rc.AutoRollover.Get()
 		writeAlias := ar.WriteAlias
 		if writeAlias == "" {
-			writeAlias = prefix + "write"
+			writeAlias = prefix + config.IndexSeparator + "write"
 		}
 		readAlias := ar.ReadAlias
 		if readAlias == "" {
-			readAlias = prefix + "read"
+			readAlias = prefix + config.IndexSeparator + "read"
 		}
 		r = NewAliasedRotation(writeAlias, readAlias)
 	case rc.Periodic.HasValue():

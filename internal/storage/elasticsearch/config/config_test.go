@@ -832,13 +832,11 @@ func TestResolvedRotation(t *testing.T) {
 	tests := []struct {
 		name    string
 		cfg     *Configuration
-		prefix  string
 		checkFn func(t *testing.T, rc RotationConfig)
 	}{
 		{
-			name:   "default periodic when no flags set",
-			cfg:    &Configuration{},
-			prefix: "jaeger-span-",
+			name: "default periodic when no flags set",
+			cfg:  &Configuration{},
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.Periodic.HasValue())
 				assert.Equal(t, "2006-01-02", rc.Periodic.Get().DateLayout)
@@ -858,7 +856,6 @@ func TestResolvedRotation(t *testing.T) {
 					},
 				},
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.ManualRollover.HasValue())
 				assert.Equal(t, "custom-read", rc.ManualRollover.Get().ReadAlias)
@@ -870,7 +867,6 @@ func TestResolvedRotation(t *testing.T) {
 			cfg: &Configuration{
 				UseReadWriteAliases: configoptional.Some(true),
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.ManualRollover.HasValue())
 				assert.Equal(t, "jaeger-span-read", rc.ManualRollover.Get().ReadAlias)
@@ -883,7 +879,6 @@ func TestResolvedRotation(t *testing.T) {
 				UseReadWriteAliases: configoptional.Some(true),
 				UseILM:              configoptional.Some(true),
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.AutoRollover.HasValue())
 				assert.Equal(t, "jaeger-span-read", rc.AutoRollover.Get().ReadAlias)
@@ -898,7 +893,6 @@ func TestResolvedRotation(t *testing.T) {
 				SpanReadAlias:       configoptional.Some("my-read"),
 				SpanWriteAlias:      configoptional.Some("my-write"),
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.AutoRollover.HasValue())
 				assert.Equal(t, "my-read", rc.AutoRollover.Get().ReadAlias)
@@ -912,7 +906,6 @@ func TestResolvedRotation(t *testing.T) {
 				SpanReadAlias:       configoptional.Some("my-read"),
 				SpanWriteAlias:      configoptional.Some("my-write"),
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.ManualRollover.HasValue())
 				assert.Equal(t, "my-read", rc.ManualRollover.Get().ReadAlias)
@@ -926,7 +919,6 @@ func TestResolvedRotation(t *testing.T) {
 				ReadAliasSuffix:     "reader",
 				WriteAliasSuffix:    "writer",
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.ManualRollover.HasValue())
 				assert.Equal(t, "jaeger-span-reader", rc.ManualRollover.Get().ReadAlias)
@@ -942,7 +934,6 @@ func TestResolvedRotation(t *testing.T) {
 					},
 				},
 			},
-			prefix: "jaeger-span-",
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.Periodic.HasValue())
 				assert.Equal(t, "2006010215", rc.Periodic.Get().DateLayout)
@@ -951,7 +942,7 @@ func TestResolvedRotation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			rc := tc.cfg.ResolvedSpanRotation(tc.prefix)
+			rc := tc.cfg.ResolvedSpanRotation()
 			tc.checkFn(t, rc)
 		})
 	}
@@ -963,7 +954,7 @@ func TestResolvedServiceRotation(t *testing.T) {
 		ServiceReadAlias:    configoptional.Some("svc-read"),
 		ServiceWriteAlias:   configoptional.Some("svc-write"),
 	}
-	rc := cfg.ResolvedServiceRotation("jaeger-service-")
+	rc := cfg.ResolvedServiceRotation()
 	assert.True(t, rc.ManualRollover.HasValue())
 	assert.Equal(t, "svc-read", rc.ManualRollover.Get().ReadAlias)
 	assert.Equal(t, "svc-write", rc.ManualRollover.Get().WriteAlias)
@@ -973,14 +964,14 @@ func TestResolvedDependencyRotation(t *testing.T) {
 	cfg := &Configuration{
 		UseReadWriteAliases: configoptional.Some(true),
 	}
-	rc := cfg.ResolvedDependencyRotation("jaeger-dependencies-")
+	rc := cfg.ResolvedDependencyRotation()
 	assert.True(t, rc.ManualRollover.HasValue())
 	assert.Equal(t, "jaeger-dependencies-read", rc.ManualRollover.Get().ReadAlias)
 }
 
 func TestResolvedSamplingRotation(t *testing.T) {
 	cfg := &Configuration{}
-	rc := cfg.ResolvedSamplingRotation("jaeger-sampling-")
+	rc := cfg.ResolvedSamplingRotation()
 	assert.True(t, rc.Periodic.HasValue())
 	assert.Equal(t, "2006-01-02", rc.Periodic.Get().DateLayout)
 }
@@ -992,7 +983,7 @@ func TestResolvedRotation_UseILMWithCustomSuffixes(t *testing.T) {
 		ReadAliasSuffix:     "reader",
 		WriteAliasSuffix:    "writer",
 	}
-	rc := cfg.ResolvedSpanRotation("jaeger-span-")
+	rc := cfg.ResolvedSpanRotation()
 	assert.True(t, rc.AutoRollover.HasValue())
 	assert.Equal(t, "jaeger-span-reader", rc.AutoRollover.Get().ReadAlias)
 	assert.Equal(t, "jaeger-span-writer", rc.AutoRollover.Get().WriteAlias)

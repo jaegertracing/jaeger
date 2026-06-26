@@ -20,7 +20,14 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
-const IndexPrefixSeparator = "-"
+const (
+	IndexSeparator = "-"
+
+	SpanIndexName       = "jaeger-span"
+	ServiceIndexName    = "jaeger-service"
+	DependencyIndexName = "jaeger-dependencies"
+	SamplingIndexName   = "jaeger-sampling"
+)
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
@@ -79,14 +86,14 @@ func (o *IndexOptions) GetRolloverFrequency() string {
 }
 
 func (p IndexPrefix) Apply(indexName string) string {
-	return joinPrefix(string(p), IndexPrefixSeparator, indexName)
+	return joinPrefix(string(p), IndexSeparator, indexName)
 }
 
 // DataStreamName is the dot-notation counterpart of Apply for data streams
 // (e.g. "prod" -> "prod.jaeger.spans"). A trailing "-" or "." on the prefix is
 // dropped so "prod", "prod-" and "prod." all resolve to the same name.
 func (p IndexPrefix) DataStreamName(base string) string {
-	ps := strings.TrimRight(string(p), IndexPrefixSeparator+".")
+	ps := strings.TrimRight(string(p), IndexSeparator+".")
 	return joinPrefix(ps, ".", base)
 }
 

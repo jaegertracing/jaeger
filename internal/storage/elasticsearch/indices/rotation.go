@@ -5,22 +5,11 @@ package indices
 
 import "time"
 
-const (
-	SpanTemplateName       = "jaeger-span"
-	ServiceTemplateName    = "jaeger-service"
-	DependencyTemplateName = "jaeger-dependencies"
-	SamplingTemplateName   = "jaeger-sampling"
+// SpanDataStreamBaseName is the dot-notation name of the spans data stream.
+// Dot-notation (vs. "jaeger-span-") aligns with ES/OpenSearch conventions and
+// enables the "@custom" component-template override pattern. See RFC 0004 §3.1.
+const SpanDataStreamBaseName = "jaeger.spans"
 
-	SpanIndexBaseName       = SpanTemplateName + "-"
-	ServiceIndexBaseName    = ServiceTemplateName + "-"
-	DependencyIndexBaseName = DependencyTemplateName + "-"
-	SamplingIndexBaseName   = SamplingTemplateName + "-"
-
-	// SpanDataStreamBaseName is the dot-notation name of the spans data stream.
-	// Dot-notation (vs. "jaeger-span-") aligns with ES/OpenSearch conventions and
-	// enables the "@custom" component-template override pattern. See RFC 0004 §3.1.
-	SpanDataStreamBaseName = "jaeger.spans"
-)
 
 // WriteOpType represents the Elasticsearch bulk operation type.
 type WriteOpType string
