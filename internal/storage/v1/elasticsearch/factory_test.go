@@ -290,8 +290,8 @@ func TestCreateTemplates(t *testing.T) {
 		require.NoError(t, err)
 		f.client = client
 		f.templateBuilder = es.TextTemplateBuilder{}
-		jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
-		jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
+		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 		err = f.createTemplates(context.Background())
@@ -480,8 +480,8 @@ func TestBuildRotations(t *testing.T) {
 					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
-			readIndices:  []string{escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
-			writeIndices: []string{escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "alias rotation",
@@ -521,8 +521,8 @@ func TestBuildRotations(t *testing.T) {
 					Services:    escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
 				},
 			},
-			readIndices:  []string{"foo:" + escfg.IndexSeparator + escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, "foo:" + escfg.IndexSeparator + escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
-			writeIndices: []string{"foo:" + escfg.IndexSeparator + escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, "foo:" + escfg.IndexSeparator + escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
+			readIndices:  []string{"foo:-jaeger-span-" + spanDataLayoutFormat, "foo:-jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"foo:-jaeger-span-" + spanDataLayoutFormat, "foo:-jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "with remote clusters",
@@ -534,14 +534,14 @@ func TestBuildRotations(t *testing.T) {
 				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
 			},
 			readIndices: []string{
-				escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat,
+				"jaeger-span-" + spanDataLayoutFormat,
 				"cluster_one:jaeger-span-" + spanDataLayoutFormat,
 				"cluster_two:jaeger-span-" + spanDataLayoutFormat,
-				escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat,
+				"jaeger-service-" + serviceDataLayoutFormat,
 				"cluster_one:jaeger-service-" + serviceDataLayoutFormat,
 				"cluster_two:jaeger-service-" + serviceDataLayoutFormat,
 			},
-			writeIndices: []string{escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "rotation config: periodic",
@@ -559,8 +559,8 @@ func TestBuildRotations(t *testing.T) {
 					},
 				},
 			},
-			readIndices:  []string{escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
-			writeIndices: []string{escfg.SpanIndexName + escfg.IndexSeparator + spanDataLayoutFormat, escfg.ServiceIndexName + escfg.IndexSeparator + serviceDataLayoutFormat},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
 		},
 		{
 			name: "rotation config: manual_rollover",

@@ -1195,9 +1195,9 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 		suffix     string
 		expected   string
 	}{
-		{false, "", "jaeger-span"},
+		{false, "", config.SpanIndexName},
 		{true, "", "jaeger-span-read"},
-		{false, "foobar", "jaeger-span"},
+		{false, "foobar", config.SpanIndexName},
 		{true, "foobar", "jaeger-span-foobar"},
 	}
 

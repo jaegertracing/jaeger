@@ -43,7 +43,7 @@ var testIndicesConfig = config.Indices{
 
 func testSpanRotation() indices.Rotation {
 	return indices.NewPeriodicRotation(
-		testIndicesConfig.IndexPrefix.Apply("jaeger-span"),
+		testIndicesConfig.IndexPrefix.Apply(config.SpanIndexName),
 		testIndicesConfig.Spans.GetDateLayout(),
 		config.RolloverFrequencyDuration(testIndicesConfig.Spans.GetRolloverFrequency()),
 	)
