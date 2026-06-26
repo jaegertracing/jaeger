@@ -92,10 +92,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
+	// Data streams are the only strategy using the create op, and they require an
+	// @timestamp (date_nanos) on every document.
 	if s.spanRotation.WriteOpType() == indices.WriteOpCreate {
-		// Data streams require an @timestamp field (date_nanos) on every document.
-		// Use an RFC 3339 nanosecond string: a numeric value would be read as
-		// epoch milliseconds by ES/OpenSearch.
 		span.Timestamp = spanStartTime.UTC().Format(time.RFC3339Nano)
 	}
 	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)

@@ -49,21 +49,17 @@ type Span struct {
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`
-	// Timestamp is the span start time as an RFC 3339 string with nanosecond
-	// precision. It is emitted only when writing to a data stream (mapped as
-	// date_nanos), which requires an @timestamp field on every document for
-	// rollover and time-based partitioning. A string is used rather than an epoch
-	// number because ES/OpenSearch interpret a numeric date_nanos value as
-	// milliseconds, which would lose precision and misplace the date. Legacy index
-	// strategies leave it empty so omitempty drops it. See RFC 0004 section 3.3.
-	Timestamp string `json:"@timestamp,omitempty"`
-	StartTime uint64 `json:"startTime"` // microseconds since Unix epoch
+	StartTime     uint64      `json:"startTime"` // microseconds since Unix epoch
 	// ElasticSearch does not support a UNIX Epoch timestamp in microseconds,
 	// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field
 	// works around this issue, enabling timerange queries.
-	StartTimeMillis uint64     `json:"startTimeMillis"`
-	Duration        uint64     `json:"duration"` // microseconds
-	Tags            []KeyValue `json:"tags"`
+	StartTimeMillis uint64 `json:"startTimeMillis"`
+	// Timestamp is the RFC 3339 nanosecond representation of the start time, written
+	// only for data streams (mapped as date_nanos). A string avoids ES/OpenSearch
+	// reading a numeric date_nanos as epoch millis; legacy strategies leave it empty.
+	Timestamp string     `json:"@timestamp,omitempty"`
+	Duration  uint64     `json:"duration"` // microseconds
+	Tags      []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`

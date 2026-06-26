@@ -138,6 +138,18 @@ func (p IndexPrefix) Apply(indexName string) string {
 	return ps + IndexPrefixSeparator + indexName
 }
 
+// DataStreamName is the dot-notation counterpart of Apply for data streams: it
+// joins the prefix and base with "." instead of "-" (e.g. "prod" -> "prod.jaeger.spans").
+// A trailing "-" or "." on the prefix is dropped so "prod", "prod-" and "prod." all
+// resolve to the same name.
+func (p IndexPrefix) DataStreamName(base string) string {
+	ps := strings.TrimRight(string(p), IndexPrefixSeparator+".")
+	if ps == "" {
+		return base
+	}
+	return ps + "." + base
+}
+
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
 	// ---- connection related configs ----

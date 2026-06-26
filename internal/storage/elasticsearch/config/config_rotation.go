@@ -79,11 +79,6 @@ type AutoRolloverRotation struct {
 
 // DataStreamRotation configures data stream-based storage (not yet implemented).
 type DataStreamRotation struct {
-	// Name is the resolved data stream name (e.g. "jaeger.spans", or
-	// "prod.jaeger.spans" when an index prefix is set). It is derived from the
-	// index prefix while resolving the rotation, not set by the user, so it carries
-	// no mapstructure key.
-	Name string `mapstructure:"-"`
 	// PolicyName is embedded into the data stream's index template so that
 	// ES/OpenSearch manages the lifecycle (rollover, retention) automatically.
 	// If empty, the cluster's default lifecycle policy applies.

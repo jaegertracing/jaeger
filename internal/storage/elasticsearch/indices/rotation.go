@@ -3,10 +3,7 @@
 
 package indices
 
-import (
-	"strings"
-	"time"
-)
+import "time"
 
 const (
 	SpanTemplateName       = "jaeger-span"
@@ -24,23 +21,6 @@ const (
 	// enables the "@custom" component-template override pattern. See RFC 0004 §3.1.
 	SpanDataStreamBaseName = "jaeger.spans"
 )
-
-// DataStreamName builds the fully-qualified data stream name for the given raw
-// index prefix, joining with a dot so the prefix participates in the dot-notation
-// hierarchy (e.g. "" -> "jaeger.spans", "prod" -> "prod.jaeger.spans"). See
-// RFC 0004 §3.1.
-//
-// A trailing separator is normalized away first, so that a prefix written with the
-// legacy "-" separator or an explicit "." (both accepted by IndexPrefix.Apply)
-// produces the same name as the bare prefix: "prod", "prod-" and "prod." all yield
-// "prod.jaeger.spans". Internal dashes are preserved ("my-team" -> "my-team.jaeger.spans").
-func DataStreamName(indexPrefix, base string) string {
-	prefix := strings.TrimRight(indexPrefix, ".-")
-	if prefix == "" {
-		return base
-	}
-	return prefix + "." + base
-}
 
 // WriteOpType represents the Elasticsearch bulk operation type.
 type WriteOpType string

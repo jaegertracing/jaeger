@@ -11,24 +11,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
-// ResolveSpanDataStreamName fills in the resolved span data stream name on rc when
-// it uses the data_stream strategy, deriving it from the raw index prefix. It is a
-// no-op for every other strategy. Centralizing this keeps the data stream name in
-// the RotationConfig (like the resolved aliases of the other strategies) so
-// BuildRotation can read everything it needs from rc.
-func ResolveSpanDataStreamName(rc *config.RotationConfig, rawIndexPrefix string) {
-	if ds := rc.DataStream.Get(); ds != nil {
-		ds.Name = DataStreamName(rawIndexPrefix, SpanDataStreamBaseName)
-	}
-}
-
 // BuildRotation constructs the appropriate Rotation from a resolved RotationConfig.
-func BuildRotation(prefix string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
+// The index prefix and base name are kept raw so the strategy can derive its own
+// names: the dash-joined index prefix for periodic/alias rotations, or the
+// dot-joined data stream name for the data_stream strategy.
+func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
+	prefix := indexPrefix.Apply(baseName)
 	var r Rotation
 	switch {
 	case rc.DataStream.HasValue():
 		ds := rc.DataStream.Get()
-		r = NewDataStreamRotation(ds.Name, ds.ReadAlias)
+		r = NewDataStreamRotation(indexPrefix.DataStreamName(SpanDataStreamBaseName), ds.ReadAlias)
 	case rc.ManualRollover.HasValue():
 		mr := rc.ManualRollover.Get()
 		writeAlias := mr.WriteAlias

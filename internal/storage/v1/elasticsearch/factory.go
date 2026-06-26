@@ -195,22 +195,21 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 // TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
 	prefix := f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName)
-	return indices.BuildRotation(prefix, f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
+	return indices.BuildRotation(f.config.Indices.IndexPrefix, indices.SamplingIndexBaseName, f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
 	prefix := f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName)
-	return indices.BuildRotation(prefix, f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
+	return indices.BuildRotation(f.config.Indices.IndexPrefix, indices.DependencyIndexBaseName, f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
+	prefix := f.config.Indices.IndexPrefix
+	spanPrefix := prefix.Apply(indices.SpanIndexBaseName)
+	servicePrefix := prefix.Apply(indices.ServiceIndexBaseName)
 
-	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
-	indices.ResolveSpanDataStreamName(&spanRC, string(f.config.Indices.IndexPrefix))
-	spanRotation = indices.BuildRotation(spanPrefix, spanRC, f.config.RemoteReadClusters, f.logger)
-	serviceRotation = indices.BuildRotation(servicePrefix, f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
+	spanRotation = indices.BuildRotation(prefix, indices.SpanIndexBaseName, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.logger)
+	serviceRotation = indices.BuildRotation(prefix, indices.ServiceIndexBaseName, f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
 	return spanRotation, serviceRotation
 }
 
