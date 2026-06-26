@@ -267,6 +267,33 @@ func (c *streamingClient) SessionUpdate(_ context.Context, n acp.SessionNotifica
 	return nil
 }
 
+// EmitContextualToolCall fires a TOOL_CALL_START / TOOL_CALL_ARGS /
+// TOOL_CALL_END sequence on the SSE stream for a UI tool the agent
+// invoked via the gateway's MCP proxy endpoint. It mirrors the lifecycle
+// the SessionUpdate path emits for ACP-delivered contextual tool calls,
+// but does NOT emit TOOL_CALL_RESULT: UI tools are dispatched into the
+// browser, the browser is the actual executor, and the MCP proxy returns
+// a synthetic ack to the agent so the LLM loop can continue. Emitting
+// a server-side RESULT would let assistant-ui short-circuit and skip
+// the local execute() — same constraint the ACP-dispatch path
+// honours.
+//
+// rawArgs is the parsed MCP tool-call argument object; we forward it
+// verbatim as the delta payload (AG-UI concatenates deltas; the gateway
+// always emits the whole args object as a single delta because the agent
+// delivers them atomically). nil or empty args is allowed — the START
+// and END events still fire so the browser's assistant-ui runtime sees
+// the same lifecycle shape.
+func (c *streamingClient) EmitContextualToolCall(toolCallID, toolName string, rawArgs any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.emit(aguievents.NewToolCallStartEvent(toolCallID, toolName))
+	if rawArgs != nil {
+		c.emit(aguievents.NewToolCallArgsEvent(toolCallID, marshalToolArgsDelta(rawArgs)))
+	}
+	c.emit(aguievents.NewToolCallEndEvent(toolCallID))
+}
+
 // The methods below implement acp.Client operations that the Jaeger gateway
 // does not support (filesystem and terminal). They return errors because the
 // client advertises these capabilities as disabled during Initialize.
