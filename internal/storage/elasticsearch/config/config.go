@@ -20,7 +20,19 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
-const IndexPrefixSeparator = "-"
+const (
+	IndexPrefixSeparator = "-"
+
+	SpanTemplateName       = "jaeger-span"
+	ServiceTemplateName    = "jaeger-service"
+	DependencyTemplateName = "jaeger-dependencies"
+	SamplingTemplateName   = "jaeger-sampling"
+
+	SpanIndexBaseName       = SpanTemplateName + "-"
+	ServiceIndexBaseName    = ServiceTemplateName + "-"
+	DependencyIndexBaseName = DependencyTemplateName + "-"
+	SamplingIndexBaseName   = SamplingTemplateName + "-"
+)
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {

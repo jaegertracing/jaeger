@@ -3,18 +3,22 @@
 
 package indices
 
-import "time"
+import (
+	"time"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+)
 
 const (
-	SpanTemplateName       = "jaeger-span"
-	ServiceTemplateName    = "jaeger-service"
-	DependencyTemplateName = "jaeger-dependencies"
-	SamplingTemplateName   = "jaeger-sampling"
+	SpanTemplateName       = config.SpanTemplateName
+	ServiceTemplateName    = config.ServiceTemplateName
+	DependencyTemplateName = config.DependencyTemplateName
+	SamplingTemplateName   = config.SamplingTemplateName
 
-	SpanIndexBaseName       = SpanTemplateName + "-"
-	ServiceIndexBaseName    = ServiceTemplateName + "-"
-	DependencyIndexBaseName = DependencyTemplateName + "-"
-	SamplingIndexBaseName   = SamplingTemplateName + "-"
+	SpanIndexBaseName       = config.SpanIndexBaseName
+	ServiceIndexBaseName    = config.ServiceIndexBaseName
+	DependencyIndexBaseName = config.DependencyIndexBaseName
+	SamplingIndexBaseName   = config.SamplingIndexBaseName
 )
 
 // WriteOpType represents the Elasticsearch bulk operation type.

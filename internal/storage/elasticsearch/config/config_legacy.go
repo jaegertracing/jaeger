@@ -78,24 +78,24 @@ func (c *Configuration) hasAnyLegacyRotationFlags() bool {
 
 // ResolvedSpanRotation returns the effective rotation configuration for span indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
-func (c *Configuration) ResolvedSpanRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Spans, prefix, c.getSpanReadAlias(), c.getSpanWriteAlias())
+func (c *Configuration) ResolvedSpanRotation() RotationConfig {
+	return c.resolvedRotation(&c.Indices.Spans, c.Indices.IndexPrefix.Apply(SpanIndexBaseName), c.getSpanReadAlias(), c.getSpanWriteAlias())
 }
 
 // ResolvedServiceRotation returns the effective rotation configuration for service indices,
 // resolving legacy flags into the appropriate RotationConfig variant.
-func (c *Configuration) ResolvedServiceRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Services, prefix, c.getServiceReadAlias(), c.getServiceWriteAlias())
+func (c *Configuration) ResolvedServiceRotation() RotationConfig {
+	return c.resolvedRotation(&c.Indices.Services, c.Indices.IndexPrefix.Apply(ServiceIndexBaseName), c.getServiceReadAlias(), c.getServiceWriteAlias())
 }
 
 // ResolvedDependencyRotation returns the effective rotation configuration for dependency indices.
-func (c *Configuration) ResolvedDependencyRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Dependencies, prefix, "", "")
+func (c *Configuration) ResolvedDependencyRotation() RotationConfig {
+	return c.resolvedRotation(&c.Indices.Dependencies, c.Indices.IndexPrefix.Apply(DependencyIndexBaseName), "", "")
 }
 
 // ResolvedSamplingRotation returns the effective rotation configuration for sampling indices.
-func (c *Configuration) ResolvedSamplingRotation(prefix string) RotationConfig {
-	return c.resolvedRotation(&c.Indices.Sampling, prefix, "", "")
+func (c *Configuration) ResolvedSamplingRotation() RotationConfig {
+	return c.resolvedRotation(&c.Indices.Sampling, c.Indices.IndexPrefix.Apply(SamplingIndexBaseName), "", "")
 }
 
 func (c *Configuration) resolvedRotation(idxOpts *IndexOptions, prefix, explicitReadAlias, explicitWriteAlias string) RotationConfig {
