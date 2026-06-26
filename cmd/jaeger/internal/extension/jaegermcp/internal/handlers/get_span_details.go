@@ -283,3 +283,25 @@ func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
 	copy(traceID[:], bytes)
 	return traceID, nil
 }
+
+// parseSpanID parses a span ID string into a pcommon.SpanID.
+func parseSpanID(spanIDStr string) (pcommon.SpanID, error) {
+	// Parse hex string - SpanID is 8 bytes (16 hex characters)
+	if len(spanIDStr) != 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID must be 16 hex characters, got %d", len(spanIDStr))
+	}
+
+	var spanID pcommon.SpanID
+	bytes, err := hex.DecodeString(spanIDStr)
+	if err != nil {
+		return pcommon.SpanID{}, fmt.Errorf("invalid hex string: %w", err)
+	}
+
+	copy(spanID[:], bytes)
+	// The all-zero span ID can never identify a real span: SpanID.String()
+	// returns "" for it, so it would silently never match in the lookup.
+	if spanID.IsEmpty() {
+		return pcommon.SpanID{}, errors.New("span ID must not be all zero")
+	}
+	return spanID, nil
+}

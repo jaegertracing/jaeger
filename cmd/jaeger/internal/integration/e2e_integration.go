@@ -42,6 +42,7 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
+	BinaryPath         string // overrides default "./cmd/jaeger/jaeger"; resolved relative to the repo root
 
 	MetricsPort     int // overridable, default to 8888
 	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
@@ -56,6 +57,8 @@ type E2EStorageIntegration struct {
 	PropagateEnvVars []string
 	// FeatureGates contains a list of feature gate IDs to enable for the Jaeger binary.
 	FeatureGates []string
+
+	binary *Binary // set by e2eInitialize; allows mid-test shutdown via binary.Stop(t)
 }
 
 func (s *E2EStorageIntegration) args(configFile string) []string {
@@ -97,11 +100,15 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		}
 	}
 
+	binaryPath := s.BinaryPath
+	if binaryPath == "" {
+		binaryPath = "./cmd/jaeger/jaeger"
+	}
 	cmd := Binary{
 		Name:            s.BinaryName,
 		HealthCheckPort: s.HealthCheckPort,
 		Cmd: exec.Cmd{
-			Path: "./cmd/jaeger/jaeger",
+			Path: binaryPath,
 			Args: s.args(configFile),
 			// Change the working directory to the root of this project
 			// since the binary config file jaeger_query's ui.config_file points to
@@ -111,6 +118,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		},
 	}
 	cmd.Start(t)
+	s.binary = &cmd
 
 	s.TraceWriter, err = createTraceWriter(logger, otlpPort)
 	require.NoError(t, err)

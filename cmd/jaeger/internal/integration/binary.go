@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,12 +53,7 @@ func (b *Binary) Start(t *testing.T) {
 	require.NoError(t, b.Cmd.Start())
 
 	t.Cleanup(func() {
-		if err := b.Process.Kill(); err != nil {
-			t.Errorf("Failed to kill %s process: %v", b.Name, err)
-		}
-		t.Logf("Waiting for %s to exit", b.Name)
-		b.Process.Wait()
-		t.Logf("%s exited", b.Name)
+		b.Stop(t)
 		// Dump logs if test failed, or if running in GitHub Actions where
 		// t.Failed() may not return true when the test times out with a panic.
 		if t.Failed() || os.Getenv("GITHUB_ACTIONS") == "true" {
@@ -69,6 +65,19 @@ func (b *Binary) Start(t *testing.T) {
 	require.Eventually(t, func() bool { return b.doHealthCheck(t) },
 		time.Minute, time.Second, "%s did not start", b.Name)
 	t.Logf("%s is ready", b.Name)
+}
+
+// Stop kills the process and waits for it to exit. It is safe to call more than
+// once (and after the process has already exited): once the process has been
+// reaped, Kill returns os.ErrProcessDone, which is treated as a successful stop.
+func (b *Binary) Stop(t *testing.T) {
+	t.Helper()
+	if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("Failed to kill %s process: %v", b.Name, err)
+	}
+	t.Logf("Waiting for %s to exit", b.Name)
+	b.Process.Wait()
+	t.Logf("%s exited", b.Name)
 }
 
 func (b *Binary) doHealthCheck(t *testing.T) bool {

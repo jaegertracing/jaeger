@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package config
+package clientbuilder
 
 import (
 	"context"
@@ -15,10 +15,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/auth"
 	"github.com/jaegertracing/jaeger/internal/auth/apikey"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 // initTokenAuthWithTime initializes token authentication injectable time for testing
-func initTokenAuthWithTime(tokenAuth *TokenAuthentication, scheme string, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
+func initTokenAuthWithTime(tokenAuth *config.TokenAuthentication, scheme string, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
 	if tokenAuth == nil || (tokenAuth.FilePath == "" && !tokenAuth.AllowFromContext) {
 		return nil, nil
 	}
@@ -59,14 +60,14 @@ func initTokenAuthWithTime(tokenAuth *TokenAuthentication, scheme string, logger
 }
 
 // Simplified init functions - directly call shared implementation
-func initBearerAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
+func initBearerAuth(tokenAuth *config.TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
 	if tokenAuth == nil {
 		return nil, nil
 	}
 	return initTokenAuthWithTime(tokenAuth, "Bearer", logger, time.Now)
 }
 
-func initAPIKeyAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
+func initAPIKeyAuth(tokenAuth *config.TokenAuthentication, logger *zap.Logger) (*auth.Method, error) {
 	if tokenAuth == nil {
 		return nil, nil
 	}
@@ -74,11 +75,11 @@ func initAPIKeyAuth(tokenAuth *TokenAuthentication, logger *zap.Logger) (*auth.M
 }
 
 // Keep initBasicAuth unchanged
-func initBasicAuth(basicAuth *BasicAuthentication, logger *zap.Logger) (*auth.Method, error) {
+func initBasicAuth(basicAuth *config.BasicAuthentication, logger *zap.Logger) (*auth.Method, error) {
 	return initBasicAuthWithTime(basicAuth, logger, time.Now)
 }
 
-func initBasicAuthWithTime(basicAuth *BasicAuthentication, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
+func initBasicAuthWithTime(basicAuth *config.BasicAuthentication, logger *zap.Logger, timeFn func() time.Time) (*auth.Method, error) {
 	if basicAuth == nil {
 		return nil, nil
 	}

@@ -266,6 +266,7 @@ func TestCreateTemplates(t *testing.T) {
 	for _, test := range tests {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
+		mockClient.On("GetVersion").Return(es.ElasticV7)
 		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
 			return mockClient, nil
 		}
@@ -662,7 +663,9 @@ func TestMappingBuilderFromConfig(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
+			mockClient := &mocks.Client{}
+			mockClient.On("GetVersion").Return(es.ElasticV7)
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop(), client: mockClient}
 			mb := f.mappingBuilderFromConfig(f.config)
 			assert.Equal(t, tc.expectedUseILM, mb.UseILM)
 			assert.Equal(t, tc.expectedPolicyName, mb.ILMPolicyName)
@@ -695,6 +698,35 @@ func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
 	params := f.GetSpanReaderParams()
 	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
+}
+
+func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
+	cfg := escfg.Configuration{
+		Indices: escfg.Indices{
+			Spans: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					Periodic: configoptional.Default(escfg.PeriodicRotation{
+						DateLayout:        "2006-01-02",
+						RolloverFrequency: "day",
+					}),
+				},
+			},
+			Services: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					Periodic: configoptional.Default(escfg.PeriodicRotation{
+						DateLayout:        "2006-01-02",
+						RolloverFrequency: "day",
+					}),
+				},
+			},
+		},
+		MaxSpanAge:       72 * time.Hour,
+		MaxTraceDuration: 2 * time.Hour,
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	params := f.GetSpanReaderParams()
+	assert.Equal(t, 72*time.Hour, params.MaxSpanAge)
+	assert.Equal(t, 2*time.Hour, params.MaxTraceDuration)
 }
 
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing

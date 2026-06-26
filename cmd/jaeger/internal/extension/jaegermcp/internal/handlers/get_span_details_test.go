@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -729,6 +730,24 @@ func TestGetSpanDetailsHandler_Pagination_OffsetEqualsLength(t *testing.T) {
 		TraceID: testTraceID,
 		SpanIDs: []string{"a", "b", "c"},
 		Offset:  3, // Offset == len(span_ids)
+func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
+	// An uppercase hex span_id passes hex validation but must still match the
+	// canonical lowercase ID the trace iterator emits, instead of being reported
+	// as "spans not found".
+	traceID := testTraceID
+	spanID := "span001"
+
+	testTrace := createTestTraceWithSpans(traceID, []spanConfig{
+		{spanID: spanID, operation: "/api/test"},
+	})
+
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getSpanDetailsHandler{queryService: mock, maxSpanDetailsPerRequest: 50}
+
+	input := types.GetSpanDetailsInput{
+		TraceID: traceID,
+		SpanIDs: []string{strings.ToUpper(spanIDToHex(spanID))},
 	}
 
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)

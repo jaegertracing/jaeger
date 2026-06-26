@@ -26,6 +26,7 @@ import (
 	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -175,7 +176,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 }
 
 func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory esmetrics.Factory) es.Client {
-	client, err := config.NewClient(context.Background(), c, logger, metricsFactory, nil)
+	client, err := clientbuilder.NewClient(context.Background(), c, logger, metricsFactory, nil)
 	require.NoError(t, err)
 	require.NotNil(t, client)
 	t.Cleanup(func() {
