@@ -194,37 +194,37 @@ func TestReadTargets(t *testing.T) {
 			rotation: indices.NewAliasedRotation(config.DependencyIndexName+config.IndexSeparator+"write", config.DependencyIndexName+config.IndexSeparator+"read"),
 			lookback: 23 * time.Hour,
 			indices: []string{
-				config.DependencyIndexName + config.IndexSeparator + "read",
+				"jaeger-dependencies-read",
 			},
 		},
 		{
 			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 23 * time.Hour,
 			indices: []string{
-				config.DependencyIndexName + config.IndexSeparator + fixedTime.Format("2006-01-02"),
-				config.DependencyIndexName + config.IndexSeparator + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 13 * time.Hour,
 			indices: []string{
-				config.DependencyIndexName + config.IndexSeparator + fixedTime.UTC().Format("2006-01-02"),
-				config.DependencyIndexName + config.IndexSeparator + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.UTC().Format("2006-01-02"),
+				"jaeger-dependencies-" + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("foo:", "2006-01-02"),
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + config.IndexSeparator + config.DependencyIndexName + config.IndexSeparator + fixedTime.Format("2006-01-02"),
+				"foo:-jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("foo-", "2006-01-02"),
 			lookback: 0,
 			indices: []string{
-				"foo" + config.IndexSeparator + config.DependencyIndexName + config.IndexSeparator + fixedTime.Format("2006-01-02"),
+				"foo-jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}
@@ -242,11 +242,11 @@ func TestWriteTarget(t *testing.T) {
 	}{
 		{
 			rotation:   indices.NewAliasedRotation(config.DependencyIndexName+config.IndexSeparator+"write", config.DependencyIndexName+config.IndexSeparator+"read"),
-			writeIndex: config.DependencyIndexName + config.IndexSeparator + "write",
+			writeIndex: "jaeger-dependencies-write",
 		},
 		{
 			rotation:   periodicRotation("", "2006-01-02"),
-			writeIndex: config.DependencyIndexName + config.IndexSeparator + fixedTime.Format("2006-01-02"),
+			writeIndex: "jaeger-dependencies-" + fixedTime.Format("2006-01-02"),
 		},
 	}
 	for _, testCase := range testCases {
