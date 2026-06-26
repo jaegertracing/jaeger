@@ -1094,7 +1094,7 @@ func setupMetricsReaderFromServer(t *testing.T, mockServer *httptest.Server) (*M
 	}
 
 	client := clientProvider(t, &cfg, logger, esmetrics.NullFactory)
-	spanRotation := indices.NewPeriodicRotation("jaeger-span-", "2006-01-02", config.RolloverFrequencyDuration("day"))
+	spanRotation := indices.NewPeriodicRotation("jaeger-span", "2006-01-02", config.RolloverFrequencyDuration("day"))
 	reader := NewMetricsReader(client, cfg, logger, tracer, spanRotation)
 	require.NotNil(t, reader)
 

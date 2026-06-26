@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-const spanIndexBaseName = "jaeger-span-"
+const spanIndexBaseName = "jaeger-span"
 
 func TestTimeRangeIndices(t *testing.T) {
 	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
@@ -86,13 +86,13 @@ func TestLoggingTimeRangeIndexFn_WithDebug(t *testing.T) {
 func TestTimeRangeIndicesFn_ReadWriteAliases(t *testing.T) {
 	fn := TimeRangeIndicesFn(true, "", nil)
 	result := fn(spanIndexBaseName, "2006-01-02", time.Now(), time.Now(), -24*time.Hour)
-	assert.Equal(t, []string{spanIndexBaseName + "read"}, result)
+	assert.Equal(t, []string{"jaeger-span-read"}, result)
 }
 
 func TestTimeRangeIndicesFn_ReadWriteAliasesCustomSuffix(t *testing.T) {
 	fn := TimeRangeIndicesFn(true, "custom", nil)
 	result := fn(spanIndexBaseName, "2006-01-02", time.Now(), time.Now(), -24*time.Hour)
-	assert.Equal(t, []string{spanIndexBaseName + "custom"}, result)
+	assert.Equal(t, []string{"jaeger-span-custom"}, result)
 }
 
 func TestAddRemoteReadClusters(t *testing.T) {
@@ -100,7 +100,7 @@ func TestAddRemoteReadClusters(t *testing.T) {
 	start := time.Date(1995, time.April, 21, 0, 0, 0, 0, time.UTC)
 	end := time.Date(1995, time.April, 21, 0, 0, 0, 0, time.UTC)
 	result := fn(spanIndexBaseName, "2006-01-02", start, end, -24*time.Hour)
-	assert.Contains(t, result, spanIndexBaseName+"1995-04-21")
-	assert.Contains(t, result, "cluster1:"+spanIndexBaseName+"1995-04-21")
-	assert.Contains(t, result, "cluster2:"+spanIndexBaseName+"1995-04-21")
+	assert.Contains(t, result, "jaeger-span-1995-04-21")
+	assert.Contains(t, result, "cluster1:jaeger-span-1995-04-21")
+	assert.Contains(t, result, "cluster2:jaeger-span-1995-04-21")
 }

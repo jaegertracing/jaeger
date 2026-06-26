@@ -153,7 +153,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingTemplateName)
+		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
 		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
@@ -193,18 +193,18 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 
 // TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
-	prefix := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexBaseName)
+	prefix := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
 	return indices.BuildRotation(prefix, f.config.ResolvedSamplingRotation(), nil, f.logger)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
-	prefix := f.config.Indices.IndexPrefix.Apply(config.DependencyIndexBaseName)
+	prefix := f.config.Indices.IndexPrefix.Apply(config.DependencyIndexName)
 	return indices.BuildRotation(prefix, f.config.ResolvedDependencyRotation(), f.config.RemoteReadClusters, f.logger)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(config.SpanIndexBaseName)
-	servicePrefix := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexBaseName)
+	spanPrefix := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
+	servicePrefix := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
 
 	spanRotation = indices.BuildRotation(spanPrefix, f.config.ResolvedSpanRotation(), f.config.RemoteReadClusters, f.logger)
 	serviceRotation = indices.BuildRotation(servicePrefix, f.config.ResolvedServiceRotation(), f.config.RemoteReadClusters, f.logger)
@@ -218,8 +218,8 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanTemplateName)
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceTemplateName)
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
 		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)

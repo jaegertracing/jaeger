@@ -11,19 +11,19 @@ import (
 )
 
 func TestPeriodicRotation_WriteTarget(t *testing.T) {
-	r := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
+	r := NewPeriodicRotation("jaeger-span", "2006-01-02", 24*time.Hour)
 	date := time.Date(1995, time.April, 21, 22, 8, 41, 0, time.UTC)
 	assert.Equal(t, "jaeger-span-1995-04-21", r.WriteTarget(date))
 }
 
 func TestPeriodicRotation_WriteTarget_Hourly(t *testing.T) {
-	r := NewPeriodicRotation("jaeger-span-", "2006-01-02-15", time.Hour)
+	r := NewPeriodicRotation("jaeger-span", "2006-01-02-15", time.Hour)
 	date := time.Date(2019, time.October, 10, 5, 0, 0, 0, time.UTC)
 	assert.Equal(t, "jaeger-span-2019-10-10-05", r.WriteTarget(date))
 }
 
 func TestPeriodicRotation_ReadTargets(t *testing.T) {
-	r := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
+	r := NewPeriodicRotation("jaeger-span", "2006-01-02", 24*time.Hour)
 	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	yesterday := today.AddDate(0, 0, -1)
 
@@ -67,6 +67,6 @@ func TestPeriodicRotation_ReadTargets(t *testing.T) {
 }
 
 func TestPeriodicRotation_WriteOpType(t *testing.T) {
-	r := NewPeriodicRotation("jaeger-span-", "2006-01-02", 24*time.Hour)
+	r := NewPeriodicRotation("jaeger-span", "2006-01-02", 24*time.Hour)
 	assert.Equal(t, WriteOpIndex, r.WriteOpType())
 }

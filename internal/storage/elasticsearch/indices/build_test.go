@@ -28,7 +28,7 @@ func TestBuildRotation(t *testing.T) {
 	}{
 		{
 			name:   "periodic rotation",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				Periodic: configoptional.Some(config.PeriodicRotation{
 					DateLayout:        "2006-01-02",
@@ -40,7 +40,7 @@ func TestBuildRotation(t *testing.T) {
 		},
 		{
 			name:   "manual rollover with explicit aliases",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				ManualRollover: configoptional.Some(config.ManualRolloverRotation{
 					WriteAlias: "my-write-alias",
@@ -52,7 +52,7 @@ func TestBuildRotation(t *testing.T) {
 		},
 		{
 			name:   "manual rollover with default aliases",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				ManualRollover: configoptional.Some(config.ManualRolloverRotation{}),
 			},
@@ -61,7 +61,7 @@ func TestBuildRotation(t *testing.T) {
 		},
 		{
 			name:   "auto rollover with explicit aliases",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				AutoRollover: configoptional.Some(config.AutoRolloverRotation{
 					WriteAlias: "auto-write",
@@ -73,7 +73,7 @@ func TestBuildRotation(t *testing.T) {
 		},
 		{
 			name:   "auto rollover with default aliases",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				AutoRollover: configoptional.Some(config.AutoRolloverRotation{}),
 			},
@@ -82,7 +82,7 @@ func TestBuildRotation(t *testing.T) {
 		},
 		{
 			name:   "with remote clusters",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				ManualRollover: configoptional.Some(config.ManualRolloverRotation{}),
 			},
@@ -92,14 +92,14 @@ func TestBuildRotation(t *testing.T) {
 		},
 		{
 			name:      "default (empty config) falls back to daily periodic",
-			prefix:    "jaeger-span-",
+			prefix:    "jaeger-span",
 			rc:        config.RotationConfig{},
 			wantWrite: "jaeger-span-2024-03-15",
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
 			name:   "hourly rollover frequency",
-			prefix: "jaeger-span-",
+			prefix: "jaeger-span",
 			rc: config.RotationConfig{
 				Periodic: configoptional.Some(config.PeriodicRotation{
 					DateLayout:        "2006-01-02",

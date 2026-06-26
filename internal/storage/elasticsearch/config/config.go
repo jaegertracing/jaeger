@@ -21,17 +21,12 @@ import (
 )
 
 const (
-	IndexPrefixSeparator = "-"
+	IndexSeparator = "-"
 
-	SpanTemplateName       = "jaeger-span"
-	ServiceTemplateName    = "jaeger-service"
-	DependencyTemplateName = "jaeger-dependencies"
-	SamplingTemplateName   = "jaeger-sampling"
-
-	SpanIndexBaseName       = SpanTemplateName + "-"
-	ServiceIndexBaseName    = ServiceTemplateName + "-"
-	DependencyIndexBaseName = DependencyTemplateName + "-"
-	SamplingIndexBaseName   = SamplingTemplateName + "-"
+	SpanIndexName       = "jaeger-span"
+	ServiceIndexName    = "jaeger-service"
+	DependencyIndexName = "jaeger-dependencies"
+	SamplingIndexName   = "jaeger-sampling"
 )
 
 // IndexOptions describes the index format and rollover frequency
@@ -95,10 +90,10 @@ func (p IndexPrefix) Apply(indexName string) string {
 	if ps == "" {
 		return indexName
 	}
-	if strings.HasSuffix(ps, IndexPrefixSeparator) {
+	if strings.HasSuffix(ps, IndexSeparator) {
 		return ps + indexName
 	}
-	return ps + IndexPrefixSeparator + indexName
+	return ps + IndexSeparator + indexName
 }
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
