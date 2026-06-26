@@ -137,6 +137,34 @@ func TestSpanReader_FindTraceSummaries(t *testing.T) {
 	})
 }
 
+func TestSpanReader_FindTraceSummaries_PreservesPhase1Order(t *testing.T) {
+	// Phase 1 orders by max start over the matched spans (trace 1 before trace 2),
+	// but phase 2's terms aggregation orders by max start over all spans and returns
+	// them reversed. The result must follow phase 1 so native summaries match the
+	// order of the FindTraces fallback.
+	withSpanReader(t, func(r *spanReaderTest) {
+		phase1 := `{"buckets":[
+			{"key":"00000000000000000000000000000001","doc_count":1,"startTime":{"value":2000000}},
+			{"key":"00000000000000000000000000000002","doc_count":1,"startTime":{"value":1000000}}
+		]}`
+		phase2 := `{"buckets":[
+			{"key":"00000000000000000000000000000002","doc_count":1},
+			{"key":"00000000000000000000000000000001","doc_count":1}
+		]}`
+		result := &elastic.SearchResult{Aggregations: elastic.Aggregations{
+			traceIDAggregation:        []byte(phase1),
+			traceSummariesAggregation: []byte(phase2),
+		}}
+		mockSummarySearchService(r).Return(result, nil)
+
+		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.NoError(t, err)
+		require.Len(t, summaries, 2)
+		assert.Equal(t, dbmodel.TraceID("00000000000000000000000000000001"), summaries[0].TraceID)
+		assert.Equal(t, dbmodel.TraceID("00000000000000000000000000000002"), summaries[1].TraceID)
+	})
+}
+
 func TestSpanReader_FindTraceSummaries_InvalidQuery(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		// Missing start/end time fails validation before any search is issued.

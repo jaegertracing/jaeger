@@ -116,7 +116,22 @@ func (s *SpanReader) FindTraceSummaries(
 	if !found {
 		return nil, ErrUnableToFindTraceIDAggregation
 	}
-	return parseTraceSummaries(buckets)
+	summaries, err := parseTraceSummaries(buckets)
+	if err != nil {
+		return nil, err
+	}
+	// Phase 2 orders buckets by max start time over ALL spans, which can differ from
+	// Phase 1's order (max start over only the matched spans). Restore the Phase 1
+	// sequence so native summaries are returned in the same order as the FindTraces
+	// fallback, which preserves the trace-ID order from findTraceIDsFromQuery.
+	order := make(map[dbmodel.TraceID]int, len(traceIDs))
+	for i, id := range traceIDs {
+		order[id] = i
+	}
+	slices.SortFunc(summaries, func(a, b dbmodel.TraceSummary) int {
+		return cmp.Compare(order[a.TraceID], order[b.TraceID])
+	})
+	return summaries, nil
 }
 
 // buildTraceSummariesByIDsQuery selects every span belonging to the given traces
