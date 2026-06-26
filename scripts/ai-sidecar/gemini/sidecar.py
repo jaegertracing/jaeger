@@ -442,6 +442,100 @@ class JaegerSidecarAgent(Agent):
             return PromptResponse(stop_reason="end_turn")
 
 
+class JaegerDemoSidecarAgent(Agent):
+    """Local ACP demo agent for proposal POCs that do not need Gemini or MCP."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._conn: Client | None = None
+        self._next_session_id = 1
+
+    def on_connect(self, conn: Client) -> None:
+        self._conn = conn
+
+    def _require_conn(self) -> Client:
+        if self._conn is None:
+            raise RuntimeError("ACP connection is not initialized")
+        return self._conn
+
+    async def initialize(
+        self,
+        protocol_version: int,
+        client_capabilities: Any = None,
+        client_info: Any = None,
+        **kwargs: Any,
+    ) -> InitializeResponse:
+        if protocol_version != PROTOCOL_VERSION:
+            raise ValueError(
+                f"Unsupported ACP protocol version: {protocol_version}. "
+                f"Supported version: {PROTOCOL_VERSION}."
+            )
+        return InitializeResponse(
+            protocol_version=PROTOCOL_VERSION,
+            agent_capabilities=AgentCapabilities(),
+            agent_info=Implementation(
+                name="jaeger-demo-sidecar",
+                title="Jaeger AI Demo",
+                version="0.1.0",
+            ),
+        )
+
+    async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
+        session_id = f"demo-sess-{self._next_session_id}"
+        self._next_session_id += 1
+        return NewSessionResponse(session_id=session_id)
+
+    async def load_session(
+        self,
+        cwd: str,
+        session_id: str,
+        mcp_servers: Any = None,
+        **kwargs: Any,
+    ) -> LoadSessionResponse | None:
+        return LoadSessionResponse()
+
+    async def list_sessions(
+        self,
+        cursor: str | None = None,
+        cwd: str | None = None,
+        **kwargs: Any,
+    ) -> ListSessionsResponse:
+        return ListSessionsResponse(sessions=[])
+
+    async def prompt(
+        self,
+        prompt: list[Any],
+        session_id: str,
+        message_id: str | None = None,
+        **kwargs: Any,
+    ) -> PromptResponse:
+        user_text = "".join(block.text for block in prompt if hasattr(block, "text")).strip()
+        if not user_text:
+            user_text = "Inspect the selected trace."
+
+        answer = (
+            "Demo analysis for Jaeger AI sidecar\n\n"
+            f"Request: {user_text}\n\n"
+            "Findings:\n"
+            "- The ACP gateway-to-sidecar flow is working over WebSocket.\n"
+            "- The sidecar can create sessions and stream assistant updates back to the client.\n"
+            "- This mode is intentionally local and deterministic, so proposal demos do not need "
+            "Gemini credentials or a live MCP server.\n\n"
+            "Next POC step: replace this deterministic response with Gemini + MCP-backed trace evidence."
+        )
+
+        conn = self._require_conn()
+        await conn.session_update(session_id, update_agent_message(text_block(answer)))
+        return PromptResponse(stop_reason="end_turn")
+
+
+def build_sidecar_agent(config: SidecarConfig) -> Agent:
+    if config.demo_mode:
+        logger.info("Starting Jaeger AI sidecar in local demo mode")
+        return JaegerDemoSidecarAgent()
+    return JaegerSidecarAgent(config)
+
+
 async def handle_websocket(websocket: Any, agent_factory: Callable[[], Agent] | None = None) -> None:
     logger.info("New websocket connection from Jaeger AI Gateway")
 

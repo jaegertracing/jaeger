@@ -26,6 +26,20 @@ export GEMINI_API_KEY="your_api_key_here"
 
 Without this key, the sidecar cannot create the Gemini client.
 
+For proposal demos and local smoke tests, run the sidecar in deterministic demo
+mode instead. This uses the same WebSocket/ACP server path, but skips Gemini and
+MCP so the proof of concept can run without external services:
+
+```bash
+uv run python main.py --demo-mode
+```
+
+Expected startup log:
+
+```text
+Jaeger ACP Sidecar listening on ws://localhost:16688
+```
+
 Optional MCP endpoint override:
 
 ```bash
@@ -110,13 +124,14 @@ uv run python main.py \
   --host localhost --port 16688 \
   --mcp-url http://127.0.0.1:16687/mcp \
   --mcp-discovery-timeout-sec 15 \
-  --otlp-endpoint http://localhost:4317 --otlp-insecure
+  --otlp-endpoint http://localhost:4317 --otlp-insecure \
+  --demo-mode
 ```
 
 ## Code Layout
 
 - `main.py`: entrypoint, CLI/env parsing, WebSocket server bootstrap.
-- `sidecar.py`: ACP agent handlers, contextual-tool routing, WebSocket transport bridge.
+- `sidecar.py`: ACP agent handlers, local demo agent, contextual-tool routing, and WebSocket transport bridge.
 - `mcp_bridge.py`: MCP discovery/call bridge used by the agent.
 - `sidecar_config.py`: validated runtime configuration model.
 - `sidecar_helpers.py`: tool serialization/declaration helper functions.

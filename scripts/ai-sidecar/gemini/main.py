@@ -9,7 +9,7 @@ from functools import partial
 
 import websockets
 
-from sidecar import JaegerSidecarAgent, handle_websocket
+from sidecar import build_sidecar_agent, handle_websocket
 from sidecar_config import SidecarConfig
 from tracing import init_tracing
 
@@ -21,6 +21,10 @@ DEFAULT_SIDECAR_PORT = 16688
 DEFAULT_MCP_DISCOVERY_TIMEOUT_SEC = 15.0
 DEFAULT_OTLP_ENDPOINT = "http://localhost:4317"
 DEFAULT_OTLP_INSECURE = True
+
+
+def parse_bool(value: str) -> bool:
+    return value.lower() in ("true", "1", "yes")
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,8 +52,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--otlp-insecure",
         action=argparse.BooleanOptionalAction,
-        default=os.environ.get("OTEL_EXPORTER_OTLP_INSECURE", str(DEFAULT_OTLP_INSECURE)).lower() in ("true", "1", "yes"),
+        default=parse_bool(os.environ.get("OTEL_EXPORTER_OTLP_INSECURE", str(DEFAULT_OTLP_INSECURE))),
         help="Skip TLS for OTLP export; use --otlp-insecure or --no-otlp-insecure",
+    )
+    parser.add_argument(
+        "--demo-mode",
+        action=argparse.BooleanOptionalAction,
+        default=parse_bool(os.environ.get("JAEGER_AI_DEMO_MODE", "false")),
+        help="Run a local deterministic ACP demo without Gemini or MCP",
     )
     return parser.parse_args()
 
@@ -63,6 +73,7 @@ def parse_config() -> tuple[str, int, SidecarConfig]:
         mcp_discovery_timeout_sec=args.mcp_discovery_timeout_sec,
         otlp_endpoint=args.otlp_endpoint,
         otlp_insecure=args.otlp_insecure,
+        demo_mode=args.demo_mode,
     )
     config.validate()
     return args.host, args.port, config
@@ -72,10 +83,13 @@ async def main() -> None:
     host, port, config = parse_config()
     init_tracing(endpoint=config.otlp_endpoint, insecure=config.otlp_insecure)
     # The lambda below is an agent factory, not a single shared instance.
-    # Every new WebSocket connection invokes it to create a fresh JaegerSidecarAgent.
+    # Every new WebSocket connection invokes it to create a fresh agent.
     # Each connection gets its own agent instance, so active connections can process prompts concurrently.
     async with websockets.serve(
-        partial(handle_websocket, agent_factory=lambda: JaegerSidecarAgent(config)),  # pyright: ignore[reportAbstractUsage]
+        partial(
+            handle_websocket,
+            agent_factory=lambda: build_sidecar_agent(config),
+        ),  # pyright: ignore[reportAbstractUsage]
         host,
         port,
     ):

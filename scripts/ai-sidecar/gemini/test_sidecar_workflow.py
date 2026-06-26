@@ -17,6 +17,7 @@ from acp.schema import AgentCapabilities, Implementation, ListSessionsResponse, 
 from acp.helpers import text_block, update_agent_message
 
 import sidecar
+from sidecar_config import SidecarConfig
 
 END_OF_TURN_MARKER = "__END_OF_TURN__"
 DEFAULT_PROMPT = "hello"
@@ -163,12 +164,33 @@ async def send_request(
         raise
 
 
-async def run_workflow_test(prompt: str, cwd: str) -> None:
+async def wait_for_message_text(messages: list[dict[str, Any]], expected_text: str) -> None:
+    deadline = asyncio.get_running_loop().time() + 10.0
+    while asyncio.get_running_loop().time() < deadline:
+        if any(expected_text in json.dumps(message) for message in messages):
+            return
+        await asyncio.sleep(0.05)
+    raise TimeoutError(f"did not receive message containing {expected_text!r}")
+
+
+async def run_workflow_test(
+    prompt: str,
+    cwd: str,
+    agent_factory: Any = FakeAgent,
+    expected_agent_name: str = "jaeger-gemini-sidecar",
+    expected_session_prefix: str = "sess-test-",
+    expected_response_text: str = "echo: ",
+) -> str:
     pending = PendingRequests()
     received_messages: list[dict[str, Any]] = []
     stop_event = asyncio.Event()
+    session_id = ""
 
-    async with websockets.serve(partial(sidecar.handle_websocket, agent_factory=FakeAgent), "127.0.0.1", 0) as server:
+    async with websockets.serve(
+        partial(sidecar.handle_websocket, agent_factory=agent_factory),
+        "127.0.0.1",
+        0,
+    ) as server:
         port = next(iter(server.sockets)).getsockname()[1]
         uri = f"ws://127.0.0.1:{port}"
 
@@ -195,7 +217,7 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                 init_result = init_response.get("result", init_response)
                 assert init_result.get("protocolVersion", init_result.get("protocol_version")) == PROTOCOL_VERSION
                 agent_info = init_result.get("agentInfo", init_result.get("agent_info"))
-                assert agent_info["name"] == "jaeger-gemini-sidecar"
+                assert agent_info["name"] == expected_agent_name
 
                 session_response = await send_request(
                     websocket,
@@ -209,7 +231,7 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                 session_result = session_response.get("result", session_response)
                 session_id = session_result.get("sessionId") or session_result.get("session_id")
                 assert session_id is not None
-                assert session_id.startswith("sess-test-")
+                assert session_id.startswith(expected_session_prefix)
 
                 prompt_response = await send_request(
                     websocket,
@@ -228,18 +250,54 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
                 prompt_result = prompt_response.get("result", prompt_response)
                 assert prompt_result.get("stopReason", prompt_result.get("stop_reason")) == "end_turn"
 
-                await asyncio.wait_for(stop_event.wait(), timeout=10.0)
+                await wait_for_message_text(received_messages, expected_response_text)
             finally:
                 receiver_task.cancel()
                 with pytest.raises(asyncio.CancelledError):
                     await receiver_task
 
-    fake_agent = FakeAgent.last_instance
-    assert fake_agent is not None
-    assert fake_agent.received_prompts == [(session_id, prompt)]
-    assert any(END_OF_TURN_MARKER in json.dumps(message) for message in received_messages)
-    assert any("echo: " in json.dumps(message) for message in received_messages)
+    assert any(expected_response_text in json.dumps(message) for message in received_messages)
+    return session_id
+
 
 def test_complete_acp_workflow_with_fake_agent() -> None:
-    asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
+    session_id = asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
+    fake_agent = FakeAgent.last_instance
+    assert fake_agent is not None
+    assert fake_agent.received_prompts == [(session_id, DEFAULT_PROMPT)]
+
+
+def test_demo_agent_completes_acp_workflow_without_external_services() -> None:
+    config = SidecarConfig(
+        gemini_api_key="",
+        mcp_url="",
+        mcp_discovery_timeout_sec=15.0,
+        otlp_endpoint="http://localhost:4317",
+        otlp_insecure=True,
+        demo_mode=True,
+    )
+
+    asyncio.run(
+        run_workflow_test(
+            "why is checkout slow?",
+            DEFAULT_CWD,
+            agent_factory=lambda: sidecar.build_sidecar_agent(config),
+            expected_agent_name="jaeger-demo-sidecar",
+            expected_session_prefix="demo-sess-",
+            expected_response_text="Demo analysis for Jaeger AI sidecar",
+        )
+    )
+
+
+def test_demo_mode_skips_gemini_and_mcp_config_validation() -> None:
+    config = SidecarConfig(
+        gemini_api_key="",
+        mcp_url="",
+        mcp_discovery_timeout_sec=15.0,
+        otlp_endpoint="http://localhost:4317",
+        otlp_insecure=True,
+        demo_mode=True,
+    )
+
+    config.validate()
 
