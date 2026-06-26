@@ -48,7 +48,7 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"my-read-alias"},
 		},
 		{
-			name:   "manual rollover with default aliases",
+			name: "manual rollover with default aliases",
 			rc: config.RotationConfig{
 				ManualRollover: configoptional.Some(config.ManualRolloverRotation{}),
 			},
@@ -56,7 +56,7 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-read"},
 		},
 		{
-			name:   "auto rollover with explicit aliases",
+			name: "auto rollover with explicit aliases",
 			rc: config.RotationConfig{
 				AutoRollover: configoptional.Some(config.AutoRolloverRotation{
 					WriteAlias: "auto-write",
@@ -67,7 +67,7 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"auto-read"},
 		},
 		{
-			name:   "auto rollover with default aliases",
+			name: "auto rollover with default aliases",
 			rc: config.RotationConfig{
 				AutoRollover: configoptional.Some(config.AutoRolloverRotation{}),
 			},
@@ -75,7 +75,7 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-read"},
 		},
 		{
-			name:   "with remote clusters",
+			name: "with remote clusters",
 			rc: config.RotationConfig{
 				ManualRollover: configoptional.Some(config.ManualRolloverRotation{}),
 			},
@@ -84,13 +84,13 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:       []string{"jaeger-span-read", "cluster-a:jaeger-span-read", "cluster-b:jaeger-span-read"},
 		},
 		{
-			name: "default (empty config) falls back to daily periodic",
+			name:      "default (empty config) falls back to daily periodic",
 			rc:        config.RotationConfig{},
 			wantWrite: "jaeger-span-2024-03-15",
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
-			name:   "hourly rollover frequency",
+			name: "hourly rollover frequency",
 			rc: config.RotationConfig{
 				Periodic: configoptional.Some(config.PeriodicRotation{
 					DateLayout:        "2006-01-02",
