@@ -43,13 +43,15 @@ var (
 
 // server implements the Jaeger MCP extension.
 type server struct {
-	config     *Config
-	telset     component.TelemetrySettings
-	httpServer *http.Server
-	listener   net.Listener
-	mcpServer  *mcp.Server
-	queryAPI   *querysvc.QueryService
-	bgFinished sync.WaitGroup
+	config         *Config
+	telset         component.TelemetrySettings
+	httpServer     *http.Server
+	listener       net.Listener
+	mcpServer      *mcp.Server
+	queryAPI       *querysvc.QueryService
+	bgFinished     sync.WaitGroup
+	skillsFS       fs.FS
+	skillsFallback string
 }
 
 // newServer creates a new MCP server instance.
@@ -76,6 +78,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+
+	sFS, err := fs.Sub(skillsEmbedFS, "skills")
+	if err != nil {
+		return fmt.Errorf("failed to create skills sub-filesystem: %w", err)
+	}
+	s.skillsFS = sFS
+	s.skillsFallback = buildSkillsGateway(sFS)
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
@@ -210,14 +219,12 @@ func (s *server) registerTools() {
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
 
-	sFS, _ := fs.Sub(skillsEmbedFS, "skills")
-	gateway := buildSkillsGateway(sFS)
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "read_skill",
-		Description: "Read skills available for trace analysis. " +
-			"Call with no path to get a catalog of all available skills with descriptions. " +
-			"Call with '<skill-name>/SKILL.md' to load a skill's full procedure.",
-	}, handlers.NewReadSkillHandler(sFS, s.config.MaxReadFileSize, gateway))
+		Description: "Read a skill file for trace analysis. " +
+			"Skills are organized using progressive disclosure. " +
+			"Start with SKILL.md which will guide you to more specific sub-skills.",
+	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.MaxReadFileSize, s.skillsFallback))
 }
 
 type skillFrontmatter struct {

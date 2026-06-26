@@ -6,4 +6,4 @@ These tools support progressive disclosure to manage context density. While they
 
 ## Skills
 
-Call `read_skill` with no path to get a catalog of available analysis playbooks. When a task matches a skill, call `read_skill("<skill-name>/SKILL.md")` to load the full procedure before proceeding.
+Skills are organized using progressive disclosure. Start with the root skill `SKILL.md` which will guide you to more specific sub-skills, and so on.

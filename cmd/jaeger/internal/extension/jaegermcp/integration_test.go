@@ -483,7 +483,7 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 
 func TestMCPClientReadSkillCatalog(t *testing.T) {
 	s := connectMCPSession(t, nil)
-	text := s.callTool(t, "read_skill", nil)
+	text := s.callTool(t, "read_skill", map[string]any{"path": "SKILL.md"})
 	assert.Contains(t, text, "Available Skills")
 	assert.Contains(t, text, "detect-n-plus-one")
 	assert.Contains(t, text, "error-root-cause")
@@ -510,7 +510,7 @@ func TestMCPClientReadSkillPathTraversal(t *testing.T) {
 func TestMCPClientSkillsDiscoveryFlow(t *testing.T) {
 	s := connectMCPSession(t, nil)
 
-	catalog := s.callTool(t, "read_skill", nil)
+	catalog := s.callTool(t, "read_skill", map[string]any{"path": "SKILL.md"})
 	assert.Contains(t, catalog, "error-root-cause")
 
 	skill := s.callTool(t, "read_skill", map[string]any{"path": "error-root-cause/SKILL.md"})

@@ -16,20 +16,23 @@ import (
 // ReadSkillOutput is a placeholder; the handler returns raw text via *mcp.CallToolResult.
 type ReadSkillOutput struct{}
 
+const rootSkillFile = "SKILL.md"
+
 type readSkillHandler struct {
-	skillsFS    fs.FS
-	maxFileSize int64
-	gateway     string
+	skillsFS     fs.FS
+	maxFileSize  int64
+	fallbackText string
 }
 
 // NewReadSkillHandler creates a handler that reads skills from the given FS.
-// gateway is the root catalog content returned when path is empty.
+// fallbackText is returned when the root SKILL.md is requested but does not
+// exist on disk (auto-generated catalog).
 func NewReadSkillHandler(
 	skillsFS fs.FS,
 	maxFileSize int64,
-	gateway string,
+	fallbackText string,
 ) mcp.ToolHandlerFor[types.ReadSkillInput, ReadSkillOutput] {
-	h := &readSkillHandler{skillsFS: skillsFS, maxFileSize: maxFileSize, gateway: gateway}
+	h := &readSkillHandler{skillsFS: skillsFS, maxFileSize: maxFileSize, fallbackText: fallbackText}
 	return h.handle
 }
 
@@ -38,30 +41,34 @@ func (h *readSkillHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.ReadSkillInput,
 ) (*mcp.CallToolResult, ReadSkillOutput, error) {
-	if input.Path == "" {
-		return textResult(h.gateway), ReadSkillOutput{}, nil
+	path := input.Path
+	if path == "" {
+		path = rootSkillFile
 	}
-	if !fs.ValidPath(input.Path) {
+	if !fs.ValidPath(path) {
 		return nil, ReadSkillOutput{}, fmt.Errorf("invalid path: %q", input.Path)
 	}
 
-	info, err := fs.Stat(h.skillsFS, input.Path)
+	info, err := fs.Stat(h.skillsFS, path)
 	if err != nil {
-		return nil, ReadSkillOutput{}, fmt.Errorf("cannot stat %q: %w", input.Path, err)
+		if path == rootSkillFile && h.fallbackText != "" {
+			return textResult(h.fallbackText), ReadSkillOutput{}, nil
+		}
+		return nil, ReadSkillOutput{}, fmt.Errorf("file not found: %q", path)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, ReadSkillOutput{}, fmt.Errorf("%q is not a regular file", input.Path)
+		return nil, ReadSkillOutput{}, fmt.Errorf("%q is not a regular file", path)
 	}
 	if info.Size() > h.maxFileSize {
 		return nil, ReadSkillOutput{}, fmt.Errorf(
 			"%q is %d bytes, exceeds limit of %d bytes",
-			input.Path, info.Size(), h.maxFileSize,
+			path, info.Size(), h.maxFileSize,
 		)
 	}
 
-	data, err := fs.ReadFile(h.skillsFS, input.Path)
+	data, err := fs.ReadFile(h.skillsFS, path)
 	if err != nil {
-		return nil, ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
+		return nil, ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", path, err)
 	}
 
 	return textResult(string(data)), ReadSkillOutput{}, nil
