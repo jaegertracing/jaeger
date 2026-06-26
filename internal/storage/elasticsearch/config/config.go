@@ -79,26 +79,27 @@ func (o *IndexOptions) GetRolloverFrequency() string {
 }
 
 func (p IndexPrefix) Apply(indexName string) string {
-	ps := string(p)
-	if ps == "" {
-		return indexName
-	}
-	if strings.HasSuffix(ps, IndexPrefixSeparator) {
-		return ps + indexName
-	}
-	return ps + IndexPrefixSeparator + indexName
+	return joinPrefix(string(p), IndexPrefixSeparator, indexName)
 }
 
-// DataStreamName is the dot-notation counterpart of Apply for data streams: it
-// joins the prefix and base with "." instead of "-" (e.g. "prod" -> "prod.jaeger.spans").
-// A trailing "-" or "." on the prefix is dropped so "prod", "prod-" and "prod." all
-// resolve to the same name.
+// DataStreamName is the dot-notation counterpart of Apply for data streams
+// (e.g. "prod" -> "prod.jaeger.spans"). A trailing "-" or "." on the prefix is
+// dropped so "prod", "prod-" and "prod." all resolve to the same name.
 func (p IndexPrefix) DataStreamName(base string) string {
 	ps := strings.TrimRight(string(p), IndexPrefixSeparator+".")
-	if ps == "" {
-		return base
+	return joinPrefix(ps, ".", base)
+}
+
+// joinPrefix joins prefix and name with separator, avoiding a doubled separator
+// when the prefix already ends with one.
+func joinPrefix(prefix, separator, name string) string {
+	if prefix == "" {
+		return name
 	}
-	return ps + "." + base
+	if strings.HasSuffix(prefix, separator) {
+		return prefix + name
+	}
+	return prefix + separator + name
 }
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
