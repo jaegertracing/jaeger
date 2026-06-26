@@ -130,6 +130,7 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 	return dbmodel.Span{
 		TraceID:         traceID,
 		SpanID:          dbmodel.SpanID(span.SpanID().String()),
+		ParentSpanID:    parentSpanID,
 		OperationName:   span.Name(),
 		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
