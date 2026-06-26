@@ -144,6 +144,25 @@ func TestComputeCriticalPath_SingleSpan(t *testing.T) {
 	assert.Equal(t, uint64(101), criticalPath[0].SectionEnd)
 }
 
+func TestComputeCriticalPath_ZeroDurationRoot(t *testing.T) {
+	// Regression test: a valid trace whose critical path is legitimately empty
+	// (here a single zero-duration root span) must return an empty result, not an
+	// error. Previously this returned "error while computing critical path for
+	// trace" because an empty (nil) result was treated as a failure.
+	traces := ptrace.NewTraces()
+	span := traces.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1})
+	span.SetTraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
+	span.SetStartTimestamp(pcommon.Timestamp(1000))
+	span.SetEndTimestamp(pcommon.Timestamp(1000)) // zero duration => empty critical path
+	span.SetName("instant span")
+
+	criticalPath, err := ComputeCriticalPathFromTraces(traces)
+	require.NoError(t, err)
+	require.NotNil(t, criticalPath)
+	assert.Empty(t, criticalPath)
+}
+
 func TestComputeCriticalPath_Internal_SpanNotFound(t *testing.T) {
 	// Test the case where spanID is not in spanMap (line 51)
 	spanMap := map[pcommon.SpanID]CPSpan{}
