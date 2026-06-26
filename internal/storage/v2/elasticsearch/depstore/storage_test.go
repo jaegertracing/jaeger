@@ -53,7 +53,7 @@ func withDepStorage(rotation indices.Rotation, maxDocCount int, fn func(r *depSt
 
 func periodicRotation(prefix config.IndexPrefix, dateLayout string) indices.Rotation {
 	return indices.NewPeriodicRotation(
-		prefix.Apply(indices.DependencyIndexBaseName),
+		prefix.Apply(config.DependencyIndexBaseName),
 		dateLayout,
 		config.RolloverFrequencyDuration("day"),
 	)
@@ -191,40 +191,40 @@ func TestReadTargets(t *testing.T) {
 		indices  []string
 	}{
 		{
-			rotation: indices.NewAliasedRotation(indices.DependencyIndexBaseName+"write", indices.DependencyIndexBaseName+"read"),
+			rotation: indices.NewAliasedRotation(config.DependencyIndexBaseName+"write", config.DependencyIndexBaseName+"read"),
 			lookback: 23 * time.Hour,
 			indices: []string{
-				indices.DependencyIndexBaseName + "read",
+				config.DependencyIndexBaseName + "read",
 			},
 		},
 		{
 			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 23 * time.Hour,
 			indices: []string{
-				indices.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
-				indices.DependencyIndexBaseName + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
+				config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				config.DependencyIndexBaseName + fixedTime.Add(-23*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("", "2006-01-02"),
 			lookback: 13 * time.Hour,
 			indices: []string{
-				indices.DependencyIndexBaseName + fixedTime.UTC().Format("2006-01-02"),
-				indices.DependencyIndexBaseName + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
+				config.DependencyIndexBaseName + fixedTime.UTC().Format("2006-01-02"),
+				config.DependencyIndexBaseName + fixedTime.Add(-13*time.Hour).Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("foo:", "2006-01-02"),
 			lookback: 1 * time.Hour,
 			indices: []string{
-				"foo:" + config.IndexPrefixSeparator + indices.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				"foo:" + config.IndexPrefixSeparator + config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 		{
 			rotation: periodicRotation("foo-", "2006-01-02"),
 			lookback: 0,
 			indices: []string{
-				"foo" + config.IndexPrefixSeparator + indices.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+				"foo" + config.IndexPrefixSeparator + config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 			},
 		},
 	}
@@ -241,12 +241,12 @@ func TestWriteTarget(t *testing.T) {
 		writeIndex string
 	}{
 		{
-			rotation:   indices.NewAliasedRotation(indices.DependencyIndexBaseName+"write", indices.DependencyIndexBaseName+"read"),
-			writeIndex: indices.DependencyIndexBaseName + "write",
+			rotation:   indices.NewAliasedRotation(config.DependencyIndexBaseName+"write", config.DependencyIndexBaseName+"read"),
+			writeIndex: config.DependencyIndexBaseName + "write",
 		},
 		{
 			rotation:   periodicRotation("", "2006-01-02"),
-			writeIndex: indices.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
+			writeIndex: config.DependencyIndexBaseName + fixedTime.Format("2006-01-02"),
 		},
 	}
 	for _, testCase := range testCases {
