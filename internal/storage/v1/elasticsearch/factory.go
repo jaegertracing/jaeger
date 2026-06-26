@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -53,7 +54,7 @@ func NewFactoryBase(
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
 		config:      &cfg,
-		newClientFn: config.NewClient,
+		newClientFn: clientbuilder.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
 	f.metricsFactory = metricsFactory
@@ -172,7 +173,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
-		Version:         cfg.Version,
+		Version:         f.client.GetVersion(),
 		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
 	}
