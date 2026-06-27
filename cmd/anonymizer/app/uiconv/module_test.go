@@ -5,6 +5,7 @@ package uiconv
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,9 +53,9 @@ func TestModule_TraceNonExistent(t *testing.T) {
 }
 
 func TestModule_TraceOutputFileError(t *testing.T) {
+	tempDir := t.TempDir()
 	inputFile := "fixtures/trace_success.json"
-	outputFile := "fixtures/trace_success_ui_anonymized.json"
-	defer os.Remove(outputFile)
+	outputFile := filepath.Join(tempDir, "nonexistent", "output.json")
 
 	config := Config{
 		CapturedFile: inputFile,
@@ -62,10 +63,6 @@ func TestModule_TraceOutputFileError(t *testing.T) {
 		TraceID:      "2be38093ead7a083",
 	}
 
-	err := os.Chmod("fixtures", 0o550)
-	require.NoError(t, err)
-	defer os.Chmod("fixtures", 0o755)
-
-	err = Extract(config, zap.NewNop())
+	err := Extract(config, zap.NewNop())
 	require.ErrorContains(t, err, "cannot create output file")
 }
