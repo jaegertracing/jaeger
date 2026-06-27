@@ -20,8 +20,9 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 	var r Rotation
 	switch {
 	case rc.DataStream.HasValue():
-		ds := rc.DataStream.Get()
-		r = NewDataStreamRotation(indexPrefix.DataStreamName(indexToDataStreamName(baseName)), ds.ReadAlias)
+		dsCfg := rc.DataStream.Get()
+		dsName := indexToDataStreamName(baseName)
+		r = NewDataStreamRotation(indexPrefix.DataStreamName(dsName), dsCfg.ReadAlias)
 	case rc.ManualRollover.HasValue():
 		mr := rc.ManualRollover.Get()
 		writeAlias := mr.WriteAlias
