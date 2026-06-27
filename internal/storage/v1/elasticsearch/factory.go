@@ -193,17 +193,41 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 
 // TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
-	return indices.BuildRotation(f.config.Indices.IndexPrefix, config.SamplingIndexName, f.config.ResolvedSamplingRotation(), nil, f.logger)
+	return indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.SamplingIndexName,
+		f.config.ResolvedSamplingRotation(),
+		nil,
+		f.logger,
+	)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
-	return indices.BuildRotation(f.config.Indices.IndexPrefix, config.DependencyIndexName, f.config.ResolvedDependencyRotation(), f.config.RemoteReadClusters, f.logger)
+	return indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.DependencyIndexName,
+		f.config.ResolvedDependencyRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
 	prefix := f.config.Indices.IndexPrefix
-	spanRotation = indices.BuildRotation(prefix, config.SpanIndexName, f.config.ResolvedSpanRotation(), f.config.RemoteReadClusters, f.logger)
-	serviceRotation = indices.BuildRotation(prefix, config.ServiceIndexName, f.config.ResolvedServiceRotation(), f.config.RemoteReadClusters, f.logger)
+	spanRotation = indices.BuildRotation(
+		prefix,
+		config.SpanIndexName,
+		f.config.ResolvedSpanRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
+	serviceRotation = indices.BuildRotation(
+		prefix,
+		config.ServiceIndexName,
+		f.config.ResolvedServiceRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
 	return spanRotation, serviceRotation
 }
 
