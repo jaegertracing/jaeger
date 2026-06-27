@@ -43,5 +43,7 @@ func (r *RemoteClusterRotation) ReadTargets(startTime, endTime time.Time) []stri
 	return result
 }
 
-func (r *RemoteClusterRotation) WriteOpType() es.WriteOpType            { return r.inner.WriteOpType() }
-func (r *RemoteClusterRotation) RequiresDocumentTimestamp() bool         { return r.inner.RequiresDocumentTimestamp() }
+func (r *RemoteClusterRotation) WriteOpType() es.WriteOpType { return r.inner.WriteOpType() }
+func (r *RemoteClusterRotation) RequiresDocumentTimestamp() bool {
+	return r.inner.RequiresDocumentTimestamp()
+}

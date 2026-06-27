@@ -38,5 +38,5 @@ func (s *PeriodicRotation) ReadTargets(startTime, endTime time.Time) []string {
 	return timeRangeIndices(s.indexPrefix, s.dateLayout, startTime, endTime, s.rolloverFrequency)
 }
 
-func (*PeriodicRotation) WriteOpType() es.WriteOpType            { return es.WriteOpIndex }
-func (*PeriodicRotation) RequiresDocumentTimestamp() bool         { return false }
+func (*PeriodicRotation) WriteOpType() es.WriteOpType     { return es.WriteOpIndex }
+func (*PeriodicRotation) RequiresDocumentTimestamp() bool { return false }
