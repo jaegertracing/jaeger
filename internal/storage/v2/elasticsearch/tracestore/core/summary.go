@@ -20,16 +20,17 @@ import (
 )
 
 const (
-	traceSummariesAggregation    = "trace_summaries"
-	minStartSubAggregation       = "min_start"
-	maxStartSubAggregation       = "max_start"
-	maxEndSubAggregation         = "max_end"
-	errorCountSubAggregation     = "error_count"
-	servicesSubAggregation       = "services"
-	serviceErrorsSubAggregation  = "service_errors"
-	rootCandidatesSubAggregation = "root_candidates"
+	traceSummariesAggregation   = "trace_summaries"
+	minStartSubAggregation      = "min_start"
+	maxStartSubAggregation      = "max_start"
+	maxEndSubAggregation        = "max_end"
+	errorCountSubAggregation    = "error_count"
+	servicesSubAggregation      = "services"
+	serviceErrorsSubAggregation = "service_errors"
+	rootSpanSubAggregation      = "root_span"
+	rootHitSubAggregation       = "root_hit"
 
-	nestedReferencesField = "references"
+	parentSpanIDField = "parentSpanID"
 
 	// The canonical "error" boolean tag the v2 ES writer emits for spans with
 	// OTEL StatusCode = ERROR (see to_dbmodel.go).
@@ -37,12 +38,6 @@ const (
 	errorTagValue = "true"
 
 	maxServicesPerTrace = 1000
-
-	// maxRootCandidates bounds how many of the earliest spans per trace are fetched
-	// to locate the root. The root is the earliest span with no in-trace parent, so
-	// inspecting a small window of the earliest spans is sufficient in practice; the
-	// size=0 aggregation never fetches full traces. See FindTraceSummaries.
-	maxRootCandidates = 10
 
 	// ElasticSearch persists no end-time field, so max end time (start + duration)
 	// can only be derived via a script.
@@ -159,16 +154,18 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Agg
 		Size(maxServicesPerTrace).
 		SubAggregation(serviceErrorsSubAggregation, elastic.NewFilterAggregation().Filter(errorFilter))
 
-	// Fetch the earliest spans (with their references and trace ID) so the root can
-	// be determined in Go using the same rule as getParentSpanId — a span is the
-	// root when it has no reference to another span in its own trace. This is not
-	// expressible as an ElasticSearch query because a nested reference's trace ID
-	// cannot be compared against the parent document's trace ID. See parseRootSpan.
-	rootCandidates := elastic.NewTopHitsAggregation().
-		Size(maxRootCandidates).
-		Sort(startTimeField, true). // earliest first
-		FetchSourceContext(elastic.NewFetchSourceContext(true).
-			Include(serviceNameField, operationNameField, traceIDField, nestedReferencesField))
+	// The root span is the one without a parent. Since #8859 the write path stores
+	// parentSpanID only for non-root spans, so an existence filter selects the root
+	// directly in ElasticSearch and the nested top_hits returns the earliest root's
+	// service and operation. Spans written before #8859 carry no parentSpanID and
+	// fall back to the earliest span of the trace.
+	rootSpan := elastic.NewFilterAggregation().
+		Filter(elastic.NewBoolQuery().MustNot(elastic.NewExistsQuery(parentSpanIDField))).
+		SubAggregation(rootHitSubAggregation, elastic.NewTopHitsAggregation().
+			Size(1).
+			Sort(startTimeField, true). // earliest root first
+			FetchSourceContext(elastic.NewFetchSourceContext(true).
+				Include(serviceNameField, operationNameField)))
 
 	return elastic.NewTermsAggregation().
 		Field(traceIDField).
@@ -179,7 +176,7 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Agg
 		SubAggregation(maxEndSubAggregation, elastic.NewMaxAggregation().Script(elastic.NewScript(endTimeScript))).
 		SubAggregation(errorCountSubAggregation, elastic.NewFilterAggregation().Filter(errorFilter)).
 		SubAggregation(servicesSubAggregation, services).
-		SubAggregation(rootCandidatesSubAggregation, rootCandidates)
+		SubAggregation(rootSpanSubAggregation, rootSpan)
 }
 
 func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.TraceSummary, error) {
@@ -238,60 +235,32 @@ func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) []dbmodel.S
 	return services
 }
 
-// rootSpanRef is the projection of a span reference needed for root detection.
-// Only the referenced trace ID matters: a same-trace reference (of any type) means
-// the span has a parent, while cross-trace references (span links) are ignored.
-type rootSpanRef struct {
-	TraceID string `json:"traceID"`
-}
-
-// rootCandidateSource is the projection of a candidate root span's _source.
-type rootCandidateSource struct {
+// rootSpanSource is the projection of the root span's _source.
+type rootSpanSource struct {
 	OperationName string `json:"operationName"`
-	TraceID       string `json:"traceID"`
 	Process       struct {
 		ServiceName string `json:"serviceName"`
 	} `json:"process"`
-	References []rootSpanRef `json:"references"`
 }
 
-// parseRootSpan returns the root span's service and operation, scanning the fetched
-// candidates in ascending start-time order and selecting the first that is a root.
+// parseRootSpan returns the service and operation of the trace's root span, taken
+// from the earliest span that has no parentSpanID (see buildTraceSummariesAggregation).
 //
-// Root-ness uses the same rule as getParentSpanId in the parent tracestore package:
-// a span is a root when it has no reference to a span in its own trace. References
-// to other traces (span links, including cross-trace CHILD_OF) are ignored, and a
-// same-trace reference of any type (CHILD_OF or FOLLOWS_FROM) marks a non-root span.
-// This keeps native summaries consistent with the client-side computeSummaries
-// fallback, which picks the earliest span whose reconstructed parent is empty.
-//
-// Empty values with a nil error are returned when no root is found (a valid
-// outcome); a malformed top-hit _source is surfaced as an error rather than dropped.
+// Empty values with a nil error are returned when the trace has no parentless span
+// (a valid outcome); a malformed top-hit _source is surfaced as an error rather
+// than dropped.
 func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName, operationName string, err error) {
-	topHits, ok := bucket.TopHits(rootCandidatesSubAggregation)
-	if !ok || topHits.Hits == nil {
+	rootSpan, ok := bucket.Filter(rootSpanSubAggregation)
+	if !ok {
 		return "", "", nil
 	}
-	for _, hit := range topHits.Hits.Hits {
-		var source rootCandidateSource
-		if err := json.Unmarshal(hit.Source, &source); err != nil {
-			return "", "", fmt.Errorf("failed to decode root span source: %w", err)
-		}
-		if isRootSpan(source.TraceID, source.References) {
-			return source.Process.ServiceName, source.OperationName, nil
-		}
+	topHits, ok := rootSpan.TopHits(rootHitSubAggregation)
+	if !ok || topHits.Hits == nil || len(topHits.Hits.Hits) == 0 {
+		return "", "", nil
 	}
-	return "", "", nil
-}
-
-// isRootSpan reports whether a span with the given trace ID and references is a
-// trace root, i.e. it has no reference pointing to a span in its own trace. This
-// mirrors getParentSpanId (parent empty <=> no same-trace reference).
-func isRootSpan(traceID string, references []rootSpanRef) bool {
-	for _, ref := range references {
-		if ref.TraceID == traceID {
-			return false
-		}
+	var source rootSpanSource
+	if err := json.Unmarshal(topHits.Hits.Hits[0].Source, &source); err != nil {
+		return "", "", fmt.Errorf("failed to decode root span source: %w", err)
 	}
-	return true
+	return source.Process.ServiceName, source.OperationName, nil
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -34,9 +35,9 @@ const summaryAggregationJSON = `{
         {"key": "svcB", "doc_count": 1, "service_errors": {"doc_count": 0}},
         {"key": "svcA", "doc_count": 2, "service_errors": {"doc_count": 1}}
       ]},
-      "root_candidates": {"hits": {"hits": [
-        {"_source": {"operationName": "root-op", "traceID": "00000000000000000000000000000001", "process": {"serviceName": "svcA"}, "references": []}}
-      ]}}
+      "root_span": {"doc_count": 1, "root_hit": {"hits": {"hits": [
+        {"_source": {"operationName": "root-op", "process": {"serviceName": "svcA"}}}
+      ]}}}
     }
   ]
 }`
@@ -98,7 +99,7 @@ func TestSpanReader_FindTraceSummaries_IndexWindowMatchesMaxTraceDuration(t *tes
 		_, err := r.reader.FindTraceSummaries(context.Background(), query)
 		require.NoError(t, err)
 
-		rotation := indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", maxTraceDuration)
+		rotation := indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", maxTraceDuration)
 		wideWindow := rotation.ReadTargets(day.Add(-maxTraceDuration), day.Add(maxTraceDuration))
 		narrowWindow := rotation.ReadTargets(day.Add(-time.Hour), day.Add(time.Hour))
 		// Guard: the fixture must actually distinguish the two windows, otherwise the
@@ -203,9 +204,9 @@ func TestSpanReader_FindTraceSummaries_BadRootSource(t *testing.T) {
       "max_end": {"value": 2000000},
       "error_count": {"doc_count": 0},
       "services": {"buckets": []},
-      "root_candidates": {"hits": {"hits": [
+      "root_span": {"doc_count": 1, "root_hit": {"hits": {"hits": [
         {"_source": "not-an-object"}
-      ]}}
+      ]}}}
     }
   ]
 }`
@@ -240,43 +241,26 @@ func TestSpanReader_FindTraceSummaries_NoMatchingTraces(t *testing.T) {
 	})
 }
 
-// TestSpanReader_FindTraceSummaries_RootReferenceCases covers the reference cases
-// flagged in review: root selection must match getParentSpanId, where cross-trace
-// references (span links) are ignored and a same-trace reference of any type marks
-// a non-root span.
-func TestSpanReader_FindTraceSummaries_RootReferenceCases(t *testing.T) {
+// TestSpanReader_FindTraceSummaries_RootSpan covers root selection from the
+// parentSpanID existence filter: the parentless span's service and operation are
+// returned, and a trace with no parentless span yields an empty root.
+func TestSpanReader_FindTraceSummaries_RootSpan(t *testing.T) {
 	const traceID = "00000000000000000000000000000001"
 	tests := []struct {
-		name           string
-		rootCandidates string
-		wantService    string
-		wantOperation  string
+		name          string
+		rootSpan      string
+		wantService   string
+		wantOperation string
 	}{
 		{
-			name: "root with only a cross-trace child-of link is still root",
-			rootCandidates: `{"hits": {"hits": [
-				{"_source": {"operationName": "entry", "traceID": "` + traceID + `", "process": {"serviceName": "svcRoot"},
-					"references": [{"refType": "CHILD_OF", "traceID": "00000000000000000000000000000099", "spanID": "abc"}]}}
-			]}}`,
+			name:          "parentless span yields its service and operation",
+			rootSpan:      `{"doc_count": 1, "root_hit": {"hits": {"hits": [{"_source": {"operationName": "entry", "process": {"serviceName": "svcRoot"}}}]}}}`,
 			wantService:   "svcRoot",
 			wantOperation: "entry",
 		},
 		{
-			name: "earliest span with a same-trace follows-from parent is skipped",
-			rootCandidates: `{"hits": {"hits": [
-				{"_source": {"operationName": "child", "traceID": "` + traceID + `", "process": {"serviceName": "svcChild"},
-					"references": [{"refType": "FOLLOWS_FROM", "traceID": "` + traceID + `", "spanID": "def"}]}},
-				{"_source": {"operationName": "entry", "traceID": "` + traceID + `", "process": {"serviceName": "svcRoot"}, "references": []}}
-			]}}`,
-			wantService:   "svcRoot",
-			wantOperation: "entry",
-		},
-		{
-			name: "no root among candidates yields empty root",
-			rootCandidates: `{"hits": {"hits": [
-				{"_source": {"operationName": "child", "traceID": "` + traceID + `", "process": {"serviceName": "svcChild"},
-					"references": [{"refType": "CHILD_OF", "traceID": "` + traceID + `", "spanID": "def"}]}}
-			]}}`,
+			name:          "no parentless span yields empty root",
+			rootSpan:      `{"doc_count": 0, "root_hit": {"hits": {"hits": []}}}`,
 			wantService:   "",
 			wantOperation: "",
 		},
@@ -288,8 +272,8 @@ func TestSpanReader_FindTraceSummaries_RootReferenceCases(t *testing.T) {
 					"key": "%s", "doc_count": 2,
 					"min_start": {"value": 1000000}, "max_end": {"value": 2000000},
 					"error_count": {"doc_count": 0}, "services": {"buckets": []},
-					"root_candidates": %s
-				}]}`, traceID, tt.rootCandidates)
+					"root_span": %s
+				}]}`, traceID, tt.rootSpan)
 				mockSummarySearchService(r).Return(summaryResult(summaryJSON), nil)
 				summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 				require.NoError(t, err)
@@ -297,26 +281,6 @@ func TestSpanReader_FindTraceSummaries_RootReferenceCases(t *testing.T) {
 				assert.Equal(t, tt.wantService, summaries[0].RootServiceName)
 				assert.Equal(t, tt.wantOperation, summaries[0].RootOperationName)
 			})
-		})
-	}
-}
-
-func TestIsRootSpan(t *testing.T) {
-	const traceID = "00000000000000000000000000000001"
-	const otherTraceID = "00000000000000000000000000000099"
-	tests := []struct {
-		name string
-		refs []rootSpanRef
-		want bool
-	}{
-		{name: "no references is root", refs: nil, want: true},
-		{name: "same-trace reference is not root", refs: []rootSpanRef{{TraceID: traceID}}, want: false},
-		{name: "only cross-trace reference is root", refs: []rootSpanRef{{TraceID: otherTraceID}}, want: true},
-		{name: "mixed cross- and same-trace is not root", refs: []rootSpanRef{{TraceID: otherTraceID}, {TraceID: traceID}}, want: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, isRootSpan(traceID, tt.refs))
 		})
 	}
 }
