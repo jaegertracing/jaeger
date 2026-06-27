@@ -90,16 +90,16 @@ func (_c *Client_Close_Call) RunAndReturn(run func() error) *Client_Close_Call {
 }
 
 // CreateIndex provides a mock function for the type Client
-func (_mock *Client) CreateIndex(index string) elasticsearch.IndicesCreateService {
-	ret := _mock.Called(index)
+func (_mock *Client) CreateIndex(ctx context.Context, index string) elasticsearch.IndicesCreateService {
+	ret := _mock.Called(ctx, index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateIndex")
 	}
 
 	var r0 elasticsearch.IndicesCreateService
-	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.IndicesCreateService); ok {
-		r0 = returnFunc(index)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) elasticsearch.IndicesCreateService); ok {
+		r0 = returnFunc(ctx, index)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(elasticsearch.IndicesCreateService)
@@ -114,19 +114,25 @@ type Client_CreateIndex_Call struct {
 }
 
 // CreateIndex is a helper method to define mock.On call
+//   - ctx context.Context
 //   - index string
-func (_e *Client_Expecter) CreateIndex(index interface{}) *Client_CreateIndex_Call {
-	return &Client_CreateIndex_Call{Call: _e.mock.On("CreateIndex", index)}
+func (_e *Client_Expecter) CreateIndex(ctx interface{}, index interface{}) *Client_CreateIndex_Call {
+	return &Client_CreateIndex_Call{Call: _e.mock.On("CreateIndex", ctx, index)}
 }
 
-func (_c *Client_CreateIndex_Call) Run(run func(index string)) *Client_CreateIndex_Call {
+func (_c *Client_CreateIndex_Call) Run(run func(ctx context.Context, index string)) *Client_CreateIndex_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -137,22 +143,22 @@ func (_c *Client_CreateIndex_Call) Return(indicesCreateService elasticsearch.Ind
 	return _c
 }
 
-func (_c *Client_CreateIndex_Call) RunAndReturn(run func(index string) elasticsearch.IndicesCreateService) *Client_CreateIndex_Call {
+func (_c *Client_CreateIndex_Call) RunAndReturn(run func(ctx context.Context, index string) elasticsearch.IndicesCreateService) *Client_CreateIndex_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // CreateTemplate provides a mock function for the type Client
-func (_mock *Client) CreateTemplate(id string) elasticsearch.TemplateCreateService {
-	ret := _mock.Called(id)
+func (_mock *Client) CreateTemplate(ctx context.Context, id string) elasticsearch.TemplateCreateService {
+	ret := _mock.Called(ctx, id)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTemplate")
 	}
 
 	var r0 elasticsearch.TemplateCreateService
-	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.TemplateCreateService); ok {
-		r0 = returnFunc(id)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) elasticsearch.TemplateCreateService); ok {
+		r0 = returnFunc(ctx, id)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(elasticsearch.TemplateCreateService)
@@ -167,19 +173,25 @@ type Client_CreateTemplate_Call struct {
 }
 
 // CreateTemplate is a helper method to define mock.On call
+//   - ctx context.Context
 //   - id string
-func (_e *Client_Expecter) CreateTemplate(id interface{}) *Client_CreateTemplate_Call {
-	return &Client_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", id)}
+func (_e *Client_Expecter) CreateTemplate(ctx interface{}, id interface{}) *Client_CreateTemplate_Call {
+	return &Client_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, id)}
 }
 
-func (_c *Client_CreateTemplate_Call) Run(run func(id string)) *Client_CreateTemplate_Call {
+func (_c *Client_CreateTemplate_Call) Run(run func(ctx context.Context, id string)) *Client_CreateTemplate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -190,22 +202,22 @@ func (_c *Client_CreateTemplate_Call) Return(templateCreateService elasticsearch
 	return _c
 }
 
-func (_c *Client_CreateTemplate_Call) RunAndReturn(run func(id string) elasticsearch.TemplateCreateService) *Client_CreateTemplate_Call {
+func (_c *Client_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, id string) elasticsearch.TemplateCreateService) *Client_CreateTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteIndex provides a mock function for the type Client
-func (_mock *Client) DeleteIndex(index string) elasticsearch.IndicesDeleteService {
-	ret := _mock.Called(index)
+func (_mock *Client) DeleteIndex(ctx context.Context, index string) elasticsearch.IndicesDeleteService {
+	ret := _mock.Called(ctx, index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteIndex")
 	}
 
 	var r0 elasticsearch.IndicesDeleteService
-	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.IndicesDeleteService); ok {
-		r0 = returnFunc(index)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) elasticsearch.IndicesDeleteService); ok {
+		r0 = returnFunc(ctx, index)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(elasticsearch.IndicesDeleteService)
@@ -220,19 +232,25 @@ type Client_DeleteIndex_Call struct {
 }
 
 // DeleteIndex is a helper method to define mock.On call
+//   - ctx context.Context
 //   - index string
-func (_e *Client_Expecter) DeleteIndex(index interface{}) *Client_DeleteIndex_Call {
-	return &Client_DeleteIndex_Call{Call: _e.mock.On("DeleteIndex", index)}
+func (_e *Client_Expecter) DeleteIndex(ctx interface{}, index interface{}) *Client_DeleteIndex_Call {
+	return &Client_DeleteIndex_Call{Call: _e.mock.On("DeleteIndex", ctx, index)}
 }
 
-func (_c *Client_DeleteIndex_Call) Run(run func(index string)) *Client_DeleteIndex_Call {
+func (_c *Client_DeleteIndex_Call) Run(run func(ctx context.Context, index string)) *Client_DeleteIndex_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -243,7 +261,7 @@ func (_c *Client_DeleteIndex_Call) Return(indicesDeleteService elasticsearch.Ind
 	return _c
 }
 
-func (_c *Client_DeleteIndex_Call) RunAndReturn(run func(index string) elasticsearch.IndicesDeleteService) *Client_DeleteIndex_Call {
+func (_c *Client_DeleteIndex_Call) RunAndReturn(run func(ctx context.Context, index string) elasticsearch.IndicesDeleteService) *Client_DeleteIndex_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -339,16 +357,16 @@ func (_c *Client_Index_Call) RunAndReturn(run func() elasticsearch.IndexService)
 }
 
 // IndexExists provides a mock function for the type Client
-func (_mock *Client) IndexExists(index string) elasticsearch.IndicesExistsService {
-	ret := _mock.Called(index)
+func (_mock *Client) IndexExists(ctx context.Context, index string) elasticsearch.IndicesExistsService {
+	ret := _mock.Called(ctx, index)
 
 	if len(ret) == 0 {
 		panic("no return value specified for IndexExists")
 	}
 
 	var r0 elasticsearch.IndicesExistsService
-	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.IndicesExistsService); ok {
-		r0 = returnFunc(index)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) elasticsearch.IndicesExistsService); ok {
+		r0 = returnFunc(ctx, index)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(elasticsearch.IndicesExistsService)
@@ -363,19 +381,25 @@ type Client_IndexExists_Call struct {
 }
 
 // IndexExists is a helper method to define mock.On call
+//   - ctx context.Context
 //   - index string
-func (_e *Client_Expecter) IndexExists(index interface{}) *Client_IndexExists_Call {
-	return &Client_IndexExists_Call{Call: _e.mock.On("IndexExists", index)}
+func (_e *Client_Expecter) IndexExists(ctx interface{}, index interface{}) *Client_IndexExists_Call {
+	return &Client_IndexExists_Call{Call: _e.mock.On("IndexExists", ctx, index)}
 }
 
-func (_c *Client_IndexExists_Call) Run(run func(index string)) *Client_IndexExists_Call {
+func (_c *Client_IndexExists_Call) Run(run func(ctx context.Context, index string)) *Client_IndexExists_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -386,22 +410,22 @@ func (_c *Client_IndexExists_Call) Return(indicesExistsService elasticsearch.Ind
 	return _c
 }
 
-func (_c *Client_IndexExists_Call) RunAndReturn(run func(index string) elasticsearch.IndicesExistsService) *Client_IndexExists_Call {
+func (_c *Client_IndexExists_Call) RunAndReturn(run func(ctx context.Context, index string) elasticsearch.IndicesExistsService) *Client_IndexExists_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // MultiSearch provides a mock function for the type Client
-func (_mock *Client) MultiSearch() elasticsearch.MultiSearchService {
-	ret := _mock.Called()
+func (_mock *Client) MultiSearch(ctx context.Context) elasticsearch.MultiSearchService {
+	ret := _mock.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for MultiSearch")
 	}
 
 	var r0 elasticsearch.MultiSearchService
-	if returnFunc, ok := ret.Get(0).(func() elasticsearch.MultiSearchService); ok {
-		r0 = returnFunc()
+	if returnFunc, ok := ret.Get(0).(func(context.Context) elasticsearch.MultiSearchService); ok {
+		r0 = returnFunc(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(elasticsearch.MultiSearchService)
@@ -416,13 +440,20 @@ type Client_MultiSearch_Call struct {
 }
 
 // MultiSearch is a helper method to define mock.On call
-func (_e *Client_Expecter) MultiSearch() *Client_MultiSearch_Call {
-	return &Client_MultiSearch_Call{Call: _e.mock.On("MultiSearch")}
+//   - ctx context.Context
+func (_e *Client_Expecter) MultiSearch(ctx interface{}) *Client_MultiSearch_Call {
+	return &Client_MultiSearch_Call{Call: _e.mock.On("MultiSearch", ctx)}
 }
 
-func (_c *Client_MultiSearch_Call) Run(run func()) *Client_MultiSearch_Call {
+func (_c *Client_MultiSearch_Call) Run(run func(ctx context.Context)) *Client_MultiSearch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run()
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -432,18 +463,18 @@ func (_c *Client_MultiSearch_Call) Return(multiSearchService elasticsearch.Multi
 	return _c
 }
 
-func (_c *Client_MultiSearch_Call) RunAndReturn(run func() elasticsearch.MultiSearchService) *Client_MultiSearch_Call {
+func (_c *Client_MultiSearch_Call) RunAndReturn(run func(ctx context.Context) elasticsearch.MultiSearchService) *Client_MultiSearch_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Search provides a mock function for the type Client
-func (_mock *Client) Search(indices ...string) elasticsearch.SearchService {
+func (_mock *Client) Search(ctx context.Context, indices ...string) elasticsearch.SearchService {
 	var tmpRet mock.Arguments
 	if len(indices) > 0 {
-		tmpRet = _mock.Called(indices)
+		tmpRet = _mock.Called(ctx, indices)
 	} else {
-		tmpRet = _mock.Called()
+		tmpRet = _mock.Called(ctx)
 	}
 	ret := tmpRet
 
@@ -452,8 +483,8 @@ func (_mock *Client) Search(indices ...string) elasticsearch.SearchService {
 	}
 
 	var r0 elasticsearch.SearchService
-	if returnFunc, ok := ret.Get(0).(func(...string) elasticsearch.SearchService); ok {
-		r0 = returnFunc(indices...)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, ...string) elasticsearch.SearchService); ok {
+		r0 = returnFunc(ctx, indices...)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(elasticsearch.SearchService)
@@ -468,22 +499,28 @@ type Client_Search_Call struct {
 }
 
 // Search is a helper method to define mock.On call
+//   - ctx context.Context
 //   - indices ...string
-func (_e *Client_Expecter) Search(indices ...interface{}) *Client_Search_Call {
+func (_e *Client_Expecter) Search(ctx interface{}, indices ...interface{}) *Client_Search_Call {
 	return &Client_Search_Call{Call: _e.mock.On("Search",
-		append([]interface{}{}, indices...)...)}
+		append([]interface{}{ctx}, indices...)...)}
 }
 
-func (_c *Client_Search_Call) Run(run func(indices ...string)) *Client_Search_Call {
+func (_c *Client_Search_Call) Run(run func(ctx context.Context, indices ...string)) *Client_Search_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 []string
-		var variadicArgs []string
-		if len(args) > 0 {
-			variadicArgs = args[0].([]string)
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
 		}
-		arg0 = variadicArgs
+		var arg1 []string
+		var variadicArgs []string
+		if len(args) > 1 {
+			variadicArgs = args[1].([]string)
+		}
+		arg1 = variadicArgs
 		run(
-			arg0...,
+			arg0,
+			arg1...,
 		)
 	})
 	return _c
@@ -494,7 +531,7 @@ func (_c *Client_Search_Call) Return(searchService elasticsearch.SearchService) 
 	return _c
 }
 
-func (_c *Client_Search_Call) RunAndReturn(run func(indices ...string) elasticsearch.SearchService) *Client_Search_Call {
+func (_c *Client_Search_Call) RunAndReturn(run func(ctx context.Context, indices ...string) elasticsearch.SearchService) *Client_Search_Call {
 	_c.Call.Return(run)
 	return _c
 }

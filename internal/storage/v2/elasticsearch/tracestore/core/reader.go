@@ -333,7 +333,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 		// set traceIDs to empty
 		traceIDs = nil
-		results, err := s.client().MultiSearch().Add(searchRequests...).Index(idxList...).Do(ctx)
+		results, err := s.client().MultiSearch(ctx).Add(searchRequests...).Index(idxList...).Do(ctx)
 		if err != nil {
 			err = es.DetailedError(err)
 			logErrorToSpan(childSpan, err)
@@ -463,7 +463,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
-	searchService := s.client().Search(jaegerIndices...).
+	searchService := s.client().Search(ctx, jaegerIndices...).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).

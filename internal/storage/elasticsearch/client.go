@@ -13,13 +13,13 @@ import (
 
 // Client is an abstraction for elastic.Client
 type Client interface {
-	IndexExists(index string) IndicesExistsService
-	CreateIndex(index string) IndicesCreateService
-	CreateTemplate(id string) TemplateCreateService
+	IndexExists(ctx context.Context, index string) IndicesExistsService
+	CreateIndex(ctx context.Context, index string) IndicesCreateService
+	CreateTemplate(ctx context.Context, id string) TemplateCreateService
 	Index() IndexService
-	Search(indices ...string) SearchService
-	MultiSearch() MultiSearchService
-	DeleteIndex(index string) IndicesDeleteService
+	Search(ctx context.Context, indices ...string) SearchService
+	MultiSearch(ctx context.Context) MultiSearchService
+	DeleteIndex(ctx context.Context, index string) IndicesDeleteService
 	io.Closer
 	GetVersion() BackendVersion
 }

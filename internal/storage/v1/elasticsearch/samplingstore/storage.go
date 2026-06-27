@@ -67,7 +67,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
 	readIndices := s.rotation.ReadTargets(start, end)
-	searchResult, err := s.client().Search(readIndices...).
+	searchResult, err := s.client().Search(ctx, readIndices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(start, end)).
 		IgnoreUnavailable(true).
@@ -110,7 +110,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
-	searchResult, err := clientFn.Search(index).
+	searchResult, err := clientFn.Search(ctx, index).
 		Size(s.maxDocCount).
 		IgnoreUnavailable(true).
 		Do(ctx)
@@ -149,7 +149,7 @@ func (s *SamplingStore) getLatestIndex(ctx context.Context, client es.Client) (s
 	now := time.Now().UTC()
 	candidates := s.rotation.ReadTargets(now.Add(-s.lookback), now)
 	for _, idx := range candidates {
-		exists, err := client.IndexExists(idx).Do(ctx)
+		exists, err := client.IndexExists(ctx, idx).Do(ctx)
 		if err != nil {
 			return "", fmt.Errorf("failed to check index existence: %w", err)
 		}

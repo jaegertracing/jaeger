@@ -70,7 +70,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []string, maxDocCount int) ([]string, error) {
 	serviceAggregation := getServicesAggregation(maxDocCount)
 
-	searchService := s.client().Search(indices...).
+	searchService := s.client().Search(ctx, indices...).
 		Size(0). // set to 0 because we don't want actual documents.
 		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
@@ -100,7 +100,7 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := getOperationsAggregation(maxDocCount)
 
-	searchService := s.client().Search(indices...).
+	searchService := s.client().Search(ctx, indices...).
 		Size(0).
 		Query(serviceQuery).
 		IgnoreUnavailable(true).

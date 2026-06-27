@@ -43,22 +43,22 @@ func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, version es.B
 }
 
 // IndexExists calls this function to internal client.
-func (c ClientWrapper) IndexExists(index string) es.IndicesExistsService {
+func (c ClientWrapper) IndexExists(_ context.Context, index string) es.IndicesExistsService {
 	return WrapESIndicesExistsService(c.client.IndexExists(index))
 }
 
 // CreateIndex calls this function to internal client.
-func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
+func (c ClientWrapper) CreateIndex(_ context.Context, index string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.client.CreateIndex(index))
 }
 
 // DeleteIndex calls this function to internal client.
-func (c ClientWrapper) DeleteIndex(index string) es.IndicesDeleteService {
+func (c ClientWrapper) DeleteIndex(_ context.Context, index string) es.IndicesDeleteService {
 	return WrapESIndicesDeleteService(c.client.DeleteIndex(index))
 }
 
 // CreateTemplate calls this function to internal client.
-func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
+func (c ClientWrapper) CreateTemplate(_ context.Context, ttype string) es.TemplateCreateService {
 	if c.version.UsesV8API() {
 		return TemplateCreatorWrapperV8{
 			indicesV8:    c.clientV8.Indices,
@@ -75,7 +75,7 @@ func (c ClientWrapper) Index() es.IndexService {
 }
 
 // Search calls this function to internal client.
-func (c ClientWrapper) Search(indices ...string) es.SearchService {
+func (c ClientWrapper) Search(_ context.Context, indices ...string) es.SearchService {
 	searchService := c.client.Search(indices...)
 	if !c.version.SupportsTypedIndices() {
 		searchService = searchService.RestTotalHitsAsInt(true)
@@ -84,7 +84,7 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 }
 
 // MultiSearch calls this function to internal client.
-func (c ClientWrapper) MultiSearch() es.MultiSearchService {
+func (c ClientWrapper) MultiSearch(_ context.Context) es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
 	return WrapESMultiSearchService(multiSearchService)
 }

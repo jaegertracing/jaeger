@@ -325,7 +325,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 
 		firstMultiSearch.On("Index", mock.AnythingOfType("[]string")).Return(firstMultiSearch)
 		secondMultiSearch.On("Index", mock.AnythingOfType("[]string")).Return(secondMultiSearch)
-		r.client.On("MultiSearch").Return(multiSearchService)
+		r.client.On("MultiSearch", mock.Anything).Return(multiSearchService)
 
 		fistMultiSearchMock := firstMultiSearch.On("Do", mock.Anything)
 		secondMultiSearchMock := secondMultiSearch.On("Do", mock.Anything)
@@ -920,7 +920,7 @@ func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", mock.AnythingOfType("[]string")).Return(multiSearchService)
-	r.client.On("MultiSearch").Return(multiSearchService)
+	r.client.On("MultiSearch", mock.Anything).Return(multiSearchService)
 	return multiSearchService.On("Do", mock.Anything)
 }
 
@@ -928,7 +928,7 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName []string) *mock.
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", indexName).Return(multiSearchService)
-	r.client.On("MultiSearch").Return(multiSearchService)
+	r.client.On("MultiSearch", mock.Anything).Return(multiSearchService)
 	return multiSearchService.On("Do", mock.Anything)
 }
 
@@ -950,7 +950,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.MatchedBy(matchTermsAggregation)).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
+	r.client.On("Search", mock.Anything, mock.AnythingOfType("[]string")).Return(searchService)
 	return searchService.On("Do", mock.Anything)
 }
 

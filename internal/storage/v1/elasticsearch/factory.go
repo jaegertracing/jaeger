@@ -154,7 +154,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 			return nil, err
 		}
 		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
-		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
+		if _, err := f.getClient().CreateTemplate(context.Background(), templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -187,7 +187,7 @@ func (f *FactoryBase) Close() error {
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
 	esClient := f.getClient()
-	_, err := esClient.DeleteIndex("*").Do(ctx)
+	_, err := esClient.DeleteIndex(ctx, "*").Do(ctx)
 	return err
 }
 
@@ -240,11 +240,11 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		}
 		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
 		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
-		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
+		_, err = f.getClient().CreateTemplate(ctx, jaegerSpanIdx).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
 		}
-		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
+		_, err = f.getClient().CreateTemplate(ctx, jaegerServiceIdx).Body(serviceMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 		}

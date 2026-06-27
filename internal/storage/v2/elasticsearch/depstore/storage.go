@@ -68,7 +68,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel
 
 // CreateTemplates creates index templates.
 func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	_, err := s.client().CreateTemplate(config.DependencyIndexName).Body(dependenciesTemplate).Do(context.Background())
+	_, err := s.client().CreateTemplate(context.Background(), config.DependencyIndexName).Body(dependenciesTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Tim
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error) {
 	readIndices := s.rotation.ReadTargets(endTs.Add(-lookback), endTs)
-	searchResult, err := s.client().Search(readIndices...).
+	searchResult, err := s.client().Search(ctx, readIndices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).

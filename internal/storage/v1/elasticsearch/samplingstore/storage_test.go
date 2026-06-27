@@ -97,12 +97,12 @@ func TestGetLatestIndex(t *testing.T) {
 				),
 			})
 			indexService := &mocks.IndicesExistsService{}
-			client.On("IndexExists", mock.Anything).Return(indexService)
+			client.On("IndexExists", mock.Anything, mock.Anything).Return(indexService)
 			indexService.On("Do", mock.Anything).Return(test.indexExist, test.indexError)
 
 			if test.indexExist && test.indexError == nil {
 				searchService := &mocks.SearchService{}
-				client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
+				client.On("Search", mock.Anything, mock.AnythingOfType("[]string")).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)
 				emptyResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: []*elastic.SearchHit{}}}
@@ -269,7 +269,7 @@ func TestGetThroughput(t *testing.T) {
 					test.indexPrefix += "-"
 				}
 				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", []string{index}).Return(searchService)
+				w.client.On("Search", mock.Anything, []string{index}).Return(searchService)
 				searchService.On("Size", mock.Anything).Return(searchService)
 				searchService.On("Query", mock.Anything).Return(searchService)
 				searchService.On("IgnoreUnavailable", true).Return(searchService)
@@ -377,13 +377,13 @@ func TestGetLatestProbabilities(t *testing.T) {
 
 			searchService := &mocks.SearchService{}
 			index := test.indexPrefix.Apply(test.index)
-			client.On("Search", []string{index}).Return(searchService)
+			client.On("Search", mock.Anything, []string{index}).Return(searchService)
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("IgnoreUnavailable", true).Return(searchService)
 			searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
 
 			indicesexistsservice := &mocks.IndicesExistsService{}
-			client.On("IndexExists", index).Return(indicesexistsservice)
+			client.On("IndexExists", mock.Anything, index).Return(indicesexistsservice)
 			indicesexistsservice.On("Do", mock.Anything).Return(test.indexPresent, test.indexError)
 
 			actual, err := store.GetLatestProbabilities()

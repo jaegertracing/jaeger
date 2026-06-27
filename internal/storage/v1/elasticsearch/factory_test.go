@@ -91,7 +91,7 @@ func TestFactoryBase_Purge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &mocks.Client{}
 			mockDelete := &mocks.IndicesDeleteService{}
-			mockClient.On("DeleteIndex", "*").Return(mockDelete)
+			mockClient.On("DeleteIndex", mock.Anything, "*").Return(mockDelete)
 
 			tt.setupMock(mockDelete)
 
@@ -292,8 +292,8 @@ func TestCreateTemplates(t *testing.T) {
 		f.templateBuilder = es.TextTemplateBuilder{}
 		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
 		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
-		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
-		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
+		mockClient.On("CreateTemplate", mock.Anything, jaegerSpanId).Return(test.spanTemplateService())
+		mockClient.On("CreateTemplate", mock.Anything, jaegerServiceId).Return(test.serviceTemplateService())
 		err = f.createTemplates(context.Background())
 		if test.err != "" {
 			require.ErrorContains(t, err, test.err)

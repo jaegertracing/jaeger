@@ -117,7 +117,7 @@ func (q *QueryBuilder) Execute(ctx context.Context, boolQuery elastic.BoolQuery,
 		time.UnixMilli(timeRange.endTimeMillis).UTC(),
 	)
 
-	return q.client.Search(idxList...).
+	return q.client.Search(ctx, idxList...).
 		IgnoreUnavailable(true).
 		Query(&boolQuery).
 		Size(0). // Set Size to 0 to return only aggregation results, excluding individual search hits
