@@ -3,30 +3,10 @@
 
 package indices
 
-import "time"
+import (
+	"time"
 
-const (
-	SpanTemplateName       = "jaeger-span"
-	ServiceTemplateName    = "jaeger-service"
-	DependencyTemplateName = "jaeger-dependencies"
-	SamplingTemplateName   = "jaeger-sampling"
-
-	SpanIndexBaseName       = SpanTemplateName + "-"
-	ServiceIndexBaseName    = ServiceTemplateName + "-"
-	DependencyIndexBaseName = DependencyTemplateName + "-"
-	SamplingIndexBaseName   = SamplingTemplateName + "-"
-)
-
-// WriteOpType represents the Elasticsearch bulk operation type.
-type WriteOpType string
-
-const (
-	// WriteOpIndex is the standard "index" operation (upsert semantics).
-	WriteOpIndex WriteOpType = "index"
-
-	// WriteOpCreate is the "create" operation (fail if document exists).
-	// Used by data streams.
-	WriteOpCreate WriteOpType = "create"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 // Rotation defines how indices are named for reading and writing.
@@ -39,5 +19,9 @@ type Rotation interface {
 	ReadTargets(startTime, endTime time.Time) []string
 
 	// WriteOpType returns the Elasticsearch bulk operation type for write operations.
-	WriteOpType() WriteOpType
+	WriteOpType() es.WriteOpType
+
+	// RequiresDocumentTimestamp reports whether documents written to this target
+	// must carry an @timestamp field (required by data streams).
+	RequiresDocumentTimestamp() bool
 }

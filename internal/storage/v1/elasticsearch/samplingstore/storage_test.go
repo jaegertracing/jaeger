@@ -45,7 +45,7 @@ func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxD
 			Logger:      logger,
 			MaxDocCount: maxDocCount,
 			Rotation: indices.NewPeriodicRotation(
-				indexPrefix.Apply("jaeger-sampling-"),
+				indexPrefix.Apply(config.SamplingIndexName),
 				indexDateLayout,
 				config.RolloverFrequencyDuration("day"),
 			),
@@ -91,7 +91,7 @@ func TestGetLatestIndex(t *testing.T) {
 				MaxDocCount: defaultMaxDocCount,
 				Lookback:    test.lookback,
 				Rotation: indices.NewPeriodicRotation(
-					"jaeger-sampling-",
+					config.SamplingIndexName,
 					"2006-01-02",
 					config.RolloverFrequencyDuration("day"),
 				),
@@ -369,7 +369,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 				MaxDocCount: defaultMaxDocCount,
 				Lookback:    72 * time.Hour,
 				Rotation: indices.NewPeriodicRotation(
-					test.indexPrefix.Apply("jaeger-sampling-"),
+					test.indexPrefix.Apply("jaeger-sampling"),
 					"2006-01-02",
 					config.RolloverFrequencyDuration("day"),
 				),
