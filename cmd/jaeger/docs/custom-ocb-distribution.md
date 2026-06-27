@@ -21,8 +21,8 @@ minimal file that calls back into Jaeger's exported CLI builder.
 ## Prerequisites
 
 - [OCB installed](https://github.com/open-telemetry/opentelemetry-collector/releases)
-  (`builder` binary on your `$PATH`)
-- Go 1.23+
+  (`ocb` binary on your `$PATH`)
+- Go 1.26+
 
 ## Step 1 — Create a `builder-config.yaml`
 
@@ -36,22 +36,30 @@ dist:
   output_path: ./dist
 
 exporters:
-  - gomod: github.com/jaegertracing/jaeger/cmd/jaeger v0.0.0
+  - gomod: github.com/jaegertracing/jaeger v2.3.0
+    import: github.com/jaegertracing/jaeger/components/ext/exporter/otlpexporter
+  - gomod: github.com/jaegertracing/jaeger v2.3.0
+    import: github.com/jaegertracing/jaeger/components/exporter/storageexporter
 
 extensions:
-  - gomod: github.com/jaegertracing/jaeger/cmd/jaeger v0.0.0
+  - gomod: github.com/jaegertracing/jaeger v2.3.0
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerquery
+  - gomod: github.com/jaegertracing/jaeger v2.3.0
+    import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
 
 receivers:
-  - gomod: github.com/jaegertracing/jaeger/cmd/jaeger v0.0.0
+  - gomod: github.com/jaegertracing/jaeger v2.3.0
+    import: github.com/jaegertracing/jaeger/components/ext/receiver/otlpreceiver
 
 processors:
-  - gomod: github.com/jaegertracing/jaeger/cmd/jaeger v0.0.0
+  - gomod: github.com/jaegertracing/jaeger v2.3.0
+    import: github.com/jaegertracing/jaeger/components/ext/processor/batchprocessor
 ```
 
 ## Step 2 — Run OCB in generator-only mode
 
 ```bash
-builder --config builder-config.yaml --skip-compilation
+ocb --config builder-config.yaml --skip-compilation
 ```
 
 OCB writes `dist/main.go` and `dist/components.go` but does **not** compile.
@@ -67,7 +75,6 @@ package main
 import (
 	"log"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/jaegercli"
 )
 
