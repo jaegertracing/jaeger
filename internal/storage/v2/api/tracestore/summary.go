@@ -56,3 +56,25 @@ type TraceSummary struct {
 type SummaryReader interface {
 	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 }
+
+// AsSummaryReader returns r as a SummaryReader if it implements the interface,
+// either directly or through a chain of Unwrap() methods (decorators such as
+// tracestoremetrics.ReadMetricsDecorator expose the wrapped reader via Unwrap
+// rather than forwarding SummaryReader). It returns nil when no SummaryReader is
+// found in the chain.
+func AsSummaryReader(r Reader) SummaryReader {
+	type unwrapper interface {
+		Unwrap() Reader
+	}
+	for r != nil {
+		if sr, ok := r.(SummaryReader); ok {
+			return sr
+		}
+		u, ok := r.(unwrapper)
+		if !ok {
+			return nil
+		}
+		r = u.Unwrap()
+	}
+	return nil
+}
