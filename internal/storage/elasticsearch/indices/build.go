@@ -4,6 +4,7 @@
 package indices
 
 import (
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -74,7 +75,7 @@ func indexToDataStreamName(indexName string) string {
 	case config.SamplingIndexName:
 		return "jaeger.sampling"
 	default:
-		return indexName
+		return strings.ReplaceAll(indexName, "-", ".")
 	}
 }
 
