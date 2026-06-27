@@ -6,9 +6,12 @@ package badger
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -59,4 +62,53 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	factory, err := NewFactory(cfg, telemetry.NoopSettings())
 	require.NoError(t, err)
 	factory.Close()
+}
+
+func TestGetServices(t *testing.T) {
+	cfg := *badger.DefaultConfig()
+	cfg.Ephemeral = true
+	cfg.MaintenanceInterval = 5
+	cfg.MetricsUpdateInterval = 10
+	telset := telemetry.NoopSettings()
+	telset.Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	factory, err := NewFactory(cfg, telset)
+	require.NoError(t, err)
+	defer factory.Close()
+
+	writer, err := factory.CreateTraceWriter()
+	require.NoError(t, err)
+
+	reader, err := factory.CreateTraceReader()
+	require.NoError(t, err)
+
+	// Write traces for multiple services to test service discovery
+	expectedServices := []string{"service-a", "service-b", "service-c"}
+	for i, service := range expectedServices {
+		traces := createTestTraces(service, "operation-1", byte(i+1))
+		err = writer.WriteTraces(context.Background(), traces)
+		require.NoError(t, err)
+	}
+
+	// Retrieve and verify all services are discovered
+	actualServices, err := reader.GetServices(context.Background())
+	require.NoError(t, err)
+	require.Len(t, actualServices, len(expectedServices))
+	assert.Equal(t, expectedServices, actualServices)
+}
+
+func createTestTraces(serviceName, operationName string, traceIDSuffix byte) ptrace.Traces {
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", serviceName)
+
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetName(operationName)
+	now := time.Now()
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(now))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(now.Add(time.Second)))
+	span.SetTraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, traceIDSuffix})
+	span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, traceIDSuffix})
+
+	return traces
 }
