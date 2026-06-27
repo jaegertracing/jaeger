@@ -96,8 +96,12 @@ func (h *getSpanDetailsHandler) handle(
 
 	// Create span ID set for efficient lookup (only for this page).
 	spanIDSet := make(map[string]struct{}, len(pageSpanIDs))
-	for _, spanID := range pageSpanIDs {
-		spanIDSet[spanID] = struct{}{}
+	for _, spanIDStr := range pageSpanIDs {
+		spanID, err := parseSpanID(spanIDStr)
+		if err != nil {
+			return nil, types.GetSpanDetailsOutput{}, fmt.Errorf("invalid span_id %q: %w", spanIDStr, err)
+		}
+		spanIDSet[spanID.String()] = struct{}{}
 	}
 
 	tracesIter := h.queryService.GetTraces(ctx, params)

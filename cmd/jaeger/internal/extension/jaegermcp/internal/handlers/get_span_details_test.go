@@ -764,12 +764,13 @@ func TestGetSpanDetailsHandler_Handle_UppercaseSpanID(t *testing.T) {
 
 	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
 
-	// Should return an empty terminal page without querying storage.
+	// Should return the span since the uppercase ID should be canonicalized and match.
 	require.NoError(t, err)
-	assert.Empty(t, output.Spans)
+	require.Len(t, output.Spans, 1)
+	assert.Equal(t, "/api/test", output.Spans[0].SpanName)
+	assert.Empty(t, output.Error)
 	assert.False(t, output.HasMore)
 	assert.Equal(t, 0, output.NextOffset)
-	assert.Equal(t, testTraceID, output.TraceID)
 }
 
 func TestGetSpanDetailsHandler_Pagination_OffsetOverflow(t *testing.T) {
