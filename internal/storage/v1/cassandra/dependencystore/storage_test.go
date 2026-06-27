@@ -37,7 +37,7 @@ func withDepStore(version Version, fn func(s *depStorageTest)) {
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
-	store, _ := NewDependencyStore(session, metricsFactory, logger, version)
+	store, _ := NewDependencyStore(session, metricsFactory, logger, version, 24*time.Hour)
 	s := &depStorageTest{
 		session:   session,
 		logger:    logger,
@@ -59,8 +59,8 @@ func TestVersionIsValid(t *testing.T) {
 }
 
 func TestInvalidVersion(t *testing.T) {
-	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
-	require.Error(t, err)
+    _, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd, 24*time.Hour)
+    require.Error(t, err)
 }
 
 func TestDependencyStoreWrite(t *testing.T) {
@@ -244,16 +244,17 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 }
 
 func TestGetBuckets(t *testing.T) {
-	var (
-		start    = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
-		end      = time.Date(2017, time.January, 26, 11, 15, 17, 12345, time.UTC)
-		expected = []time.Time{
-			time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
-			time.Date(2017, time.January, 25, 0, 0, 0, 0, time.UTC),
-			time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
-		}
-	)
-	assert.Equal(t, expected, getBuckets(start, end))
+    var (
+        start    = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+        end      = time.Date(2017, time.January, 26, 11, 15, 17, 12345, time.UTC)
+        expected = []time.Time{
+            time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
+            time.Date(2017, time.January, 25, 0, 0, 0, 0, time.UTC),
+            time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
+        }
+    )
+    store := &DependencyStore{tsBucket: 24 * time.Hour}
+    assert.Equal(t, expected, store.getBuckets(start, end))
 }
 
 func matchEverything() any {
