@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -250,7 +251,7 @@ func TestVersion(t *testing.T) {
 					BasicAuth: "foobar",
 				},
 			}
-			result, err := c.Version()
+			result, err := c.Version(context.Background())
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 				return
