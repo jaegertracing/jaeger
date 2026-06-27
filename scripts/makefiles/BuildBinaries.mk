@@ -74,6 +74,11 @@ build-es-index-cleaner:
 build-es-rollover:
 	$(call GOBUILD,es-rollover) -o ./cmd/es-rollover/es-rollover-$(GOOS)-$(GOARCH) ./cmd/es-rollover/
 
+.PHONY: build-integration-tester
+build-integration-tester:
+	@printf "building test binary '$(STYLE_BOLD_ORANGE)integration-tester$(STYLE_RESET)' for $$(go env GOOS)-$$(go env GOARCH)\n"
+	CGO_ENABLED=0 installsuffix=cgo $(GO) test -c -trimpath -o ./cmd/integration-tester/integration-tester-$(GOOS)-$(GOARCH) ./internal/storage/integration/
+
 # Requires variables: $(BIN_NAME) $(BIN_PATH) $(GO_TAGS) $(DISABLE_OPTIMIZATIONS) $(SUFFIX) $(GOOS) $(GOARCH) $(BUILD_INFO)
 # Other targets can depend on this one but with a unique suffix to ensure it is always executed.
 BIN_PATH = ./cmd/$(BIN_NAME)
@@ -153,7 +158,8 @@ _build-platform-binaries: \
 		build-anonymizer \
 		build-esmapping-generator \
 		build-es-index-cleaner \
-		build-es-rollover
+		build-es-rollover \
+		build-integration-tester
 # invoke make recursively such that DEBUG_BINARY=1 can take effect
 # skip debug builds if SKIP_DEBUG_BINARIES is set to 1 (e.g., during PRs to save CI time)
 ifneq ($(SKIP_DEBUG_BINARIES),1)
