@@ -1226,7 +1226,7 @@ func (_c *IndexService_OpType_Call) Return(indexService elasticsearch.IndexServi
 	return _c
 }
 
-func (_c *IndexService_OpType_Call) RunAndReturn(run func(elasticsearch.WriteOpType) elasticsearch.IndexService) *IndexService_OpType_Call {
+func (_c *IndexService_OpType_Call) RunAndReturn(run func(opType elasticsearch.WriteOpType) elasticsearch.IndexService) *IndexService_OpType_Call {
 	_c.Call.Return(run)
 	return _c
 }
