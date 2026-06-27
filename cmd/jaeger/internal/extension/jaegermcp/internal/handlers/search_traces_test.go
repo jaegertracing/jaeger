@@ -602,8 +602,7 @@ func TestSearchTracesHandler_Handle_NegativeDurationMin(t *testing.T) {
 	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duration_min cannot be negative")
-}
+	assert.Contains(t, err.Error(), "invalid duration_min: duration cannot be negative")
 
 func TestSearchTracesHandler_Handle_NegativeDurationMax(t *testing.T) {
 	handler := NewSearchTracesHandler(nil, 100)
