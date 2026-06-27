@@ -20,6 +20,7 @@ func TestBuildRotation(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		indexPrefix    config.IndexPrefix
 		rc             config.RotationConfig
 		remoteClusters []string
 		wantWrite      string
@@ -90,6 +91,16 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
+			name: "periodic rotation with default date layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "day",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03-15",
+			wantRead:  []string{"jaeger-span-2024-03-15"},
+		},
+		{
 			name: "hourly rollover frequency",
 			rc: config.RotationConfig{
 				Periodic: configoptional.Some(config.PeriodicRotation{
@@ -100,13 +111,48 @@ func TestBuildRotation(t *testing.T) {
 			wantWrite: "jaeger-span-2024-03-15",
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
+		{
+			name: "data stream derives its name from the index prefix",
+			rc: config.RotationConfig{
+				DataStream: configoptional.Some(config.DataStreamRotation{}),
+			},
+			wantWrite: "jaeger.spans",
+			wantRead:  []string{"jaeger.spans"},
+		},
+		{
+			name:        "data stream with index prefix and migration read alias",
+			indexPrefix: "prod",
+			rc: config.RotationConfig{
+				DataStream: configoptional.Some(config.DataStreamRotation{ReadAlias: "jaeger-legacy-read-alias"}),
+			},
+			wantWrite: "prod.jaeger.spans",
+			wantRead:  []string{"jaeger-legacy-read-alias"},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := BuildRotation(config.SpanIndexName, tt.rc, tt.remoteClusters, logger)
+			r := BuildRotation(tt.indexPrefix, config.SpanIndexName, tt.rc, tt.remoteClusters, logger)
 			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
+		})
+	}
+}
+
+func TestIndexToDataStreamName(t *testing.T) {
+	tests := []struct {
+		indexName string
+		want      string
+	}{
+		{config.SpanIndexName, "jaeger.spans"},
+		{config.ServiceIndexName, "jaeger.services"},
+		{config.DependencyIndexName, "jaeger.dependencies"},
+		{config.SamplingIndexName, "jaeger.sampling"},
+		{"custom-index-name", "custom.index.name"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.indexName, func(t *testing.T) {
+			assert.Equal(t, tt.want, indexToDataStreamName(tt.indexName))
 		})
 	}
 }

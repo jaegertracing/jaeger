@@ -5,6 +5,7 @@
 package core
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,6 +93,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
+	if s.spanRotation.RequiresDocumentTimestamp() {
+		span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
+	}
 	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
 	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)
 	if serviceIndexName != "" {
@@ -128,7 +132,9 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	s.client().Index().Index(indexName).Type(spanType).
+		OpType(s.spanRotation.WriteOpType()).
+		BodyJson(&jsonSpan).Add()
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {

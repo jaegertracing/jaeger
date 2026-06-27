@@ -481,6 +481,24 @@ func TestApplyForIndexPrefix(t *testing.T) {
 	}
 }
 
+func TestIndexPrefixDataStreamName(t *testing.T) {
+	tests := []struct {
+		prefix   IndexPrefix
+		expected string
+	}{
+		{"", "jaeger.spans"},
+		{"prod", "prod.jaeger.spans"},
+		{"prod-", "prod.jaeger.spans"},
+		{"prod.", "prod.jaeger.spans"},
+		{"my-team", "my-team.jaeger.spans"},
+	}
+	for _, test := range tests {
+		t.Run(string(test.prefix), func(t *testing.T) {
+			require.Equal(t, test.expected, test.prefix.DataStreamName("jaeger.spans"))
+		})
+	}
+}
+
 func TestCustomHeaders(t *testing.T) {
 	tests := []struct {
 		name     string

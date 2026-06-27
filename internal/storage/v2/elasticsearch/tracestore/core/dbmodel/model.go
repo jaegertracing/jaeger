@@ -60,6 +60,10 @@ type Span struct {
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`
 	Process Process        `json:"process"`
+	// Timestamp is epoch nanoseconds as a decimal string, written only for data
+	// streams (mapped as date_nanos). Using a string avoids JSON float64 truncation
+	// of large int64 nanosecond values; legacy strategies leave it empty.
+	Timestamp string `json:"@timestamp,omitempty"`
 }
 
 // Reference is a reference from one span to another
