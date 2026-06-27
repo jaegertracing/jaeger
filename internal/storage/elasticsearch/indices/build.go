@@ -21,7 +21,7 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 	switch {
 	case rc.DataStream.HasValue():
 		ds := rc.DataStream.Get()
-		r = NewDataStreamRotation(indexPrefix.DataStreamName(SpanDataStreamBaseName), ds.ReadAlias)
+		r = NewDataStreamRotation(indexPrefix.DataStreamName(indexToDataStreamName(baseName)), ds.ReadAlias)
 	case rc.ManualRollover.HasValue():
 		mr := rc.ManualRollover.Get()
 		writeAlias := mr.WriteAlias
@@ -58,6 +58,23 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 		r = NewRemoteClusterRotation(r, remoteClusters)
 	}
 	return NewLoggingRotation(r, logger)
+}
+
+// indexToDataStreamName maps a legacy dash-notation index base name to its
+// dot-notation data stream equivalent with a proper plural form.
+func indexToDataStreamName(indexName string) string {
+	switch indexName {
+	case config.SpanIndexName:
+		return "jaeger.spans"
+	case config.ServiceIndexName:
+		return "jaeger.services"
+	case config.DependencyIndexName:
+		return "jaeger.dependencies"
+	case config.SamplingIndexName:
+		return "jaeger.sampling"
+	default:
+		return indexName
+	}
 }
 
 func rolloverFrequencyDuration(frequency string) time.Duration {

@@ -3,24 +3,10 @@
 
 package indices
 
-import "time"
+import (
+	"time"
 
-// SpanDataStreamBaseName is the dot-notation name of the spans data stream.
-// Dot-notation (vs. "jaeger-span-") aligns with ES/OpenSearch conventions and
-// enables the "@custom" component-template override pattern. See RFC 0004 §3.1.
-const SpanDataStreamBaseName = "jaeger.spans"
-
-
-// WriteOpType represents the Elasticsearch bulk operation type.
-type WriteOpType string
-
-const (
-	// WriteOpIndex is the standard "index" operation (upsert semantics).
-	WriteOpIndex WriteOpType = "index"
-
-	// WriteOpCreate is the "create" operation (fail if document exists).
-	// Used by data streams.
-	WriteOpCreate WriteOpType = "create"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 // Rotation defines how indices are named for reading and writing.
@@ -33,5 +19,9 @@ type Rotation interface {
 	ReadTargets(startTime, endTime time.Time) []string
 
 	// WriteOpType returns the Elasticsearch bulk operation type for write operations.
-	WriteOpType() WriteOpType
+	WriteOpType() es.WriteOpType
+
+	// RequiresDocumentTimestamp reports whether documents written to this target
+	// must carry an @timestamp field (required by data streams).
+	RequiresDocumentTimestamp() bool
 }

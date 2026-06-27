@@ -3,7 +3,11 @@
 
 package indices
 
-import "time"
+import (
+	"time"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+)
 
 // PeriodicRotation writes to time-based indices (e.g., "jaeger-span-2024-06-18" daily
 // or "jaeger-span-2024-06-18-15" hourly) and reads by computing which indices fall
@@ -34,4 +38,5 @@ func (s *PeriodicRotation) ReadTargets(startTime, endTime time.Time) []string {
 	return timeRangeIndices(s.indexPrefix, s.dateLayout, startTime, endTime, s.rolloverFrequency)
 }
 
-func (*PeriodicRotation) WriteOpType() WriteOpType { return WriteOpIndex }
+func (*PeriodicRotation) WriteOpType() es.WriteOpType            { return es.WriteOpIndex }
+func (*PeriodicRotation) RequiresDocumentTimestamp() bool         { return false }

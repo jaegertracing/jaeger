@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
@@ -70,5 +71,5 @@ func TestPeriodicRotation_ReadTargets(t *testing.T) {
 
 func TestPeriodicRotation_WriteOpType(t *testing.T) {
 	r := NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour)
-	assert.Equal(t, WriteOpIndex, r.WriteOpType())
+	assert.Equal(t, es.WriteOpIndex, r.WriteOpType())
 }

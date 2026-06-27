@@ -46,15 +46,27 @@ type TemplateCreateService interface {
 	Do(ctx context.Context) (*elastic.IndicesPutTemplateResponse, error)
 }
 
+// WriteOpType is the Elasticsearch/OpenSearch bulk operation type.
+type WriteOpType string
+
+const (
+	// WriteOpIndex is the standard "index" operation (upsert semantics).
+	WriteOpIndex WriteOpType = "index"
+
+	// WriteOpCreate is the "create" operation (fail if document exists).
+	// Required by data streams, which are append-only.
+	WriteOpCreate WriteOpType = "create"
+)
+
 // IndexService is an abstraction for elastic BulkService
 type IndexService interface {
 	Index(index string) IndexService
 	Type(typ string) IndexService
 	Id(id string) IndexService
 	BodyJson(body any) IndexService
-	// OpType sets the bulk operation type ("index" or "create"). Data streams
-	// require "create" (append-only); legacy indices use the default "index".
-	OpType(opType string) IndexService
+	// OpType sets the bulk operation type. Data streams require WriteOpCreate;
+	// legacy indices use the default WriteOpIndex.
+	OpType(opType WriteOpType) IndexService
 	Add()
 }
 

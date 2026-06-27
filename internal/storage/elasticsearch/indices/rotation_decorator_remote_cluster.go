@@ -3,7 +3,11 @@
 
 package indices
 
-import "time"
+import (
+	"time"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+)
 
 // RemoteClusterRotation wraps a Rotation to add cross-cluster read targets.
 type RemoteClusterRotation struct {
@@ -39,4 +43,5 @@ func (r *RemoteClusterRotation) ReadTargets(startTime, endTime time.Time) []stri
 	return result
 }
 
-func (r *RemoteClusterRotation) WriteOpType() WriteOpType { return r.inner.WriteOpType() }
+func (r *RemoteClusterRotation) WriteOpType() es.WriteOpType            { return r.inner.WriteOpType() }
+func (r *RemoteClusterRotation) RequiresDocumentTimestamp() bool         { return r.inner.RequiresDocumentTimestamp() }

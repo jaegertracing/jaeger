@@ -1179,7 +1179,7 @@ func (_c *IndexService_Index_Call) RunAndReturn(run func(index string) elasticse
 }
 
 // OpType provides a mock function for the type IndexService
-func (_mock *IndexService) OpType(opType string) elasticsearch.IndexService {
+func (_mock *IndexService) OpType(opType elasticsearch.WriteOpType) elasticsearch.IndexService {
 	ret := _mock.Called(opType)
 
 	if len(ret) == 0 {
@@ -1187,7 +1187,7 @@ func (_mock *IndexService) OpType(opType string) elasticsearch.IndexService {
 	}
 
 	var r0 elasticsearch.IndexService
-	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.IndexService); ok {
+	if returnFunc, ok := ret.Get(0).(func(elasticsearch.WriteOpType) elasticsearch.IndexService); ok {
 		r0 = returnFunc(opType)
 	} else {
 		if ret.Get(0) != nil {
@@ -1203,16 +1203,16 @@ type IndexService_OpType_Call struct {
 }
 
 // OpType is a helper method to define mock.On call
-//   - opType string
+//   - opType elasticsearch.WriteOpType
 func (_e *IndexService_Expecter) OpType(opType interface{}) *IndexService_OpType_Call {
 	return &IndexService_OpType_Call{Call: _e.mock.On("OpType", opType)}
 }
 
-func (_c *IndexService_OpType_Call) Run(run func(opType string)) *IndexService_OpType_Call {
+func (_c *IndexService_OpType_Call) Run(run func(opType elasticsearch.WriteOpType)) *IndexService_OpType_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 elasticsearch.WriteOpType
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(elasticsearch.WriteOpType)
 		}
 		run(
 			arg0,
@@ -1226,7 +1226,7 @@ func (_c *IndexService_OpType_Call) Return(indexService elasticsearch.IndexServi
 	return _c
 }
 
-func (_c *IndexService_OpType_Call) RunAndReturn(run func(opType string) elasticsearch.IndexService) *IndexService_OpType_Call {
+func (_c *IndexService_OpType_Call) RunAndReturn(run func(elasticsearch.WriteOpType) elasticsearch.IndexService) *IndexService_OpType_Call {
 	_c.Call.Return(run)
 	return _c
 }

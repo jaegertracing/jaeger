@@ -3,7 +3,11 @@
 
 package indices
 
-import "time"
+import (
+	"time"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+)
 
 // AliasedRotation writes to a write alias and reads from a read alias.
 // Used when rollover (manual or ILM/ISM) manages index rotation externally.
@@ -29,4 +33,5 @@ func (s *AliasedRotation) ReadTargets(time.Time, time.Time) []string {
 	return []string{s.readAlias}
 }
 
-func (*AliasedRotation) WriteOpType() WriteOpType { return WriteOpIndex }
+func (*AliasedRotation) WriteOpType() es.WriteOpType            { return es.WriteOpIndex }
+func (*AliasedRotation) RequiresDocumentTimestamp() bool         { return false }

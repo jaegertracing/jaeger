@@ -113,10 +113,10 @@ func TestBuildRotation(t *testing.T) {
 			name:        "data stream with index prefix and migration read alias",
 			indexPrefix: "prod",
 			rc: config.RotationConfig{
-				DataStream: configoptional.Some(config.DataStreamRotation{ReadAlias: "jaeger.spans-read"}),
+				DataStream: configoptional.Some(config.DataStreamRotation{ReadAlias: "jaeger-legacy-read-alias"}),
 			},
 			wantWrite: "prod.jaeger.spans",
-			wantRead:  []string{"jaeger.spans-read"},
+			wantRead:  []string{"jaeger-legacy-read-alias"},
 		},
 	}
 
