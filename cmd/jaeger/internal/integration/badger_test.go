@@ -4,14 +4,14 @@
 package integration
 
 import (
-	"os"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
+
+// mainJaegerBinary is the @main jaeger binary used during the backward-compatibility write phase.
+const mainJaegerBinary = "/tmp/jaeger-at-main/jaeger"
 
 func TestBadgerStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageBadger)
@@ -32,35 +32,28 @@ func TestBadgerStorage(t *testing.T) {
 // binary remain readable by the current branch binary, simulating a rolling upgrade
 // against a shared Badger store.
 func TestBadgerBackwardCompatibility(t *testing.T) {
-	if os.Getenv("BACKWARD_COMPATIBILITY") != "true" {
-		t.Skip("set BACKWARD_COMPATIBILITY=true to run backward compatibility tests")
-	}
 	integration.SkipUnlessEnv(t, integration.StorageBadger)
+	integration.SkipUnlessBackwardCompatibility(t)
 
-	// The write phase must run a different binary than the read phase, otherwise the
-	// test passes without exercising cross-version compatibility at all.
-	writerBinary := os.Getenv("JAEGER_BACKWARD_COMPAT_BINARY")
-	require.NotEmpty(t, writerBinary, "set JAEGER_BACKWARD_COMPAT_BINARY to the previous-version jaeger binary")
-
-	// GetServices is skipped: testFindTraces accumulates query-fixture service names
-	// in the write phase, breaking its strict equality check in the read phase.
-	caps := capabilities.Badger().WithSkip("GetServices")
-
+	// Write phase runs the @main binary; read phase runs the current-branch build.
 	s := &E2EStorageIntegration{
 		BinaryName:          "jaeger-writer",
-		BinaryPath:          writerBinary,
+		BinaryPath:          mainJaegerBinary,
 		ConfigFile:          "../../config-badger.yaml",
 		PropagateEnvVars:    []string{"BADGER_METRICS_UPDATE_INTERVAL"},
 		SkipMetricsScraping: true,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:           func(*testing.T) {},
-			Capabilities:      caps,
+			Capabilities:      capabilities.Badger(),
 			SkipReadingTraces: true,
 		},
 	}
 	s.e2eInitialize(t, "badger")
 	purge(t)
 	s.RunSpanStoreTests(t)
+	// The writer must fully exit before the read phase starts: Badger holds an
+	// exclusive lock on the store directory, so the reader can only open it once
+	// the writer has released the lock. Stop waits for the process to exit.
 	s.binary.Stop(t)
 
 	e := *s
