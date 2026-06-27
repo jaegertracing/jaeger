@@ -30,8 +30,6 @@ const (
 	rootSpanSubAggregation      = "root_span"
 	rootHitSubAggregation       = "root_hit"
 
-	parentSpanIDField = "parentSpanID"
-
 	// The canonical "error" boolean tag the v2 ES writer emits for spans with
 	// OTEL StatusCode = ERROR (see to_dbmodel.go).
 	errorTagKey   = "error"
