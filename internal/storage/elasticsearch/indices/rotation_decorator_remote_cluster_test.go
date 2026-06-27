@@ -35,6 +35,10 @@ func TestRemoteClusterRotation(t *testing.T) {
 	t.Run("WriteOpType delegates to inner", func(t *testing.T) {
 		assert.Equal(t, es.WriteOpIndex, r.WriteOpType())
 	})
+
+	t.Run("RequiresDocumentTimestamp delegates to inner", func(t *testing.T) {
+		assert.False(t, r.RequiresDocumentTimestamp())
+	})
 }
 
 func TestRemoteClusterRotation_WithAlias(t *testing.T) {

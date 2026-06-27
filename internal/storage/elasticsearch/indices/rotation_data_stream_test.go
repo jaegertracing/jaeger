@@ -40,3 +40,9 @@ func TestDataStreamRotation_WriteOpType(t *testing.T) {
 	// Data streams are append-only and require the "create" bulk op type.
 	assert.Equal(t, es.WriteOpCreate, r.WriteOpType())
 }
+
+func TestDataStreamRotation_RequiresDocumentTimestamp(t *testing.T) {
+	r := NewDataStreamRotation("jaeger.spans", "")
+	// Data streams have no date-suffixed index, so documents must carry a timestamp.
+	assert.True(t, r.RequiresDocumentTimestamp())
+}
