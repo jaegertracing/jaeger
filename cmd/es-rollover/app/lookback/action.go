@@ -4,6 +4,7 @@
 package lookback
 
 import (
+	"context"
 	"time"
 
 	"go.uber.org/zap"
@@ -24,17 +25,18 @@ type Action struct {
 
 // Do the lookback action
 func (a *Action) Do() error {
+	ctx := context.TODO()
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
-		if err := a.lookback(indexName); err != nil {
+		if err := a.lookback(ctx, indexName); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *Action) lookback(indexSet app.IndexOption) error {
-	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
+func (a *Action) lookback(ctx context.Context, indexSet app.IndexOption) error {
+	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(ctx, a.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}
@@ -60,5 +62,5 @@ func (a *Action) lookback(indexSet app.IndexOption) error {
 		a.Logger.Info("To be removed", zap.String("index", index.Index), zap.String("creationTime", index.CreationTime.String()))
 	}
 
-	return a.IndicesClient.DeleteAlias(aliases)
+	return a.IndicesClient.DeleteAlias(ctx, aliases)
 }

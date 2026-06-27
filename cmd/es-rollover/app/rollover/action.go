@@ -4,6 +4,7 @@
 package rollover
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
@@ -19,16 +20,17 @@ type Action struct {
 
 // Do the rollover action
 func (a *Action) Do() error {
+	ctx := context.TODO()
 	rolloverIndices := app.RolloverIndices(a.Config.Archive, a.Config.SkipDependencies, a.Config.AdaptiveSampling, a.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
-		if err := a.rollover(indexName); err != nil {
+		if err := a.rollover(ctx, indexName); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *Action) rollover(indexSet app.IndexOption) error {
+func (a *Action) rollover(ctx context.Context, indexSet app.IndexOption) error {
 	conditionsMap := map[string]any{}
 	if a.Conditions != "" {
 		err := json.Unmarshal([]byte(a.Config.Conditions), &conditionsMap)
@@ -39,11 +41,11 @@ func (a *Action) rollover(indexSet app.IndexOption) error {
 
 	writeAlias := indexSet.WriteAliasName()
 	readAlias := indexSet.ReadAliasName()
-	err := a.IndicesClient.Rollover(writeAlias, conditionsMap)
+	err := a.IndicesClient.Rollover(ctx, writeAlias, conditionsMap)
 	if err != nil {
 		return err
 	}
-	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(a.Config.IndexPrefix)
+	jaegerIndex, err := a.IndicesClient.GetJaegerIndices(ctx, a.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}
@@ -59,5 +61,5 @@ func (a *Action) rollover(indexSet app.IndexOption) error {
 	if len(aliases) == 0 {
 		return nil
 	}
-	return a.IndicesClient.CreateAlias(aliases)
+	return a.IndicesClient.CreateAlias(ctx, aliases)
 }

@@ -4,6 +4,7 @@
 package init
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -84,10 +85,10 @@ func TestIndexCreateIfNotExist(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			indexClient := &mocks.IndexAPI{}
-			indexClient.On("IndexExists", "jaeger-span").Return(test.indexExists, test.indexExistsErr)
-			indexClient.On("AliasExists", "jaeger-span").Return(test.aliasExists, test.aliasExistsErr)
-			indexClient.On("CreateIndex", "jaeger-span").Return(test.createIndexErr)
-			err := createIndexIfNotExist(indexClient, "jaeger-span")
+			indexClient.On("IndexExists", mock.Anything, "jaeger-span").Return(test.indexExists, test.indexExistsErr)
+			indexClient.On("AliasExists", mock.Anything, "jaeger-span").Return(test.aliasExists, test.aliasExistsErr)
+			indexClient.On("CreateIndex", mock.Anything, "jaeger-span").Return(test.createIndexErr)
+			err := createIndexIfNotExist(context.Background(), indexClient, "jaeger-span")
 			if test.expectedError != "" {
 				assert.EqualError(t, err, test.expectedError)
 			}
@@ -105,7 +106,7 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "Unsupported version",
 			setupCallExpectations: func(_ *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV6, nil)
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV6, nil)
 			},
 			config: Config{
 				Config: app.Config{
@@ -118,7 +119,7 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "error getting version",
 			setupCallExpectations: func(_ *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.BackendVersion(0), errors.New("version error"))
+				clusterClient.On("Version", mock.Anything).Return(es.BackendVersion(0), errors.New("version error"))
 			},
 			expectedErr: errors.New("version error"),
 			config: Config{
@@ -131,8 +132,8 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "ilm doesnt exist",
 			setupCallExpectations: func(_ *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				ilmClient.On("Exists", "myilmpolicy").Return(false, nil)
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				ilmClient.On("Exists", mock.Anything, "myilmpolicy").Return(false, nil)
 			},
 			expectedErr: errors.New("ILM policy myilmpolicy doesn't exist in Elasticsearch. Please create it and re-run init"),
 			config: Config{
@@ -146,8 +147,8 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "fail get ilm policy",
 			setupCallExpectations: func(_ *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				ilmClient.On("Exists", "myilmpolicy").Return(false, errors.New("error getting ilm policy"))
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				ilmClient.On("Exists", mock.Anything, "myilmpolicy").Return(false, errors.New("error getting ilm policy"))
 			},
 			expectedErr: errors.New("error getting ilm policy"),
 			config: Config{
@@ -161,8 +162,8 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "fail to create template",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(errors.New("error creating template"))
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				indexClient.On("CreateTemplate", mock.Anything, mock.Anything, "jaeger-span").Return(errors.New("error creating template"))
 			},
 			expectedErr: errors.New("error creating template"),
 			config: Config{
@@ -175,12 +176,12 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "fail to get jaeger indices",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("AliasExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
-				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
-				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, errors.New("error getting jaeger indices"))
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, errors.New("error getting jaeger indices"))
 			},
 			expectedErr: errors.New("error getting jaeger indices"),
 			config: Config{
@@ -193,13 +194,13 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "fail to create alias",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("AliasExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
-				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
-				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
-				indexClient.On("CreateAlias", []client.Alias{
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+				indexClient.On("CreateAlias", mock.Anything, []client.Alias{
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: false},
 				}).Return(errors.New("error creating aliases"))
@@ -215,13 +216,13 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "create rollover index",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("AliasExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
-				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
-				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
-				indexClient.On("CreateAlias", []client.Alias{
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+				indexClient.On("CreateAlias", mock.Anything, []client.Alias{
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: false},
 				}).Return(nil)
@@ -237,14 +238,14 @@ func TestRolloverAction(t *testing.T) {
 		{
 			name: "create rollover index with ilm",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
-				clusterClient.On("Version").Return(es.ElasticV7, nil)
-				indexClient.On("IndexExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("AliasExists", "jaeger-span-archive-000001").Return(false, nil)
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span").Return(nil)
-				indexClient.On("CreateIndex", "jaeger-span-archive-000001").Return(nil)
-				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
-				ilmClient.On("Exists", "jaeger-ilm").Return(true, nil)
-				indexClient.On("CreateAlias", []client.Alias{
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+				ilmClient.On("Exists", mock.Anything, "jaeger-ilm").Return(true, nil)
+				indexClient.On("CreateAlias", mock.Anything, []client.Alias{
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
 					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: true},
 				}).Return(nil)
@@ -302,7 +303,7 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	defer testServer.Close()
 
 	clusterClient := &mocks.ClusterAPI{}
-	clusterClient.On("Version").Return(es.OpenSearch2, nil)
+	clusterClient.On("Version", mock.Anything).Return(es.OpenSearch2, nil)
 
 	ilmClient := &client.ILMClient{
 		Client: client.Client{
@@ -316,10 +317,10 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	applyTestDefaults(&cfg)
 
 	indexClient := &mocks.IndexAPI{}
-	indexClient.On("CreateTemplate", mock.Anything, mock.Anything).Return(nil)
-	indexClient.On("IndexExists", mock.Anything).Return(true, nil)
-	indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
-	indexClient.On("CreateAlias", mock.Anything).Return(nil)
+	indexClient.On("CreateTemplate", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	indexClient.On("IndexExists", mock.Anything, mock.Anything).Return(true, nil)
+	indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+	indexClient.On("CreateAlias", mock.Anything, mock.Anything).Return(nil)
 
 	action := Action{
 		Config:        cfg,

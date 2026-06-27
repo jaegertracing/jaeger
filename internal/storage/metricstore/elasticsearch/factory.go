@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -33,7 +34,7 @@ func NewFactory(
 		return nil, err
 	}
 
-	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics, httpAuth)
+	client, err := clientbuilder.NewClient(ctx, &cfg, telset.Logger, telset.Metrics, httpAuth)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +48,13 @@ func NewFactory(
 
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	spanRotation := indices.BuildRotation(spanPrefix, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.telset.Logger)
+	spanRotation := indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.SpanIndexName,
+		f.config.ResolvedSpanRotation(),
+		f.config.RemoteReadClusters,
+		f.telset.Logger,
+	)
 	mr := NewMetricsReader(f.client, f.config, f.telset.Logger, f.telset.TracerProvider, spanRotation)
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }

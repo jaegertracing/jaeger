@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v6"
 	"go.uber.org/zap"
 )
 
@@ -32,13 +32,13 @@ type ILMClient struct {
 }
 
 // Exists verify if a ILM/ISM policy exists
-func (i ILMClient) Exists(name string) (bool, error) {
+func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
 	endpoint := "_ilm/policy/" + name
 	if i.UseOpenSearchISM {
 		endpoint = "_plugins/_ism/policies/" + name
 	}
 	operation := func() ([]byte, error) {
-		bytes, err := i.request(elasticRequest{
+		bytes, err := i.request(ctx, elasticRequest{
 			endpoint: endpoint,
 			method:   http.MethodGet,
 		})
@@ -54,7 +54,7 @@ func (i ILMClient) Exists(name string) (bool, error) {
 	}
 
 	_, err := backoff.Retry(
-		context.TODO(),
+		ctx,
 		operation,
 		backoff.WithMaxTries(maxTries),
 		backoff.WithMaxElapsedTime(maxElapsedTime),

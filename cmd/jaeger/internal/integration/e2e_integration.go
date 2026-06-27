@@ -143,7 +143,7 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricsUrl, http.NoBody)
 	require.NoError(t, err)
 
-	client := &http.Client{}
+	client := testingHttpClient(t)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -240,7 +240,7 @@ func purge(t *testing.T) {
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, http.NoBody)
 	require.NoError(t, err)
 
-	client := &http.Client{}
+	client := testingHttpClient(t)
 
 	resp, err := client.Do(r)
 	require.NoError(t, err)
@@ -249,4 +249,12 @@ func purge(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(body))
+}
+
+func testingHttpClient(t *testing.T) *http.Client {
+	cl := http.DefaultClient
+	t.Cleanup(func() {
+		cl.CloseIdleConnections()
+	})
+	return cl
 }
