@@ -59,6 +59,21 @@ func (*server) Dependencies() []component.ID {
 	return []component.ID{jaegerquery.ID}
 }
 
+// Endpoint returns the URL the MCP server is configured to listen on.
+// Exposed so other extensions in the same OTel collector process can
+// discover it at runtime without hardcoding the port. Consumers (the
+// AI gateway under jaegerquery/internal in particular) define a local
+// interface containing this method and type-assert against any
+// extension whose component type is "jaeger_mcp" — that lets the
+// consumer avoid an import of this package, which would otherwise
+// form a cycle (jaegermcp imports jaegerquery for QueryService).
+//
+// Returns the same value the Start log line prints, so what operators
+// see in logs matches what the gateway discovers.
+func (s *server) Endpoint() string {
+	return "http://" + s.config.HTTP.NetAddr.Endpoint + "/mcp"
+}
+
 // Start initializes and starts the MCP server.
 func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.telset.Logger.Info("Starting Jaeger MCP server", zap.String("endpoint", s.config.HTTP.NetAddr.Endpoint))
