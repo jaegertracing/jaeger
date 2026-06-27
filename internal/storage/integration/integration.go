@@ -163,6 +163,22 @@ func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(names, "|"))
 }
 
+func backwardCompatibilityEnabled() bool {
+	return os.Getenv("BACKWARD_COMPATIBILITY") == "true"
+}
+
+func SkipUnlessBackwardCompatibility(t *testing.T) {
+	if !backwardCompatibilityEnabled() {
+		t.Skip("This test requires environment variable BACKWARD_COMPATIBILITY=true")
+	}
+}
+
+func skipIfBackwardCompatibility(t *testing.T) {
+	if backwardCompatibilityEnabled() {
+		t.Skip("Skipped in backward-compatibility mode")
+	}
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.Capabilities.SkipList() {
 		escapedPat := regexp.QuoteMeta(pat)
@@ -189,13 +205,12 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
 	s.skipIfNeeded(t)
+	// Exact service list can't hold once the store is shared across sub-tests without cleanup.
+	skipIfBackwardCompatibility(t)
 	defer s.cleanUp(t)
 
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
 	s.loadParseAndWriteExampleTrace(t)
-	if s.SkipReadingTraces {
-		return
-	}
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -377,6 +392,8 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
+		// The fake trace id collides with a query fixture once the store is shared without cleanup.
+		skipIfBackwardCompatibility(t)
 		fakeTraceID := pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
