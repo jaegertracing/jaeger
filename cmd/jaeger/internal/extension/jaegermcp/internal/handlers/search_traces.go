@@ -145,7 +145,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_min: %w", err)
 		}
 		if durationMin < 0 {
-			return querysvc.TraceQueryParams{}, errors.New("duration_min cannot be negative")
+			return querysvc.TraceQueryParams{}, errors.New("invalid duration_min: duration cannot be negative")
 		}
 	}
 	if input.DurationMax != "" {
@@ -154,7 +154,7 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 			return querysvc.TraceQueryParams{}, fmt.Errorf("invalid duration_max: %w", err)
 		}
 		if durationMax < 0 {
-			return querysvc.TraceQueryParams{}, errors.New("duration_max cannot be negative")
+			return querysvc.TraceQueryParams{}, errors.New("invalid duration_max: duration cannot be negative")
 		}
 	}
 
