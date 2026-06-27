@@ -128,9 +128,13 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
 	return dbmodel.Span{
-		TraceID:         traceID,
-		SpanID:          dbmodel.SpanID(span.SpanID().String()),
-		OperationName:   span.Name(),
+		TraceID:       traceID,
+		SpanID:        dbmodel.SpanID(span.SpanID().String()),
+		ParentSpanID:  parentSpanID,
+		OperationName: span.Name(),
+		// TODO after v2.20: stop encoding parentSpanID as a CHILD_OF reference;
+		// only write actual span links here. Kept for now so older readers that
+		// derive the parent from references still work against the same index.
 		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
