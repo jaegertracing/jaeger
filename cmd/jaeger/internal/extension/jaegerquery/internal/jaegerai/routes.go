@@ -78,7 +78,7 @@ func NewHandler(logger *zap.Logger, agentURL, basePath string, maxRequestBodySiz
 // match; the proxy peels the session id off the next path segment and
 // hands the remainder to the wrapped streamable handler.
 func (h *Handler) RegisterRoutes(ctx context.Context, router *http.ServeMux) {
-	h.mcpProxy = NewMCPProxy(ctx, h.logger, h.store, h.streams)
+	h.mcpProxy = NewMCPProxy(ctx, h.logger, h.basePath, h.store, h.streams)
 	router.Handle(h.basePath+routeMCPPrefix, h.mcpProxy)
 
 	// Chat handler must learn about the proxy AFTER it's constructed

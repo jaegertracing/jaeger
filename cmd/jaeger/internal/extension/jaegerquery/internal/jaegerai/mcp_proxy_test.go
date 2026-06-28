@@ -69,7 +69,7 @@ func newMCPProxyFixture(t *testing.T, sessionID string, uiTools []json.RawMessag
 	f.stream.startRun()
 	f.streams.Set(sessionID, f.stream)
 
-	f.proxy = newMCPProxyWithUpstream(t.Context(), zap.NewNop(), f.ctxTools, f.streams, upstreamURL)
+	f.proxy = newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", f.ctxTools, f.streams, upstreamURL)
 	t.Cleanup(func() { _ = f.proxy.Close() })
 
 	mux := http.NewServeMux()
@@ -116,7 +116,7 @@ func TestMCPProxyServeHTTPRejectsMissingSessionID(t *testing.T) {
 	// The proxy mounts at /api/ai/mcp/ as a prefix; an immediately-closed
 	// path (no <sessionId> segment) is a malformed call and should be a
 	// 400 so the operator notices in logs, not a silent 200.
-	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), NewContextualToolsStore(), NewSessionStreams(), "")
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), "")
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, routeMCPPrefix, http.NoBody)
 
@@ -131,13 +131,56 @@ func TestMCPProxyServeHTTPRejectsBadPrefix(t *testing.T) {
 	// (e.g. a misconfigured mux) should 404 instead of falling through
 	// to the streamable handler with an empty session id, which would
 	// register MCP sessions against the empty string.
-	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), NewContextualToolsStore(), NewSessionStreams(), "")
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), "")
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/not/the/prefix", http.NoBody)
 
 	proxy.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestMCPProxyServeHTTPStripsBasePath(t *testing.T) {
+	// When jaeger-query runs behind an operator-configured base path
+	// (e.g. "/jaeger"), the mux routes "<basePath>/api/ai/mcp/..." to
+	// the proxy, so ServeHTTP must strip <basePath>+routeMCPPrefix —
+	// not just routeMCPPrefix. Regression test for the earlier bug
+	// where requests at a non-empty base path 404'd unconditionally.
+	const basePath = "/jaeger"
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), basePath, NewContextualToolsStore(), NewSessionStreams(), "")
+
+	t.Run("session id segment present at base path → reaches handler", func(t *testing.T) {
+		// With a session id and basePath stripped correctly, control
+		// reaches the wrapped streamable handler; a bare GET there
+		// returns 405 (the handler accepts POST/GET-as-SSE, not arbitrary
+		// methods on /). A 404 here would mean the prefix didn't match.
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, basePath+routeMCPPrefix+"sess-1/", http.NoBody)
+		proxy.ServeHTTP(rec, req)
+		assert.NotEqual(t, http.StatusNotFound, rec.Code,
+			"basePath+routeMCPPrefix must be recognised; 404 indicates the bug where ServeHTTP only stripped routeMCPPrefix")
+	})
+
+	t.Run("missing base path → 404", func(t *testing.T) {
+		// Without the operator's base path the request shouldn't reach
+		// the proxy at all (the mux wouldn't route it). If it somehow
+		// arrives here, 404 — don't accidentally treat the unprefixed
+		// shape as valid.
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, routeMCPPrefix+"sess-1/", http.NoBody)
+		proxy.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusNotFound, rec.Code,
+			"a request missing the configured base path must 404, not silently dispatch")
+	})
+
+	t.Run("empty session id at base path → 400", func(t *testing.T) {
+		// Same as TestMCPProxyServeHTTPRejectsMissingSessionID but
+		// proves the 400 fires when basePath is present too.
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, basePath+routeMCPPrefix, http.NoBody)
+		proxy.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
 }
 
 func TestMCPProxyToolsListAdvertisesFrontendUITools(t *testing.T) {

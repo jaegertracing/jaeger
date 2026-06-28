@@ -76,6 +76,14 @@ type MCPProxy struct {
 	streams  *SessionStreams
 	handler  *mcp.StreamableHTTPHandler
 
+	// basePath is the operator-configured jaeger-query base path
+	// (already normalised — empty or starts with "/"). Requests arrive
+	// at "<basePath><routeMCPPrefix><sessionId>/", so ServeHTTP must
+	// strip the full <basePath><routeMCPPrefix> prefix — stripping only
+	// routeMCPPrefix would 404 every request when an operator runs
+	// jaeger-query behind a non-empty basePath.
+	basePath string
+
 	// upstreamURL is the HTTP MCP endpoint we dial for telemetry tools.
 	// Set from upstreamMCPURL by NewMCPProxy; overridable via the
 	// package-private newMCPProxyWithUpstream so tests can point at a
@@ -110,15 +118,15 @@ type MCPProxy struct {
 // MCP server is unavailable. That keeps "jaegermcp disabled" and
 // "jaegermcp slow to start" as gracefully-degraded states rather than
 // startup blockers.
-func NewMCPProxy(ctx context.Context, logger *zap.Logger, ctxTools *ContextualToolsStore, streams *SessionStreams) *MCPProxy {
-	return newMCPProxyWithUpstream(ctx, logger, ctxTools, streams, upstreamMCPURL)
+func NewMCPProxy(ctx context.Context, logger *zap.Logger, basePath string, ctxTools *ContextualToolsStore, streams *SessionStreams) *MCPProxy {
+	return newMCPProxyWithUpstream(ctx, logger, basePath, ctxTools, streams, upstreamMCPURL)
 }
 
 // newMCPProxyWithUpstream is the test-friendly constructor: it accepts
 // an explicit upstream MCP URL instead of using the hardcoded default.
 // Same behaviour otherwise — dials the upstream and primes the tool
 // cache, degrading gracefully on dial failure.
-func newMCPProxyWithUpstream(ctx context.Context, logger *zap.Logger, ctxTools *ContextualToolsStore, streams *SessionStreams, upstreamURL string) *MCPProxy {
+func newMCPProxyWithUpstream(ctx context.Context, logger *zap.Logger, basePath string, ctxTools *ContextualToolsStore, streams *SessionStreams, upstreamURL string) *MCPProxy {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -126,6 +134,7 @@ func newMCPProxyWithUpstream(ctx context.Context, logger *zap.Logger, ctxTools *
 		logger:         logger,
 		ctxTools:       ctxTools,
 		streams:        streams,
+		basePath:       basePath,
 		upstreamURL:    upstreamURL,
 		acpConnections: newMCPACPConnections(),
 	}
@@ -221,12 +230,16 @@ type sessionIDContextKey struct{}
 //
 // Path layout assumption:
 //
-//	/api/ai/mcp/<sessionId>/<mcp-subpath>
+//	<basePath>/api/ai/mcp/<sessionId>/<mcp-subpath>
 //
-// where <mcp-subpath> may be empty (the streamable handler accepts both
-// POST / and GET / as its protocol endpoints; trailing path is unused).
+// where <basePath> is the operator-configured jaeger-query base path
+// (empty when unset; e.g. "/jaeger" when an operator runs jaeger-query
+// behind a non-empty basePath) and <mcp-subpath> may be empty (the
+// streamable handler accepts both POST / and GET / as its protocol
+// endpoints; trailing path is unused).
 func (p *MCPProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	remainder, ok := strings.CutPrefix(r.URL.Path, routeMCPPrefix)
+	mountPrefix := p.basePath + routeMCPPrefix
+	remainder, ok := strings.CutPrefix(r.URL.Path, mountPrefix)
 	if !ok {
 		http.NotFound(w, r)
 		return

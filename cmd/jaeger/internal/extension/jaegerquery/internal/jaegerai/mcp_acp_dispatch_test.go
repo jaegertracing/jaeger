@@ -32,7 +32,7 @@ func newACPProxyHarness(t *testing.T, sessionID string, uiTools []json.RawMessag
 	sc.startRun()
 	streams.Set(sessionID, sc)
 
-	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), ctxTools, streams, upstreamURL)
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", ctxTools, streams, upstreamURL)
 	t.Cleanup(func() { _ = proxy.Close() })
 	return proxy, sc, rec
 }
