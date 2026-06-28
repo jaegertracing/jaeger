@@ -5,7 +5,7 @@ package types
 
 // ReadSkillInput defines the input parameters for the read_skill MCP tool.
 type ReadSkillInput struct {
-	Path string `json:"path" jsonschema:"required,Relative path within the skills directory (e.g. SKILL.md or detect-n-plus-one/SKILL.md)."`
+	Path string `json:"path" jsonschema:"Relative path within the skills directory (e.g. SKILL.md or detect-n-plus-one/SKILL.md)."`
 }
 
 // ReadSkillOutput defines the output of the read_skill MCP tool.
