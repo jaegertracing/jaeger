@@ -107,7 +107,7 @@ func (s *SpanReader) FindTraceSummaries(
 	}
 	buckets, found := searchResult.Aggregations.Terms(traceSummariesAggregation)
 	if !found {
-		return nil, ErrUnableToFindTraceIDAggregation
+		return nil, fmt.Errorf("could not find aggregation %q", traceSummariesAggregation)
 	}
 	summaries, err := parseTraceSummaries(buckets)
 	if err != nil {
