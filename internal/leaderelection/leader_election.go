@@ -65,33 +65,34 @@ func (p *DistributedElectionParticipant) Start() error {
 
 // Close implements io.Closer and is safe to call multiple times.
 func (p *DistributedElectionParticipant) Close() error {
-	p.closeOnce.Do(func() {
-		close(p.closeChan)
+    p.closeOnce.Do(func() {
+        close(p.closeChan)
 
-		p.wg.Wait()
+        p.wg.Wait()
 
-		wasLeader := p.IsLeader()
-		p.setLeader(false)
+        wasLeader := p.IsLeader()
+        p.setLeader(false)
 
-		if wasLeader {
-			forfeited, err := p.lock.Forfeit(p.resourceName)
-			if err != nil {
-				p.Logger.Error(
-					forfeitLockErrMsg,
-					zap.String("resource", p.resourceName),
-					zap.Error(err),
-				)
-			} else if !forfeited {
-				p.Logger.Warn(
-					forfeitLockWarnMsg,
-					zap.String("resource", p.resourceName),
-				)
-			}
-		}
-	})
+        if wasLeader {
+            forfeited, err := p.lock.Forfeit(p.resourceName)
+            if err != nil {
+                p.Logger.Error(
+                    forfeitLockErrMsg,
+                    zap.String("resource", p.resourceName),
+                    zap.Error(err),
+                )
+            } else if !forfeited {
+                p.Logger.Warn(
+                    forfeitLockWarnMsg,
+                    zap.String("resource", p.resourceName),
+                )
+            }
+        }
+    })
 
-	return nil
+    return nil
 }
+
 // IsLeader returns true if this process is the leader.
 func (p *DistributedElectionParticipant) IsLeader() bool {
 	return p.isLeader.Load()
