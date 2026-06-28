@@ -29,8 +29,12 @@ type Tenant struct {
 	traces     []traceAndId            // ring buffer to store traces
 	mostRecent int                     // position in traces[] of the most recently added trace
 
-	services   map[string]struct{}
-	operations map[string]map[tracestore.Operation]struct{}
+	// services and operations reference-count how many retained spans contribute
+	// each service and operation. Entries are removed once their count reaches
+	// zero so that GetServices and GetOperations never report metadata whose
+	// traces have already been evicted from the ring buffer.
+	services   map[string]int
+	operations map[string]map[tracestore.Operation]int
 }
 
 type traceAndId struct {
@@ -53,8 +57,8 @@ func newTenant(cfg *Configuration) *Tenant {
 		ids:        make(map[pcommon.TraceID]int),
 		traces:     make([]traceAndId, cfg.MaxTraces),
 		mostRecent: -1,
-		services:   map[string]struct{}{},
-		operations: map[string]map[tracestore.Operation]struct{}{},
+		services:   map[string]int{},
+		operations: map[string]map[tracestore.Operation]int{},
 	}
 }
 
@@ -67,7 +71,7 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 		for _, resourceSpan := range sameTraceIDResourceSpan.All() {
 			serviceName := getServiceNameFromResource(resourceSpan.Resource())
 			if serviceName != "" {
-				t.services[serviceName] = struct{}{}
+				t.services[serviceName]++
 			}
 			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 				for _, span := range scopeSpan.Spans().All() {
@@ -77,9 +81,9 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 							SpanKind: fromOTELSpanKind(span.Kind()),
 						}
 						if _, ok := t.operations[serviceName]; !ok {
-							t.operations[serviceName] = make(map[tracestore.Operation]struct{})
+							t.operations[serviceName] = make(map[tracestore.Operation]int)
 						}
-						t.operations[serviceName][operation] = struct{}{}
+						t.operations[serviceName][operation]++
 					}
 					if startTime.IsZero() || span.StartTimestamp().AsTime().Before(startTime) {
 						startTime = span.StartTimestamp().AsTime()
@@ -103,9 +107,11 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 		traces := ptrace.NewTraces()
 		sameTraceIDResourceSpan.MoveAndAppendTo(traces.ResourceSpans())
 		t.mostRecent = (t.mostRecent + 1) % t.config.MaxTraces
-		// if there is already a trace in lastEvicted position, remove its ID from ids map
+		// if there is already a trace in lastEvicted position, remove its ID from
+		// ids map and release the service and operation metadata it contributed.
 		if !t.traces[t.mostRecent].id.IsEmpty() {
 			delete(t.ids, t.traces[t.mostRecent].id)
+			t.releaseServiceMetadata(t.traces[t.mostRecent].trace)
 		}
 		// update the ring with the trace id
 		t.ids[traceId] = t.mostRecent
@@ -114,6 +120,45 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 			trace:     traces,
 			startTime: startTime,
 			endTime:   endTime,
+		}
+	}
+}
+
+// releaseServiceMetadata decrements the reference count of every service and
+// operation contributed by an evicted trace, deleting an entry once its count
+// reaches zero. Because storeTraces increments the same counts for each span it
+// stores, this keeps GetServices and GetOperations proportional to the number
+// of spans in the evicted trace rather than rebuilding the metadata from every
+// retained trace, and it correctly retains a service or operation that is still
+// referenced by another trace in the ring buffer.
+func (t *Tenant) releaseServiceMetadata(trace ptrace.Traces) {
+	for _, resourceSpan := range trace.ResourceSpans().All() {
+		serviceName := getServiceNameFromResource(resourceSpan.Resource())
+		if serviceName == "" {
+			continue
+		}
+		t.services[serviceName]--
+		if t.services[serviceName] <= 0 {
+			delete(t.services, serviceName)
+		}
+		operations := t.operations[serviceName]
+		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
+			for _, span := range scopeSpan.Spans().All() {
+				if operations == nil {
+					continue
+				}
+				operation := tracestore.Operation{
+					Name:     span.Name(),
+					SpanKind: fromOTELSpanKind(span.Kind()),
+				}
+				operations[operation]--
+				if operations[operation] <= 0 {
+					delete(operations, operation)
+				}
+			}
+		}
+		if len(operations) == 0 {
+			delete(t.operations, serviceName)
 		}
 	}
 }
