@@ -308,6 +308,30 @@ func TestSpanReader_FindTraceSummaries_BadRootSource(t *testing.T) {
 	})
 }
 
+func TestSpanReader_FindTraceSummaries_NonStringServiceKey(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		// A non-string service-name bucket key is a malformed/schema-regressed response
+		// and must fail fast, mirroring the trace-ID key handling, rather than producing
+		// an empty-named service entry.
+		badService := `{
+  "buckets": [
+    {
+      "key": "00000000000000000000000000000001",
+      "doc_count": 1,
+      "min_start": {"value": 1000000},
+      "max_end": {"value": 2000000},
+      "error_count": {"doc_count": 0},
+      "services": {"buckets": [{"key": 123, "doc_count": 1}]},
+      "root_span": {"doc_count": 0, "root_hit": {"hits": {"hits": []}}}
+    }
+  ]
+}`
+		mockSummarySearchService(r).Return(summaryResult(badService), nil)
+		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.ErrorContains(t, err, "non-string service name")
+	})
+}
+
 func TestSpanReader_FindTraceSummaries_MissingBucketAggregation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		aggs := map[string]json.RawMessage{"other": []byte(`{"buckets": []}`)}

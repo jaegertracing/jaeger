@@ -198,7 +198,11 @@ func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.
 		if errorCount, ok := bucket.Filter(errorCountSubAggregation); ok {
 			summary.ErrorSpanCount = int(errorCount.DocCount)
 		}
-		summary.Services = parseServiceSummaries(bucket)
+		services, err := parseServiceSummaries(bucket)
+		if err != nil {
+			return nil, fmt.Errorf("trace %s: %w", traceID, err)
+		}
+		summary.Services = services
 		rootService, rootOperation, err := parseRootSpan(bucket)
 		if err != nil {
 			return nil, fmt.Errorf("trace %s: %w", traceID, err)
@@ -210,14 +214,17 @@ func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.
 	return summaries, nil
 }
 
-func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) []dbmodel.ServiceSummary {
+func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) ([]dbmodel.ServiceSummary, error) {
 	servicesAgg, ok := bucket.Terms(servicesSubAggregation)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 	services := make([]dbmodel.ServiceSummary, 0, len(servicesAgg.Buckets))
 	for _, serviceBucket := range servicesAgg.Buckets {
-		name, _ := serviceBucket.Key.(string)
+		name, ok := serviceBucket.Key.(string)
+		if !ok {
+			return nil, errors.New("non-string service name in summary aggregation")
+		}
 		svc := dbmodel.ServiceSummary{
 			ServiceName: name,
 			SpanCount:   int(serviceBucket.DocCount),
@@ -230,7 +237,7 @@ func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) []dbmodel.S
 	slices.SortFunc(services, func(a, b dbmodel.ServiceSummary) int {
 		return cmp.Compare(a.ServiceName, b.ServiceName)
 	})
-	return services
+	return services, nil
 }
 
 // rootSpanSource is the projection of the root span's _source.
