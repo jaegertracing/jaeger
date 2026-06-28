@@ -92,7 +92,6 @@ func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, erro
 	if name == "need-factory-error" {
 		return nil, errors.New("test-error")
 	}
-
 	return fakeFactory{name: name}, nil
 }
 
