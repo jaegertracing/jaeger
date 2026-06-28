@@ -81,7 +81,7 @@ func main() {
 				IgnoreUnavailableIndex: true,
 			}
 
-			indices, err := i.GetJaegerIndices(cfg.IndexPrefix)
+			indices, err := i.GetJaegerIndices(ctx, cfg.IndexPrefix)
 			if err != nil {
 				return err
 			}
@@ -104,7 +104,7 @@ func main() {
 				return nil
 			}
 			logger.Info("Deleting indices", zap.Any("indices", indices))
-			return i.DeleteIndices(indices)
+			return i.DeleteIndices(ctx, indices)
 		},
 	}
 

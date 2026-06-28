@@ -5,6 +5,7 @@ package client
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -150,7 +151,7 @@ func TestClientGetIndices(t *testing.T) {
 				},
 			}
 
-			indices, err := c.GetJaegerIndices(test.prefix)
+			indices, err := c.GetJaegerIndices(context.Background(), test.prefix)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 				assert.Nil(t, indices)
@@ -272,7 +273,7 @@ func TestClientDeleteIndices(t *testing.T) {
 				IgnoreUnavailableIndex: ignoreUnavailableIndex,
 			}
 
-			err := c.DeleteIndices(test.indices)
+			err := c.DeleteIndices(context.Background(), test.indices)
 			assert.Equal(t, test.triggerAPI, apiTriggered)
 
 			if test.errContains != "" {
@@ -355,9 +356,9 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			var err error
 			switch existence {
 			case "index":
-				exists, err = c.IndexExists("jaeger-span")
+				exists, err = c.IndexExists(context.Background(), "jaeger-span")
 			case "alias":
-				exists, err = c.AliasExists("jaeger-span")
+				exists, err = c.AliasExists(context.Background(), "jaeger-span")
 			default:
 			}
 			if test.expectedErr != "" {
@@ -377,7 +378,7 @@ func TestClientRequestError(t *testing.T) {
 			Endpoint: "%",
 		},
 	}
-	indices, err := c.GetJaegerIndices("")
+	indices, err := c.GetJaegerIndices(context.Background(), "")
 	require.Error(t, err)
 	assert.Nil(t, indices)
 }
@@ -390,7 +391,7 @@ func TestClientDoError(t *testing.T) {
 		},
 	}
 
-	indices, err := c.GetJaegerIndices("")
+	indices, err := c.GetJaegerIndices(context.Background(), "")
 	require.Error(t, err)
 	assert.Nil(t, indices)
 }
@@ -432,7 +433,7 @@ func TestClientCreateIndex(t *testing.T) {
 					BasicAuth: "foobar",
 				},
 			}
-			err := c.CreateIndex(indexName)
+			err := c.CreateIndex(context.Background(), indexName)
 			if test.errContains != "" {
 				assert.ErrorContains(t, err, test.errContains)
 			}
@@ -492,7 +493,7 @@ func TestClientCreateAliases(t *testing.T) {
 					BasicAuth: "foobar",
 				},
 			}
-			err := c.CreateAlias(aliases)
+			err := c.CreateAlias(context.Background(), aliases)
 			if test.errContains != "" {
 				assert.ErrorContains(t, err, test.errContains)
 			}
@@ -551,7 +552,7 @@ func TestClientDeleteAliases(t *testing.T) {
 					BasicAuth: "foobar",
 				},
 			}
-			err := c.DeleteAlias(aliases)
+			err := c.DeleteAlias(context.Background(), aliases)
 			if test.errContains != "" {
 				assert.ErrorContains(t, err, test.errContains)
 			}
@@ -614,7 +615,7 @@ func TestClientCreateTemplate(t *testing.T) {
 					BasicAuth: "foobar",
 				},
 			}
-			err := c.CreateTemplate(templateContent, templateName)
+			err := c.CreateTemplate(context.Background(), templateContent, templateName)
 			if test.errContains != "" {
 				assert.ErrorContains(t, err, test.errContains)
 			}
@@ -667,7 +668,7 @@ func TestRollover(t *testing.T) {
 					BasicAuth: "foobar",
 				},
 			}
-			err := c.Rollover("jaeger-span", mapConditions)
+			err := c.Rollover(context.Background(), "jaeger-span", mapConditions)
 			if test.errContains != "" {
 				assert.ErrorContains(t, err, test.errContains)
 			}
