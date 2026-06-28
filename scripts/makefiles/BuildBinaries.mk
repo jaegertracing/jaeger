@@ -186,5 +186,5 @@ build-ocb: $(OCB)
 	rm -f cmd/jaeger/_build/main*.go
 	cp cmd/jaeger/jaegercli/main.go.tmpl cmd/jaeger/_build/main.go
 	@echo "Compiling ocb-built Jaeger"
-	cd cmd/jaeger/_build && go mod tidy && go build -o jaeger .
+	cd cmd/jaeger/_build && go mod tidy && go build $(BUILD_INFO) -o jaeger .
 	@echo "✅ ocb build successful: cmd/jaeger/_build/jaeger"
