@@ -67,21 +67,31 @@ func (p *DistributedElectionParticipant) Start() error {
 func (p *DistributedElectionParticipant) Close() error {
 	p.closeOnce.Do(func() {
 		close(p.closeChan)
-	})
-	p.wg.Wait()
-	wasLeader := p.IsLeader()
-	p.setLeader(false)
-	if wasLeader {
-		forfeited, err := p.lock.Forfeit(p.resourceName)
-		if err != nil {
-			p.Logger.Error(forfeitLockErrMsg, zap.String("resource", p.resourceName), zap.Error(err))
-		} else if !forfeited {
-			p.Logger.Warn(forfeitLockWarnMsg, zap.String("resource", p.resourceName))
+
+		p.wg.Wait()
+
+		wasLeader := p.IsLeader()
+		p.setLeader(false)
+
+		if wasLeader {
+			forfeited, err := p.lock.Forfeit(p.resourceName)
+			if err != nil {
+				p.Logger.Error(
+					forfeitLockErrMsg,
+					zap.String("resource", p.resourceName),
+					zap.Error(err),
+				)
+			} else if !forfeited {
+				p.Logger.Warn(
+					forfeitLockWarnMsg,
+					zap.String("resource", p.resourceName),
+				)
+			}
 		}
-	}
+	})
+
 	return nil
 }
-
 // IsLeader returns true if this process is the leader.
 func (p *DistributedElectionParticipant) IsLeader() bool {
 	return p.isLeader.Load()
