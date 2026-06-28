@@ -5,7 +5,7 @@ package handlers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io/fs"
 	"testing"
 	"testing/fstest"
@@ -123,7 +123,7 @@ func TestNewReadSkillHandler(t *testing.T) {
 type failFS struct{}
 
 func (*failFS) Open(string) (fs.File, error) {
-	return nil, fmt.Errorf("simulated failure")
+	return nil, errors.New("simulated failure")
 }
 
 type readFailFS struct{}
@@ -137,7 +137,7 @@ func (*readFailFS) Stat(name string) (fs.FileInfo, error) {
 }
 
 func (*readFailFS) ReadFile(string) ([]byte, error) {
-	return nil, fmt.Errorf("simulated read failure")
+	return nil, errors.New("simulated read failure")
 }
 
 type failOnRead struct {
