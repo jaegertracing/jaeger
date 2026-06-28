@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 
@@ -13,26 +14,17 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 )
 
-// ReadSkillOutput is a placeholder; the handler returns raw text via *mcp.CallToolResult.
-type ReadSkillOutput struct{}
-
-const rootSkillFile = "SKILL.md"
-
 type readSkillHandler struct {
-	skillsFS     fs.FS
-	maxFileSize  int64
-	fallbackText string
+	skillsFS    fs.FS
+	maxFileSize int64
 }
 
-// NewReadSkillHandler creates a handler that reads skills from the given FS.
-// fallbackText is returned when the root SKILL.md is requested but does not
-// exist on disk (auto-generated catalog).
+// NewReadSkillHandler creates a handler that reads skill files from the given FS.
 func NewReadSkillHandler(
 	skillsFS fs.FS,
 	maxFileSize int64,
-	fallbackText string,
-) mcp.ToolHandlerFor[types.ReadSkillInput, ReadSkillOutput] {
-	h := &readSkillHandler{skillsFS: skillsFS, maxFileSize: maxFileSize, fallbackText: fallbackText}
+) mcp.ToolHandlerFor[types.ReadSkillInput, types.ReadSkillOutput] {
+	h := &readSkillHandler{skillsFS: skillsFS, maxFileSize: maxFileSize}
 	return h.handle
 }
 
@@ -40,44 +32,32 @@ func (h *readSkillHandler) handle(
 	_ context.Context,
 	_ *mcp.CallToolRequest,
 	input types.ReadSkillInput,
-) (*mcp.CallToolResult, ReadSkillOutput, error) {
-	path := input.Path
-	if path == "" {
-		path = rootSkillFile
+) (*mcp.CallToolResult, types.ReadSkillOutput, error) {
+	if input.Path == "" {
+		return nil, types.ReadSkillOutput{}, errors.New("path is required")
 	}
-	if !fs.ValidPath(path) {
-		return nil, ReadSkillOutput{}, fmt.Errorf("invalid path: %q", input.Path)
+	if !fs.ValidPath(input.Path) {
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("invalid path: %q", input.Path)
 	}
 
-	info, err := fs.Stat(h.skillsFS, path)
+	info, err := fs.Stat(h.skillsFS, input.Path)
 	if err != nil {
-		if path == rootSkillFile && h.fallbackText != "" {
-			return textResult(h.fallbackText), ReadSkillOutput{}, nil
-		}
-		return nil, ReadSkillOutput{}, fmt.Errorf("file not found: %q", path)
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("file not found: %q", input.Path)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, ReadSkillOutput{}, fmt.Errorf("%q is not a regular file", path)
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("%q is not a regular file", input.Path)
 	}
 	if info.Size() > h.maxFileSize {
-		return nil, ReadSkillOutput{}, fmt.Errorf(
+		return nil, types.ReadSkillOutput{}, fmt.Errorf(
 			"%q is %d bytes, exceeds limit of %d bytes",
-			path, info.Size(), h.maxFileSize,
+			input.Path, info.Size(), h.maxFileSize,
 		)
 	}
 
-	data, err := fs.ReadFile(h.skillsFS, path)
+	data, err := fs.ReadFile(h.skillsFS, input.Path)
 	if err != nil {
-		return nil, ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", path, err)
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
 
-	return textResult(string(data)), ReadSkillOutput{}, nil
-}
-
-func textResult(text string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{Text: text},
-		},
-	}
+	return nil, types.ReadSkillOutput{Instructions: string(data)}, nil
 }

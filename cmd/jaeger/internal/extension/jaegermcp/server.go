@@ -4,7 +4,6 @@
 package jaegermcp
 
 import (
-	"bytes"
 	"context"
 	"embed"
 	"errors"
@@ -12,7 +11,6 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +20,6 @@ import (
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
-	"go.yaml.in/yaml/v3"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
@@ -43,15 +40,14 @@ var (
 
 // server implements the Jaeger MCP extension.
 type server struct {
-	config         *Config
-	telset         component.TelemetrySettings
-	httpServer     *http.Server
-	listener       net.Listener
-	mcpServer      *mcp.Server
-	queryAPI       *querysvc.QueryService
-	bgFinished     sync.WaitGroup
-	skillsFS       fs.FS
-	skillsFallback string
+	config     *Config
+	telset     component.TelemetrySettings
+	httpServer *http.Server
+	listener   net.Listener
+	mcpServer  *mcp.Server
+	queryAPI   *querysvc.QueryService
+	bgFinished sync.WaitGroup
+	skillsFS   fs.FS
 }
 
 // newServer creates a new MCP server instance.
@@ -84,7 +80,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("failed to create skills sub-filesystem: %w", err)
 	}
 	s.skillsFS = sFS
-	s.skillsFallback = buildSkillsGateway(sFS)
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
@@ -224,53 +219,5 @@ func (s *server) registerTools() {
 		Description: "Read a skill file for trace analysis. " +
 			"Skills are organized using progressive disclosure. " +
 			"Start with SKILL.md which will guide you to more specific sub-skills.",
-	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.MaxReadFileSize, s.skillsFallback))
-}
-
-type skillFrontmatter struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-}
-
-func buildSkillsGateway(skillsFS fs.FS) string {
-	entries, err := fs.ReadDir(skillsFS, ".")
-	if err != nil {
-		return "# Available Skills\n\nNo skills found.\n"
-	}
-	var b strings.Builder
-	b.WriteString("# Available Skills\n")
-	b.WriteString("Call read_skill(\"<skill-name>/SKILL.md\") to load a skill's full procedure before applying it.\n\n")
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		data, err := fs.ReadFile(skillsFS, e.Name()+"/SKILL.md")
-		if err != nil {
-			continue
-		}
-		fm := extractFrontmatter(data)
-		if fm.Name != "" && fm.Description != "" {
-			fmt.Fprintf(&b, "- %s — %s\n", fm.Name, fm.Description)
-		}
-	}
-	return b.String()
-}
-
-func extractFrontmatter(content []byte) skillFrontmatter {
-	const fence = "---"
-	s := string(content)
-	if !strings.HasPrefix(s, fence) {
-		return skillFrontmatter{}
-	}
-	rest := s[len(fence):]
-	idx := strings.Index(rest, "\n"+fence)
-	if idx < 0 {
-		return skillFrontmatter{}
-	}
-	var fm skillFrontmatter
-	dec := yaml.NewDecoder(bytes.NewReader([]byte(rest[:idx])))
-	if err := dec.Decode(&fm); err != nil {
-		return skillFrontmatter{}
-	}
-	return fm
+	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.MaxReadFileSize))
 }
