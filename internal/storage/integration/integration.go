@@ -179,6 +179,12 @@ func skipIfBackwardCompatibility(t *testing.T) {
 	}
 }
 
+func (s *StorageIntegration) skipReadingTracesIfNeeded(t *testing.T) {
+	if s.SkipReadingTraces {
+		t.Skip("Skipping read assertions in write phase of backward-compatibility test")
+	}
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.Capabilities.SkipList() {
 		escapedPat := regexp.QuoteMeta(pat)
@@ -266,9 +272,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	t.Logf("Testing %s...", testName)
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
-	if s.SkipReadingTraces {
-		return
-	}
+	s.skipReadingTracesIfNeeded(t)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
 	actual := ptrace.NewTraces()
@@ -336,9 +340,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		}
 	}
 	s.loadParseAndWriteExampleTrace(t)
-	if s.SkipReadingTraces {
-		return
-	}
+	s.skipReadingTracesIfNeeded(t)
 
 	var actual []tracestore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -367,9 +369,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
-	if s.SkipReadingTraces {
-		return
-	}
+	s.skipReadingTracesIfNeeded(t)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
 	actual := ptrace.Traces{} // no spans
@@ -426,9 +426,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
-	if s.SkipReadingTraces {
-		return
-	}
+	s.skipReadingTracesIfNeeded(t)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -447,9 +445,7 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	require.True(t, ok, "TraceReader must implement tracestore.SummaryReader; add FindTraceSummaries to Capabilities.SkipList to opt out")
 
 	trace := s.loadParseAndWriteExampleTrace(t)
-	if s.SkipReadingTraces {
-		return
-	}
+	s.skipReadingTracesIfNeeded(t)
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
 	expectedTraceID := jptrace.GetTraceID(trace)
