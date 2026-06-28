@@ -58,14 +58,28 @@ func summaryResult(summaryJSON string) *elastic.SearchResult {
 	}}
 }
 
-func mockSummarySearchService(r *spanReaderTest) *mock.Call {
+func mockSummarySearchServiceObj(r *spanReaderTest) *mocks.SearchService {
 	searchService := &mocks.SearchService{}
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.AnythingOfType("int")).Return(searchService)
 	searchService.On("Aggregation", mock.AnythingOfType("string"), mock.Anything).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
-	return searchService.On("Do", mock.Anything)
+	return searchService
+}
+
+func mockSummarySearchService(r *spanReaderTest) *mock.Call {
+	return mockSummarySearchServiceObj(r).On("Do", mock.Anything)
+}
+
+// traceIDsResult is a phase-1-only search result: it carries just the traceIDs
+// aggregation, so findTraceIDsFromQuery succeeds and FindTraceSummaries proceeds
+// to phase 2. Pairing it (via .Once()) with a second Do return lets tests drive
+// the phase-2 branches that phase 1 would otherwise short-circuit.
+func traceIDsResult() *elastic.SearchResult {
+	return &elastic.SearchResult{Aggregations: elastic.Aggregations{
+		traceIDAggregation: []byte(traceIDsAggregationJSON),
+	}}
 }
 
 func validSummaryQuery() dbmodel.TraceQueryParameters {
@@ -163,6 +177,83 @@ func TestSpanReader_FindTraceSummaries_PreservesPhase1Order(t *testing.T) {
 		require.Len(t, summaries, 2)
 		assert.Equal(t, dbmodel.TraceID("00000000000000000000000000000001"), summaries[0].TraceID)
 		assert.Equal(t, dbmodel.TraceID("00000000000000000000000000000002"), summaries[1].TraceID)
+	})
+}
+
+func TestSpanReader_FindTraceSummaries_DefaultsSearchDepth(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockSummarySearchService(r).Return(summaryResult(summaryAggregationJSON), nil)
+		// SearchDepth 0 must fall back to defaultSearchDepth rather than requesting
+		// a zero-size terms aggregation.
+		query := validSummaryQuery()
+		query.SearchDepth = 0
+		summaries, err := r.reader.FindTraceSummaries(context.Background(), query)
+		require.NoError(t, err)
+		require.Len(t, summaries, 1)
+	})
+}
+
+// TestSpanReader_FindTraceSummaries_Phase2 drives the phase-2 failure branches
+// that phase 1 short-circuits: phase 1 returns trace IDs (first Do), then phase 2
+// (second Do) returns the failure under test.
+func TestSpanReader_FindTraceSummaries_Phase2(t *testing.T) {
+	missingSummary := &elastic.SearchResult{Aggregations: elastic.Aggregations{
+		"other": []byte(`{"buckets": []}`),
+	}}
+	nonStringKey := &elastic.SearchResult{Aggregations: elastic.Aggregations{
+		traceSummariesAggregation: []byte(`{"buckets": [{"key": 123, "doc_count": 1}]}`),
+	}}
+	tests := []struct {
+		name   string
+		result *elastic.SearchResult
+		err    error
+	}{
+		{name: "search error", err: errors.New("phase-2 search failed")},
+		{name: "nil aggregations", result: &elastic.SearchResult{Aggregations: nil}},
+		{name: "missing summaries aggregation", result: missingSummary},
+		{name: "non-string trace ID key", result: nonStringKey},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			withSpanReader(t, func(r *spanReaderTest) {
+				ss := mockSummarySearchServiceObj(r)
+				ss.On("Do", mock.Anything).Return(traceIDsResult(), nil).Once()
+				ss.On("Do", mock.Anything).Return(tt.result, tt.err).Once()
+
+				summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+				if tt.name == "nil aggregations" {
+					// A trace was matched in phase 1 but phase 2 produced no aggregations:
+					// return an empty (non-error) result.
+					require.NoError(t, err)
+					assert.Empty(t, summaries)
+					return
+				}
+				require.Error(t, err)
+			})
+		})
+	}
+}
+
+func TestSpanReader_FindTraceSummaries_NilRootSource(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		// A root top-hit with no _source at all is a malformed response and must
+		// surface as an error (distinct from a trace that simply has no root span).
+		nilSource := `{
+  "buckets": [
+    {
+      "key": "00000000000000000000000000000001",
+      "doc_count": 1,
+      "min_start": {"value": 1000000},
+      "max_end": {"value": 2000000},
+      "error_count": {"doc_count": 0},
+      "services": {"buckets": []},
+      "root_span": {"doc_count": 1, "root_hit": {"hits": {"hits": [{}]}}}
+    }
+  ]
+}`
+		mockSummarySearchService(r).Return(summaryResult(nilSource), nil)
+		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.ErrorContains(t, err, "missing _source")
 	})
 }
 
