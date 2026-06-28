@@ -5,8 +5,11 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"io/fs"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +90,69 @@ func TestReadSkillHandler_FileNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "file not found")
 }
 
+func TestReadSkillHandler_RawTextInContent(t *testing.T) {
+	h := newTestHandler()
+	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	tc, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Contains(t, tc.Text, "# Skills")
+	assert.Equal(t, tc.Text, output.Instructions)
+}
+
+func TestReadSkillHandler_StatError(t *testing.T) {
+	h := &readSkillHandler{skillsFS: &failFS{}, maxFileSize: testMaxFileSize}
+	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "anything"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot stat")
+}
+
+func TestReadSkillHandler_ReadError(t *testing.T) {
+	h := &readSkillHandler{skillsFS: &readFailFS{}, maxFileSize: testMaxFileSize}
+	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "broken.md"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot read")
+}
+
 func TestNewReadSkillHandler(t *testing.T) {
 	handler := NewReadSkillHandler(testSkillsFS(), testMaxFileSize)
 	assert.NotNil(t, handler)
 }
+
+type failFS struct{}
+
+func (*failFS) Open(string) (fs.File, error) {
+	return nil, fmt.Errorf("simulated failure")
+}
+
+type readFailFS struct{}
+
+func (*readFailFS) Open(name string) (fs.File, error) {
+	return &failOnRead{name: name}, nil
+}
+
+func (*readFailFS) Stat(name string) (fs.FileInfo, error) {
+	return &fakeFileInfo{name: name, size: 10}, nil
+}
+
+func (*readFailFS) ReadFile(string) ([]byte, error) {
+	return nil, fmt.Errorf("simulated read failure")
+}
+
+type failOnRead struct {
+	name string
+	fs.File
+}
+
+type fakeFileInfo struct {
+	name string
+	size int64
+}
+
+func (f *fakeFileInfo) Name() string     { return f.name }
+func (f *fakeFileInfo) Size() int64      { return f.size }
+func (*fakeFileInfo) Mode() fs.FileMode  { return 0o644 }
+func (*fakeFileInfo) ModTime() time.Time { return time.Time{} }
+func (*fakeFileInfo) IsDir() bool        { return false }
+func (*fakeFileInfo) Sys() any           { return nil }

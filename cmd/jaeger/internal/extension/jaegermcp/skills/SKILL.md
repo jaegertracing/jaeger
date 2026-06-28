@@ -1,3 +1,8 @@
+---
+name: jaeger-skills
+description: Root catalog of Jaeger trace analysis skills.
+---
+
 # Jaeger Analysis Skills
 
 Skills are organized using progressive disclosure.

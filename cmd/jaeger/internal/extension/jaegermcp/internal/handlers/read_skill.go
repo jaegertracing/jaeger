@@ -62,5 +62,8 @@ func (h *readSkillHandler) handle(
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
 
-	return nil, types.ReadSkillOutput{Instructions: string(data)}, nil
+	content := string(data)
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: content}},
+	}, types.ReadSkillOutput{Instructions: content}, nil
 }
