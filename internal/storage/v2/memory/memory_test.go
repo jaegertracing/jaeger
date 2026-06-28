@@ -696,6 +696,147 @@ func TestNewStore_TracesLimit(t *testing.T) {
 	assert.Len(t, tenant.ids, maxTraces)
 }
 
+func TestStoreTraces_EvictionRemovesStaleServicesAndOperations(t *testing.T) {
+	writeServiceTrace := func(t *testing.T, store *Store, traceID, service, operation string) {
+		td := ptrace.NewTraces()
+		resourceSpan := td.ResourceSpans().AppendEmpty()
+		if service != "" {
+			resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, service)
+		}
+		span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, traceID))
+		span.SetName(operation)
+		span.SetKind(ptrace.SpanKindServer)
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+
+	store, err := NewStore(Configuration{
+		MaxTraces: 2,
+	})
+	require.NoError(t, err)
+
+	writeServiceTrace(t, store, "00000000000000010000000000000000", "evicted-service", "evicted-op")
+	services, err := store.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"evicted-service"}, services)
+
+	// Fill and overflow the ring buffer so the first trace is evicted. A trace
+	// without a service name is retained alongside it to ensure such spans are
+	// skipped when the evicted trace's metadata reference counts are released.
+	writeServiceTrace(t, store, "00000000000000020000000000000000", "retained-service", "retained-op")
+	writeServiceTrace(t, store, "00000000000000030000000000000000", "", "no-service-op")
+
+	// The evicted trace's service and operations must no longer be reported,
+	// because they fall outside the retention period (the ring buffer).
+	services, err = store.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"retained-service"}, services)
+
+	evictedOps, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "evicted-service",
+	})
+	require.NoError(t, err)
+	assert.Empty(t, evictedOps)
+
+	retainedOps, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "retained-service",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []tracestore.Operation{{Name: "retained-op", SpanKind: "server"}}, retainedOps)
+}
+
+func TestStoreTraces_EvictionKeepsMetadataReferencedByRetainedTraces(t *testing.T) {
+	writeSpan := func(t *testing.T, store *Store, traceID, service, operation string) {
+		td := ptrace.NewTraces()
+		resourceSpan := td.ResourceSpans().AppendEmpty()
+		resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, service)
+		span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, traceID))
+		span.SetName(operation)
+		span.SetKind(ptrace.SpanKindServer)
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+
+	store, err := NewStore(Configuration{
+		MaxTraces: 2,
+	})
+	require.NoError(t, err)
+
+	// Two retained traces contribute the same "shared" service with different
+	// operations, so the service is reference-counted twice while each operation
+	// is referenced once.
+	writeSpan(t, store, "00000000000000010000000000000000", "shared", "op-evicted")
+	writeSpan(t, store, "00000000000000020000000000000000", "shared", "op-retained")
+
+	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	assert.Equal(t, 2, tenant.services["shared"])
+
+	// Overflow the ring buffer, evicting the first trace. The "shared" service is
+	// still referenced by the second trace, so it must be retained even though the
+	// operation contributed only by the evicted trace must be dropped.
+	writeSpan(t, store, "00000000000000030000000000000000", "other", "op-other")
+
+	services, err := store.GetServices(context.Background())
+	require.NoError(t, err)
+	slices.Sort(services)
+	assert.Equal(t, []string{"other", "shared"}, services)
+	assert.Equal(t, 1, tenant.services["shared"])
+
+	sharedOps, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "shared",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []tracestore.Operation{{Name: "op-retained", SpanKind: "server"}}, sharedOps)
+
+	otherOps, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "other",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []tracestore.Operation{{Name: "op-other", SpanKind: "server"}}, otherOps)
+}
+
+func TestStoreTraces_UpdatedTraceReleasesAllMetadataOnEviction(t *testing.T) {
+	writeSpan := func(t *testing.T, store *Store, traceID, service, operation string) {
+		td := ptrace.NewTraces()
+		resourceSpan := td.ResourceSpans().AppendEmpty()
+		resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, service)
+		span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, traceID))
+		span.SetName(operation)
+		span.SetKind(ptrace.SpanKindServer)
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+
+	store, err := NewStore(Configuration{
+		MaxTraces: 1,
+	})
+	require.NoError(t, err)
+
+	// The same trace id is written twice; the second write is appended to the
+	// existing trace, so both operations must be tracked and both released once
+	// the trace is evicted.
+	writeSpan(t, store, "00000000000000010000000000000000", "svc", "op-1")
+	writeSpan(t, store, "00000000000000010000000000000000", "svc", "op-2")
+
+	ops, err := store.GetOperations(context.Background(), tracestore.OperationQueryParams{
+		ServiceName: "svc",
+	})
+	require.NoError(t, err)
+	assert.Len(t, ops, 2)
+
+	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	assert.Equal(t, 2, tenant.services["svc"])
+
+	// Evict the updated trace by writing a different trace into the single slot.
+	writeSpan(t, store, "00000000000000020000000000000000", "svc2", "op-3")
+
+	services, err := store.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"svc2"}, services)
+	assert.NotContains(t, tenant.services, "svc")
+	assert.NotContains(t, tenant.operations, "svc")
+}
+
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 	maxTraces := 8
 	store, err := NewStore(Configuration{
