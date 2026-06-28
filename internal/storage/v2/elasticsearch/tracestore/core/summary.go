@@ -256,8 +256,11 @@ func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName, opera
 	if !ok || topHits.Hits == nil || len(topHits.Hits.Hits) == 0 {
 		return "", "", nil
 	}
+	if topHits.Hits.Hits[0].Source == nil {
+		return "", "", errors.New("root span top-hit missing _source")
+	}
 	var source rootSpanSource
-	if err := json.Unmarshal(topHits.Hits.Hits[0].Source, &source); err != nil {
+	if err := json.Unmarshal(*topHits.Hits.Hits[0].Source, &source); err != nil {
 		return "", "", fmt.Errorf("failed to decode root span source: %w", err)
 	}
 	return source.Process.ServiceName, source.OperationName, nil
