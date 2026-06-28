@@ -7,9 +7,9 @@ import (
 	"errors"
 	"io"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
-	"sync"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,39 +202,40 @@ func TestCloseIsIdempotent(t *testing.T) {
 }
 
 func TestCloseConcurrentIsIdempotent(t *testing.T) {
-    s := newCloseTestSetup(t)
+	s := newCloseTestSetup(t)
 
-    s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).
-        Return(true, nil)
+	s.mockLock.On("Acquire", "sampling_lock", 5*time.Millisecond).
+		Return(true, nil)
 
-    s.mockLock.On("Forfeit", "sampling_lock").
-        Return(true, nil).
-        Once()
+	s.mockLock.On("Forfeit", "sampling_lock").
+		Return(true, nil).
+		Once()
 
-    require.NoError(t, s.p.Start())
+	require.NoError(t, s.p.Start())
 
-    require.Eventually(t, s.p.IsLeader,
-        time.Second,
-        time.Millisecond,
-        "participant should become leader",
-    )
+	require.Eventually(
+		t, s.p.IsLeader,
+		time.Second,
+		time.Millisecond,
+		"participant should become leader",
+	)
 
-    var wg sync.WaitGroup
-    wg.Add(2)
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-    go func() {
-        defer wg.Done()
-        require.NoError(t, s.p.Close())
-    }()
+	go func() {
+		defer wg.Done()
+		assert.NoError(t, s.p.Close())
+	}()
 
-    go func() {
-        defer wg.Done()
-        require.NoError(t, s.p.Close())
-    }()
+	go func() {
+		defer wg.Done()
+		assert.NoError(t, s.p.Close())
+	}()
 
-    wg.Wait()
+	wg.Wait()
 
-    s.mockLock.AssertNumberOfCalls(t, "Forfeit", 1)
+	s.mockLock.AssertNumberOfCalls(t, "Forfeit", 1)
 }
 
 func TestMain(m *testing.M) {
