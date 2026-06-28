@@ -42,7 +42,10 @@ func (h *readSkillHandler) handle(
 
 	info, err := fs.Stat(h.skillsFS, input.Path)
 	if err != nil {
-		return nil, types.ReadSkillOutput{}, fmt.Errorf("file not found: %q", input.Path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, types.ReadSkillOutput{}, fmt.Errorf("file not found: %q", input.Path)
+		}
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot stat %q: %w", input.Path, err)
 	}
 	if !info.Mode().IsRegular() {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("%q is not a regular file", input.Path)
