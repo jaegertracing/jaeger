@@ -135,12 +135,12 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 // does not implement tracestore.SummaryReader, so the query service falls back to
 // loading full traces and aggregating client-side.
 type ReaderWithSummaries struct {
-	*TraceReader
+	TraceReader
 }
 
 // NewReaderWithSummaries wraps r so that it exposes native trace summaries.
 func NewReaderWithSummaries(r *TraceReader) *ReaderWithSummaries {
-	return &ReaderWithSummaries{TraceReader: r}
+	return &ReaderWithSummaries{TraceReader: *r}
 }
 
 // FindTraceSummaries implements tracestore.SummaryReader. It yields

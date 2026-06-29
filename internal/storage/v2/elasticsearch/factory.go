@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -24,6 +25,23 @@ import (
 )
 
 const tagError = "error"
+
+// nativeTraceSummariesGate enables computing trace summaries (the metadata shown
+// on the search-results page) natively in Elasticsearch/OpenSearch via a single
+// aggregation query, instead of loading full traces and aggregating them in the
+// query service. When disabled, CreateTraceReader returns a reader that does not
+// implement tracestore.SummaryReader, so the query service transparently falls
+// back to the full-trace path.
+var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.nativeTraceSummaries",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.20.0"),
+	featuregate.WithRegisterDescription(
+		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
+			"instead of loading full traces and aggregating in the query service. Requires "+
+			"inline (Painless) scripts to be enabled on the cluster.",
+	),
+)
 
 var (
 	_ io.Closer          = (*Factory)(nil)
@@ -57,7 +75,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
 	base := v2tracestore.NewTraceReader(params)
 	var reader tracestore.Reader = base
-	if f.config.NativeTraceSummaries {
+	if nativeTraceSummariesGate.IsEnabled() {
 		reader = v2tracestore.NewReaderWithSummaries(base)
 	}
 	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil

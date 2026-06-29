@@ -408,8 +408,8 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	sr := tracestore.AsSummaryReader(s.TraceReader)
-	require.NotNil(t, sr, "TraceReader must expose tracestore.SummaryReader (directly or via Unwrap); add FindTraceSummaries to Capabilities.SkipList to opt out")
+	sr, ok := s.TraceReader.(tracestore.SummaryReader)
+	require.True(t, ok, "TraceReader must implement tracestore.SummaryReader; add FindTraceSummaries to Capabilities.SkipList to opt out")
 
 	trace := s.loadParseAndWriteExampleTrace(t)
 

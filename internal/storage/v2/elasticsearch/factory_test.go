@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -129,20 +130,21 @@ func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		nativeEnabled  bool
+		gateEnabled    bool
 		wantSummaryRdr bool
 	}{
-		{name: "enabled exposes SummaryReader", nativeEnabled: true, wantSummaryRdr: true},
-		{name: "disabled falls back to query service", nativeEnabled: false, wantSummaryRdr: false},
+		{name: "enabled exposes SummaryReader", gateEnabled: true, wantSummaryRdr: true},
+		{name: "disabled falls back to query service", gateEnabled: false, wantSummaryRdr: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := escfg.Configuration{
-				Servers:              []string{server.URL},
-				LogLevel:             "error",
-				NativeTraceSummaries: tt.nativeEnabled,
-			}
+			require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), tt.gateEnabled))
+			defer func() {
+				require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), false))
+			}()
+
+			cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
 			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 			require.NoError(t, err)
 			defer factory.Close()
@@ -150,12 +152,11 @@ func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
 			reader, err := factory.CreateTraceReader()
 			require.NoError(t, err)
 
-			sr := tracestore.AsSummaryReader(reader)
-			if tt.wantSummaryRdr {
-				require.NotNil(t, sr)
-			} else {
-				require.Nil(t, sr)
-			}
+			// CreateTraceReader wraps the reader in a metrics decorator that hides
+			// SummaryReader behind Unwrap; mirror how the query service discovers it.
+			inner := reader.(interface{ Unwrap() tracestore.Reader }).Unwrap()
+			_, ok := inner.(tracestore.SummaryReader)
+			require.Equal(t, tt.wantSummaryRdr, ok)
 		})
 	}
 }
