@@ -22,6 +22,15 @@ import (
 )
 
 func TestSpanReader_GetTrace(t *testing.T) {
+	t.Run("typed nil panic", func(t *testing.T) {
+		var tr *TraceReader = nil
+		var reader tracestore.Reader = tr // typed nil
+		require.NotPanics(t, func() {
+			v1Reader := GetV1Reader(reader)
+			require.Nil(t, v1Reader)
+		})
+	})
+
 	tests := []struct {
 		name          string
 		query         spanstore.GetTraceParameters

@@ -87,6 +87,14 @@ func TestGetV1Writer(t *testing.T) {
 		require.IsType(t, &SpanWriter{}, v1Writer)
 		require.Equal(t, writer, v1Writer.(*SpanWriter).traceWriter)
 	})
+
+	t.Run("typed nil panic", func(t *testing.T) {
+		var tw *TraceWriter = nil
+		require.NotPanics(t, func() {
+			v1Writer := GetV1Writer(tw) // typed nil
+			require.Nil(t, v1Writer)
+		})
+	})
 }
 
 func TestWriteDependencies(t *testing.T) {

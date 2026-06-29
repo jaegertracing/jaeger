@@ -33,6 +33,15 @@ func TestGetV1DependencyReader(t *testing.T) {
 		require.IsType(t, &DowngradedDependencyReader{}, v1Reader)
 		require.Equal(t, reader, v1Reader.(*DowngradedDependencyReader).reader)
 	})
+
+	t.Run("typed nil panic", func(t *testing.T) {
+		var dr *DependencyReader = nil
+		var reader depstore.Reader = dr // typed nil
+		require.NotPanics(t, func() {
+			v1Reader := GetV1DependencyReader(reader)
+			require.Nil(t, v1Reader)
+		})
+	})
 }
 
 func TestDependencyReader_GetDependencies(t *testing.T) {
