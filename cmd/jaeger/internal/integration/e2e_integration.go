@@ -14,7 +14,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -176,17 +176,6 @@ func loadAndParseConfig(t *testing.T, configFile string) map[string]any {
 	return config
 }
 
-func marshalAndGetNewConfigFile(t *testing.T, name, configFile string, config map[string]any) string {
-	newData, err := yaml.Marshal(config)
-	require.NoError(t, err)
-	fileExt := filepath.Ext(filepath.Base(configFile))
-	fileName := strings.TrimSuffix(filepath.Base(configFile), fileExt)
-	tempFile := filepath.Join(t.TempDir(), fileName+"_"+name+fileExt)
-	err = os.WriteFile(tempFile, newData, 0o600)
-	require.NoError(t, err)
-	return tempFile
-}
-
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
 	config := loadAndParseConfig(t, configFile)
 
@@ -246,6 +235,17 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	tempFile := marshalAndGetNewConfigFile(t, "with_storageCleaner", configFile, config)
 
 	t.Logf("Transformed configuration file %s to %s", configFile, tempFile)
+	return tempFile
+}
+
+func marshalAndGetNewConfigFile(t *testing.T, name, configFile string, config map[string]any) string {
+	newData, err := yaml.Marshal(config)
+	require.NoError(t, err)
+	fileExt := filepath.Ext(filepath.Base(configFile))
+	fileName := strings.TrimSuffix(filepath.Base(configFile), fileExt)
+	tempFile := filepath.Join(t.TempDir(), fileName+"_"+name+fileExt)
+	err = os.WriteFile(tempFile, newData, 0o600)
+	require.NoError(t, err)
 	return tempFile
 }
 
