@@ -75,11 +75,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	}
 	s.queryAPI = queryExt.QueryService()
 
-	sFS, err := fs.Sub(skillsEmbedFS, "skills")
-	if err != nil {
-		return fmt.Errorf("failed to create skills sub-filesystem: %w", err)
-	}
-	s.skillsFS = sFS
+	s.skillsFS, _ = fs.Sub(skillsEmbedFS, "skills")
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
