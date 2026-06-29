@@ -319,7 +319,12 @@ class JaegerSidecarAgent(Agent):
                 "Before each MCP tool call, briefly state what you are querying and why. "
                 "Do not invent telemetry data. If the tool result is empty, say so clearly and suggest how to narrow or "
                 "expand the query (service name, operation name, tags, and time range). "
-                "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps."
+                "After tool calls, provide a concise answer with: findings, probable cause, and next debugging steps.\n\n"
+                "IMPORTANT — Pagination rule for get_span_details:\n"
+                "- If the response contains has_more=true, you MUST call get_span_details again\n"
+                "  with the SAME trace_id and span_ids, and offset=next_offset from the previous response.\n"
+                "- Keep paginating until has_more=false.\n"
+                "- Always report the total number of spans fetched across all pages."
             )
 
             mcp_tools = await self._mcp.get_gemini_tools()
