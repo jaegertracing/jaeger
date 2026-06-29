@@ -18,7 +18,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - uses: ./.github/actions/setup-go
       with:
@@ -38,7 +38,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - uses: ./.github/actions/block-pr-from-main-branch
 
@@ -53,10 +53,10 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - name: Set up Python 3.x for DCO check
-      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
       with:
         python-version: '3.x'
 
@@ -73,7 +73,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: recursive
         fetch-tags: true
@@ -88,7 +88,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: recursive
 
@@ -113,14 +113,14 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
     - run: sudo apt-get install shellcheck
 
     - run: shellcheck scripts/**/*.sh
 
     - name: Install shunit2 for shell unit tests
-      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         repository: kward/shunit2
         path: .tools/shunit2
@@ -141,7 +141,7 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
 
@@ -163,7 +163,7 @@ jobs:
 
     - name: Restore previous binary size
       id: cache-binary-size
-      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb      # v5.0.1
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9      # v6.1.0
       with:
         path: ./jaeger_binary_size.txt
         key: jaeger_binary_size
@@ -195,7 +195,7 @@ jobs:
 
     - name: Save new jaeger binary size
       if: ${{ (github.event_name == 'push') && (github.ref == 'refs/heads/main') }}
-      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb     # v5.0.1
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9     # v6.1.0
       with:
         path: ./jaeger_binary_size.txt
         key: jaeger_binary_size_${{ github.run_id }}
@@ -207,7 +207,7 @@ jobs:
       with:
         egress-policy: audit
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: false
 

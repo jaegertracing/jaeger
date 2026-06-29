@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,12 +22,12 @@ type ClusterClient struct {
 }
 
 // Version returns the detected backend version.
-func (c *ClusterClient) Version() (es.BackendVersion, error) {
+func (c *ClusterClient) Version(ctx context.Context) (es.BackendVersion, error) {
 	type clusterInfo struct {
 		Version map[string]any `json:"version"`
 		TagLine string         `json:"tagline"`
 	}
-	body, err := c.request(elasticRequest{
+	body, err := c.request(ctx, elasticRequest{
 		endpoint: "",
 		method:   http.MethodGet,
 	})

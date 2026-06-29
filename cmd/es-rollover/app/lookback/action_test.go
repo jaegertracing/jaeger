@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -72,8 +73,8 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "success",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
-				indexClient.On("GetJaegerIndices", "").Return(indices, nil)
-				indexClient.On("DeleteAlias", []client.Alias{
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return(indices, nil)
+				indexClient.On("DeleteAlias", mock.Anything, []client.Alias{
 					{
 						Index: "jaeger-span-archive-0001",
 						Name:  "jaeger-span-archive-read",
@@ -93,7 +94,7 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "get indices error",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
-				indexClient.On("GetJaegerIndices", "").Return(indices, errors.New("get indices error"))
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return(indices, errors.New("get indices error"))
 			},
 			config: Config{
 				Unit:      "days",
@@ -108,7 +109,7 @@ func TestLookBackAction(t *testing.T) {
 		{
 			name: "empty indices",
 			setupCallExpectations: func(indexClient *mocks.IndexAPI) {
-				indexClient.On("GetJaegerIndices", "").Return([]client.Index{}, nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
 			},
 			config: Config{
 				Unit:      "days",

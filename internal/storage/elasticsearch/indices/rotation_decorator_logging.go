@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 // LoggingRotation wraps a Rotation with debug logging of ReadTargets output.
@@ -36,4 +38,7 @@ func (l *LoggingRotation) ReadTargets(startTime, endTime time.Time) []string {
 	return targets
 }
 
-func (l *LoggingRotation) WriteOpType() WriteOpType { return l.inner.WriteOpType() }
+func (l *LoggingRotation) WriteOpType() es.WriteOpType { return l.inner.WriteOpType() }
+func (l *LoggingRotation) RequiresDocumentTimestamp() bool {
+	return l.inner.RequiresDocumentTimestamp()
+}

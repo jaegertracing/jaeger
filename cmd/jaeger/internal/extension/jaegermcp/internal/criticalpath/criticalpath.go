@@ -134,21 +134,10 @@ func ComputeCriticalPathFromTraces(traces ptrace.Traces) ([]Section, error) {
 		return nil, errors.New("empty trace")
 	}
 
-	var criticalPath []Section
-
-	// Apply the algorithm
-	defer func() {
-		if r := recover(); r != nil {
-			criticalPath = nil
-		}
-	}()
-
 	sanitizedSpanMap := removeOverflowingChildren(spanMap)
-	criticalPath = computeCriticalPath(sanitizedSpanMap, rootSpanID, criticalPath, nil)
-
-	if criticalPath == nil {
-		return nil, errors.New("error while computing critical path for trace")
-	}
+	// An empty critical path is a valid result (e.g. a single zero-duration root
+	// span), so start from a non-nil slice and never treat emptiness as an error.
+	criticalPath := computeCriticalPath(sanitizedSpanMap, rootSpanID, []Section{}, nil)
 
 	return criticalPath, nil
 }
