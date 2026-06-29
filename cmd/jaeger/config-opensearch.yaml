@@ -41,6 +41,8 @@ extensions:
     backends:
       some_storage: &opensearch_config
         opensearch:
+          bulk_processing:
+            max_actions: 1
           server_urls:
             - http://localhost:9200
           # custom_headers:
