@@ -19,8 +19,8 @@ usage() {
 }
 
 check_arg() {
-  if [ ! $# -eq 3 ]; then
-    echo "ERROR: need exactly three arguments"
+  if [ $# -lt 3 ] || [ $# -gt 4 ]; then
+    echo "ERROR: need three or four arguments"
     usage
   fi
 }

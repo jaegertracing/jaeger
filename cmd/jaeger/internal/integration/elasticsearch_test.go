@@ -62,5 +62,5 @@ func TestElasticSearch_BackwardsCompatibility(t *testing.T) {
 			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 		},
 	}
-	runBackwardCompatibilityTests(t, s, capabilities.Elasticsearch(), capabilities.Elasticsearch())
+	runBackwardCompatibilityTests(t, "elasticsearch", s, capabilities.Elasticsearch(), capabilities.Elasticsearch())
 }

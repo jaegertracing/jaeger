@@ -393,6 +393,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
+		skipInBackwardCompatibilityEnv(t)
 		fakeTraceID := pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))

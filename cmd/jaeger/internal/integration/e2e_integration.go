@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -58,7 +59,9 @@ type E2EStorageIntegration struct {
 	// FeatureGates contains a list of feature gate IDs to enable for the Jaeger binary.
 	FeatureGates []string
 
-	binary *Binary // set by e2eInitialize; allows mid-test shutdown via binary.Stop(t)
+	binary                *Binary // set by e2eInitialize; allows mid-test shutdown via binary.Stop(t)
+	SkipScrapingMetrics   bool
+	DisableBatchProcessor bool
 }
 
 func (s *E2EStorageIntegration) args(configFile string) []string {
@@ -80,6 +83,9 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	configFile := s.ConfigFile
 	if !s.SkipStorageCleaner {
 		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
+	}
+	if s.DisableBatchProcessor {
+		configFile = createBatchProcessorDisabledConfigFile(t, configFile)
 	}
 	configFile, err := filepath.Abs(configFile)
 	require.NoError(t, err, "Failed to get absolute path of the config file")
@@ -127,7 +133,9 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		s.scrapeMetrics(t, storage)
+		if !s.SkipScrapingMetrics {
+			s.scrapeMetrics(t, storage)
+		}
 		require.NoError(t, s.TraceReader.(io.Closer).Close())
 		require.NoError(t, s.TraceWriter.(io.Closer).Close())
 	})
@@ -159,12 +167,28 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	require.NoError(t, err)
 }
 
-func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
+func loadAndParseConfig(t *testing.T, configFile string) map[string]any {
 	data, err := os.ReadFile(configFile)
 	require.NoError(t, err)
 	var config map[string]any
 	err = yaml.Unmarshal(data, &config)
 	require.NoError(t, err)
+	return config
+}
+
+func marshalAndGetNewConfigFile(t *testing.T, name, configFile string, config map[string]any) string {
+	newData, err := yaml.Marshal(config)
+	require.NoError(t, err)
+	fileExt := filepath.Ext(filepath.Base(configFile))
+	fileName := strings.TrimSuffix(filepath.Base(configFile), fileExt)
+	tempFile := filepath.Join(t.TempDir(), fileName+"_"+name+fileExt)
+	err = os.WriteFile(tempFile, newData, 0o600)
+	require.NoError(t, err)
+	return tempFile
+}
+
+func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
+	config := loadAndParseConfig(t, configFile)
 
 	serviceAny, ok := config["service"]
 	require.True(t, ok)
@@ -219,13 +243,7 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 		// Do Nothing
 	}
 
-	newData, err := yaml.Marshal(config)
-	require.NoError(t, err)
-	fileExt := filepath.Ext(filepath.Base(configFile))
-	fileName := strings.TrimSuffix(filepath.Base(configFile), fileExt)
-	tempFile := filepath.Join(t.TempDir(), fileName+"_with_storageCleaner"+fileExt)
-	err = os.WriteFile(tempFile, newData, 0o600)
-	require.NoError(t, err)
+	tempFile := marshalAndGetNewConfigFile(t, "with_storageCleaner", configFile, config)
 
 	t.Logf("Transformed configuration file %s to %s", configFile, tempFile)
 	return tempFile
@@ -257,4 +275,56 @@ func testingHttpClient(t *testing.T) *http.Client {
 		cl.CloseIdleConnections()
 	})
 	return cl
+}
+
+func getJaegerMainBinaryPath() string {
+	envPath := os.Getenv("JAEGER_MAIN_INSTALL_DIR")
+	if envPath != "" {
+		return envPath
+	}
+	return "/tmp/jaeger-main/jaeger"
+}
+
+func createBatchProcessorDisabledConfigFile(t *testing.T, configFile string) string {
+	config := loadAndParseConfig(t, configFile)
+	if serviceAny, ok := config["service"]; ok {
+		if service, ok := serviceAny.(map[string]any); ok {
+			if pipelinesAny, ok := service["pipelines"]; ok {
+				if pipelines, ok := pipelinesAny.(map[string]any); ok {
+					if tracesAny, ok := pipelines["traces"]; ok {
+						if traces, ok := tracesAny.(map[string]any); ok {
+							traces["processors"] = []any{}
+						}
+					}
+				}
+			}
+		}
+	}
+	return marshalAndGetNewConfigFile(t, "disabled_batch_processor", configFile, config)
+}
+
+func runBackwardCompatibilityTests(t *testing.T, storageType string, s E2EStorageIntegration, writingCapabilities, readingCapabilities capabilities.Capabilities) {
+	s.CleanUp = func(t *testing.T) {}
+	s.SkipScrapingMetrics = true
+	s.DisableBatchProcessor = true
+	t.Run("WritingPhase", func(t *testing.T) {
+		writingPhase := s
+		writingPhase.SkipReadingTraces = true
+		writingPhase.BinaryPath = getJaegerMainBinaryPath()
+		writingPhase.BinaryName = "jaeger-writing-phase"
+		writingPhase.Capabilities = writingCapabilities
+		writingPhase.e2eInitialize(t, storageType)
+		purge(t)
+		writingPhase.RunSpanStoreTests(t)
+	})
+	t.Run("ReadingPhase", func(t *testing.T) {
+		readingPhase := s
+		readingPhase.SkipWritingTraces = true
+		readingPhase.Capabilities = readingCapabilities
+		readingPhase.e2eInitialize(t, storageType)
+		t.Cleanup(func() {
+			purge(t)
+		})
+		readingPhase.RunSpanStoreTests(t)
+	})
 }
