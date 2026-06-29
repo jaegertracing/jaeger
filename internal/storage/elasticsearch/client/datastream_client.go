@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,20 +15,20 @@ import (
 // same name overwrites the previous content. Component templates are the reusable
 // building blocks (mappings, settings) that a data stream's index template
 // composes. See RFC 0004 section 3.2.
-func (i IndicesClient) CreateComponentTemplate(name, template string) error {
-	return i.putComposable("_component_template/"+name, template, "component template: "+name)
+func (i IndicesClient) CreateComponentTemplate(ctx context.Context, name, template string) error {
+	return i.putComposable(ctx, "_component_template/"+name, template, "component template: "+name)
 }
 
 // CreateIndexTemplate creates or updates a composable index template
 // (PUT _index_template/<name>). Unlike CreateTemplate, this always targets the
 // composable API, which data streams require regardless of the server version
 // (OpenSearch reports as ES 7.x but still supports composable templates).
-func (i IndicesClient) CreateIndexTemplate(name, template string) error {
-	return i.putComposable("_index_template/"+name, template, "index template: "+name)
+func (i IndicesClient) CreateIndexTemplate(ctx context.Context, name, template string) error {
+	return i.putComposable(ctx, "_index_template/"+name, template, "index template: "+name)
 }
 
-func (i IndicesClient) putComposable(endpoint, body, what string) error {
-	_, err := i.request(elasticRequest{
+func (i IndicesClient) putComposable(ctx context.Context, endpoint, body, what string) error {
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: endpoint,
 		method:   http.MethodPut,
 		body:     []byte(body),

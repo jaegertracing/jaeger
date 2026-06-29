@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,6 +42,7 @@ type server struct {
 	listener   net.Listener
 	mcpServer  *mcp.Server
 	queryAPI   *querysvc.QueryService
+	bgFinished sync.WaitGroup
 }
 
 // newServer creates a new MCP server instance.
@@ -122,11 +124,11 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("failed to create HTTP server: %w", err)
 	}
 
-	go func() {
+	s.bgFinished.Go(func() {
 		if err := s.httpServer.Serve(s.listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			s.telset.Logger.Error("MCP server error", zap.Error(err))
 		}
-	}()
+	})
 
 	s.telset.Logger.Info("Jaeger MCP server started successfully",
 		zap.String("mcp_endpoint", "http://"+s.config.HTTP.NetAddr.Endpoint+"/mcp"))
@@ -137,10 +139,13 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 func (s *server) Shutdown(ctx context.Context) error {
 	s.telset.Logger.Info("Shutting down Jaeger MCP server")
 
+	var err error
 	if s.httpServer != nil {
-		if err := s.httpServer.Shutdown(ctx); err != nil {
-			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
-		}
+		err = s.httpServer.Shutdown(ctx)
+	}
+	s.bgFinished.Wait()
+	if err != nil {
+		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
 	}
 	return nil
 }

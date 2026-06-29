@@ -3,22 +3,28 @@
 
 package client
 
+import (
+	"context"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+)
+
 type IndexAPI interface {
-	GetJaegerIndices(prefix string) ([]Index, error)
-	IndexExists(index string) (bool, error)
-	AliasExists(alias string) (bool, error)
-	DeleteIndices(indices []Index) error
-	CreateIndex(index string) error
-	CreateAlias(aliases []Alias) error
-	DeleteAlias(aliases []Alias) error
-	CreateTemplate(template, name string) error
-	Rollover(rolloverTarget string, conditions map[string]any) error
+	GetJaegerIndices(ctx context.Context, prefix string) ([]Index, error)
+	IndexExists(ctx context.Context, index string) (bool, error)
+	AliasExists(ctx context.Context, alias string) (bool, error)
+	DeleteIndices(ctx context.Context, indices []Index) error
+	CreateIndex(ctx context.Context, index string) error
+	CreateAlias(ctx context.Context, aliases []Alias) error
+	DeleteAlias(ctx context.Context, aliases []Alias) error
+	CreateTemplate(ctx context.Context, template, name string) error
+	Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error
 }
 
 type ClusterAPI interface {
-	Version() (uint, error)
+	Version(ctx context.Context) (es.BackendVersion, error)
 }
 
 type IndexManagementLifecycleAPI interface {
-	Exists(name string) (bool, error)
+	Exists(ctx context.Context, name string) (bool, error)
 }

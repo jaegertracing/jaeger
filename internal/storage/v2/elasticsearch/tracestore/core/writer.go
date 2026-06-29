@@ -5,6 +5,7 @@
 package core
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -92,11 +93,8 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
-	if s.spanRotation.WriteOpType() == indices.WriteOpCreate {
-		// Data streams require an @timestamp field (date_nanos) on every document.
-		// Use an RFC 3339 nanosecond string: a numeric value would be read as
-		// epoch milliseconds by ES/OpenSearch.
-		span.Timestamp = spanStartTime.UTC().Format(time.RFC3339Nano)
+	if s.spanRotation.RequiresDocumentTimestamp() {
+		span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
 	}
 	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
 	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)
@@ -134,10 +132,8 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	// The op type comes from the rotation strategy: "create" for append-only data
-	// streams, "index" (the default) for all legacy index strategies.
 	s.client().Index().Index(indexName).Type(spanType).
-		OpType(string(s.spanRotation.WriteOpType())).
+		OpType(s.spanRotation.WriteOpType()).
 		BodyJson(&jsonSpan).Add()
 }
 

@@ -59,11 +59,7 @@ type elasticRequest struct {
 	method   string
 }
 
-func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
-	return c.requestContext(context.Background(), esRequest)
-}
-
-func (c *Client) requestContext(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
+func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
 	var reader *bytes.Buffer
 	var r *http.Request
 	var err error

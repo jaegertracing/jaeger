@@ -83,13 +83,6 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	if err != nil {
 		return err
 	}
-	if dbSpan.ParentSpanID != "" {
-		parentSpanId, err := fromDbSpanId(dbSpan.ParentSpanID)
-		if err != nil {
-			return err
-		}
-		span.SetParentSpanID(parentSpanId)
-	}
 	span.SetTraceID(traceId)
 	span.SetSpanID(spanId)
 	span.SetName(dbSpan.OperationName)

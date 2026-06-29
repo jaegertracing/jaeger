@@ -4,6 +4,7 @@
 package indices
 
 import (
+	"strings"
 	"time"
 
 	"go.uber.org/zap"
@@ -12,35 +13,37 @@ import (
 )
 
 // BuildRotation constructs the appropriate Rotation from a resolved RotationConfig.
-// dataStreamName is the resolved data stream name (e.g. "prod.jaeger.spans") used
-// only by the data_stream variant; it is empty for index types that do not support
-// data streams.
-func BuildRotation(prefix, dataStreamName string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
+// The index prefix and base name are kept raw so the strategy can derive its own
+// names: the dash-joined index prefix for periodic/alias rotations, or the
+// dot-joined data stream name for the data_stream strategy.
+func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.RotationConfig, remoteClusters []string, logger *zap.Logger) Rotation {
+	prefix := indexPrefix.Apply(baseName)
 	var r Rotation
 	switch {
 	case rc.DataStream.HasValue():
-		ds := rc.DataStream.Get()
-		r = NewDataStreamRotation(dataStreamName, ds.ReadAlias)
+		dsCfg := rc.DataStream.Get()
+		dsName := indexToDataStreamName(baseName)
+		r = NewDataStreamRotation(indexPrefix.DataStreamName(dsName), dsCfg.ReadAlias)
 	case rc.ManualRollover.HasValue():
 		mr := rc.ManualRollover.Get()
 		writeAlias := mr.WriteAlias
 		if writeAlias == "" {
-			writeAlias = prefix + "write"
+			writeAlias = prefix + config.IndexSeparator + "write"
 		}
 		readAlias := mr.ReadAlias
 		if readAlias == "" {
-			readAlias = prefix + "read"
+			readAlias = prefix + config.IndexSeparator + "read"
 		}
 		r = NewAliasedRotation(writeAlias, readAlias)
 	case rc.AutoRollover.HasValue():
 		ar := rc.AutoRollover.Get()
 		writeAlias := ar.WriteAlias
 		if writeAlias == "" {
-			writeAlias = prefix + "write"
+			writeAlias = prefix + config.IndexSeparator + "write"
 		}
 		readAlias := ar.ReadAlias
 		if readAlias == "" {
-			readAlias = prefix + "read"
+			readAlias = prefix + config.IndexSeparator + "read"
 		}
 		r = NewAliasedRotation(writeAlias, readAlias)
 	case rc.Periodic.HasValue():
@@ -57,6 +60,23 @@ func BuildRotation(prefix, dataStreamName string, rc config.RotationConfig, remo
 		r = NewRemoteClusterRotation(r, remoteClusters)
 	}
 	return NewLoggingRotation(r, logger)
+}
+
+// indexToDataStreamName maps a legacy dash-notation index base name to its
+// dot-notation data stream equivalent with a proper plural form.
+func indexToDataStreamName(indexName string) string {
+	switch indexName {
+	case config.SpanIndexName:
+		return "jaeger.spans"
+	case config.ServiceIndexName:
+		return "jaeger.services"
+	case config.DependencyIndexName:
+		return "jaeger.dependencies"
+	case config.SamplingIndexName:
+		return "jaeger.sampling"
+	default:
+		return strings.ReplaceAll(indexName, "-", ".")
+	}
 }
 
 func rolloverFrequencyDuration(frequency string) time.Duration {

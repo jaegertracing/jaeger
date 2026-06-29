@@ -32,7 +32,7 @@ func newFakeTemplates() *fakeTemplates {
 	return &fakeTemplates{components: map[string]string{}, indexTemplates: map[string]string{}}
 }
 
-func (f *fakeTemplates) CreateComponentTemplate(name, template string) error {
+func (f *fakeTemplates) CreateComponentTemplate(_ context.Context, name, template string) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -40,7 +40,7 @@ func (f *fakeTemplates) CreateComponentTemplate(name, template string) error {
 	return nil
 }
 
-func (f *fakeTemplates) CreateIndexTemplate(name, template string) error {
+func (f *fakeTemplates) CreateIndexTemplate(_ context.Context, name, template string) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -55,9 +55,11 @@ type fakeLifecycle struct {
 	createdFor []string
 }
 
-func (f *fakeLifecycle) Exists(string) (bool, error) { return f.exists, f.existsErr }
+func (f *fakeLifecycle) Exists(_ context.Context, _ string) (bool, error) {
+	return f.exists, f.existsErr
+}
 
-func (f *fakeLifecycle) Create(name, _ string) error {
+func (f *fakeLifecycle) Create(_ context.Context, name, _ string) error {
 	if f.createErr != nil {
 		return f.createErr
 	}
@@ -70,7 +72,7 @@ func bootstrapMappingBuilder() *mappings.MappingBuilder {
 	return &mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
 		Indices:         config.Indices{Spans: config.IndexOptions{Shards: 5, Replicas: &replicas}},
-		EsVersion:       8,
+		Version:         es.BackendVersion(8),
 	}
 }
 
@@ -90,7 +92,7 @@ func TestDataStreamBootstrap_CreatesAllObjects(t *testing.T) {
 	tpl := newFakeTemplates()
 	lc := &fakeLifecycle{exists: false}
 
-	require.NoError(t, newBootstrap(tpl, lc, false).run())
+	require.NoError(t, newBootstrap(tpl, lc, false).run(context.Background()))
 
 	// Policy created (was absent), both component templates, and the index template.
 	assert.Equal(t, []string{"jaeger-spans-policy"}, lc.createdFor)
@@ -103,7 +105,7 @@ func TestDataStreamBootstrap_PolicyExists_NotOverwritten(t *testing.T) {
 	tpl := newFakeTemplates()
 	lc := &fakeLifecycle{exists: true}
 
-	require.NoError(t, newBootstrap(tpl, lc, true).run())
+	require.NoError(t, newBootstrap(tpl, lc, true).run(context.Background()))
 
 	// Existing policy must not be recreated, but templates are still applied.
 	assert.Empty(t, lc.createdFor)
@@ -113,15 +115,15 @@ func TestDataStreamBootstrap_PolicyExists_NotOverwritten(t *testing.T) {
 
 func TestDataStreamBootstrap_PropagatesErrors(t *testing.T) {
 	t.Run("lifecycle exists error", func(t *testing.T) {
-		err := newBootstrap(newFakeTemplates(), &fakeLifecycle{existsErr: errors.New("boom")}, false).run()
+		err := newBootstrap(newFakeTemplates(), &fakeLifecycle{existsErr: errors.New("boom")}, false).run(context.Background())
 		require.ErrorContains(t, err, "failed to check lifecycle policy")
 	})
 	t.Run("lifecycle create error", func(t *testing.T) {
-		err := newBootstrap(newFakeTemplates(), &fakeLifecycle{exists: false, createErr: errors.New("boom")}, false).run()
+		err := newBootstrap(newFakeTemplates(), &fakeLifecycle{exists: false, createErr: errors.New("boom")}, false).run(context.Background())
 		require.ErrorContains(t, err, "failed to create lifecycle policy")
 	})
 	t.Run("template create error", func(t *testing.T) {
-		err := newBootstrap(&fakeTemplates{err: errors.New("boom")}, &fakeLifecycle{exists: true}, false).run()
+		err := newBootstrap(&fakeTemplates{err: errors.New("boom")}, &fakeLifecycle{exists: true}, false).run(context.Background())
 		require.Error(t, err)
 	})
 }
@@ -182,7 +184,11 @@ func TestBootstrapSpanDataStream_OpenSearch(t *testing.T) {
 		},
 	}
 	f := &FactoryBase{config: cfg, logger: zap.NewNop(), templateBuilder: es.TextTemplateBuilder{}}
-	mb := f.mappingBuilderFromConfig(cfg)
+	mb := mappings.MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices:         cfg.Indices,
+		Version:         es.BackendVersion(cfg.Version),
+	}
 
 	require.NoError(t, f.bootstrapSpanDataStream(context.Background(), &mb))
 
@@ -212,7 +218,11 @@ func TestBootstrapSpanDataStream_FlavorError(t *testing.T) {
 		},
 	}
 	f := &FactoryBase{config: cfg, logger: zap.NewNop(), templateBuilder: es.TextTemplateBuilder{}}
-	mb := f.mappingBuilderFromConfig(cfg)
+	mb := mappings.MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices:         cfg.Indices,
+		Version:         es.BackendVersion(cfg.Version),
+	}
 	err := f.bootstrapSpanDataStream(context.Background(), &mb)
 	require.ErrorContains(t, err, "failed to detect Elasticsearch/OpenSearch flavor")
 }

@@ -5,7 +5,7 @@ Placeholder
 ```mermaid
 flowchart LR
     Receiver --> AdaptiveSamplingProcessor --> BatchProcessor --> Exporter
-    Exporter -->|"(1) get storage"| JaegerStorageExension
+    Exporter -->|"(1) get storage"| JaegerStorageExtension
     Exporter -->|"(2) write trace"| TraceStorage
     AdaptiveSamplingProcessor -->|"getStorage()"| StorageConfig
 

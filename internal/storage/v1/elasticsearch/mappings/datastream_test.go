@@ -21,7 +21,7 @@ func dataStreamMappingBuilder() *MappingBuilder {
 		Indices: config.Indices{
 			Spans: config.IndexOptions{Shards: 5, Replicas: &replicas, Priority: 500},
 		},
-		EsVersion: 8,
+		Version: es.BackendVersion(8),
 	}
 }
 

@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
 
@@ -23,16 +23,16 @@ const defaultDataStreamPolicyName = "jaeger-spans-policy"
 // componentTemplateCreator creates the composable templates that define a data
 // stream. Satisfied by the REST IndicesClient.
 type componentTemplateCreator interface {
-	CreateComponentTemplate(name, template string) error
-	CreateIndexTemplate(name, template string) error
+	CreateComponentTemplate(ctx context.Context, name, template string) error
+	CreateIndexTemplate(ctx context.Context, name, template string) error
 }
 
 // lifecyclePolicyManager creates a lifecycle policy if it does not already
 // exist. Satisfied by both the ISMClient (OpenSearch) and the ILMClient
 // (Elasticsearch).
 type lifecyclePolicyManager interface {
-	Exists(name string) (bool, error)
-	Create(name, policy string) error
+	Exists(ctx context.Context, name string) (bool, error)
+	Create(ctx context.Context, name, policy string) error
 }
 
 // dataStreamBootstrap holds everything needed to create the span data stream's
@@ -54,13 +54,13 @@ type dataStreamBootstrap struct {
 // composable index template (idempotent overwrites). Component templates are
 // created before the index template that composes them. See RFC 0004 sections
 // 3.2 and 3.6.
-func (b dataStreamBootstrap) run() error {
-	exists, err := b.lifecycle.Exists(b.policyName)
+func (b dataStreamBootstrap) run(ctx context.Context) error {
+	exists, err := b.lifecycle.Exists(ctx, b.policyName)
 	if err != nil {
 		return fmt.Errorf("failed to check lifecycle policy %q: %w", b.policyName, err)
 	}
 	if !exists {
-		if err := b.lifecycle.Create(b.policyName, b.policyBody); err != nil {
+		if err := b.lifecycle.Create(ctx, b.policyName, b.policyBody); err != nil {
 			return fmt.Errorf("failed to create lifecycle policy %q: %w", b.policyName, err)
 		}
 	}
@@ -69,7 +69,7 @@ func (b dataStreamBootstrap) run() error {
 	if err != nil {
 		return fmt.Errorf("failed to build data stream mappings: %w", err)
 	}
-	if err := b.templates.CreateComponentTemplate(b.dataStreamName+mappings.DataStreamMappingsSuffix, mappingsBody); err != nil {
+	if err := b.templates.CreateComponentTemplate(ctx, b.dataStreamName+mappings.DataStreamMappingsSuffix, mappingsBody); err != nil {
 		return err
 	}
 
@@ -77,7 +77,7 @@ func (b dataStreamBootstrap) run() error {
 	if err != nil {
 		return fmt.Errorf("failed to build data stream settings: %w", err)
 	}
-	if err := b.templates.CreateComponentTemplate(b.dataStreamName+mappings.DataStreamSettingsSuffix, settingsBody); err != nil {
+	if err := b.templates.CreateComponentTemplate(ctx, b.dataStreamName+mappings.DataStreamSettingsSuffix, settingsBody); err != nil {
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (b dataStreamBootstrap) run() error {
 	if err != nil {
 		return fmt.Errorf("failed to build data stream index template: %w", err)
 	}
-	return b.templates.CreateIndexTemplate(b.dataStreamName, indexTemplate)
+	return b.templates.CreateIndexTemplate(ctx, b.dataStreamName, indexTemplate)
 }
 
 // bootstrapSpanDataStream creates the composable templates and lifecycle policy
@@ -93,11 +93,10 @@ func (b dataStreamBootstrap) run() error {
 // as the main client, detects the backend flavor to choose ISM (OpenSearch) or
 // ILM (Elasticsearch), and runs the idempotent bootstrap.
 func (f *FactoryBase) bootstrapSpanDataStream(ctx context.Context, mb *mappings.MappingBuilder) error {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
+	spanRC := f.config.ResolvedSpanRotation()
 	ds := spanRC.DataStream.Get()
 
-	transport, err := config.GetHTTPRoundTripper(ctx, f.config, f.logger, f.httpAuth)
+	transport, err := clientbuilder.GetHTTPRoundTripper(ctx, f.config, f.logger, f.httpAuth)
 	if err != nil {
 		return fmt.Errorf("failed to build HTTP transport for data stream bootstrap: %w", err)
 	}
@@ -112,7 +111,7 @@ func (f *FactoryBase) bootstrapSpanDataStream(ctx context.Context, mb *mappings.
 		return fmt.Errorf("failed to detect Elasticsearch/OpenSearch flavor: %w", err)
 	}
 
-	dataStreamName := indices.DataStreamName(string(f.config.Indices.IndexPrefix), indices.SpanDataStreamBaseName)
+	dataStreamName := f.config.Indices.IndexPrefix.DataStreamName("jaeger.spans")
 	policyName := ds.PolicyName
 	if policyName == "" {
 		policyName = defaultDataStreamPolicyName
@@ -137,7 +136,7 @@ func (f *FactoryBase) bootstrapSpanDataStream(ctx context.Context, mb *mappings.
 		policyName:     policyName,
 		policyBody:     policyBody,
 		useILM:         !isOpenSearch,
-	}.run()
+	}.run(ctx)
 }
 
 // dataStreamPolicyBody returns the lifecycle policy to install: a user-provided

@@ -27,9 +27,9 @@ type ISMClient struct {
 }
 
 // Exists reports whether an ISM policy with the given name exists.
-func (i ISMClient) Exists(name string) (bool, error) {
+func (i ISMClient) Exists(ctx context.Context, name string) (bool, error) {
 	operation := func() ([]byte, error) {
-		bytes, err := i.request(elasticRequest{
+		bytes, err := i.request(ctx, elasticRequest{
 			endpoint: ismPolicyBasePath + name,
 			method:   http.MethodGet,
 		})
@@ -45,7 +45,7 @@ func (i ISMClient) Exists(name string) (bool, error) {
 	}
 
 	_, err := backoff.Retry(
-		context.TODO(),
+		ctx,
 		operation,
 		backoff.WithMaxTries(maxTries),
 		backoff.WithMaxElapsedTime(maxElapsedTime),
@@ -64,8 +64,8 @@ func (i ISMClient) Exists(name string) (bool, error) {
 // Create installs an ISM policy (PUT _plugins/_ism/policies/<name>). Callers
 // should create only when Exists reports false, so existing (possibly
 // user-customized) policies are never overwritten. See RFC 0004 section 3.6.
-func (i ISMClient) Create(name, policy string) error {
-	_, err := i.request(elasticRequest{
+func (i ISMClient) Create(ctx context.Context, name, policy string) error {
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: ismPolicyBasePath + name,
 		method:   http.MethodPut,
 		body:     []byte(policy),

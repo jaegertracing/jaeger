@@ -3,7 +3,11 @@
 
 package indices
 
-import "time"
+import (
+	"time"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+)
 
 // DataStreamRotation writes spans to an Elasticsearch/OpenSearch data stream and
 // reads either from the data stream name directly or, during migration from a
@@ -46,4 +50,5 @@ func (s *DataStreamRotation) ReadTargets(time.Time, time.Time) []string {
 	return []string{s.dataStream}
 }
 
-func (*DataStreamRotation) WriteOpType() WriteOpType { return WriteOpCreate }
+func (*DataStreamRotation) WriteOpType() es.WriteOpType     { return es.WriteOpCreate }
+func (*DataStreamRotation) RequiresDocumentTimestamp() bool { return true }

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -52,26 +53,34 @@ func (b *Binary) Start(t *testing.T) {
 	require.NoError(t, b.Cmd.Start())
 
 	t.Cleanup(func() {
-		if err := b.Process.Kill(); err != nil {
-			t.Errorf("Failed to kill %s process: %v", b.Name, err)
-		}
-		t.Logf("Waiting for %s to exit", b.Name)
-		b.Process.Wait()
-		t.Logf("%s exited", b.Name)
+		b.Stop(t)
 		// Dump logs if test failed, or if running in GitHub Actions where
 		// t.Failed() may not return true when the test times out with a panic.
 		if t.Failed() || os.Getenv("GITHUB_ACTIONS") == "true" {
 			b.dumpLogs(t, outFile, errFile)
 		}
 	})
-
+	client := testingHttpClient(t)
 	// Wait for the binary to start and become ready to serve requests.
-	require.Eventually(t, func() bool { return b.doHealthCheck(t) },
+	require.Eventually(t, func() bool { return b.doHealthCheck(t, client) },
 		time.Minute, time.Second, "%s did not start", b.Name)
 	t.Logf("%s is ready", b.Name)
 }
 
-func (b *Binary) doHealthCheck(t *testing.T) bool {
+// Stop kills the process and waits for it to exit. It is safe to call more than
+// once (and after the process has already exited): once the process has been
+// reaped, Kill returns os.ErrProcessDone, which is treated as a successful stop.
+func (b *Binary) Stop(t *testing.T) {
+	t.Helper()
+	if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		t.Errorf("Failed to kill %s process: %v", b.Name, err)
+	}
+	t.Logf("Waiting for %s to exit", b.Name)
+	b.Process.Wait()
+	t.Logf("%s exited", b.Name)
+}
+
+func (b *Binary) doHealthCheck(t *testing.T, client *http.Client) bool {
 	healthCheckPort := b.HealthCheckPort
 	if healthCheckPort == 0 {
 		healthCheckPort = ports.CollectorV2HealthChecks
@@ -85,7 +94,7 @@ func (b *Binary) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP request creation failed: %v", err)
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Logf("HTTP request failed: %v", err)
 		return false

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 func TestDataStreamRotation_WriteTarget(t *testing.T) {
@@ -26,34 +28,21 @@ func TestDataStreamRotation_ReadTargets_DataStreamName(t *testing.T) {
 }
 
 func TestDataStreamRotation_ReadTargets_ReadAliasOverride(t *testing.T) {
-	r := NewDataStreamRotation("jaeger.spans", "jaeger.spans-read")
+	r := NewDataStreamRotation("jaeger.spans", "jaeger-legacy-read-alias")
 	start := time.Date(2024, time.June, 17, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.June, 18, 0, 0, 0, 0, time.UTC)
 	// When a read alias is configured (migration), reads target the alias instead.
-	assert.Equal(t, []string{"jaeger.spans-read"}, r.ReadTargets(start, end))
+	assert.Equal(t, []string{"jaeger-legacy-read-alias"}, r.ReadTargets(start, end))
 }
 
 func TestDataStreamRotation_WriteOpType(t *testing.T) {
 	r := NewDataStreamRotation("jaeger.spans", "")
 	// Data streams are append-only and require the "create" bulk op type.
-	assert.Equal(t, WriteOpCreate, r.WriteOpType())
+	assert.Equal(t, es.WriteOpCreate, r.WriteOpType())
 }
 
-func TestDataStreamName(t *testing.T) {
-	tests := []struct {
-		name        string
-		indexPrefix string
-		want        string
-	}{
-		{name: "no prefix", indexPrefix: "", want: "jaeger.spans"},
-		{name: "simple prefix joins with a dot", indexPrefix: "prod", want: "prod.jaeger.spans"},
-		{name: "prefix already ending in a dot", indexPrefix: "prod.", want: "prod.jaeger.spans"},
-		{name: "prefix ending in the legacy dash separator", indexPrefix: "prod-", want: "prod.jaeger.spans"},
-		{name: "dashed prefix is preserved", indexPrefix: "my-team", want: "my-team.jaeger.spans"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, DataStreamName(tt.indexPrefix, SpanDataStreamBaseName))
-		})
-	}
+func TestDataStreamRotation_RequiresDocumentTimestamp(t *testing.T) {
+	r := NewDataStreamRotation("jaeger.spans", "")
+	// Data streams have no date-suffixed index, so documents must carry a timestamp.
+	assert.True(t, r.RequiresDocumentTimestamp())
 }

@@ -6,6 +6,7 @@ package core
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -44,8 +46,8 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 			Client:          func() es.Client { return client },
 			Logger:          logger,
 			MetricsFactory:  metricsFactory,
-			SpanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02", 24*time.Hour),
-			ServiceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+			SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+			ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 		}),
 	}
 	fn(w)
@@ -67,8 +69,8 @@ func TestSpanWriterRotations(t *testing.T) {
 	}{
 		{
 			name:            "periodic rotations",
-			spanRotation:    indices.NewPeriodicRotation(indices.SpanIndexBaseName, "2006-01-02-15", 24*time.Hour),
-			serviceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+			spanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02-15", 24*time.Hour),
+			serviceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 			expectedSpan:    "jaeger-span-2019-10-10-05",
 			expectedService: "jaeger-service-2019-10-10",
 		},
@@ -155,7 +157,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexServicePut.On("Add")
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
-				indexSpanPut.On("OpType", stringMatcher("index")).Return(indexSpanPut)
+				indexSpanPut.On("OpType", es.WriteOpIndex).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Add")
 
@@ -187,8 +189,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName := indices.IndexWithDate(indices.SpanIndexBaseName, "2006-01-02", span.StartTime)
-	serviceIndexName := indices.IndexWithDate(indices.ServiceIndexBaseName, "2006-01-02", span.StartTime)
+	spanIndexName := indices.IndexWithDate(config.SpanIndexName, "2006-01-02", span.StartTime)
+	serviceIndexName := indices.IndexWithDate(config.ServiceIndexName, "2006-01-02", span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
@@ -200,7 +202,7 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("OpType", stringMatcher("index")).Return(indexService)
+		indexService.On("OpType", es.WriteOpIndex).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
@@ -221,7 +223,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("OpType", stringMatcher("index")).Return(indexService)
+		indexService.On("OpType", es.WriteOpIndex).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
@@ -248,20 +250,20 @@ func TestWriteSpanToIndex_DataStreamOpType(t *testing.T) {
 		Logger:          logger,
 		MetricsFactory:  metricsFactory,
 		SpanRotation:    indices.NewDataStreamRotation("jaeger.spans", ""),
-		ServiceRotation: indices.NewPeriodicRotation(indices.ServiceIndexBaseName, "2006-01-02", 24*time.Hour),
+		ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 	})
 
 	indexService := &mocks.IndexService{}
 	indexService.On("Index", stringMatcher("jaeger.spans")).Return(indexService)
 	indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-	indexService.On("OpType", stringMatcher("create")).Return(indexService)
+	indexService.On("OpType", es.WriteOpCreate).Return(indexService)
 	indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 	indexService.On("Add")
 	client.On("Index").Return(indexService)
 
 	writer.writeSpanToIndex("jaeger.spans", &dbmodel.Span{})
 
-	indexService.AssertCalled(t, "OpType", stringMatcher("create"))
+	indexService.AssertCalled(t, "OpType", es.WriteOpCreate)
 	indexService.AssertNumberOfCalls(t, "Add", 1)
 }
 
@@ -271,7 +273,8 @@ type noWriteRotation struct{}
 
 func (noWriteRotation) WriteTarget(time.Time) string              { return "" }
 func (noWriteRotation) ReadTargets(time.Time, time.Time) []string { return nil }
-func (noWriteRotation) WriteOpType() indices.WriteOpType          { return indices.WriteOpIndex }
+func (noWriteRotation) WriteOpType() es.WriteOpType               { return es.WriteOpIndex }
+func (noWriteRotation) RequiresDocumentTimestamp() bool           { return false }
 
 func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	date := time.Date(2024, time.June, 18, 10, 0, 0, 0, time.UTC)
@@ -290,7 +293,7 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	indexService := &mocks.IndexService{}
 	indexService.On("Index", stringMatcher("jaeger.spans")).Return(indexService)
 	indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-	indexService.On("OpType", stringMatcher("create")).Return(indexService)
+	indexService.On("OpType", es.WriteOpCreate).Return(indexService)
 	indexService.On("BodyJson", mock.Anything).Return(indexService)
 	indexService.On("Add")
 	client.On("Index").Return(indexService)
@@ -298,11 +301,11 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	span := &dbmodel.Span{TraceID: "abc", SpanID: "def"}
 	writer.WriteSpan(date, span)
 
-	// The data stream write path stamps @timestamp as an RFC 3339 nanosecond string.
-	assert.Equal(t, date.UTC().Format(time.RFC3339Nano), span.Timestamp)
+	// The data stream write path stamps @timestamp as epoch nanoseconds.
+	assert.Equal(t, strconv.FormatInt(date.UnixNano(), 10), span.Timestamp)
 	out, err := json.Marshal(span)
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"@timestamp":"`+date.UTC().Format(time.RFC3339Nano)+`"`)
+	assert.Contains(t, string(out), `"@timestamp":"`+strconv.FormatInt(date.UnixNano(), 10)+`"`)
 }
 
 func TestWriteSpan_LegacyOmitsTimestamp(t *testing.T) {

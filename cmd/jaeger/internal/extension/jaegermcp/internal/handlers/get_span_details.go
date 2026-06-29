@@ -52,15 +52,17 @@ func (h *getSpanDetailsHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.GetSpanDetailsInput,
 ) (*mcp.CallToolResult, types.GetSpanDetailsOutput, error) {
-	// Build query parameters (includes validation)
-	params, err := h.buildQuery(input)
+	// Build query parameters (includes validation). canonicalSpanIDs holds the
+	// requested IDs in the same canonical lowercase hex form span.SpanID().String()
+	// emits, so case-insensitive requests still match.
+	params, canonicalSpanIDs, err := h.buildQuery(input)
 	if err != nil {
 		return nil, types.GetSpanDetailsOutput{}, err
 	}
 
 	// Create span ID set for efficient lookup
-	spanIDSet := make(map[string]struct{}, len(input.SpanIDs))
-	for _, spanID := range input.SpanIDs {
+	spanIDSet := make(map[string]struct{}, len(canonicalSpanIDs))
+	for _, spanID := range canonicalSpanIDs {
 		spanIDSet[spanID] = struct{}{}
 	}
 
@@ -117,20 +119,21 @@ func (h *getSpanDetailsHandler) handle(
 	return nil, output, nil
 }
 
-// buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams.
-func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, error) {
+// buildQuery converts GetSpanDetailsInput to querysvc.GetTraceParams and returns
+// the requested span IDs in canonical lowercase hex form for the lookup set.
+func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (querysvc.GetTraceParams, []string, error) {
 	// Validate input
 	if input.TraceID == "" {
-		return querysvc.GetTraceParams{}, errors.New("trace_id is required")
+		return querysvc.GetTraceParams{}, nil, errors.New("trace_id is required")
 	}
 
 	if len(input.SpanIDs) == 0 {
-		return querysvc.GetTraceParams{}, errors.New("span_ids is required and must not be empty")
+		return querysvc.GetTraceParams{}, nil, errors.New("span_ids is required and must not be empty")
 	}
 
 	// Validate span count against configured limit
 	if len(input.SpanIDs) > h.maxSpanDetailsPerRequest {
-		return querysvc.GetTraceParams{}, fmt.Errorf(
+		return querysvc.GetTraceParams{}, nil, fmt.Errorf(
 			"span_ids exceeds maximum limit: requested %d, max allowed %d",
 			len(input.SpanIDs),
 			h.maxSpanDetailsPerRequest,
@@ -139,7 +142,20 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 
 	traceID, err := parseTraceID(input.TraceID)
 	if err != nil {
-		return querysvc.GetTraceParams{}, fmt.Errorf("invalid trace_id: %w", err)
+		return querysvc.GetTraceParams{}, nil, fmt.Errorf("invalid trace_id: %w", err)
+	}
+
+	// Validate every span_id up front so a malformed value fails fast instead of
+	// triggering a backend query that can never match a real span ID. Collect the
+	// canonical lowercase hex form so the lookup set agrees with the ID the trace
+	// iterator emits regardless of the request's casing.
+	canonicalSpanIDs := make([]string, 0, len(input.SpanIDs))
+	for _, spanIDStr := range input.SpanIDs {
+		spanID, err := parseSpanID(spanIDStr)
+		if err != nil {
+			return querysvc.GetTraceParams{}, nil, fmt.Errorf("invalid span_id %q: %w", spanIDStr, err)
+		}
+		canonicalSpanIDs = append(canonicalSpanIDs, spanID.String())
 	}
 
 	return querysvc.GetTraceParams{
@@ -147,7 +163,7 @@ func (h *getSpanDetailsHandler) buildQuery(input types.GetSpanDetailsInput) (que
 			{TraceID: traceID},
 		},
 		RawTraces: false, // We want adjusted traces
-	}, nil
+	}, canonicalSpanIDs, nil
 }
 
 // buildSpanDetail constructs a SpanDetail from a ptrace.Span.
@@ -267,4 +283,26 @@ func parseTraceID(traceIDStr string) (pcommon.TraceID, error) {
 
 	copy(traceID[:], bytes)
 	return traceID, nil
+}
+
+// parseSpanID parses a span ID string into a pcommon.SpanID.
+func parseSpanID(spanIDStr string) (pcommon.SpanID, error) {
+	// Parse hex string - SpanID is 8 bytes (16 hex characters)
+	if len(spanIDStr) != 16 {
+		return pcommon.SpanID{}, fmt.Errorf("span ID must be 16 hex characters, got %d", len(spanIDStr))
+	}
+
+	var spanID pcommon.SpanID
+	bytes, err := hex.DecodeString(spanIDStr)
+	if err != nil {
+		return pcommon.SpanID{}, fmt.Errorf("invalid hex string: %w", err)
+	}
+
+	copy(spanID[:], bytes)
+	// The all-zero span ID can never identify a real span: SpanID.String()
+	// returns "" for it, so it would silently never match in the lookup.
+	if spanID.IsEmpty() {
+		return pcommon.SpanID{}, errors.New("span ID must not be all zero")
+	}
+	return spanID, nil
 }

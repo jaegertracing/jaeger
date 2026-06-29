@@ -16,6 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
@@ -58,7 +59,7 @@ func NewFactoryBase(
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
 		config:      &cfg,
-		newClientFn: config.NewClient,
+		newClientFn: clientbuilder.NewClient,
 		tracer:      otel.GetTracerProvider(),
 		httpAuth:    httpAuth,
 	}
@@ -93,15 +94,14 @@ func (f *FactoryBase) getClient() es.Client {
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	spanRotation, serviceRotation := f.buildRotations()
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
-	spanRC := f.config.ResolvedSpanRotation(spanPrefix)
-	serviceRC := f.config.ResolvedServiceRotation(servicePrefix)
-	// See timeRangeDesign comment in reader.go. A single alias or data stream
-	// covers all data, so for those strategies we use a large lookback to ensure
-	// reads can reach any record regardless of age. Periodic indices keep the
-	// configured MaxSpanAge so ReadTargets enumerates only a bounded set of indices.
+	spanRC := f.config.ResolvedSpanRotation()
+	serviceRC := f.config.ResolvedServiceRotation()
 	maxSpanAge := f.config.MaxSpanAge
+	// See timeRangeDesign comment in reader.go.
+	// For alias-based rotation, ReadTargets ignores the time range (always returns
+	// the alias), so max_span_age is irrelevant for index selection. We override it
+	// to DawnOfTimeSpanAge so the time-range filter in the ES query doesn't exclude
+	// old traces.
 	if !spanRC.Periodic.HasValue() {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
@@ -117,6 +117,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		Client:              f.getClient,
 		MaxDocCount:         f.config.MaxDocCount,
 		MaxSpanAge:          maxSpanAge,
+		MaxTraceDuration:    f.config.MaxTraceDuration,
 		ServicesMaxLookback: servicesMaxLookback,
 		TagDotReplacement:   f.config.Tags.DotReplacement,
 		Logger:              f.logger,
@@ -168,7 +169,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		templateName := f.config.Indices.IndexPrefix.Apply(indices.SamplingTemplateName)
+		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
 		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
@@ -178,8 +179,7 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 }
 
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
-	spanPrefix := cfg.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	spanRC := cfg.ResolvedSpanRotation(spanPrefix)
+	spanRC := cfg.ResolvedSpanRotation()
 	var ilmPolicyName string
 	if spanRC.AutoRollover.HasValue() {
 		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
@@ -187,7 +187,7 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
-		EsVersion:       cfg.Version,
+		Version:         f.client.GetVersion(),
 		UseILM:          ilmPolicyName != "",
 		ILMPolicyName:   ilmPolicyName,
 	}
@@ -209,22 +209,41 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 
 // TODO: Support RemoteClusters for sampling via a feature flag.
 func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
-	prefix := f.config.Indices.IndexPrefix.Apply(indices.SamplingIndexBaseName)
-	return indices.BuildRotation(prefix, "", f.config.ResolvedSamplingRotation(prefix), nil, f.logger)
+	return indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.SamplingIndexName,
+		f.config.ResolvedSamplingRotation(),
+		nil,
+		f.logger,
+	)
 }
 
 func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
-	prefix := f.config.Indices.IndexPrefix.Apply(indices.DependencyIndexBaseName)
-	return indices.BuildRotation(prefix, "", f.config.ResolvedDependencyRotation(prefix), f.config.RemoteReadClusters, f.logger)
+	return indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.DependencyIndexName,
+		f.config.ResolvedDependencyRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
 }
 
 func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	servicePrefix := f.config.Indices.IndexPrefix.Apply(indices.ServiceIndexBaseName)
-	spanDataStream := indices.DataStreamName(string(f.config.Indices.IndexPrefix), indices.SpanDataStreamBaseName)
-
-	spanRotation = indices.BuildRotation(spanPrefix, spanDataStream, f.config.ResolvedSpanRotation(spanPrefix), f.config.RemoteReadClusters, f.logger)
-	serviceRotation = indices.BuildRotation(servicePrefix, "", f.config.ResolvedServiceRotation(servicePrefix), f.config.RemoteReadClusters, f.logger)
+	prefix := f.config.Indices.IndexPrefix
+	spanRotation = indices.BuildRotation(
+		prefix,
+		config.SpanIndexName,
+		f.config.ResolvedSpanRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
+	serviceRotation = indices.BuildRotation(
+		prefix,
+		config.ServiceIndexName,
+		f.config.ResolvedServiceRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
 	return spanRotation, serviceRotation
 }
 
@@ -238,19 +257,18 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		return err
 	}
 	// The service index is always a regular index (services cannot use data streams).
-	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(indices.ServiceTemplateName)
+	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
 	if _, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx); err != nil {
 		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
 
-	spanPrefix := f.config.Indices.IndexPrefix.Apply(indices.SpanIndexBaseName)
-	if f.config.ResolvedSpanRotation(spanPrefix).DataStream.HasValue() {
+	if f.config.ResolvedSpanRotation().DataStream.HasValue() {
 		// Spans use a data stream: create composable templates and a lifecycle
 		// policy instead of the legacy "jaeger-span-*" index template.
 		return f.bootstrapSpanDataStream(ctx, &mappingBuilder)
 	}
 
-	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(indices.SpanTemplateName)
+	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
 	if _, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx); err != nil {
 		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
 	}

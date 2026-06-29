@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -32,7 +33,7 @@ func TestCreateComponentTemplate(t *testing.T) {
 			defer testServer.Close()
 			c := &IndicesClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
 
-			err := c.CreateComponentTemplate("jaeger.spans@mappings", `{"template":{}}`)
+			err := c.CreateComponentTemplate(context.Background(), "jaeger.spans@mappings", `{"template":{}}`)
 
 			assert.Equal(t, http.MethodPut, gotMethod)
 			assert.Equal(t, "/_component_template/jaeger.spans@mappings", gotPath)
@@ -54,7 +55,7 @@ func TestCreateIndexTemplate_AlwaysComposable(t *testing.T) {
 	defer testServer.Close()
 	c := &IndicesClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
 
-	require.NoError(t, c.CreateIndexTemplate("jaeger.spans", `{"data_stream":{}}`))
+	require.NoError(t, c.CreateIndexTemplate(context.Background(), "jaeger.spans", `{"data_stream":{}}`))
 	// Must use the composable _index_template API, not the legacy _template API,
 	// regardless of server version (data streams require composable templates).
 	assert.Equal(t, "/_index_template/jaeger.spans", gotPath)
@@ -81,7 +82,7 @@ func TestISMClient_Exists(t *testing.T) {
 			defer testServer.Close()
 			c := ISMClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}, Logger: zap.NewNop()}
 
-			exists, err := c.Exists("jaeger-spans-policy")
+			exists, err := c.Exists(context.Background(), "jaeger-spans-policy")
 
 			assert.Equal(t, http.MethodGet, gotMethod)
 			assert.Equal(t, "/_plugins/_ism/policies/jaeger-spans-policy", gotPath)
@@ -104,7 +105,7 @@ func TestISMClient_Create(t *testing.T) {
 	defer testServer.Close()
 	c := ISMClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}, Logger: zap.NewNop()}
 
-	require.NoError(t, c.Create("jaeger-spans-policy", `{"policy":{}}`))
+	require.NoError(t, c.Create(context.Background(), "jaeger-spans-policy", `{"policy":{}}`))
 	assert.Equal(t, http.MethodPut, gotMethod)
 	assert.Equal(t, "/_plugins/_ism/policies/jaeger-spans-policy", gotPath)
 }
@@ -116,7 +117,7 @@ func TestISMClient_Create_Error(t *testing.T) {
 	defer testServer.Close()
 	c := ISMClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}, Logger: zap.NewNop()}
 
-	require.ErrorContains(t, c.Create("jaeger-spans-policy", `{}`), "failed to create ISM policy: jaeger-spans-policy")
+	require.ErrorContains(t, c.Create(context.Background(), "jaeger-spans-policy", `{}`), "failed to create ISM policy: jaeger-spans-policy")
 }
 
 func TestILMClient_Create(t *testing.T) {
@@ -128,7 +129,7 @@ func TestILMClient_Create(t *testing.T) {
 	defer testServer.Close()
 	c := ILMClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}, Logger: zap.NewNop()}
 
-	require.NoError(t, c.Create("jaeger-spans-policy", `{"policy":{}}`))
+	require.NoError(t, c.Create(context.Background(), "jaeger-spans-policy", `{"policy":{}}`))
 	assert.Equal(t, http.MethodPut, gotMethod)
 	assert.Equal(t, "/_ilm/policy/jaeger-spans-policy", gotPath)
 }
