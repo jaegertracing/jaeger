@@ -152,13 +152,6 @@ func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error
 	return retMe, err
 }
 
-// Unwrap returns the underlying tracestore.Reader, allowing callers to
-// discover optional interfaces (e.g. tracestore.SummaryReader) that the
-// wrapped reader may implement but the decorator does not forward.
-func (m *ReadMetricsDecorator) Unwrap() tracestore.Reader {
-	return m.traceReader
-}
-
 // GetOperations implements tracestore.Reader#GetOperations
 func (m *ReadMetricsDecorator) GetOperations(
 	ctx context.Context,

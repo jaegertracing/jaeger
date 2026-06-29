@@ -197,23 +197,9 @@ func (qs QueryService) FindTraceSummaries(
 	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
 }
 
-// findSummaryReader walks the reader chain (via Unwrap) to find a SummaryReader,
-// allowing decorators that wrap the underlying reader to remain transparent.
 func findSummaryReader(r tracestore.Reader) tracestore.SummaryReader {
-	type unwrapper interface {
-		Unwrap() tracestore.Reader
-	}
-	for r != nil {
-		if sr, ok := r.(tracestore.SummaryReader); ok {
-			return sr
-		}
-		u, ok := r.(unwrapper)
-		if !ok {
-			break
-		}
-		r = u.Unwrap()
-	}
-	return nil
+	sr, _ := r.(tracestore.SummaryReader)
+	return sr
 }
 
 // ArchiveTrace archives a trace specified by the given query parameters.

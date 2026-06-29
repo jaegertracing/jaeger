@@ -175,15 +175,6 @@ func emptyIter[T any](td []T, err error) iter.Seq2[[]T, error] {
 	}
 }
 
-func TestReadMetricsDecorator_Unwrap(t *testing.T) {
-	mf := metricstest.NewFactory(0)
-	inner := &mocks.Reader{}
-	d := NewReaderDecorator(inner, mf)
-	decorated, ok := d.(*ReadMetricsDecorator)
-	require.True(t, ok)
-	assert.Same(t, inner, decorated.Unwrap())
-}
-
 func TestNewReaderDecorator_WithSummaryReader(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
