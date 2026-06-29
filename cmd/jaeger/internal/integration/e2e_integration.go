@@ -280,7 +280,7 @@ func testingHttpClient(t *testing.T) *http.Client {
 func getJaegerMainBinaryPath() string {
 	envPath := os.Getenv("JAEGER_MAIN_INSTALL_DIR")
 	if envPath != "" {
-		return envPath
+		return filepath.Join(envPath, "jaeger")
 	}
 	return "/tmp/jaeger-main/jaeger"
 }

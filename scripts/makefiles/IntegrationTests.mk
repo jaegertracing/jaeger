@@ -10,17 +10,18 @@ all-in-one-integration-test: $(GOTESTSUM)
 	TEST_MODE=integration $(GOTESTSUM) $(GOTESTSUM_FLAGS) -- $(RACE) ./cmd/jaeger/internal/all_in_one_test.go
 
 JAEGER_MAIN_INSTALL_DIR = /tmp/jaeger-main
+export JAEGER_MAIN_INSTALL_DIR
 
 # Installs the @main jaeger binary into JAEGER_MAIN_INSTALL_DIR.
 # Reusable by other backward-compatibility targets (e.g. for future backends).
 .PHONY: install-jaeger-main
-install-jaeger-at-main:
+install-jaeger-main:
 	mkdir -p $(JAEGER_MAIN_INSTALL_DIR)
 	GOBIN=$(JAEGER_MAIN_INSTALL_DIR) go install github.com/jaegertracing/jaeger/cmd/jaeger@main
 
 BACKWARD_COMPATIBILITY ?= false
 ifeq ($(BACKWARD_COMPATIBILITY),true)
-PRE_TEST := install-jaeger-at-main
+PRE_TEST := install-jaeger-main
 endif
 
 # A general integration tests for jaeger-v2 storage backends,
