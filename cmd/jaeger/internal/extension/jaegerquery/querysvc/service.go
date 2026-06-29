@@ -172,7 +172,7 @@ func (qs QueryService) FindTraceSummaries(
 	ctx context.Context,
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
-	if sr := findSummaryReader(qs.traceReader); sr != nil {
+	if sr, ok := qs.traceReader.(tracestore.SummaryReader); ok {
 		return func(yield func([]tracestore.TraceSummary, error) bool) {
 			for batch, err := range sr.FindTraceSummaries(ctx, query.TraceQueryParams) {
 				if err != nil {
@@ -195,11 +195,6 @@ func (qs QueryService) FindTraceSummaries(
 		}
 	}
 	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
-}
-
-func findSummaryReader(r tracestore.Reader) tracestore.SummaryReader {
-	sr, _ := r.(tracestore.SummaryReader)
-	return sr
 }
 
 // ArchiveTrace archives a trace specified by the given query parameters.

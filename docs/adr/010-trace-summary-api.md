@@ -2,7 +2,7 @@
 
 * **Status**: In progress (✅ Milestones 1, 2, 3, and 4 complete; ⏳ Milestone 5 pending)
 * **Date**: 2026-05-21
-* **Last updated**: 2026-05-26
+* **Last updated**: 2026-06-29
 
 ## Context
 
@@ -287,7 +287,7 @@ internal packages.
 
 ```go
 // In QueryService.FindTraceSummaries (simplified):
-if sr := findSummaryReader(qs.traceReader); sr != nil {
+if sr, ok := qs.traceReader.(tracestore.SummaryReader); ok {
     return func(yield func([]tracestore.TraceSummary, error) bool) {
         for batch, err := range sr.FindTraceSummaries(ctx, query) {
             if errors.Is(err, errors.ErrUnsupported) {
@@ -554,10 +554,10 @@ the HTTP contract before touching other repositories.
 **Delivered:**
 1. `tracestore.ServiceSummary`, `tracestore.TraceSummary`, and the optional `tracestore.SummaryReader` interface (`internal/storage/v2/api/tracestore/summary.go`).
 2. `computeSummaries` fallback aggregation in `querysvc/summary.go`, using `jptrace.AggregateTraces` to reassemble multi-chunk traces before summarizing.
-3. `querysvc.QueryService.FindTraceSummaries` with both the `SummaryReader` native path and the fallback path. The `SummaryReader` discovery uses a chain-walker (`findSummaryReader`) that traverses `Unwrap()` on decorator types (e.g. `ReadMetricsDecorator`). If the `SummaryReader` yields `errors.ErrUnsupported`, `QueryService` falls back transparently to `computeSummaries` (see §6).
+3. `querysvc.QueryService.FindTraceSummaries` with both the `SummaryReader` native path and the fallback path. `SummaryReader` discovery is a direct `ok`-guarded type assertion on `qs.traceReader`; `ReadMetricsDecorator` surfaces `SummaryReader` directly when the wrapped reader implements it (see §5 below). If the `SummaryReader` yields `errors.ErrUnsupported`, `QueryService` falls back transparently to `computeSummaries` (see §6).
 4. `GET /api/v3/trace-summaries` in the HTTP gateway, reusing `parseFindTracesQuery`. Response is plain JSON; timestamps encoded as decimal strings per proto3 JSON convention.
 5. `query.search_depth` is the canonical query parameter (matching the proto field); `query.num_traces` is accepted as a deprecated alias (jaegertracing/jaeger#8617). Defaults to 100 when omitted.
-6. Unit tests for `computeSummaries` (empty, error, multi-service, multi-chunk, orphan spans), `FindTraceSummaries` (fallback path, native `SummaryReader`, `SummaryReader` through decorator chain, `ErrUnsupported` fallback), HTTP handler (success, storage error, deprecated alias).
+6. Unit tests for `computeSummaries` (empty, error, multi-service, multi-chunk, orphan spans), `FindTraceSummaries` (fallback path, native `SummaryReader`, `ErrUnsupported` fallback), HTTP handler (success, storage error, deprecated alias).
 7. Integration test: `FindTraceSummaries` added to `RunSpanStoreTests`, exercised end-to-end via `TestJaegerQueryService` (see §9).
 
 ---
@@ -627,7 +627,7 @@ changes.
 1. ~~**`jaeger-idl`**: Add `ServiceSummary`, `TraceSummary`, `FindTraceSummariesRequest`,
    `FindTraceSummariesResponse`, and the optional `FindTraceSummaries` RPC to `storage/v2/trace_storage.proto`.~~ ✅ Already done in `jaeger-idl` main (same PR #203).
 2. ✅ **`jaeger`**: `Handler.FindTraceSummaries` in the gRPC storage server (`internal/storage/v2/grpc/handler.go`) forwards to the underlying `tracestore.SummaryReader` if available, otherwise returns `codes.Unimplemented`.
-3. ✅ **`jaeger`**: `TraceReader.FindTraceSummaries` in the gRPC storage client (`internal/storage/v2/grpc/tracereader.go`) implements `tracestore.SummaryReader` as a plain iterator (matching the `FindTraces` signature). `codes.Unimplemented` from the server (delivered via the first `Recv()`) is yielded as `errors.ErrUnsupported`; `QueryService` detects it and falls back to `computeSummaries` automatically via the existing `findSummaryReader` chain-walker (already shipped in Milestone 1).
+3. ✅ **`jaeger`**: `TraceReader.FindTraceSummaries` in the gRPC storage client (`internal/storage/v2/grpc/tracereader.go`) implements `tracestore.SummaryReader` as a plain iterator (matching the `FindTraces` signature). `codes.Unimplemented` from the server (delivered via the first `Recv()`) is yielded as `errors.ErrUnsupported`; `QueryService` detects it and falls back to `computeSummaries` automatically.
 4. ✅ Storage backends that don't implement `SummaryReader` opt out via `Capabilities.SkipList` — the `FindTraceSummaries` integration test is only run for backends that implement it (currently the e2e `traceReader` in `cmd/jaeger/internal/integration/`).
 
 ---
