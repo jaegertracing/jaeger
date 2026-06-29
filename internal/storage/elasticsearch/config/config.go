@@ -226,6 +226,10 @@ type Configuration struct {
 	// search result lists) directly in Elasticsearch via aggregations, instead of
 	// loading full traces and aggregating them in the query service. Enabled by
 	// default; set to false to fall back to the query-service path.
+	//
+	// This requires inline (Painless) scripts to be enabled on the cluster, which
+	// are used to derive each span's end time as startTime + duration. Clusters that
+	// disable inline scripts must set this to false to use the query-service path.
 	NativeTraceSummaries bool `mapstructure:"native_trace_summaries"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
