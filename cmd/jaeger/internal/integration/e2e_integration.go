@@ -287,24 +287,24 @@ func getJaegerMainBinaryPath() string {
 
 func createBatchProcessorDisabledConfigFile(t *testing.T, configFile string) string {
 	config := loadAndParseConfig(t, configFile)
-	if serviceAny, ok := config["service"]; ok {
-		if service, ok := serviceAny.(map[string]any); ok {
-			if pipelinesAny, ok := service["pipelines"]; ok {
-				if pipelines, ok := pipelinesAny.(map[string]any); ok {
-					if tracesAny, ok := pipelines["traces"]; ok {
-						if traces, ok := tracesAny.(map[string]any); ok {
-							traces["processors"] = []any{}
-						}
-					}
-				}
-			}
+	serviceAny, ok := config["service"]
+	require.True(t, ok)
+	service, ok := serviceAny.(map[string]any)
+	require.True(t, ok)
+	pipelinesAny, ok := service["pipelines"]
+	require.True(t, ok)
+	pipelines, ok := pipelinesAny.(map[string]any)
+	require.True(t, ok)
+	if tracesAny, ok := pipelines["traces"]; ok {
+		if traces, ok := tracesAny.(map[string]any); ok {
+			traces["processors"] = []any{}
 		}
 	}
 	return marshalAndGetNewConfigFile(t, "disabled_batch_processor", configFile, config)
 }
 
 func runBackwardCompatibilityTests(t *testing.T, storageType string, s E2EStorageIntegration, writingCapabilities, readingCapabilities capabilities.Capabilities) {
-	s.CleanUp = func(t *testing.T) {}
+	s.CleanUp = func(_ *testing.T) {}
 	s.SkipScrapingMetrics = true
 	s.DisableBatchProcessor = true
 	t.Run("WritingPhase", func(t *testing.T) {
