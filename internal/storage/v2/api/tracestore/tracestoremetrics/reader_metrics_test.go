@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger/internal/metricstest"
@@ -178,5 +179,56 @@ func TestReadMetricsDecorator_Unwrap(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 	inner := &mocks.Reader{}
 	d := NewReaderDecorator(inner, mf)
-	assert.Same(t, inner, d.Unwrap())
+	decorated, ok := d.(*ReadMetricsDecorator)
+	require.True(t, ok)
+	assert.Same(t, inner, decorated.Unwrap())
+}
+
+func TestNewReaderDecorator_WithSummaryReader(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	type readerWithSummary struct {
+		mocks.Reader
+		mocks.SummaryReader
+	}
+	inner := &readerWithSummary{}
+	d := NewReaderDecorator(inner, mf)
+	_, ok := d.(tracestore.SummaryReader)
+	assert.True(t, ok, "expected returned decorator to implement tracestore.SummaryReader")
+}
+
+func TestNewReaderDecorator_WithoutSummaryReader(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+	inner := &mocks.Reader{}
+	d := NewReaderDecorator(inner, mf)
+	_, ok := d.(tracestore.SummaryReader)
+	assert.False(t, ok, "expected returned decorator to not implement tracestore.SummaryReader")
+}
+
+func TestReadMetricsDecoratorWithSummary_FindTraceSummaries(t *testing.T) {
+	mf := metricstest.NewFactory(0)
+
+	type readerWithSummary struct {
+		mocks.Reader
+		mocks.SummaryReader
+	}
+	inner := &readerWithSummary{}
+	summaries := []tracestore.TraceSummary{{RootServiceName: "svc-a"}, {RootServiceName: "svc-b"}}
+	inner.SummaryReader.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
+
+	d := NewReaderDecorator(inner, mf)
+	sr, ok := d.(tracestore.SummaryReader)
+	require.True(t, ok)
+
+	var got []tracestore.TraceSummary
+	for batch, err := range sr.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, batch...)
+	}
+	assert.Len(t, got, len(summaries))
+
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
+	assert.Equal(t, int64(int64(len(summaries))), counters["responses|operation=find_trace_summaries"])
 }
