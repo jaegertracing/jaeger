@@ -6,4 +6,4 @@ These tools support progressive disclosure to manage context density. While they
 
 ## Skills
 
-Skills are organized using progressive disclosure. Start with the root skill `SKILL.md` which will guide you to more specific sub-skills, and so on.
+Skills are organized using progressive disclosure. Call `read_skill` with path `SKILL.md` to get the root skill which will guide you to more specific sub-skills.
