@@ -5,11 +5,8 @@ package handlers
 
 import (
 	"context"
-	"errors"
-	"io/fs"
 	"testing"
 	"testing/fstest"
-	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -18,14 +15,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp/internal/types"
 )
 
-const testMaxFileSize = 512 * 1024
+const testMaxFileSize = 100
 
 func testSkillsFS() fstest.MapFS {
 	return fstest.MapFS{
 		"SKILL.md":         &fstest.MapFile{Data: []byte("# Skills\n\n- skill-a\n- skill-b\n")},
 		"skill-a/SKILL.md": &fstest.MapFile{Data: []byte("# Skill A\n\nContent here.")},
 		"skill-b/SKILL.md": &fstest.MapFile{Data: []byte("# Skill B\n\nMore content.")},
-		"large.bin":        &fstest.MapFile{Data: make([]byte, testMaxFileSize+1)},
+		"large.bin":        &fstest.MapFile{Data: append(make([]byte, testMaxFileSize), []byte("BEYOND_LIMIT")...)},
 	}
 }
 
@@ -69,25 +66,27 @@ func TestReadSkillHandler_AbsolutePath(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid path")
 }
 
-func TestReadSkillHandler_Directory(t *testing.T) {
-	h := newTestHandler()
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "is not a regular file")
-}
-
-func TestReadSkillHandler_FileTooLarge(t *testing.T) {
-	h := newTestHandler()
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "exceeds limit")
-}
-
 func TestReadSkillHandler_FileNotFound(t *testing.T) {
 	h := newTestHandler()
 	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "nonexistent/SKILL.md"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "file not found")
+	assert.Contains(t, err.Error(), "cannot read")
+}
+
+func TestReadSkillHandler_Directory(t *testing.T) {
+	h := newTestHandler()
+	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot read")
+}
+
+func TestReadSkillHandler_FileTooLarge_Truncates(t *testing.T) {
+	h := newTestHandler()
+	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
+	require.NoError(t, err)
+	assert.Len(t, []byte(output.Instructions)[:testMaxFileSize], testMaxFileSize)
+	assert.Contains(t, output.Instructions, "truncated after")
+	assert.NotContains(t, output.Instructions, "BEYOND_LIMIT")
 }
 
 func TestReadSkillHandler_RawTextInContent(t *testing.T) {
@@ -101,58 +100,7 @@ func TestReadSkillHandler_RawTextInContent(t *testing.T) {
 	assert.Equal(t, tc.Text, output.Instructions)
 }
 
-func TestReadSkillHandler_StatError(t *testing.T) {
-	h := &readSkillHandler{skillsFS: &failFS{}, maxFileSize: testMaxFileSize}
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "anything"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot stat")
-}
-
-func TestReadSkillHandler_ReadError(t *testing.T) {
-	h := &readSkillHandler{skillsFS: &readFailFS{}, maxFileSize: testMaxFileSize}
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "broken.md"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot read")
-}
-
 func TestNewReadSkillHandler(t *testing.T) {
 	handler := NewReadSkillHandler(testSkillsFS(), testMaxFileSize)
 	assert.NotNil(t, handler)
 }
-
-type failFS struct{}
-
-func (*failFS) Open(string) (fs.File, error) {
-	return nil, errors.New("simulated failure")
-}
-
-type readFailFS struct{}
-
-func (*readFailFS) Open(name string) (fs.File, error) {
-	return &failOnRead{name: name}, nil
-}
-
-func (*readFailFS) Stat(name string) (fs.FileInfo, error) {
-	return &fakeFileInfo{name: name, size: 10}, nil
-}
-
-func (*readFailFS) ReadFile(string) ([]byte, error) {
-	return nil, errors.New("simulated read failure")
-}
-
-type failOnRead struct {
-	name string
-	fs.File
-}
-
-type fakeFileInfo struct {
-	name string
-	size int64
-}
-
-func (f *fakeFileInfo) Name() string     { return f.name }
-func (f *fakeFileInfo) Size() int64      { return f.size }
-func (*fakeFileInfo) Mode() fs.FileMode  { return 0o644 }
-func (*fakeFileInfo) ModTime() time.Time { return time.Time{} }
-func (*fakeFileInfo) IsDir() bool        { return false }
-func (*fakeFileInfo) Sys() any           { return nil }

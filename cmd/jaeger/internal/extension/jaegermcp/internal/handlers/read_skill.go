@@ -40,29 +40,17 @@ func (h *readSkillHandler) handle(
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("invalid path: %q", input.Path)
 	}
 
-	info, err := fs.Stat(h.skillsFS, input.Path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, types.ReadSkillOutput{}, fmt.Errorf("file not found: %q", input.Path)
-		}
-		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot stat %q: %w", input.Path, err)
-	}
-	if !info.Mode().IsRegular() {
-		return nil, types.ReadSkillOutput{}, fmt.Errorf("%q is not a regular file", input.Path)
-	}
-	if info.Size() > h.maxFileSize {
-		return nil, types.ReadSkillOutput{}, fmt.Errorf(
-			"%q is %d bytes, exceeds limit of %d bytes",
-			input.Path, info.Size(), h.maxFileSize,
-		)
-	}
-
 	data, err := fs.ReadFile(h.skillsFS, input.Path)
 	if err != nil {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
 
 	content := string(data)
+	if int64(len(data)) > h.maxFileSize {
+		content = string(data[:h.maxFileSize]) +
+			fmt.Sprintf("\n\n[file is too large, truncated after %d bytes]", h.maxFileSize)
+	}
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: content}},
 	}, types.ReadSkillOutput{Instructions: content}, nil
