@@ -237,6 +237,7 @@ func TestReadMetricsDecoratorWithSummary_FindTraceSummaries_Error(t *testing.T) 
 	require.True(t, ok)
 
 	for range sr.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		t.Log("FindTraceSummaries error iteration")
 	}
 
 	counters, _ := mf.Snapshot()
