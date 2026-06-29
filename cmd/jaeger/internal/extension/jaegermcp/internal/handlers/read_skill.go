@@ -34,10 +34,6 @@ func (h *readSkillHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.ReadSkillInput,
 ) (*mcp.CallToolResult, types.ReadSkillOutput, error) {
-	if !fs.ValidPath(input.Path) {
-		return nil, types.ReadSkillOutput{}, fmt.Errorf("invalid path: %q", input.Path)
-	}
-
 	f, err := h.skillsFS.Open(input.Path)
 	if err != nil {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
