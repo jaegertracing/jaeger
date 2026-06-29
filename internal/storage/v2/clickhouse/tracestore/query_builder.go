@@ -288,17 +288,11 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType
 	}
 }
 
-// buildStringAttributeCondition adds a condition for string attributes by looking up their
-// actual stored type(s) and level(s) from the attribute_metadata table.
-//
-// String attributes require special handling because the query service passes all
-// attributes as strings (via AsString()), regardless of their actual stored type.
-// We must look up the attribute_metadata to determine the actual type(s) and
-// level(s) where this attribute is stored, then convert the string back to the
-// appropriate type for querying.
-//
-// If metadata exists but the value cannot be parsed as any of the metadata types,
-// we fall back to treating it as a string attribute.
+// buildStringAttributeCondition always OR-es in the str fallback (all 5 attribute levels)
+// regardless of what the attribute_metadata cache says: a partial batch flush can populate
+// the cache with only a subset of levels (e.g. span-only) before remaining batches arrive,
+// and the cache entry lives for 1 hour, so metadata-driven conditions alone would silently
+// miss traces whose tag lives at a level absent from the cache.
 func buildStringAttributeCondition(
 	q *strings.Builder,
 	args []any,
@@ -307,8 +301,6 @@ func buildStringAttributeCondition(
 	metadata attributeMetadata,
 ) []any {
 	levelTypes, ok := metadata[key]
-
-	// if no metadata found, assume string type
 	if !ok {
 		return appendStringAttributeFallback(q, args, key, attr)
 	}
@@ -316,18 +308,19 @@ func buildStringAttributeCondition(
 	generatedCondition := false
 	appendLevel := func(types []pcommon.ValueType, prefix string, fn arrayExistsFn) {
 		for _, t := range types {
-			tav, err := parseStringToTypedValue(key, attr, t)
-			if err != nil {
-				// Skip types that can't parse this value
+			if t == pcommon.ValueTypeStr {
+				// str is always covered by appendStringAttributeFallback below
 				continue
 			}
-
+			tav, err := parseStringToTypedValue(key, attr, t)
+			if err != nil {
+				continue
+			}
 			if generatedCondition {
 				appendNewlineAndIndent(q, 2)
 				q.WriteString("OR")
 			}
 			generatedCondition = true
-
 			fn(q, 2, prefix, tav.valueType)
 			args = append(args, tav.key, tav.value)
 		}
@@ -339,12 +332,11 @@ func buildStringAttributeCondition(
 	appendLevel(levelTypes.event, "events", appendNestedArrayExists)
 	appendLevel(levelTypes.link, "links", appendNestedArrayExists)
 
-	// If no conditions were generated (all types failed to parse),
-	// fall back to treating it as a string attribute
-	if !generatedCondition {
-		return appendStringAttributeFallback(q, args, key, attr)
+	if generatedCondition {
+		appendNewlineAndIndent(q, 2)
+		q.WriteString("OR")
 	}
-	return args
+	return appendStringAttributeFallback(q, args, key, attr)
 }
 
 func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {
