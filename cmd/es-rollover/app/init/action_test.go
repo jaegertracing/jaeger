@@ -135,12 +135,27 @@ func TestRolloverAction(t *testing.T) {
 				clusterClient.On("Version", mock.Anything).Return(es.ElasticV7, nil)
 				ilmClient.On("Exists", mock.Anything, "myilmpolicy").Return(false, nil)
 			},
-			expectedErr: errors.New("ILM policy myilmpolicy doesn't exist in Elasticsearch. Please create it and re-run init"),
+			expectedErr: errors.New("ILM/ISM policy myilmpolicy doesn't exist in Elasticsearch 7.x. Please create it and re-run init"),
 			config: Config{
 				Config: app.Config{
 					Archive:       true,
 					UseILM:        true,
 					ILMPolicyName: "myilmpolicy",
+				},
+			},
+		},
+		{
+			name: "ism doesnt exist on opensearch",
+			setupCallExpectations: func(_ *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
+				clusterClient.On("Version", mock.Anything).Return(es.OpenSearch3, nil)
+				ilmClient.On("Exists", mock.Anything, "myismpolicy").Return(false, nil)
+			},
+			expectedErr: errors.New("ILM/ISM policy myismpolicy doesn't exist in OpenSearch 3.x. Please create it and re-run init"),
+			config: Config{
+				Config: app.Config{
+					Archive:       true,
+					UseILM:        true,
+					ILMPolicyName: "myismpolicy",
 				},
 			},
 		},
@@ -293,44 +308,48 @@ func TestRolloverAction(t *testing.T) {
 func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	// Verify that when the backend is OpenSearch, the concrete ILMClient
 	// gets UseOpenSearchISM=true and queries the ISM endpoint.
-	var ismEndpointCalled atomic.Bool
-	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		if strings.Contains(req.URL.String(), "_plugins/_ism/policies/") {
-			ismEndpointCalled.Store(true)
-		}
-		res.WriteHeader(http.StatusOK)
-	}))
-	defer testServer.Close()
+	for _, version := range []es.BackendVersion{es.OpenSearch2, es.OpenSearch3} {
+		t.Run(version.String(), func(t *testing.T) {
+			var ismEndpointCalled atomic.Bool
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				if strings.Contains(req.URL.String(), "_plugins/_ism/policies/") {
+					ismEndpointCalled.Store(true)
+				}
+				res.WriteHeader(http.StatusOK)
+			}))
+			defer testServer.Close()
 
-	clusterClient := &mocks.ClusterAPI{}
-	clusterClient.On("Version", mock.Anything).Return(es.OpenSearch2, nil)
+			clusterClient := &mocks.ClusterAPI{}
+			clusterClient.On("Version", mock.Anything).Return(version, nil)
 
-	ilmClient := &client.ILMClient{
-		Client: client.Client{
-			Client:   testServer.Client(),
-			Endpoint: testServer.URL,
-		},
-		Logger: zap.NewNop(),
+			ilmClient := &client.ILMClient{
+				Client: client.Client{
+					Client:   testServer.Client(),
+					Endpoint: testServer.URL,
+				},
+				Logger: zap.NewNop(),
+			}
+
+			cfg := Config{Config: app.Config{UseILM: true, ILMPolicyName: "test-policy"}}
+			applyTestDefaults(&cfg)
+
+			indexClient := &mocks.IndexAPI{}
+			indexClient.On("CreateTemplate", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+			indexClient.On("IndexExists", mock.Anything, mock.Anything).Return(true, nil)
+			indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+			indexClient.On("CreateAlias", mock.Anything, mock.Anything).Return(nil)
+
+			action := Action{
+				Config:        cfg,
+				IndicesClient: indexClient,
+				ClusterClient: clusterClient,
+				ILMClient:     ilmClient,
+			}
+
+			err := action.Do()
+			require.NoError(t, err)
+			assert.True(t, ilmClient.UseOpenSearchISM)
+			assert.True(t, ismEndpointCalled.Load(), "expected ISM endpoint to be called")
+		})
 	}
-
-	cfg := Config{Config: app.Config{UseILM: true, ILMPolicyName: "test-policy"}}
-	applyTestDefaults(&cfg)
-
-	indexClient := &mocks.IndexAPI{}
-	indexClient.On("CreateTemplate", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	indexClient.On("IndexExists", mock.Anything, mock.Anything).Return(true, nil)
-	indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
-	indexClient.On("CreateAlias", mock.Anything, mock.Anything).Return(nil)
-
-	action := Action{
-		Config:        cfg,
-		IndicesClient: indexClient,
-		ClusterClient: clusterClient,
-		ILMClient:     ilmClient,
-	}
-
-	err := action.Do()
-	require.NoError(t, err)
-	assert.True(t, ilmClient.UseOpenSearchISM)
-	assert.True(t, ismEndpointCalled.Load(), "expected ISM endpoint to be called")
 }
