@@ -6,7 +6,7 @@ require (
 	github.com/ClickHouse/ch-go v0.73.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260605151526-e2c717d2194d
-	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
+	github.com/apache/cassandra-gocql-driver/v2 v2.1.2
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/coder/acp-go-sdk v0.13.0
