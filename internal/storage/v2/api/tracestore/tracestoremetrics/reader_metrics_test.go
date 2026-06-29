@@ -248,7 +248,13 @@ func TestReadMetricsDecoratorWithSummary_FindTraceSummaries_EarlyExit(t *testing
 	mf := metricstest.NewFactory(0)
 
 	inner := &readerWithSummary{}
-	summaries := []tracestore.TraceSummary{{RootServiceName: "svc-a"}, {RootServiceName: "svc-b"}}
+	// Three summaries: break after the second so the third is never yielded,
+	// exercising the !yield early-exit path inside FindTraceSummaries.
+	summaries := []tracestore.TraceSummary{
+		{RootServiceName: "svc-a"},
+		{RootServiceName: "svc-b"},
+		{RootServiceName: "svc-c"},
+	}
 	inner.SummaryReader.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
 		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
 
