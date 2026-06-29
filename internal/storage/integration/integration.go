@@ -69,19 +69,19 @@ const (
 // Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
-	TraceWriter       tracestore.Writer
-	TraceReader       tracestore.Reader
-	DependencyWriter  depstore.Writer
-	DependencyReader  depstore.Reader
-	SamplingStore     samplingstore.Store
-	Fixtures          []*QueryFixtures
-	Capabilities      capabilities.Capabilities
-	SkipReadingTraces bool
-	SkipWritingTraces bool
+	TraceWriter      tracestore.Writer
+	TraceReader      tracestore.Reader
+	DependencyWriter depstore.Writer
+	DependencyReader depstore.Reader
+	SamplingStore    samplingstore.Store
+	Fixtures         []*QueryFixtures
+	Capabilities     capabilities.Capabilities
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
-	CleanUp func(t *testing.T)
+	CleanUp           func(t *testing.T)
+	SkipReadingTraces bool
+	SkipWritingTraces bool
 }
 
 // === SpanStore Integration Tests ===
