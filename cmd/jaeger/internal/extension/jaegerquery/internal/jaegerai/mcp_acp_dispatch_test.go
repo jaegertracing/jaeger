@@ -328,6 +328,38 @@ func TestListToolsForSessionSkipsMalformedUITools(t *testing.T) {
 	assert.Equal(t, "good_tool", tools[0].Name)
 }
 
+func TestListToolsForSessionUITakesPrecedenceOnNameCollision(t *testing.T) {
+	// Same precedence rule as serverForRequest: when a UI tool and an
+	// upstream tool share a name, the UI tool wins. Asserts via the
+	// shared helper rather than going through HTTP because the dispatch
+	// rule is what we care about, not the transport.
+	upstream := startFakeUpstreamMCP(t, "get_services")
+	uiSameName := sampleUITool(t, "get_services", "frontend override",
+		map[string]any{"type": "object"})
+	proxy, _, _ := newACPProxyHarness(t, "sess-collision",
+		[]json.RawMessage{uiSameName}, upstream)
+
+	tools := proxy.listToolsForSession("sess-collision")
+	require.Len(t, tools, 1, "duplicate-named upstream tool must be suppressed")
+	assert.Equal(t, "frontend override", tools[0].Description,
+		"the UI tool's description wins on a name collision — proves we surfaced the UI entry, not the upstream entry")
+}
+
+func TestCallToolForSessionForwardsToUpstreamForUpstreamTool(t *testing.T) {
+	// The upstream-tool branch of callToolForSession: when the tool name
+	// only matches an upstream entry, the call must reach forwardToUpstream
+	// and surface the upstream result verbatim.
+	upstream := startFakeUpstreamMCP(t, "search_traces")
+	proxy, _, _ := newACPProxyHarness(t, "sess-fwd-upstream", nil, upstream)
+
+	result, err := proxy.callToolForSession(t.Context(), "sess-fwd-upstream",
+		"search_traces", json.RawMessage(`{"echo":"hi"}`))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.IsError,
+		"upstream branch should round-trip to the fake server's tool handler")
+}
+
 func TestListToolsForSessionMergesUIAndUpstream(t *testing.T) {
 	// listToolsForSession is the shared catalogue both transports read.
 	// Verifying it produces a merged list independently of the

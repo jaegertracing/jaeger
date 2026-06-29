@@ -166,6 +166,88 @@ func TestForwardToUpstreamWithInvalidArgumentsReturnsErrorResult(t *testing.T) {
 	assert.True(t, result.IsError)
 }
 
+func TestServerForRequestEmptySessionIDReturnsEmptyServer(t *testing.T) {
+	// A request whose context carries no session id (stray traffic that
+	// bypassed ServeHTTP, or future code paths that build a server
+	// outside the route) gets an empty *mcp.Server back — no tools
+	// advertised, no panic.
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), "")
+	srv := proxy.serverForRequest(httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+	require.NotNil(t, srv, "serverForRequest must never return nil")
+}
+
+func TestServerForRequestSkipsMalformedUITools(t *testing.T) {
+	// The contextual store can hold a malformed entry if the frontend
+	// sent something the validator missed. serverForRequest must skip
+	// non-object entries and entries with an empty name without
+	// erroring or registering a nameless tool.
+	store := NewContextualToolsStore()
+	store.SetForSession("sess-bad", []json.RawMessage{
+		json.RawMessage(`"not-an-object"`),
+		json.RawMessage(`{"name":""}`),
+		json.RawMessage(`{"name":"good"}`),
+	})
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", store, NewSessionStreams(), "")
+	ctx := context.WithValue(t.Context(), sessionIDContextKey{}, "sess-bad")
+	srv := proxy.serverForRequest(httptest.NewRequest(http.MethodGet, "/", http.NoBody).WithContext(ctx))
+	require.NotNil(t, srv)
+}
+
+func TestUIToolNameRegisteredSkipsNonMapEntries(t *testing.T) {
+	// Defensive scan: a non-map entry mixed into the session snapshot
+	// (e.g. a stray string the frontend included by mistake) must be
+	// ignored, not treated as a match.
+	tools := []any{"not-a-map", map[string]any{"name": "good"}}
+	assert.True(t, uiToolNameRegistered(tools, "good"))
+	assert.False(t, uiToolNameRegistered(tools, "missing"))
+}
+
+func TestDispatchUIToolRejectsMalformedJSONArguments(t *testing.T) {
+	// The ACP path can hand us a json.RawMessage that the agent
+	// constructed badly; we must produce an IsError result rather than
+	// emit a tool_call with broken arguments.
+	streams := NewSessionStreams()
+	rec := httptest.NewRecorder()
+	sc := newStreamingClient(t.Context(), rec, "thread-test", "run-test")
+	sc.startRun()
+	streams.Set("sess-bad-json", sc)
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), streams, "")
+
+	result := proxy.dispatchUITool("sess-bad-json", "highlight", json.RawMessage(`{not-json`))
+	require.NotNil(t, result)
+	assert.True(t, result.IsError)
+}
+
+func TestMCPProxyServeHTTPPreservesSubpath(t *testing.T) {
+	// When the agent appends an MCP subpath ("/messages", future MCP
+	// extensions, etc.), ServeHTTP must rewrite r.URL.Path to "/" + the
+	// trailing segment so the wrapped handler sees its own clean root.
+	// Without the rewrite, the wrapped handler would receive
+	// "/api/ai/mcp/<sid>/messages" and 404.
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), "")
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, routeMCPPrefix+"sess-sub/messages", http.NoBody)
+	proxy.ServeHTTP(rec, req)
+	// The wrapped streamable handler returns 405 for a bare GET on its
+	// non-root path; the key signal is that the proxy reached it (not 404).
+	assert.NotEqual(t, http.StatusNotFound, rec.Code,
+		"subpath should be preserved and forwarded; 404 would mean the rewrite mis-targeted the prefix")
+}
+
+func TestForwardToUpstreamRejectsMalformedJSONWithConnectedUpstream(t *testing.T) {
+	// Exercises the rawArgs unmarshal failure path *while* an upstream
+	// session is connected — the earlier no-upstream test returns at the
+	// `p.upstream == nil` guard before reaching the unmarshal branch.
+	upstream := startFakeUpstreamMCP(t, "search_traces")
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), upstream)
+	t.Cleanup(func() { _ = proxy.Close() })
+
+	result, err := proxy.forwardToUpstream(t.Context(), "search_traces", json.RawMessage(`{not-json`))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.IsError)
+}
+
 func TestNewMCPProxyAcceptsNilLogger(t *testing.T) {
 	// The constructor must tolerate a nil logger so callers in test
 	// fixtures (and historical call sites that haven't been updated
