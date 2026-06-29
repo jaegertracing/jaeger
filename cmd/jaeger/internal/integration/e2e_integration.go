@@ -85,7 +85,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		configFile = createStorageCleanerConfig(t, s.ConfigFile, storage)
 	}
 	if s.DisableBatchProcessor {
-		configFile = createBatchProcessorDisabledConfigFile(t, configFile)
+		configFile = removeBatchProcessor(t, configFile)
 	}
 	configFile, err := filepath.Abs(configFile)
 	require.NoError(t, err, "Failed to get absolute path of the config file")
@@ -285,7 +285,7 @@ func getJaegerMainBinaryPath() string {
 	return "/tmp/jaeger-main/jaeger"
 }
 
-func createBatchProcessorDisabledConfigFile(t *testing.T, configFile string) string {
+func removeBatchProcessor(t *testing.T, configFile string) string {
 	config := loadAndParseConfig(t, configFile)
 	serviceAny, ok := config["service"]
 	require.True(t, ok)

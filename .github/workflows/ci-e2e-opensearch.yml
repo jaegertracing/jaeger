@@ -20,10 +20,7 @@ permissions:  # added using https://github.com/step-security/secure-workflows
 
 jobs:
   opensearch:
-    if: ${{
-      (inputs.backward_compatibility_env && matrix.version.storage_test == 'e2e') ||
-      !inputs.backward_compatibility_env
-      }}
+    if: ${{ !inputs.backward_compatibility_env || matrix.version.storage_test == 'e2e' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

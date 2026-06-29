@@ -19,5 +19,5 @@ func TestConfigsAreValid(t *testing.T) {
 
 func validateConfig(t *testing.T, configFile string, storage string) {
 	createStorageCleanerConfig(t, configFile, storage)
-	createBatchProcessorDisabledConfigFile(t, configFile)
+	removeBatchProcessor(t, configFile)
 }

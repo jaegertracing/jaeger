@@ -163,13 +163,13 @@ func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(names, "|"))
 }
 
-func isBackwardCompatibilityEnv() bool {
+func IsBackwardCompatibilityEnv() bool {
 	is, _ := strconv.ParseBool(os.Getenv("BACKWARD_COMPATIBILITY"))
 	return is
 }
 
 func skipInBackwardCompatibilityEnv(t *testing.T) {
-	if isBackwardCompatibilityEnv() {
+	if IsBackwardCompatibilityEnv() {
 		t.Skip()
 	}
 }
@@ -177,15 +177,6 @@ func skipInBackwardCompatibilityEnv(t *testing.T) {
 func (s *StorageIntegration) skipReadingTracesIfNeeded(t *testing.T) {
 	if s.SkipReadingTraces {
 		t.Skip()
-	}
-}
-
-func SkipTestIfNeeded(t *testing.T, isBackwardCompatibilityTest bool) {
-	backwardCompatibilityEnv := isBackwardCompatibilityEnv()
-	if backwardCompatibilityEnv && !isBackwardCompatibilityTest {
-		t.Skip("BACKWARD_COMPATIBILITY=true, skipping non-backward compatibility tests")
-	} else if !backwardCompatibilityEnv && isBackwardCompatibilityTest {
-		t.Skip("BACKWARD_COMPATIBILITY=false, skipping backward compatibility tests")
 	}
 }
 

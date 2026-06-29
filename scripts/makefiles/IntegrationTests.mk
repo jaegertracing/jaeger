@@ -17,11 +17,15 @@ export JAEGER_MAIN_INSTALL_DIR
 .PHONY: install-jaeger-main
 install-jaeger-main:
 	mkdir -p $(JAEGER_MAIN_INSTALL_DIR)
-	GOBIN=$(JAEGER_MAIN_INSTALL_DIR) go install github.com/jaegertracing/jaeger/cmd/jaeger@main
+	rm -rf $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo
+	git clone --depth 1 --branch main https://github.com/jaegertracing/jaeger.git $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo
+	(cd $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo/cmd/jaeger && go build -o $(JAEGER_MAIN_INSTALL_DIR)/jaeger .)
+	rm -rf $(JAEGER_MAIN_INSTALL_DIR)/jaeger-repo
 
 BACKWARD_COMPATIBILITY ?= false
 ifeq ($(BACKWARD_COMPATIBILITY),true)
 PRE_TEST := install-jaeger-main
+EXTRA_TEST_ARGS := -run ".*BackwardCompatibility"
 endif
 
 # A general integration tests for jaeger-v2 storage backends,
@@ -33,7 +37,7 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(PRE_TEST)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS) $(EXTRA_TEST_ARGS)
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)
