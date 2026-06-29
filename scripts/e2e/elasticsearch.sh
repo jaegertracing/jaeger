@@ -130,13 +130,17 @@ main() {
   local distro=$1
   local es_version=$2
   local storage_test=$3
-
+  local backward_compatibility=${4:-false}
+  if [[ "${storage_test}" == "direct" && "${backward_compatibility}" == "true" ]]; then
+    echo "ERROR: Can't run backward compatibility with direct storage tests"
+    exit 1
+  fi
   set -x
 
   bring_up_storage "${distro}" "${es_version}"
   build_local_img
   if [[ "${storage_test}" == "e2e" ]]; then
-    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
+    STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} BACKWARD_COMPATIBILITY=${backward_compatibility} make jaeger-v2-storage-integration-test
   elif [[ "${storage_test}" == "direct" ]]; then
     echo "::group::⬇️ Pre-pull test docker images"
     docker pull localhost:5000/jaegertracing/jaeger-es-index-cleaner:local-test

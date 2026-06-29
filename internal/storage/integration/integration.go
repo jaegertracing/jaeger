@@ -15,6 +15,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -68,13 +69,15 @@ const (
 // Some implementations may declare multiple tests, with different settings,
 // and RunAll() under different conditions.
 type StorageIntegration struct {
-	TraceWriter      tracestore.Writer
-	TraceReader      tracestore.Reader
-	DependencyWriter depstore.Writer
-	DependencyReader depstore.Reader
-	SamplingStore    samplingstore.Store
-	Fixtures         []*QueryFixtures
-	Capabilities     capabilities.Capabilities
+	TraceWriter       tracestore.Writer
+	TraceReader       tracestore.Reader
+	DependencyWriter  depstore.Writer
+	DependencyReader  depstore.Reader
+	SamplingStore     samplingstore.Store
+	Fixtures          []*QueryFixtures
+	Capabilities      capabilities.Capabilities
+	SkipReadingTraces bool
+	SkipWritingTraces bool
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
@@ -160,6 +163,32 @@ func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(names, "|"))
 }
 
+func isBackwardCompatibilityEnv() bool {
+	is, _ := strconv.ParseBool(os.Getenv("BACKWARD_COMPATIBILITY"))
+	return is
+}
+
+func skipInBackwardCompatibilityEnv(t *testing.T) {
+	if isBackwardCompatibilityEnv() {
+		t.Skip()
+	}
+}
+
+func (s *StorageIntegration) skipReadingTracesIfNeeded(t *testing.T) {
+	if s.SkipReadingTraces {
+		t.Skip()
+	}
+}
+
+func SkipTestIfNeeded(t *testing.T, isBackwardCompatibilityTest bool) {
+	backwardCompatibilityEnv := isBackwardCompatibilityEnv()
+	if backwardCompatibilityEnv && !isBackwardCompatibilityTest {
+		t.Skip("BACKWARD_COMPATIBILITY=true, skipping non-backward compatibility tests")
+	} else if !backwardCompatibilityEnv && isBackwardCompatibilityTest {
+		t.Skip("BACKWARD_COMPATIBILITY=false, skipping backward compatibility tests")
+	}
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.Capabilities.SkipList() {
 		escapedPat := regexp.QuoteMeta(pat)
@@ -185,6 +214,7 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 }
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
+	skipInBackwardCompatibilityEnv(t)
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
@@ -246,7 +276,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
-
+	s.skipReadingTracesIfNeeded(t)
 	actual := ptrace.NewTraces()
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
@@ -275,6 +305,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 }
 
 func (s *StorageIntegration) testGetLargeTrace(t *testing.T) {
+	skipInBackwardCompatibilityEnv(t)
 	s.helperTestGetTrace(t, 10008, 0, "Large Trace over 10K without duplicates", nil)
 }
 
@@ -312,7 +343,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		}
 	}
 	s.loadParseAndWriteExampleTrace(t)
-
+	s.skipReadingTracesIfNeeded(t)
 	var actual []tracestore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
@@ -341,7 +372,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 
 	expected := s.loadParseAndWriteExampleTrace(t)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
-
+	s.skipReadingTracesIfNeeded(t)
 	actual := ptrace.Traces{} // no spans
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: expectedTraceID})
@@ -394,6 +425,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
+	s.skipReadingTracesIfNeeded(t)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -412,6 +444,7 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	require.True(t, ok, "TraceReader must implement tracestore.SummaryReader; add FindTraceSummaries to Capabilities.SkipList to opt out")
 
 	trace := s.loadParseAndWriteExampleTrace(t)
+	s.skipReadingTracesIfNeeded(t)
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
 	expectedTraceID := jptrace.GetTraceID(trace)
@@ -501,6 +534,9 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
+	if s.SkipWritingTraces {
+		return
+	}
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), trace.SpanCount())
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()

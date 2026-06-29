@@ -9,13 +9,21 @@ name: CIT OpenSearch
 
 on:
   workflow_call:
-
+    inputs:
+      backward_compatibility_env:
+        type: boolean
+        required: false
+        default: false
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
 
 jobs:
   opensearch:
+    if: ${{
+      (inputs.backward_compatibility_env && matrix.version.storage_test == 'e2e') ||
+      !inputs.backward_compatibility_env
+      }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -55,7 +63,7 @@ jobs:
 
     - name: Run ${{ matrix.version.distribution }} integration tests
       id: test-execution
-      run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
+      run: bash scripts/e2e/elasticsearch.sh ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }} ${{ inputs.backward_compatibility_env }}
 
     - uses: ./.github/actions/verify-metrics-snapshot
       if: matrix.version.storage_test == 'e2e'

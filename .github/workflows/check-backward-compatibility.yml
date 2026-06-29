@@ -1,0 +1,27 @@
+name: Check backward compatibility
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    outputs:
+      storage: ${{ steps.parse.outputs.storage }}
+    steps:
+      - id: parse
+        run: |
+          for label in ${{ join(github.event.pull_request.labels.*.name, ' ') }}; do
+            case "$label" in
+              check-backward-compatibility:*)
+                echo "storage=${label#check-backward-compatibility:}" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          done
+  backward-compatibility-tests:
+    needs: check-label
+    if: ${{ needs.check-label.outputs.storage != '' }}
+    uses: ./.github/workflows/ci-backward-compatibility-all.yml
+    with:
+      storage: ${{ needs.check-label.outputs.storage }}
