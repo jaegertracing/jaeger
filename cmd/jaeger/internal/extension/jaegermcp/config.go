@@ -25,6 +25,9 @@ type Config struct {
 
 	// MaxSearchResults limits the number of trace search results.
 	MaxSearchResults int `mapstructure:"max_search_results" valid:"range(1|1000)"`
+
+	// MaxReadFileSize limits the size (in bytes) of files served by the read_skill tool.
+	MaxReadFileSize int64 `mapstructure:"max_read_file_size" valid:"range(1|10485760)"`
 }
 
 // Validate checks if the configuration is valid.

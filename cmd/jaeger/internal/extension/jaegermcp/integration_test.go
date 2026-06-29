@@ -222,6 +222,7 @@ func TestMCPClientToolsListDiscovery(t *testing.T) {
 		"get_services", "get_span_names", "search_traces",
 		"get_span_details", "get_trace_errors", "get_trace_topology", "get_critical_path",
 		"get_service_dependencies",
+		"read_skill",
 	}
 	got := make(map[string]bool, len(result.Tools))
 	for _, tool := range result.Tools {
@@ -476,6 +477,44 @@ func TestMCPClientMultipleSessionsIndependent(t *testing.T) {
 	names1 := toolNamesFromList(r1.result.Tools)
 	names2 := toolNamesFromList(r2.result.Tools)
 	assert.Equal(t, names1, names2)
+}
+
+// --- Skills tool tests ---
+
+func TestMCPClientReadSkillCatalog(t *testing.T) {
+	s := connectMCPSession(t, nil)
+	text := s.callTool(t, "read_skill", map[string]any{"path": "SKILL.md"})
+	assert.Contains(t, text, "Available Skills")
+	assert.Contains(t, text, "detect-n-plus-one")
+	assert.Contains(t, text, "error-root-cause")
+}
+
+func TestMCPClientReadSkillMD(t *testing.T) {
+	s := connectMCPSession(t, nil)
+	text := s.callTool(t, "read_skill", map[string]any{"path": "detect-n-plus-one/SKILL.md"})
+	assert.Contains(t, text, "name: detect-n-plus-one")
+	assert.Contains(t, text, "N+1")
+}
+
+func TestMCPClientReadSkillPathTraversal(t *testing.T) {
+	s := connectMCPSession(t, nil)
+	result, err := s.CallTool(s.ctx, &mcp.CallToolParams{
+		Name:      "read_skill",
+		Arguments: map[string]any{"path": "../../../etc/passwd"},
+	})
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	assert.Contains(t, extractTextContent(t, result), "cannot read")
+}
+
+func TestMCPClientSkillsDiscoveryFlow(t *testing.T) {
+	s := connectMCPSession(t, nil)
+
+	catalog := s.callTool(t, "read_skill", map[string]any{"path": "SKILL.md"})
+	assert.Contains(t, catalog, "error-root-cause")
+
+	skill := s.callTool(t, "read_skill", map[string]any{"path": "error-root-cause/SKILL.md"})
+	assert.Contains(t, skill, "get_trace_errors")
 }
 
 func toolNamesFromList(tools []*mcp.Tool) []string {
