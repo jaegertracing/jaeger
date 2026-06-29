@@ -140,6 +140,42 @@ func TestMCPProxyServeHTTPRejectsBadPrefix(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestForwardToUpstreamWithoutSessionReturnsErrorResult(t *testing.T) {
+	// When the initial upstream dial failed, p.upstream stays nil and
+	// any forwardToUpstream call must produce an IsError CallToolResult
+	// rather than nil-deref. Lets the gateway keep serving UI tools
+	// while telemetry tools degrade gracefully.
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), "")
+	result, err := proxy.forwardToUpstream(t.Context(), "search_traces", json.RawMessage(`{}`))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.IsError)
+}
+
+func TestForwardToUpstreamWithInvalidArgumentsReturnsErrorResult(t *testing.T) {
+	// Even with a connected upstream session, malformed JSON arguments
+	// (caller bug or wire corruption) must surface as IsError rather
+	// than as a transport error or a nil-deref inside upstream.CallTool.
+	// We can't easily synthesise a live upstream here, so we exercise
+	// the parse branch with no upstream — same code path, same
+	// IsError outcome.
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", NewContextualToolsStore(), NewSessionStreams(), "")
+	result, err := proxy.forwardToUpstream(t.Context(), "search_traces", json.RawMessage(`{not-json`))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.IsError)
+}
+
+func TestNewMCPProxyAcceptsNilLogger(t *testing.T) {
+	// The constructor must tolerate a nil logger so callers in test
+	// fixtures (and historical call sites that haven't been updated
+	// for zap) don't have to construct a zap.NewNop themselves.
+	proxy := newMCPProxyWithUpstream(t.Context(), nil, "", NewContextualToolsStore(), NewSessionStreams(), "")
+	t.Cleanup(func() { _ = proxy.Close() })
+	require.NotNil(t, proxy)
+	require.NotNil(t, proxy.logger, "nil logger must be replaced with a no-op logger so log calls don't panic")
+}
+
 func TestMCPProxyServeHTTPStripsBasePath(t *testing.T) {
 	// When jaeger-query runs behind an operator-configured base path
 	// (e.g. "/jaeger"), the mux routes "<basePath>/api/ai/mcp/..." to

@@ -259,6 +259,75 @@ func TestHandleMessageRejectsUnknownMethod(t *testing.T) {
 	assert.Contains(t, err.Error(), "not supported")
 }
 
+func TestHandleMessageToolsCallRejectsEmptyName(t *testing.T) {
+	// tools/call with no name field is a malformed inner-MCP request.
+	// Return a CallToolResult with IsError rather than letting the
+	// dispatch path fall through to an "unknown tool" lookup with the
+	// empty string as the key.
+	proxy, _, _ := newACPProxyHarness(t, "sess-empty-name", nil, "")
+	connResp, err := proxy.HandleConnect(t.Context(), "sess-empty-name",
+		acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
+	require.NoError(t, err)
+
+	rawResp, err := proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
+		ConnectionId: connResp.ConnectionId,
+		Method:       "tools/call",
+		Params:       map[string]any{"arguments": map[string]any{}},
+	})
+	require.NoError(t, err, "tools/call with missing name should produce an error-result, not a transport error")
+	result, ok := rawResp.(*mcp.CallToolResult)
+	require.True(t, ok)
+	assert.True(t, result.IsError)
+}
+
+func TestHandleMessageNotificationsInitializedReturnsNil(t *testing.T) {
+	// The agent's MCP client emits notifications/initialized once after
+	// initialize completes. It's a fire-and-forget notification — the
+	// gateway must accept it without a body so the handshake closes.
+	proxy, _, _ := newACPProxyHarness(t, "sess-notif", nil, "")
+	connResp, err := proxy.HandleConnect(t.Context(), "sess-notif",
+		acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp"})
+	require.NoError(t, err)
+
+	rawResp, err := proxy.HandleMessage(t.Context(), acp.UnstableMessageMcpRequest{
+		ConnectionId: connResp.ConnectionId,
+		Method:       "notifications/initialized",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, rawResp, "notifications/initialized must return a nil result so the SDK elides the result field")
+}
+
+func TestCallToolForSessionRejectsUnknownTool(t *testing.T) {
+	// callToolForSession is the shared router. When the tool name
+	// belongs to neither the per-session UI snapshot nor the upstream
+	// catalogue, return an "unknown tool" error result rather than
+	// dispatching anywhere — agents need an explicit failure they can
+	// surface to the LLM.
+	proxy, _, _ := newACPProxyHarness(t, "sess-unknown", nil, "")
+
+	result, err := proxy.callToolForSession(t.Context(), "sess-unknown", "definitely_not_a_tool", json.RawMessage(`{}`))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.True(t, result.IsError, "unknown tool name must surface as an IsError CallToolResult")
+}
+
+func TestListToolsForSessionSkipsMalformedUITools(t *testing.T) {
+	// The UI tool snapshot is JSON the frontend sent; a stray non-object
+	// or an entry with no name must be skipped rather than producing a
+	// nameless tool that the MCP SDK would later reject.
+	uiTools := []json.RawMessage{
+		json.RawMessage(`"not-an-object"`),
+		json.RawMessage(`{}`),
+		json.RawMessage(`{"name":""}`),
+		json.RawMessage(`{"name":"good_tool","description":"valid"}`),
+	}
+	proxy, _, _ := newACPProxyHarness(t, "sess-malformed", uiTools, "")
+
+	tools := proxy.listToolsForSession("sess-malformed")
+	require.Len(t, tools, 1, "only the well-formed entry must survive")
+	assert.Equal(t, "good_tool", tools[0].Name)
+}
+
 func TestListToolsForSessionMergesUIAndUpstream(t *testing.T) {
 	// listToolsForSession is the shared catalogue both transports read.
 	// Verifying it produces a merged list independently of the

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	acp "github.com/coder/acp-go-sdk"
@@ -328,4 +329,167 @@ func TestToRequestErrorWrapsPlainError(t *testing.T) {
 	got := toRequestError(errors.New("boom"))
 	require.NotNil(t, got)
 	assert.Equal(t, -32603, got.Code, "plain errors should be wrapped as InternalError")
+}
+
+// dispatcherWithProxy mirrors freshDispatcher but wires a real MCPProxy
+// and a sessionIDRef pre-populated with sessionID. Used by the mcp/*
+// tests that need the dispatcher's proxy branch (lines 130-167) to
+// run rather than fall through to MethodNotFound.
+//
+// upstreamURL is "" so the proxy doesn't try to dial anything during
+// construction — these tests only exercise the dispatcher's typed
+// case bodies, not the upstream-tools machinery.
+func dispatcherWithProxy(t *testing.T, sessionID string) (acp.MethodHandler, *MCPProxy) {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	client := newStreamingClient(t.Context(), rr, "thread-test", "run-test")
+	store := NewContextualToolsStore()
+	streams := NewSessionStreams()
+	proxy := newMCPProxyWithUpstream(t.Context(), zap.NewNop(), "", store, streams, "")
+	t.Cleanup(func() { _ = proxy.Close() })
+
+	var ref atomic.Pointer[string]
+	if sessionID != "" {
+		s := sessionID
+		ref.Store(&s)
+	}
+	d := newDispatcher(client, store, proxy, &ref, zap.NewNop())
+	return d, proxy
+}
+
+func TestDispatcherMCPConnectRoutesToProxy(t *testing.T) {
+	// Happy path: with a proxy wired in and a session id already known,
+	// mcp/connect must reach proxy.HandleConnect and surface its
+	// generated connectionId back to the agent.
+	d, _ := dispatcherWithProxy(t, "sess-mcp-conn")
+	params, err := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp-1"})
+	require.NoError(t, err)
+
+	result, reqErr := d(t.Context(), acp.ClientMethodMcpConnect, params)
+	require.Nil(t, reqErr)
+	resp, ok := result.(acp.UnstableConnectMcpResponse)
+	require.True(t, ok, "expected UnstableConnectMcpResponse, got %T", result)
+	assert.NotEmpty(t, string(resp.ConnectionId), "HandleConnect must mint a non-empty connectionId")
+}
+
+func TestDispatcherMCPConnectReturnsMethodNotFoundWithoutProxy(t *testing.T) {
+	// Capability gating: agents that announce mcp.acp=true still hit
+	// MethodNotFound when no proxy is wired (e.g. older deployments
+	// without the MCP route). Lets agents fall back to the HTTP path
+	// rather than retry indefinitely.
+	d := freshDispatcher(t).d
+	params, err := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp-1"})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpConnect, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32601, reqErr.Code, "mcp/connect with nil proxy must be MethodNotFound")
+}
+
+func TestDispatcherMCPConnectInvalidParamsErrors(t *testing.T) {
+	d, _ := dispatcherWithProxy(t, "sess-mcp-conn")
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpConnect, json.RawMessage(`{not-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code, "malformed mcp/connect params should yield InvalidParams")
+}
+
+func TestDispatcherMCPConnectBeforeSessionReadyErrors(t *testing.T) {
+	// session/new hasn't returned yet → sessionIDRef holds nothing.
+	// The dispatcher must refuse mcp/connect rather than dispatch with
+	// an empty session id, which would cross-contaminate UI-tool
+	// snapshots across chat turns.
+	d, _ := dispatcherWithProxy(t, "")
+	params, err := json.Marshal(acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp-1"})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpConnect, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code, "mcp/connect before session/new should yield InvalidParams")
+}
+
+func TestDispatcherMCPDisconnectRoutesToProxy(t *testing.T) {
+	// Disconnect targets a connection we opened earlier via Connect.
+	d, proxy := dispatcherWithProxy(t, "sess-mcp-dc")
+	connResp, err := proxy.HandleConnect(t.Context(), "sess-mcp-dc",
+		acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp-1"})
+	require.NoError(t, err)
+
+	params, err := json.Marshal(acp.UnstableDisconnectMcpRequest{ConnectionId: connResp.ConnectionId})
+	require.NoError(t, err)
+
+	result, reqErr := d(t.Context(), acp.ClientMethodMcpDisconnect, params)
+	require.Nil(t, reqErr)
+	_, ok := result.(acp.UnstableDisconnectMcpResponse)
+	require.True(t, ok, "expected UnstableDisconnectMcpResponse, got %T", result)
+}
+
+func TestDispatcherMCPDisconnectReturnsMethodNotFoundWithoutProxy(t *testing.T) {
+	d := freshDispatcher(t).d
+	params, err := json.Marshal(acp.UnstableDisconnectMcpRequest{ConnectionId: "anything"})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpDisconnect, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32601, reqErr.Code)
+}
+
+func TestDispatcherMCPDisconnectInvalidParamsErrors(t *testing.T) {
+	d, _ := dispatcherWithProxy(t, "sess-mcp-dc")
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpDisconnect, json.RawMessage(`{not-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestDispatcherMCPMessageRoutesToProxy(t *testing.T) {
+	// mcp/message tunnels an inner MCP method through ACP; the
+	// dispatcher hands it to proxy.HandleMessage which then routes by
+	// inner method (initialize, tools/list, tools/call). Use
+	// initialize because it's the lightest path that returns a typed
+	// SDK response.
+	d, proxy := dispatcherWithProxy(t, "sess-mcp-msg")
+	connResp, err := proxy.HandleConnect(t.Context(), "sess-mcp-msg",
+		acp.UnstableConnectMcpRequest{AcpId: "jaeger-mcp-1"})
+	require.NoError(t, err)
+
+	params, err := json.Marshal(acp.UnstableMessageMcpRequest{
+		ConnectionId: connResp.ConnectionId,
+		Method:       "initialize",
+	})
+	require.NoError(t, err)
+
+	result, reqErr := d(t.Context(), acp.ClientMethodMcpMessage, params)
+	require.Nil(t, reqErr)
+	require.NotNil(t, result, "initialize must return an InitializeResult")
+}
+
+func TestDispatcherMCPMessageReturnsMethodNotFoundWithoutProxy(t *testing.T) {
+	d := freshDispatcher(t).d
+	params, err := json.Marshal(acp.UnstableMessageMcpRequest{ConnectionId: "x", Method: "initialize"})
+	require.NoError(t, err)
+
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpMessage, params)
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32601, reqErr.Code)
+}
+
+func TestDispatcherMCPMessageInvalidParamsErrors(t *testing.T) {
+	d, _ := dispatcherWithProxy(t, "sess-mcp-msg")
+	_, reqErr := d(t.Context(), acp.ClientMethodMcpMessage, json.RawMessage(`{not-json`))
+	require.NotNil(t, reqErr)
+	assert.Equal(t, -32602, reqErr.Code)
+}
+
+func TestCurrentSessionIDHandlesNilAndEmpty(t *testing.T) {
+	// currentSessionID is the dispatcher's only read of the
+	// session-id holder; covering the three explicit branches keeps
+	// the "not yet ready" path from regressing into a nil-pointer
+	// panic if the holder shape ever changes.
+	assert.Empty(t, currentSessionID(nil), "nil holder → empty string")
+
+	var ref atomic.Pointer[string]
+	assert.Empty(t, currentSessionID(&ref), "non-nil holder with nil load → empty string")
+
+	s := "sess-x"
+	ref.Store(&s)
+	assert.Equal(t, "sess-x", currentSessionID(&ref))
 }

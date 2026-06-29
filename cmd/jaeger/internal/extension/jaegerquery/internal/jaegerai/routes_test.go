@@ -73,3 +73,24 @@ func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
 	h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", "/jaeger/", 1<<20)
 	assert.Equal(t, "/jaeger", h.basePath, "NewHandler must trim the trailing slash")
 }
+
+func TestHandlerCloseIsIdempotentBeforeRegisterRoutes(t *testing.T) {
+	// The chat handler defers Handler.Close, and it may run before
+	// RegisterRoutes if the extension is shut down during a failed
+	// Start (mcpProxy never gets constructed). Close must no-op rather
+	// than nil-deref in that case.
+	h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", "", 1<<20)
+	require.NoError(t, h.Close())
+}
+
+func TestHandlerCloseReleasesProxyAfterRegisterRoutes(t *testing.T) {
+	// Once the MCP route is mounted, Handler.Close must hand off to
+	// MCPProxy.Close (which in turn releases the upstream MCP client
+	// session). Verifying it returns nil after Register confirms the
+	// proxy-Close path is reachable; the underlying MCPProxy.Close is
+	// itself covered by mcp_proxy_test.go.
+	h := NewHandler(zap.NewNop(), "ws://127.0.0.1:1", "/jaeger", 1<<20)
+	h.RegisterRoutes(t.Context(), http.NewServeMux())
+	require.NotNil(t, h.mcpProxy, "RegisterRoutes must populate the proxy field for Close to reach it")
+	require.NoError(t, h.Close())
+}
