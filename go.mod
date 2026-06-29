@@ -11,7 +11,7 @@ require (
 	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/coder/acp-go-sdk v0.13.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/dgraph-io/badger/v4 v4.9.1
+	github.com/dgraph-io/badger/v4 v4.9.2
 	github.com/elastic/go-elasticsearch/v9 v9.4.2
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/googleapis v1.4.1
