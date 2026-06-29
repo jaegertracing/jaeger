@@ -44,7 +44,7 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 	ctx, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(
 		otelsemconv.DBSystemAttribute("redis"),
-		otelsemconv.DBOperationNameAttribute("FindDriverIDs"),
+		otelsemconv.DBOperationNameAttribute("GET"),
 		attribute.Key("param.driver.location").String(location),
 	)
 	defer span.End()
@@ -66,7 +66,7 @@ func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) 
 	ctx, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
 	span.SetAttributes(
 		otelsemconv.DBSystemAttribute("redis"),
-		otelsemconv.DBOperationNameAttribute("GetDriver"),
+		otelsemconv.DBOperationNameAttribute("GET"),
 		attribute.Key("param.driverID").String(driverID),
 	)
 	defer span.End()
