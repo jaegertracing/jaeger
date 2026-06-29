@@ -48,6 +48,9 @@ func TestOpenSearchStorage_DataStream(t *testing.T) {
 
 func TestOpenSearch_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
+	if !integration.IsBackwardCompatibilityEnv() {
+		t.Skip()
+	}
 	s := E2EStorageIntegration{
 		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
