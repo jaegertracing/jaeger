@@ -589,3 +589,33 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, output.Traces, 3)
 }
+
+func TestSearchTracesHandler_Handle_NegativeDurationMin(t *testing.T) {
+	handler := NewSearchTracesHandler(nil, 100)
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		DurationMin:  "-5s",
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid duration_min: duration cannot be negative")
+}
+
+func TestSearchTracesHandler_Handle_NegativeDurationMax(t *testing.T) {
+	handler := NewSearchTracesHandler(nil, 100)
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		DurationMax:  "-10s",
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid duration_max: duration cannot be negative")
+}
