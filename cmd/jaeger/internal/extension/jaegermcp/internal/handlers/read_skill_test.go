@@ -59,7 +59,7 @@ func TestReadSkillHandler_InvalidPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: tt.path})
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), "invalid path")
+			assert.Contains(t, err.Error(), "cannot read")
 		})
 	}
 }
@@ -79,9 +79,9 @@ func TestReadSkillHandler_Directory(t *testing.T) {
 
 func TestReadSkillHandler_FileTooLarge(t *testing.T) {
 	h := newTestHandler()
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "exceeds maximum size")
+	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
+	require.NoError(t, err)
+	assert.Contains(t, output.Instructions, "truncated after")
 }
 
 func TestReadSkillHandler_RawTextInContent(t *testing.T) {

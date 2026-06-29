@@ -42,14 +42,14 @@ func (h *readSkillHandler) handle(
 
 	buf := make([]byte, h.maxFileSize+1)
 	n, err := io.ReadFull(f, buf)
-	if n > int(h.maxFileSize) {
-		return nil, types.ReadSkillOutput{}, fmt.Errorf("file exceeds maximum size of %d bytes", h.maxFileSize)
-	}
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
-
 	content := string(buf[:n])
+	if n > int(h.maxFileSize) {
+		content = content + fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
+	}
+
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: content}},
 	}, types.ReadSkillOutput{Instructions: content}, nil
