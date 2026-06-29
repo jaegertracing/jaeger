@@ -11,6 +11,8 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/coder/acp-go-sdk"
+
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 // latestUserMessageText returns the text content of the most recent user
@@ -288,4 +290,120 @@ func flattenToolResultContent(raw any) string {
 		return fmt.Sprintf("%v", raw)
 	}
 	return string(payload)
+}
+
+const DefaultAIModelContextLimit = 8192
+
+// estimateTokens returns an estimated token count for a text string using the 1 token ≈ 4 characters heuristic.
+func estimateTokens(text string) int {
+	return (len(text) + 3) / 4
+}
+
+// isLowValueSpan checks if a span is "low-value" (non-root, duration < 1ms, no error tags, no error status, no error logs).
+func isLowValueSpan(span uimodel.Span) bool {
+	// Root span check: if it has no parent and no references, it's a root span. Keep it.
+	if span.ParentSpanID == "" && len(span.References) == 0 {
+		return false
+	}
+
+	// Duration check: if duration is >= 1ms (1000 microseconds), keep it.
+	if span.Duration >= 1000 {
+		return false
+	}
+
+	// Error check in tags: if error tag is present and truthy, keep it.
+	for _, kv := range span.Tags {
+		if kv.Key == "error" {
+			if b, ok := kv.Value.(bool); ok && b {
+				return false
+			}
+			if s, ok := kv.Value.(string); ok && (s == "true" || s == "1") {
+				return false
+			}
+			if i, ok := kv.Value.(int64); ok && i != 0 {
+				return false
+			}
+			if f, ok := kv.Value.(float64); ok && f != 0 {
+				return false
+			}
+		}
+		if kv.Key == "http.status_code" {
+			if i, ok := kv.Value.(int64); ok && i >= 400 {
+				return false
+			}
+			if f, ok := kv.Value.(float64); ok && f >= 400 {
+				return false
+			}
+			if s, ok := kv.Value.(string); ok {
+				var code int
+				if n, err := fmt.Sscanf(s, "%d", &code); err == nil && n == 1 && code >= 400 {
+					return false
+				}
+			}
+		}
+	}
+
+	// Error check in logs: if log fields contain error info, keep it.
+	for _, log := range span.Logs {
+		for _, kv := range log.Fields {
+			if kv.Key == "error" {
+				return false
+			}
+			if kv.Key == "event" && kv.Value == "error" {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// tryPruneTraceContext tries to unmarshal the context value as a Trace or Trace envelope, prunes low-value spans, and returns the re-marshaled JSON.
+func tryPruneTraceContext(contextValue string) (string, bool) {
+	// Attempt to unmarshal as uimodel.Trace
+	var trace uimodel.Trace
+	if err := json.Unmarshal([]byte(contextValue), &trace); err == nil && len(trace.Spans) > 0 {
+		prunedSpans := make([]uimodel.Span, 0, len(trace.Spans))
+		for _, span := range trace.Spans {
+			if !isLowValueSpan(span) {
+				prunedSpans = append(prunedSpans, span)
+			}
+		}
+		if len(prunedSpans) < len(trace.Spans) {
+			trace.Spans = prunedSpans
+			if updatedBytes, err := json.Marshal(trace); err == nil {
+				return string(updatedBytes), true
+			}
+		}
+		return contextValue, false
+	}
+
+	// Attempt to unmarshal as {"data": []uimodel.Trace}
+	type envelope struct {
+		Data []uimodel.Trace `json:"data"`
+	}
+	var env envelope
+	if err := json.Unmarshal([]byte(contextValue), &env); err == nil && len(env.Data) > 0 {
+		prunedAny := false
+		for i, t := range env.Data {
+			prunedSpans := make([]uimodel.Span, 0, len(t.Spans))
+			for _, span := range t.Spans {
+				if !isLowValueSpan(span) {
+					prunedSpans = append(prunedSpans, span)
+				}
+			}
+			if len(prunedSpans) < len(t.Spans) {
+				env.Data[i].Spans = prunedSpans
+				prunedAny = true
+			}
+		}
+		if prunedAny {
+			if updatedBytes, err := json.Marshal(env); err == nil {
+				return string(updatedBytes), true
+			}
+		}
+		return contextValue, false
+	}
+
+	return contextValue, false
 }

@@ -37,6 +37,7 @@ type Handler struct {
 	agentURL           string
 	basePath           string
 	maxRequestBodySize int64
+	modelContextLimit  int
 }
 
 // NewHandler constructs a jaegerai.Handler with a freshly-allocated
@@ -46,18 +47,19 @@ type Handler struct {
 //
 // basePath is normalized once so the registered mux pattern uses a single
 // canonical prefix.
-func NewHandler(logger *zap.Logger, agentURL, basePath string, maxRequestBodySize int64) *Handler {
+func NewHandler(logger *zap.Logger, agentURL, basePath string, maxRequestBodySize int64, modelContextLimit int) *Handler {
 	return &Handler{
 		logger:             logger,
 		store:              NewContextualToolsStore(),
 		agentURL:           agentURL,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
+		modelContextLimit:  modelContextLimit,
 	}
 }
 
 // RegisterRoutes mounts the AI gateway endpoints on the provided mux. The
 // chat endpoint streams ACP turns to/from the sidecar.
 func (h *Handler) RegisterRoutes(router *http.ServeMux) {
-	router.HandleFunc(h.basePath+routeChat, NewChatHandler(h.logger, h.store, h.agentURL, h.basePath, h.maxRequestBodySize).ServeHTTP)
+	router.HandleFunc(h.basePath+routeChat, NewChatHandler(h.logger, h.store, h.agentURL, h.basePath, h.maxRequestBodySize, h.modelContextLimit).ServeHTTP)
 }
