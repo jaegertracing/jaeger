@@ -36,7 +36,7 @@ type DistributedElectionParticipant struct {
 	wg           sync.WaitGroup
 }
 
-// ElectionParticipantOptions control behavior of the election participant. TODO func applyDefaults(), parameter error checking, etc.
+// ElectionParticipantOptions control behavior of the election participant.
 type ElectionParticipantOptions struct {
 	LeaderLeaseRefreshInterval   time.Duration
 	FollowerLeaseRefreshInterval time.Duration

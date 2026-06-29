@@ -84,9 +84,16 @@ func (cfg *Config) Validate() error {
 
 	if cfg.Adaptive.HasValue() {
 		// Validate adaptive config fields
-		_, err := govalidator.ValidateStruct(cfg.Adaptive.Get())
+		adaptiveCfg := cfg.Adaptive.Get()
+		_, err := govalidator.ValidateStruct(adaptiveCfg)
 		if err != nil {
 			return err
+		}
+		if adaptiveCfg.LeaderLeaseRefreshInterval <= 0 {
+			return errors.New("leader lease refresh interval must be a positive value")
+		}
+		if adaptiveCfg.FollowerLeaseRefreshInterval <= 0 {
+			return errors.New("follower lease refresh interval must be a positive value")
 		}
 	}
 
