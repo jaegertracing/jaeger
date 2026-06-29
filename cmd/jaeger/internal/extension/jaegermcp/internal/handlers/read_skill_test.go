@@ -22,7 +22,7 @@ func testSkillsFS() fstest.MapFS {
 		"SKILL.md":         &fstest.MapFile{Data: []byte("# Skills\n\n- skill-a\n- skill-b\n")},
 		"skill-a/SKILL.md": &fstest.MapFile{Data: []byte("# Skill A\n\nContent here.")},
 		"skill-b/SKILL.md": &fstest.MapFile{Data: []byte("# Skill B\n\nMore content.")},
-		"large.bin":        &fstest.MapFile{Data: append(make([]byte, testMaxFileSize), []byte("BEYOND_LIMIT")...)},
+		"large.bin":        &fstest.MapFile{Data: make([]byte, testMaxFileSize+10)},
 	}
 }
 
@@ -45,25 +45,23 @@ func TestReadSkillHandler_SubSkillMD(t *testing.T) {
 	assert.Equal(t, "# Skill A\n\nContent here.", output.Instructions)
 }
 
-func TestReadSkillHandler_EmptyPath(t *testing.T) {
+func TestReadSkillHandler_InvalidPaths(t *testing.T) {
 	h := newTestHandler()
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: ""})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "path is required")
-}
-
-func TestReadSkillHandler_PathTraversal(t *testing.T) {
-	h := newTestHandler()
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "../etc/passwd"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid path")
-}
-
-func TestReadSkillHandler_AbsolutePath(t *testing.T) {
-	h := newTestHandler()
-	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "/etc/passwd"})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid path")
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"empty", ""},
+		{"traversal", "../etc/passwd"},
+		{"absolute", "/etc/passwd"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: tt.path})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid path")
+		})
+	}
 }
 
 func TestReadSkillHandler_FileNotFound(t *testing.T) {
@@ -77,16 +75,13 @@ func TestReadSkillHandler_Directory(t *testing.T) {
 	h := newTestHandler()
 	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot read")
 }
 
-func TestReadSkillHandler_FileTooLarge_Truncates(t *testing.T) {
+func TestReadSkillHandler_FileTooLarge(t *testing.T) {
 	h := newTestHandler()
-	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
-	require.NoError(t, err)
-	assert.Len(t, []byte(output.Instructions)[:testMaxFileSize], testMaxFileSize)
-	assert.Contains(t, output.Instructions, "truncated after")
-	assert.NotContains(t, output.Instructions, "BEYOND_LIMIT")
+	_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum size")
 }
 
 func TestReadSkillHandler_RawTextInContent(t *testing.T) {

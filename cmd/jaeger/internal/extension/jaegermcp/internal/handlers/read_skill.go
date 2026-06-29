@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -33,24 +34,26 @@ func (h *readSkillHandler) handle(
 	_ *mcp.CallToolRequest,
 	input types.ReadSkillInput,
 ) (*mcp.CallToolResult, types.ReadSkillOutput, error) {
-	if input.Path == "" {
-		return nil, types.ReadSkillOutput{}, errors.New("path is required")
-	}
 	if !fs.ValidPath(input.Path) {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("invalid path: %q", input.Path)
 	}
 
-	data, err := fs.ReadFile(h.skillsFS, input.Path)
+	f, err := h.skillsFS.Open(input.Path)
 	if err != nil {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
+	defer f.Close()
 
-	content := string(data)
-	if int64(len(data)) > h.maxFileSize {
-		content = string(data[:h.maxFileSize]) +
-			fmt.Sprintf("\n\n[file is too large, truncated after %d bytes]", h.maxFileSize)
+	buf := make([]byte, h.maxFileSize+1)
+	n, err := io.ReadFull(f, buf)
+	if n > int(h.maxFileSize) {
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("file exceeds maximum size of %d bytes", h.maxFileSize)
+	}
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
 
+	content := string(buf[:n])
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: content}},
 	}, types.ReadSkillOutput{Instructions: content}, nil
