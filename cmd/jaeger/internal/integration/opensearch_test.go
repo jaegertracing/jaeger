@@ -45,3 +45,14 @@ func TestOpenSearchStorage_DataStream(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	runRotationSmokeTest(t, "../../config-opensearch-data-stream.yaml", "opensearch", func(*testing.T) {})
 }
+
+func TestOpenSearch_BackwardCompatibility(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
+	s := E2EStorageIntegration{
+		ConfigFile: "../../config-opensearch.yaml",
+		StorageIntegration: integration.StorageIntegration{
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+		},
+	}
+	runBackwardCompatibilityTests(t, "opensearch", s, capabilities.OpenSearch(), capabilities.OpenSearch())
+}

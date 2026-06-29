@@ -11,10 +11,11 @@ db_is_up=
 success="false"
 
 usage() {
-  echo "Usage: $0 <backend> <backend_version> <storage_test>"
+  echo "Usage: $0 <backend> <backend_version> <storage_test> <backward_compatibility>"
   echo "  backend:         elasticsearch | opensearch"
   echo "  backend_version: major version, e.g. 7.x"
   echo "  storage_test:    direct | e2e"
+  echo "  backward_compatibility: true | false, default=false"
   exit 1
 }
 
