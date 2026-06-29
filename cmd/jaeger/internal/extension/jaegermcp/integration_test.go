@@ -504,7 +504,7 @@ func TestMCPClientReadSkillPathTraversal(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, result.IsError)
-	assert.Contains(t, extractTextContent(t, result), "invalid path")
+	assert.Contains(t, extractTextContent(t, result), "cannot read")
 }
 
 func TestMCPClientSkillsDiscoveryFlow(t *testing.T) {

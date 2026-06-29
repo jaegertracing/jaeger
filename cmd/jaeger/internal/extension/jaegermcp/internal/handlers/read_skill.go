@@ -47,7 +47,7 @@ func (h *readSkillHandler) handle(
 	}
 	content := string(buf[:n])
 	if n > int(h.maxFileSize) {
-		content = content + fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
+		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
 	}
 
 	return &mcp.CallToolResult{
