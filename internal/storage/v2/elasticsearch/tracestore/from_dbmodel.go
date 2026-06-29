@@ -95,18 +95,14 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	endTime := startTime.Add(duration)
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(endTime))
 
-	// TODO rewrite this to use a single loop over tags
-	// and map special tag names to OTEL Span fields
 	attrs := span.Attributes()
 	attrs.EnsureCapacity(len(dbSpan.Tags))
-	dbTagsToAttributes(dbSpan.Tags, attrs)
-	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
-		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
-		attrs.Remove(model.SpanKindKey)
-	}
-	setSpanStatus(attrs, span)
-
-	span.TraceState().FromRaw(getTraceStateFromAttrs(attrs))
+	statusAttrs := dbSpanTagsToSpanFields(dbSpan.Tags, span, attrs)
+	setSpanStatus(statusAttrs, span)
+	statusAttrs.Range(func(k string, v pcommon.Value) bool {
+		v.CopyTo(attrs.PutEmpty(k))
+		return true
+	})
 
 	// drop the attributes slice if all of them were replaced during translation
 	if attrs.Len() == 0 {
@@ -124,60 +120,97 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	return dbSpanRefsToSpanEvents(dbSpan.References, dbParentSpanId, span.Links())
 }
 
+// dbSpanTagsToSpanFields processes span tags in a single loop, mapping special
+// tag keys directly to OTEL Span fields (span kind, trace state) and storing
+// status-related tags in a temporary map for status computation. Tags that are
+// not status-related are added to attrs immediately, and any status tags not
+// consumed by setSpanStatus are later merged back into attrs by the caller.
+// Returns the status attrs map for the caller to pass to setSpanStatus.
+func dbSpanTagsToSpanFields(tags []dbmodel.KeyValue, span ptrace.Span, attrs pcommon.Map) pcommon.Map {
+	statusAttrs := pcommon.NewMap()
+	for _, tag := range tags {
+		switch tag.Key {
+		case model.SpanKindKey:
+			if v, ok := tag.Value.(string); ok {
+				span.SetKind(dbSpanKindToOTELSpanKind(v))
+			} else {
+				dbTagToAttribute(tag, attrs)
+			}
+		case tagW3CTraceState:
+			// TODO Bring this inline with solution for jaegertracing/jaeger-client-java #702 once available
+			if v, ok := tag.Value.(string); ok {
+				span.TraceState().FromRaw(v)
+			} else {
+				dbTagToAttribute(tag, attrs)
+			}
+		case tagError, conventions.OtelStatusCode, conventions.OtelStatusDescription,
+			string(conventions.HTTPResponseStatusCodeKey), tagHTTPStatusMsg:
+			dbTagToAttribute(tag, statusAttrs)
+		default:
+			dbTagToAttribute(tag, attrs)
+		}
+	}
+	return statusAttrs
+}
+
 func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	for _, tag := range tags {
-		tagValue, ok := tag.Value.(string)
-		if !ok {
-			switch tag.Type {
-			case dbmodel.Float64Type, dbmodel.Int64Type:
-				fromDBNumber(tag, attributes)
-			case dbmodel.BoolType:
-				v, ok := tag.Value.(bool)
-				if !ok {
-					recordTagInvalidTypeError(tag, attributes)
-				} else {
-					attributes.PutBool(tag.Key, v)
-				}
-			default:
-				// This means type is string/binary but value is of non string type, hence record the type error
-				recordTagInvalidTypeError(tag, attributes)
-			}
-			continue
-		}
+		dbTagToAttribute(tag, attributes)
+	}
+}
+
+func dbTagToAttribute(tag dbmodel.KeyValue, attributes pcommon.Map) {
+	tagValue, ok := tag.Value.(string)
+	if !ok {
 		switch tag.Type {
-		case dbmodel.StringType:
-			attributes.PutStr(tag.Key, tagValue)
+		case dbmodel.Float64Type, dbmodel.Int64Type:
+			fromDBNumber(tag, attributes)
 		case dbmodel.BoolType:
-			convBoolVal, err := strconv.ParseBool(tagValue)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
+			v, ok := tag.Value.(bool)
+			if !ok {
+				recordTagInvalidTypeError(tag, attributes)
 			} else {
-				attributes.PutBool(tag.Key, convBoolVal)
-			}
-		case dbmodel.Int64Type:
-			intVal, err := strconv.ParseInt(tagValue, 10, 64)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutInt(tag.Key, intVal)
-			}
-		case dbmodel.Float64Type:
-			floatVal, err := strconv.ParseFloat(tagValue, 64)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutDouble(tag.Key, floatVal)
-			}
-		case dbmodel.BinaryType:
-			value, err := hex.DecodeString(tagValue)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+				attributes.PutBool(tag.Key, v)
 			}
 		default:
-			attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
+			// This means type is string/binary but value is of non string type, hence record the type error
+			recordTagInvalidTypeError(tag, attributes)
 		}
+		return
+	}
+	switch tag.Type {
+	case dbmodel.StringType:
+		attributes.PutStr(tag.Key, tagValue)
+	case dbmodel.BoolType:
+		convBoolVal, err := strconv.ParseBool(tagValue)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutBool(tag.Key, convBoolVal)
+		}
+	case dbmodel.Int64Type:
+		intVal, err := strconv.ParseInt(tagValue, 10, 64)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutInt(tag.Key, intVal)
+		}
+	case dbmodel.Float64Type:
+		floatVal, err := strconv.ParseFloat(tagValue, 64)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutDouble(tag.Key, floatVal)
+		}
+	case dbmodel.BinaryType:
+		value, err := hex.DecodeString(tagValue)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+		}
+	default:
+		attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
 	}
 }
 
