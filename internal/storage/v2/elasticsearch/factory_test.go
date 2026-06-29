@@ -13,6 +13,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -116,6 +117,45 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 
 			require.Contains(t, includeTags, model.SpanKindKey)
 			require.Contains(t, includeTags, tagError)
+		})
+	}
+}
+
+func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	tests := []struct {
+		name           string
+		nativeEnabled  bool
+		wantSummaryRdr bool
+	}{
+		{name: "enabled exposes SummaryReader", nativeEnabled: true, wantSummaryRdr: true},
+		{name: "disabled falls back to query service", nativeEnabled: false, wantSummaryRdr: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := escfg.Configuration{
+				Servers:              []string{server.URL},
+				LogLevel:             "error",
+				NativeTraceSummaries: tt.nativeEnabled,
+			}
+			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+			require.NoError(t, err)
+			defer factory.Close()
+
+			reader, err := factory.CreateTraceReader()
+			require.NoError(t, err)
+
+			sr := tracestore.AsSummaryReader(reader)
+			if tt.wantSummaryRdr {
+				require.NotNil(t, sr)
+			} else {
+				require.Nil(t, sr)
+			}
 		})
 	}
 }

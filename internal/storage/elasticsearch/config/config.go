@@ -222,6 +222,11 @@ type Configuration struct {
 	// latest adaptive sampling probabilities.
 	AdaptiveSamplingLookback time.Duration `mapstructure:"adaptive_sampling_lookback"`
 	Tags                     TagsAsFields  `mapstructure:"tags_as_fields"`
+	// NativeTraceSummaries enables computing trace summaries (the metadata shown in
+	// search result lists) directly in Elasticsearch via aggregations, instead of
+	// loading full traces and aggregating them in the query service. Enabled by
+	// default; set to false to fall back to the query-service path.
+	NativeTraceSummaries bool `mapstructure:"native_trace_summaries"`
 	// Enabled, if set to true, enables the namespace for storage pointed to by this configuration.
 	Enabled bool `mapstructure:"-"`
 }

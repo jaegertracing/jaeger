@@ -60,7 +60,7 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 			{ServiceName: "svcB", SpanCount: 1},
 		},
 	}}
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}
+	reader := ReaderWithSummaries{TraceReader: &TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}}
 
 	got, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.NoError(t, err)
@@ -86,21 +86,21 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceSummaries_AggregatorError(t *testing.T) {
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.New("boom")}}
+	reader := ReaderWithSummaries{TraceReader: &TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.New("boom")}}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.Error(t, err)
 }
 
 func TestTraceReader_FindTraceSummaries_Unsupported(t *testing.T) {
 	// A plain core.Reader mock does not implement summaryAggregator.
-	reader := TraceReader{spanReader: &mocks.Reader{}}
+	reader := ReaderWithSummaries{TraceReader: &TraceReader{spanReader: &mocks.Reader{}}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
 func TestTraceReader_FindTraceSummaries_BadTraceID(t *testing.T) {
 	dbSummaries := []dbmodel.TraceSummary{{TraceID: "not-hex"}}
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}
+	reader := ReaderWithSummaries{TraceReader: &TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.Error(t, err)
 }

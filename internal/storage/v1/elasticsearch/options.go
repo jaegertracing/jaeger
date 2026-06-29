@@ -70,6 +70,7 @@ func DefaultConfig() config.Configuration {
 		SendGetBodyAs:        "",
 		CreateIndexTemplates: true,
 		HTTPCompression:      true,
+		NativeTraceSummaries: true,
 		Indices: config.Indices{
 			Spans:        defaultIndexOptions,
 			Services:     defaultIndexOptions,

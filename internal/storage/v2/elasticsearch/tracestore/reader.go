@@ -19,7 +19,7 @@ import (
 
 var (
 	_ tracestore.Reader        = (*TraceReader)(nil)
-	_ tracestore.SummaryReader = (*TraceReader)(nil)
+	_ tracestore.SummaryReader = (*ReaderWithSummaries)(nil)
 )
 
 // summaryAggregator is an optional capability kept out of core.Reader so existing
@@ -129,10 +129,24 @@ func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQu
 	}
 }
 
+// ReaderWithSummaries augments TraceReader with native trace-summary support.
+// The factory wraps a TraceReader in this type only when native summaries are
+// enabled; when the feature is gated off it returns the bare TraceReader, which
+// does not implement tracestore.SummaryReader, so the query service falls back to
+// loading full traces and aggregating client-side.
+type ReaderWithSummaries struct {
+	*TraceReader
+}
+
+// NewReaderWithSummaries wraps r so that it exposes native trace summaries.
+func NewReaderWithSummaries(r *TraceReader) *ReaderWithSummaries {
+	return &ReaderWithSummaries{TraceReader: r}
+}
+
 // FindTraceSummaries implements tracestore.SummaryReader. It yields
 // errors.ErrUnsupported when the core reader has no native summary support, so the
 // query service falls back to client-side aggregation.
-func (t *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+func (t *ReaderWithSummaries) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		aggregator, ok := t.spanReader.(summaryAggregator)
 		if !ok {

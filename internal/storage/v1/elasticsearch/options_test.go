@@ -104,6 +104,7 @@ func TestOptions(t *testing.T) {
 	assert.False(t, primary.Sniffing.Enabled)
 	assert.False(t, primary.Sniffing.UseHTTPS)
 	assert.False(t, primary.DisableHealthCheck)
+	assert.True(t, primary.NativeTraceSummaries)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
