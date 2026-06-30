@@ -73,7 +73,8 @@ func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 // the v8 client on the v8 API and the olivere client otherwise.
 func (c ClientWrapper) CreateComponentTemplate(ctx context.Context, name, template string) error {
 	if c.version.UsesV8API() {
-		resp, err := c.clientV8.Cluster.PutComponentTemplate(name, strings.NewReader(template))
+		put := c.clientV8.Cluster.PutComponentTemplate
+		resp, err := put(name, strings.NewReader(template), put.WithContext(ctx))
 		return v8TemplateError(name, resp, err)
 	}
 	_, err := c.client.IndexPutComponentTemplate(name).BodyString(template).Do(ctx)
@@ -86,7 +87,8 @@ func (c ClientWrapper) CreateComponentTemplate(ctx context.Context, name, templa
 // CreateComponentTemplate for the v7/v8 dispatch.
 func (c ClientWrapper) CreateComposableIndexTemplate(ctx context.Context, name, template string) error {
 	if c.version.UsesV8API() {
-		resp, err := c.clientV8.Indices.PutIndexTemplate(name, strings.NewReader(template))
+		put := c.clientV8.Indices.PutIndexTemplate
+		resp, err := put(name, strings.NewReader(template), put.WithContext(ctx))
 		return v8TemplateError(name, resp, err)
 	}
 	_, err := c.client.IndexPutIndexTemplate(name).BodyString(template).Do(ctx)

@@ -81,19 +81,44 @@ func TestClientWrapper_CreateComposableTemplates(t *testing.T) {
 	}
 }
 
-func TestClientWrapper_CreateComposableTemplates_Error(t *testing.T) {
+func TestClientWrapper_CreateComposableTemplate_AcceptsCreated(t *testing.T) {
+	// A 201 Created (not just 200 OK) must be treated as success on the v8 path.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Elastic-Product", "Elasticsearch")
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	c := newTestWrapper(t, es.ElasticV8, srv.URL)
+	require.NoError(t, c.CreateComponentTemplate(context.Background(), "jaeger-span-mappings", "{}"))
+	require.NoError(t, c.CreateComposableIndexTemplate(context.Background(), "jaeger-span", "{}"))
+}
+
+func TestClientWrapper_CreateComposableTemplates_Failures(t *testing.T) {
 	for _, version := range []es.BackendVersion{es.ElasticV7, es.ElasticV8} {
 		t.Run(version.String(), func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			errSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("X-Elastic-Product", "Elasticsearch")
 				w.WriteHeader(http.StatusBadRequest)
-				w.Write([]byte(`{"error":"bad request"}`))
 			}))
-			defer srv.Close()
+			defer errSrv.Close()
+			c := newTestWrapper(t, version, errSrv.URL)
 
-			c := newTestWrapper(t, version, srv.URL)
-			require.Error(t, c.CreateComponentTemplate(context.Background(), "jaeger-span-mappings", "{}"))
-			require.Error(t, c.CreateComposableIndexTemplate(context.Background(), "jaeger-span", "{}"))
+			// A non-2xx response surfaces as an error.
+			require.Error(t, c.CreateComponentTemplate(context.Background(), "x", "{}"))
+			require.Error(t, c.CreateComposableIndexTemplate(context.Background(), "x", "{}"))
+
+			// A canceled context aborts the request on both backends.
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			require.Error(t, c.CreateComponentTemplate(ctx, "x", "{}"))
+			require.Error(t, c.CreateComposableIndexTemplate(ctx, "x", "{}"))
+
+			// A transport error (server unreachable) surfaces as an error.
+			downSrv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+			downURL := downSrv.URL
+			downSrv.Close()
+			require.Error(t, newTestWrapper(t, version, downURL).CreateComponentTemplate(context.Background(), "x", "{}"))
 		})
 	}
 }
