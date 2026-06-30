@@ -1,8 +1,8 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: In progress (✅ Milestones 1, 2, 3, and 4 complete; ⏳ Milestone 5 pending)
+* **Status**: In progress (✅ Milestones 1, 2, 3, and 4 complete; ✅ Milestone 5 complete via [#8812](https://github.com/jaegertracing/jaeger/pull/8812))
 * **Date**: 2026-05-21
-* **Last updated**: 2026-06-29
+* **Last updated**: 2026-06-30
 
 ## Context
 
@@ -634,7 +634,7 @@ changes.
 
 ### Milestone 5 — Native summary support in one storage backend
 
-> **Status: ⏳ Pending** (depends on Milestone 4)
+> **Status: ✅ Complete** ([#8812](https://github.com/jaegertracing/jaeger/pull/8812), Elasticsearch/OpenSearch)
 
 **Goal:** Demonstrate the full performance benefit of the `SummaryReader` interface with
 a native implementation in one backend, serving as a reference for other backends.
@@ -665,7 +665,7 @@ independently reviewable and leaves `main` in a working state.
 | ✅ B | `jaeger/` | Implement the gRPC handler for `FindTraceSummaries` (`apiv3/grpc_handler.go`) | [#8634](https://github.com/jaegertracing/jaeger/pull/8634) |
 | ✅ C | `jaeger/` | Replace hand-written JSON scaffold types in the HTTP gateway with `api_v3.FindTraceSummariesResponse` + `gogoproto/jsonpb`; delete `summaries.go` | [#8645](https://github.com/jaegertracing/jaeger/pull/8645) |
 | ✅ D | `jaeger/` | Implement `SummaryReader` in the gRPC remote storage adapter (`internal/storage/v2/grpc/`) — server forwards to underlying `SummaryReader`; client is a plain iterator that yields `errors.ErrUnsupported` when the server returns `UNIMPLEMENTED` | Milestone 4 |
-| G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | Milestone 5, optional |
+| ✅ G | `jaeger/` | Native `SummaryReader` in one storage backend (Elasticsearch or ClickHouse) | [#8812](https://github.com/jaegertracing/jaeger/pull/8812) |
 
 ---
 
