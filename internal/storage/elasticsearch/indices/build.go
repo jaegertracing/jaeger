@@ -62,6 +62,14 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 	return NewLoggingRotation(r, logger)
 }
 
+// SpanDataStreamName returns the fully-resolved span data stream name for the
+// given index prefix, e.g. "jaeger.spans" or "prod.jaeger.spans". It is the same
+// name BuildRotation derives for the data_stream strategy, kept in one place so
+// startup bootstrap and rotation never disagree.
+func SpanDataStreamName(indexPrefix config.IndexPrefix) string {
+	return indexPrefix.DataStreamName(indexToDataStreamName(config.SpanIndexName))
+}
+
 // indexToDataStreamName maps a legacy dash-notation index base name to its
 // dot-notation data stream equivalent with a proper plural form.
 func indexToDataStreamName(indexName string) string {

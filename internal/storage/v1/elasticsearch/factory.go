@@ -232,22 +232,35 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if f.config.CreateIndexTemplates {
-		mappingBuilder := f.mappingBuilderFromConfig(f.config)
-		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
+	if !f.config.CreateIndexTemplates {
+		return nil
+	}
+	mappingBuilder := f.mappingBuilderFromConfig(f.config)
+
+	// Spans use either a data stream (composable templates + lifecycle policy) or
+	// a legacy index template, depending on the configured rotation strategy.
+	if f.config.ResolvedSpanRotation().DataStream.HasValue() {
+		if err := f.bootstrapSpanDataStream(ctx, &mappingBuilder); err != nil {
+			return err
+		}
+	} else {
+		spanMapping, err := mappingBuilder.GetMapping(mappings.SpanMapping)
 		if err != nil {
 			return err
 		}
 		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
-		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
-		if err != nil {
+		if _, err := f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx); err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
 		}
-		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
-		}
+	}
+
+	serviceMapping, err := mappingBuilder.GetMapping(mappings.ServiceMapping)
+	if err != nil {
+		return err
+	}
+	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
+	if _, err := f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
 	return nil
 }

@@ -75,7 +75,7 @@ func (c ClientWrapper) CreateComponentTemplate(ctx context.Context, name, templa
 	if c.version.UsesV8API() {
 		put := c.clientV8.Cluster.PutComponentTemplate
 		resp, err := put(name, strings.NewReader(template), put.WithContext(ctx))
-		return v8TemplateError(name, resp, err)
+		return v8PutError("component template "+name, resp, err)
 	}
 	_, err := c.client.IndexPutComponentTemplate(name).BodyString(template).Do(ctx)
 	return err
@@ -89,21 +89,78 @@ func (c ClientWrapper) CreateComposableIndexTemplate(ctx context.Context, name, 
 	if c.version.UsesV8API() {
 		put := c.clientV8.Indices.PutIndexTemplate
 		resp, err := put(name, strings.NewReader(template), put.WithContext(ctx))
-		return v8TemplateError(name, resp, err)
+		return v8PutError("index template "+name, resp, err)
 	}
 	_, err := c.client.IndexPutIndexTemplate(name).BodyString(template).Do(ctx)
 	return err
 }
 
-// v8TemplateError turns a v8 esapi template-PUT result into an error, accepting
-// any 2xx status (a creation may return 201 rather than 200).
-func v8TemplateError(name string, resp *esv8api.Response, err error) error {
+// CreateLifecyclePolicy creates (PUTs) a lifecycle policy from an opaque JSON
+// body. The body is never inspected; only the endpoint differs by backend:
+// the ILM API on Elasticsearch (_ilm/policy) and the ISM API on OpenSearch
+// (_plugins/_ism/policies). Callers should check LifecyclePolicyExists first so
+// user customizations are not overwritten (RFC 0004 §3.6).
+func (c ClientWrapper) CreateLifecyclePolicy(ctx context.Context, name, policy string) error {
+	if c.version.UsesV8API() {
+		put := c.clientV8.ILM.PutLifecycle
+		resp, err := put(strings.NewReader(policy), name, put.WithContext(ctx))
+		return v8PutError(name, resp, err)
+	}
+	_, err := c.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Method: http.MethodPut,
+		Path:   lifecyclePolicyPath(c.version, name),
+		Body:   policy,
+	})
+	return err
+}
+
+// LifecyclePolicyExists reports whether a lifecycle policy with the given name
+// already exists on the backend.
+func (c ClientWrapper) LifecyclePolicyExists(ctx context.Context, name string) (bool, error) {
+	if c.version.UsesV8API() {
+		get := c.clientV8.ILM.GetLifecycle
+		resp, err := get(get.WithPolicy(name), get.WithContext(ctx))
+		if err != nil {
+			return false, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+		if resp.IsError() {
+			return false, fmt.Errorf("error checking lifecycle policy %s: %s", name, resp)
+		}
+		return true, nil
+	}
+	resp, err := c.client.PerformRequest(ctx, elastic.PerformRequestOptions{
+		Method:       http.MethodGet,
+		Path:         lifecyclePolicyPath(c.version, name),
+		IgnoreErrors: []int{http.StatusNotFound},
+	})
 	if err != nil {
-		return fmt.Errorf("error creating template %s: %w", name, err)
+		return false, err
+	}
+	return resp != nil && resp.StatusCode == http.StatusOK, nil
+}
+
+// lifecyclePolicyPath returns the ILM (Elasticsearch) or ISM (OpenSearch) REST
+// path for a named lifecycle policy.
+func lifecyclePolicyPath(version es.BackendVersion, name string) string {
+	if version.IsOpenSearch() {
+		return "/_plugins/_ism/policies/" + name
+	}
+	return "/_ilm/policy/" + name
+}
+
+// v8PutError turns a v8 esapi PUT result (template or lifecycle policy) into an
+// error, accepting any 2xx status (a creation may return 201 rather than 200).
+func v8PutError(name string, resp *esv8api.Response, err error) error {
+	if err != nil {
+		return fmt.Errorf("error creating %s: %w", name, err)
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		return fmt.Errorf("error creating template %s: %s", name, resp)
+		return fmt.Errorf("error creating %s: %s", name, resp)
 	}
 	return nil
 }

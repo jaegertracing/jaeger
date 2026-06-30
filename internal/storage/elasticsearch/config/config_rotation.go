@@ -77,7 +77,8 @@ type AutoRolloverRotation struct {
 	PolicyName string `mapstructure:"policy_name"`
 }
 
-// DataStreamRotation configures data stream-based storage (not yet implemented).
+// DataStreamRotation configures append-only span storage backed by an
+// Elasticsearch/OpenSearch data stream.
 type DataStreamRotation struct {
 	// PolicyName is embedded into the data stream's index template so that
 	// ES/OpenSearch manages the lifecycle (rollover, retention) automatically.
@@ -158,12 +159,6 @@ func (r *RotationConfig) validate(indexType string) error {
 		return fmt.Errorf(
 			"indices.%s.rotation: exactly one rotation strategy must be set, found %d",
 			indexType, count,
-		)
-	}
-	if r.DataStream.HasValue() {
-		return fmt.Errorf(
-			"indices.%s.rotation: data_stream is not yet implemented",
-			indexType,
 		)
 	}
 	return nil

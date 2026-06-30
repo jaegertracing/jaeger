@@ -16,6 +16,18 @@ type Client interface {
 	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
 	CreateTemplate(id string) TemplateCreateService
+	// CreateComponentTemplate creates or updates a composable component template
+	// (the _component_template API), required by data streams.
+	CreateComponentTemplate(ctx context.Context, name, template string) error
+	// CreateComposableIndexTemplate creates or updates a composable index template
+	// (the _index_template API), required by data streams.
+	CreateComposableIndexTemplate(ctx context.Context, name, template string) error
+	// CreateLifecyclePolicy creates an ILM (Elasticsearch) or ISM (OpenSearch)
+	// lifecycle policy from an opaque JSON body.
+	CreateLifecyclePolicy(ctx context.Context, name, policy string) error
+	// LifecyclePolicyExists reports whether a lifecycle policy already exists, so
+	// callers can avoid overwriting user customizations.
+	LifecyclePolicyExists(ctx context.Context, name string) (bool, error)
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
