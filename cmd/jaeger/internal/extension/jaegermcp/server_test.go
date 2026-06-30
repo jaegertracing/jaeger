@@ -140,6 +140,7 @@ func startTestServerWithTelemetry(t *testing.T, svc *querysvc.QueryService, tels
 		ServerVersion:            "1.0.0",
 		MaxSpanDetailsPerRequest: 20,
 		MaxSearchResults:         100,
+		MaxReadFileSize:          512 * 1024,
 	}
 
 	server := newServer(config, telset)
