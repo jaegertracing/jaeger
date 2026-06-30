@@ -1028,7 +1028,9 @@ func TestDbSpanToSpan_ShortTraceID(t *testing.T) {
 	span := ptrace.NewSpan()
 	err := dbSpanToSpan(dbSpan, span)
 	require.NoError(t, err)
+
 	assert.Equal(t, "test-operation", span.Name())
+	assert.Equal(t, pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef}), span.TraceID())
 }
 
 func TestFromDbSpanId_TooLong(t *testing.T) {
