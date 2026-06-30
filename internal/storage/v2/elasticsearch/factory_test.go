@@ -139,9 +139,10 @@ func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			original := nativeTraceSummariesGate.IsEnabled()
 			require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), tt.gateEnabled))
 			defer func() {
-				require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), false))
+				require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), original))
 			}()
 
 			cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
@@ -152,10 +153,9 @@ func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
 			reader, err := factory.CreateTraceReader()
 			require.NoError(t, err)
 
-			// CreateTraceReader wraps the reader in a metrics decorator that hides
-			// SummaryReader behind Unwrap; mirror how the query service discovers it.
-			inner := reader.(interface{ Unwrap() tracestore.Reader }).Unwrap()
-			_, ok := inner.(tracestore.SummaryReader)
+			// The metrics decorator forwards SummaryReader only when the gate enabled
+			// the native wrapper; the query service discovers it via this same assertion.
+			_, ok := reader.(tracestore.SummaryReader)
 			require.Equal(t, tt.wantSummaryRdr, ok)
 		})
 	}

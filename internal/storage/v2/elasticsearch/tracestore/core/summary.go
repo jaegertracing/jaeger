@@ -63,15 +63,10 @@ func (s *SpanReader) FindTraceSummaries(
 	ctx, span := s.tracer.Start(ctx, "FindTraceSummaries")
 	defer span.End()
 
-	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	if traceQuery.SearchDepth == 0 {
-		traceQuery.SearchDepth = defaultSearchDepth
-	}
-
-	// Phase 1: discover the trace IDs matching the full query filter.
-	traceIDs, err := s.findTraceIDsFromQuery(ctx, traceQuery)
+	// Phase 1: discover the trace IDs matching the full query filter. FindTraceIDs
+	// validates the query and applies the default search depth, exactly as the
+	// FindTraces path does, so neither is duplicated here.
+	traceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -82,8 +77,9 @@ func (s *SpanReader) FindTraceSummaries(
 	// Phase 2: aggregate over ALL spans of the matched traces. The time range is
 	// padded the same way as multiRead so that spans falling slightly outside the
 	// query window are still included, yielding the same full-trace view as the
-	// FindTraces-based fallback.
-	aggregation := s.buildTraceSummariesAggregation(traceQuery.SearchDepth)
+	// FindTraces-based fallback. The aggregation is sized to the matched trace
+	// count, since phase 2 only aggregates over those traces.
+	aggregation := s.buildTraceSummariesAggregation(len(traceIDs))
 	boolQuery := s.buildTraceSummariesByIDsQuery(traceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	jaegerIndices := s.spanRotation.ReadTargets(
 		traceQuery.StartTimeMin.Add(-s.maxTraceDuration),
