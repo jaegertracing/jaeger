@@ -69,6 +69,11 @@ func DBSystemAttribute(value string) attribute.KeyValue {
 	return semconv.DBSystemNameKey.String(value)
 }
 
+// DBOperationName creates a key-value pair for the DB operation name attribute.
+func DBOperationNameAttribute(value string) attribute.KeyValue {
+	return semconv.DBOperationNameKey.String(value)
+}
+
 // HTTPStatusCode creates a key-value pair for the HTTP status code attribute.
 func HTTPStatusCodeAttribute(value int) attribute.KeyValue {
 	return semconv.HTTPResponseStatusCodeKey.Int(value)

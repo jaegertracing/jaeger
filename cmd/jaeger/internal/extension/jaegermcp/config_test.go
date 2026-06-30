@@ -21,6 +21,7 @@ func TestValidate(t *testing.T) {
 				ServerVersion:            "1.0.0",
 				MaxSpanDetailsPerRequest: 20,
 				MaxSearchResults:         100,
+				MaxReadFileSize:          512 * 1024,
 			},
 			expectError: false,
 		},

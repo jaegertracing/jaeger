@@ -5,9 +5,10 @@ package jaegermcp
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"sync"
@@ -29,6 +30,9 @@ import (
 //go:embed INSTRUCTIONS.md
 var serverInstructions string
 
+//go:embed all:skills
+var skillsEmbedFS embed.FS
+
 var (
 	_ extension.Extension             = (*server)(nil)
 	_ extensioncapabilities.Dependent = (*server)(nil)
@@ -43,6 +47,7 @@ type server struct {
 	mcpServer  *mcp.Server
 	queryAPI   *querysvc.QueryService
 	bgFinished sync.WaitGroup
+	skillsFS   fs.FS
 }
 
 // newServer creates a new MCP server instance.
@@ -69,6 +74,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot get %s extension: %w", jaegerquery.ID, err)
 	}
 	s.queryAPI = queryExt.QueryService()
+
+	s.skillsFS, _ = fs.Sub(skillsEmbedFS, "skills")
 
 	tenancyMgr := queryExt.TenancyManager()
 	s.mcpServer = mcp.NewServer(
@@ -202,4 +209,11 @@ func (s *server) registerTools() {
 		Description: "Get the service dependency graph showing caller-callee pairs. " +
 			"Returns edges with call counts over a configurable time window (default: last 24h).",
 	}, handlers.NewGetDependenciesHandler(s.queryAPI))
+
+	mcp.AddTool(s.mcpServer, &mcp.Tool{
+		Name: "read_skill",
+		Description: "Read a skill file for trace analysis. " +
+			"Skills are organized using progressive disclosure. " +
+			"Start with SKILL.md which will guide you to more specific sub-skills.",
+	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.MaxReadFileSize))
 }

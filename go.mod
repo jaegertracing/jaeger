@@ -6,13 +6,13 @@ require (
 	github.com/ClickHouse/ch-go v0.73.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.47.0
 	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260605151526-e2c717d2194d
-	github.com/apache/cassandra-gocql-driver/v2 v2.1.1
+	github.com/apache/cassandra-gocql-driver/v2 v2.1.2
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/cenkalti/backoff/v6 v6.0.1
 	github.com/coder/acp-go-sdk v0.13.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/dgraph-io/badger/v4 v4.9.1
-	github.com/elastic/go-elasticsearch/v9 v9.4.1
+	github.com/dgraph-io/badger/v4 v4.9.2
+	github.com/elastic/go-elasticsearch/v9 v9.4.2
 	github.com/go-logr/zapr v1.3.0
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
