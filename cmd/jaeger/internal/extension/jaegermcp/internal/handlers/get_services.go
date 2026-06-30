@@ -69,16 +69,22 @@ func (h *getServicesHandler) handle(
 	// Sort services for consistent ordering
 	slices.Sort(services)
 
-	// Apply limit
+	// Apply limit, recording the pre-truncation total so the caller can detect
+	// that results were cut (see issue #8901).
 	limit := input.Limit
 	if limit <= 0 {
 		limit = defaultServiceLimit
 	}
+	totalCount := len(services)
+	truncated := false
 	if len(services) > limit {
 		services = services[:limit]
+		truncated = true
 	}
 
 	return nil, types.GetServicesOutput{
-		Services: services,
+		Services:   services,
+		TotalCount: totalCount,
+		Truncated:  truncated,
 	}, nil
 }

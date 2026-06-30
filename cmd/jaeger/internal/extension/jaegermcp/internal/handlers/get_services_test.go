@@ -138,6 +138,47 @@ func TestGetServicesHandler_Success_WithLimit(t *testing.T) {
 	require.Len(t, output.Services, 3)
 	// After sorting, should return first 3 alphabetically
 	assert.Equal(t, []string{"service-1", "service-2", "service-3"}, output.Services)
+	// Truncation must be reported so the caller knows results were cut (issue #8901).
+	assert.Equal(t, 5, output.TotalCount)
+	assert.True(t, output.Truncated)
+}
+
+func TestGetServicesHandler_Truncation_ReportsTotalAndFlag(t *testing.T) {
+	testServices := []string{"a", "b", "c", "d"}
+
+	mock := &mockGetServicesQueryService{
+		getServicesFunc: func(_ context.Context) ([]string, error) {
+			return testServices, nil
+		},
+	}
+
+	handler := &getServicesHandler{queryService: mock}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetServicesInput{Limit: 2})
+
+	require.NoError(t, err)
+	require.Len(t, output.Services, 2)
+	assert.Equal(t, 4, output.TotalCount, "total_count must reflect all matches before the limit")
+	assert.True(t, output.Truncated, "truncated must be true when the limit drops results")
+}
+
+func TestGetServicesHandler_NoTruncation_FlagFalse(t *testing.T) {
+	testServices := []string{"a", "b", "c"}
+
+	mock := &mockGetServicesQueryService{
+		getServicesFunc: func(_ context.Context) ([]string, error) {
+			return testServices, nil
+		},
+	}
+
+	handler := &getServicesHandler{queryService: mock}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.GetServicesInput{Limit: 10})
+
+	require.NoError(t, err)
+	require.Len(t, output.Services, 3)
+	assert.Equal(t, 3, output.TotalCount)
+	assert.False(t, output.Truncated, "truncated must be false when everything fits")
 }
 
 func TestGetServicesHandler_Success_WithPatternAndLimit(t *testing.T) {
@@ -194,6 +235,9 @@ func TestGetServicesHandler_Success_DefaultLimit(t *testing.T) {
 	require.NoError(t, err)
 	// Should apply default limit of 100
 	assert.Len(t, output.Services, defaultServiceLimit)
+	// And report that the other 50 were dropped (issue #8901).
+	assert.Equal(t, 150, output.TotalCount)
+	assert.True(t, output.Truncated)
 }
 
 func TestGetServicesHandler_Error_InvalidPattern(t *testing.T) {

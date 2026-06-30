@@ -96,9 +96,13 @@ func (h *getSpanNamesHandler) handle(
 		return cmp.Compare(a.Name, b.Name)
 	})
 
-	// Apply limit
+	// Apply limit, recording the pre-truncation total so the caller can detect
+	// that results were cut (see issue #8901).
+	totalCount := len(filteredOps)
+	truncated := false
 	if len(filteredOps) > limit {
 		filteredOps = filteredOps[:limit]
+		truncated = true
 	}
 
 	// Build output - initialize as empty slice to ensure JSON serialization as []
@@ -110,5 +114,9 @@ func (h *getSpanNamesHandler) handle(
 		})
 	}
 
-	return nil, types.GetSpanNamesOutput{SpanNames: spanNames}, nil
+	return nil, types.GetSpanNamesOutput{
+		SpanNames:  spanNames,
+		TotalCount: totalCount,
+		Truncated:  truncated,
+	}, nil
 }
