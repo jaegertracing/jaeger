@@ -172,8 +172,11 @@ func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	}
 }
 
-func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
-	const iterations = 100 // Will wait at most 100 seconds.
+func (s *StorageIntegration) waitForCondition(t *testing.T, predicate func(t *testing.T) bool) bool {
+	return s.waitForConditionWithIters(t, 100, predicate)
+}
+
+func (s *StorageIntegration) waitForConditionWithIters(t *testing.T, iterations int, predicate func(t *testing.T) bool) bool {
 	for i := range iterations {
 		if predicate(t) {
 			return true
@@ -182,6 +185,104 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 		time.Sleep(time.Second)
 	}
 	return predicate(t)
+}
+
+// waitForBackendReady ensures the storage backend has completed any asynchronous indexing
+// operations before running queries. This is particularly important for backends like
+// ClickHouse that use materialized views to populate metadata tables.
+//
+// For queries involving tags/attributes, the backend needs to have:
+// 1. Ingested the span data
+// 2. Updated any materialized views or secondary indexes
+// 3. Made attribute metadata available for query building
+//
+// This method performs a sample query with attributes to verify the backend is ready.
+func (s *StorageIntegration) waitForBackendReady(t *testing.T, traces map[string]ptrace.Traces) {
+	// Pick a trace that has attributes to test attribute metadata availability
+	var sampleTrace ptrace.Traces
+	for _, trace := range traces {
+		// Look for a trace with resource or span attributes
+		for pos, span := range jptrace.SpanIter(trace) {
+			if pos.Resource.Resource().Attributes().Len() > 0 || span.Attributes().Len() > 0 {
+				sampleTrace = trace
+				break
+			}
+		}
+		if sampleTrace.SpanCount() > 0 {
+			break
+		}
+	}
+
+	// If no traces with attributes found, skip this check
+	if sampleTrace.SpanCount() == 0 {
+		return
+	}
+
+	// Extract service name and a sample attribute from the trace
+	var serviceName string
+	sampleAttrs := pcommon.NewMap()
+	for pos, span := range jptrace.SpanIter(sampleTrace) {
+		if name, ok := pos.Resource.Resource().Attributes().Get("service.name"); ok {
+			serviceName = name.Str()
+		}
+		// Get one non-service.name attribute to test metadata lookup
+		// Try resource attributes first
+		pos.Resource.Resource().Attributes().Range(func(k string, v pcommon.Value) bool {
+			if k != "service.name" && sampleAttrs.Len() == 0 {
+				v.CopyTo(sampleAttrs.PutEmpty(k))
+				return false // stop after first attribute
+			}
+			return true
+		})
+		// If no resource attributes, try span attributes
+		if sampleAttrs.Len() == 0 {
+			span.Attributes().Range(func(k string, v pcommon.Value) bool {
+				if sampleAttrs.Len() == 0 {
+					v.CopyTo(sampleAttrs.PutEmpty(k))
+					return false // stop after first attribute
+				}
+				return true
+			})
+		}
+		if serviceName != "" && sampleAttrs.Len() > 0 {
+			break
+		}
+	}
+
+	// If we couldn't extract necessary info, skip
+	if serviceName == "" || sampleAttrs.Len() == 0 {
+		return
+	}
+
+	t.Logf("Waiting for backend to be ready for attribute-based queries (testing with service=%s, attribute count=%d)",
+		serviceName, sampleAttrs.Len())
+
+	// Try a simple query with the sample attribute to ensure attribute metadata is available
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		query := tracestore.TraceQueryParams{
+			ServiceName:  serviceName,
+			Attributes:   sampleAttrs,
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now().Add(1 * time.Hour),
+			SearchDepth:  10,
+		}
+		iterTraces := s.TraceReader.FindTraces(context.Background(), query)
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
+		if err != nil {
+			t.Logf("Backend not ready yet - query failed: %v", err)
+			return false
+		}
+		if len(traces) == 0 {
+			t.Logf("Backend not ready yet - query returned no traces")
+			return false
+		}
+		t.Logf("Backend is ready - successfully queried traces with attributes")
+		return true
+	})
+
+	if !found {
+		t.Log("Warning: Backend did not become ready within timeout, but proceeding with tests")
+	}
 }
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
@@ -394,6 +495,12 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
+
+	// For storage backends that use asynchronous indexing (e.g., ClickHouse materialized views),
+	// wait for the backend to be ready before running queries. This is especially important for
+	// tag-based queries that depend on attribute metadata being populated.
+	s.waitForBackendReady(t, allTraceFixtures)
+
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -401,6 +508,9 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 			actual := s.findTracesByQuery(t, queryTestCase.Query.ToTraceQueryParams(t), expected)
 			CompareTraceSlices(t, expected, actual)
 		})
+		if t.Failed() {
+			t.Fatal("Aborting remaining FindTraces queries because a subtest failed, to prevent cascading timeouts")
+		}
 	}
 }
 
@@ -476,8 +586,17 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 }
 
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
+	// Use backend-specific wait iterations for tag-based queries to account for
+	// asynchronous metadata indexing (e.g. ClickHouse materialized views).
+	iters := 100
+	if query.Attributes.Len() > 0 {
+		if w := s.Capabilities.GetTagQueryWaitIterations(); w > 0 {
+			iters = w
+		}
+	}
+
 	var traces []ptrace.Traces
-	found := s.waitForCondition(t, func(t *testing.T) bool {
+	found := s.waitForConditionWithIters(t, iters, func(t *testing.T) bool {
 		iterTraces := s.TraceReader.FindTraces(context.Background(), *query)
 		var err error
 		traces, err = jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
