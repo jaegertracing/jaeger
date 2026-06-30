@@ -73,10 +73,11 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
-	base := v2tracestore.NewTraceReader(params)
-	var reader tracestore.Reader = base
+	var reader tracestore.Reader
 	if nativeTraceSummariesGate.IsEnabled() {
-		reader = v2tracestore.NewReaderWithSummaries(base)
+		reader = v2tracestore.NewReaderWithSummaries(v2tracestore.NewTraceReader(params))
+	} else {
+		reader = v2tracestore.NewTraceReader(params)
 	}
 	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil
 }

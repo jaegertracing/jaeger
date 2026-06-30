@@ -53,8 +53,8 @@ const traceIDsAggregationJSON = `{
 
 func summaryResult(summaryJSON string) *elastic.SearchResult {
 	return &elastic.SearchResult{Aggregations: elastic.Aggregations{
-		traceIDAggregation:        []byte(traceIDsAggregationJSON),
-		traceSummariesAggregation: []byte(summaryJSON),
+		traceIDAggregation: []byte(traceIDsAggregationJSON),
+		"trace_summaries":  []byte(summaryJSON),
 	}}
 }
 
@@ -167,8 +167,8 @@ func TestSpanReader_FindTraceSummaries_PreservesPhase1Order(t *testing.T) {
 			{"key":"00000000000000000000000000000001","doc_count":1}
 		]}`
 		result := &elastic.SearchResult{Aggregations: elastic.Aggregations{
-			traceIDAggregation:        []byte(phase1),
-			traceSummariesAggregation: []byte(phase2),
+			traceIDAggregation: []byte(phase1),
+			"trace_summaries":  []byte(phase2),
 		}}
 		mockSummarySearchService(r).Return(result, nil)
 
@@ -201,7 +201,7 @@ func TestSpanReader_FindTraceSummaries_Phase2(t *testing.T) {
 		"other": []byte(`{"buckets": []}`),
 	}}
 	nonStringKey := &elastic.SearchResult{Aggregations: elastic.Aggregations{
-		traceSummariesAggregation: []byte(`{"buckets": [{"key": 123, "doc_count": 1}]}`),
+		"trace_summaries": []byte(`{"buckets": [{"key": 123, "doc_count": 1}]}`),
 	}}
 	tests := []struct {
 		name   string

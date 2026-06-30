@@ -19,29 +19,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-const (
-	traceSummariesAggregation   = "trace_summaries"
-	minStartSubAggregation      = "min_start"
-	maxStartSubAggregation      = "max_start"
-	maxEndSubAggregation        = "max_end"
-	errorCountSubAggregation    = "error_count"
-	servicesSubAggregation      = "services"
-	serviceErrorsSubAggregation = "service_errors"
-	rootSpanSubAggregation      = "root_span"
-	rootHitSubAggregation       = "root_hit"
-
-	// The canonical "error" boolean tag the v2 ES writer emits for spans with
-	// OTEL StatusCode = ERROR (see to_dbmodel.go).
-	errorTagKey   = "error"
-	errorTagValue = "true"
-
-	maxServicesPerTrace = 1000
-
-	// ElasticSearch persists no end-time field, so max end time (start + duration)
-	// can only be derived via a script.
-	endTimeScript = "doc['" + startTimeField + "'].value + doc['" + durationField + "'].value"
-)
-
 // FindTraceSummaries natively computes per-trace summaries (ADR-010 Milestone 5)
 // via aggregations instead of fetching full span documents.
 //
@@ -79,6 +56,7 @@ func (s *SpanReader) FindTraceSummaries(
 	// query window are still included, yielding the same full-trace view as the
 	// FindTraces-based fallback. The aggregation is sized to the matched trace
 	// count, since phase 2 only aggregates over those traces.
+	const aggName = "trace_summaries"
 	aggregation := s.buildTraceSummariesAggregation(len(traceIDs))
 	boolQuery := s.buildTraceSummariesByIDsQuery(traceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	jaegerIndices := s.spanRotation.ReadTargets(
@@ -88,7 +66,7 @@ func (s *SpanReader) FindTraceSummaries(
 
 	searchResult, err := s.client().Search(jaegerIndices...).
 		Size(0).
-		Aggregation(traceSummariesAggregation, aggregation).
+		Aggregation(aggName, aggregation).
 		IgnoreUnavailable(true).
 		Query(boolQuery).
 		Do(ctx)
@@ -101,9 +79,9 @@ func (s *SpanReader) FindTraceSummaries(
 	if searchResult.Aggregations == nil {
 		return []dbmodel.TraceSummary{}, nil
 	}
-	buckets, found := searchResult.Aggregations.Terms(traceSummariesAggregation)
+	buckets, found := searchResult.Aggregations.Terms(aggName)
 	if !found {
-		return nil, fmt.Errorf("could not find aggregation %q", traceSummariesAggregation)
+		return nil, fmt.Errorf("could not find aggregation %q", aggName)
 	}
 	summaries, err := parseTraceSummaries(buckets)
 	if err != nil {
@@ -141,12 +119,14 @@ func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, s
 }
 
 func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Aggregation {
-	errorFilter := s.buildTagQuery(errorTagKey, errorTagValue)
+	// "error"="true" is the canonical boolean error tag the v2 ES writer emits for
+	// spans with OTEL StatusCode=ERROR (see to_dbmodel.go).
+	errorFilter := s.buildTagQuery("error", "true")
 
 	services := elastic.NewTermsAggregation().
 		Field(serviceNameField).
-		Size(maxServicesPerTrace).
-		SubAggregation(serviceErrorsSubAggregation, elastic.NewFilterAggregation().Filter(errorFilter))
+		Size(1000). // cap on distinct services per trace
+		SubAggregation("service_errors", elastic.NewFilterAggregation().Filter(errorFilter))
 
 	// The root span is the one without a parent. Since #8859 the write path stores
 	// parentSpanID only for non-root spans, so an existence filter selects the root
@@ -155,7 +135,7 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Agg
 	// fall back to the earliest span of the trace.
 	rootSpan := elastic.NewFilterAggregation().
 		Filter(elastic.NewBoolQuery().MustNot(elastic.NewExistsQuery(parentSpanIDField))).
-		SubAggregation(rootHitSubAggregation, elastic.NewTopHitsAggregation().
+		SubAggregation("root_hit", elastic.NewTopHitsAggregation().
 			Size(1).
 			Sort(startTimeField, true). // earliest root first
 			FetchSourceContext(elastic.NewFetchSourceContext(true).
@@ -164,13 +144,15 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Agg
 	return elastic.NewTermsAggregation().
 		Field(traceIDField).
 		Size(numOfTraces).
-		Order(maxStartSubAggregation, false). // most recent traces first
-		SubAggregation(minStartSubAggregation, elastic.NewMinAggregation().Field(startTimeField)).
-		SubAggregation(maxStartSubAggregation, elastic.NewMaxAggregation().Field(startTimeField)).
-		SubAggregation(maxEndSubAggregation, elastic.NewMaxAggregation().Script(elastic.NewScript(endTimeScript))).
-		SubAggregation(errorCountSubAggregation, elastic.NewFilterAggregation().Filter(errorFilter)).
-		SubAggregation(servicesSubAggregation, services).
-		SubAggregation(rootSpanSubAggregation, rootSpan)
+		Order("max_start", false). // most recent traces first
+		SubAggregation("min_start", elastic.NewMinAggregation().Field(startTimeField)).
+		SubAggregation("max_start", elastic.NewMaxAggregation().Field(startTimeField)).
+		// max_end is derived by script: ES persists no end-time field (end = start + duration).
+		SubAggregation("max_end", elastic.NewMaxAggregation().
+			Script(elastic.NewScript("doc['"+startTimeField+"'].value + doc['"+durationField+"'].value"))).
+		SubAggregation("error_count", elastic.NewFilterAggregation().Filter(errorFilter)).
+		SubAggregation("services", services).
+		SubAggregation("root_span", rootSpan)
 }
 
 func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.TraceSummary, error) {
@@ -185,13 +167,13 @@ func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.
 			TraceID:   dbmodel.TraceID(traceID),
 			SpanCount: int(bucket.DocCount),
 		}
-		if minStart, ok := bucket.Min(minStartSubAggregation); ok && minStart.Value != nil {
+		if minStart, ok := bucket.Min("min_start"); ok && minStart.Value != nil {
 			summary.MinStartTime = uint64(*minStart.Value)
 		}
-		if maxEnd, ok := bucket.Max(maxEndSubAggregation); ok && maxEnd.Value != nil {
+		if maxEnd, ok := bucket.Max("max_end"); ok && maxEnd.Value != nil {
 			summary.MaxEndTime = uint64(*maxEnd.Value)
 		}
-		if errorCount, ok := bucket.Filter(errorCountSubAggregation); ok {
+		if errorCount, ok := bucket.Filter("error_count"); ok {
 			summary.ErrorSpanCount = int(errorCount.DocCount)
 		}
 		services, err := parseServiceSummaries(bucket)
@@ -211,7 +193,7 @@ func parseTraceSummaries(buckets *elastic.AggregationBucketKeyItems) ([]dbmodel.
 }
 
 func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) ([]dbmodel.ServiceSummary, error) {
-	servicesAgg, ok := bucket.Terms(servicesSubAggregation)
+	servicesAgg, ok := bucket.Terms("services")
 	if !ok {
 		return nil, nil
 	}
@@ -225,7 +207,7 @@ func parseServiceSummaries(bucket *elastic.AggregationBucketKeyItem) ([]dbmodel.
 			ServiceName: name,
 			SpanCount:   int(serviceBucket.DocCount),
 		}
-		if errs, ok := serviceBucket.Filter(serviceErrorsSubAggregation); ok {
+		if errs, ok := serviceBucket.Filter("service_errors"); ok {
 			svc.ErrorSpanCount = int(errs.DocCount)
 		}
 		services = append(services, svc)
@@ -251,11 +233,11 @@ type rootSpanSource struct {
 // (a valid outcome); a malformed top-hit _source is surfaced as an error rather
 // than dropped.
 func parseRootSpan(bucket *elastic.AggregationBucketKeyItem) (serviceName, operationName string, err error) {
-	rootSpan, ok := bucket.Filter(rootSpanSubAggregation)
+	rootSpan, ok := bucket.Filter("root_span")
 	if !ok {
 		return "", "", nil
 	}
-	topHits, ok := rootSpan.TopHits(rootHitSubAggregation)
+	topHits, ok := rootSpan.TopHits("root_hit")
 	if !ok || topHits.Hits == nil || len(topHits.Hits.Hits) == 0 {
 		return "", "", nil
 	}
