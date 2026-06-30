@@ -152,34 +152,6 @@ func TestSpanReader_FindTraceSummaries(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTraceSummaries_PreservesPhase1Order(t *testing.T) {
-	// Phase 1 orders by max start over the matched spans (trace 1 before trace 2),
-	// but phase 2's terms aggregation orders by max start over all spans and returns
-	// them reversed. The result must follow phase 1 so native summaries match the
-	// order of the FindTraces fallback.
-	withSpanReader(t, func(r *spanReaderTest) {
-		phase1 := `{"buckets":[
-			{"key":"00000000000000000000000000000001","doc_count":1,"startTime":{"value":2000000}},
-			{"key":"00000000000000000000000000000002","doc_count":1,"startTime":{"value":1000000}}
-		]}`
-		phase2 := `{"buckets":[
-			{"key":"00000000000000000000000000000002","doc_count":1},
-			{"key":"00000000000000000000000000000001","doc_count":1}
-		]}`
-		result := &elastic.SearchResult{Aggregations: elastic.Aggregations{
-			traceIDAggregation: []byte(phase1),
-			"trace_summaries":  []byte(phase2),
-		}}
-		mockSummarySearchService(r).Return(result, nil)
-
-		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
-		require.NoError(t, err)
-		require.Len(t, summaries, 2)
-		assert.Equal(t, dbmodel.TraceID("00000000000000000000000000000001"), summaries[0].TraceID)
-		assert.Equal(t, dbmodel.TraceID("00000000000000000000000000000002"), summaries[1].TraceID)
-	})
-}
-
 func TestSpanReader_FindTraceSummaries_DefaultsSearchDepth(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		mockSummarySearchService(r).Return(summaryResult(summaryAggregationJSON), nil)
@@ -209,7 +181,6 @@ func TestSpanReader_FindTraceSummaries_Phase2(t *testing.T) {
 		err    error
 	}{
 		{name: "search error", err: errors.New("phase-2 search failed")},
-		{name: "nil aggregations", result: &elastic.SearchResult{Aggregations: nil}},
 		{name: "missing summaries aggregation", result: missingSummary},
 		{name: "non-string trace ID key", result: nonStringKey},
 	}
@@ -220,14 +191,7 @@ func TestSpanReader_FindTraceSummaries_Phase2(t *testing.T) {
 				ss.On("Do", mock.Anything).Return(traceIDsResult(), nil).Once()
 				ss.On("Do", mock.Anything).Return(tt.result, tt.err).Once()
 
-				summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
-				if tt.name == "nil aggregations" {
-					// A trace was matched in phase 1 but phase 2 produced no aggregations:
-					// return an empty (non-error) result.
-					require.NoError(t, err)
-					assert.Empty(t, summaries)
-					return
-				}
+				_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 				require.Error(t, err)
 			})
 		})

@@ -88,29 +88,12 @@ func (s *SpanReader) FindTraceSummaries(
 		return nil, fmt.Errorf("search for trace summaries failed: %w", err)
 	}
 
-	if searchResult.Aggregations == nil {
-		return []dbmodel.TraceSummary{}, nil
-	}
 	buckets, found := searchResult.Aggregations.Terms(aggName)
 	if !found {
 		return nil, fmt.Errorf("could not find aggregation %q", aggName)
 	}
-	summaries, err := parseTraceSummaries(buckets)
-	if err != nil {
-		return nil, err
-	}
-	// Phase 2 orders buckets by max start time over ALL spans, which can differ from
-	// Phase 1's order (max start over only the matched spans). Restore the Phase 1
-	// sequence so native summaries match the FindTraces fallback order, i.e. the
-	// trace-ID order from FindTraceIDs (most recent first, by max span start time).
-	order := make(map[dbmodel.TraceID]int, len(traceIDs))
-	for i, id := range traceIDs {
-		order[id] = i
-	}
-	slices.SortFunc(summaries, func(a, b dbmodel.TraceSummary) int {
-		return cmp.Compare(order[a.TraceID], order[b.TraceID])
-	})
-	return summaries, nil
+	// Buckets arrive most-recent-first, ordered by the aggregation's max_start sort.
+	return parseTraceSummaries(buckets)
 }
 
 // isScriptingDisabledError reports whether an Elasticsearch/OpenSearch error was
