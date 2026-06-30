@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 service:
-  extensions: [jaeger_storage, jaeger_query, jaeger_mcp, remote_sampling, healthcheckv2, expvar, zpages]
+  extensions: [jaeger_storage, jaeger_query, remote_sampling, healthcheckv2, expvar, zpages]
   pipelines:
     traces:
       receivers: [otlp, jaeger, zipkin]
@@ -28,12 +28,12 @@ extensions:
   jaeger_query:
     storage:
       traces: some_storage
-
-  jaeger_mcp:
-    # MCP (Model Context Protocol) server for LLM integration
-    # Depends on jaeger_query extension
-    http:
-      endpoint: "${env:JAEGER_LISTEN_HOST:-localhost}:16687"
+    ai:
+      # Serve the Jaeger telemetry MCP tools in-process at /api/ai/mcp/ on the
+      # query port (replaces the retired standalone jaeger_mcp extension).
+      # agent_url is left empty to keep this MCP-only (no AI chat sidecar).
+      agent_url: ""
+      enable_mcp: true
 
   jaeger_storage:
     backends:

@@ -31,6 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -208,11 +209,16 @@ func initRouter(
 
 	// AI Gateway Endpoints
 	if queryOpts.AI.HasValue() {
-		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
+		if aiCfg := queryOpts.AI.Get(); aiCfg != nil {
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+				if aiCfg.AgentURL != "" {
+					jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+				}
+				if aiCfg.EnableMCP {
+					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+				}
 			}
 		}
 	}
@@ -270,6 +276,27 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 // handler is wrapped with otelhttp using a no-op tracer but the real meter
 // provider so HTTP server metrics flow without producing a self-referential
 // server span; the top-level otelhttp filter excludes this prefix so the
+// registerMCPTools mounts the Jaeger telemetry MCP server at
+// <basePath>/api/ai/mcp/ on the query mux, backed by the query service. This
+// replaces the retired standalone jaeger_mcp extension: the tools are now
+// served in-process on the query port rather than on a separate :16687
+// listener. The handler is path-agnostic, so we strip the mount prefix and let
+// it see its own root.
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
+	componentTelset := component.TelemetrySettings{
+		Logger:         telset.Logger,
+		TracerProvider: telset.TracerProvider,
+		MeterProvider:  telset.MeterProvider,
+	}
+	handler := mcptools.NewHandler(componentTelset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+	// Normalize basePath so a trailing slash (or bare "/") can't produce a
+	// double-slash prefix like "/jaeger//api/ai/mcp". This mirrors how the AI
+	// chat handler canonicalizes its base path.
+	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
+	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
+	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
+}
+
 // per-route wrap is the only instrumentation layer.
 func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
 	cfg := queryOpts.OTLPProxy.Get()

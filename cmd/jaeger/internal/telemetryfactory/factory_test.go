@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegermcp"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery"
 )
 
@@ -44,7 +43,7 @@ func TestFilteringTracerProvider_AllowedComponent(t *testing.T) {
 
 	ftp := &filteringTracerProvider{real: realTP, noop: noop}
 
-	for _, id := range []string{jaegerquery.ID.String(), jaegermcp.ID.String()} {
+	for _, id := range []string{jaegerquery.ID.String()} {
 		t.Run(id, func(t *testing.T) {
 			tr := ftp.Tracer("test", trace.WithInstrumentationAttributes(
 				attribute.String("otelcol.component.id", id),
