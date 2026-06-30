@@ -221,17 +221,14 @@ func TestCloseConcurrentIsIdempotent(t *testing.T) {
 	)
 
 	var wg sync.WaitGroup
-	wg.Add(2)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		assert.NoError(t, s.p.Close())
-	}()
+	})
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		assert.NoError(t, s.p.Close())
-	}()
+	})
 
 	wg.Wait()
 
