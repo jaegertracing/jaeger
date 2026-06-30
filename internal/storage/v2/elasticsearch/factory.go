@@ -75,7 +75,7 @@ func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
 	var reader tracestore.Reader
 	if nativeTraceSummariesGate.IsEnabled() {
-		reader = v2tracestore.NewReaderWithSummaries(v2tracestore.NewTraceReader(params))
+		reader = v2tracestore.NewReaderWithSummaries(params)
 	} else {
 		reader = v2tracestore.NewTraceReader(params)
 	}

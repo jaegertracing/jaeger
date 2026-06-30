@@ -5,8 +5,6 @@ package tracestore
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"iter"
 	"time"
 
@@ -21,13 +19,6 @@ var (
 	_ tracestore.Reader        = (*TraceReader)(nil)
 	_ tracestore.SummaryReader = (*ReaderWithSummaries)(nil)
 )
-
-// summaryAggregator is an optional capability kept out of core.Reader so existing
-// implementations and their generated mocks are unaffected; the wrapper discovers
-// it via a type assertion.
-type summaryAggregator interface {
-	FindTraceSummaries(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error)
-}
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
@@ -138,23 +129,23 @@ type ReaderWithSummaries struct {
 	TraceReader
 }
 
-// NewReaderWithSummaries wraps r so that it exposes native trace summaries.
-func NewReaderWithSummaries(r *TraceReader) *ReaderWithSummaries {
-	return &ReaderWithSummaries{TraceReader: *r}
+// NewReaderWithSummaries builds a reader that exposes native trace summaries. It
+// owns the TraceReader construction so callers don't need to know summaries are
+// layered on top of it.
+func NewReaderWithSummaries(p core.SpanReaderParams) *ReaderWithSummaries {
+	return &ReaderWithSummaries{TraceReader: *NewTraceReader(p)}
 }
 
-// FindTraceSummaries implements tracestore.SummaryReader. It yields
-// errors.ErrUnsupported when the core reader has no native summary support, so the
-// query service falls back to client-side aggregation.
+// FindTraceSummaries implements tracestore.SummaryReader by delegating to the
+// core reader's native aggregation. When the backend cannot compute summaries
+// (e.g. Painless scripting is disabled) the core yields errors.ErrUnsupported,
+// and the query service falls back to client-side aggregation.
 func (t *ReaderWithSummaries) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		aggregator, ok := t.spanReader.(summaryAggregator)
-		if !ok {
-			yield(nil, fmt.Errorf("native trace summaries are not supported by this reader: %w", errors.ErrUnsupported))
-			return
-		}
-
-		dbSummaries, err := aggregator.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
+		// The aggregation returns all matching summaries in a single ES response,
+		// so they are materialized and yielded in one batch (allowed by the
+		// SummaryReader contract).
+		dbSummaries, err := t.spanReader.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)
 			return
@@ -206,9 +197,9 @@ func convertTraceSummaryFromDB(dbSummary dbmodel.TraceSummary) (tracestore.Trace
 		MaxEndTime:        maxEnd,
 		SpanCount:         dbSummary.SpanCount,
 		ErrorSpanCount:    dbSummary.ErrorSpanCount,
-		// OrphanSpanCount stays zero on the native path; see FindTraceSummaries.
-		OrphanSpanCount: 0,
-		Services:        services,
+		// OrphanSpanCount is left at its zero value: the native aggregation cannot
+		// compute it (see core.FindTraceSummaries).
+		Services: services,
 	}, nil
 }
 

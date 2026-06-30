@@ -10,7 +10,7 @@ type ServiceSummary struct {
 	ErrorSpanCount int
 }
 
-// TraceSummary is the DB-level trace summary computed by ElasticSearch
+// TraceSummary is the DB-level trace summary computed by Elasticsearch
 // aggregations. The wrapping TraceReader converts it to tracestore.TraceSummary.
 type TraceSummary struct {
 	TraceID           TraceID

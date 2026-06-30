@@ -19,8 +19,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/mocks"
 )
 
-// stubSummaryReader embeds the generated core.Reader mock (to satisfy core.Reader)
-// and adds native summary support, so it also satisfies summaryAggregator.
+// stubSummaryReader embeds the generated core.Reader mock to satisfy the rest of
+// core.Reader, while returning canned FindTraceSummaries results.
 type stubSummaryReader struct {
 	*mocks.Reader
 	summaries []dbmodel.TraceSummary
@@ -91,9 +91,11 @@ func TestTraceReader_FindTraceSummaries_AggregatorError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestTraceReader_FindTraceSummaries_Unsupported(t *testing.T) {
-	// A plain core.Reader mock does not implement summaryAggregator.
-	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: &mocks.Reader{}}}
+func TestTraceReader_FindTraceSummaries_PropagatesUnsupported(t *testing.T) {
+	// When the core reader reports the backend cannot compute summaries (e.g.
+	// scripting disabled), the wrapper propagates errors.ErrUnsupported so the
+	// query service falls back to client-side aggregation.
+	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }

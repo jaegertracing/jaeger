@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
@@ -18,6 +19,11 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
+
+// maxServicesPerTrace caps the distinct services reported per trace. A trace with
+// more services than this has its service list silently truncated by the terms
+// aggregation; the value is high enough that real traces never hit it.
+const maxServicesPerTrace = 1000
 
 // FindTraceSummaries natively computes per-trace summaries (ADR-010 Milestone 5)
 // via aggregations instead of fetching full span documents.
@@ -31,7 +37,7 @@ import (
 // making SpanCount, Services, root fields, error counts and max end time partial.
 //
 // OrphanSpanCount is left zero: identifying spans whose parent is absent requires
-// a self-join over spans, which ElasticSearch aggregations cannot express; the
+// a self-join over spans, which Elasticsearch aggregations cannot express; the
 // client-side fallback computes it for backends that need it.
 func (s *SpanReader) FindTraceSummaries(
 	ctx context.Context,
@@ -71,6 +77,12 @@ func (s *SpanReader) FindTraceSummaries(
 		Query(boolQuery).
 		Do(ctx)
 	if err != nil {
+		if isScriptingDisabledError(err) {
+			// The max_end aggregation needs Painless scripting. When it is disabled,
+			// returning ErrUnsupported lets the query service fall back to client-side
+			// summary computation instead of failing the request.
+			return nil, fmt.Errorf("native trace summaries require Painless scripting enabled on the cluster: %w", errors.ErrUnsupported)
+		}
 		err = es.DetailedError(err)
 		s.logger.Info("es search for trace summaries failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search for trace summaries failed: %w", err)
@@ -89,8 +101,8 @@ func (s *SpanReader) FindTraceSummaries(
 	}
 	// Phase 2 orders buckets by max start time over ALL spans, which can differ from
 	// Phase 1's order (max start over only the matched spans). Restore the Phase 1
-	// sequence so native summaries are returned in the same order as the FindTraces
-	// fallback, which preserves the trace-ID order from findTraceIDsFromQuery.
+	// sequence so native summaries match the FindTraces fallback order, i.e. the
+	// trace-ID order from FindTraceIDs (most recent first, by max span start time).
 	order := make(map[dbmodel.TraceID]int, len(traceIDs))
 	for i, id := range traceIDs {
 		order[id] = i
@@ -99,6 +111,29 @@ func (s *SpanReader) FindTraceSummaries(
 		return cmp.Compare(order[a.TraceID], order[b.TraceID])
 	})
 	return summaries, nil
+}
+
+// isScriptingDisabledError reports whether an Elasticsearch/OpenSearch error was
+// caused by inline (Painless) scripting being disabled on the cluster, which the
+// max_end aggregation depends on. The cluster surfaces this as an
+// illegal_argument_exception whose reason mentions scripts being disabled.
+func isScriptingDisabledError(err error) bool {
+	var esErr *elastic.Error
+	if !errors.As(err, &esErr) || esErr.Details == nil {
+		return false
+	}
+	causes := append([]*elastic.ErrorDetails{esErr.Details}, esErr.Details.RootCause...)
+	for _, c := range causes {
+		if c == nil {
+			continue
+		}
+		reason := strings.ToLower(c.Reason)
+		if strings.Contains(reason, "script") &&
+			(strings.Contains(reason, "disabled") || strings.Contains(reason, "cannot execute")) {
+			return true
+		}
+	}
+	return false
 }
 
 // buildTraceSummariesByIDsQuery selects every span belonging to the given traces
@@ -125,12 +160,12 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Agg
 
 	services := elastic.NewTermsAggregation().
 		Field(serviceNameField).
-		Size(1000). // cap on distinct services per trace
+		Size(maxServicesPerTrace).
 		SubAggregation("service_errors", elastic.NewFilterAggregation().Filter(errorFilter))
 
 	// The root span is the one without a parent. Since #8859 the write path stores
 	// parentSpanID only for non-root spans, so an existence filter selects the root
-	// directly in ElasticSearch and the nested top_hits returns the earliest root's
+	// directly in Elasticsearch and the nested top_hits returns the earliest root's
 	// service and operation. Spans written before #8859 carry no parentSpanID and
 	// fall back to the earliest span of the trace.
 	rootSpan := elastic.NewFilterAggregation().

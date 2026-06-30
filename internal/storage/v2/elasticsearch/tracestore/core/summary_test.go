@@ -273,6 +273,55 @@ func TestSpanReader_FindTraceSummaries_SearchError(t *testing.T) {
 	})
 }
 
+// TestSpanReader_FindTraceSummaries_ScriptingDisabled verifies that a phase-2
+// failure caused by inline scripting being disabled is reported as
+// errors.ErrUnsupported, so the query service can fall back to client-side
+// aggregation instead of failing the request.
+func TestSpanReader_FindTraceSummaries_ScriptingDisabled(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		scriptErr := &elastic.Error{
+			Status: 400,
+			Details: &elastic.ErrorDetails{
+				Type:   "search_phase_execution_exception",
+				Reason: "all shards failed",
+				RootCause: []*elastic.ErrorDetails{
+					{Type: "illegal_argument_exception", Reason: "cannot execute [inline] scripts"},
+				},
+			},
+		}
+		ss := mockSummarySearchServiceObj(r)
+		ss.On("Do", mock.Anything).Return(traceIDsResult(), nil).Once()
+		ss.On("Do", mock.Anything).Return(nil, scriptErr).Once()
+
+		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.ErrorIs(t, err, errors.ErrUnsupported)
+	})
+}
+
+// TestSpanReader_FindTraceSummaries_PreMigrationRoot covers traces written before
+// #8859, where no span stores a parentSpanID so every span matches the parentless
+// filter; Elasticsearch's startTime-ascending sort then makes the earliest span
+// the root. The aggregation reports multiple parentless spans (doc_count > 1) and
+// the single top hit is that earliest span.
+func TestSpanReader_FindTraceSummaries_PreMigrationRoot(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		summaryJSON := `{"buckets": [{
+			"key": "00000000000000000000000000000001", "doc_count": 3,
+			"min_start": {"value": 1000000}, "max_end": {"value": 2000000},
+			"error_count": {"doc_count": 0}, "services": {"buckets": []},
+			"root_span": {"doc_count": 3, "root_hit": {"hits": {"hits": [
+				{"_source": {"operationName": "earliest-op", "process": {"serviceName": "svcEarliest"}}}
+			]}}}
+		}]}`
+		mockSummarySearchService(r).Return(summaryResult(summaryJSON), nil)
+		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.NoError(t, err)
+		require.Len(t, summaries, 1)
+		assert.Equal(t, "svcEarliest", summaries[0].RootServiceName)
+		assert.Equal(t, "earliest-op", summaries[0].RootOperationName)
+	})
+}
+
 func TestSpanReader_FindTraceSummaries_NoAggregations(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		mockSummarySearchService(r).Return(&elastic.SearchResult{Aggregations: nil}, nil)
