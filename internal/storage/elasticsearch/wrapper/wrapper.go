@@ -68,6 +68,44 @@ func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
 }
 
+// CreateComponentTemplate creates or updates a composable component template,
+// always targeting the _component_template API (data streams require it). It uses
+// the v8 client on the v8 API and the olivere client otherwise.
+func (c ClientWrapper) CreateComponentTemplate(ctx context.Context, name, template string) error {
+	if c.version.UsesV8API() {
+		resp, err := c.clientV8.Cluster.PutComponentTemplate(name, strings.NewReader(template))
+		return v8TemplateError(name, resp, err)
+	}
+	_, err := c.client.IndexPutComponentTemplate(name).BodyString(template).Do(ctx)
+	return err
+}
+
+// CreateComposableIndexTemplate creates or updates a composable index template
+// (the _index_template API). Unlike CreateTemplate (legacy _template on ES 7.x /
+// OpenSearch), this is always composable, as data streams require. See
+// CreateComponentTemplate for the v7/v8 dispatch.
+func (c ClientWrapper) CreateComposableIndexTemplate(ctx context.Context, name, template string) error {
+	if c.version.UsesV8API() {
+		resp, err := c.clientV8.Indices.PutIndexTemplate(name, strings.NewReader(template))
+		return v8TemplateError(name, resp, err)
+	}
+	_, err := c.client.IndexPutIndexTemplate(name).BodyString(template).Do(ctx)
+	return err
+}
+
+// v8TemplateError turns a v8 esapi template-PUT result into an error, accepting
+// any 2xx status (a creation may return 201 rather than 200).
+func v8TemplateError(name string, resp *esv8api.Response, err error) error {
+	if err != nil {
+		return fmt.Errorf("error creating template %s: %w", name, err)
+	}
+	defer resp.Body.Close()
+	if resp.IsError() {
+		return fmt.Errorf("error creating template %s: %s", name, resp)
+	}
+	return nil
+}
+
 // Index calls this function to internal client.
 func (c ClientWrapper) Index() es.IndexService {
 	r := elastic.NewBulkIndexRequest()

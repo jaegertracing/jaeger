@@ -80,9 +80,7 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 	}
 	defer res.Body.Close()
 
-	// Any 2xx status is success. Creation endpoints (e.g. composable templates)
-	// may return 201 Created rather than 200 OK.
-	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusMultipleChoices {
+	if res.StatusCode != http.StatusOK {
 		return []byte{}, c.handleFailedRequest(res)
 	}
 
