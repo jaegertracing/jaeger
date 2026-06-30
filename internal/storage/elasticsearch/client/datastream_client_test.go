@@ -29,39 +29,45 @@ func TestCreateComposableTemplate(t *testing.T) {
 	}{
 		{
 			name:         "component template/200",
-			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateComponentTemplate(ctx, name, body) },
+			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateComponentTemplate(ctx, body, name) },
 			wantEndpoint: "/_component_template/" + name,
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "component template/201",
-			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateComponentTemplate(ctx, name, body) },
+			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateComponentTemplate(ctx, body, name) },
 			wantEndpoint: "/_component_template/" + name,
 			responseCode: http.StatusCreated,
 		},
 		{
-			name:         "index template/200",
-			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateIndexTemplate(ctx, name, body) },
+			name: "index template/200",
+			call: func(ctx context.Context, c IndicesClient) error {
+				return c.CreateComposableIndexTemplate(ctx, body, name)
+			},
 			wantEndpoint: "/_index_template/" + name,
 			responseCode: http.StatusOK,
 		},
 		{
-			name:         "index template/201",
-			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateIndexTemplate(ctx, name, body) },
+			name: "index template/201",
+			call: func(ctx context.Context, c IndicesClient) error {
+				return c.CreateComposableIndexTemplate(ctx, body, name)
+			},
 			wantEndpoint: "/_index_template/" + name,
 			responseCode: http.StatusCreated,
 		},
 		{
 			name:         "component template/error",
-			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateComponentTemplate(ctx, name, body) },
+			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateComponentTemplate(ctx, body, name) },
 			wantEndpoint: "/_component_template/" + name,
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to create component template: " + name,
 		},
 		{
-			name:         "index template/error",
-			call:         func(ctx context.Context, c IndicesClient) error { return c.CreateIndexTemplate(ctx, name, body) },
+			name: "index template/error",
+			call: func(ctx context.Context, c IndicesClient) error {
+				return c.CreateComposableIndexTemplate(ctx, body, name)
+			},
 			wantEndpoint: "/_index_template/" + name,
 			responseCode: http.StatusInternalServerError,
 			response:     esErrResponse,
@@ -107,6 +113,6 @@ func TestCreateComposableTemplate_TransportError(t *testing.T) {
 	c := IndicesClient{Client: Client{Client: testServer.Client(), Endpoint: testServer.URL}}
 	testServer.Close()
 
-	err := c.CreateComponentTemplate(context.Background(), "jaeger-spans", "body")
+	err := c.CreateComponentTemplate(context.Background(), "body", "jaeger-spans")
 	require.ErrorContains(t, err, "failed to create component template: jaeger-spans")
 }
