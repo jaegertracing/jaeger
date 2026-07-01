@@ -151,6 +151,101 @@ Adapts a gorilla WebSocket connection to the `io.ReadWriteCloser` interface
 required by the ACP runtime. Reads WebSocket text/binary messages as a
 continuous byte stream; writes bytes as WebSocket text messages.
 
+### MCPProxy (`mcp_proxy.go`)
+
+The gateway-side **MCP server** every ACP agent dials as its single MCP egress.
+Mounted at `/api/ai/mcp/<sessionId>/` so each chat session gets a dedicated
+URL the agent receives at session start.
+
+Per-session, the proxy advertises two kinds of tools on the same MCP server:
+
+- **UI tools** the frontend declared on the AG-UI chat request, registered
+  with handlers that dispatch back through `streamingClient` as `TOOL_CALL_*`
+  AG-UI SSE events. The browser is the actual executor; the proxy returns a
+  synthetic ack to the agent so its LLM loop continues. No `TOOL_CALL_RESULT`
+  is emitted to the browser, matching the existing ACP ext_method dispatch.
+- **Telemetry tools** from the `jaegermcp` extension, fetched once at
+  startup over an in-process HTTP MCP client and re-registered on each
+  per-session server with handlers that forward `tools/call` to the
+  upstream session. The agent sees one combined catalogue.
+
+Name collisions: a UI tool with the same name as an upstream tool wins —
+the frontend's per-turn declaration is the more explicit signal.
+
+The upstream MCP URL is **hardcoded** to `http://127.0.0.1:16687/mcp`
+today. Replacing with autodiscovery via the OTel collector host
+(`jaegermcp.GetExtension(host).Endpoint()`) plus an optional
+`ai.mcp_upstream_url` config override is a planned follow-up; see the
+`upstreamMCPURL` constant in `mcp_proxy.go`.
+
+If the upstream MCP server is unreachable at gateway startup, the proxy
+logs a warning and serves UI tools only. The chat surface keeps working;
+the agent just has no telemetry tools available until the next gateway
+restart catches the upstream alive.
+
+Two transports reach the same per-session dispatcher (UI tool → SSE, upstream
+tool → forward to `jaegermcp`):
+
+- **HTTP transport** (`mcp_proxy.go`): the streamable HTTP handler at
+  `/api/ai/mcp/<sessionId>/`. Every off-the-shelf ACP agent that ships today
+  (`claude-agent-acp`, `harukitosa/claude-code-acp`) can dial this without
+  protocol-specific glue.
+- **MCP-over-ACP transport** (`mcp_acp_dispatch.go`): inner MCP requests
+  arrive through the ACP WebSocket as `mcp/connect`, `mcp/message`,
+  `mcp/disconnect`. No second HTTP endpoint, no URL plumbing — the agent
+  reuses the chat connection. Available for agents that advertise
+  `mcp_capabilities.acp = true` in their `InitializeResponse`. The gateway
+  capability-gates announcement: when the agent doesn't advertise support,
+  `NewSessionRequest.mcpServers` is empty and the dispatcher's `mcp/*`
+  methods return `MethodNotFound`, so the agent falls back to the HTTP
+  endpoint instead.
+
+The two transports share `listToolsForSession` (combined UI + upstream
+catalogue) and `callToolForSession` (routes by tool name into the same
+`dispatchUITool` / `forwardToUpstream` helpers the HTTP `*mcp.Server`'s
+typed handlers wrap). Adding a third transport later is purely a new front
+door on the same dispatch core.
+
+### MCP-over-ACP (`mcp_acp_dispatch.go`)
+
+The wire flow when the agent supports it:
+
+1. Gateway sends `NewSessionRequest` with one `McpServer{Acp:
+   &McpServerAcpInline{Id, Name: "jaeger"}}`. `Id` is a fresh
+   per-chat-turn nonce, not the session id (session id isn't known
+   until session/new returns).
+2. Agent receives the announcement, calls back via the ACP
+   `mcp/connect` request with the announced `acpId`. `HandleConnect`
+   allocates a unique `connectionId` and records `connectionId →
+   sessionId` (read from the dispatcher's atomic, which the chat
+   handler updates after session/new returns).
+3. Agent's MCP client sends inner MCP requests through `mcp/message`,
+   each tagged with the `connectionId`. `HandleMessage` looks up the
+   connection's session id and routes the inner method to
+   `listToolsForSession` (for `tools/list`), `callToolForSession` (for
+   `tools/call`), or a synthetic `InitializeResult` (for `initialize`).
+4. Agent calls `mcp/disconnect` on teardown; `HandleDisconnect` drops
+   the connection. Idempotent — a stale id is silently ignored.
+
+Why MCP-over-ACP is "scaffolded but not yet adopted": at the time of
+writing, no off-the-shelf ACP agent consumes the `type: "acp"` McpServer
+variant (verified against `claude-agent-acp` HEAD and
+`harukitosa/claude-code-acp`). The capability handshake means this is
+safe to ship — agents that can't speak it never see the announcement and
+keep using the HTTP path. The day an agent adds support, the gateway's
+already ready.
+
+### SessionStreams (`session_streams.go`)
+
+Thread-safe registry mapping ACP session id → live `streamingClient`. The
+chat handler writes the streaming client here as soon as the ACP session is
+allocated, and the deferred cleanup removes it on turn end. The MCP proxy
+reads it inside `tools/call` to find the SSE stream for the UI-tool dispatch.
+
+The registry is in-memory and not persisted: ACP sessions are scoped to a
+single HTTP chat request and the streaming client wraps a live
+`http.ResponseWriter`, so persisting across processes would be nonsensical.
+
 ## Request Flow
 
 ```mermaid

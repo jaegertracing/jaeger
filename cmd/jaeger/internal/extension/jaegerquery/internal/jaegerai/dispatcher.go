@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	acp "github.com/coder/acp-go-sdk"
 	"go.uber.org/zap"
@@ -85,7 +86,27 @@ type extToolCallResponse struct {
 // for our extension method. Client errors flow back through the nil-safe
 // toRequestError so the dispatcher itself stays branchless on the
 // non-malformed-params path.
-func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger *zap.Logger) acp.MethodHandler {
+//
+// The proxy and sessionIDRef parameters are how MCP-over-ACP traffic
+// reaches the shared dispatch logic in MCPProxy:
+//
+//   - proxy may be nil for chat handlers that aren't configured with
+//     an MCP proxy (tests, deployments without the MCP route wired
+//     in). In that case the three mcp/* methods degrade to
+//     MethodNotFound — the agent then knows the gateway is not an
+//     MCP-over-ACP endpoint.
+//   - sessionIDRef holds the AG-UI session id once session/new
+//     returns. mcp/connect reads it; the chat handler writes it
+//     after session/new completes. Atomic so the dispatcher
+//     goroutine and the chat goroutine can both touch it without
+//     the race detector firing.
+func newDispatcher(
+	client *streamingClient,
+	store *ContextualToolsStore,
+	proxy *MCPProxy,
+	sessionIDRef *atomic.Pointer[string],
+	logger *zap.Logger,
+) acp.MethodHandler {
 	return func(ctx context.Context, method string, params json.RawMessage) (any, *acp.RequestError) {
 		switch method {
 		case acp.ClientMethodSessionUpdate:
@@ -106,10 +127,62 @@ func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger 
 		case ExtMethodJaegerToolCall:
 			return handleJaegerToolCall(params, store, logger)
 
+		case acp.ClientMethodMcpConnect:
+			if proxy == nil {
+				return nil, acp.NewMethodNotFound(method)
+			}
+			var p acp.UnstableConnectMcpRequest
+			if err := json.Unmarshal(params, &p); err != nil {
+				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+			}
+			sessionID := currentSessionID(sessionIDRef)
+			if sessionID == "" {
+				return nil, acp.NewInvalidParams(map[string]any{
+					"error": "mcp/connect received before session/new completed",
+				})
+			}
+			resp, err := proxy.HandleConnect(ctx, sessionID, p)
+			return resp, toRequestError(err)
+
+		case acp.ClientMethodMcpDisconnect:
+			if proxy == nil {
+				return nil, acp.NewMethodNotFound(method)
+			}
+			var p acp.UnstableDisconnectMcpRequest
+			if err := json.Unmarshal(params, &p); err != nil {
+				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+			}
+			resp, err := proxy.HandleDisconnect(ctx, p)
+			return resp, toRequestError(err)
+
+		case acp.ClientMethodMcpMessage:
+			if proxy == nil {
+				return nil, acp.NewMethodNotFound(method)
+			}
+			var p acp.UnstableMessageMcpRequest
+			if err := json.Unmarshal(params, &p); err != nil {
+				return nil, acp.NewInvalidParams(map[string]any{"error": fmt.Sprintf("cannot unmarshal request: %v", err)})
+			}
+			resp, err := proxy.HandleMessage(ctx, p)
+			return resp, toRequestError(err)
+
 		default:
 			return nil, acp.NewMethodNotFound(method)
 		}
 	}
+}
+
+// currentSessionID safely dereferences the dispatcher's session-id
+// holder. Nil pointer or empty string both signal "not yet ready" —
+// the chat handler hasn't received the session/new response.
+func currentSessionID(ref *atomic.Pointer[string]) string {
+	if ref == nil {
+		return ""
+	}
+	if s := ref.Load(); s != nil {
+		return *s
+	}
+	return ""
 }
 
 // handleJaegerToolCall handles contextual tool dispatches as
