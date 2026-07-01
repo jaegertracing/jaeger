@@ -38,8 +38,7 @@ var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterFromVersion("v2.20.0"),
 	featuregate.WithRegisterDescription(
 		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
-			"instead of loading full traces and aggregating in the query service. Requires "+
-			"inline (Painless) scripts to be enabled on the cluster.",
+			"instead of loading full traces and aggregating in the query service.",
 	),
 )
 

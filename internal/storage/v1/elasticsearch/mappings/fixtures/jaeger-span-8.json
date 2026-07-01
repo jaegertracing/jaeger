@@ -72,6 +72,9 @@
         "duration": {
           "type": "long"
         },
+        "endTime": {
+          "type": "long"
+        },
         "flags": {
           "type": "integer"
         },

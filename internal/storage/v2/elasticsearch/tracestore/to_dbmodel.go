@@ -127,6 +127,8 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
+	startMicros := model.TimeAsEpochMicroseconds(startTime)
+	durationMicros := model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime))
 	return dbmodel.Span{
 		TraceID:       traceID,
 		SpanID:        dbmodel.SpanID(span.SpanID().String()),
@@ -136,9 +138,10 @@ func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, pr
 		// only write actual span links here. Kept for now so older readers that
 		// derive the parent from references still work against the same index.
 		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
-		StartTime:       model.TimeAsEpochMicroseconds(startTime),
-		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
-		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
+		StartTime:       startMicros,
+		StartTimeMillis: startMicros / 1000,
+		Duration:        durationMicros,
+		EndTime:         startMicros + durationMicros,
 		Tags:            getDbSpanTags(span, libraryTags),
 		Logs:            spanEventsToDbSpanLogs(span.Events()),
 		Process:         process,

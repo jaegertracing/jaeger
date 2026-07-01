@@ -92,9 +92,9 @@ func TestTraceReader_FindTraceSummaries_AggregatorError(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceSummaries_PropagatesUnsupported(t *testing.T) {
-	// When the core reader reports the backend cannot compute summaries (e.g.
-	// scripting disabled), the wrapper propagates errors.ErrUnsupported so the
-	// query service falls back to client-side aggregation.
+	// The wrapper propagates errors.ErrUnsupported from the core unchanged, so the
+	// query service can fall back to client-side aggregation for any backend that
+	// signals it.
 	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
