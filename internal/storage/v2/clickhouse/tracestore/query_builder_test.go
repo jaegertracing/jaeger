@@ -30,7 +30,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		s.AppendEmpty()
 
 		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
-		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
+		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs}, false)
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal slice attribute")
@@ -42,7 +42,7 @@ func TestBuildFindTraceIDsQuery_MarshalErrors(t *testing.T) {
 		m.PutEmpty("key")
 
 		reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
-		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs})
+		_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: attrs}, false)
 
 		require.Error(t, err)
 		require.ErrorContains(t, err, "failed to marshal map attribute")
@@ -60,7 +60,7 @@ func TestBuildFindTraceIDsQuery_AttributeMetadataError(t *testing.T) {
 	}
 
 	reader := NewReader(td, testReaderConfig)
-	_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: buildTestAttributes()})
+	_, _, err := reader.buildFindTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{Attributes: buildTestAttributes()}, false)
 	require.ErrorContains(t, err, "failed to get attribute metadata")
 }
 
