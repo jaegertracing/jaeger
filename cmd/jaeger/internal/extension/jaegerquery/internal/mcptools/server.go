@@ -76,6 +76,56 @@ func DefaultConfig() Config {
 	}
 }
 
+// NewHandler builds an http.Handler that serves the Jaeger telemetry MCP tools
+// over streamable HTTP, backed directly by the given QueryService. It carries
+// the same tracing/metrics middleware and tenancy extraction the standalone
+// jaeger_mcp extension used, but binds no listener of its own — the caller
+// mounts it on an existing mux (e.g. jaeger-query at /api/ai/mcp/).
+//
+// Taking *querysvc.QueryService directly (rather than fetching it from the
+// component host) is what keeps this dependency-free of the jaegerquery
+// extension package, avoiding the import cycle a host-based lookup would create
+// now that the tools live under jaegerquery/internal.
+func NewHandler(telset component.TelemetrySettings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
+	mcpServer := mcp.NewServer(
+		&mcp.Implementation{
+			Name:    cfg.ServerName,
+			Version: cfg.ServerVersion,
+		},
+		&mcp.ServerOptions{
+			Instructions: serverInstructions,
+		},
+	)
+	RegisterTools(mcpServer, queryAPI, cfg)
+
+	mw := []mcp.Middleware{
+		createTracingMiddleware(telset.TracerProvider),
+	}
+	metricsMiddleware, err := createMetricsMiddleware(telset.MeterProvider)
+	if err != nil {
+		telset.Logger.Warn("failed to create MCP metrics middleware, continuing without metrics", zap.Error(err))
+	} else {
+		mw = append(mw, metricsMiddleware)
+	}
+	mcpServer.AddReceivingMiddleware(mw...)
+
+	mcpHandler := mcp.NewStreamableHTTPHandler(
+		func(_ *http.Request) *mcp.Server { return mcpServer },
+		&mcp.StreamableHTTPOptions{
+			JSONResponse:   false, // Use SSE for streamed events
+			Stateless:      false, // Session state management
+			SessionTimeout: mcpSessionTimeout,
+		},
+	)
+
+	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
+	return otelhttp.NewHandler(
+		tenantHandler,
+		"jaeger_mcp",
+		otelhttp.WithTracerProvider(telset.TracerProvider),
+	)
+}
+
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
 // wiring each handler to the supplied QueryService. cfg supplies the per-tool
 // limits (search results, span details, read-file size).
@@ -141,54 +191,4 @@ func RegisterTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 			"Skills are organized using progressive disclosure. " +
 			"Start with SKILL.md which will guide you to more specific sub-skills.",
 	}, handlers.NewReadSkillHandler(skillsFS, cfg.MaxReadFileSize))
-}
-
-// NewHandler builds an http.Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed directly by the given QueryService. It carries
-// the same tracing/metrics middleware and tenancy extraction the standalone
-// jaeger_mcp extension used, but binds no listener of its own — the caller
-// mounts it on an existing mux (e.g. jaeger-query at /api/ai/mcp/).
-//
-// Taking *querysvc.QueryService directly (rather than fetching it from the
-// component host) is what keeps this dependency-free of the jaegerquery
-// extension package, avoiding the import cycle a host-based lookup would create
-// now that the tools live under jaegerquery/internal.
-func NewHandler(telset component.TelemetrySettings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
-	mcpServer := mcp.NewServer(
-		&mcp.Implementation{
-			Name:    cfg.ServerName,
-			Version: cfg.ServerVersion,
-		},
-		&mcp.ServerOptions{
-			Instructions: serverInstructions,
-		},
-	)
-	RegisterTools(mcpServer, queryAPI, cfg)
-
-	mw := []mcp.Middleware{
-		createTracingMiddleware(telset.TracerProvider),
-	}
-	metricsMiddleware, err := createMetricsMiddleware(telset.MeterProvider)
-	if err != nil {
-		telset.Logger.Warn("failed to create MCP metrics middleware, continuing without metrics", zap.Error(err))
-	} else {
-		mw = append(mw, metricsMiddleware)
-	}
-	mcpServer.AddReceivingMiddleware(mw...)
-
-	mcpHandler := mcp.NewStreamableHTTPHandler(
-		func(_ *http.Request) *mcp.Server { return mcpServer },
-		&mcp.StreamableHTTPOptions{
-			JSONResponse:   false, // Use SSE for streamed events
-			Stateless:      false, // Session state management
-			SessionTimeout: mcpSessionTimeout,
-		},
-	)
-
-	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
-	return otelhttp.NewHandler(
-		tenantHandler,
-		"jaeger_mcp",
-		otelhttp.WithTracerProvider(telset.TracerProvider),
-	)
 }
