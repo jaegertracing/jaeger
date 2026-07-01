@@ -1350,6 +1350,7 @@ func TestFindTraceSummaries_Success(t *testing.T) {
 	summaries, err := jiter.FlattenWithErrors(iter)
 	require.NoError(t, err)
 	require.Len(t, conn.RecordedQueries, 1)
+	verifyQuerySnapshot(t, conn.RecordedQueries...)
 	// The service filter from buildFindTraceIDsQuery is embedded in the summary query.
 	require.Contains(t, conn.RecordedQueries[0], "s.service_name = ?")
 

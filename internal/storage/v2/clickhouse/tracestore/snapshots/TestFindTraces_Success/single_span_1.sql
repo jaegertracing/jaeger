@@ -80,7 +80,6 @@ WHERE s.trace_id IN (
 			    s.trace_id
 			FROM spans s
 			WHERE 1=1
-			ORDER BY s.trace_id
 			LIMIT ?
 		) l
 		LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id

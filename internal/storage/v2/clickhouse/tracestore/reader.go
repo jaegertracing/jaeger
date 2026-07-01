@@ -180,7 +180,7 @@ func (r *Reader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query, false)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -227,7 +227,7 @@ func (r *Reader) FindTraceSummaries(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query, true)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
@@ -376,7 +376,7 @@ func (r *Reader) FindTraceIDs(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		q, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		q, args, err := r.buildFindTraceIDsQuery(ctx, query, false)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
