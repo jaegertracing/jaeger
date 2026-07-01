@@ -14,24 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component"
-	noopmetric "go.opentelemetry.io/otel/metric/noop"
-	nooptrace "go.opentelemetry.io/otel/trace/noop"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
-
-func testTelset() component.TelemetrySettings {
-	return component.TelemetrySettings{
-		Logger:         zap.NewNop(),
-		TracerProvider: nooptrace.NewTracerProvider(),
-		MeterProvider:  noopmetric.NewMeterProvider(),
-	}
-}
 
 // connectTestClient starts an httptest server around the handler and returns a
 // connected MCP client session.
@@ -59,7 +48,7 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 // backed by empty mocks.
 func TestNewHandler_ListTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(testTelset(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
 
 	session := connectTestClient(t, handler)
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
@@ -82,7 +71,7 @@ func TestNewHandler_CallTool(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Return([]string{"svc-a", "svc-b"}, nil)
 	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(testTelset(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
 
 	session := connectTestClient(t, handler)
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
