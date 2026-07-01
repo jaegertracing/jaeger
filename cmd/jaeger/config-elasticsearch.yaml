@@ -41,6 +41,8 @@ extensions:
     backends:
       some_storage: &elasticsearch_config
         elasticsearch:
+          bulk_processing:
+            max_actions: 1
           server_urls:
             - http://localhost:9200
           # custom_headers:
