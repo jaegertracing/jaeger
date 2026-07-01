@@ -1146,6 +1146,75 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 
 		require.Equal(t, http.StatusBadGateway, rr.Code)
 	})
+
+	t.Run("mcp endpoint mounted in MCP-only mode", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{EnableMCP: true, MaxRequestBodySize: 1 << 20})
+
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, closer.Close())
+		})
+
+		// The telemetry MCP route is mounted (not 404); chat is not, since
+		// AgentURL is empty.
+		mcpReq := httptest.NewRequest(http.MethodGet, "/api/ai/mcp/", http.NoBody)
+		mcpRR := httptest.NewRecorder()
+		handler.ServeHTTP(mcpRR, mcpReq)
+		require.NotEqual(t, http.StatusNotFound, mcpRR.Code)
+
+		chatReq := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{}`))
+		chatRR := httptest.NewRecorder()
+		handler.ServeHTTP(chatRR, chatReq)
+		require.Equal(t, http.StatusNotFound, chatRR.Code)
+	})
+
+	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.BasePath = "/jaeger"
+		opts.AI = configoptional.Some(AIConfig{EnableMCP: true, MaxRequestBodySize: 1 << 20})
+
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, closer.Close())
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/jaeger/api/ai/mcp/", http.NoBody)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		require.NotEqual(t, http.StatusNotFound, rr.Code)
+	})
+}
+
+// TestRegisterMCPTools_BasePathNormalization checks the mount prefix directly
+// (bypassing initRouter's other routes) so a trailing slash or bare "/" can't
+// produce a double-slash pattern. BasePath is normalized at config load, so
+// this guards the defensive normalization in registerMCPTools.
+func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
+	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
+
+	for _, basePath := range []string{"", "/", "/jaeger", "/jaeger/"} {
+		t.Run("base path "+basePath, func(t *testing.T) {
+			r := http.NewServeMux()
+			// Must not panic on a double-slash pattern.
+			require.NotPanics(t, func() {
+				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, telset)
+			})
+
+			want := "/api/ai/mcp/"
+			if basePath == "/jaeger" || basePath == "/jaeger/" {
+				want = "/jaeger/api/ai/mcp/"
+			}
+			req := httptest.NewRequest(http.MethodGet, want, http.NoBody)
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+			require.NotEqual(t, http.StatusNotFound, rr.Code)
+		})
+	}
 }
 
 func TestOTLPProxyPathPrefix(t *testing.T) {
