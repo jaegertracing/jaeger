@@ -13,8 +13,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// newTestMCPMux mounts an mcpSessionHandler on a mux at the given base path,
-// backed by a stub telemetry handler that records the (post-strip) path it saw.
+// newTestMCPMux mounts an mcpSessionHandler on a mux (both the slash and
+// no-slash session patterns, as RegisterRoutes does), backed by a stub
+// telemetry handler that records the (post-strip) path it saw.
 func newTestMCPMux(t *testing.T, basePath string, streams *sessionStreams) (*http.ServeMux, *string) {
 	t.Helper()
 	var seenPath string
@@ -23,27 +24,39 @@ func newTestMCPMux(t *testing.T, basePath string, streams *sessionStreams) (*htt
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("telemetry"))
 	})
-	h := &mcpSessionHandler{telemetry: stub, streams: streams, basePath: basePath, logger: zap.NewNop()}
+	h := &mcpSessionHandler{telemetryHandler: stub, streams: streams, basePath: basePath, logger: zap.NewNop()}
 	mux := http.NewServeMux()
 	mux.Handle(basePath+routeMCPSession, h)
+	mux.Handle(basePath+routeMCPSessionNoSlash, h)
 	return mux, &seenPath
 }
 
 func TestMCPSessionHandlerServesActiveSession(t *testing.T) {
+	// The session prefix must be stripped so the telemetry handler sees its own
+	// root, for the trailing-slash, subpath, and no-slash forms alike.
+	cases := []struct {
+		reqSuffix    string
+		wantSeenPath string
+	}{
+		{"/api/ai/mcp/sess-1/mcp", "/mcp"},
+		{"/api/ai/mcp/sess-1/", "/"},
+		{"/api/ai/mcp/sess-1", "/"}, // no trailing slash normalizes to root
+	}
 	for _, basePath := range []string{"", "/jaeger"} {
-		t.Run("base path "+basePath, func(t *testing.T) {
-			streams := newSessionStreams()
-			streams.set("sess-1", testStreamingClient())
-			mux, seenPath := newTestMCPMux(t, basePath, streams)
+		for _, tc := range cases {
+			t.Run(basePath+tc.reqSuffix, func(t *testing.T) {
+				streams := newSessionStreams()
+				streams.set("sess-1", testStreamingClient())
+				mux, seenPath := newTestMCPMux(t, basePath, streams)
 
-			rr := httptest.NewRecorder()
-			mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, basePath+"/api/ai/mcp/sess-1/mcp", http.NoBody))
+				rr := httptest.NewRecorder()
+				mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, basePath+tc.reqSuffix, http.NoBody))
 
-			require.Equal(t, http.StatusOK, rr.Code)
-			assert.Equal(t, "telemetry", rr.Body.String())
-			// Session prefix stripped: the telemetry handler sees a clean root.
-			assert.Equal(t, "/mcp", *seenPath)
-		})
+				require.Equal(t, http.StatusOK, rr.Code)
+				assert.Equal(t, "telemetry", rr.Body.String())
+				assert.Equal(t, tc.wantSeenPath, *seenPath)
+			})
+		}
 	}
 }
 
@@ -51,9 +64,12 @@ func TestMCPSessionHandlerRejectsUnknownSession(t *testing.T) {
 	streams := newSessionStreams() // empty: no active sessions
 	mux, seenPath := newTestMCPMux(t, "", streams)
 
-	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/ghost/mcp", http.NoBody))
-
-	require.Equal(t, http.StatusNotFound, rr.Code)
-	assert.Empty(t, *seenPath, "telemetry handler must not be reached for an unknown session")
+	for _, reqPath := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
+		t.Run(reqPath, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, reqPath, http.NoBody))
+			require.Equal(t, http.StatusNotFound, rr.Code)
+			assert.Empty(t, *seenPath, "telemetry handler must not be reached for an unknown session")
+		})
+	}
 }

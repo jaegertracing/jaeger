@@ -110,6 +110,12 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 		assert.NotEqual(t, http.StatusNotFound, rr.Code, "registered session must reach the MCP handler")
 	})
 
+	t.Run("active session is served without a trailing slash", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/sess-1", http.NoBody))
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "no-slash form must also reach the MCP handler")
+	})
+
 	t.Run("unknown session is rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/ghost/mcp", http.NoBody))

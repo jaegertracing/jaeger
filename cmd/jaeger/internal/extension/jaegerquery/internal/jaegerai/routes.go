@@ -83,10 +83,10 @@ func NewHandler(d Deps) *Handler {
 	if d.EnableMCP {
 		telemetryHandler := mcptools.NewHandler(d.Telset, d.QueryService, d.TenancyMgr, mcptools.DefaultConfig())
 		h.mcpHandler = &mcpSessionHandler{
-			telemetry: telemetryHandler,
-			streams:   h.streams,
-			basePath:  basePath,
-			logger:    d.Logger,
+			telemetryHandler: telemetryHandler,
+			streams:          h.streams,
+			basePath:         basePath,
+			logger:           d.Logger,
 		}
 	}
 	return h
@@ -95,9 +95,10 @@ func NewHandler(d Deps) *Handler {
 // RegisterRoutes mounts the AI gateway endpoints on the provided mux:
 //
 //   - <basePath>/api/ai/chat              — streams ACP turns to/from the sidecar.
-//   - <basePath>/api/ai/mcp/<id>/         — session-scoped MCP endpoint (only
-//     when MCP is enabled). The {sessionID} wildcard is more specific than the
-//     session-free "/api/ai/mcp/" pattern jaeger-query mounts, so both coexist.
+//   - <basePath>/api/ai/mcp/<id>[/...]    — session-scoped MCP endpoint (only
+//     when MCP is enabled). Both the slash and no-slash forms are mounted; the
+//     {sessionID} wildcard is more specific than the session-free
+//     "/api/ai/mcp/" pattern jaeger-query mounts, so all coexist.
 func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 	chat := NewChatHandler(h.logger, h.store, h.agentURL, h.basePath, h.maxRequestBodySize)
 	chat.streams = h.streams
@@ -105,5 +106,6 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 
 	if h.mcpHandler != nil {
 		router.Handle(h.basePath+routeMCPSession, h.mcpHandler)
+		router.Handle(h.basePath+routeMCPSessionNoSlash, h.mcpHandler)
 	}
 }
