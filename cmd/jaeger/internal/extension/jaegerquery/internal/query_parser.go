@@ -125,12 +125,15 @@ func (p *queryParser) parseTraceQueryParams(r *http.Request) (*traceQueryParamet
 		return nil, err
 	}
 
-	limitParam := r.URL.Query().Get(limitParam)
+	limitVal := r.URL.Query().Get(limitParam)
 	limit := defaultQueryLimit
-	if limitParam != "" {
-		limitParsed, err := strconv.ParseInt(limitParam, 10, 32)
+	if limitVal != "" {
+		limitParsed, err := strconv.ParseInt(limitVal, 10, 32)
 		if err != nil {
-			return nil, err
+			return nil, newParseError(err, limitParam)
+		}
+		if limitParsed <= 0 {
+			return nil, newParseError(errors.New("value must be greater than 0"), limitParam)
 		}
 		limit = int(limitParsed)
 	}

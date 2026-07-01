@@ -110,6 +110,9 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", searchDepthParam, err)
 		}
+		if searchDepth <= 0 {
+			return nil, fmt.Errorf("malformed parameter %s: value must be greater than 0", searchDepthParam)
+		}
 		queryParams.SearchDepth = searchDepth
 	} else {
 		queryParams.SearchDepth = defaultSearchDepth
@@ -128,6 +131,11 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramName, err)
 		}
 		queryParams.DurationMax = dur
+	}
+	if queryParams.DurationMin != 0 && queryParams.DurationMax != 0 {
+		if queryParams.DurationMax < queryParams.DurationMin {
+			return nil, fmt.Errorf("%s must be greater than %s", paramDurationMax, paramDurationMin)
+		}
 	}
 	if r, paramName := getQueryParam(q, paramQueryRawTraces, paramQueryRawTracesDeprecated); r != "" {
 		rawTraces, err := strconv.ParseBool(r)
