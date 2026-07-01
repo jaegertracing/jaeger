@@ -178,6 +178,10 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, err
 	}
 
+	// Order before LIMIT so the truncated set is deterministic. FindTraceSummaries
+	// embeds this subquery twice (ClickHouse re-executes CTEs), and divergent sets
+	// would drop orphan-count rows in the join.
+	inner.WriteString("\nORDER BY s.trace_id")
 	inner.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 

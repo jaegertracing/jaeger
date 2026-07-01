@@ -1330,7 +1330,7 @@ func TestFindTraceSummaries_Success(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:   [][]any{summaryRow},
 					ScanFn: scanTraceSummaryFn(),
@@ -1384,7 +1384,7 @@ func TestFindTraceSummaries_CrossService(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:   [][]any{summaryRow},
 					ScanFn: scanTraceSummaryFn(),
@@ -1420,7 +1420,7 @@ func TestFindTraceSummaries_BuildQueryError(t *testing.T) {
 func TestFindTraceSummaries_QueryError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Err: assert.AnError,
 			},
 		},
@@ -1437,7 +1437,7 @@ func TestFindTraceSummaries_QueryError(t *testing.T) {
 func TestFindTraceSummaries_ScanError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:    [][]any{{}}, // one row present so Next() returns true
 					ScanErr: assert.AnError,
@@ -1470,7 +1470,7 @@ func TestFindTraceSummaries_TraceIDDecodeError(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:   [][]any{badRow},
 					ScanFn: scanTraceSummaryFn(),
@@ -1503,7 +1503,7 @@ func TestFindTraceSummaries_TraceIDInvalidLength(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:   [][]any{badRow},
 					ScanFn: scanTraceSummaryFn(),
@@ -1523,7 +1523,7 @@ func TestFindTraceSummaries_TraceIDInvalidLength(t *testing.T) {
 func TestFindTraceSummaries_RowsError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					RowsErr: assert.AnError,
 				},
@@ -1542,7 +1542,7 @@ func TestFindTraceSummaries_RowsError(t *testing.T) {
 func TestFindTraceSummaries_CloseError(t *testing.T) {
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					CloseErr: assert.AnError,
 				},
@@ -1574,7 +1574,7 @@ func TestFindTraceSummaries_EarlyTermination(t *testing.T) {
 	}
 	conn := &clickhousetest.Driver{
 		QueryResponses: map[string]*clickhousetest.QueryResponse{
-			"argMinIf(s.service_name": {
+			"argMinIf((s.service_name": {
 				Rows: &clickhousetest.Rows[[]any]{
 					Data:   [][]any{summaryRow, summaryRow},
 					ScanFn: scanTraceSummaryFn(),

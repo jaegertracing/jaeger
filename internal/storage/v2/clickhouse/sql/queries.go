@@ -231,40 +231,29 @@ FROM (
 LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
 GROUP BY l.trace_id`
 
-// SelectTraceSummaries computes lightweight per-trace summaries natively in
-// ClickHouse, avoiding materialization of full span payloads. The %s placeholder
-// is replaced with the limited trace-ID subquery (SearchTraceIDsBase + filters +
-// LIMIT), so only the already-selected traces are aggregated.
+// SelectTraceSummaries computes per-trace summaries natively in ClickHouse without
+// materializing span payloads. The %s placeholder is the limited trace-ID subquery
+// (SearchTraceIDsBase + filters + LIMIT), so only selected traces are aggregated.
 //
-// Semantics: summaries are derived directly from the raw stored spans. Unlike the
-// client-side fallback in querysvc, the native path does NOT run query-service
-// adjusters (span deduplication, clock-skew correction) before aggregating, so for
-// traces containing duplicate spans or clock skew the reported span counts and
-// min/max times may differ from the adjusted full-trace path. This is a deliberate
-// trade-off: replicating dedupe and skew correction requires span-graph traversal,
-// which would defeat the purpose of a single-pass aggregation summary. The shared
-// integration test (testFindTraceSummaries) asserts raw stored span counts,
-// consistent with these raw-storage semantics.
+// Summaries come from raw stored spans; unlike the querysvc fallback, the native
+// path skips adjusters (dedupe, clock-skew), so counts and times may differ for
+// traces with duplicate spans or skew. Replicating those needs span-graph
+// traversal, defeating the single-pass goal.
 //
-// The query is structured as two chained CTEs plus an orphan-count join:
-//   - selected: the limited trace-ID subquery, evaluated once so the LIMIT is not
-//     re-applied non-deterministically.
-//   - agg: one row per trace with the core statistics:
-//   - min_start / max_end derive the trace duration without fetching spans.
-//   - root_service / root_operation come from the parentless span (empty
-//     parent_span_id) with the earliest start time, via argMinIf, matching
-//     the client-side fallback in querysvc.summarizeTrace.
-//   - svc_stats is a single multi-value sumMap keyed by service_name carrying
-//     both per-service span and error counts. A single sumMap guarantees one
-//     shared, sorted key array with both value arrays aligned to it; using two
-//     separate sumMaps would misalign, because sumMap drops keys whose summed
-//     value is zero (an error-free service would vanish from the error map).
+// Structure: two CTEs plus an orphan-count join.
+//   - selected: the limited trace-ID subquery. ClickHouse re-executes CTEs on each
+//     reference, so its inner query orders by trace_id before LIMIT to guarantee
+//     both evaluations truncate to the same set; otherwise the orphan join could
+//     drop rows (OrphanSpanCount = 0 via ifNull). Referencing selected rather than
+//     agg keeps the re-execution cheap (ID scan only, not the aggregation).
+//   - agg: one row per trace. min_start/max_end give duration; root is a single
+//     argMinIf tuple so service and operation come from the same parentless span;
+//     svc_stats is one sumMap keyed by service_name (two sumMaps would misalign,
+//     since sumMap drops zero-valued keys, dropping error-free services).
 //
-// Orphan spans (a span whose parent is absent from the trace) are counted via a
-// LEFT ANTI JOIN of spans against themselves on (trace_id, parent_span_id = id),
-// restricted to the already-aggregated trace set. This is a hash join, i.e. ~O(n)
-// in the number of spans, replacing the earlier per-row array membership scan that
-// was O(n^2) per trace and could exhaust memory on large traces.
+// Orphan spans (parent absent from the trace) are counted via a LEFT ANTI JOIN of
+// spans on (trace_id, parent_span_id = id), an ~O(n) hash join over the selected
+// set, replacing an earlier O(n^2) per-trace array scan.
 const SelectTraceSummaries = `
 WITH
 selected AS (
@@ -277,10 +266,9 @@ agg AS (
         s.trace_id AS trace_id,
         min(s.start_time) AS min_start,
         max(s.start_time + toIntervalNanosecond(s.duration)) AS max_end,
-        toUInt64(count()) AS span_count,
-        toUInt64(countIf(s.status_code = 'Error')) AS error_span_count,
-        argMinIf(s.service_name, s.start_time, s.parent_span_id = '') AS root_service,
-        argMinIf(s.name, s.start_time, s.parent_span_id = '') AS root_operation,
+        count() AS span_count,
+        countIf(s.status_code = 'Error') AS error_span_count,
+        argMinIf((s.service_name, s.name), s.start_time, s.parent_span_id = '') AS root,
         sumMap([s.service_name], [toUInt64(1)], [toUInt64(s.status_code = 'Error')]) AS svc_stats
     FROM spans s
     WHERE s.trace_id IN (SELECT trace_id FROM selected)
@@ -292,8 +280,8 @@ SELECT
     agg.max_end AS max_end,
     agg.span_count AS span_count,
     agg.error_span_count AS error_span_count,
-    agg.root_service AS root_service,
-    agg.root_operation AS root_operation,
+    agg.root.1 AS root_service,
+    agg.root.2 AS root_operation,
     agg.svc_stats.1 AS svc_names,
     agg.svc_stats.2 AS svc_span_counts,
     agg.svc_stats.3 AS svc_error_counts,
@@ -305,10 +293,9 @@ LEFT JOIN (
         count() AS orphan_count
     FROM spans s
     LEFT ANTI JOIN spans p ON s.trace_id = p.trace_id AND s.parent_span_id = p.id
-    WHERE s.parent_span_id != '' AND s.trace_id IN (SELECT trace_id FROM agg)
+    WHERE s.parent_span_id != '' AND s.trace_id IN (SELECT trace_id FROM selected)
     GROUP BY s.trace_id
-) AS orph ON agg.trace_id = orph.trace_id
-ORDER BY agg.min_start DESC`
+) AS orph ON agg.trace_id = orph.trace_id`
 
 const SelectServices = `
 SELECT
