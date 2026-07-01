@@ -114,7 +114,6 @@ FROM (
 		AND (
 			arrayExists(x -> arrayExists((key, value) -> key = ? AND value = ?, x.str_attributes.key, x.str_attributes.value), s.events)
 		)
-	ORDER BY s.trace_id
 	LIMIT ?
 ) l
 LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
