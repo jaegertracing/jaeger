@@ -54,6 +54,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 					{Name: "GET /api/users", SpanKind: "SERVER"},
 					{Name: "POST /api/checkout", SpanKind: "SERVER"},
 				},
+				TotalCount: 3,
 			},
 		},
 		{
@@ -79,6 +80,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 					{Name: "GET /api/orders", SpanKind: "SERVER"},
 					{Name: "GET /api/users", SpanKind: "SERVER"},
 				},
+				TotalCount: 2,
 			},
 		},
 		{
@@ -96,6 +98,7 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 					{Name: "call-backend", SpanKind: "CLIENT"},
 					{Name: "call-database", SpanKind: "CLIENT"},
 				},
+				TotalCount: 2,
 			},
 		},
 		{
@@ -115,6 +118,8 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 					{Name: "op1", SpanKind: "SERVER"},
 					{Name: "op2", SpanKind: "SERVER"},
 				},
+				TotalCount: 4,
+				Truncated:  true,
 			},
 		},
 		{
@@ -124,7 +129,9 @@ func TestGetSpanNamesHandler_Handle(t *testing.T) {
 			},
 			mockOps: generateOperations(150),
 			expectedOutput: types.GetSpanNamesOutput{
-				SpanNames: generateSpanNameInfos(100),
+				SpanNames:  generateSpanNameInfos(100),
+				TotalCount: 150,
+				Truncated:  true,
 			},
 		},
 		{
