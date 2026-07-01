@@ -213,17 +213,11 @@ func (r *Reader) FindTraces(
 	}
 }
 
-// FindTraceSummaries natively computes lightweight trace summaries in ClickHouse,
-// satisfying tracestore.SummaryReader. It reuses the same filtered, limited
-// trace-ID selection as FindTraces, then aggregates only summary columns instead
-// of materializing full span payloads. This is the native path ADR-010 Milestone 5
-// defines; backends without it fall back to querysvc client-side aggregation.
-//
-// Summaries are computed from the raw stored spans and do not run query-service
-// adjusters (span deduplication, clock-skew correction) that the client-side
-// fallback applies, so for traces with duplicate spans or clock skew the counts
-// and times may differ from the adjusted path. See sql.SelectTraceSummaries for
-// the rationale behind these raw-storage semantics.
+// FindTraceSummaries natively computes trace summaries in ClickHouse, satisfying
+// tracestore.SummaryReader (ADR-010 Milestone 5). It reuses the same filtered,
+// limited trace-ID selection as FindTraces but aggregates only summary columns
+// instead of full span payloads. Summaries come from raw stored spans and skip the
+// querysvc adjusters; see sql.SelectTraceSummaries for the semantics.
 func (r *Reader) FindTraceSummaries(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
@@ -265,10 +259,9 @@ func (r *Reader) FindTraceSummaries(
 	}
 }
 
-// scanTraceSummaryRow scans a single aggregated row from the native summary query
-// into a tracestore.TraceSummary. The per-service arrays are index-aligned because
-// both sumMap aggregations key on service_name. The services are explicitly sorted
-// before returning to satisfy the TraceSummary interface contract deterministically.
+// scanTraceSummaryRow scans one aggregated row into a tracestore.TraceSummary. The
+// per-service arrays are index-aligned because sumMap keys on service_name. sumMap
+// already returns sorted keys; the sort below is a defensive guarantee, not required.
 func scanTraceSummaryRow(rows driver.Rows) (tracestore.TraceSummary, error) {
 	var (
 		traceIDHex     string
