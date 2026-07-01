@@ -12,6 +12,7 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -27,8 +28,12 @@ type ChatRequest = aguitypes.RunAgentInput
 // resulting ACP notifications are streamed back to the caller as AG-UI SSE
 // events.
 type ChatHandler struct {
-	Logger             *zap.Logger
-	ctxTools           *ContextualToolsStore
+	Logger   *zap.Logger
+	ctxTools *ContextualToolsStore
+	// streams registers this turn's SSE streaming client under a session id so
+	// the session-scoped MCP endpoint can confirm the id belongs to an active
+	// turn. May be nil in tests that do not exercise session registration.
+	streams            *sessionStreams
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
@@ -115,6 +120,18 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer adapter.Close()
 
 	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
+
+	// Register this turn's stream under a freshly-minted session id so the
+	// session-scoped MCP endpoint (/api/ai/mcp/<id>/) can confirm the id
+	// belongs to an active turn. The id is minted here rather than reusing the
+	// ACP session id because the endpoint URL must be constructible before
+	// session/new returns; announcing that URL to the sidecar is a follow-up.
+	if h.streams != nil {
+		mcpSessionID := uuid.NewString()
+		h.streams.set(mcpSessionID, clientImpl)
+		defer h.streams.delete(mcpSessionID)
+	}
+
 	// Build the ACP connection ourselves so the inbound dispatcher can
 	// route both standard ACP methods (session/update etc.) and our
 	// extension method (ExtMethodJaegerToolCall) — the SDK's

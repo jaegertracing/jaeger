@@ -214,14 +214,23 @@ func initRouter(
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
 				if aiCfg.AgentURL != "" {
-					jaegerai.NewHandler(
-						telset.Logger,
-						aiCfg.AgentURL,
-						queryOpts.BasePath,
-						aiCfg.MaxRequestBodySize,
-					).RegisterRoutes(r)
+					// When AI chat is enabled, jaegerai owns the chat endpoint and,
+					// if MCP is also enabled, the session-scoped MCP endpoint
+					// (/api/ai/mcp/<id>/).
+					jaegerai.NewHandler(jaegerai.Deps{
+						Logger:             telset.Logger,
+						AgentURL:           aiCfg.AgentURL,
+						BasePath:           queryOpts.BasePath,
+						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
+						EnableMCP:          aiCfg.EnableMCP,
+						QueryService:       querySvc,
+						TenancyMgr:         tenancyMgr,
+						Telset:             telset,
+					}).RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
+					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
+					// the wildcard session-scoped pattern above.
 					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
 				}
 			}
