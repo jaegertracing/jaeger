@@ -29,10 +29,7 @@ extensions:
     storage:
       traces: some_storage
     ai:
-      # Serve the Jaeger telemetry MCP tools in-process at /api/ai/mcp/ on the
-      # query port (replaces the retired standalone jaeger_mcp extension).
-      # agent_url is left empty to keep this MCP-only (no AI chat sidecar).
-      agent_url: ""
+      # Serve the Jaeger MCP tools /api/ai/mcp/
       enable_mcp: true
 
   jaeger_storage:

@@ -14,12 +14,12 @@ import (
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
@@ -43,10 +43,10 @@ var skillsEmbedFS embed.FS
 // component host) is what keeps this dependency-free of the jaegerquery
 // extension package, avoiding the import cycle a host-based lookup would create
 // now that the tools live under jaegerquery/internal.
-func NewHandler(telset component.TelemetrySettings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
+func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
 	s := struct { // alias to minimize code diff during move
 		config    Config
-		telset    component.TelemetrySettings
+		telset    telemetry.Settings
 		mcpServer *mcp.Server
 	}{
 		config: cfg,

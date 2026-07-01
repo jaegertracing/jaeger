@@ -214,7 +214,12 @@ func initRouter(
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
 				if aiCfg.AgentURL != "" {
-					jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+					jaegerai.NewHandler(
+						telset.Logger,
+						aiCfg.AgentURL,
+						queryOpts.BasePath,
+						aiCfg.MaxRequestBodySize,
+					).RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
 					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
@@ -272,26 +277,8 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-// registerOTLPProxy mounts the route described by OTLPProxyConfig. The proxy
-// handler is wrapped with otelhttp using a no-op tracer but the real meter
-// provider so HTTP server metrics flow without producing a self-referential
-// server span; the top-level otelhttp filter excludes this prefix so the
-// registerMCPTools mounts the Jaeger telemetry MCP server at
-// <basePath>/api/ai/mcp/ on the query mux, backed by the query service. This
-// replaces the retired standalone jaeger_mcp extension: the tools are now
-// served in-process on the query port rather than on a separate :16687
-// listener. The handler is path-agnostic, so we strip the mount prefix and let
-// it see its own root.
 func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	componentTelset := component.TelemetrySettings{
-		Logger:         telset.Logger,
-		TracerProvider: telset.TracerProvider,
-		MeterProvider:  telset.MeterProvider,
-	}
-	handler := mcptools.NewHandler(componentTelset, querySvc, tenancyMgr, mcptools.DefaultConfig())
-	// Normalize basePath so a trailing slash (or bare "/") can't produce a
-	// double-slash prefix like "/jaeger//api/ai/mcp". This mirrors how the AI
-	// chat handler canonicalizes its base path.
+	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
