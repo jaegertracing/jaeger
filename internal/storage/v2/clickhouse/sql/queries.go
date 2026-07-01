@@ -247,9 +247,13 @@ GROUP BY l.trace_id`
 //     drop rows (OrphanSpanCount = 0 via ifNull). Referencing selected rather than
 //     agg keeps the re-execution cheap (ID scan only, not the aggregation).
 //   - agg: one row per trace. min_start/max_end give duration; root is a single
-//     argMinIf tuple so service and operation come from the same parentless span;
-//     svc_stats is one sumMap keyed by service_name (two sumMaps would misalign,
-//     since sumMap drops zero-valued keys, dropping error-free services).
+//     argMinIf tuple so service and operation come from the same parentless span.
+//     The comparison value is (start_time, id), not start_time alone: ClickHouse
+//     does not guarantee which row wins an argMin tie, and under parallel
+//     execution the winner can vary between runs of the same query on the same
+//     data. Appending id breaks ties deterministically. svc_stats is one sumMap
+//     keyed by service_name (one sumMap keeps both value arrays aligned to a
+//     single shared key set).
 //
 // Orphan spans (parent absent from the trace) are counted via a LEFT ANTI JOIN of
 // spans on (trace_id, parent_span_id = id), an ~O(n) hash join over the selected
@@ -268,7 +272,7 @@ agg AS (
         max(s.start_time + toIntervalNanosecond(s.duration)) AS max_end,
         count() AS span_count,
         countIf(s.status_code = 'Error') AS error_span_count,
-        argMinIf((s.service_name, s.name), s.start_time, s.parent_span_id = '') AS root,
+        argMinIf((s.service_name, s.name), (s.start_time, s.id), s.parent_span_id = '') AS root,
         sumMap([s.service_name], [toUInt64(1)], [toUInt64(s.status_code = 'Error')]) AS svc_stats
     FROM spans s
     WHERE s.trace_id IN (SELECT trace_id FROM selected)
