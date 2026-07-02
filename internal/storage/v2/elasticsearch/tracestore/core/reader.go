@@ -33,6 +33,7 @@ const (
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
+	endTimeField           = "endTime"
 	startTimeField         = "startTime"
 	startTimeMillisField   = "startTimeMillis"
 	serviceNameField       = "process.serviceName"

@@ -237,31 +237,6 @@ func TestSpanReader_FindTraceSummaries_SearchError(t *testing.T) {
 	})
 }
 
-// TestSpanReader_FindTraceSummaries_ScriptingDisabled verifies that a phase-2
-// failure caused by inline scripting being disabled is reported as
-// errors.ErrUnsupported, so the query service can fall back to client-side
-// aggregation instead of failing the request.
-func TestSpanReader_FindTraceSummaries_ScriptingDisabled(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		scriptErr := &elastic.Error{
-			Status: 400,
-			Details: &elastic.ErrorDetails{
-				Type:   "search_phase_execution_exception",
-				Reason: "all shards failed",
-				RootCause: []*elastic.ErrorDetails{
-					{Type: "illegal_argument_exception", Reason: "cannot execute [inline] scripts"},
-				},
-			},
-		}
-		ss := mockSummarySearchServiceObj(r)
-		ss.On("Do", mock.Anything).Return(traceIDsResult(), nil).Once()
-		ss.On("Do", mock.Anything).Return(nil, scriptErr).Once()
-
-		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
-		require.ErrorIs(t, err, errors.ErrUnsupported)
-	})
-}
-
 // TestSpanReader_FindTraceSummaries_PreMigrationRoot covers traces written before
 // #8859, where no span stores a parentSpanID so every span matches the parentless
 // filter; Elasticsearch's startTime-ascending sort then makes the earliest span

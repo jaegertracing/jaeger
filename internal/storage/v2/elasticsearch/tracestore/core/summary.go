@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/olivere/elastic/v7"
@@ -77,12 +76,6 @@ func (s *SpanReader) FindTraceSummaries(
 		Query(boolQuery).
 		Do(ctx)
 	if err != nil {
-		if isScriptingDisabledError(err) {
-			// The max_end aggregation needs Painless scripting. When it is disabled,
-			// returning ErrUnsupported lets the query service fall back to client-side
-			// summary computation instead of failing the request.
-			return nil, fmt.Errorf("native trace summaries require Painless scripting enabled on the cluster: %w", errors.ErrUnsupported)
-		}
 		err = es.DetailedError(err)
 		s.logger.Info("es search for trace summaries failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search for trace summaries failed: %w", err)
@@ -94,29 +87,6 @@ func (s *SpanReader) FindTraceSummaries(
 	}
 	// Buckets arrive most-recent-first, ordered by the aggregation's max_start sort.
 	return parseTraceSummaries(buckets)
-}
-
-// isScriptingDisabledError reports whether an Elasticsearch/OpenSearch error was
-// caused by inline (Painless) scripting being disabled on the cluster, which the
-// max_end aggregation depends on. The cluster surfaces this as an
-// illegal_argument_exception whose reason mentions scripts being disabled.
-func isScriptingDisabledError(err error) bool {
-	var esErr *elastic.Error
-	if !errors.As(err, &esErr) || esErr.Details == nil {
-		return false
-	}
-	causes := append([]*elastic.ErrorDetails{esErr.Details}, esErr.Details.RootCause...)
-	for _, c := range causes {
-		if c == nil {
-			continue
-		}
-		reason := strings.ToLower(c.Reason)
-		if strings.Contains(reason, "script") &&
-			(strings.Contains(reason, "disabled") || strings.Contains(reason, "cannot execute")) {
-			return true
-		}
-	}
-	return false
 }
 
 // buildTraceSummariesByIDsQuery selects every span belonging to the given traces
@@ -165,9 +135,8 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) elastic.Agg
 		Order("max_start", false). // most recent traces first
 		SubAggregation("min_start", elastic.NewMinAggregation().Field(startTimeField)).
 		SubAggregation("max_start", elastic.NewMaxAggregation().Field(startTimeField)).
-		// max_end is derived by script: ES persists no end-time field (end = start + duration).
-		SubAggregation("max_end", elastic.NewMaxAggregation().
-			Script(elastic.NewScript("doc['"+startTimeField+"'].value + doc['"+durationField+"'].value"))).
+		// max_end reads the denormalized endTime field, so no Painless script is needed.
+		SubAggregation("max_end", elastic.NewMaxAggregation().Field(endTimeField)).
 		SubAggregation("error_count", elastic.NewFilterAggregation().Filter(errorFilter)).
 		SubAggregation("services", services).
 		SubAggregation("root_span", rootSpan)

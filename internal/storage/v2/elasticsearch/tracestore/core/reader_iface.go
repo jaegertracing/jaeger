@@ -21,8 +21,7 @@ type Reader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	// GetTraces takes a traceID and returns a Trace associated with that traceID
 	GetTraces(ctx context.Context, query []dbmodel.TraceID) ([]dbmodel.Trace, error)
-	// FindTraceSummaries natively computes per-trace summaries for traces matching
-	// the query. It returns errors.ErrUnsupported when the backend cannot compute
-	// them (e.g. Painless scripting is disabled).
+	// FindTraceSummaries natively computes per-trace summaries for the traces
+	// matching the query by aggregating over their spans.
 	FindTraceSummaries(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error)
 }

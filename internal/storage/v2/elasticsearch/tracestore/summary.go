@@ -35,9 +35,7 @@ func NewReaderWithSummaries(p core.SpanReaderParams) *ReaderWithSummaries {
 }
 
 // FindTraceSummaries implements tracestore.SummaryReader by delegating to the
-// core reader's native aggregation. When the backend cannot compute summaries
-// (e.g. Painless scripting is disabled) the core yields errors.ErrUnsupported,
-// and the query service falls back to client-side aggregation.
+// core reader's native aggregation and converting the results to the domain model.
 func (t *ReaderWithSummaries) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		// The aggregation returns all matching summaries in a single ES response,
