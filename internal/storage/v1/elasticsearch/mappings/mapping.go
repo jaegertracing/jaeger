@@ -10,6 +10,7 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 )
 
 // MAPPINGS contains embedded index templates.
@@ -27,6 +28,11 @@ const (
 	SamplingMapping
 )
 
+// ComponentTemplateSettingsSuffix is appended to the spans data stream name to
+// form the settings component-template name, following the "@" naming
+// convention (RFC 0004 §3.2), e.g. "jaeger.spans@settings".
+const ComponentTemplateSettingsSuffix = "@settings"
+
 // MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
 	TemplateBuilder es.TemplateBuilder
@@ -42,9 +48,12 @@ type templateParams struct {
 	ILMPolicyName string
 	IsOpenSearch  bool
 	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
-	Priority      int64
+	// SpanDataStreamName is the prefixed dot-notation spans data stream name
+	// (e.g. "prod.jaeger.spans"), used to reference its component templates.
+	SpanDataStreamName string
+	Shards             int64
+	Replicas           int64
+	Priority           int64
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
@@ -130,6 +139,15 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 	return spanMapping, serviceMapping, nil
 }
 
+// GetSpanSettingsComponentTemplate returns the settings component-template body
+// for the spans indices (RFC 0004 §3.2): the shard and replica settings shared
+// by the composable span index template (which lists it in composed_of) and,
+// later, the spans data stream. The body is version-independent: the
+// _component_template API uses the same format on every backend that has it.
+func (mb *MappingBuilder) GetSpanSettingsComponentTemplate() (string, error) {
+	return mb.renderMapping("jaeger-spans-component-settings.json", mb.getMappingTemplateOptions(SpanMapping))
+}
+
 // GetDependenciesMappings returns dependencies mappings
 func (mb *MappingBuilder) GetDependenciesMappings() (string, error) {
 	return mb.GetMapping(DependenciesMapping)
@@ -153,6 +171,7 @@ func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) 
 	writer := new(bytes.Buffer)
 
 	options.IndexPrefix = mb.Indices.IndexPrefix.Apply("")
+	options.SpanDataStreamName = indices.SpanDataStreamName(mb.Indices.IndexPrefix)
 	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}

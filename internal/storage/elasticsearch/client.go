@@ -16,6 +16,9 @@ type Client interface {
 	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
 	CreateTemplate(id string) TemplateCreateService
+	// CreateComponentTemplate creates or updates a composable component template
+	// (the _component_template API), required by data streams.
+	CreateComponentTemplate(ctx context.Context, name, template string) error
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService

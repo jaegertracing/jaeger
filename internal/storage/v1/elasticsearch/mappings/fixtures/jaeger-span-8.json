@@ -1,15 +1,12 @@
 {
   "priority": 500,
   "index_patterns": "test-jaeger-span-*",
+  "composed_of": ["test.jaeger.spans@settings"],
   "template": {
     "aliases": {
       "test-jaeger-span-read": {}
     },
     "settings": {
-      "index.number_of_shards": 3,
-      "index.number_of_replicas": 3,
-      "index.mapping.nested_fields.limit": 50,
-      "index.requests.cache.enable": true,
       "lifecycle": {
         "name": "jaeger-test-policy",
         "rollover_alias": "test-jaeger-span-write"

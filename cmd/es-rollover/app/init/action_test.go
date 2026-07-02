@@ -259,6 +259,45 @@ func TestRolloverAction(t *testing.T) {
 				},
 			},
 		},
+		{
+			// The composable (v8) span template composes the spans @settings
+			// component template, so init must create the component first.
+			name: "create rollover index on v8 creates the settings component template",
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV8, nil)
+				indexClient.On("CreateComponentTemplate", mock.Anything, mock.Anything, "jaeger.spans@settings").Return(nil)
+				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
+				indexClient.On("CreateTemplate", mock.Anything, mock.Anything, "jaeger-span").Return(nil)
+				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
+				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]client.Index{}, nil)
+				indexClient.On("CreateAlias", mock.Anything, []client.Alias{
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-read", IsWriteIndex: false},
+					{Index: "jaeger-span-archive-000001", Name: "jaeger-span-archive-write", IsWriteIndex: false},
+				}).Return(nil)
+			},
+			expectedErr: nil,
+			config: Config{
+				Config: app.Config{
+					Archive: true,
+					UseILM:  false,
+				},
+			},
+		},
+		{
+			name: "fail to create settings component template on v8",
+			setupCallExpectations: func(indexClient *mocks.IndexAPI, clusterClient *mocks.ClusterAPI, _ *mocks.IndexManagementLifecycleAPI) {
+				clusterClient.On("Version", mock.Anything).Return(es.ElasticV8, nil)
+				indexClient.On("CreateComponentTemplate", mock.Anything, mock.Anything, "jaeger.spans@settings").Return(errors.New("error creating component template"))
+			},
+			expectedErr: errors.New("error creating component template"),
+			config: Config{
+				Config: app.Config{
+					Archive: true,
+					UseILM:  false,
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

@@ -291,6 +291,29 @@ func (i IndicesClient) CreateTemplate(ctx context.Context, template, name string
 	return nil
 }
 
+// CreateComponentTemplate creates or updates a composable component template
+// (the _component_template API), referenced by composable index templates.
+func (i IndicesClient) CreateComponentTemplate(ctx context.Context, template, name string) error {
+	_, err := i.request(ctx, elasticRequest{
+		endpoint: "_component_template/" + name,
+		method:   http.MethodPut,
+		body:     []byte(template),
+	})
+	if err != nil {
+		var responseError ResponseError
+		if errors.As(err, &responseError) {
+			// `request()` currently only treats 200 OK as success; accept any 2xx here
+			// to handle 201 Created responses from template creation endpoints.
+			if responseError.StatusCode >= 200 && responseError.StatusCode < 300 {
+				return nil
+			}
+			return responseError.prefixMessage("failed to create component template: " + name)
+		}
+		return fmt.Errorf("failed to create component template %q: %w", name, err)
+	}
+	return nil
+}
+
 // Rollover create a rollover for certain index/alias
 func (i IndicesClient) Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error {
 	esReq := elasticRequest{

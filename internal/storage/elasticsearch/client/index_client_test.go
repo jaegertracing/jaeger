@@ -623,6 +623,58 @@ func TestClientCreateTemplate(t *testing.T) {
 	}
 }
 
+func TestClientCreateComponentTemplate(t *testing.T) {
+	templateName := "jaeger.spans@settings"
+	templateContent := "template content"
+	tests := []struct {
+		name         string
+		responseCode int
+		response     string
+		errContains  string
+	}{
+		{
+			name:         "success",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "client error",
+			responseCode: http.StatusBadRequest,
+			response:     esErrResponse,
+			errContains:  "failed to create component template: jaeger.spans@settings",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+				assert.True(t, strings.HasSuffix(req.URL.String(), "_component_template/jaeger.spans@settings"))
+				assert.Equal(t, http.MethodPut, req.Method)
+				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				body, err := io.ReadAll(req.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, templateContent, string(body))
+
+				res.WriteHeader(test.responseCode)
+				res.Write([]byte(test.response))
+			}))
+			defer testServer.Close()
+
+			c := &IndicesClient{
+				Client: Client{
+					Client:    testServer.Client(),
+					Endpoint:  testServer.URL,
+					BasicAuth: "foobar",
+				},
+			}
+			err := c.CreateComponentTemplate(context.Background(), templateContent, templateName)
+			if test.errContains != "" {
+				assert.ErrorContains(t, err, test.errContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestRollover(t *testing.T) {
 	expectedRequestBody := "{\"conditions\":{\"max_age\":\"2d\"}}"
 	mapConditions := map[string]any{

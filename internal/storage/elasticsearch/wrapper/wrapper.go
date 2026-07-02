@@ -68,6 +68,27 @@ func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
 	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
 }
 
+// CreateComponentTemplate creates or updates a composable component template,
+// always targeting the _component_template API (data streams require it). It uses
+// the v8 client on the v8 API and the olivere client otherwise.
+func (c ClientWrapper) CreateComponentTemplate(ctx context.Context, name, template string) error {
+	if c.version.UsesV8API() {
+		put := c.clientV8.Cluster.PutComponentTemplate
+		resp, err := put(name, strings.NewReader(template), put.WithContext(ctx))
+		if err != nil {
+			return fmt.Errorf("error creating component template %s: %w", name, err)
+		}
+		defer resp.Body.Close()
+		// Any 2xx is success (a creation may return 201 rather than 200).
+		if resp.IsError() {
+			return fmt.Errorf("error creating component template %s: %s", name, resp)
+		}
+		return nil
+	}
+	_, err := c.client.IndexPutComponentTemplate(name).BodyString(template).Do(ctx)
+	return err
+}
+
 // Index calls this function to internal client.
 func (c ClientWrapper) Index() es.IndexService {
 	r := elastic.NewBulkIndexRequest()

@@ -234,6 +234,11 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
 	if f.config.CreateIndexTemplates {
 		mappingBuilder := f.mappingBuilderFromConfig(f.config)
+		// The v8 span index template composes the spans @settings component
+		// template, which therefore must exist before the template is created.
+		if err := f.createSpanSettingsComponentTemplate(ctx, &mappingBuilder); err != nil {
+			return err
+		}
 		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
 			return err
@@ -248,6 +253,27 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 		}
+	}
+	return nil
+}
+
+// createSpanSettingsComponentTemplate creates the @settings component template
+// holding the shard and replica settings for the spans indices (RFC 0004 §3.2).
+// The composable (v8) span index template references it via composed_of; the
+// legacy templates used by older backends keep their settings inline, so the
+// component is only created where it is consumed. The PUT is idempotent.
+func (f *FactoryBase) createSpanSettingsComponentTemplate(ctx context.Context, mappingBuilder *mappings.MappingBuilder) error {
+	client := f.getClient()
+	if !client.GetVersion().UsesV8API() {
+		return nil
+	}
+	settingsBody, err := mappingBuilder.GetSpanSettingsComponentTemplate()
+	if err != nil {
+		return err
+	}
+	name := indices.SpanDataStreamName(f.config.Indices.IndexPrefix) + mappings.ComponentTemplateSettingsSuffix
+	if err := client.CreateComponentTemplate(ctx, name, settingsBody); err != nil {
+		return fmt.Errorf("failed to create component template %q: %w", name, err)
 	}
 	return nil
 }

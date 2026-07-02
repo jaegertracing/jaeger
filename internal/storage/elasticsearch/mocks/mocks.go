@@ -89,6 +89,69 @@ func (_c *Client_Close_Call) RunAndReturn(run func() error) *Client_Close_Call {
 	return _c
 }
 
+// CreateComponentTemplate provides a mock function for the type Client
+func (_mock *Client) CreateComponentTemplate(ctx context.Context, name string, template string) error {
+	ret := _mock.Called(ctx, name, template)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateComponentTemplate")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = returnFunc(ctx, name, template)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// Client_CreateComponentTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateComponentTemplate'
+type Client_CreateComponentTemplate_Call struct {
+	*mock.Call
+}
+
+// CreateComponentTemplate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - name string
+//   - template string
+func (_e *Client_Expecter) CreateComponentTemplate(ctx interface{}, name interface{}, template interface{}) *Client_CreateComponentTemplate_Call {
+	return &Client_CreateComponentTemplate_Call{Call: _e.mock.On("CreateComponentTemplate", ctx, name, template)}
+}
+
+func (_c *Client_CreateComponentTemplate_Call) Run(run func(ctx context.Context, name string, template string)) *Client_CreateComponentTemplate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *Client_CreateComponentTemplate_Call) Return(err error) *Client_CreateComponentTemplate_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *Client_CreateComponentTemplate_Call) RunAndReturn(run func(ctx context.Context, name string, template string) error) *Client_CreateComponentTemplate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateIndex provides a mock function for the type Client
 func (_mock *Client) CreateIndex(index string) elasticsearch.IndicesCreateService {
 	ret := _mock.Called(index)

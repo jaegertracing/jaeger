@@ -156,3 +156,18 @@ func TestIndexToDataStreamName(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanDataStreamName(t *testing.T) {
+	tests := []struct {
+		prefix config.IndexPrefix
+		want   string
+	}{
+		{"", "jaeger.spans"},
+		{"prod", "prod.jaeger.spans"},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.prefix), func(t *testing.T) {
+			assert.Equal(t, tt.want, SpanDataStreamName(tt.prefix))
+		})
+	}
+}

@@ -402,6 +402,51 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	}
 }
 
+func TestMappingBuilderGetSpanSettingsComponentTemplate(t *testing.T) {
+	// The component-template body is version-independent (see
+	// GetSpanSettingsComponentTemplate), so every supported backend must
+	// render the same fixture.
+	for _, version := range []es.BackendVersion{es.ElasticV7, es.ElasticV8, es.OpenSearch2} {
+		t.Run(version.String(), func(t *testing.T) {
+			mb := &MappingBuilder{
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					IndexPrefix: "test-",
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: new(int64(3)),
+					},
+				},
+				Version: version,
+			}
+			settingsBody, err := mb.GetSpanSettingsComponentTemplate()
+			require.NoError(t, err)
+			wantSettings, err := FIXTURES.ReadFile("fixtures/jaeger-spans-component-settings.json")
+			require.NoError(t, err)
+			assert.Equal(t, string(wantSettings), settingsBody)
+		})
+	}
+}
+
+func TestMappingBuilderGetSpanSettingsComponentTemplate_Error(t *testing.T) {
+	tb := mocks.TemplateBuilder{}
+	ta := mocks.TemplateApplier{}
+	ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
+	tb.On("Parse", mock.Anything).Return(&ta, nil)
+	mb := &MappingBuilder{
+		TemplateBuilder: &tb,
+		Indices: config.Indices{
+			Spans: config.IndexOptions{
+				Shards:   3,
+				Replicas: new(int64(3)),
+			},
+		},
+		Version: es.ElasticV8,
+	}
+	_, err := mb.GetSpanSettingsComponentTemplate()
+	require.EqualError(t, err, "template load error")
+}
+
 func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}
