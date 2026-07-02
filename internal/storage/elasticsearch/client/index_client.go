@@ -302,9 +302,12 @@ func (i IndicesClient) CreateComponentTemplate(ctx context.Context, template, na
 	if err != nil {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
-			if responseError.StatusCode != http.StatusOK {
-				return responseError.prefixMessage("failed to create component template: " + name)
+			// `request()` currently only treats 200 OK as success; accept any 2xx here
+			// to handle 201 Created responses from template creation endpoints.
+			if responseError.StatusCode >= 200 && responseError.StatusCode < 300 {
+				return nil
 			}
+			return responseError.prefixMessage("failed to create component template: " + name)
 		}
 		return fmt.Errorf("failed to create component template: %w", err)
 	}
