@@ -33,7 +33,7 @@ OTLP spans have five distinct attribute scopes:
 
 ### 1.3 The Performance Problem
 
-When a user queries `http.status_code=500`, the backend must search all five scopes using OR logic. In ClickHouse, this translates to five separate `arrayExists()` calls (three top-level, two nested within arrays), each scanning typed Map columns. The attribute metadata optimization narrows the *types* checked but not the *scopes* — if `http.status_code` appears only at the span level, the metadata lookup saves work, but this requires an extra round-trip and a materialized view that may lag.
+When a user queries `http.status_code=500`, the backend must search all five scopes using OR logic. In ClickHouse, this translates to five separate `arrayExists()` calls (three top-level, two nested within arrays), each scanning typed Map columns. The attribute metadata optimization (via `attribute_metadata` materialized view) narrows both the *types* and the *scopes* checked — if `http.status_code` appears only at the span level with integer type, only the integer span column is queried. However, this optimization requires an extra round-trip and a materialized view that may lag.
 
 In Elasticsearch, each unqualified tag expands to a `bool.should` query across 5 field locations, increasing the number of sub-queries and reducing cache effectiveness.
 
@@ -433,7 +433,7 @@ Add an optional scope dropdown to each tag chip in the search form. Default is "
 
 ## 8. Open Questions
 
-1. **Conjunction semantics across scopes:** If a user specifies `resource.service.name:foo` AND `span.http.status_code:500`, should both conditions match the *same* span, or can `service.name` match at the resource level while `http.status_code` matches at the span level of a different span in the trace? (Current behavior: all tags must match a single span.)
+1. **Conjunction semantics across scopes:** If a user specifies `resource.service.name:foo` AND `span.http.status_code:500`, should both conditions match the *same* span, or can `service.name` match at the resource level while `http.status_code` matches at the span level of a different span in the trace? (The internal storage API explicitly leaves this implementation-dependent — see `TraceReader.FindTraces` contract.)
 
 2. **Attribute key listing API:** Should we add a `GetAttributeKeys(scope?)` API to enable discoverability? This would complement the structured filters and help UI autocomplete. ClickHouse's metadata table already supports this.
 
