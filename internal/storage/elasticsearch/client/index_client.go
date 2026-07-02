@@ -309,7 +309,7 @@ func (i IndicesClient) CreateComponentTemplate(ctx context.Context, template, na
 			}
 			return responseError.prefixMessage("failed to create component template: " + name)
 		}
-		return fmt.Errorf("failed to create component template: %w", err)
+		return fmt.Errorf("failed to create component template %q: %w", name, err)
 	}
 	return nil
 }
