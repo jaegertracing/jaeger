@@ -150,8 +150,15 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version e
 			actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
 		}
 	}
+	// ignore system indices https://github.com/jaegertracing/jaeger/issues/7002
+	var actualIndices []string
+	for _, index := range indices {
+		if strings.HasPrefix(index, prefix+"jaeger") {
+			actualIndices = append(actualIndices, index)
+		}
+	}
 	// Check indices created
-	assert.ElementsMatch(t, indices, expected)
+	assert.ElementsMatch(t, actualIndices, expected)
 	// Check rollover alias is write alias
 	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases)
 }
