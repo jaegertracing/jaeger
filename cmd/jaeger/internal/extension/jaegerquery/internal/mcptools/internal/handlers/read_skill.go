@@ -45,8 +45,13 @@ func (h *readSkillHandler) handle(
 	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
+
+	truncated := n > int(h.maxFileSize)
+	if truncated {
+		n = int(h.maxFileSize)
+	}
 	content := string(buf[:n])
-	if n > int(h.maxFileSize) {
+	if truncated {
 		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
 	}
 
