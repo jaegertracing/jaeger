@@ -14,6 +14,8 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
+var _ tracestore.Reader = (*TraceReader)(nil)
+
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
 	spanReader core.Reader
