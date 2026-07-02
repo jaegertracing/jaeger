@@ -85,9 +85,9 @@ class JaegerMCPBridge:
             else:
                 self._gemini_tools = []
 
-            self._initialized = True
+            await self._fetch_instructions()
 
-        await self._fetch_instructions()
+            self._initialized = True
 
     async def _fetch_instructions(self) -> None:
         """Perform a lightweight MCP initialize handshake to retrieve the
