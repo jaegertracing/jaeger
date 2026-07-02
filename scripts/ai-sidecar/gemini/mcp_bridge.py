@@ -30,6 +30,7 @@ class JaegerMCPBridge:
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
         self._initialized = False
+        self.instructions: str = ""
 
     async def initialize(self) -> None:
         if self._initialized:
@@ -50,6 +51,22 @@ class JaegerMCPBridge:
                     f"(timeout {self._timeout_sec:.1f}s)"
                 )
                 adk_tools = await asyncio.wait_for(self._toolset.get_tools(), timeout=self._timeout_sec)
+
+                try:
+                    from mcp.client.sse import sse_client
+                    from mcp.client.session import ClientSession
+                    
+                    async def fetch_instructions() -> str:
+                        async with sse_client(self._mcp_url) as (read_stream, write_stream):
+                            async with ClientSession(read_stream, write_stream) as session:
+                                init_result = await session.initialize()
+                                return getattr(init_result, "instructions", "") or ""
+
+                    self.instructions = await asyncio.wait_for(fetch_instructions(), timeout=self._timeout_sec)
+                except Exception as exc:
+                    logger.warning("Failed to fetch MCP instructions separately: %s", exc)
+                    self.instructions = ""
+
             except asyncio.CancelledError:
                 span.set_status(Status(StatusCode.ERROR, description="cancelled"))
                 logger.warning(
