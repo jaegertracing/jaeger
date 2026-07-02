@@ -81,9 +81,9 @@ func NewHandler(d Deps) *Handler {
 		maxRequestBodySize: d.MaxRequestBodySize,
 	}
 	if d.EnableMCP {
-		telemetryHandler := mcptools.NewHandler(d.Telset, d.QueryService, d.TenancyMgr, mcptools.DefaultConfig())
+		mcpHandler := mcptools.NewHandler(d.Telset, d.QueryService, d.TenancyMgr, mcptools.DefaultConfig())
 		h.mcpHandler = &mcpSessionHandler{
-			telemetryHandler: telemetryHandler,
+			telemetryHandler: mcpHandler,
 			streams:          h.streams,
 			basePath:         basePath,
 			logger:           d.Logger,

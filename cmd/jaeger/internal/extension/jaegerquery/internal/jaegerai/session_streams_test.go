@@ -48,7 +48,7 @@ func TestSessionStreamsConcurrent(t *testing.T) {
 	s := newSessionStreams()
 	const n = 50
 	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
+	for i := range n {
 		id := strconv.Itoa(i) // precompute per iteration so each goroutine uses a distinct id
 		wg.Go(func() {
 			s.set(id, testStreamingClient())
