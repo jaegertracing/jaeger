@@ -7,16 +7,20 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class SidecarConfig:
     gemini_api_key: str
+    gemini_model_name: str
     mcp_url: str
     mcp_discovery_timeout_sec: float
     otlp_endpoint: str
     otlp_insecure: bool
-    gemini_model_name: str
 
     def validate(self) -> None:
         if not self.gemini_api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY must be provided via --gemini-api-key or environment variable"
+            )
+        if not self.gemini_model_name:
+            raise RuntimeError(
+                "GEMINI_MODEL_NAME must be provided via --gemini-model-name or environment variable"
             )
         if not self.mcp_url:
             raise RuntimeError("JAEGER_MCP_URL must be provided via --mcp-url or environment variable")
@@ -26,5 +30,3 @@ class SidecarConfig:
             raise RuntimeError(
                 "OTEL_EXPORTER_OTLP_ENDPOINT must be provided via --otlp-endpoint or environment variable"
             )
-        if not self.gemini_model_name:
-            raise RuntimeError("GEMINI_MODEL_NAME must not be empty")
