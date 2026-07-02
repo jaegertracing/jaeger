@@ -13,9 +13,11 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+  "minimumReleaseAge": "7 days",
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security", "changelog:dependencies"]
+    "labels": ["security", "changelog:dependencies"],
+    "minimumReleaseAge": "0 days"
   },
   "suppressNotifications": [
     "prEditedNotification"
