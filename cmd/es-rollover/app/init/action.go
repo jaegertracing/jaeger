@@ -55,7 +55,7 @@ func (c Action) Do() error {
 			return err
 		}
 		if !policyExist {
-			return fmt.Errorf("ILM policy %s doesn't exist in Elasticsearch. Please create it and re-run init", c.Config.ILMPolicyName)
+			return fmt.Errorf("ILM/ISM policy %s doesn't exist in %s. Please create it and re-run init", c.Config.ILMPolicyName, version)
 		}
 	}
 	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.Config.IndexPrefix)
