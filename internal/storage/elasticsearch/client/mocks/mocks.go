@@ -167,6 +167,69 @@ func (_c *IndexAPI_CreateAlias_Call) RunAndReturn(run func(ctx context.Context, 
 	return _c
 }
 
+// CreateComponentTemplate provides a mock function for the type IndexAPI
+func (_mock *IndexAPI) CreateComponentTemplate(ctx context.Context, template string, name string) error {
+	ret := _mock.Called(ctx, template, name)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateComponentTemplate")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = returnFunc(ctx, template, name)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// IndexAPI_CreateComponentTemplate_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateComponentTemplate'
+type IndexAPI_CreateComponentTemplate_Call struct {
+	*mock.Call
+}
+
+// CreateComponentTemplate is a helper method to define mock.On call
+//   - ctx context.Context
+//   - template string
+//   - name string
+func (_e *IndexAPI_Expecter) CreateComponentTemplate(ctx interface{}, template interface{}, name interface{}) *IndexAPI_CreateComponentTemplate_Call {
+	return &IndexAPI_CreateComponentTemplate_Call{Call: _e.mock.On("CreateComponentTemplate", ctx, template, name)}
+}
+
+func (_c *IndexAPI_CreateComponentTemplate_Call) Run(run func(ctx context.Context, template string, name string)) *IndexAPI_CreateComponentTemplate_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *IndexAPI_CreateComponentTemplate_Call) Return(err error) *IndexAPI_CreateComponentTemplate_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *IndexAPI_CreateComponentTemplate_Call) RunAndReturn(run func(ctx context.Context, template string, name string) error) *IndexAPI_CreateComponentTemplate_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateIndex provides a mock function for the type IndexAPI
 func (_mock *IndexAPI) CreateIndex(ctx context.Context, index string) error {
 	ret := _mock.Called(ctx, index)

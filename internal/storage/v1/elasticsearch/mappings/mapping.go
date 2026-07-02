@@ -10,6 +10,7 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 )
 
 // MAPPINGS contains embedded index templates.
@@ -27,12 +28,10 @@ const (
 	SamplingMapping
 )
 
-// Component-template name suffixes for the spans data stream, following the
-// "@" naming convention (RFC 0004 §3.2), e.g. "jaeger.spans@mappings".
-const (
-	ComponentTemplateMappingsSuffix = "@mappings"
-	ComponentTemplateSettingsSuffix = "@settings"
-)
+// ComponentTemplateSettingsSuffix is appended to the spans data stream name to
+// form the settings component-template name, following the "@" naming
+// convention (RFC 0004 §3.2), e.g. "jaeger.spans@settings".
+const ComponentTemplateSettingsSuffix = "@settings"
 
 // MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
@@ -49,9 +48,12 @@ type templateParams struct {
 	ILMPolicyName string
 	IsOpenSearch  bool
 	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
-	Priority      int64
+	// SpanDataStreamName is the prefixed dot-notation spans data stream name
+	// (e.g. "prod.jaeger.spans"), used to reference its component templates.
+	SpanDataStreamName string
+	Shards             int64
+	Replicas           int64
+	Priority           int64
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
@@ -137,24 +139,13 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 	return spanMapping, serviceMapping, nil
 }
 
-// GetSpanComponentTemplates returns the component-template bodies for the spans
-// data stream (RFC 0004 §3.2): the field mappings (the standard span mappings
-// plus the @timestamp field that data streams require, §3.3) and the index
-// settings. The bodies are version-independent: the _component_template API
-// (ES 7.8+ / OpenSearch 2.0+) uses the same body format on every supported
-// backend, and the span field mappings are identical across the v7 and v8
-// index templates.
-func (mb *MappingBuilder) GetSpanComponentTemplates() (mappingsBody string, settingsBody string, err error) {
-	templateOpts := mb.getMappingTemplateOptions(SpanMapping)
-	mappingsBody, err = mb.renderMapping("jaeger-spans-component-mappings.json", templateOpts)
-	if err != nil {
-		return "", "", err
-	}
-	settingsBody, err = mb.renderMapping("jaeger-spans-component-settings.json", templateOpts)
-	if err != nil {
-		return "", "", err
-	}
-	return mappingsBody, settingsBody, nil
+// GetSpanSettingsComponentTemplate returns the settings component-template body
+// for the spans indices (RFC 0004 §3.2): the shard and replica settings shared
+// by the composable span index template (which lists it in composed_of) and,
+// later, the spans data stream. The body is version-independent: the
+// _component_template API uses the same format on every backend that has it.
+func (mb *MappingBuilder) GetSpanSettingsComponentTemplate() (string, error) {
+	return mb.renderMapping("jaeger-spans-component-settings.json", mb.getMappingTemplateOptions(SpanMapping))
 }
 
 // GetDependenciesMappings returns dependencies mappings
@@ -180,6 +171,7 @@ func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) 
 	writer := new(bytes.Buffer)
 
 	options.IndexPrefix = mb.Indices.IndexPrefix.Apply("")
+	options.SpanDataStreamName = indices.SpanDataStreamName(mb.Indices.IndexPrefix)
 	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}

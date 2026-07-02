@@ -214,22 +214,25 @@ func TestCreateTemplates(t *testing.T) {
 		wantComponentTemplates bool
 	}{
 		{
+			// Legacy (non-v8) templates keep their settings inline, so no
+			// component template is created.
 			spanTemplateService:    okTemplateService,
 			serviceTemplateService: okTemplateService,
+		},
+		{
+			// The v8 span template composes the spans @settings component
+			// template, which is created first.
+			spanTemplateService:    okTemplateService,
+			serviceTemplateService: okTemplateService,
+			version:                es.ElasticV8,
 			wantComponentTemplates: true,
 		},
 		{
 			spanTemplateService:    okTemplateService,
 			serviceTemplateService: okTemplateService,
 			indexPrefix:            "test",
+			version:                es.ElasticV8,
 			wantComponentTemplates: true,
-		},
-		{
-			// ES 6.x has no composable-template support, so only the legacy
-			// templates are created.
-			spanTemplateService:    okTemplateService,
-			serviceTemplateService: okTemplateService,
-			version:                es.ElasticV6,
 		},
 		{
 			err: "span-template-error",
@@ -255,6 +258,7 @@ func TestCreateTemplates(t *testing.T) {
 			err:                    "component-template-error",
 			spanTemplateService:    okTemplateService,
 			serviceTemplateService: okTemplateService,
+			version:                es.ElasticV8,
 			componentTemplateErr:   errors.New("component-template-error"),
 			wantComponentTemplates: true,
 		},
@@ -296,10 +300,8 @@ func TestCreateTemplates(t *testing.T) {
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 		if test.wantComponentTemplates {
-			dataStreamName := indices.SpanDataStreamName(test.indexPrefix)
-			mockClient.On("CreateComponentTemplate", mock.Anything, dataStreamName+mappings.ComponentTemplateMappingsSuffix, mock.Anything).
-				Return(test.componentTemplateErr)
-			mockClient.On("CreateComponentTemplate", mock.Anything, dataStreamName+mappings.ComponentTemplateSettingsSuffix, mock.Anything).
+			settingsName := indices.SpanDataStreamName(test.indexPrefix) + mappings.ComponentTemplateSettingsSuffix
+			mockClient.On("CreateComponentTemplate", mock.Anything, settingsName, mock.Anything).
 				Return(test.componentTemplateErr)
 		}
 		err = f.createTemplates(context.Background())

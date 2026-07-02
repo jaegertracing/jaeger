@@ -18,6 +18,7 @@ type IndexAPI interface {
 	CreateAlias(ctx context.Context, aliases []Alias) error
 	DeleteAlias(ctx context.Context, aliases []Alias) error
 	CreateTemplate(ctx context.Context, template, name string) error
+	CreateComponentTemplate(ctx context.Context, template, name string) error
 	Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error
 }
 

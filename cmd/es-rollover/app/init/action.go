@@ -12,6 +12,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
 
@@ -23,17 +24,34 @@ type Action struct {
 	ILMClient     client.IndexManagementLifecycleAPI
 }
 
-func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
+func (c Action) mappingBuilder(version es.BackendVersion) mappings.MappingBuilder {
 	c.Config.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
-	mappingBuilder := mappings.MappingBuilder{
+	return mappings.MappingBuilder{
 		TemplateBuilder: es.TextTemplateBuilder{},
 		Indices:         c.Config.Indices,
 		UseILM:          c.Config.UseILM,
 		ILMPolicyName:   c.Config.ILMPolicyName,
 		Version:         version,
 	}
+}
 
+func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
+	mappingBuilder := c.mappingBuilder(version)
 	return mappingBuilder.GetMapping(mappingType)
+}
+
+// createSpanSettingsComponentTemplate creates the @settings component template
+// that the composable (v8) span index template references in composed_of
+// (RFC 0004 §3.2). The collector creates the same component template at
+// startup; the PUT is idempotent.
+func (c Action) createSpanSettingsComponentTemplate(ctx context.Context, version es.BackendVersion) error {
+	mappingBuilder := c.mappingBuilder(version)
+	body, err := mappingBuilder.GetSpanSettingsComponentTemplate()
+	if err != nil {
+		return err
+	}
+	name := indices.SpanDataStreamName(config.IndexPrefix(c.Config.Config.IndexPrefix)) + mappings.ComponentTemplateSettingsSuffix
+	return c.IndicesClient.CreateComponentTemplate(ctx, body, name)
 }
 
 // Do the init action
@@ -94,6 +112,14 @@ func (c Action) init(ctx context.Context, version es.BackendVersion, indexopt ap
 	mapping, err := c.getMapping(version, mappingType)
 	if err != nil {
 		return err
+	}
+
+	// The composable (v8) span template references the spans @settings component
+	// template in composed_of, so the component must exist before the template.
+	if mappingType == mappings.SpanMapping && version.UsesV8API() {
+		if err := c.createSpanSettingsComponentTemplate(ctx, version); err != nil {
+			return err
+		}
 	}
 
 	err = c.IndicesClient.CreateTemplate(ctx, mapping, indexopt.TemplateName())

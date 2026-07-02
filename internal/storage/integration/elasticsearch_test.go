@@ -218,24 +218,23 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
 	}
-	// On backends with composable-template support the factory also creates the
-	// spans component templates (RFC 0004 §3.2), named after the data stream they
-	// will eventually serve.
-	version, err := getBackendVersion(s.client)
-	require.NoError(t, err)
-	if version.SupportsComposableTemplates() {
-		for _, suffix := range []string{"@mappings", "@settings"} {
-			name := indexPrefix + ".jaeger.spans" + suffix
-			resp, err := c.Get(queryURL + "/_component_template/" + name)
-			require.NoError(t, err)
-			resp.Body.Close()
-			assert.Equal(t, http.StatusOK, resp.StatusCode, "component template %q should exist", name)
-			req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, queryURL+"/_component_template/"+name, http.NoBody)
+	// On the v8 API the span index template composes the spans @settings
+	// component template (RFC 0004 §3.2), which the factory creates first.
+	if esVersion >= 8 {
+		componentName := indexPrefix + ".jaeger.spans@settings"
+		resp, err := c.Get(queryURL + "/_component_template/" + componentName)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "component template %q should exist", componentName)
+		// The component can only be deleted after the index templates that
+		// reference it are gone, hence the defer.
+		defer func() {
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodDelete, queryURL+"/_component_template/"+componentName, http.NoBody)
 			require.NoError(t, err)
 			delResp, err := c.Do(req)
 			require.NoError(t, err)
 			delResp.Body.Close()
-		}
+		}()
 	}
 	s.cleanESIndexTemplates(t, indexPrefix)
 }
