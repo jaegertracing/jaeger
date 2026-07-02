@@ -227,10 +227,6 @@ lint-jaeger-idl-versions:
 run-all-in-one: build-ui
 	go run ./cmd/all-in-one --log-level debug
 
-.PHONY: run-ai-gemini
-run-ai-gemini:
-	./scripts/ai-sidecar/gemini/run.sh
-
 .PHONY: changelog
 changelog:
 	@./scripts/release/notes.py --exclude-dependabot --verbose
@@ -283,3 +279,11 @@ repro-check:
 	$(MAKE) clean
 	$(MAKE) build-all-platforms
 	shasum -b -a 256 --strict --check ./sha256sum.combined.txt
+
+.PHONY: run-ai-gemini
+run-ai-gemini:
+	./scripts/ai-sidecar/gemini/run.sh
+
+.PHONY: run-ai-claude
+run-ai-claude:
+	./scripts/ai-sidecar/claude-code/run.sh --mcp-server jaeger=http://127.0.0.1:16687/mcp $(ARGS)
