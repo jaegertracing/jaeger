@@ -7,6 +7,8 @@ from typing import Any
 
 from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 from google.genai import types
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_AI_TOOL_NAME
 from opentelemetry.semconv.attributes.url_attributes import URL_FULL
 from opentelemetry.trace import Status, StatusCode
@@ -29,6 +31,7 @@ class JaegerMCPBridge:
         )
         self._tools_by_name: dict[str, Any] = {}
         self._gemini_tools: list[types.Tool] = []
+        self._instructions: str = ""
         self._initialized = False
 
     async def initialize(self) -> None:
@@ -83,6 +86,42 @@ class JaegerMCPBridge:
                 self._gemini_tools = []
 
             self._initialized = True
+
+        await self._fetch_instructions()
+
+    async def _fetch_instructions(self) -> None:
+        """Perform a lightweight MCP initialize handshake to retrieve the
+        server's `instructions` field, if any.
+
+        This is separate from tool discovery because MCPToolset does not
+        surface the initialize response. Failure here is non-fatal: tool
+        discovery has already succeeded by the time this runs, so we log a
+        warning and continue with no additional instructions rather than
+        aborting the request.
+        """
+        with tracer().start_as_current_span("mcp.fetch_instructions", attributes={
+            URL_FULL: self._mcp_url,
+        }) as span:
+            try:
+                async with asyncio.timeout(self._timeout_sec):
+                    async with streamablehttp_client(self._mcp_url) as (read, write, _):
+                        async with ClientSession(read, write) as session:
+                            result = await session.initialize()
+                            self._instructions = result.instructions or ""
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(Status(StatusCode.ERROR, description=str(exc)))
+                logger.warning(
+                    "Unable to retrieve MCP server instructions from %s; continuing without them. Error: %s",
+                    self._mcp_url,
+                    exc,
+                )
+                self._instructions = ""
+
+    @property
+    def instructions(self) -> str:
+        """The MCP server's `instructions` field, or empty string if unavailable."""
+        return self._instructions
 
     async def get_gemini_tools(self) -> list[types.Tool]:
         await self.initialize()

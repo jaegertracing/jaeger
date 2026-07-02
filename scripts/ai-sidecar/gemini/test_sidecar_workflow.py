@@ -4,19 +4,24 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from pathlib import Path
 from typing import Any
 from functools import partial
+from unittest.mock import patch
 
 import pytest
 import websockets
+from mcp.types import Implementation as MCPImplementation
+from mcp.types import InitializeResult, ServerCapabilities
 
 from acp import Agent, PROTOCOL_VERSION
 from acp.schema import AgentCapabilities, Implementation, ListSessionsResponse, LoadSessionResponse, NewSessionResponse, PromptResponse
 from acp.helpers import text_block, update_agent_message
 
 import sidecar
+from mcp_bridge import JaegerMCPBridge
 
 END_OF_TURN_MARKER = "__END_OF_TURN__"
 DEFAULT_PROMPT = "hello"
@@ -242,4 +247,102 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
 
 def test_complete_acp_workflow_with_fake_agent() -> None:
     asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
+
+
+class _FakeInitializeSession:
+    """Stands in for mcp.ClientSession, returning a canned initialize result."""
+
+    def __init__(self, instructions: str | None) -> None:
+        self._instructions = instructions
+
+    async def __aenter__(self) -> "_FakeInitializeSession":
+        return self
+
+    async def __aexit__(self, *exc_info: Any) -> None:
+        return None
+
+    async def initialize(self) -> InitializeResult:
+        return InitializeResult(
+            protocolVersion="2025-06-18",
+            capabilities=ServerCapabilities(),
+            serverInfo=MCPImplementation(name="fake-mcp-server", version="0"),
+            instructions=self._instructions,
+        )
+
+
+@contextlib.asynccontextmanager
+async def _fake_streamablehttp_client(url: str, **kwargs: Any):
+    yield (None, None, None)
+
+
+def _patch_tool_discovery(bridge: JaegerMCPBridge) -> Any:
+    """Bypasses the real MCPToolset connection; tool discovery is not under test here."""
+
+    async def fake_get_tools() -> list[Any]:
+        return []
+
+    return patch.object(bridge._toolset, "get_tools", side_effect=fake_get_tools)
+
+
+def test_mcp_bridge_exposes_server_instructions() -> None:
+    """Regression test for #8897: JaegerMCPBridge must surface the MCP
+    server's `instructions` field from its initialize response, since
+    MCPToolset's tool discovery does not expose it."""
+
+    async def run() -> None:
+        bridge = JaegerMCPBridge("http://example.invalid/mcp", timeout_sec=5.0)
+        expected = "Always call list_traces before summarizing a service."
+
+        with (
+            _patch_tool_discovery(bridge),
+            patch("mcp_bridge.streamablehttp_client", _fake_streamablehttp_client),
+            patch("mcp_bridge.ClientSession", lambda *args, **kwargs: _FakeInitializeSession(expected)),
+        ):
+            await bridge.initialize()
+
+        assert bridge.instructions == expected
+
+    asyncio.run(run())
+
+
+def test_mcp_bridge_instructions_default_to_empty_string() -> None:
+    """An MCP server with no `instructions` field should not break the bridge."""
+
+    async def run() -> None:
+        bridge = JaegerMCPBridge("http://example.invalid/mcp", timeout_sec=5.0)
+
+        with (
+            _patch_tool_discovery(bridge),
+            patch("mcp_bridge.streamablehttp_client", _fake_streamablehttp_client),
+            patch("mcp_bridge.ClientSession", lambda *args, **kwargs: _FakeInitializeSession(None)),
+        ):
+            await bridge.initialize()
+
+        assert bridge.instructions == ""
+
+    asyncio.run(run())
+
+
+def test_mcp_bridge_instructions_handshake_failure_is_non_fatal() -> None:
+    """If the extra initialize handshake fails, tool discovery must still
+    succeed and `instructions` should fall back to an empty string rather
+    than raising."""
+
+    async def run() -> None:
+        bridge = JaegerMCPBridge("http://example.invalid/mcp", timeout_sec=5.0)
+
+        @contextlib.asynccontextmanager
+        async def _broken_streamablehttp_client(url: str, **kwargs: Any):
+            raise RuntimeError("connection refused")
+            yield  # pragma: no cover - unreachable, keeps this an async generator
+
+        with (
+            _patch_tool_discovery(bridge),
+            patch("mcp_bridge.streamablehttp_client", _broken_streamablehttp_client),
+        ):
+            await bridge.initialize()
+
+        assert bridge.instructions == ""
+
+    asyncio.run(run())
 
