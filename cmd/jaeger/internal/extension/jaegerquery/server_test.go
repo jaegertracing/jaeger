@@ -65,6 +65,17 @@ func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {
 	return &tracestoremocks.Writer{}, nil
 }
 
+// fakeTraceOnlyFactory implements tracestore.Factory but not depstore.Factory.
+type fakeTraceOnlyFactory struct{}
+
+func (fakeTraceOnlyFactory) CreateTraceReader() (tracestore.Reader, error) {
+	return &tracestoremocks.Reader{}, nil
+}
+
+func (fakeTraceOnlyFactory) CreateTraceWriter() (tracestore.Writer, error) {
+	return &tracestoremocks.Writer{}, nil
+}
+
 type fakeMetricsFactory struct {
 	name string
 }
@@ -91,6 +102,9 @@ var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
 	if name == "need-factory-error" {
 		return nil, errors.New("test-error")
+	}
+	if name == "need-no-dep-factory" {
+		return fakeTraceOnlyFactory{}, nil
 	}
 	return fakeFactory{name: name}, nil
 }
@@ -156,6 +170,15 @@ func TestServerStart(t *testing.T) {
 				},
 			},
 			expectedErr: "cannot create trace reader",
+		},
+		{
+			name: "depstore not implemented",
+			config: &Config{
+				Storage: Storage{
+					TracesPrimary: "need-no-dep-factory",
+				},
+			},
+			expectedErr: "cannot find factory for dependency storage",
 		},
 		{
 			name: "dependency error",
@@ -269,6 +292,10 @@ func TestServerStart(t *testing.T) {
 				}.Execute(t)
 			} else {
 				require.ErrorContains(t, err, tt.expectedErr)
+				if tt.name == "depstore not implemented" {
+					assert.NotContains(t, err.Error(), "%!w")
+					assert.NotContains(t, err.Error(), "<nil>")
+				}
 			}
 		})
 	}
