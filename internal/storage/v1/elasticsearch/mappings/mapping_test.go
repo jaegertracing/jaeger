@@ -139,10 +139,10 @@ func TestMappingTypeFromString(t *testing.T) {
 		expected MappingType
 		hasError bool
 	}{
-		{"jaeger-span", SpanMapping, false},
-		{"jaeger-service", ServiceMapping, false},
-		{"jaeger-dependencies", DependenciesMapping, false},
-		{"jaeger-sampling", SamplingMapping, false},
+		{config.SpanIndexName, SpanMapping, false},
+		{config.ServiceIndexName, ServiceMapping, false},
+		{config.DependencyIndexName, DependenciesMapping, false},
+		{config.SamplingIndexName, SamplingMapping, false},
 		{"invalid", MappingType(-1), true},
 	}
 

@@ -34,19 +34,16 @@ import (
 )
 
 const (
-	host                     = "0.0.0.0"
-	queryPort                = "9200"
-	queryHostPort            = host + ":" + queryPort
-	queryURL                 = "http://" + queryHostPort
-	indexPrefix              = "integration-test"
-	indexDateLayout          = "2006-01-02"
-	tagKeyDeDotChar          = "@"
-	maxSpanAge               = time.Hour * 72
-	defaultMaxDocCount       = 10_000
-	spanTemplateName         = "jaeger-span"
-	serviceTemplateName      = "jaeger-service"
-	dependenciesTemplateName = "jaeger-dependencies"
-	archiveAliasSuffix       = "archive"
+	host               = "0.0.0.0"
+	queryPort          = "9200"
+	queryHostPort      = host + ":" + queryPort
+	queryURL           = "http://" + queryHostPort
+	indexPrefix        = "integration-test"
+	indexDateLayout    = "2006-01-02"
+	tagKeyDeDotChar    = "@"
+	maxSpanAge         = time.Hour * 72
+	defaultMaxDocCount = 10_000
+	archiveAliasSuffix = "archive"
 )
 
 type ESStorageIntegration struct {
@@ -232,11 +229,11 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 		if prefix != "" {
 			prefixWithSeparator += "-"
 		}
-		_, err := s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + spanTemplateName})
+		_, err := s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + escfg.SpanIndexName})
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + serviceTemplateName})
+		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + escfg.ServiceIndexName})
 		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + dependenciesTemplateName})
+		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + escfg.DependencyIndexName})
 		require.NoError(t, err)
 	} else {
 		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())

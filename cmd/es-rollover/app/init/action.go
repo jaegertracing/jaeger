@@ -4,6 +4,7 @@
 package init
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
@@ -37,7 +38,8 @@ func (c Action) getMapping(version es.BackendVersion, mappingType mappings.Mappi
 
 // Do the init action
 func (c Action) Do() error {
-	version, err := c.ClusterClient.Version()
+	ctx := context.TODO()
+	version, err := c.ClusterClient.Version(ctx)
 	if err != nil {
 		return err
 	}
@@ -48,7 +50,7 @@ func (c Action) Do() error {
 		if ilm, ok := c.ILMClient.(*client.ILMClient); ok && version.IsOpenSearch() {
 			ilm.UseOpenSearchISM = true
 		}
-		policyExist, err := c.ILMClient.Exists(c.Config.ILMPolicyName)
+		policyExist, err := c.ILMClient.Exists(ctx, c.Config.ILMPolicyName)
 		if err != nil {
 			return err
 		}
@@ -58,32 +60,32 @@ func (c Action) Do() error {
 	}
 	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
-		if err := c.init(version, indexName); err != nil {
+		if err := c.init(ctx, version, indexName); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func createIndexIfNotExist(c client.IndexAPI, index string) error {
-	exists, err := c.IndexExists(index)
+func createIndexIfNotExist(ctx context.Context, c client.IndexAPI, index string) error {
+	exists, err := c.IndexExists(ctx, index)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return nil
 	}
-	aliasExists, err := c.AliasExists(index)
+	aliasExists, err := c.AliasExists(ctx, index)
 	if err != nil {
 		return err
 	}
 	if aliasExists {
 		return nil
 	}
-	return c.CreateIndex(index)
+	return c.CreateIndex(ctx, index)
 }
 
-func (c Action) init(version es.BackendVersion, indexopt app.IndexOption) error {
+func (c Action) init(ctx context.Context, version es.BackendVersion, indexopt app.IndexOption) error {
 	mappingType, err := mappings.MappingTypeFromString(indexopt.Mapping)
 	if err != nil {
 		return err
@@ -94,18 +96,18 @@ func (c Action) init(version es.BackendVersion, indexopt app.IndexOption) error 
 		return err
 	}
 
-	err = c.IndicesClient.CreateTemplate(mapping, indexopt.TemplateName())
+	err = c.IndicesClient.CreateTemplate(ctx, mapping, indexopt.TemplateName())
 	if err != nil {
 		return err
 	}
 
 	index := indexopt.InitialRolloverIndex()
-	err = createIndexIfNotExist(c.IndicesClient, index)
+	err = createIndexIfNotExist(ctx, c.IndicesClient, index)
 	if err != nil {
 		return err
 	}
 
-	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(c.Config.Config.IndexPrefix)
+	jaegerIndices, err := c.IndicesClient.GetJaegerIndices(ctx, c.Config.Config.IndexPrefix)
 	if err != nil {
 		return err
 	}
@@ -131,7 +133,7 @@ func (c Action) init(version es.BackendVersion, indexopt app.IndexOption) error 
 	}
 
 	if len(aliases) > 0 {
-		err = c.IndicesClient.CreateAlias(aliases)
+		err = c.IndicesClient.CreateAlias(ctx, aliases)
 		if err != nil {
 			return err
 		}

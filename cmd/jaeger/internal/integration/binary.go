@@ -60,9 +60,9 @@ func (b *Binary) Start(t *testing.T) {
 			b.dumpLogs(t, outFile, errFile)
 		}
 	})
-
+	client := testingHttpClient(t)
 	// Wait for the binary to start and become ready to serve requests.
-	require.Eventually(t, func() bool { return b.doHealthCheck(t) },
+	require.Eventually(t, func() bool { return b.doHealthCheck(t, client) },
 		time.Minute, time.Second, "%s did not start", b.Name)
 	t.Logf("%s is ready", b.Name)
 }
@@ -80,7 +80,7 @@ func (b *Binary) Stop(t *testing.T) {
 	t.Logf("%s exited", b.Name)
 }
 
-func (b *Binary) doHealthCheck(t *testing.T) bool {
+func (b *Binary) doHealthCheck(t *testing.T, client *http.Client) bool {
 	healthCheckPort := b.HealthCheckPort
 	if healthCheckPort == 0 {
 		healthCheckPort = ports.CollectorV2HealthChecks
@@ -94,7 +94,7 @@ func (b *Binary) doHealthCheck(t *testing.T) bool {
 		t.Logf("HTTP request creation failed: %v", err)
 		return false
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Logf("HTTP request failed: %v", err)
 		return false

@@ -19,6 +19,7 @@ cover.html
 vendor/
 
 # Jaeger binaries
+/jaeger
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
 cmd/agent/agent

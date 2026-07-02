@@ -59,15 +59,15 @@ type elasticRequest struct {
 	method   string
 }
 
-func (c *Client) request(esRequest elasticRequest) ([]byte, error) {
+func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
 	var reader *bytes.Buffer
 	var r *http.Request
 	var err error
 	if len(esRequest.body) > 0 {
 		reader = bytes.NewBuffer(esRequest.body)
-		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
+		r, err = http.NewRequestWithContext(ctx, esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), reader)
 	} else {
-		r, err = http.NewRequestWithContext(context.Background(), esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), http.NoBody)
+		r, err = http.NewRequestWithContext(ctx, esRequest.method, fmt.Sprintf("%s/%s", c.Endpoint, esRequest.endpoint), http.NoBody)
 	}
 	if err != nil {
 		return []byte{}, err

@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -60,7 +61,7 @@ func TestExists(t *testing.T) {
 				},
 				Logger: zap.NewNop(),
 			}
-			result, err := c.Exists("jaeger-ilm-policy")
+			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 			}
@@ -114,7 +115,7 @@ func TestExists_OpenSearchISM(t *testing.T) {
 				Logger:           zap.NewNop(),
 				UseOpenSearchISM: true,
 			}
-			result, err := c.Exists("jaeger-ilm-policy")
+			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 			}
@@ -152,7 +153,7 @@ func TestExists_Retries(t *testing.T) {
 		Logger: zap.NewNop(),
 	}
 
-	result, err := c.Exists("jaeger-ilm-policy")
+	result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 	require.NoError(t, err)
 	assert.True(t, result)
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")

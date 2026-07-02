@@ -472,6 +472,16 @@ func TestBuildAIHealthChecker(t *testing.T) {
 			wantNil: true,
 		},
 		{
+			name: "MCP-only mode (no agent_url) disables the checker",
+			ai: configoptional.Some(app.AIConfig{
+				EnableMCP:           true,
+				MaxRequestBodySize:  app.DefaultAIMaxRequestBodySize,
+				HealthCheckInterval: 5 * time.Second,
+				HealthCheckTimeout:  2 * time.Second,
+			}),
+			wantNil: true,
+		},
+		{
 			name: "HealthCheckInterval=0 disables the checker",
 			ai: configoptional.Some(app.AIConfig{
 				AgentURL:            "ws://localhost:16688",

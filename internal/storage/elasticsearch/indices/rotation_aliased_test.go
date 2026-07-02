@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 func TestAliasedRotation_WriteTarget(t *testing.T) {
@@ -25,5 +27,10 @@ func TestAliasedRotation_ReadTargets(t *testing.T) {
 
 func TestAliasedRotation_WriteOpType(t *testing.T) {
 	r := NewAliasedRotation("jaeger-span-write", "jaeger-span-read")
-	assert.Equal(t, WriteOpIndex, r.WriteOpType())
+	assert.Equal(t, es.WriteOpIndex, r.WriteOpType())
+}
+
+func TestAliasedRotation_RequiresDocumentTimestamp(t *testing.T) {
+	r := NewAliasedRotation("jaeger-span-write", "jaeger-span-read")
+	assert.False(t, r.RequiresDocumentTimestamp())
 }

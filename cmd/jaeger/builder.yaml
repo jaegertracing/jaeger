@@ -42,8 +42,6 @@ extensions:
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/ext/extension/sigv4authextension
   - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/jaegermcp
-  - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/extension/jaegerquery
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/extension/jaegerstorage
