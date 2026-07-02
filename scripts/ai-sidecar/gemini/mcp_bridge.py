@@ -45,6 +45,8 @@ class JaegerMCPBridge:
                 f"(single attempt timeout={self._timeout_sec}s)"
             )
 
+            import time
+            start_time = time.monotonic()
             try:
                 logger.info(
                     f"MCP connection trying {self._mcp_url} "
@@ -55,16 +57,22 @@ class JaegerMCPBridge:
                 try:
                     from mcp.client.sse import sse_client
                     from mcp.client.session import ClientSession
-                    
+
                     async def fetch_instructions() -> str:
                         async with sse_client(self._mcp_url) as (read_stream, write_stream):
                             async with ClientSession(read_stream, write_stream) as session:
                                 init_result = await session.initialize()
                                 return getattr(init_result, "instructions", "") or ""
 
-                    self.instructions = await asyncio.wait_for(fetch_instructions(), timeout=self._timeout_sec)
+                    elapsed = time.monotonic() - start_time
+                    remaining = max(0.0, self._timeout_sec - elapsed)
+                    if remaining > 0:
+                        self.instructions = await asyncio.wait_for(fetch_instructions(), timeout=remaining)
+                    else:
+                        self.instructions = ""
+                        logger.warning("Timeout budget exceeded before fetching MCP instructions")
                 except Exception as exc:
-                    logger.warning("Failed to fetch MCP instructions separately: %s", exc)
+                    logger.warning("Failed to fetch MCP instructions separately: %s", exc, exc_info=True)
                     self.instructions = ""
 
             except asyncio.CancelledError:
