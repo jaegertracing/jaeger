@@ -660,11 +660,12 @@ func TestRotationConfig_Validate(t *testing.T) {
 			indexType: "spans",
 		},
 		{
-			name: "single data_stream is valid",
+			name: "data_stream is not yet implemented",
 			rotation: RotationConfig{
 				DataStream: configoptional.Some(DataStreamRotation{PolicyName: "test"}),
 			},
-			indexType: "spans",
+			indexType:   "spans",
+			expectedErr: "data_stream is not yet implemented",
 		},
 		{
 			name: "multiple rotations set",

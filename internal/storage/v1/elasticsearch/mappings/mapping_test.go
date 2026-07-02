@@ -402,6 +402,80 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	}
 }
 
+func TestMappingBuilderGetSpanComponentTemplates(t *testing.T) {
+	// The component-template bodies are version-independent (see
+	// GetSpanComponentTemplates), so every supported backend must render the
+	// same fixtures.
+	for _, version := range []es.BackendVersion{es.ElasticV7, es.ElasticV8, es.OpenSearch2} {
+		t.Run(version.String(), func(t *testing.T) {
+			mb := &MappingBuilder{
+				TemplateBuilder: es.TextTemplateBuilder{},
+				Indices: config.Indices{
+					IndexPrefix: "test-",
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: new(int64(3)),
+					},
+				},
+				Version: version,
+			}
+			mappingsBody, settingsBody, err := mb.GetSpanComponentTemplates()
+			require.NoError(t, err)
+			wantMappings, err := FIXTURES.ReadFile("fixtures/jaeger-spans-component-mappings.json")
+			require.NoError(t, err)
+			assert.Equal(t, string(wantMappings), mappingsBody)
+			wantSettings, err := FIXTURES.ReadFile("fixtures/jaeger-spans-component-settings.json")
+			require.NoError(t, err)
+			assert.Equal(t, string(wantSettings), settingsBody)
+		})
+	}
+}
+
+func TestMappingBuilderGetSpanComponentTemplates_Errors(t *testing.T) {
+	tests := []struct {
+		name                       string
+		mockNewTextTemplateBuilder func() es.TemplateBuilder
+	}{
+		{
+			name: "mappings error",
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+		},
+		{
+			name: "settings error",
+			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
+				tb := mocks.TemplateBuilder{}
+				ta := mocks.TemplateApplier{}
+				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
+				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
+				tb.On("Parse", mock.Anything).Return(&ta, nil)
+				return &tb
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mb := &MappingBuilder{
+				TemplateBuilder: test.mockNewTextTemplateBuilder(),
+				Indices: config.Indices{
+					Spans: config.IndexOptions{
+						Shards:   3,
+						Replicas: new(int64(3)),
+					},
+				},
+				Version: es.ElasticV8,
+			}
+			_, _, err := mb.GetSpanComponentTemplates()
+			require.EqualError(t, err, "template load error")
+		})
+	}
+}
+
 func TestMappingBuilderGetDependenciesMappings(t *testing.T) {
 	tb := mocks.TemplateBuilder{}
 	ta := mocks.TemplateApplier{}

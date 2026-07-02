@@ -232,35 +232,52 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if !f.config.CreateIndexTemplates {
-		return nil
-	}
-	mappingBuilder := f.mappingBuilderFromConfig(f.config)
-
-	// Spans use either a data stream (composable templates + lifecycle policy) or
-	// a legacy index template, depending on the configured rotation strategy.
-	if f.config.ResolvedSpanRotation().DataStream.HasValue() {
-		if err := f.bootstrapSpanDataStream(ctx, &mappingBuilder); err != nil {
-			return err
-		}
-	} else {
-		spanMapping, err := mappingBuilder.GetMapping(mappings.SpanMapping)
+	if f.config.CreateIndexTemplates {
+		mappingBuilder := f.mappingBuilderFromConfig(f.config)
+		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
 		if err != nil {
 			return err
 		}
 		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
-		if _, err := f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx); err != nil {
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
+		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
+		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
 		}
+		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
+		}
+		if err := f.createSpanComponentTemplates(ctx, &mappingBuilder); err != nil {
+			return err
+		}
 	}
+	return nil
+}
 
-	serviceMapping, err := mappingBuilder.GetMapping(mappings.ServiceMapping)
+// createSpanComponentTemplates creates the @mappings and @settings component
+// templates for the spans data stream (RFC 0004 §3.2). Component templates are
+// inert building blocks: nothing references them until a later composable index
+// template lists them in composed_of, so creating them has no effect on existing
+// indices or templates, and the PUT is idempotent. Backends without
+// composable-template support (Elasticsearch 6.x, OpenSearch 1.x) are skipped.
+func (f *FactoryBase) createSpanComponentTemplates(ctx context.Context, mappingBuilder *mappings.MappingBuilder) error {
+	client := f.getClient()
+	if !client.GetVersion().SupportsComposableTemplates() {
+		return nil
+	}
+	mappingsBody, settingsBody, err := mappingBuilder.GetSpanComponentTemplates()
 	if err != nil {
 		return err
 	}
-	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
-	if _, err := f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx); err != nil {
-		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
+	name := indices.SpanDataStreamName(f.config.Indices.IndexPrefix)
+	mappingsName := name + mappings.ComponentTemplateMappingsSuffix
+	if err := client.CreateComponentTemplate(ctx, mappingsName, mappingsBody); err != nil {
+		return fmt.Errorf("failed to create component template %q: %w", mappingsName, err)
+	}
+	settingsName := name + mappings.ComponentTemplateSettingsSuffix
+	if err := client.CreateComponentTemplate(ctx, settingsName, settingsBody); err != nil {
+		return fmt.Errorf("failed to create component template %q: %w", settingsName, err)
 	}
 	return nil
 }

@@ -27,6 +27,13 @@ const (
 	SamplingMapping
 )
 
+// Component-template name suffixes for the spans data stream, following the
+// "@" naming convention (RFC 0004 §3.2), e.g. "jaeger.spans@mappings".
+const (
+	ComponentTemplateMappingsSuffix = "@mappings"
+	ComponentTemplateSettingsSuffix = "@settings"
+)
+
 // MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
 	TemplateBuilder es.TemplateBuilder
@@ -128,6 +135,26 @@ func (mb *MappingBuilder) GetSpanServiceMappings() (spanMapping string, serviceM
 		return "", "", err
 	}
 	return spanMapping, serviceMapping, nil
+}
+
+// GetSpanComponentTemplates returns the component-template bodies for the spans
+// data stream (RFC 0004 §3.2): the field mappings (the standard span mappings
+// plus the @timestamp field that data streams require, §3.3) and the index
+// settings. The bodies are version-independent: the _component_template API
+// (ES 7.8+ / OpenSearch 2.0+) uses the same body format on every supported
+// backend, and the span field mappings are identical across the v7 and v8
+// index templates.
+func (mb *MappingBuilder) GetSpanComponentTemplates() (mappingsBody string, settingsBody string, err error) {
+	templateOpts := mb.getMappingTemplateOptions(SpanMapping)
+	mappingsBody, err = mb.renderMapping("jaeger-spans-component-mappings.json", templateOpts)
+	if err != nil {
+		return "", "", err
+	}
+	settingsBody, err = mb.renderMapping("jaeger-spans-component-settings.json", templateOpts)
+	if err != nil {
+		return "", "", err
+	}
+	return mappingsBody, settingsBody, nil
 }
 
 // GetDependenciesMappings returns dependencies mappings

@@ -77,6 +77,13 @@ func (v BackendVersion) SupportsTypedIndices() bool {
 	return v == ElasticV6
 }
 
+// SupportsComposableTemplates returns true if the backend supports composable
+// index and component templates (the _index_template and _component_template
+// APIs), available on Elasticsearch 7.8+ and OpenSearch 2.0+ (RFC 0004 §3.2).
+func (v BackendVersion) SupportsComposableTemplates() bool {
+	return v != ElasticV6 && v != OpenSearch1
+}
+
 // SupportsILM returns true if the backend supports Index Lifecycle Management.
 // ILM requires ES 7+ or OpenSearch (which uses ISM, the equivalent feature).
 func (v BackendVersion) SupportsILM() bool {

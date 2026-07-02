@@ -29,7 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -196,40 +198,38 @@ func TestTagKeysAsFields(t *testing.T) {
 }
 
 func TestCreateTemplates(t *testing.T) {
+	okTemplateService := func() *mocks.TemplateCreateService {
+		tService := &mocks.TemplateCreateService{}
+		tService.On("Body", mock.Anything).Return(tService)
+		tService.On("Do", context.Background()).Return(nil, nil)
+		return tService
+	}
 	tests := []struct {
 		err                    string
 		spanTemplateService    func() *mocks.TemplateCreateService
 		serviceTemplateService func() *mocks.TemplateCreateService
 		indexPrefix            escfg.IndexPrefix
+		version                es.BackendVersion
+		componentTemplateErr   error
+		wantComponentTemplates bool
 	}{
 		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
+			spanTemplateService:    okTemplateService,
+			serviceTemplateService: okTemplateService,
+			wantComponentTemplates: true,
 		},
 		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			indexPrefix: "test",
+			spanTemplateService:    okTemplateService,
+			serviceTemplateService: okTemplateService,
+			indexPrefix:            "test",
+			wantComponentTemplates: true,
+		},
+		{
+			// ES 6.x has no composable-template support, so only the legacy
+			// templates are created.
+			spanTemplateService:    okTemplateService,
+			serviceTemplateService: okTemplateService,
+			version:                es.ElasticV6,
 		},
 		{
 			err: "span-template-error",
@@ -239,21 +239,11 @@ func TestCreateTemplates(t *testing.T) {
 				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
 				return tService
 			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
+			serviceTemplateService: okTemplateService,
 		},
 		{
-			err: "service-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
+			err:                 "service-template-error",
+			spanTemplateService: okTemplateService,
 			serviceTemplateService: func() *mocks.TemplateCreateService {
 				tService := new(mocks.TemplateCreateService)
 				tService.On("Body", mock.Anything).Return(tService)
@@ -261,12 +251,23 @@ func TestCreateTemplates(t *testing.T) {
 				return tService
 			},
 		},
+		{
+			err:                    "component-template-error",
+			spanTemplateService:    okTemplateService,
+			serviceTemplateService: okTemplateService,
+			componentTemplateErr:   errors.New("component-template-error"),
+			wantComponentTemplates: true,
+		},
 	}
 
 	for _, test := range tests {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
-		mockClient.On("GetVersion").Return(es.ElasticV7)
+		version := test.version
+		if version == 0 {
+			version = es.ElasticV7
+		}
+		mockClient.On("GetVersion").Return(version)
 		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
 			return mockClient, nil
 		}
@@ -294,6 +295,13 @@ func TestCreateTemplates(t *testing.T) {
 		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
+		if test.wantComponentTemplates {
+			dataStreamName := indices.SpanDataStreamName(test.indexPrefix)
+			mockClient.On("CreateComponentTemplate", mock.Anything, dataStreamName+mappings.ComponentTemplateMappingsSuffix, mock.Anything).
+				Return(test.componentTemplateErr)
+			mockClient.On("CreateComponentTemplate", mock.Anything, dataStreamName+mappings.ComponentTemplateSettingsSuffix, mock.Anything).
+				Return(test.componentTemplateErr)
+		}
 		err = f.createTemplates(context.Background())
 		if test.err != "" {
 			require.ErrorContains(t, err, test.err)
