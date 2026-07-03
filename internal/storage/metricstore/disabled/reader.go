@@ -23,7 +23,7 @@ type (
 var ErrDisabled = &errMetricsQueryDisabledError{}
 
 func (*errMetricsQueryDisabledError) Error() string {
-	return "metrics querying is currently disabled"
+	return "trace metrics are currently disabled - no metrics backend configured"
 }
 
 // NewMetricsReader returns a new Disabled MetricsReader.

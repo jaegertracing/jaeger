@@ -322,24 +322,24 @@ If the `groupByOperation=true` parameter is set, the response will include the o
       ],
 ```
 
-# Disabling Metrics Querying
+# Running Without Service Performance Monitoring
 
-The monitor example enables metrics querying in the Jaeger v2 YAML config mounted by the Docker Compose file.
+The SPM functionality (the Monitor tab in the UI and the `/api/metrics/*` endpoints) require a metrics backend. Jaeger advertises backend capabilities to the UI at startup; when no metrics backend is configured, Jaeger does not advertise `metricsStorage` and the Monitor tab does not appear.
 
-For example, remove or comment out the `metrics` entry under `extensions.jaeger_query.storage` in [`cmd/jaeger/config-spm.yaml`](../../cmd/jaeger/config-spm.yaml):
+To reproduce this, commend out the `metrics` key from `extensions.jaeger_query.storage` in [config-spm.yaml](../../cmd/jaeger/config-spm.yaml):
 
 ```yaml
 extensions:
   jaeger_query:
     storage:
       traces: some_storage
-      # metrics: some_metrics_storage
+      # metrics: some_metrics_storage  # comment this out
 ```
 
-Then querying metrics endpoints results in an error message:
+Then querying any metrics endpoint returns:
 
 ```
-$ curl "http://localhost:16686/api/metrics/calls?service=driver" | jq .
+$ curl http://localhost:16686/api/metrics/minstep | jq .
 {
   "data": null,
   "total": 0,
@@ -348,7 +348,7 @@ $ curl "http://localhost:16686/api/metrics/calls?service=driver" | jq .
   "errors": [
     {
       "code": 501,
-      "msg": "metrics querying is currently disabled"
+      "msg": "trace metrics are currently disabled - no metrics backend configured"
     }
   ]
 }
