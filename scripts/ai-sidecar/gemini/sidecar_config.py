@@ -20,7 +20,8 @@ class SidecarConfig:
             )
         if not self.gemini_model_name:
             raise RuntimeError(
-                "GEMINI_MODEL_NAME must be provided via --gemini-model-name or environment variable"
+                "GEMINI_MODEL_NAME must be a non-empty model name (unset it to use the "
+                "default, or set via --gemini-model-name/GEMINI_MODEL_NAME)"
             )
         if not self.mcp_url:
             raise RuntimeError("JAEGER_MCP_URL must be provided via --mcp-url or environment variable")

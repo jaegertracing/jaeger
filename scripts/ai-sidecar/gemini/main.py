@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gemini-api-key", default=os.environ.get("GEMINI_API_KEY", ""), help="Gemini API key")
     parser.add_argument(
         "--gemini-model-name",
-        default=os.environ.get("GEMINI_MODEL_NAME", DEFAULT_GEMINI_MODEL_NAME),
+        default=(os.environ.get("GEMINI_MODEL_NAME") or DEFAULT_GEMINI_MODEL_NAME),
         help="Gemini model to use for trace analysis (e.g. gemini-2.5-flash, gemini-1.5-pro)",
     )
     parser.add_argument("--mcp-url", default=os.environ.get("JAEGER_MCP_URL", DEFAULT_MCP_URL), help="Jaeger MCP URL")
