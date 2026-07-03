@@ -12,7 +12,7 @@ import (
 
 type (
 	// MetricsReader represents a "disabled" metricstore.Reader implementation where
-	// the METRICS_STORAGE_TYPE has not been set.
+	// no metrics backend is configured.
 	MetricsReader struct{}
 
 	// errMetricsQueryDisabledError is the error returned by disabledMetricsQueryService.
