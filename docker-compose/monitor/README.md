@@ -326,7 +326,7 @@ If the `groupByOperation=true` parameter is set, the response will include the o
 
 The SPM functionality (the Monitor tab in the UI and the `/api/metrics/*` endpoints) require a metrics backend. Jaeger advertises backend capabilities to the UI at startup; when no metrics backend is configured, Jaeger does not advertise `metricsStorage` and the Monitor tab does not appear.
 
-To reproduce this, commend out the `metrics` key from `extensions.jaeger_query.storage` in [config-spm.yaml](../../cmd/jaeger/config-spm.yaml):
+To reproduce this, comment out the `metrics` key from `extensions.jaeger_query.storage` in [config-spm.yaml](../../cmd/jaeger/config-spm.yaml):
 
 ```yaml
 extensions:
