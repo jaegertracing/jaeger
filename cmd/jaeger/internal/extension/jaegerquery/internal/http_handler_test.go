@@ -1022,7 +1022,10 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	const urlPath = "/api/metrics/latencies?service=emailservice&quantile=0.95"
 	var response any
 	err = getJSON(ts.server.URL+urlPath, &response)
-	require.ErrorContains(t, err, "currently disabled")
+	var httpErr *HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	require.Equal(t, http.StatusNotImplemented, httpErr.StatusCode)
+	require.Contains(t, httpErr.Body, "currently disabled")
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
