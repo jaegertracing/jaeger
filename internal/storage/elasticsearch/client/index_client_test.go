@@ -631,16 +631,27 @@ func TestClientCreateComponentTemplate(t *testing.T) {
 		responseCode int
 		response     string
 		errContains  string
+		serverDown   bool
 	}{
 		{
 			name:         "success",
 			responseCode: http.StatusOK,
 		},
 		{
+			// A 201 Created (not just 200 OK) is treated as success.
+			name:         "created",
+			responseCode: http.StatusCreated,
+		},
+		{
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to create component template: jaeger.spans@settings",
+		},
+		{
+			name:        "transport error",
+			serverDown:  true,
+			errContains: "failed to create component template",
 		},
 	}
 	for _, test := range tests {
@@ -656,7 +667,11 @@ func TestClientCreateComponentTemplate(t *testing.T) {
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
-			defer testServer.Close()
+			if test.serverDown {
+				testServer.Close()
+			} else {
+				defer testServer.Close()
+			}
 
 			c := &IndicesClient{
 				Client: Client{

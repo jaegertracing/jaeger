@@ -197,6 +197,14 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
+// failingTemplateBuilder is a TemplateBuilder whose Parse always fails, used to
+// exercise the template-rendering error path.
+type failingTemplateBuilder struct{}
+
+func (failingTemplateBuilder) Parse(string) (es.TemplateApplier, error) {
+	return nil, errors.New("template load error")
+}
+
 func TestCreateTemplates(t *testing.T) {
 	okTemplateService := func() *mocks.TemplateCreateService {
 		tService := &mocks.TemplateCreateService{}
@@ -210,6 +218,7 @@ func TestCreateTemplates(t *testing.T) {
 		serviceTemplateService func() *mocks.TemplateCreateService
 		indexPrefix            escfg.IndexPrefix
 		version                es.BackendVersion
+		templateBuilder        es.TemplateBuilder
 		componentTemplateErr   error
 		wantComponentTemplates bool
 	}{
@@ -262,6 +271,14 @@ func TestCreateTemplates(t *testing.T) {
 			componentTemplateErr:   errors.New("component-template-error"),
 			wantComponentTemplates: true,
 		},
+		{
+			// A failure rendering the component template body is surfaced.
+			err:                    "template load error",
+			spanTemplateService:    okTemplateService,
+			serviceTemplateService: okTemplateService,
+			version:                es.ElasticV8,
+			templateBuilder:        failingTemplateBuilder{},
+		},
 	}
 
 	for _, test := range tests {
@@ -294,7 +311,11 @@ func TestCreateTemplates(t *testing.T) {
 		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
 		require.NoError(t, err)
 		f.client = client
-		f.templateBuilder = es.TextTemplateBuilder{}
+		if test.templateBuilder != nil {
+			f.templateBuilder = test.templateBuilder
+		} else {
+			f.templateBuilder = es.TextTemplateBuilder{}
+		}
 		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
 		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
