@@ -38,9 +38,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	// Run the ES rollover test with adaptive sampling disabled (set to false).
 	err = runEsRollover("init", envVars, false)
 	require.EqualError(t, err, "exit status 1")
-	indices, err := client.IndexNames()
-	require.NoError(t, err)
-	assert.Empty(t, indices)
+	assert.Empty(t, getJaegerIndices(t, client, ""))
 }
 
 func TestIndexRollover_Idempotency(t *testing.T) {
@@ -136,9 +134,6 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version e
 	err = runEsRollover("init", envVars, adaptiveSampling)
 	require.NoError(t, err)
 
-	indices, err := client.IndexNames()
-	require.NoError(t, err)
-
 	// Get settings and verify ILM policy name (ES) or ISM rollover alias (OpenSearch)
 	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
 	require.NoError(t, err)
@@ -150,15 +145,8 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version e
 			actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
 		}
 	}
-	// ignore system indices https://github.com/jaegertracing/jaeger/issues/7002
-	var actualIndices []string
-	for _, index := range indices {
-		if strings.HasPrefix(index, prefix+"jaeger") {
-			actualIndices = append(actualIndices, index)
-		}
-	}
 	// Check indices created
-	assert.ElementsMatch(t, actualIndices, expected)
+	assert.ElementsMatch(t, getJaegerIndices(t, client, prefix), expected)
 	// Check rollover alias is write alias
 	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases)
 }
@@ -174,6 +162,21 @@ func getBackendVersion(client *elastic.Client) (es.BackendVersion, error) {
 		return 0, err
 	}
 	return es.DetectBackendVersion(pingResult.TagLine, majorVersion), nil
+}
+
+// getJaegerIndices returns the names of the cluster's Jaeger indices for the
+// given prefix. Unlike client.IndexNames(), which lists every index in the
+// cluster, it queries the jaeger-* pattern directly, so unrelated system
+// indices (e.g. OpenSearch's top_queries-*) never enter the result and the
+// tests do not need to filter them out. See #7002.
+func getJaegerIndices(t *testing.T, client *elastic.Client, prefix string) []string {
+	settings, err := client.IndexGetSettings(prefix + "jaeger-*").Do(context.Background())
+	require.NoError(t, err)
+	indices := make([]string, 0, len(settings))
+	for name := range settings {
+		indices = append(indices, name)
+	}
+	return indices
 }
 
 func createILMPolicy(t *testing.T, client *elastic.Client, version es.BackendVersion, policyName string) {
