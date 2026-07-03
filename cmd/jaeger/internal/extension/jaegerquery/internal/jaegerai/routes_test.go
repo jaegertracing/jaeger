@@ -20,7 +20,7 @@ import (
 )
 
 func TestNewHandlerInitialisesStore(t *testing.T) {
-	h := NewHandler(Deps{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
 	require.NotNil(t, h.store, "NewHandler must allocate a ContextualToolsStore")
 	require.NotNil(t, h.streams, "NewHandler must allocate a sessionStreams")
 	assert.Equal(t, "ws://example", h.agentURL)
@@ -61,7 +61,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewHandler(Deps{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: tc.basePath, MaxRequestBodySize: 1 << 20})
+			h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: tc.basePath, MaxRequestBodySize: 1 << 20})
 			mux := http.NewServeMux()
 			h.RegisterRoutes(mux)
 
@@ -78,14 +78,14 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 }
 
 func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
-	h := NewHandler(Deps{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "/jaeger/", MaxRequestBodySize: 1 << 20})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "/jaeger/", MaxRequestBodySize: 1 << 20})
 	assert.Equal(t, "/jaeger", h.basePath, "NewHandler must trim the trailing slash")
 }
 
 func mcpEnabledHandler(t *testing.T, basePath string) *Handler {
 	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	return NewHandler(Deps{
+	return NewHandler(HandlerParams{
 		Logger:             zap.NewNop(),
 		AgentURL:           "ws://127.0.0.1:1",
 		BasePath:           basePath,
@@ -124,7 +124,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 }
 
 func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
-	h := NewHandler(Deps{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	h.streams.set("sess-1", testStreamingClient())

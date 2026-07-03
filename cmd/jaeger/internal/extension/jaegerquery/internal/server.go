@@ -217,7 +217,7 @@ func initRouter(
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the session-scoped MCP endpoint
 					// (/api/ai/mcp/<id>/).
-					jaegerai.NewHandler(jaegerai.Deps{
+					jaegerai.NewHandler(jaegerai.HandlerParams{
 						Logger:             telset.Logger,
 						AgentURL:           aiCfg.AgentURL,
 						BasePath:           queryOpts.BasePath,

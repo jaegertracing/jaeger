@@ -6,13 +6,6 @@ package jaegerai
 import (
 	"net/http"
 	"strings"
-
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 const routeChat = "/api/ai/chat"
@@ -26,70 +19,6 @@ func normalizeBasePath(basePath string) string {
 		return ""
 	}
 	return strings.TrimSuffix(basePath, "/")
-}
-
-// Handler is the entry point for the jaeger-query AI gateway. It owns the
-// per-turn contextual tools store, the session-stream registry, and the chat
-// handler, and registers them on the caller-provided mux.
-//
-// Callers construct a Handler once (in jaegerquery's Start path), then call
-// RegisterRoutes when wiring the HTTP mux. This mirrors the APIHandler /
-// HTTPGateway pattern used by sibling jaeger-query subsystems and keeps all
-// AI dependencies inside the jaegerai package.
-type Handler struct {
-	logger             *zap.Logger
-	store              *ContextualToolsStore
-	streams            *sessionStreams
-	agentURL           string
-	basePath           string
-	maxRequestBodySize int64
-	// mcpHandler serves the session-scoped MCP endpoint. Non-nil only when the
-	// operator enabled MCP (Deps.EnableMCP); otherwise the endpoint is not
-	// mounted and the gateway advertises AI chat only.
-	mcpHandler http.Handler
-}
-
-// Deps carries the dependencies for the AI gateway Handler. Grouping them in a
-// struct keeps the constructor readable as the gateway gains MCP wiring
-// (query service, tenancy, telemetry) on top of the chat parameters.
-type Deps struct {
-	Logger             *zap.Logger
-	AgentURL           string
-	BasePath           string
-	MaxRequestBodySize int64
-	// EnableMCP mounts the session-scoped telemetry MCP endpoint. When false,
-	// only the chat endpoint is registered.
-	EnableMCP    bool
-	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
-	Telset       telemetry.Settings
-}
-
-// NewHandler constructs a jaegerai.Handler with a freshly-allocated
-// ContextualToolsStore and sessionStreams. basePath is normalized once so the
-// registered mux patterns use a single canonical prefix. When d.EnableMCP is
-// set, the session-scoped MCP handler is built from the supplied query service,
-// tenancy manager, and telemetry settings.
-func NewHandler(d Deps) *Handler {
-	basePath := normalizeBasePath(d.BasePath)
-	h := &Handler{
-		logger:             d.Logger,
-		store:              NewContextualToolsStore(),
-		streams:            newSessionStreams(),
-		agentURL:           d.AgentURL,
-		basePath:           basePath,
-		maxRequestBodySize: d.MaxRequestBodySize,
-	}
-	if d.EnableMCP {
-		mcpHandler := mcptools.NewHandler(d.Telset, d.QueryService, d.TenancyMgr, mcptools.DefaultConfig())
-		h.mcpHandler = &mcpSessionHandler{
-			telemetryHandler: mcpHandler,
-			streams:          h.streams,
-			basePath:         basePath,
-			logger:           d.Logger,
-		}
-	}
-	return h
 }
 
 // RegisterRoutes mounts the AI gateway endpoints on the provided mux:

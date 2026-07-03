@@ -15,8 +15,84 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
+
+// Handler is the entry point for the jaeger-query AI gateway. It owns the
+// per-turn contextual tools store, the session-stream registry, and the chat
+// handler, and registers them on the caller-provided mux (see RegisterRoutes in
+// routes.go).
+//
+// Callers construct a Handler once (in jaegerquery's Start path), then call
+// RegisterRoutes when wiring the HTTP mux. This mirrors the APIHandler /
+// HTTPGateway pattern used by sibling jaeger-query subsystems and keeps all
+// AI dependencies inside the jaegerai package.
+type Handler struct {
+	logger *zap.Logger
+	// store and streams are two per-session registries that are separate only
+	// during this transition, because they're keyed differently: store by the
+	// ACP session id (read by the ext-method tool-call dispatch), streams by the
+	// gateway-minted UUID in the session-scoped MCP URL — and there is no bridge
+	// between the two ids. Once UI tools are served over the MCP endpoint and the
+	// ext-method path is retired, they collapse into one session container keyed
+	// by the UUID.
+	store              *ContextualToolsStore
+	streams            *sessionStreams
+	agentURL           string
+	basePath           string
+	maxRequestBodySize int64
+	// mcpHandler serves the session-scoped MCP endpoint. Non-nil only when the
+	// operator enabled MCP (HandlerParams.EnableMCP); otherwise the endpoint is
+	// not mounted and the gateway advertises AI chat only.
+	mcpHandler http.Handler
+}
+
+// HandlerParams carries the dependencies for the AI gateway Handler. Grouping
+// them in a struct keeps the constructor readable as the gateway gains MCP
+// wiring (query service, tenancy, telemetry) on top of the chat parameters.
+type HandlerParams struct {
+	Logger             *zap.Logger
+	AgentURL           string
+	BasePath           string
+	MaxRequestBodySize int64
+	// EnableMCP mounts the session-scoped telemetry MCP endpoint. When false,
+	// only the chat endpoint is registered.
+	EnableMCP    bool
+	QueryService *querysvc.QueryService
+	TenancyMgr   *tenancy.Manager
+	Telset       telemetry.Settings
+}
+
+// NewHandler constructs a jaegerai.Handler with a freshly-allocated
+// ContextualToolsStore and sessionStreams. basePath is normalized once so the
+// registered mux patterns use a single canonical prefix. When p.EnableMCP is
+// set, the session-scoped MCP handler is built from the supplied query service,
+// tenancy manager, and telemetry settings.
+func NewHandler(p HandlerParams) *Handler {
+	basePath := normalizeBasePath(p.BasePath)
+	h := &Handler{
+		logger:             p.Logger,
+		store:              NewContextualToolsStore(),
+		streams:            newSessionStreams(),
+		agentURL:           p.AgentURL,
+		basePath:           basePath,
+		maxRequestBodySize: p.MaxRequestBodySize,
+	}
+	if p.EnableMCP {
+		mcpHandler := mcptools.NewHandler(p.Telset, p.QueryService, p.TenancyMgr, mcptools.DefaultConfig())
+		h.mcpHandler = &mcpSessionHandler{
+			telemetryHandler: mcpHandler,
+			streams:          h.streams,
+			basePath:         basePath,
+			logger:           p.Logger,
+		}
+	}
+	return h
+}
 
 // ChatRequest is the AG-UI payload accepted by the chat endpoint. It is the
 // AG-UI RunAgentInput shape — messages, tools, context, thread/run ids — so
