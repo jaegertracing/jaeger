@@ -100,6 +100,14 @@ func TestRecorderCapturesEmptyBody(t *testing.T) {
 	assert.Empty(t, rec.Requests())
 }
 
+func TestMarshalSortsRepeatedQueryValues(t *testing.T) {
+	// The same repeated param sent in different orders yields the same snapshot.
+	descending := []CapturedRequest{{Method: http.MethodGet, Path: "/x", Query: url.Values{"f": {"b", "a"}}}}
+	ascending := []CapturedRequest{{Method: http.MethodGet, Path: "/x", Query: url.Values{"f": {"a", "b"}}}}
+	assert.Equal(t, Marshal(t, ascending), Marshal(t, descending))
+	assert.Less(t, strings.Index(Marshal(t, descending), `"a"`), strings.Index(Marshal(t, descending), `"b"`))
+}
+
 func TestParseVariant(t *testing.T) {
 	const stem = "get_services"
 	tests := []struct {

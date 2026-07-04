@@ -157,7 +157,7 @@ func Marshal(t testing.TB, requests []CapturedRequest) string {
 
 func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	t.Helper()
-	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: r.Query}
+	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: canonicalQuery(r.Query)}
 	body := bytes.TrimRight(r.Body, "\n")
 	if len(body) == 0 {
 		return s
@@ -172,6 +172,22 @@ func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	require.NoErrorf(t, err, "request body is neither JSON nor NDJSON: %s", body)
 	s.NDJSON = docs
 	return s
+}
+
+// canonicalQuery returns a copy of q with each value slice sorted, so a repeated
+// query param yields a stable snapshot regardless of the order it was sent in.
+// (JSON marshaling already sorts the keys.)
+func canonicalQuery(q url.Values) url.Values {
+	if len(q) == 0 {
+		return nil
+	}
+	out := make(url.Values, len(q))
+	for key, values := range q {
+		sorted := slices.Clone(values)
+		slices.Sort(sorted)
+		out[key] = sorted
+	}
+	return out
 }
 
 func parseNDJSON(body []byte) ([]map[string]any, error) {
