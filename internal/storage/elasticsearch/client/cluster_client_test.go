@@ -298,5 +298,5 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	c := &ClusterClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
 	_, err := c.Version(context.Background())
 	require.NoError(t, err)
-	snapshottest.Assert(t, "testdata/version", snapshottest.Marshal(t, rec.Requests()))
+	rec.Assert(t, "testdata/version")
 }

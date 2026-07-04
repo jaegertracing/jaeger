@@ -175,7 +175,7 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 		}
 		_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 		require.NoError(t, err)
-		content[version] = snapshottest.Marshal(t, rec.Requests())
+		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/ilm_exists", content)
 }

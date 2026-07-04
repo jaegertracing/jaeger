@@ -197,18 +197,18 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		rec.Reset()
 		_, err := sos.getServices(ctx, []string{readIndex}, 10)
 		require.NoError(t, err)
-		getServices[version] = snapshottest.Marshal(t, rec.Requests())
+		getServices[version] = rec.Marshal(t)
 
 		rec.Reset()
 		_, err = sos.getOperations(ctx, []string{readIndex}, "test-service", 10)
 		require.NoError(t, err)
-		getOperations[version] = snapshottest.Marshal(t, rec.Requests())
+		getOperations[version] = rec.Marshal(t)
 
 		rec.Reset()
 		sos.Write(writeIndex, span)
 		require.NoError(t, client.Close()) // flushes the bulk request
 		clientClosed = true
-		writeService[version] = snapshottest.Marshal(t, rec.Requests())
+		writeService[version] = rec.Marshal(t)
 	}
 
 	snapshottest.AssertByVersion(t, "testdata/get_services", getServices)

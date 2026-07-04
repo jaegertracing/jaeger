@@ -126,6 +126,23 @@ func (rec *Recorder) Reset() {
 	rec.requests = nil
 }
 
+// Marshal renders the requests captured so far as a canonical snapshot string. It
+// is shorthand for Marshal(t, rec.Requests()), and is the value fed to Assert or
+// collected into an AssertByVersion map.
+func (rec *Recorder) Marshal(t testing.TB) string {
+	t.Helper()
+	return Marshal(t, rec.Requests())
+}
+
+// Assert marshals the captured requests and compares them against the single
+// all-versions snapshot "<prefix>.json" (see the package-level Assert). It is the
+// shortcut for the common case of one recorder producing one snapshot; the
+// by-version case marshals per version into a map for AssertByVersion instead.
+func (rec *Recorder) Assert(t testing.TB, prefix string) {
+	t.Helper()
+	Assert(t, prefix, rec.Marshal(t))
+}
+
 // snapshotRequest is the canonical, marshalable form of a CapturedRequest: the
 // body parsed to sorted-key JSON (or, for a newline-delimited _bulk/_msearch
 // body, to NDJSON documents). Marshaling sorts object keys, so the output is
