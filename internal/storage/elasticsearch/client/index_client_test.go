@@ -777,9 +777,9 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 			w.Write([]byte("{}"))
 		})
 		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
 		c := IndicesClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
-		server.Close()
 		content[version] = snapshottest.Marshal(t, rec.Requests())
 	}
 	snapshottest.AssertVersionedGoldens(t, "testdata/create_template", content)

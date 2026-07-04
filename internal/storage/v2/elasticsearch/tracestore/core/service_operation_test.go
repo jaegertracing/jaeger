@@ -180,7 +180,9 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 	for _, version := range es.AllVersions {
 		rec := dataRecorder()
 		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
 		client := newDataClient(t, server.URL, version)
+		t.Cleanup(func() { _ = client.Close() }) // idempotent; also flushed inline below
 		sos := NewServiceOperationStorage(func() es.Client { return client }, zap.NewNop(), 0)
 		ctx := context.Background()
 
@@ -198,8 +200,6 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		sos.Write(writeIndex, span)
 		require.NoError(t, client.Close()) // flushes the bulk request
 		writeService[version] = snapshottest.Marshal(t, rec.Requests())
-
-		server.Close()
 	}
 
 	snapshottest.AssertVersionedGoldens(t, "testdata/get_services", getServices)
