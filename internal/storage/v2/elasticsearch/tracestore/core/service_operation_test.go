@@ -131,7 +131,7 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 // TestServiceOperationRequestSnapshots freezes the exact wire format of the
 // service/operation read+write path over the current olivere client (RFC 0006
 // §7.3). Only ES6 differs (no rest_total_hits_as_int on searches; _type on
-// writes), so goldens collapse to es6 / es7-9 / os1-3.
+// writes), so snapshots collapse to es6 / es7-9 / os1-3.
 
 // newDataClient builds a real es.Client for the given backend version, pointed at
 // the recording server. Version is set explicitly so no ping is issued, and the

@@ -111,13 +111,13 @@ func TestMarshalSortsRepeatedQueryValues(t *testing.T) {
 func TestParseVariant(t *testing.T) {
 	const stem = "get_services"
 	tests := []struct {
-		name     string
-		agnostic bool
-		backend  string
-		lo, hi   int
-		ok       bool
+		name        string
+		allVersions bool
+		backend     string
+		lo, hi      int
+		ok          bool
 	}{
-		{name: "get_services.json", agnostic: true, ok: true},
+		{name: "get_services.json", allVersions: true, ok: true},
 		{name: "get_services.es6.json", backend: "es", lo: 6, hi: 6, ok: true},
 		{name: "get_services.es6-7.json", backend: "es", lo: 6, hi: 7, ok: true},
 		{name: "get_services.os1-3.json", backend: "os", lo: 1, hi: 3, ok: true},
@@ -130,7 +130,7 @@ func TestParseVariant(t *testing.T) {
 			v, ok := parseVariant(stem, tt.name)
 			assert.Equal(t, tt.ok, ok)
 			if ok {
-				assert.Equal(t, tt.agnostic, v.agnostic)
+				assert.Equal(t, tt.allVersions, v.allVersions)
 				assert.Equal(t, tt.backend, v.backend)
 				assert.Equal(t, tt.lo, v.lo)
 				assert.Equal(t, tt.hi, v.hi)
@@ -186,7 +186,7 @@ func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "REST\n", string(got))
 
-	// Assert mode passes against the freshly generated goldens.
+	// Assert mode passes against the freshly generated snapshots.
 	withRegenerate(t, false, func() {
 		AssertByVersion(t, prefix, content)
 	})
@@ -218,8 +218,8 @@ func TestAssert(t *testing.T) {
 	})
 	assert.ElementsMatch(t, []string{"alias_exists.json"}, listJSON(t, dir))
 
-	// The bare golden resolves for every version.
-	name, ok := resolveGolden(t, dir, "alias_exists", "os", 2)
+	// The bare snapshot resolves for every version.
+	name, ok := resolveSnapshot(t, dir, "alias_exists", "os", 2)
 	assert.True(t, ok)
 	assert.Equal(t, "alias_exists.json", name)
 
@@ -239,7 +239,7 @@ func TestFindOrphans(t *testing.T) {
 	used := map[string]bool{
 		"get_services.es6.json": true, "get_services.es7-9.json": true, "get_services.os1-3.json": true,
 	}
-	// os5 is an unclaimed get_services golden; get_operations/readme belong to other subjects.
+	// os5 is an unclaimed get_services snapshot; get_operations/readme belong to other subjects.
 	assert.Equal(t, []string{"get_services.os5.json"}, findOrphans(t, dir, "get_services", used))
 
 	used["get_services.os5.json"] = true

@@ -1,19 +1,19 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package snapshottest provides a request-wire-format snapshot ("golden")
-// harness for the Elasticsearch/OpenSearch clients, as described in RFC 0006
-// (Unified Elasticsearch/OpenSearch Client), milestone M1.
+// Package snapshottest provides a request-wire-format snapshot harness for the
+// Elasticsearch/OpenSearch clients, as described in RFC 0006 (Unified
+// Elasticsearch/OpenSearch Client), milestone M1.
 //
 // The harness records the exact HTTP request(s) an operation emits — method,
 // path, sorted query params, and canonicalized JSON body (or NDJSON for
-// _bulk/_msearch) — and compares them against committed golden files.
+// _bulk/_msearch) — and compares them against committed snapshot files.
 //
-// Golden files follow the §7.3 fixture taxonomy:
+// Snapshot files follow the §7.3 fixture taxonomy:
 //
 //	testdata/<subject>[.<backend><range>].json
 //
-// A request that is genuinely backend- and version-agnostic is stored as the
+// A request that is identical for all backends and versions is stored as the
 // bare "testdata/<subject>.json". A request that varies by backend/version is
 // stored per variant as "testdata/<subject>.<backend><range>.json", where
 // <backend> is "es" or "os" and <range> is a single major ("8") or an inclusive,
@@ -23,7 +23,7 @@
 // Callers pass the path stem (dir + subject, e.g. "testdata/get_services"); the
 // harness appends the ".json" / ".<backend><range>.json" tail.
 //
-// Golden files are regenerated (and range-collapsed) by running the tests with
+// Snapshot files are regenerated (and range-collapsed) by running the tests with
 // the REGENERATE_SNAPSHOTS environment variable set:
 //
 //	REGENERATE_SNAPSHOTS=true go test ./...
@@ -51,7 +51,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
-// Regenerate reports whether golden files should be rewritten from the observed
+// Regenerate reports whether snapshot files should be rewritten from the observed
 // requests instead of being asserted against. It is controlled by the
 // REGENERATE_SNAPSHOTS environment variable.
 var Regenerate = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
@@ -134,7 +134,7 @@ type snapshotRequest struct {
 }
 
 // Marshal renders captured requests as canonical, indented JSON. A single request
-// is rendered as an object; multiple requests as an array, so goldens stay clean
+// is rendered as an object; multiple requests as an array, so snapshots stay clean
 // for the common one-request case.
 func Marshal(t testing.TB, requests []CapturedRequest) string {
 	t.Helper()
@@ -207,16 +207,16 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 }
 
 // Assert compares content against the single snapshot "<prefix>.json", for a
-// request that is genuinely backend- and version-agnostic (§7.3). With
+// request that is identical for all backends and versions (§7.3). With
 // REGENERATE_SNAPSHOTS=true it (re)writes the file.
 func Assert(t testing.TB, prefix string, content string) {
 	t.Helper()
 	path := prefix + ".json"
 	if Regenerate {
 		require.NoError(t, os.MkdirAll(filepath.Dir(prefix), 0o755))
-		writeGolden(t, path, content)
+		writeSnapshot(t, path, content)
 	}
-	assertFileEquals(t, path, content, "agnostic")
+	assertFileEquals(t, path, content, "all versions")
 }
 
 // AssertByVersion compares each version's content against the snapshot files
@@ -234,9 +234,9 @@ func AssertByVersion(t testing.TB, prefix string, contentByVersion map[es.Backen
 	used := map[string]bool{}
 	for version, content := range contentByVersion {
 		backend, major := backendKey(version)
-		name, ok := resolveGolden(t, dir, stem, backend, major)
+		name, ok := resolveSnapshot(t, dir, stem, backend, major)
 		if !ok {
-			t.Errorf("no golden file for %s in %s covering %s%d; run REGENERATE_SNAPSHOTS=true to create it",
+			t.Errorf("no snapshot file for %s in %s covering %s%d; run REGENERATE_SNAPSHOTS=true to create it",
 				version, dir, backend, major)
 			continue
 		}
@@ -256,23 +256,23 @@ func splitPrefix(prefix string) (dir, stem string) {
 	return dir, stem
 }
 
-// assertNoOrphans fails if a golden file for this subject is never claimed by any
-// tested version — a committed golden that no version resolves to is dead weight
+// assertNoOrphans fails if a snapshot file for this subject is never claimed by any
+// tested version — a committed snapshot that no version resolves to is dead weight
 // and a sign the matrix drifted. Regeneration prunes such files, so this fires
-// only when a stale golden is committed by hand.
+// only when a stale snapshot is committed by hand.
 func assertNoOrphans(t testing.TB, dir, stem string, used map[string]bool) {
 	t.Helper()
 	for _, name := range findOrphans(t, dir, stem, used) {
-		t.Errorf("orphan golden %q in %s is never loaded by any tested version", name, dir)
+		t.Errorf("orphan snapshot %q in %s is never loaded by any tested version", name, dir)
 	}
 }
 
-// findOrphans returns this subject's golden files in dir not present in used,
+// findOrphans returns this subject's snapshot files in dir not present in used,
 // sorted.
 func findOrphans(t testing.TB, dir, stem string, used map[string]bool) []string {
 	t.Helper()
 	var orphans []string
-	for _, name := range subjectGoldens(t, dir, stem) {
+	for _, name := range subjectSnapshots(t, dir, stem) {
 		if !used[name] {
 			orphans = append(orphans, name)
 		}
@@ -281,11 +281,11 @@ func findOrphans(t testing.TB, dir, stem string, used map[string]bool) []string 
 	return orphans
 }
 
-// subjectGoldens lists the golden file names in dir that belong to stem.
-func subjectGoldens(t testing.TB, dir, stem string) []string {
+// subjectSnapshots lists the snapshot file names in dir that belong to stem.
+func subjectSnapshots(t testing.TB, dir, stem string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
-	require.NoError(t, err, "reading golden dir %s", dir)
+	require.NoError(t, err, "reading snapshot dir %s", dir)
 	var names []string
 	for _, e := range entries {
 		if _, ok := parseVariant(stem, e.Name()); ok {
@@ -297,33 +297,33 @@ func subjectGoldens(t testing.TB, dir, stem string) []string {
 
 var backendRangeRE = regexp.MustCompile(`^(es|os)(\d+)(?:-(\d+))?$`)
 
-// goldenVariant is a parsed golden filename for a subject stem: either the bare
-// agnostic file or a per-backend major range.
-type goldenVariant struct {
-	agnostic bool
-	backend  string
-	lo, hi   int
+// snapshotVariant is a parsed snapshot filename for a subject stem: either the bare
+// all-versions file or a per-backend major range.
+type snapshotVariant struct {
+	allVersions bool
+	backend     string
+	lo, hi      int
 }
 
-// parseVariant reports whether name is a golden file for stem and, if so, its
-// variant. It accepts "<stem>.json" (agnostic) and "<stem>.<backend><range>.json".
-func parseVariant(stem, name string) (goldenVariant, bool) {
+// parseVariant reports whether name is a snapshot file for stem and, if so, its
+// variant. It accepts "<stem>.json" (all versions) and "<stem>.<backend><range>.json".
+func parseVariant(stem, name string) (snapshotVariant, bool) {
 	if name == stem+".json" {
-		return goldenVariant{agnostic: true}, true
+		return snapshotVariant{allVersions: true}, true
 	}
 	rest, ok := strings.CutPrefix(name, stem+".")
 	if !ok {
-		return goldenVariant{}, false
+		return snapshotVariant{}, false
 	}
 	rest, ok = strings.CutSuffix(rest, ".json")
 	if !ok {
-		return goldenVariant{}, false
+		return snapshotVariant{}, false
 	}
 	m := backendRangeRE.FindStringSubmatch(rest)
 	if m == nil {
-		return goldenVariant{}, false
+		return snapshotVariant{}, false
 	}
-	v := goldenVariant{backend: m[1]}
+	v := snapshotVariant{backend: m[1]}
 	v.lo, _ = strconv.Atoi(m[2])
 	v.hi = v.lo
 	if m[3] != "" {
@@ -332,9 +332,9 @@ func parseVariant(stem, name string) (goldenVariant, bool) {
 	return v, true
 }
 
-// writeGolden stores content with exactly one trailing newline, so goldens are
+// writeSnapshot stores content with exactly one trailing newline, so snapshots are
 // byte-clean regardless of whether the content already ended in a newline.
-func writeGolden(t testing.TB, path, content string) {
+func writeSnapshot(t testing.TB, path, content string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(strings.TrimRight(content, "\n")+"\n"), 0o600))
 }
@@ -342,7 +342,7 @@ func writeGolden(t testing.TB, path, content string) {
 func assertFileEquals(t testing.TB, path, content, label string) {
 	t.Helper()
 	want, err := os.ReadFile(path)
-	require.NoError(t, err, "reading golden %s; run REGENERATE_SNAPSHOTS=true to create it", path)
+	require.NoError(t, err, "reading snapshot %s; run REGENERATE_SNAPSHOTS=true to create it", path)
 	assert.Equal(t, strings.TrimRight(string(want), "\n"), strings.TrimRight(content, "\n"),
 		"snapshot mismatch for %s (%s); run REGENERATE_SNAPSHOTS=true to update", label, path)
 }
@@ -356,14 +356,14 @@ func backendKey(v es.BackendVersion) (string, int) {
 	return "es", int(v)
 }
 
-// resolveGolden finds the golden file for stem in dir that applies to
-// (backend, major): the agnostic file if present, otherwise the unique variant
+// resolveSnapshot finds the snapshot file for stem in dir that applies to
+// (backend, major): the all-versions file if present, otherwise the unique variant
 // whose inclusive range contains major.
-func resolveGolden(t testing.TB, dir, stem, backend string, major int) (string, bool) {
+func resolveSnapshot(t testing.TB, dir, stem, backend string, major int) (string, bool) {
 	t.Helper()
-	names := subjectGoldens(t, dir, stem)
+	names := subjectSnapshots(t, dir, stem)
 	for _, name := range names {
-		if v, _ := parseVariant(stem, name); v.agnostic {
+		if v, _ := parseVariant(stem, name); v.allVersions {
 			return name, true
 		}
 	}
@@ -402,12 +402,12 @@ func regenerateVersioned(t testing.TB, dir, stem string, contentByVersion map[es
 				j++
 			}
 			name := variantFileName(stem, backend, entries[i].major, entries[j].major)
-			writeGolden(t, filepath.Join(dir, name), entries[i].content)
+			writeSnapshot(t, filepath.Join(dir, name), entries[i].content)
 			kept[name] = true
 			i = j + 1
 		}
 	}
-	pruneStaleGoldens(t, dir, stem, kept)
+	pruneStaleSnapshots(t, dir, stem, kept)
 }
 
 func variantFileName(stem, backend string, lo, hi int) string {
@@ -417,12 +417,12 @@ func variantFileName(stem, backend string, lo, hi int) string {
 	return fmt.Sprintf("%s.%s%d.json", stem, backend, lo)
 }
 
-// pruneStaleGoldens removes this subject's golden files that were not written
+// pruneStaleSnapshots removes this subject's snapshot files that were not written
 // this run (e.g. left over after majors were collapsed into a range, or an old
-// agnostic file). It never touches other subjects' or unrelated files.
-func pruneStaleGoldens(t testing.TB, dir, stem string, kept map[string]bool) {
+// all-versions file). It never touches other subjects' or unrelated files.
+func pruneStaleSnapshots(t testing.TB, dir, stem string, kept map[string]bool) {
 	t.Helper()
-	for _, name := range subjectGoldens(t, dir, stem) {
+	for _, name := range subjectSnapshots(t, dir, stem) {
 		if !kept[name] {
 			require.NoError(t, os.Remove(filepath.Join(dir, name)))
 		}
