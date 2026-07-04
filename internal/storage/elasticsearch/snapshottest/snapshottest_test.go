@@ -5,6 +5,8 @@ package snapshottest
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -244,6 +246,103 @@ func TestFindOrphans(t *testing.T) {
 
 	used["get_services.os5.json"] = true
 	assert.Empty(t, findOrphans(t, dir, "get_services", used))
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
+
+func TestRecorderBodyReadError(t *testing.T) {
+	rec := NewRecorder(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("respond must not run when the body cannot be read")
+	})
+	w := httptest.NewRecorder()
+	rec.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/_bulk", errReader{}))
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Empty(t, rec.Requests(), "a request that could not be read is not recorded")
+}
+
+func TestRecorderMarshalAndAssert(t *testing.T) {
+	rec := NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	server := httptest.NewServer(rec)
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL+"/_cluster/health", http.NoBody)
+	require.NoError(t, err)
+	resp, err := server.Client().Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	// The method form is shorthand for the package-level Marshal.
+	assert.Equal(t, Marshal(t, rec.Requests()), rec.Marshal(t))
+
+	dir := t.TempDir()
+	prefix := filepath.Join(dir, "cluster_health")
+	withRegenerate(t, true, func() { rec.Assert(t, prefix) })
+	assert.ElementsMatch(t, []string{"cluster_health.json"}, listJSON(t, dir))
+	withRegenerate(t, false, func() { rec.Assert(t, prefix) })
+}
+
+func TestMarshalMultipleRequests(t *testing.T) {
+	requests := []CapturedRequest{
+		{Method: http.MethodGet, Path: "/a"},
+		{Method: http.MethodGet, Path: "/b"},
+	}
+	// Multiple requests render as a JSON array so the ordering is preserved.
+	snapshot := Marshal(t, requests)
+	assert.True(t, strings.HasPrefix(snapshot, "["), snapshot)
+	assert.Less(t, strings.Index(snapshot, "/a"), strings.Index(snapshot, "/b"))
+}
+
+func TestParseNDJSONMalformed(t *testing.T) {
+	// The leading blank line is skipped; the malformed line surfaces the error.
+	_, err := parseNDJSON([]byte("\n{not json}"))
+	assert.Error(t, err)
+}
+
+func TestSplitPrefixDefaultsDir(t *testing.T) {
+	dir, stem := splitPrefix("version")
+	assert.Equal(t, ".", dir)
+	assert.Equal(t, "version", stem)
+}
+
+func TestResolveSnapshotNotFound(t *testing.T) {
+	name, ok := resolveSnapshot(t, t.TempDir(), "get_services", "es", 6)
+	assert.False(t, ok)
+	assert.Empty(t, name)
+}
+
+// recordingTB captures Error/Errorf instead of failing, so tests can exercise the
+// harness's own error-reporting branches. The embedded testing.TB (a real *T)
+// satisfies the interface and backs every other method.
+type recordingTB struct {
+	testing.TB
+	errors []string
+}
+
+func (r *recordingTB) Error(args ...any) { r.errors = append(r.errors, fmt.Sprint(args...)) }
+func (r *recordingTB) Errorf(format string, args ...any) {
+	r.errors = append(r.errors, fmt.Sprintf(format, args...))
+}
+
+func TestAssertByVersionReportsMissingSnapshot(t *testing.T) {
+	tb := &recordingTB{TB: t}
+	AssertByVersion(tb, filepath.Join(t.TempDir(), "get_services"),
+		map[es.BackendVersion]string{es.ElasticV7: "REST"})
+	require.Len(t, tb.errors, 1)
+	assert.Contains(t, tb.errors[0], "no snapshot file")
+}
+
+func TestAssertNoOrphansReports(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es6.json"), []byte("x\n"), 0o644))
+	tb := &recordingTB{TB: t}
+	assertNoOrphans(tb, dir, "get_services", map[string]bool{})
+	require.Len(t, tb.errors, 1)
+	assert.Contains(t, tb.errors[0], "orphan snapshot")
 }
 
 func withRegenerate(t *testing.T, value bool, fn func()) {
