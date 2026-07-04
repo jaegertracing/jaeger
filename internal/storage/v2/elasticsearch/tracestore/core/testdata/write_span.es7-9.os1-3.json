@@ -18,7 +18,7 @@
       "references": null,
       "spanID": "abcdef1234567890",
       "startTime": 1577934245000000,
-      "startTimeMillis": 0,
+      "startTimeMillis": 1577934245000,
       "tags": null,
       "traceID": "1234567890abcdef"
     }

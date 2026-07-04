@@ -505,13 +505,15 @@ func stringMatcher(q string) any {
 // tags the index action with _type; newer backends drop it.
 func TestWriterRequestSnapshots(t *testing.T) {
 	const writeIndex = "jaeger-span-write-000001"
+	const startMicros = 1577934245000000
 	span := &dbmodel.Span{
-		TraceID:       "1234567890abcdef",
-		SpanID:        "abcdef1234567890",
-		OperationName: "test-operation",
-		StartTime:     1577934245000000,
-		Duration:      1000,
-		Process:       dbmodel.Process{ServiceName: "test-service"},
+		TraceID:         "1234567890abcdef",
+		SpanID:          "abcdef1234567890",
+		OperationName:   "test-operation",
+		StartTime:       startMicros,
+		StartTimeMillis: startMicros / 1000, // derived from StartTime, per to_dbmodel.go
+		Duration:        1000,
+		Process:         dbmodel.Process{ServiceName: "test-service"},
 	}
 
 	writeSpan := map[es.BackendVersion]string{}
