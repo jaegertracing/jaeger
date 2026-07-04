@@ -84,11 +84,18 @@ func TestFactory(t *testing.T) {
 	}
 }
 
+func defaultSchemaParams(ttlSeconds int64) schemaTemplateParams {
+	return schemaTemplateParams{
+		TTLSeconds:                      ttlSeconds,
+		TraceIDBloomFilterFalsePositive: "0.0250",
+	}
+}
+
 func TestNewFactory_Errors(t *testing.T) {
-	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
+	createSpansTableQuery, err := loadTemplate("test", sql.CreateSpansTable, defaultSchemaParams(0))
 	require.NoError(t, err)
 
-	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
+	createTraceIDTsTableQuery, err := loadTemplate("test_ts", sql.CreateTraceIDTimestampsTable, defaultSchemaParams(0))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -446,28 +453,53 @@ func TestLoadTemplate(t *testing.T) {
 
 func TestCreateSpansTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 0})
+		queryWithoutTTL, err := loadTemplate("test_no_ttl", sql.CreateSpansTable, defaultSchemaParams(0))
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL start_time")
+		assert.Contains(t, queryWithoutTTL, "bloom_filter(0.0250)")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, schemaTemplateParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl", sql.CreateSpansTable, defaultSchemaParams(86400))
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL start_time + INTERVAL 86400 SECOND DELETE")
+	})
+
+	t.Run("with custom bloom filter false positive", func(t *testing.T) {
+		params := schemaTemplateParams{
+			TTLSeconds:                      0,
+			TraceIDBloomFilterFalsePositive: "0.0001",
+		}
+		query, err := loadTemplate("test_bloom", sql.CreateSpansTable, params)
+		require.NoError(t, err)
+		assert.Contains(t, query, "bloom_filter(0.0001)")
 	})
 }
 
 func TestCreateTraceIDTimestampsTableTemplate(t *testing.T) {
 	t.Run("without TTL", func(t *testing.T) {
-		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 0})
+		queryWithoutTTL, err := loadTemplate("test_no_ttl_trace", sql.CreateTraceIDTimestampsTable, defaultSchemaParams(0))
 		require.NoError(t, err)
 		assert.NotContains(t, queryWithoutTTL, "TTL end")
 	})
 
 	t.Run("with TTL", func(t *testing.T) {
-		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, schemaTemplateParams{TTLSeconds: 86400})
+		queryWithTTL, err := loadTemplate("test_ttl_trace", sql.CreateTraceIDTimestampsTable, defaultSchemaParams(86400))
 		require.NoError(t, err)
 		assert.Contains(t, queryWithTTL, "TTL end + INTERVAL 86400 SECOND DELETE")
+	})
+}
+
+func TestSchemaParams(t *testing.T) {
+	t.Run("default bloom filter", func(t *testing.T) {
+		params := schemaParams(Configuration{})
+		assert.Equal(t, "0.0250", params.TraceIDBloomFilterFalsePositive)
+		assert.Equal(t, int64(0), params.TTLSeconds)
+	})
+
+	t.Run("custom bloom filter", func(t *testing.T) {
+		fp := 0.0001
+		params := schemaParams(Configuration{TraceIDBloomFilterFalsePositive: &fp})
+		assert.Equal(t, "0.0001", params.TraceIDBloomFilterFalsePositive)
 	})
 }

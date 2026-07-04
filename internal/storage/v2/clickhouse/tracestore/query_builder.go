@@ -6,10 +6,12 @@ package tracestore
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/xpdata"
 
@@ -113,13 +115,25 @@ func buildGetTracesQuery(params tracestore.GetTraceParams) (string, []any) {
 	return q.String(), args
 }
 
-func buildFindTracesQuery(traceIDsQuery string) string {
-	inner := indentBlock("SELECT trace_id FROM (\n" + indentBlock(strings.TrimSpace(traceIDsQuery)) + "\n)")
-	base := strings.TrimRight(sql.SelectSpansQuery, "\n")
-	return base + "\nWHERE s.trace_id IN (\n" + inner + "\n)\nORDER BY s.trace_id"
+// buildFindTracesByIDsQuery builds a query that fetches all spans for the given
+// trace IDs. It uses a single Array parameter rather than individual placeholders
+// so the query stays within ClickHouse's max_query_size at MaxSearchDepth.
+func buildFindTracesByIDsQuery(traceIDs []string) (string, []any, error) {
+	if len(traceIDs) == 0 {
+		return "", nil, errors.New("no trace IDs provided")
+	}
+
+	var q strings.Builder
+	q.WriteString(strings.TrimRight(sql.SelectSpansQuery, "\n"))
+	q.WriteString("\nWHERE s.trace_id IN {trace_ids:Array(String)}\nORDER BY s.trace_id")
+
+	return q.String(), []any{clickhouse.Named("trace_ids", traceIDs)}, nil
 }
 
-func (r *Reader) buildFindTraceIDsQuery(
+// buildDistinctTraceIDsQuery builds the core ID-only search query used by FindTraces.
+// It applies the same filters and LIMIT as FindTraceIDs but does not join
+// trace_id_timestamps, since FindTraces only needs the trace ID strings.
+func (r *Reader) buildDistinctTraceIDsQuery(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
 ) (string, []any, error) {
@@ -131,33 +145,32 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, fmt.Errorf("search depth %d exceeds maximum allowed %d", limit, r.config.MaxSearchDepth)
 	}
 
-	// Build the inner subquery that finds distinct trace IDs from spans.
-	var inner strings.Builder
-	inner.WriteString(sql.SearchTraceIDsBase)
+	var q strings.Builder
+	q.WriteString(sql.SearchTraceIDsBase)
 	args := []any{}
 
 	if query.ServiceName != "" {
-		appendAnd(&inner, "s.service_name = ?")
+		appendAnd(&q, "s.service_name = ?")
 		args = append(args, query.ServiceName)
 	}
 	if query.OperationName != "" {
-		appendAnd(&inner, "s.name = ?")
+		appendAnd(&q, "s.name = ?")
 		args = append(args, query.OperationName)
 	}
 	if query.DurationMin > 0 {
-		appendAnd(&inner, "s.duration >= ?")
+		appendAnd(&q, "s.duration >= ?")
 		args = append(args, query.DurationMin.Nanoseconds())
 	}
 	if query.DurationMax > 0 {
-		appendAnd(&inner, "s.duration <= ?")
+		appendAnd(&q, "s.duration <= ?")
 		args = append(args, query.DurationMax.Nanoseconds())
 	}
 	if !query.StartTimeMin.IsZero() {
-		appendAnd(&inner, "s.start_time >= ?")
+		appendAnd(&q, "s.start_time >= ?")
 		args = append(args, query.StartTimeMin)
 	}
 	if !query.StartTimeMax.IsZero() {
-		appendAnd(&inner, "s.start_time <= ?")
+		appendAnd(&q, "s.start_time <= ?")
 		args = append(args, query.StartTimeMax)
 	}
 
@@ -166,17 +179,29 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 	}
 
-	args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
+	args, err = buildAttributeConditions(&q, args, query.Attributes, attributeMetadata)
 	if err != nil {
 		return "", nil, err
 	}
 
-	inner.WriteString("\nLIMIT ?")
+	q.WriteString("\nLIMIT ?")
 	args = append(args, limit)
+
+	return q.String(), args, nil
+}
+
+func (r *Reader) buildFindTraceIDsQuery(
+	ctx context.Context,
+	query tracestore.TraceQueryParams,
+) (string, []any, error) {
+	inner, args, err := r.buildDistinctTraceIDsQuery(ctx, query)
+	if err != nil {
+		return "", nil, err
+	}
 
 	// Wrap the inner subquery with a JOIN to trace_id_timestamps
 	// to retrieve start/end times only for the limited set of trace IDs.
-	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner.String()))
+	q := fmt.Sprintf(sql.SearchTraceIDs, indentBlock(inner))
 
 	return q, args, nil
 }

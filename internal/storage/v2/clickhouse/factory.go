@@ -47,7 +47,20 @@ var (
 )
 
 type schemaTemplateParams struct {
-	TTLSeconds int64
+	TTLSeconds                      int64
+	TraceIDBloomFilterFalsePositive string
+}
+
+func schemaParams(cfg Configuration) schemaTemplateParams {
+	fp := cfg.TraceIDBloomFilterFalsePositive
+	if fp == nil {
+		v := defaultTraceIDBloomFilterFalsePositive
+		fp = &v
+	}
+	return schemaTemplateParams{
+		TTLSeconds:                      int64(cfg.TTL / time.Second),
+		TraceIDBloomFilterFalsePositive: fmt.Sprintf("%.4f", *fp),
+	}
 }
 
 type schemaStatement struct {
@@ -60,10 +73,12 @@ type schemaBuilder struct {
 }
 
 func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
+	params := schemaParams(cfg)
+
 	createSpansTableQuery, err := loadTemplate(
 		"create_spans_table",
 		sql.CreateSpansTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+		params,
 	)
 	if err != nil {
 		return nil, err
@@ -72,7 +87,7 @@ func newSchemaBuilder(cfg Configuration) (*schemaBuilder, error) {
 	createTraceIDTsTableQuery, err := loadTemplate(
 		"create_trace_id_timestamps_table",
 		sql.CreateTraceIDTimestampsTable,
-		schemaTemplateParams{TTLSeconds: int64(cfg.TTL / time.Second)},
+		params,
 	)
 	if err != nil {
 		return nil, err

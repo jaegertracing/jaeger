@@ -171,13 +171,34 @@ func (r *Reader) FindTraces(
 	query tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traceIDsQuery, args, err := r.buildFindTraceIDsQuery(ctx, query)
+		// Phase 1: find candidate trace IDs with LIMIT applied on the
+		// search-optimized path. Running this as a separate query avoids
+		// nesting LIMIT inside an IN subquery that ClickHouse does not
+		// short-circuit.
+		traceIDsQuery, args, err := r.buildDistinctTraceIDsQuery(ctx, query)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to build query: %w", err))
 			return
 		}
 
-		rows, err := r.conn.Query(ctx, buildFindTracesQuery(traceIDsQuery), args...)
+		traceIDs, err := r.fetchTraceIDs(ctx, traceIDsQuery, args)
+		if err != nil {
+			yield(nil, fmt.Errorf("failed to find trace IDs: %w", err))
+			return
+		}
+		if len(traceIDs) == 0 {
+			return
+		}
+
+		// Phase 2: fetch all spans for the concrete set of trace IDs so
+		// the bloom_filter skip index on trace_id can skip granules.
+		spansQuery, spansArgs, err := buildFindTracesByIDsQuery(traceIDs)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		rows, err := r.conn.Query(ctx, spansQuery, spansArgs...)
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to query traces: %w", err))
 			return
@@ -206,6 +227,39 @@ func (r *Reader) FindTraces(
 			yield(nil, err)
 		}
 	}
+}
+
+// fetchTraceIDs executes an ID-only query and returns the trace ID strings.
+// It is used only by FindTraces; FindTraceIDs still needs the full
+// trace_id_timestamps join and therefore keeps its own scan loop.
+func (r *Reader) fetchTraceIDs(ctx context.Context, query string, args []any) ([]string, error) {
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query trace IDs: %w", err)
+	}
+
+	var (
+		traceIDs []string
+		errs     []error
+	)
+	for rows.Next() {
+		var traceIDHex string
+		if err := rows.Scan(&traceIDHex); err != nil {
+			errs = append(errs, fmt.Errorf("failed to scan row: %w", err))
+			break
+		}
+		traceIDs = append(traceIDs, traceIDHex)
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		errs = append(errs, fmt.Errorf("failed to read trace ID rows: %w", rowsErr))
+	}
+	if closeErr := rows.Close(); closeErr != nil {
+		errs = append(errs, fmt.Errorf("failed to close rows: %w", closeErr))
+	}
+	if err := errors.Join(errs...); err != nil {
+		return nil, err
+	}
+	return traceIDs, nil
 }
 
 func readRowIntoTraceID(rows driver.Rows) ([]tracestore.FoundTraceID, error) {

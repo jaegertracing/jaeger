@@ -96,6 +96,71 @@ func TestConfigurationApplyDefaults(t *testing.T) {
 	require.Equal(t, defaultMaxSearchDepth, config.MaxSearchDepth)
 	require.Equal(t, defaultAttributeMetadataCacheTTL, config.AttributeMetadataCacheTTL)
 	require.Equal(t, defaultAttributeMetadataCacheMaxSize, config.AttributeMetadataCacheMaxSize)
+	require.NotNil(t, config.TraceIDBloomFilterFalsePositive)
+	require.InDelta(t, defaultTraceIDBloomFilterFalsePositive, *config.TraceIDBloomFilterFalsePositive, 1e-9)
+}
+
+func TestConfiguration_BloomFilterValidation(t *testing.T) {
+	defaultFP := defaultTraceIDBloomFilterFalsePositive
+	validFP := 0.0001
+	tooLow := 1e-8
+	tooHigh := 0.2
+	zero := 0.0
+	one := 1.0
+
+	tests := []struct {
+		name     string
+		fp       *float64
+		errorMsg string
+	}{
+		{
+			name: "nil is valid (default applied later)",
+			fp:   nil,
+		},
+		{
+			name: "default value is valid",
+			fp:   &defaultFP,
+		},
+		{
+			name: "recommended high-scale value is valid",
+			fp:   &validFP,
+		},
+		{
+			name:     "zero is invalid",
+			fp:       &zero,
+			errorMsg: "trace_id_bloom_filter_false_positive must be between 0 and 1",
+		},
+		{
+			name:     "one is invalid",
+			fp:       &one,
+			errorMsg: "trace_id_bloom_filter_false_positive must be between 0 and 1",
+		},
+		{
+			name:     "below operational minimum is invalid",
+			fp:       &tooLow,
+			errorMsg: "trace_id_bloom_filter_false_positive must be between",
+		},
+		{
+			name:     "above operational maximum is invalid",
+			fp:       &tooHigh,
+			errorMsg: "trace_id_bloom_filter_false_positive must be between",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Configuration{
+				Addresses:                       []string{"localhost:9000"},
+				TraceIDBloomFilterFalsePositive: tt.fp,
+			}
+			err := cfg.Validate()
+			if tt.errorMsg != "" {
+				require.ErrorContains(t, err, tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestConfiguration_TLS(t *testing.T) {

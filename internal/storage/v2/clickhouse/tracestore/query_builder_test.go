@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -189,4 +190,54 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	assert.Contains(t, query, "OR")
 	assert.Contains(t, query, "str_attributes")
 	assert.Len(t, args, 4)
+}
+
+func TestBuildFindTracesByIDsQuery(t *testing.T) {
+	t.Run("empty input returns error", func(t *testing.T) {
+		_, _, err := buildFindTracesByIDsQuery(nil)
+		require.ErrorContains(t, err, "no trace IDs provided")
+
+		_, _, err = buildFindTracesByIDsQuery([]string{})
+		require.ErrorContains(t, err, "no trace IDs provided")
+	})
+
+	t.Run("uses Array parameter", func(t *testing.T) {
+		traceIDs := []string{traceIDHex1, traceIDHex2}
+		query, args, err := buildFindTracesByIDsQuery(traceIDs)
+		require.NoError(t, err)
+		assert.Contains(t, query, "WHERE s.trace_id IN {trace_ids:Array(String)}")
+		assert.Contains(t, query, "ORDER BY s.trace_id")
+		assert.True(t, strings.HasPrefix(strings.TrimSpace(query), strings.TrimSpace(sql.SelectSpansQuery)))
+		require.Len(t, args, 1)
+		assert.Equal(t, clickhouse.Named("trace_ids", traceIDs), args[0])
+	})
+}
+
+func TestBuildDistinctTraceIDsQuery(t *testing.T) {
+	reader := NewReader(&clickhousetest.Driver{}, testReaderConfig)
+	query, args, err := reader.buildDistinctTraceIDsQuery(t.Context(), tracestore.TraceQueryParams{
+		ServiceName:   "serviceA",
+		OperationName: "operationA",
+		DurationMin:   1 * time.Nanosecond,
+		DurationMax:   1 * time.Second,
+		StartTimeMin:  now.Add(-1 * time.Hour),
+		StartTimeMax:  now,
+		Attributes:    pcommon.NewMap(),
+		SearchDepth:   5,
+	})
+	require.NoError(t, err)
+	assert.Contains(t, query, sql.SearchTraceIDsBase)
+	assert.Contains(t, query, "s.service_name = ?")
+	assert.Contains(t, query, "s.name = ?")
+	assert.Contains(t, query, "LIMIT ?")
+	assert.NotContains(t, query, "trace_id_timestamps")
+	assert.Equal(t, []any{
+		"serviceA",
+		"operationA",
+		int64(1),
+		int64(time.Second),
+		now.Add(-1 * time.Hour),
+		now,
+		5,
+	}, args)
 }
