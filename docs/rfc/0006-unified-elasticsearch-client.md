@@ -103,7 +103,7 @@ The realistic total surface is **small and REST-shaped** — a strong signal tha
 
 - **G1.** One client for both data plane and control plane, meaning **one shared low-level transport and one version-detection path** — the horizontal concerns are not duplicated. Payload APIs may be one struct or several cohesive structs composed over that shared transport (a free choice; §6.1). Callers see **small, focused role interfaces** (`Searcher`, `BulkWriter`, `IndexManager`, `LifecycleManager`, …) — segregated interfaces are explicitly wanted (easier to mock, no coupling to unused methods), a fat interface is not.
 - **G2.** Compatible with both Elasticsearch and OpenSearch **without leaking backend differences to callers.** ILM-vs-ISM, `_template`-vs-`_index_template`, typed-vs-untyped indices are resolved *inside* the client.
-- **G3.** Preserve the current single-binary version matrix: **Elasticsearch 7/8/9 and OpenSearch 1/2/3** from one build. Do not regress supported backends (§4, §6).
+- **G3.** Preserve the current single-binary version matrix: **Elasticsearch 6/7/8/9 and OpenSearch 1/2/3** from one build (ES 6 is EOL but still modeled by `BackendVersion` and exercised in CI — see §7.1). Do not regress supported backends (§4, §6).
 - **G4.** Unblock the bugs `olivere` cannot fix: bounded bulk memory (#2192), universal `custom_headers` (#8916), correct SigV4 body signing (#8760).
 - **G5.** Remove `olivere` and the duplicated version/operation logic.
 - **G6.** A testing model that makes the emitted wire format explicit and regression-sensitive (§7).
@@ -158,7 +158,7 @@ There is **no** "works with both" official Go client. Real-world patterns: **pla
 
 | # | Criterion | 🟢 means |
 |---|---|---|
-| K1 | **Backend coverage** | ES 7/8/9 **and** OS 1/2/3 all reachable from one binary |
+| K1 | **Backend coverage** | ES 6/7/8/9 **and** OS 1/2/3 all reachable from one binary |
 | K2 | **Future-version resilience** | a new ES/OS release "just works" without a client upgrade or code change |
 | K3 | **No caller leakage (G2)** | callers see one Jaeger-concept API; ILM/ISM, template, typed-index differences hidden |
 | K4 | **Single client / low duplication (G1)** | one code path, one transport, one version-detection; no per-backend fork |
@@ -203,16 +203,16 @@ Note K8 is deliberately included as the axis where the recommended option scores
 
 The matrix's K1/K2 rows summarize this per-version reachability table:
 
-| Approach | ES 7 | ES 8 | ES 9 | OS 1 | OS 2 | OS 3 | One binary? |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Baseline (`olivere`) | ✔ | ✔¹ | ✔¹ | ✔ | ✔ | ✔ | ✔ |
-| **A: owned client** | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
-| B: two SDKs | ✔² | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ (2+ deps) |
-| C1: go-es forged | ✔³ | ✔ | ✔ | ⚠ forge | ⚠ forge | ⚠ forge | ✔ |
-| C2: opensearch-go | ✔ (OSS 7.10) | ✘ | ✘ | ✔ | ✔ | ✔ | ✔ |
-| Typed go-es as-is | ✘ (v9) | v8 only | ✔ | ✘ | ✘ | ✘ | ✘ |
+| Approach | ES 6 | ES 7 | ES 8 | ES 9 | OS 1 | OS 2 | OS 3 | One binary? |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| Baseline (`olivere`) | ✔ | ✔ | ✔¹ | ✔¹ | ✔ | ✔ | ✔ | ✔ |
+| **A: owned client** | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
+| B: two SDKs | ⚠⁴ | ✔² | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ (2+ deps) |
+| C1: go-es forged | ✘ | ✔³ | ✔ | ✔ | ⚠ forge | ⚠ forge | ⚠ forge | ✔ |
+| C2: opensearch-go | ✘ | ✔ (OSS 7.10) | ✘ | ✘ | ✔ | ✔ | ✔ | ✔ |
+| Typed go-es as-is | ✘ | ✘ (v9) | v8 only | ✔ | ✘ | ✘ | ✘ | ✘ |
 
-¹ `olivere` reaches ES 8/9 for the REST subset Jaeger uses because it doesn't gate on version; the one composable-template gap is why `go-elasticsearch/v9` was bolted on. ² needs `go-elasticsearch/v7` too. ³ requires stripping the compat header.
+¹ `olivere` reaches ES 8/9 for the REST subset Jaeger uses because it doesn't gate on version; the one composable-template gap is why `go-elasticsearch/v9` was bolted on. ² needs `go-elasticsearch/v7` too. ³ requires stripping the compat header. ⁴ B would additionally need the EOL `go-elasticsearch/v6` module.
 
 **Only Option A is green across coverage, resilience, leakage, single-client, and bugs simultaneously** — which is why §6 adopts it.
 
