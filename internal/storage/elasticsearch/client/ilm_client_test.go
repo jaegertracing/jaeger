@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
 func TestExists(t *testing.T) {
@@ -157,4 +160,22 @@ func TestExists_Retries(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, result)
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")
+}
+
+// TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
+// policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
+func TestLifecycleExistsRequestSnapshot(t *testing.T) {
+	content := map[es.BackendVersion]string{}
+	for _, version := range es.AllVersions {
+		rec, url := okServer(t)
+		c := ILMClient{
+			Client:           Client{Client: http.DefaultClient, Endpoint: url},
+			Logger:           zap.NewNop(),
+			UseOpenSearchISM: version.IsOpenSearch(),
+		}
+		_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
+		require.NoError(t, err)
+		content[version] = rec.Marshal(t)
+	}
+	snapshottest.AssertByVersion(t, "testdata/ilm_exists", content)
 }
