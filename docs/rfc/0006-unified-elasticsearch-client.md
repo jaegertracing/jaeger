@@ -42,9 +42,9 @@ There is no architectural reason for these to be different clients. They point a
 
 The "data plane never manages indices" premise is false today:
 
-- `factory.go:76` calls `createTemplates(ctx)` at startup — via the **data-plane** client.
-- `factory.go:157` creates the sampling index template — data-plane client.
-- `factory.go:190` (`Purge`) issues `DeleteIndex("*")` — data-plane client.
+- the factory's `createTemplates` runs at startup — via the **data-plane** client.
+- `CreateSamplingStore` (in the factory) creates the sampling index template — data-plane client.
+- `Purge` (in the factory) issues `DeleteIndex("*")` — data-plane client.
 
 Meanwhile the same logical operations exist on the control-plane client (`index_client.go`). `CreateTemplate` is implemented **three times**: `olivere` legacy `_template`, `go-elasticsearch/v9` composable `_index_template` (in the data-plane wrapper), and a raw-HTTP version-gated variant (in the control-plane client). Version gating (`UsesV8API`, `SupportsTypedIndices`, `DetectBackendVersion`) is duplicated on both sides and can drift.
 
@@ -374,7 +374,7 @@ The work decomposes into small, independently-shippable milestones — each one 
 **Stage A — Foundation (no behavior change)**
 - **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot per supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
 - **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
-- **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (reusing `GetHTTPRoundTripper`) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap at `actions.go:19` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
+- **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (reusing `GetHTTPRoundTripper`) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
 - **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
 
 **Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
