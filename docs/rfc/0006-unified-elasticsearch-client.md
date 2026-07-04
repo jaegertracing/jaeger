@@ -306,20 +306,20 @@ The current tests do not give us the confidence a driver swap requires, and this
 - **Control-plane tests — genuinely valuable.** `client/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
 - **Integration matrix — the real safety net.** `internal/storage/integration/*` drives a live cluster across **ES 6–9 and OpenSearch 1–3** via docker-compose + CI. This is the only layer that validates query semantics, mappings, and ILM/rollover against a real backend.
 
-### 7.2 What we adopt: snapshot (golden) testing of the wire format
+### 7.2 What we adopt: snapshot testing of the wire format
 
 The migration *is* a change to the code that serializes queries. So pin the wire contract:
 
-- For each storage operation, point the client at a recording `httptest.Server` and snapshot the exact **`{method, path, sorted query params, canonicalized JSON body}`** to a committed `testdata/*.json` golden. NDJSON (`_bulk`/`_msearch`) handled as multi-doc; timestamps via injected fixed clock; JSON canonicalized (sorted keys) for determinism.
+- For each storage operation, point the client at a recording `httptest.Server` and snapshot the exact **`{method, path, sorted query params, canonicalized JSON body}`** to a committed `testdata/*.json` snapshot. NDJSON (`_bulk`/`_msearch`) handled as multi-doc; timestamps via injected fixed clock; JSON canonicalized (sorted keys) for determinism.
 - **Property:** after swapping `olivere` → owned client, a **green snapshot diff means the change is behavior-preserving on the wire.** Every diff is exactly the bytes that changed — reviewable in the PR.
-- **Backend divergence becomes reviewable:** parameterize by backend/version so ES and OS emit separate goldens (`testdata/find_trace_ids.es8.json`, `testdata/find_trace_ids.os1-2.json` — naming per §7.3). ILM-vs-ISM, template-endpoint, typed-index differences appear as concrete diffs instead of hidden branches — directly serving G2's "no leakage" as an auditable artifact.
-- **Precedent — closest to home: index mappings.** `internal/storage/v1/elasticsearch/mappings/` already does exactly this for ES payloads: it renders each template and asserts it against committed golden fixtures **parameterized by backend × version** — `fixtures/jaeger-{span,service,dependencies,sampling}-{6,7,8}.json` for Elasticsearch, plus a separate `TestMappingBuilderGetMapping_OpenSearch` for `OpenSearch1/2` (`mapping_test.go`). That is the same "one golden per backend/version, full-JSON compare" model this section proposes, just applied to *mapping* JSON rather than *request* JSON — so the pattern is proven and idiomatic here, not new. (Other in-repo golden users: metricstore responses, apiv3 gateway.)
+- **Backend divergence becomes reviewable:** parameterize by backend/version so ES and OS emit separate snapshots (`testdata/find_trace_ids.es8.json`, `testdata/find_trace_ids.os1-2.json` — naming per §7.3). ILM-vs-ISM, template-endpoint, typed-index differences appear as concrete diffs instead of hidden branches — directly serving G2's "no leakage" as an auditable artifact.
+- **Precedent — closest to home: index mappings.** `internal/storage/v1/elasticsearch/mappings/` already does exactly this for ES payloads: it renders each template and asserts it against committed snapshot fixtures **parameterized by backend × version** — `fixtures/jaeger-{span,service,dependencies,sampling}-{6,7,8}.json` for Elasticsearch, plus a separate `TestMappingBuilderGetMapping_OpenSearch` for `OpenSearch1/2` (`mapping_test.go`). That is the same "one snapshot per backend/version, full-JSON compare" model this section proposes, just applied to *mapping* JSON rather than *request* JSON — so the pattern is proven and idiomatic here, not new. (Other in-repo snapshot users: metricstore responses, apiv3 gateway.)
 
-**Caveats (stated honestly):** snapshots assert what we *send*, not that the server accepts it or returns correct results — they are **complementary to**, not a replacement for, the integration matrix (the authority on semantics/version behavior). The `-update` regeneration flow needs review discipline: a wrong query change is easy to rubber-stamp when the tool rewrites the golden. That is the one real risk and reviewers must diff goldens deliberately.
+**Caveats (stated honestly):** snapshots assert what we *send*, not that the server accepts it or returns correct results — they are **complementary to**, not a replacement for, the integration matrix (the authority on semantics/version behavior). The `-update` regeneration flow needs review discipline: a wrong query change is easy to rubber-stamp when the tool rewrites the snapshot. That is the one real risk and reviewers must diff snapshots deliberately.
 
-### 7.3 Fixture naming taxonomy (converge all goldens)
+### 7.3 Fixture naming taxonomy (converge all snapshots)
 
-Two problems with today's goldens: the ES fixtures use an ad-hoc scheme (`jaeger-span-7.json`), and — worse — **version overlap lives in code, not in the names**. When ES 6 and ES 7 share a mapping, the fixtures don't say so; a `v <= 7` branch does. Which versions share a snapshot is invisible from `ls`. As part of this refactor, converge **every** ES/OS golden — the migrated mapping fixtures *and* the new request snapshots — on one scheme.
+Two problems with today's snapshots: the ES fixtures use an ad-hoc scheme (`jaeger-span-7.json`), and — worse — **version overlap lives in code, not in the names**. When ES 6 and ES 7 share a mapping, the fixtures don't say so; a `v <= 7` branch does. Which versions share a snapshot is invisible from `ls`. As part of this refactor, converge **every** ES/OS snapshot — the migrated mapping fixtures *and* the new request snapshots — on one scheme.
 
 **Pattern:**
 
@@ -327,20 +327,20 @@ Two problems with today's goldens: the ES fixtures use an ad-hoc scheme (`jaeger
 testdata/<subject>[.<backend><range>].json
 ```
 
-- `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping golden under `mappings/testdata/` is `dependencies.es6.json`, not `mapping/dependencies.es6.json`.
-- **The variant tail is omitted when the request is genuinely backend- and version-agnostic:** the golden is the bare `<subject>.json`.
-- **Otherwise a `.<backend><range>` tail distinguishes the per-backend goldens:**
+- `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping snapshot under `mappings/testdata/` is `dependencies.es6.json`, not `mapping/dependencies.es6.json`.
+- **The variant tail is omitted when the request is identical for all backends and versions:** the snapshot is the bare `<subject>.json`.
+- **Otherwise a `.<backend><range>` tail distinguishes the per-backend snapshots:**
   - `<backend>` — `es` or `os`.
   - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) when consecutive versions emit byte-identical output.
 
-Examples: `testdata/alias_exists.json` (agnostic), `testdata/create_template.es6-7.json`, `testdata/get_services.es6.json`, `testdata/find_trace_ids.os1-2.json`, `testdata/span.es8-9.json`.
+Examples: `testdata/alias_exists.json` (all versions), `testdata/create_template.es6-7.json`, `testdata/get_services.es6.json`, `testdata/find_trace_ids.os1-2.json`, `testdata/span.es8-9.json`.
 
 **Rules:**
 
 - **Ranges are inclusive, non-overlapping within a backend, and must cover every supported major.** A resolver maps `(backend, major) → the unique file whose range contains it`; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "do ES 6 and ES 7 differ for this operation?" is answered by `ls testdata/`.
 - **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if output equals an adjacent range, **extend the range in the filename** (`.es8.json` → `.es8-9.json`); if it differs, add `.es9.json`. Coverage is always visible in the diff.
-- **Backends stay separate** even when ES and OS emit identical bytes (no cross-`es`/`os` merge) — the generator may *flag* byte-identical cross-backend goldens as an FYI, but explicit files keep resolution unambiguous.
-- **The bare `<subject>.json` is reserved for requests that structurally cannot vary by backend or version** — e.g. admin REST calls like `HEAD /_alias/{name}` whose client code has no backend/version branch at all. This is common in the admin plane and rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest: a golden either carries a `.<backend><range>` tail or it is making the explicit claim "this request is byte-identical on every backend."
+- **Backends stay separate** even when ES and OS emit identical bytes (no cross-`es`/`os` merge) — the generator may *flag* byte-identical cross-backend snapshots as an FYI, but explicit files keep resolution unambiguous.
+- **The bare `<subject>.json` is reserved for requests that structurally cannot vary by backend or version** — e.g. admin REST calls like `HEAD /_alias/{name}` whose client code has no backend/version branch at all. This is common in the admin plane and rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest: a snapshot either carries a `.<backend><range>` tail or it is making the explicit claim "this request is byte-identical on every backend."
 
 The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots, and converging the existing `jaeger-*-{6,7,8}.json` files onto it will also surface any accidental duplication (identical `-6`/`-7` files collapse to `.es6-7`). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
 
@@ -348,18 +348,18 @@ The payoff: **the fixture tree *is* the compatibility matrix.** One convention s
 
 Snapshots and mocks are not competitors; they answer different questions, and using the wrong one makes tests verbose *and* less clear. **The subject of the test picks the tool:**
 
-- **Assert the wire format → snapshot.** When the test *is about* the serialized request — query DSL structure, aggregation shape, op-type (`index` vs `create`), `_type` suppression, NDJSON framing — a golden is the right, self-documenting artifact. Budget **one golden per distinct request *shape***, not per input value.
+- **Assert the wire format → snapshot.** When the test *is about* the serialized request — query DSL structure, aggregation shape, op-type (`index` vs `create`), `_type` suppression, NDJSON framing — a snapshot is the right, self-documenting artifact. Budget **one snapshot per distinct request *shape***, not per input value.
 - **Assert a Jaeger-level decision → focused mock/spy on a small interface.** When the test is about a value the code *computes* — "given time range `T`, did we query indices `[jaeger-span-2024-01-01 … -01-03]`?", "is `IgnoreUnavailable` set?", "did the service cache dedupe the write?", "did the `search_after` cursor advance?" — capture that argument through a narrow fake and assert it directly.
 
 This is exactly where the **small role interfaces (§6.1) pay off.** A one-method `Searcher` fake that records its `(indices, query)` arguments lets a test assert *index selection* in one line and ignore the query body entirely.
 
-> **Worked example (the motivating case).** A method takes `1..N` index names, and we have `M` tests covering the *index-selection* logic across time ranges/rotation modes. Writing `M` full-body goldens is verbose and **obscures intent** — a reader can't tell whether the test is about the index list or the wire JSON, and every unrelated query tweak churns all `M` files. Instead: **one snapshot** pins the request shape for that operation, and a **table of `M` focused assertions** on the captured `indices` argument covers the selection logic. Right altitude, minimal noise, intent obvious.
+> **Worked example (the motivating case).** A method takes `1..N` index names, and we have `M` tests covering the *index-selection* logic across time ranges/rotation modes. Writing `M` full-body snapshots is verbose and **obscures intent** — a reader can't tell whether the test is about the index list or the wire JSON, and every unrelated query tweak churns all `M` files. Instead: **one snapshot** pins the request shape for that operation, and a **table of `M` focused assertions** on the captured `indices` argument covers the selection logic. Right altitude, minimal noise, intent obvious.
 
-Anti-patterns this rules out: (a) a golden per input permutation of the same query shape (snapshot sprawl); (b) hand-asserting a whole request body when the test cares about one field; (c) re-mocking the query *builder* to re-check the wire format — that was the coverage-filler failure mode of the current `olivere` mocks (§7.1), and it's what snapshots replace.
+Anti-patterns this rules out: (a) a snapshot per input permutation of the same query shape (snapshot sprawl); (b) hand-asserting a whole request body when the test cares about one field; (c) re-mocking the query *builder* to re-check the wire format — that was the coverage-filler failure mode of the current `olivere` mocks (§7.1), and it's what snapshots replace.
 
 ### 7.5 Sequencing the tests
 
-**Build the snapshot suite against the current `olivere` client first**, freezing today's wire behavior as the baseline. Then the migration is "make the new client reproduce these goldens" — and the fluent-mock query tests can be retired as low-value. Net testing model:
+**Build the snapshot suite against the current `olivere` client first**, freezing today's wire behavior as the baseline. Then the migration is "make the new client reproduce these snapshots" — and the fluent-mock query tests can be retired as low-value. Net testing model:
 
 1. **Snapshot** — request wire-format, hermetic, per backend/version.
 2. **Response-parsing unit tests** — keep the genuinely-useful half of today's mocks.
@@ -369,23 +369,23 @@ Anti-patterns this rules out: (a) a golden per input permutation of the same que
 
 ## 8. Migration plan
 
-The work decomposes into small, independently-shippable milestones — each one PR-sized, guarded by the snapshot + integration suites, with an explicit exit bar. They group into four stages; within the data-plane stage each storage path migrates on its own so no single PR is large. The snapshot suite (M1) is what makes the per-path migrations safe and small: each is "migrate this path, goldens stay green."
+The work decomposes into small, independently-shippable milestones — each one PR-sized, guarded by the snapshot + integration suites, with an explicit exit bar. They group into four stages; within the data-plane stage each storage path migrates on its own so no single PR is large. The snapshot suite (M1) is what makes the per-path migrations safe and small: each is "migrate this path, snapshots stay green."
 
 **Stage A — Foundation (no behavior change)**
-- **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing goldens onto §7.3 naming. *Exit:* every data-plane and admin operation has a golden per supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
+- **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot per supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
 - **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
 - **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (reusing `GetHTTPRoundTripper`) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap at `actions.go:19` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
 - **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
 
-**Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's goldens stay green and its integration passes."
+**Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
 
 The **small role interfaces (§6.1) are what make this clean**: a slice introduces just the interface its caller needs (`Searcher` in M5, `BulkWriter` in M6, …), and each caller depends only on its own narrow interface — so slices don't touch each other's surface and, apart from the two that bootstrap shared scaffolding, can proceed in parallel. A single fat `DataAPI` would have coupled every path to one growing interface and serialized the work.
-- **M5 — Service/operation read+write (first read slice; bootstraps `Searcher` + AST core).** Introduces the AST's `bool`/`term`/`terms`-agg nodes and the owned response type (hits + terms buckets), migrating the simplest search path. *Exit:* service/operation goldens green; the new AST nodes and response fields are exercised by real caller tests, not stubs.
-- **M6 — Span writer (first write slice; bootstraps `BulkWriter` + bounded bulk indexer).** *Exit:* span-write goldens green; hard byte cap (#2192) and per-item 408/429/503/507 retry proven by test; write integration green.
-- **M7 — Span reader** (find-traces / find-trace-IDs / get-trace). Extends the AST with `nested`/`regexp`/`range`/`match`, `search_after`, `_msearch`. *Exit:* reader goldens green; find-traces integration green across the matrix.
-- **M8 — Dependency store.** *Exit:* goldens green.
-- **M9 — Sampling store.** *Exit:* goldens green.
-- **M10 — Metricstore.** Extends the AST with `date_histogram`/`percentiles`/`cumulative_sum`/`filter`/`top_hits` aggregations. *Exit:* metrics goldens green; metrics integration green.
+- **M5 — Service/operation read+write (first read slice; bootstraps `Searcher` + AST core).** Introduces the AST's `bool`/`term`/`terms`-agg nodes and the owned response type (hits + terms buckets), migrating the simplest search path. *Exit:* service/operation snapshots green; the new AST nodes and response fields are exercised by real caller tests, not stubs.
+- **M6 — Span writer (first write slice; bootstraps `BulkWriter` + bounded bulk indexer).** *Exit:* span-write snapshots green; hard byte cap (#2192) and per-item 408/429/503/507 retry proven by test; write integration green.
+- **M7 — Span reader** (find-traces / find-trace-IDs / get-trace). Extends the AST with `nested`/`regexp`/`range`/`match`, `search_after`, `_msearch`. *Exit:* reader snapshots green; find-traces integration green across the matrix.
+- **M8 — Dependency store.** *Exit:* snapshots green.
+- **M9 — Sampling store.** *Exit:* snapshots green.
+- **M10 — Metricstore.** Extends the AST with `date_histogram`/`percentiles`/`cumulative_sum`/`filter`/`top_hits` aggregations. *Exit:* metrics snapshots green; metrics integration green.
 
 **Stage C — Cleanup**
 - **M11 — Retire `olivere`.** Delete `olivere` + the `go-elasticsearch/v9` template special-case (now unused, since every caller moved in Stage B). *Exit:* no `github.com/olivere/elastic` or `go-elasticsearch` import under `internal/storage`; no `elastic.*` in any Jaeger signature (§2.1 leak closed); full ES 6–9 / OS 1–3 matrix passes.
@@ -425,7 +425,7 @@ Neither the "40–60% shareable, keep a facade" analysis nor the dual-client pro
 ### Other improvements over the prior proposals
 
 - **Version-matrix preservation is a first-class goal (G3).** The dual-client path would *narrow* support; this RFC keeps ES 6/7/8/9 + OS 1/2/3 from one binary and treats any regression as a failure condition.
-- **A concrete migration safety net (§7).** Freeze today's wire behavior as request **snapshots** first, then migrate under green goldens — plus an honest audit that the current `olivere` mocks are largely coverage-filler, and a single fixture-naming taxonomy. The prior discussion got as far as "raw JSON vs typed API, lean on integration tests"; it did not propose a wire-contract baseline.
+- **A concrete migration safety net (§7).** Freeze today's wire behavior as request **snapshots** first, then migrate under green snapshots — plus an honest audit that the current `olivere` mocks are largely coverage-filler, and a single fixture-naming taxonomy. The prior discussion got as far as "raw JSON vs typed API, lean on integration tests"; it did not propose a wire-contract baseline.
 - **The facade altitude is scoped correctly (§6.2).** Per the #7612 steer toward "Jaeger concepts, not driver concepts," but `esclient` is ES-primitive and driver-neutral — trace-domain methods like `FindTraceIDs` stay in the *storage* layer. The earlier "facade" discussion blurred these levels.
 - **The extraction phase is shown to be unnecessary.** The proposals treated "extract the 40–60% driver-independent logic into shared packages" as a prerequisite. That only pays off if the implementation is *forked* per backend. Because this design keeps one implementation, that logic stays where it is; the in-flight extraction PRs are complementary, not gating.
 - **PR-sized, vertical, snapshot-guarded milestones with exit criteria (§8)**, and tighter scope — folding index management into the factory is explicitly out of scope (data-streams territory), which the prior proposals tended to bundle in.
