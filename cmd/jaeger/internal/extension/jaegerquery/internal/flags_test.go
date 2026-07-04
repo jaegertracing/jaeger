@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 )
 
 func TestDefaultQueryOptions(t *testing.T) {
@@ -73,6 +75,62 @@ func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 		cfg.MaxRequestBodySize = size
 		require.EqualError(t, cfg.Validate(), "ai.max_request_body_size must be a positive integer")
 	}
+}
+
+func TestAIConfigValidateAcceptsMCPLimits(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.EnableMCP = true
+	// Zero means "use the default".
+	require.NoError(t, cfg.Validate())
+	// Explicit in-range values are accepted.
+	cfg.MCPMaxReadFileSize = 1 << 20
+	cfg.MCPMaxSearchResults = 250
+	cfg.MCPMaxSpanDetailsPerRequest = 50
+	require.NoError(t, cfg.Validate())
+}
+
+func TestAIConfigValidateRejectsInvalidMCPLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*AIConfig)
+		wantErr string
+	}{
+		{"read file size negative", func(c *AIConfig) { c.MCPMaxReadFileSize = -1 }, "ai.mcp_max_read_file_size must be between 0 and 10485760"},
+		{"read file size over limit", func(c *AIConfig) { c.MCPMaxReadFileSize = 10485761 }, "ai.mcp_max_read_file_size must be between 0 and 10485760"},
+		{"search results negative", func(c *AIConfig) { c.MCPMaxSearchResults = -1 }, "ai.mcp_max_search_results must be between 0 and 1000"},
+		{"search results over limit", func(c *AIConfig) { c.MCPMaxSearchResults = 1001 }, "ai.mcp_max_search_results must be between 0 and 1000"},
+		{"span details negative", func(c *AIConfig) { c.MCPMaxSpanDetailsPerRequest = -1 }, "ai.mcp_max_span_details_per_request must be between 0 and 100"},
+		{"span details over limit", func(c *AIConfig) { c.MCPMaxSpanDetailsPerRequest = 101 }, "ai.mcp_max_span_details_per_request must be between 0 and 100"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := validAIConfig()
+			tt.mutate(&cfg)
+			require.EqualError(t, cfg.Validate(), tt.wantErr)
+		})
+	}
+}
+
+func TestAIConfigMCPConfigAppliesOverrides(t *testing.T) {
+	defaults := mcptools.DefaultConfig()
+
+	// Zero limits keep the mcptools defaults.
+	zeroCfg := validAIConfig()
+	got := zeroCfg.MCPConfig()
+	require.Equal(t, defaults.MaxReadFileSize, got.MaxReadFileSize)
+	require.Equal(t, defaults.MaxSearchResults, got.MaxSearchResults)
+	require.Equal(t, defaults.MaxSpanDetailsPerRequest, got.MaxSpanDetailsPerRequest)
+
+	// Non-zero limits override only their own field.
+	cfg := validAIConfig()
+	cfg.MCPMaxReadFileSize = 1 << 20
+	cfg.MCPMaxSearchResults = 250
+	cfg.MCPMaxSpanDetailsPerRequest = 50
+	got = cfg.MCPConfig()
+	require.Equal(t, int64(1<<20), got.MaxReadFileSize)
+	require.Equal(t, 250, got.MaxSearchResults)
+	require.Equal(t, 50, got.MaxSpanDetailsPerRequest)
+	require.Equal(t, defaults.ServerName, got.ServerName)
 }
 
 func TestAIConfigValidateAcceptsZeroHealthCheckIntervalAsDisable(t *testing.T) {
