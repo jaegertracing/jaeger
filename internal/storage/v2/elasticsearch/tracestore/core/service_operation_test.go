@@ -6,14 +6,23 @@ package core
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -117,4 +126,83 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})
+}
+
+// TestServiceOperationRequestSnapshots freezes the exact wire format of the
+// service/operation read+write path over the current olivere client (RFC 0006
+// §7.3). Only ES6 differs (no rest_total_hits_as_int on searches; _type on
+// writes), so goldens collapse to es6 / es7-9 / os1-3.
+
+// newDataClient builds a real es.Client for the given backend version, pointed at
+// the recording server. Version is set explicitly so no ping is issued, and the
+// bulk processor only flushes on Close.
+func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
+	cfg := &config.Configuration{
+		Servers:            []string{url},
+		Version:            uint(version),
+		DisableHealthCheck: true,
+		LogLevel:           "info",
+		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
+	}
+	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	return client
+}
+
+// dataRecorder answers searches with an empty result and bulk requests with an
+// empty bulk response, so operations complete without error while the request is
+// captured.
+func dataRecorder() *snapshottest.Recorder {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if strings.HasSuffix(r.URL.Path, "_bulk") {
+			w.Write([]byte(`{"took":0,"errors":false,"items":[]}`))
+			return
+		}
+		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
+	})
+}
+
+func TestServiceOperationRequestSnapshots(t *testing.T) {
+	const (
+		readIndex  = "test-jaeger-service-read"
+		writeIndex = "test-jaeger-service-write-000001"
+	)
+	span := &dbmodel.Span{
+		OperationName: "test-operation",
+		Process:       dbmodel.Process{ServiceName: "test-service"},
+	}
+
+	getServices := map[es.BackendVersion]string{}
+	getOperations := map[es.BackendVersion]string{}
+	writeService := map[es.BackendVersion]string{}
+
+	for _, version := range snapshottest.AllVersions {
+		rec := dataRecorder()
+		server := httptest.NewServer(rec)
+		client := newDataClient(t, server.URL, version)
+		sos := NewServiceOperationStorage(func() es.Client { return client }, zap.NewNop(), 0)
+		ctx := context.Background()
+
+		rec.Reset()
+		_, err := sos.getServices(ctx, []string{readIndex}, 10)
+		require.NoError(t, err)
+		getServices[version] = snapshottest.Marshal(t, rec.Requests())
+
+		rec.Reset()
+		_, err = sos.getOperations(ctx, []string{readIndex}, "test-service", 10)
+		require.NoError(t, err)
+		getOperations[version] = snapshottest.Marshal(t, rec.Requests())
+
+		rec.Reset()
+		sos.Write(writeIndex, span)
+		require.NoError(t, client.Close()) // flushes the bulk request
+		writeService[version] = snapshottest.Marshal(t, rec.Requests())
+
+		server.Close()
+	}
+
+	snapshottest.AssertVersionedGoldens(t, "testdata/get_services", getServices)
+	snapshottest.AssertVersionedGoldens(t, "testdata/get_operations", getOperations)
+	snapshottest.AssertVersionedGoldens(t, "testdata/write_service", writeService)
 }

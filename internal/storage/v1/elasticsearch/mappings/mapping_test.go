@@ -4,11 +4,10 @@
 package mappings
 
 import (
-	"embed"
 	"errors"
-	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 	"text/template"
 
@@ -19,37 +18,44 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-//go:embed fixtures/*.json
-var FIXTURES embed.FS
-
-// allMappingTypes and the version lists below define the full
-// {mapping type × backend × version} matrix that the golden tests assert.
-var (
-	allMappingTypes    = []MappingType{SpanMapping, ServiceMapping, DependenciesMapping, SamplingMapping}
-	elasticVersions    = []es.BackendVersion{es.ElasticV6, es.ElasticV7, es.ElasticV8, es.ElasticV9}
-	openSearchVersions = []es.BackendVersion{es.OpenSearch1, es.OpenSearch2, es.OpenSearch3}
-)
-
-// fixtureName returns the golden fixture file name for a given mapping type and
-// backend version. ES8/ES9 both render the "-8" template; all OpenSearch
-// versions render the "-7-opensearch" template.
-func fixtureName(mapping MappingType, version es.BackendVersion) string {
-	suffix := fmt.Sprintf("-%d", version.TemplateVersion())
-	if version.IsOpenSearch() {
-		suffix += "-opensearch"
+// TestMappingBuilderGetMapping snapshots the rendered index template for every
+// mapping type across the full ES 6/7/8/9 + OpenSearch 1/2/3 matrix, using the
+// §7.3 fixture taxonomy (testdata/<subject>.<backend><range>.json).
+// Byte-identical consecutive majors collapse into a range, so the fixture tree
+// itself is the compatibility matrix.
+func TestMappingBuilderGetMapping(t *testing.T) {
+	subjects := []struct {
+		name    string
+		mapping MappingType
+	}{
+		{"span", SpanMapping},
+		{"service", ServiceMapping},
+		{"dependencies", DependenciesMapping},
+		{"sampling", SamplingMapping},
 	}
-	return mapping.String() + suffix + ".json"
+	for _, subject := range subjects {
+		t.Run(subject.name, func(t *testing.T) {
+			content := map[es.BackendVersion]string{}
+			for _, version := range snapshottest.AllVersions {
+				got, err := newTestMappingBuilder(version).GetMapping(subject.mapping)
+				require.NoError(t, err)
+				content[version] = got
+			}
+			snapshottest.AssertVersionedGoldens(t, filepath.Join("testdata", subject.name), content)
+		})
+	}
 }
 
 func newTestMappingBuilder(version es.BackendVersion) *MappingBuilder {
-	defaultOpts := func(p int64) config.IndexOptions {
+	defaultOpts := func(priority int64) config.IndexOptions {
 		return config.IndexOptions{
 			Shards:   3,
 			Replicas: new(int64(3)),
-			Priority: p,
+			Priority: priority,
 		}
 	}
 	return &MappingBuilder{
@@ -64,50 +70,6 @@ func newTestMappingBuilder(version es.BackendVersion) *MappingBuilder {
 		Version:       version,
 		UseILM:        true,
 		ILMPolicyName: "jaeger-test-policy",
-	}
-}
-
-func assertGoldenMatrix(t *testing.T, versions []es.BackendVersion) {
-	for _, version := range versions {
-		for _, mapping := range allMappingTypes {
-			t.Run(fmt.Sprintf("%s/%s", mapping.String(), version), func(t *testing.T) {
-				mb := newTestMappingBuilder(version)
-				got, err := mb.GetMapping(mapping)
-				require.NoError(t, err)
-				wantbytes, err := FIXTURES.ReadFile("fixtures/" + fixtureName(mapping, version))
-				require.NoError(t, err)
-				assert.Equal(t, string(wantbytes), got)
-			})
-		}
-	}
-}
-
-func TestMappingBuilderGetMapping(t *testing.T) {
-	assertGoldenMatrix(t, elasticVersions)
-}
-
-func TestMappingBuilderGetMapping_OpenSearch(t *testing.T) {
-	assertGoldenMatrix(t, openSearchVersions)
-}
-
-// TestGoldenFixturesAreAllUsed guards against orphaned fixtures: every committed
-// golden file must be loaded by some {mapping type × backend × version} cell in
-// the matrix above. A fixture that no test ever reads (e.g. the dead
-// "-8-opensearch" files) fails this test.
-func TestGoldenFixturesAreAllUsed(t *testing.T) {
-	used := make(map[string]bool)
-	for _, versions := range [][]es.BackendVersion{elasticVersions, openSearchVersions} {
-		for _, version := range versions {
-			for _, mapping := range allMappingTypes {
-				used[fixtureName(mapping, version)] = true
-			}
-		}
-	}
-	entries, err := FIXTURES.ReadDir("fixtures")
-	require.NoError(t, err)
-	for _, entry := range entries {
-		assert.Truef(t, used[entry.Name()],
-			"fixture %q is committed but never loaded by any golden test", entry.Name())
 	}
 }
 

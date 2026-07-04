@@ -5,6 +5,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
 const badVersionType = `
@@ -260,4 +262,40 @@ func TestVersion(t *testing.T) {
 			assert.Equal(t, test.expectedResult, result)
 		})
 	}
+}
+
+// versionResponse returns a cluster-info body that DetectBackendVersion maps back
+// to the given BackendVersion. Shared by the request-snapshot tests (e.g. the
+// CreateTemplate probe in index_client_test.go).
+func versionResponse(v es.BackendVersion) string {
+	number := map[es.BackendVersion]string{
+		es.ElasticV6:   "6.8.0",
+		es.ElasticV7:   "7.10.2",
+		es.ElasticV8:   "8.0.0",
+		es.ElasticV9:   "9.0.0",
+		es.OpenSearch1: "1.3.0",
+		es.OpenSearch2: "2.11.0",
+		es.OpenSearch3: "3.0.0",
+	}
+	tagline := "You Know, for Search"
+	if v.IsOpenSearch() {
+		tagline = "The OpenSearch Project: https://opensearch.org/"
+	}
+	return fmt.Sprintf(`{"version":{"number":%q},"tagline":%q}`, number[v], tagline)
+}
+
+// TestVersionRequestSnapshot freezes the wire format of the version probe. The
+// request (GET /) is identical for every backend, so it is stored agnostic.
+func TestVersionRequestSnapshot(t *testing.T) {
+	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(versionResponse(es.ElasticV7)))
+	})
+	server := httptest.NewServer(rec)
+	defer server.Close()
+
+	c := &ClusterClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
+	_, err := c.Version(context.Background())
+	require.NoError(t, err)
+	snapshottest.AssertAgnosticGolden(t, "testdata/version", snapshottest.Marshal(t, rec.Requests()))
 }
