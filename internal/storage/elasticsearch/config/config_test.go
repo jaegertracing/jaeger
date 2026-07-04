@@ -324,6 +324,16 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 			expected:       -24 * time.Hour,
 		},
 		{
+			name:           "monthly jaeger-span",
+			indexFrequency: "month",
+			expected:       -28 * 24 * time.Hour,
+		},
+		{
+			name:           "yearly jaeger-span",
+			indexFrequency: "year",
+			expected:       -365 * 24 * time.Hour,
+		},
+		{
 			name:           "empty jaeger-span",
 			indexFrequency: "",
 			expected:       -24 * time.Hour,

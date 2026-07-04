@@ -34,12 +34,17 @@ type Options struct {
 }
 
 func initDateLayout(rolloverFreq, sep string) string {
-	// default to daily format
-	indexLayout := "2006" + sep + "01" + sep + "02"
-	if rolloverFreq == "hour" {
-		indexLayout = indexLayout + sep + "15"
+	switch rolloverFreq {
+	case "hour":
+		return "2006" + sep + "01" + sep + "02" + sep + "15"
+	case "month":
+		return "2006" + sep + "01"
+	case "year":
+		return "2006"
+	default:
+		// default to daily format
+		return "2006" + sep + "01" + sep + "02"
 	}
-	return indexLayout
 }
 
 func DefaultConfig() config.Configuration {
