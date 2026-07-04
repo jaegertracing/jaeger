@@ -51,11 +51,11 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 }
 
 func newTestMappingBuilder(version es.BackendVersion) *MappingBuilder {
-	defaultOpts := func(priority int64) config.IndexOptions {
+	defaultOpts := func(p int64) config.IndexOptions {
 		return config.IndexOptions{
 			Shards:   3,
 			Replicas: new(int64(3)),
-			Priority: priority,
+			Priority: p,
 		}
 	}
 	return &MappingBuilder{
