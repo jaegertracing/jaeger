@@ -23,10 +23,9 @@ import (
 )
 
 // TestMappingBuilderGetMapping snapshots the rendered index template for every
-// mapping type across the full ES 6/7/8/9 + OpenSearch 1/2/3 matrix, using the
-// §7.3 fixture taxonomy (testdata/<subject>.<backend><range>.json).
-// Byte-identical consecutive majors collapse into a range, so the fixture tree
-// itself is the compatibility matrix.
+// mapping type across the full ES 6/7/8/9 + OpenSearch 1/2/3 matrix, into
+// testdata/<subject>.<backend><range>.json. Byte-identical consecutive majors
+// collapse into a range, so the fixture tree itself is the compatibility matrix.
 func TestMappingBuilderGetMapping(t *testing.T) {
 	subjects := []struct {
 		name    string

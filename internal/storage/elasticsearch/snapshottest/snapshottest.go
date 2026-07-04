@@ -2,14 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package snapshottest provides a request-wire-format snapshot harness for the
-// Elasticsearch/OpenSearch clients, as described in RFC 0006 (Unified
-// Elasticsearch/OpenSearch Client), milestone M1.
+// Elasticsearch/OpenSearch clients.
 //
 // The harness records the exact HTTP request(s) an operation emits — method,
 // path, sorted query params, and canonicalized JSON body (or NDJSON for
 // _bulk/_msearch) — and compares them against committed snapshot files.
 //
-// Snapshot files follow the §7.3 fixture taxonomy:
+// Snapshot files follow this fixture taxonomy:
 //
 //	testdata/<subject>[.<backend><range>].json
 //
@@ -232,7 +231,7 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 }
 
 // Assert compares content against the single snapshot "<prefix>.json", for a
-// request that is identical for all backends and versions (§7.3). With
+// request that is identical for all backends and versions. With
 // REGENERATE_SNAPSHOTS=true it (re)writes the file.
 func Assert(t testing.TB, prefix string, content string) {
 	t.Helper()

@@ -160,7 +160,7 @@ func TestBackendKey(t *testing.T) {
 }
 
 // TestAssertByVersion_RegenerateCollapsesRanges exercises the full
-// regenerate → assert round trip and verifies §7.3 range collapsing.
+// regenerate → assert round trip and verifies range collapsing.
 func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")

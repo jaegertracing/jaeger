@@ -24,8 +24,8 @@ const (
 	OpenSearch3 BackendVersion = 103
 )
 
-// AllVersions lists every backend major version Jaeger supports from a single
-// binary (§6 G3 of RFC 0006): Elasticsearch 6/7/8/9 and OpenSearch 1/2/3.
+// AllVersions lists every backend major version Jaeger supports: Elasticsearch
+// 6/7/8/9 and OpenSearch 1/2/3.
 var AllVersions = []BackendVersion{
 	ElasticV6,
 	ElasticV7,

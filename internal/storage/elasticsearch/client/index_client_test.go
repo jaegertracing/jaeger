@@ -680,7 +680,7 @@ func TestRollover(t *testing.T) {
 }
 
 // The tests below freeze the exact wire format of each IndicesClient request as
-// snapshots (RFC 0006 §7.3). Version-invariant requests are stored as a bare
+// snapshots. Version-invariant requests are stored as a bare
 // <subject>.json; CreateTemplate varies by backend and is stored per range.
 // okServer/indicesClient are shared with the cluster and ILM snapshot tests.
 
