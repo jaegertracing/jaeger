@@ -10,17 +10,19 @@
 //
 // Snapshot files follow this fixture taxonomy:
 //
-//	testdata/<subject>[.<backend><range>].json
+//	testdata/<subject>[.<variants>].json
 //
-// A request that is identical for all backends and versions is stored as the
-// bare "testdata/<subject>.json". A request that varies by backend/version is
-// stored per variant as "testdata/<subject>.<backend><range>.json", where
-// <backend> is "es" or "os" and <range> is a single major ("8") or an inclusive,
-// non-overlapping major range ("6-7") shared by consecutive versions that emit
-// byte-identical output. <subject> may nest with "/" to group a family.
+// There is exactly one file per distinct wire format. A request that is identical
+// for all backends and versions is stored as the bare "testdata/<subject>.json".
+// Otherwise each distinct wire format is stored as "testdata/<subject>.<variants>.json",
+// where <variants> is a dot-separated list of the version ranges that emit it,
+// e.g. "es6", "es7-9.os1-3". Each range is "<backend><lo>[-<hi>]" with <backend>
+// "es" or "os" and an inclusive, consecutive major range. Backends are merged
+// into one file when they emit byte-identical output, so there is no duplication.
+// <subject> may nest with "/" to group a family.
 //
 // Callers pass the path stem (dir + subject, e.g. "testdata/get_services"); the
-// harness appends the ".json" / ".<backend><range>.json" tail.
+// harness appends the ".json" / ".<variants>.json" tail.
 //
 // Snapshot files are regenerated (and range-collapsed) by running the tests with
 // the REGENERATE_SNAPSHOTS environment variable set:
@@ -245,10 +247,10 @@ func Assert(t testing.TB, prefix string, content string) {
 }
 
 // AssertByVersion compares each version's content against the snapshot files
-// "<prefix>.<backend><range>.json", keeping ES and OpenSearch backends in
-// separate files. With REGENERATE_SNAPSHOTS=true it rewrites the files,
-// collapsing byte-identical consecutive majors within a backend into an
-// inclusive range and pruning stale files for this subject.
+// "<prefix>.<variants>.json". With REGENERATE_SNAPSHOTS=true it rewrites the
+// files, storing one file per distinct wire format — merging byte-identical
+// backends and collapsing consecutive majors into a range — and pruning stale
+// files for this subject.
 func AssertByVersion(t testing.TB, prefix string, contentByVersion map[es.BackendVersion]string) {
 	t.Helper()
 	require.NotEmpty(t, contentByVersion, "no content provided for %s", prefix)
@@ -328,16 +330,28 @@ func subjectSnapshots(t testing.TB, dir, stem string) []string {
 
 var backendRangeRE = regexp.MustCompile(`^(es|os)(\d+)(?:-(\d+))?$`)
 
+// backendRange is one "<backend><lo>[-<hi>]" token: a backend ("es"/"os") and an
+// inclusive major-version range.
+type backendRange struct {
+	backend string
+	lo, hi  int
+}
+
+// contains reports whether (backend, major) falls in this range.
+func (r backendRange) contains(backend string, major int) bool {
+	return r.backend == backend && major >= r.lo && major <= r.hi
+}
+
 // snapshotVariant is a parsed snapshot filename for a subject stem: either the bare
-// all-versions file or a per-backend major range.
+// all-versions file or a list of the backend ranges the file covers.
 type snapshotVariant struct {
 	allVersions bool
-	backend     string
-	lo, hi      int
+	ranges      []backendRange
 }
 
 // parseVariant reports whether name is a snapshot file for stem and, if so, its
-// variant. It accepts "<stem>.json" (all versions) and "<stem>.<backend><range>.json".
+// variant. It accepts "<stem>.json" (all versions) and "<stem>.<variants>.json",
+// where <variants> is a dot-separated list of "<backend><lo>[-<hi>]" ranges.
 func parseVariant(stem, name string) (snapshotVariant, bool) {
 	if name == stem+".json" {
 		return snapshotVariant{allVersions: true}, true
@@ -350,15 +364,19 @@ func parseVariant(stem, name string) (snapshotVariant, bool) {
 	if !ok {
 		return snapshotVariant{}, false
 	}
-	m := backendRangeRE.FindStringSubmatch(rest)
-	if m == nil {
-		return snapshotVariant{}, false
-	}
-	v := snapshotVariant{backend: m[1]}
-	v.lo, _ = strconv.Atoi(m[2])
-	v.hi = v.lo
-	if m[3] != "" {
-		v.hi, _ = strconv.Atoi(m[3])
+	var v snapshotVariant
+	for token := range strings.SplitSeq(rest, ".") {
+		m := backendRangeRE.FindStringSubmatch(token)
+		if m == nil {
+			return snapshotVariant{}, false
+		}
+		r := backendRange{backend: m[1]}
+		r.lo, _ = strconv.Atoi(m[2])
+		r.hi = r.lo
+		if m[3] != "" {
+			r.hi, _ = strconv.Atoi(m[3])
+		}
+		v.ranges = append(v.ranges, r)
 	}
 	return v, true
 }
@@ -389,7 +407,7 @@ func backendKey(v es.BackendVersion) (string, int) {
 
 // resolveSnapshot finds the snapshot file for stem in dir that applies to
 // (backend, major): the all-versions file if present, otherwise the unique variant
-// whose inclusive range contains major.
+// one of whose ranges contains it.
 func resolveSnapshot(t testing.TB, dir, stem, backend string, major int) (string, bool) {
 	t.Helper()
 	names := subjectSnapshots(t, dir, stem)
@@ -399,53 +417,74 @@ func resolveSnapshot(t testing.TB, dir, stem, backend string, major int) (string
 		}
 	}
 	for _, name := range names {
-		if v, _ := parseVariant(stem, name); v.backend == backend && major >= v.lo && major <= v.hi {
-			return name, true
+		v, _ := parseVariant(stem, name)
+		for _, r := range v.ranges {
+			if r.contains(backend, major) {
+				return name, true
+			}
 		}
 	}
 	return "", false
-}
-
-type versionContent struct {
-	major   int
-	content string
 }
 
 func regenerateVersioned(t testing.TB, dir, stem string, contentByVersion map[es.BackendVersion]string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 
-	byBackend := map[string][]versionContent{}
+	// One file per distinct wire format: group the versions that emit each, so
+	// byte-identical backends share a file instead of duplicating it.
+	versionsByContent := map[string][]es.BackendVersion{}
 	for version, content := range contentByVersion {
-		backend, major := backendKey(version)
-		byBackend[backend] = append(byBackend[backend], versionContent{major, content})
+		versionsByContent[content] = append(versionsByContent[content], version)
 	}
 
 	kept := map[string]bool{}
-	for backend, entries := range byBackend {
-		slices.SortFunc(entries, func(a, b versionContent) int { return a.major - b.major })
-		for i := 0; i < len(entries); {
-			// Extend the range while the next major is consecutive and identical.
-			j := i
-			for j+1 < len(entries) &&
-				entries[j+1].major == entries[j].major+1 &&
-				entries[j+1].content == entries[i].content {
-				j++
-			}
-			name := variantFileName(stem, backend, entries[i].major, entries[j].major)
-			writeSnapshot(t, filepath.Join(dir, name), entries[i].content)
-			kept[name] = true
-			i = j + 1
-		}
+	for content, versions := range versionsByContent {
+		name := variantFileName(stem, versions)
+		writeSnapshot(t, filepath.Join(dir, name), content)
+		kept[name] = true
 	}
 	pruneStaleSnapshots(t, dir, stem, kept)
 }
 
-func variantFileName(stem, backend string, lo, hi int) string {
-	if hi > lo {
-		return fmt.Sprintf("%s.%s%d-%d.json", stem, backend, lo, hi)
+// variantFileName names the file covering exactly versions: the bare "<stem>.json"
+// when they span every supported version, otherwise "<stem>.<variants>.json" with a
+// dot-separated list of "<backend><lo>[-<hi>]" ranges (es before os, ascending),
+// collapsing consecutive majors.
+func variantFileName(stem string, versions []es.BackendVersion) string {
+	if len(versions) == len(es.AllVersions) {
+		return stem + ".json"
 	}
-	return fmt.Sprintf("%s.%s%d.json", stem, backend, lo)
+	var esMajors, osMajors []int
+	for _, v := range versions {
+		if backend, major := backendKey(v); backend == "es" {
+			esMajors = append(esMajors, major)
+		} else {
+			osMajors = append(osMajors, major)
+		}
+	}
+	tokens := append(rangeTokens("es", esMajors), rangeTokens("os", osMajors)...)
+	return stem + "." + strings.Join(tokens, ".") + ".json"
+}
+
+// rangeTokens renders majors as "<backend><lo>[-<hi>]" tokens, collapsing runs of
+// consecutive majors into a single range.
+func rangeTokens(backend string, majors []int) []string {
+	slices.Sort(majors)
+	var tokens []string
+	for i := 0; i < len(majors); {
+		j := i
+		for j+1 < len(majors) && majors[j+1] == majors[j]+1 {
+			j++
+		}
+		if majors[j] > majors[i] {
+			tokens = append(tokens, fmt.Sprintf("%s%d-%d", backend, majors[i], majors[j]))
+		} else {
+			tokens = append(tokens, fmt.Sprintf("%s%d", backend, majors[i]))
+		}
+		i = j + 1
+	}
+	return tokens
 }
 
 // pruneStaleSnapshots removes this subject's snapshot files that were not written

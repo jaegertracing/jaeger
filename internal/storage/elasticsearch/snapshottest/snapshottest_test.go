@@ -115,16 +115,17 @@ func TestParseVariant(t *testing.T) {
 	tests := []struct {
 		name        string
 		allVersions bool
-		backend     string
-		lo, hi      int
+		ranges      []backendRange
 		ok          bool
 	}{
 		{name: "get_services.json", allVersions: true, ok: true},
-		{name: "get_services.es6.json", backend: "es", lo: 6, hi: 6, ok: true},
-		{name: "get_services.es6-7.json", backend: "es", lo: 6, hi: 7, ok: true},
-		{name: "get_services.os1-3.json", backend: "os", lo: 1, hi: 3, ok: true},
-		{name: "get_operations.es6.json", ok: false}, // different subject
-		{name: "get_services.es.json", ok: false},    // missing major
+		{name: "get_services.es6.json", ranges: []backendRange{{"es", 6, 6}}, ok: true},
+		{name: "get_services.es6-7.json", ranges: []backendRange{{"es", 6, 7}}, ok: true},
+		{name: "get_services.os1-3.json", ranges: []backendRange{{"os", 1, 3}}, ok: true},
+		{name: "get_services.es7-9.os1-3.json", ranges: []backendRange{{"es", 7, 9}, {"os", 1, 3}}, ok: true},
+		{name: "get_operations.es6.json", ok: false},    // different subject
+		{name: "get_services.es.json", ok: false},       // missing major
+		{name: "get_services.es6..os1.json", ok: false}, // empty range token
 		{name: "get_services.txt", ok: false},
 	}
 	for _, tt := range tests {
@@ -133,9 +134,7 @@ func TestParseVariant(t *testing.T) {
 			assert.Equal(t, tt.ok, ok)
 			if ok {
 				assert.Equal(t, tt.allVersions, v.allVersions)
-				assert.Equal(t, tt.backend, v.backend)
-				assert.Equal(t, tt.lo, v.lo)
-				assert.Equal(t, tt.hi, v.hi)
+				assert.Equal(t, tt.ranges, v.ranges)
 			}
 		})
 	}
@@ -164,7 +163,7 @@ func TestBackendKey(t *testing.T) {
 func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
-	// ES6 differs; ES7/8/9 identical; OS1/2/3 identical (but distinct from ES).
+	// ES6 differs; every other version emits the same "REST" wire format.
 	content := map[es.BackendVersion]string{
 		es.ElasticV6:   "ES6",
 		es.ElasticV7:   "REST",
@@ -181,10 +180,10 @@ func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 
 	files := listJSON(t, dir)
 	assert.ElementsMatch(t, []string{
-		"get_services.es6.json", "get_services.es7-9.json", "get_services.os1-3.json",
-	}, files, "backends stay separate even when byte-identical")
+		"get_services.es6.json", "get_services.es7-9.os1-3.json",
+	}, files, "byte-identical backends merge into one file")
 
-	got, err := os.ReadFile(filepath.Join(dir, "get_services.es7-9.json"))
+	got, err := os.ReadFile(filepath.Join(dir, "get_services.es7-9.os1-3.json"))
 	require.NoError(t, err)
 	assert.Equal(t, "REST\n", string(got))
 
@@ -192,6 +191,24 @@ func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	withRegenerate(t, false, func() {
 		AssertByVersion(t, prefix, content)
 	})
+}
+
+// TestAssertByVersion_RegenerateBareWhenAllIdentical checks that content shared
+// by every supported version collapses to the bare <subject>.json.
+func TestAssertByVersion_RegenerateBareWhenAllIdentical(t *testing.T) {
+	dir := t.TempDir()
+	prefix := filepath.Join(dir, "get_services")
+	content := map[es.BackendVersion]string{}
+	for _, version := range es.AllVersions {
+		content[version] = "SAME"
+	}
+
+	withRegenerate(t, true, func() {
+		AssertByVersion(t, prefix, content)
+	})
+
+	assert.ElementsMatch(t, []string{"get_services.json"}, listJSON(t, dir),
+		"one wire format for all versions collapses to the bare file")
 }
 
 func TestAssertByVersion_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
