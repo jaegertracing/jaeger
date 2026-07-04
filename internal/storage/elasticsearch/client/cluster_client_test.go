@@ -285,7 +285,8 @@ func versionResponse(v es.BackendVersion) string {
 }
 
 // TestVersionRequestSnapshot freezes the wire format of the version probe. The
-// request (GET /) is identical for every backend, so it is stored agnostic.
+// request (GET /) is identical for every backend, so its golden is a single
+// backend-agnostic file.
 func TestVersionRequestSnapshot(t *testing.T) {
 	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
