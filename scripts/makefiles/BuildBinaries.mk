@@ -48,7 +48,7 @@ rebuild-ui:
 	JAEGER_UI_DIR="$(JAEGER_UI_DIR)" bash ./scripts/build/rebuild-ui.sh
 	@echo "::endgroup::"
 	rm -f cmd/jaeger/internal/extension/jaegerquery/internal/ui/actual/index.html.gz
-	$(MAKE) build-ui
+	$(MAKE) build-ui JAEGER_UI_DIR="$(JAEGER_UI_DIR)"
 
 .PHONY: build-examples
 build-examples:
@@ -173,3 +173,11 @@ build-all-platforms:
 	  echo "Building binaries for $$platform"; \
 	  $(MAKE) build-binaries-$$platform; \
 	done
+
+# Build Jaeger using ocb (OpenTelemetry Collector Builder).
+# This validates that the public facade packages work correctly with ocb.
+.PHONY: build-ocb
+build-ocb: $(OCB)
+	@echo "Building Jaeger with ocb"
+	$(OCB) --config cmd/jaeger/builder.yaml --skip-strict-versioning
+	@echo "✅ ocb build successful: cmd/jaeger/_build/"

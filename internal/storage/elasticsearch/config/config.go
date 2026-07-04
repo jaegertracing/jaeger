@@ -6,42 +6,27 @@ package config
 
 import (
 	"bufio"
-	"bytes"
-	"context"
-	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"maps"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	esv8 "github.com/elastic/go-elasticsearch/v9"
-	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/extension/extensionauth"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zapgrpc"
-
-	"github.com/jaegertracing/jaeger/internal/auth"
-	"github.com/jaegertracing/jaeger/internal/headerforwarding"
-	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	eswrapper "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/wrapper"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
 const (
-	IndexPrefixSeparator = "-"
+	IndexSeparator = "-"
+
+	SpanIndexName       = "jaeger-span"
+	ServiceIndexName    = "jaeger-service"
+	DependencyIndexName = "jaeger-dependencies"
+	SamplingIndexName   = "jaeger-sampling"
 )
 
 // IndexOptions describes the index format and rollover frequency
@@ -52,7 +37,9 @@ type IndexOptions struct {
 	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
 	// If not specified, the default value is "2006-01-02".
 	// See https://pkg.go.dev/time#Layout for more details on the syntax.
-	DateLayout string `mapstructure:"date_layout"`
+	//
+	// Deprecated: superseded by rotation.periodic.date_layout.
+	DateLayout configoptional.Optional[string] `mapstructure:"date_layout"`
 	// Shards is the number of shards per index in Elasticsearch.
 	Shards int64 `mapstructure:"shards"`
 	// Replicas is the number of replicas per index in Elasticsearch.
@@ -62,7 +49,11 @@ type IndexOptions struct {
 	// Valid configuration options are: [hour, day].
 	// This setting does not affect the index rotation and is simply used for
 	// fetching indices.
-	RolloverFrequency string `mapstructure:"rollover_frequency"`
+	//
+	// Deprecated: superseded by rotation.periodic.rollover_frequency.
+	RolloverFrequency configoptional.Optional[string] `mapstructure:"rollover_frequency"`
+	// Rotation defines the index rotation strategy for this index type.
+	Rotation RotationConfig `mapstructure:"rotation"`
 }
 
 // Indices describes different configuration options for each index type
@@ -76,23 +67,46 @@ type Indices struct {
 	Sampling     IndexOptions `mapstructure:"sampling"`
 }
 
-type bulkCallback struct {
-	startTimes sync.Map
-	sm         *spanstoremetrics.WriteMetrics
-	logger     *zap.Logger
-}
-
 type IndexPrefix string
 
+// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
+func (o *IndexOptions) GetDateLayout() string {
+	if p := o.DateLayout.Get(); p != nil {
+		return *p
+	}
+	return "2006-01-02"
+}
+
+// GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".
+func (o *IndexOptions) GetRolloverFrequency() string {
+	if p := o.RolloverFrequency.Get(); p != nil {
+		return *p
+	}
+	return "day"
+}
+
 func (p IndexPrefix) Apply(indexName string) string {
-	ps := string(p)
-	if ps == "" {
-		return indexName
+	return joinPrefix(string(p), IndexSeparator, indexName)
+}
+
+// DataStreamName is the dot-notation counterpart of Apply for data streams
+// (e.g. "prod" -> "prod.jaeger.spans"). A trailing "-" or "." on the prefix is
+// dropped so "prod", "prod-" and "prod." all resolve to the same name.
+func (p IndexPrefix) DataStreamName(base string) string {
+	ps := strings.TrimRight(string(p), IndexSeparator+".")
+	return joinPrefix(ps, ".", base)
+}
+
+// joinPrefix joins prefix and name with separator, avoiding a doubled separator
+// when the prefix already ends with one.
+func joinPrefix(prefix, separator, name string) string {
+	if prefix == "" {
+		return name
 	}
-	if strings.HasSuffix(ps, IndexPrefixSeparator) {
-		return ps + indexName
+	if strings.HasSuffix(prefix, separator) {
+		return prefix + name
 	}
-	return ps + IndexPrefixSeparator + indexName
+	return prefix + separator + name
 }
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
@@ -125,8 +139,8 @@ type Configuration struct {
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
-	// Version contains the major Elasticsearch version. If this field is not specified,
-	// the value will be auto-detected from Elasticsearch.
+	// Version contains the backend version number (e.g. 7, 8, 9 for Elasticsearch,
+	// 101, 102, 103 for OpenSearch). If 0, it will be auto-detected from the server.
 	Version uint `mapstructure:"version"`
 	// LogLevel contains the Elasticsearch client log-level. Valid values for this field
 	// are: [debug, info, error]
@@ -134,31 +148,42 @@ type Configuration struct {
 
 	// ---- index related configs ----
 	Indices Indices `mapstructure:"indices"`
+
 	// UseReadWriteAliases, if set to true, will use read and write aliases for indices.
 	// Use this option with Elasticsearch rollover API. It requires an external component
 	// to create aliases before startup and then performing its management.
-	UseReadWriteAliases bool `mapstructure:"use_aliases"`
+	//
+	// Deprecated: superseded by indices.<type>.rotation.manual_rollover or auto_rollover.
+	UseReadWriteAliases configoptional.Optional[bool] `mapstructure:"use_aliases"`
 	// SpanReadAlias specifies the exact alias name to use for reading spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// This allows integration with existing Elasticsearch setups that have custom alias names.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-span-reader"
-	SpanReadAlias string `mapstructure:"span_read_alias"`
+	//
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.read_alias.
+	SpanReadAlias configoptional.Optional[string] `mapstructure:"span_read_alias"`
 	// SpanWriteAlias specifies the exact alias name to use for writing spans.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-span-writer"
-	SpanWriteAlias string `mapstructure:"span_write_alias"`
+	//
+	// Deprecated: superseded by indices.spans.rotation.manual_rollover.write_alias.
+	SpanWriteAlias configoptional.Optional[string] `mapstructure:"span_write_alias"`
 	// ServiceReadAlias specifies the exact alias name to use for reading services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-service-reader"
-	ServiceReadAlias string `mapstructure:"service_read_alias"`
+	//
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.read_alias.
+	ServiceReadAlias configoptional.Optional[string] `mapstructure:"service_read_alias"`
 	// ServiceWriteAlias specifies the exact alias name to use for writing services.
 	// When set, Jaeger will use this alias directly without any modifications.
 	// Can only be used with UseReadWriteAliases=true.
 	// Example: "my-custom-service-writer"
-	ServiceWriteAlias string `mapstructure:"service_write_alias"`
+	//
+	// Deprecated: superseded by indices.services.rotation.manual_rollover.write_alias.
+	ServiceWriteAlias configoptional.Optional[string] `mapstructure:"service_write_alias"`
 	// ReadAliasSuffix is the suffix to append to the index name used for reading.
 	// This configuration only exists to provide backwards compatibility for jaeger-v1
 	// which is why it is not exposed as a configuration option for jaeger-v2
@@ -170,16 +195,27 @@ type Configuration struct {
 	// CreateIndexTemplates, if set to true, creates index templates at application startup.
 	// This configuration should be set to false when templates are installed manually.
 	CreateIndexTemplates bool `mapstructure:"create_mappings"`
-	// Option to enable Index Lifecycle Management (ILM) for Jaeger span and service indices.
+	// UseILM enables Index Lifecycle Management (ILM) for Jaeger span and service indices.
 	// Read more about ILM at
-	// https://www.jaegertracing.io/docs/deployment/#enabling-ilm-support
-	UseILM bool `mapstructure:"use_ilm"`
+	// https://www.elastic.co/guide/en/elasticsearch/reference/current/index-lifecycle-management.html
+	//
+	// Deprecated: superseded by indices.<type>.rotation.auto_rollover.
+	UseILM configoptional.Optional[bool] `mapstructure:"use_ilm"`
 
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
 	// MaxSpanAge configures the maximum lookback on span reads.
+	// For alias-based rotation (manual_rollover/auto_rollover), this should be set
+	// to match the ILM/ISM data retention policy so that GetTraces can find traces
+	// up to that age.
 	MaxSpanAge time.Duration `mapstructure:"max_span_age"`
+	// MaxTraceDuration is the maximum expected duration of a single trace
+	// (time between the earliest and latest span in the trace).
+	// Used to widen time-range filters when reading spans, ensuring that all spans
+	// of a trace are found even if they extend beyond the search window.
+	// Defaults to 24h.
+	MaxTraceDuration time.Duration `mapstructure:"max_trace_duration"`
 	// ServiceCacheTTL contains the TTL for the cache of known service names.
 	ServiceCacheTTL time.Duration `mapstructure:"service_cache_ttl"`
 	// AdaptiveSamplingLookback contains the duration to look back for the
@@ -250,10 +286,10 @@ type BasicAuthentication struct {
 	// Password contains The password required by Elasticsearch
 	Password string `mapstructure:"password" json:"-"`
 	// PasswordFilePath contains the path to a file containing password.
-	// This file is watched for changes.
+	// The file is re-read periodically according to ReloadInterval.
 	PasswordFilePath string `mapstructure:"password_file"`
-	// ReloadInterval contains the interval at which the password file is reloaded.
-	// If set to 0 then the file is only loaded once on startup.
+	// ReloadInterval is how often the password file is re-read.
+	// Defaults to 0, which means the file is read once at startup and never reloaded.
 	ReloadInterval time.Duration `mapstructure:"reload_interval"`
 }
 
@@ -263,169 +299,6 @@ type BasicAuthentication struct {
 // the TokenFilePath will be ignored.
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
-
-// NewClient creates a new ElasticSearch client
-func NewClient(ctx context.Context, c *Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error) {
-	if len(c.Servers) < 1 {
-		return nil, errors.New("no servers specified")
-	}
-	options, err := c.getConfigOptions(ctx, logger, httpAuth)
-	if err != nil {
-		return nil, err
-	}
-
-	rawClient, err := elastic.NewClient(options...)
-	if err != nil {
-		return nil, err
-	}
-
-	bcb := bulkCallback{
-		sm:     spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
-		logger: logger,
-	}
-
-	if c.Version == 0 {
-		// Determine ElasticSearch Version
-		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		// Non-2xx responses aren't reported as errors by the ping code (7.0.32 version of
-		// the elastic client).
-		if pingStatus < 200 || pingStatus >= 300 {
-			return nil, fmt.Errorf("ElasticSearch server %s returned HTTP %d, expected 2xx", c.Servers[0], pingStatus)
-		}
-
-		// The deserialization in the ping implementation may succeed even if the response
-		// contains no relevant properties and we may get empty values in that case.
-		if pingResult.Version.Number == "" {
-			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
-		}
-
-		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-		if err != nil {
-			return nil, err
-		}
-		// OpenSearch is based on ES 7.x
-		if strings.Contains(pingResult.TagLine, "OpenSearch") {
-			if pingResult.Version.Number[0] == '1' {
-				logger.Info("OpenSearch 1.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '2' {
-				logger.Info("OpenSearch 2.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-			if pingResult.Version.Number[0] == '3' {
-				logger.Info("OpenSearch 3.x detected, using ES 7.x index mappings")
-				esVersion = 7
-			}
-		}
-		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		c.Version = uint(esVersion)
-	}
-
-	var rawClientV8 *esv8.Client
-	if c.Version >= 8 {
-		rawClientV8, err = newElasticsearchV8(ctx, c, logger, httpAuth)
-		if err != nil {
-			return nil, fmt.Errorf("error creating v8 client: %w", err)
-		}
-	}
-
-	bulkProc, err := rawClient.BulkProcessor().
-		Before(func(id int64, _ /* requests */ []elastic.BulkableRequest) {
-			bcb.startTimes.Store(id, time.Now())
-		}).
-		After(bcb.invoke).
-		BulkSize(c.BulkProcessing.MaxBytes).
-		Workers(c.BulkProcessing.Workers).
-		BulkActions(c.BulkProcessing.MaxActions).
-		FlushInterval(c.BulkProcessing.FlushInterval).
-		Do(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return eswrapper.WrapESClient(rawClient, bulkProc, c.Version, rawClientV8), nil
-}
-
-func (bcb *bulkCallback) invoke(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
-	start, ok := bcb.startTimes.Load(id)
-	if ok {
-		bcb.startTimes.Delete(id)
-	} else {
-		start = time.Now()
-	}
-
-	// Log individual errors
-	if response != nil && response.Errors {
-		for _, it := range response.Items {
-			for key, val := range it {
-				if val.Error != nil {
-					bcb.logger.Error("Elasticsearch part of bulk request failed",
-						zap.String("map-key", key), zap.Reflect("response", val))
-				}
-			}
-		}
-	}
-
-	latency := time.Since(start.(time.Time))
-	if err != nil {
-		bcb.sm.LatencyErr.Record(latency)
-	} else {
-		bcb.sm.LatencyOk.Record(latency)
-	}
-
-	var failed int
-	if response != nil {
-		failed = len(response.Failed())
-	}
-
-	total := len(requests)
-	bcb.sm.Attempts.Inc(int64(total))
-	bcb.sm.Inserts.Inc(int64(total - failed))
-	bcb.sm.Errors.Inc(int64(failed))
-
-	if err != nil {
-		bcb.logger.Error("Elasticsearch could not process bulk request",
-			zap.Int("request_count", total),
-			zap.Int("failed_count", failed),
-			zap.Error(err),
-			zap.Any("response", response))
-	}
-}
-
-func newElasticsearchV8(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esv8.Client, error) {
-	var options esv8.Config
-	options.Addresses = c.Servers
-	if c.Authentication.BasicAuthentication.HasValue() {
-		basicAuth := c.Authentication.BasicAuthentication.Get()
-		options.Username = basicAuth.Username
-		options.Password = basicAuth.Password
-	}
-	options.DiscoverNodesOnStart = c.Sniffing.Enabled
-	options.CompressRequestBody = c.HTTPCompression
-
-	if len(c.CustomHeaders) > 0 {
-		headers := make(http.Header)
-		for key, value := range c.CustomHeaders {
-			headers.Set(key, value)
-		}
-		options.Header = headers
-	}
-
-	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
-	if err != nil {
-		return nil, err
-	}
-	// Outermost wrapper: forward headers captured on the inbound request context
-	// (populated by the jaeger_query header_forwarding middleware/interceptors)
-	// onto every outbound request to Elasticsearch.
-	options.Transport = headerforwarding.NewHTTPClientRoundTripper(transport)
-	return esv8.NewClient(options)
-}
 
 func setDefaultIndexOptions(target, source *IndexOptions) {
 	if target.Shards == 0 {
@@ -440,11 +313,11 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Priority = source.Priority
 	}
 
-	if target.DateLayout == "" {
+	if !target.DateLayout.HasValue() && source.DateLayout.HasValue() {
 		target.DateLayout = source.DateLayout
 	}
 
-	if target.RolloverFrequency == "" {
+	if !target.RolloverFrequency.HasValue() && source.RolloverFrequency.HasValue() {
 		target.RolloverFrequency = source.RolloverFrequency
 	}
 }
@@ -487,6 +360,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
+	}
+	if c.MaxTraceDuration == 0 {
+		c.MaxTraceDuration = source.MaxTraceDuration
 	}
 	if c.AdaptiveSamplingLookback == 0 {
 		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
@@ -544,12 +420,17 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 }
 
-// RolloverFrequencyAsNegativeDuration returns the index rollover frequency duration for the given frequency string
+// RolloverFrequencyAsNegativeDuration returns the index rollover frequency as a negative duration.
 func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
+	return -RolloverFrequencyDuration(frequency)
+}
+
+// RolloverFrequencyDuration returns the index rollover frequency as a positive duration.
+func RolloverFrequencyDuration(frequency string) time.Duration {
 	if frequency == "hour" {
-		return -1 * time.Hour
+		return time.Hour
 	}
-	return -24 * time.Hour
+	return 24 * time.Hour
 }
 
 // TagKeysAsFields returns tags from the file and command line merged
@@ -583,241 +464,49 @@ func (c *Configuration) TagKeysAsFields() ([]string, error) {
 	return tags, nil
 }
 
-func (c *Configuration) getESOptions(disableHealthCheck bool) []elastic.ClientOptionFunc {
-	// Get base Elasticsearch options
-	options := []elastic.ClientOptionFunc{
-		elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffing.Enabled), elastic.SetHealthcheck(!disableHealthCheck),
-	}
-	if c.HealthCheckTimeoutStartup > 0 {
-		options = append(options, elastic.SetHealthcheckTimeoutStartup(c.HealthCheckTimeoutStartup))
-	}
-	if c.Sniffing.UseHTTPS {
-		options = append(options, elastic.SetScheme("https"))
-	}
-	if c.SendGetBodyAs != "" {
-		options = append(options, elastic.SetSendGetBodyAs(c.SendGetBodyAs))
-	}
-	options = append(options, elastic.SetGzip(c.HTTPCompression))
-	return options
-}
-
-// getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions(ctx context.Context, logger *zap.Logger, httpAuth extensionauth.HTTPClient) ([]elastic.ClientOptionFunc, error) {
-	// (has problems on AWS OpenSearch) see https://github.com/jaegertracing/jaeger/pull/7212
-	// Disable health check only in the following cases:
-	// 1. When health check is explicitly disabled
-	// 2. When tokens are EXCLUSIVELY available from context (not from file)
-	//    because at startup we don't have a valid token to do the health check
-	disableHealthCheck := c.DisableHealthCheck
-
-	// Check if we have bearer token or API key authentication that only allows from context
-	if c.Authentication.BearerTokenAuth.HasValue() || c.Authentication.APIKeyAuth.HasValue() {
-		bearerAuth := c.Authentication.BearerTokenAuth.Get()
-		apiKeyAuth := c.Authentication.APIKeyAuth.Get()
-
-		disableHealthCheck = disableHealthCheck ||
-			(bearerAuth != nil && bearerAuth.AllowFromContext && bearerAuth.FilePath == "") ||
-			(apiKeyAuth != nil && apiKeyAuth.AllowFromContext && apiKeyAuth.FilePath == "")
-	}
-
-	// Get base Elasticsearch options using the helper function
-	options := c.getESOptions(disableHealthCheck)
-	// Configure HTTP transport with TLS and authentication
-	transport, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
-	if err != nil {
-		return nil, err
-	}
-
-	// Outermost wrapper: forward headers captured on the inbound request context
-	// (populated by the jaeger_query header_forwarding middleware/interceptors)
-	// onto every outbound request to Elasticsearch.
-	transport = headerforwarding.NewHTTPClientRoundTripper(transport)
-
-	// HTTP client setup with timeout and transport
-	httpClient := &http.Client{
-		Timeout:   c.QueryTimeout,
-		Transport: transport,
-	}
-
-	options = append(options, elastic.SetHttpClient(httpClient))
-
-	// Add logging configuration
-	options, err = addLoggerOptions(options, c.LogLevel, logger)
-	if err != nil {
-		return options, err
-	}
-
-	return options, nil
-}
-
-func addLoggerOptions(options []elastic.ClientOptionFunc, logLevel string, logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
-	// Decouple ES logger from the log-level assigned to the parent application's log-level; otherwise, the least
-	// permissive log-level will dominate.
-	// e.g. --log-level=info and --es.log-level=debug would mute ES's debug logging and would require --log-level=debug
-	// to show ES debug logs.
-	var lvl zapcore.Level
-	var setLogger func(logger elastic.Logger) elastic.ClientOptionFunc
-
-	switch logLevel {
-	case "debug":
-		lvl = zap.DebugLevel
-		setLogger = elastic.SetTraceLog
-	case "info":
-		lvl = zap.InfoLevel
-		setLogger = elastic.SetInfoLog
-	case "error":
-		lvl = zap.ErrorLevel
-		setLogger = elastic.SetErrorLog
-	default:
-		return options, fmt.Errorf("unrecognized log-level: \"%s\"", logLevel)
-	}
-
-	esLogger := logger.WithOptions(
-		zap.IncreaseLevel(lvl),
-		zap.AddCallerSkip(2), // to ensure the right caller:lineno are logged
-	)
-
-	// Elastic client requires a "Printf"-able logger.
-	l := zapgrpc.NewLogger(esLogger)
-	options = append(options, setLogger(l))
-	return options, nil
-}
-
-// getBodyFixRoundTripper ensures req.GetBody is populated when req.Body is set.
-// The olivere/elastic v7 client sets req.Body directly without setting GetBody,
-// which breaks HTTP authenticators (like sigv4auth) that rely on GetBody to hash
-// the request payload for signing.
-type getBodyFixRoundTripper struct {
-	base http.RoundTripper
-}
-
-func (t *getBodyFixRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.Body != nil && req.GetBody == nil {
-		body, err := io.ReadAll(req.Body)
-		if err != nil {
-			return nil, err
-		}
-		req.Body = io.NopCloser(bytes.NewReader(body))
-		req.GetBody = func() (io.ReadCloser, error) {
-			return io.NopCloser(bytes.NewReader(body)), nil
-		}
-	}
-	return t.base.RoundTrip(req)
-}
-
-// GetHTTPRoundTripper returns configured http.RoundTripper with optional HTTP authenticator.
-// Pass nil for httpAuth if authentication is not required.
-func GetHTTPRoundTripper(ctx context.Context, c *Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (http.RoundTripper, error) {
-	// Configure base transport.
-	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	}
-
-	// Configure TLS.
-	if c.TLS.Insecure {
-		// #nosec G402
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	} else {
-		tlsConfig, err := c.TLS.LoadTLSConfig(ctx)
-		if err != nil {
-			return nil, err
-		}
-		transport.TLSClientConfig = tlsConfig
-	}
-
-	// Initialize authentication methods.
-	var authMethods []auth.Method
-	// API Key Authentication
-	if c.Authentication.APIKeyAuth.HasValue() {
-		apiKeyAuth := c.Authentication.APIKeyAuth.Get()
-		ak, err := initAPIKeyAuth(apiKeyAuth, logger)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize API key authentication: %w", err)
-		}
-		if ak != nil {
-			authMethods = append(authMethods, *ak)
-		}
-	}
-
-	// Bearer Token Authentication
-	if c.Authentication.BearerTokenAuth.HasValue() {
-		bearerAuth := c.Authentication.BearerTokenAuth.Get()
-		ba, err := initBearerAuth(bearerAuth, logger)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize bearer authentication: %w", err)
-		}
-		if ba != nil {
-			authMethods = append(authMethods, *ba)
-		}
-	}
-
-	// Basic Authentication
-	if c.Authentication.BasicAuthentication.HasValue() {
-		basicAuth := c.Authentication.BasicAuthentication.Get()
-		ba, err := initBasicAuth(basicAuth, logger)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize basic authentication: %w", err)
-		}
-		if ba != nil {
-			authMethods = append(authMethods, *ba)
-		}
-	}
-
-	// Wrap with authentication layer.
-	var roundTripper http.RoundTripper = transport
-	if len(authMethods) > 0 {
-		roundTripper = &auth.RoundTripper{
-			Transport: transport,
-			Auths:     authMethods,
-		}
-	}
-
-	// Apply HTTP authenticator extension if configured (e.g., SigV4).
-	// Wrap with getBodyFixRoundTripper first so that authenticators that
-	// rely on req.GetBody for payload hashing (such as sigv4auth) see
-	// a properly populated GetBody even when the upstream HTTP client
-	// (olivere/elastic) does not set it.
-	if httpAuth != nil {
-		roundTripper = &getBodyFixRoundTripper{base: roundTripper}
-		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
-		if err != nil {
-			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)
-		}
-		return wrappedRT, nil
-	}
-
-	return roundTripper, nil
-}
-
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	if err != nil {
 		return err
 	}
-	if c.UseILM && !c.UseReadWriteAliases {
+
+	// Validate rotation config for each index type
+	if err := c.validateRotationConfig(); err != nil {
+		return err
+	}
+
+	if RejectLegacyRotationFlags.IsEnabled() && c.hasAnyLegacyRotationFlags() {
+		return fmt.Errorf(
+			"deprecated ES rotation flags (%s) "+
+				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
+				"(see https://github.com/jaegertracing/jaeger/pull/8823); "+
+				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
+			legacyRotationFlagsList,
+		)
+	}
+
+	if c.getUseILM() && !c.getUseReadWriteAliases() {
 		return errors.New("UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping")
 	}
-	if c.CreateIndexTemplates && c.UseILM {
+	if c.CreateIndexTemplates && c.getUseILM() {
 		return errors.New("when UseILM is set true, CreateIndexTemplates must be set to false and index templates must be created by init process of es-rollover app")
 	}
 
-	// Validate explicit alias settings require UseReadWriteAliases
-	hasAnyExplicitAlias := c.SpanReadAlias != "" || c.SpanWriteAlias != "" ||
-		c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+	hasAnyExplicitAlias := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != "" ||
+		c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasAnyExplicitAlias && !c.UseReadWriteAliases {
+	if hasAnyExplicitAlias && !c.getUseReadWriteAliases() {
 		return errors.New("explicit aliases (span_read_alias, span_write_alias, service_read_alias, service_write_alias) require UseReadWriteAliases to be true")
 	}
 
-	// Validate that if any alias is set, all four should be set (for consistency)
-	hasSpanAliases := c.SpanReadAlias != "" || c.SpanWriteAlias != ""
-	hasServiceAliases := c.ServiceReadAlias != "" || c.ServiceWriteAlias != ""
+	hasSpanAliases := c.getSpanReadAlias() != "" || c.getSpanWriteAlias() != ""
+	hasServiceAliases := c.getServiceReadAlias() != "" || c.getServiceWriteAlias() != ""
 
-	if hasSpanAliases && (c.SpanReadAlias == "" || c.SpanWriteAlias == "") {
+	if hasSpanAliases && (c.getSpanReadAlias() == "" || c.getSpanWriteAlias() == "") {
 		return errors.New("both span_read_alias and span_write_alias must be set together")
 	}
 
-	if hasServiceAliases && (c.ServiceReadAlias == "" || c.ServiceWriteAlias == "") {
+	if hasServiceAliases && (c.getServiceReadAlias() == "" || c.getServiceWriteAlias() == "") {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 

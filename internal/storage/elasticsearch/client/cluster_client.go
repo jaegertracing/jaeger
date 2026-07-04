@@ -4,11 +4,14 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 var _ ClusterAPI = (*ClusterClient)(nil)
@@ -18,13 +21,13 @@ type ClusterClient struct {
 	Client
 }
 
-// Version returns the major version of the ES cluster
-func (c *ClusterClient) Version() (uint, error) {
+// Version returns the detected backend version.
+func (c *ClusterClient) Version(ctx context.Context) (es.BackendVersion, error) {
 	type clusterInfo struct {
 		Version map[string]any `json:"version"`
 		TagLine string         `json:"tagline"`
 	}
-	body, err := c.request(elasticRequest{
+	body, err := c.request(ctx, elasticRequest{
 		endpoint: "",
 		method:   http.MethodGet,
 	})
@@ -43,12 +46,9 @@ func (c *ClusterClient) Version() (uint, error) {
 		return 0, fmt.Errorf("invalid version format: %v", versionField)
 	}
 	version := strings.Split(versionNumber, ".")
-	major, err := strconv.ParseUint(version[0], 10, 32)
+	major, err := strconv.Atoi(version[0])
 	if err != nil {
 		return 0, fmt.Errorf("invalid version format: %s", version[0])
 	}
-	if strings.Contains(info.TagLine, "OpenSearch") && (major == 1 || major == 2 || major == 3) {
-		return 7, nil
-	}
-	return uint(major), nil
+	return es.DetectBackendVersion(info.TagLine, major), nil
 }

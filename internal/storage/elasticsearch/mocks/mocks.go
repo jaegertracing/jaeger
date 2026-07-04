@@ -249,18 +249,18 @@ func (_c *Client_DeleteIndex_Call) RunAndReturn(run func(index string) elasticse
 }
 
 // GetVersion provides a mock function for the type Client
-func (_mock *Client) GetVersion() uint {
+func (_mock *Client) GetVersion() elasticsearch.BackendVersion {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetVersion")
 	}
 
-	var r0 uint
-	if returnFunc, ok := ret.Get(0).(func() uint); ok {
+	var r0 elasticsearch.BackendVersion
+	if returnFunc, ok := ret.Get(0).(func() elasticsearch.BackendVersion); ok {
 		r0 = returnFunc()
 	} else {
-		r0 = ret.Get(0).(uint)
+		r0 = ret.Get(0).(elasticsearch.BackendVersion)
 	}
 	return r0
 }
@@ -282,12 +282,12 @@ func (_c *Client_GetVersion_Call) Run(run func()) *Client_GetVersion_Call {
 	return _c
 }
 
-func (_c *Client_GetVersion_Call) Return(v uint) *Client_GetVersion_Call {
-	_c.Call.Return(v)
+func (_c *Client_GetVersion_Call) Return(backendVersion elasticsearch.BackendVersion) *Client_GetVersion_Call {
+	_c.Call.Return(backendVersion)
 	return _c
 }
 
-func (_c *Client_GetVersion_Call) RunAndReturn(run func() uint) *Client_GetVersion_Call {
+func (_c *Client_GetVersion_Call) RunAndReturn(run func() elasticsearch.BackendVersion) *Client_GetVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1174,6 +1174,59 @@ func (_c *IndexService_Index_Call) Return(indexService elasticsearch.IndexServic
 }
 
 func (_c *IndexService_Index_Call) RunAndReturn(run func(index string) elasticsearch.IndexService) *IndexService_Index_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// OpType provides a mock function for the type IndexService
+func (_mock *IndexService) OpType(opType elasticsearch.WriteOpType) elasticsearch.IndexService {
+	ret := _mock.Called(opType)
+
+	if len(ret) == 0 {
+		panic("no return value specified for OpType")
+	}
+
+	var r0 elasticsearch.IndexService
+	if returnFunc, ok := ret.Get(0).(func(elasticsearch.WriteOpType) elasticsearch.IndexService); ok {
+		r0 = returnFunc(opType)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(elasticsearch.IndexService)
+		}
+	}
+	return r0
+}
+
+// IndexService_OpType_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OpType'
+type IndexService_OpType_Call struct {
+	*mock.Call
+}
+
+// OpType is a helper method to define mock.On call
+//   - opType elasticsearch.WriteOpType
+func (_e *IndexService_Expecter) OpType(opType interface{}) *IndexService_OpType_Call {
+	return &IndexService_OpType_Call{Call: _e.mock.On("OpType", opType)}
+}
+
+func (_c *IndexService_OpType_Call) Run(run func(opType elasticsearch.WriteOpType)) *IndexService_OpType_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 elasticsearch.WriteOpType
+		if args[0] != nil {
+			arg0 = args[0].(elasticsearch.WriteOpType)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *IndexService_OpType_Call) Return(indexService elasticsearch.IndexService) *IndexService_OpType_Call {
+	_c.Call.Return(indexService)
+	return _c
+}
+
+func (_c *IndexService_OpType_Call) RunAndReturn(run func(opType elasticsearch.WriteOpType) elasticsearch.IndexService) *IndexService_OpType_Call {
 	_c.Call.Return(run)
 	return _c
 }

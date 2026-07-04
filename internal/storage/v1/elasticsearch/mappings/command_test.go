@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 )
 
@@ -85,15 +86,15 @@ func Test_getMappingAsString(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "ES version 7", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "ES version 7", args: Options{Mapping: config.SpanIndexName, EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			want: "ES version 7",
 		},
 		{
-			name: "Parse Error version 7", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse Error version 7", args: Options{Mapping: config.SpanIndexName, EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("parse error"),
 		},
 		{
-			name: "Parse bool error", args: Options{Mapping: "jaeger-span", EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
+			name: "Parse bool error", args: Options{Mapping: config.SpanIndexName, EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
 			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
 		},
 		{
@@ -137,7 +138,7 @@ func TestGenerateMappings(t *testing.T) {
 		{
 			name: "bad ILM setting",
 			options: Options{
-				Mapping: "jaeger-span",
+				Mapping: config.SpanIndexName,
 				UseILM:  "foobar",
 			},
 			expectErr: "foobar",
@@ -145,7 +146,7 @@ func TestGenerateMappings(t *testing.T) {
 		{
 			name: "valid jaeger-span mapping",
 			options: Options{
-				Mapping:       "jaeger-span",
+				Mapping:       config.SpanIndexName,
 				EsVersion:     7,
 				Shards:        5,
 				Replicas:      new(int64(1)),
@@ -158,7 +159,7 @@ func TestGenerateMappings(t *testing.T) {
 		{
 			name: "valid jaeger-service mapping",
 			options: Options{
-				Mapping:       "jaeger-service",
+				Mapping:       config.ServiceIndexName,
 				EsVersion:     7,
 				Shards:        5,
 				Replicas:      new(int64(1)),

@@ -6,24 +6,19 @@ package elasticsearch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"strings"
-	"sync/atomic"
 
-	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/fswatcher"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
@@ -43,9 +38,7 @@ type FactoryBase struct {
 
 	config *config.Configuration
 
-	client atomic.Pointer[es.Client]
-
-	pwdFileWatcher *fswatcher.FSWatcher
+	client es.Client
 
 	templateBuilder es.TemplateBuilder
 
@@ -61,12 +54,13 @@ func NewFactoryBase(
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
 		config:      &cfg,
-		newClientFn: config.NewClient,
+		newClientFn: clientbuilder.NewClient,
 		tracer:      otel.GetTracerProvider(),
 	}
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
+	f.config.LogDeprecationWarnings(logger)
 	tags, err := f.config.TagKeysAsFields()
 	if err != nil {
 		return nil, err
@@ -77,17 +71,7 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
-	f.client.Store(&client)
-
-	if f.config.Authentication.BasicAuthentication.HasValue() {
-		if file := f.config.Authentication.BasicAuthentication.Get().PasswordFilePath; file != "" {
-			watcher, err := fswatcher.New([]string{file}, f.onPasswordChange, f.logger)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create watcher for ES client's password: %w", err)
-			}
-			f.pwdFileWatcher = watcher
-		}
-	}
+	f.client = client
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -98,73 +82,68 @@ func NewFactoryBase(
 }
 
 func (f *FactoryBase) getClient() es.Client {
-	if c := f.client.Load(); c != nil {
-		return *c
-	}
-	return nil
+	return f.client
 }
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
 func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
+	spanRotation, serviceRotation := f.buildRotations()
+	spanRC := f.config.ResolvedSpanRotation()
+	maxSpanAge := f.config.MaxSpanAge
+	// See timeRangeDesign comment in reader.go.
+	// For alias-based rotation, ReadTargets ignores the time range (always returns
+	// the alias), so max_span_age is irrelevant for index selection. We override it
+	// to DawnOfTimeSpanAge so the time-range filter in the ES query doesn't exclude
+	// old traces.
+	if !spanRC.Periodic.HasValue() {
+		maxSpanAge = esspanstore.DawnOfTimeSpanAge
+	}
 	return esspanstore.SpanReaderParams{
-		Client:              f.getClient,
-		MaxDocCount:         f.config.MaxDocCount,
-		MaxSpanAge:          f.config.MaxSpanAge,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		ReadAliasSuffix:     f.config.ReadAliasSuffix,
-		RemoteReadClusters:  f.config.RemoteReadClusters,
-		SpanReadAlias:       f.config.SpanReadAlias,
-		ServiceReadAlias:    f.config.ServiceReadAlias,
-		Logger:              f.logger,
-		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		Client:            f.getClient,
+		MaxDocCount:       f.config.MaxDocCount,
+		MaxSpanAge:        maxSpanAge,
+		MaxTraceDuration:  f.config.MaxTraceDuration,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
+	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		Client:              f.getClient,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		SpanIndex:           f.config.Indices.Spans,
-		ServiceIndex:        f.config.Indices.Services,
-		AllTagsAsFields:     f.config.Tags.AllAsFields,
-		TagKeysAsFields:     f.tags,
-		TagDotReplacement:   f.config.Tags.DotReplacement,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
-		WriteAliasSuffix:    f.config.WriteAliasSuffix,
-		SpanWriteAlias:      f.config.SpanWriteAlias,
-		ServiceWriteAlias:   f.config.ServiceWriteAlias,
-		Logger:              f.logger,
-		MetricsFactory:      f.metricsFactory,
-		ServiceCacheTTL:     f.config.ServiceCacheTTL,
+		Client:            f.getClient,
+		AllTagsAsFields:   f.config.Tags.AllAsFields,
+		TagKeysAsFields:   f.tags,
+		TagDotReplacement: f.config.Tags.DotReplacement,
+		Logger:            f.logger,
+		MetricsFactory:    f.metricsFactory,
+		ServiceCacheTTL:   f.config.ServiceCacheTTL,
+		SpanRotation:      spanRotation,
+		ServiceRotation:   serviceRotation,
 	}
 }
 
 // GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
-		Client:              f.getClient,
-		Logger:              f.logger,
-		IndexPrefix:         f.config.Indices.IndexPrefix,
-		IndexDateLayout:     f.config.Indices.Dependencies.DateLayout,
-		MaxDocCount:         f.config.MaxDocCount,
-		UseReadWriteAliases: f.config.UseReadWriteAliases,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildDependencyRotation(),
 	}
 }
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
-		Client:                 f.getClient,
-		Logger:                 f.logger,
-		IndexPrefix:            f.config.Indices.IndexPrefix,
-		IndexDateLayout:        f.config.Indices.Sampling.DateLayout,
-		IndexRolloverFrequency: config.RolloverFrequencyAsNegativeDuration(f.config.Indices.Sampling.RolloverFrequency),
-		Lookback:               f.config.AdaptiveSamplingLookback,
-		MaxDocCount:            f.config.MaxDocCount,
+		Client:      f.getClient,
+		Logger:      f.logger,
+		Lookback:    f.config.AdaptiveSamplingLookback,
+		MaxDocCount: f.config.MaxDocCount,
+		Rotation:    f.buildSamplingRotation(),
 	}
 	store := essamplestore.NewSamplingStore(params)
 
@@ -174,7 +153,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 		if err != nil {
 			return nil, err
 		}
-		if _, err := f.getClient().CreateTemplate(params.PrefixedIndexName()).Body(samplingMapping).Do(context.Background()); err != nil {
+		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
+		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -183,55 +163,26 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 }
 
 func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
+	spanRC := cfg.ResolvedSpanRotation()
+	var ilmPolicyName string
+	if spanRC.AutoRollover.HasValue() {
+		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
+	}
 	return mappings.MappingBuilder{
 		TemplateBuilder: f.templateBuilder,
 		Indices:         cfg.Indices,
-		EsVersion:       cfg.Version,
-		UseILM:          cfg.UseILM,
+		Version:         f.client.GetVersion(),
+		UseILM:          ilmPolicyName != "",
+		ILMPolicyName:   ilmPolicyName,
 	}
 }
 
 // Close closes the resources held by the factory
 func (f *FactoryBase) Close() error {
-	var errs []error
-
-	if f.pwdFileWatcher != nil {
-		errs = append(errs, f.pwdFileWatcher.Close())
+	if c := f.getClient(); c != nil {
+		return c.Close()
 	}
-	errs = append(errs, f.getClient().Close())
-
-	return errors.Join(errs...)
-}
-
-func (f *FactoryBase) onPasswordChange() {
-	f.onClientPasswordChange(f.config, &f.client, f.metricsFactory)
-}
-
-func (f *FactoryBase) onClientPasswordChange(cfg *config.Configuration, client *atomic.Pointer[es.Client], mf metrics.Factory) {
-	basicAuth := cfg.Authentication.BasicAuthentication.Get()
-	newPassword, err := loadTokenFromFile(basicAuth.PasswordFilePath)
-	if err != nil {
-		f.logger.Error("failed to reload password for Elasticsearch client", zap.Error(err))
-		return
-	}
-	f.logger.Sugar().Infof("loaded new password of length %d from file", len(newPassword))
-	newCfg := *cfg // copy by value
-	newCfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
-		Username:         basicAuth.Username,
-		Password:         newPassword,
-		PasswordFilePath: "", // avoid error that both are set
-	})
-
-	newClient, err := f.newClientFn(context.Background(), &newCfg, f.logger, mf, nil)
-	if err != nil {
-		f.logger.Error("failed to recreate Elasticsearch client with new password", zap.Error(err))
-		return
-	}
-	if oldClient := *client.Swap(&newClient); oldClient != nil {
-		if err := oldClient.Close(); err != nil {
-			f.logger.Error("failed to close Elasticsearch client", zap.Error(err))
-		}
-	}
+	return nil
 }
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
@@ -240,12 +191,44 @@ func (f *FactoryBase) Purge(ctx context.Context) error {
 	return err
 }
 
-func loadTokenFromFile(path string) (string, error) {
-	b, err := os.ReadFile(filepath.Clean(path))
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimRight(string(b), "\r\n"), nil
+// TODO: Support RemoteClusters for sampling via a feature flag.
+func (f *FactoryBase) buildSamplingRotation() indices.Rotation {
+	return indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.SamplingIndexName,
+		f.config.ResolvedSamplingRotation(),
+		nil,
+		f.logger,
+	)
+}
+
+func (f *FactoryBase) buildDependencyRotation() indices.Rotation {
+	return indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.DependencyIndexName,
+		f.config.ResolvedDependencyRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
+}
+
+func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Rotation) {
+	prefix := f.config.Indices.IndexPrefix
+	spanRotation = indices.BuildRotation(
+		prefix,
+		config.SpanIndexName,
+		f.config.ResolvedSpanRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
+	serviceRotation = indices.BuildRotation(
+		prefix,
+		config.ServiceIndexName,
+		f.config.ResolvedServiceRotation(),
+		f.config.RemoteReadClusters,
+		f.logger,
+	)
+	return spanRotation, serviceRotation
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
@@ -255,8 +238,8 @@ func (f *FactoryBase) createTemplates(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply("jaeger-span")
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply("jaeger-service")
+		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
+		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
 		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)

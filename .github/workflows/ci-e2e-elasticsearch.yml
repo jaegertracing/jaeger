@@ -35,6 +35,9 @@ jobs:
           storage_test: e2e
         - major: 9.x
           distribution: elasticsearch
+          storage_test: direct
+        - major: 9.x
+          distribution: elasticsearch
           storage_test: e2e
     name: ${{ matrix.version.distribution }} ${{ matrix.version.major }} ${{ matrix.version.storage_test }}
     steps:
@@ -43,7 +46,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
 
@@ -70,6 +73,6 @@ jobs:
     - name: Upload coverage to codecov
       uses: ./.github/actions/upload-codecov
       with:
-        files: cover.out,cover-index-cleaner.out,cover-index-rollover.out
+        files: cover.out
         flag: ${{ matrix.version.distribution }}-${{ matrix.version.major }}-${{ matrix.version.storage_test }}
 

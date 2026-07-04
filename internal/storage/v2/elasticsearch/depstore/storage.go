@@ -16,14 +16,12 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 )
 
-const (
-	dependencyType          = "dependencies"
-	dependencyIndexBaseName = "jaeger-dependencies-"
-)
+const dependencyType = "dependencies"
 
 // CoreDependencyStore is a DB Level abstraction which directly read/write dependencies into ElasticSearch
 type CoreDependencyStore interface {
@@ -37,46 +35,40 @@ type CoreDependencyStore interface {
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	client                func() es.Client
-	logger                *zap.Logger
-	dependencyIndexPrefix string
-	indexDateLayout       string
-	maxDocCount           int
-	useReadWriteAliases   bool
+	client      func() es.Client
+	logger      *zap.Logger
+	maxDocCount int
+	rotation    indices.Rotation
 }
 
-// DependencyStoreParams holds constructor parameters for NewDependencyStore
+// Params holds constructor parameters for NewDependencyStore
 type Params struct {
-	Client              func() es.Client
-	Logger              *zap.Logger
-	IndexPrefix         config.IndexPrefix
-	IndexDateLayout     string
-	MaxDocCount         int
-	UseReadWriteAliases bool
+	Client      func() es.Client
+	Logger      *zap.Logger
+	MaxDocCount int
+	Rotation    indices.Rotation
 }
 
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
-		client:                p.Client,
-		logger:                p.Logger,
-		dependencyIndexPrefix: p.IndexPrefix.Apply(dependencyIndexBaseName),
-		indexDateLayout:       p.IndexDateLayout,
-		maxDocCount:           p.MaxDocCount,
-		useReadWriteAliases:   p.UseReadWriteAliases,
+		client:      p.Client,
+		logger:      p.Logger,
+		maxDocCount: p.MaxDocCount,
+		rotation:    p.Rotation,
 	}
 }
 
 // WriteDependencies write dependencies to Elasticsearch
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
-	writeIndexName := s.getWriteIndex(ts)
+	writeIndexName := s.rotation.WriteTarget(ts)
 	s.writeDependenciesToIndex(writeIndexName, ts, dependencies)
 	return nil
 }
 
 // CreateTemplates creates index templates.
 func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	_, err := s.client().CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
+	_, err := s.client().CreateTemplate(config.DependencyIndexName).Body(dependenciesTemplate).Do(context.Background())
 	if err != nil {
 		return err
 	}
@@ -93,8 +85,8 @@ func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Tim
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error) {
-	indices := s.getReadIndices(endTs, lookback)
-	searchResult, err := s.client().Search(indices...).
+	readIndices := s.rotation.ReadTargets(endTs.Add(-lookback), endTs)
+	searchResult, err := s.client().Search(readIndices...).
 		Size(s.maxDocCount).
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).
@@ -118,30 +110,4 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 
 func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 	return esquery.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
-}
-
-func (s *DependencyStore) getReadIndices(ts time.Time, lookback time.Duration) []string {
-	if s.useReadWriteAliases {
-		return []string{s.dependencyIndexPrefix + "read"}
-	}
-	var indices []string
-	firstIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts.Add(-lookback))
-	currentIndex := indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
-	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
-	}
-	return append(indices, firstIndex)
-}
-
-func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format(indexDateLayout)
-}
-
-func (s *DependencyStore) getWriteIndex(ts time.Time) string {
-	if s.useReadWriteAliases {
-		return s.dependencyIndexPrefix + "write"
-	}
-	return indexWithDate(s.dependencyIndexPrefix, s.indexDateLayout, ts)
 }

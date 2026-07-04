@@ -5,6 +5,7 @@
 package core
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	cfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -35,7 +35,8 @@ type SpanWriter struct {
 	// indexCache       cache.Cache
 	writerMetrics     *spanstoremetrics.WriteMetrics
 	serviceWriter     serviceWriter
-	spanServiceIndex  spanAndServiceIndexFn
+	spanRotation      indices.Rotation
+	serviceRotation   indices.Rotation
 	allTagsAsFields   bool
 	tagDotReplacement string
 	tagKeysAsFields   map[string]bool
@@ -51,20 +52,15 @@ type Writer interface {
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client              func() es.Client
-	Logger              *zap.Logger
-	MetricsFactory      metrics.Factory
-	SpanIndex           cfg.IndexOptions
-	ServiceIndex        cfg.IndexOptions
-	IndexPrefix         cfg.IndexPrefix
-	AllTagsAsFields     bool
-	TagKeysAsFields     []string
-	TagDotReplacement   string
-	UseReadWriteAliases bool
-	WriteAliasSuffix    string
-	SpanWriteAlias      string
-	ServiceWriteAlias   string
-	ServiceCacheTTL     time.Duration
+	Client            func() es.Client
+	Logger            *zap.Logger
+	MetricsFactory    metrics.Factory
+	AllTagsAsFields   bool
+	TagKeysAsFields   []string
+	TagDotReplacement string
+	ServiceCacheTTL   time.Duration
+	SpanRotation      indices.Rotation
+	ServiceRotation   indices.Rotation
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -72,15 +68,6 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	serviceCacheTTL := p.ServiceCacheTTL
 	if p.ServiceCacheTTL == 0 {
 		serviceCacheTTL = serviceCacheTTLDefault
-	}
-
-	writeAliasSuffix := ""
-	if p.UseReadWriteAliases {
-		if p.WriteAliasSuffix != "" {
-			writeAliasSuffix = p.WriteAliasSuffix
-		} else {
-			writeAliasSuffix = "write"
-		}
 	}
 
 	tags := map[string]bool{}
@@ -94,36 +81,11 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		serviceWriter:     serviceOperationStorage.Write,
-		spanServiceIndex:  getSpanAndServiceIndexFn(p, writeAliasSuffix),
+		spanRotation:      p.SpanRotation,
+		serviceRotation:   p.ServiceRotation,
 		tagKeysAsFields:   tags,
 		allTagsAsFields:   p.AllTagsAsFields,
 		tagDotReplacement: p.TagDotReplacement,
-	}
-}
-
-// spanAndServiceIndexFn returns names of span and service indices
-type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
-
-func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServiceIndexFn {
-	// If explicit write aliases are provided, use them directly without modification
-	if p.SpanWriteAlias != "" && p.ServiceWriteAlias != "" {
-		return func(_ time.Time) (string, string) {
-			return p.SpanWriteAlias, p.ServiceWriteAlias
-		}
-	}
-
-	// Otherwise, use the standard prefix + suffix approach
-	spanIndexPrefix := p.IndexPrefix.Apply(spanIndexBaseName)
-	serviceIndexPrefix := p.IndexPrefix.Apply(serviceIndexBaseName)
-
-	if p.UseReadWriteAliases {
-		return func(_ time.Time) (string, string) {
-			return spanIndexPrefix + writeAlias, serviceIndexPrefix + writeAlias
-		}
-	}
-
-	return func(date time.Time) (string, string) {
-		return indices.IndexWithDate(spanIndexPrefix, p.SpanIndex.DateLayout, date), indices.IndexWithDate(serviceIndexPrefix, p.ServiceIndex.DateLayout, date)
 	}
 }
 
@@ -131,7 +93,11 @@ func getSpanAndServiceIndexFn(p SpanWriterParams, writeAlias string) spanAndServ
 func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
-	spanIndexName, serviceIndexName := s.spanServiceIndex(spanStartTime)
+	if s.spanRotation.RequiresDocumentTimestamp() {
+		span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
+	}
+	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
+	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)
 	if serviceIndexName != "" {
 		s.writeService(serviceIndexName, span)
 	}
@@ -166,7 +132,9 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).BodyJson(&jsonSpan).Add()
+	s.client().Index().Index(indexName).Type(spanType).
+		OpType(s.spanRotation.WriteOpType()).
+		BodyJson(&jsonSpan).Add()
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {

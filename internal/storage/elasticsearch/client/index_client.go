@@ -4,6 +4,7 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,10 +55,10 @@ type IndicesClient struct {
 // - indices: jaeger-span-000001, jaeger-service-000001 etc.
 // - aliases: jaeger-span-archive-read, jaeger-span-archive-write
 // - indices: jaeger-span-archive-000001
-func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
+func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]Index, error) {
 	prefix += "jaeger-*"
 
-	body, err := i.request(elasticRequest{
+	body, err := i.request(ctx, elasticRequest{
 		endpoint: prefix + "?flat_settings=true&filter_path=*.aliases,*.settings",
 		method:   http.MethodGet,
 	})
@@ -93,8 +94,8 @@ func (i *IndicesClient) GetJaegerIndices(prefix string) ([]Index, error) {
 }
 
 // execute delete request
-func (i *IndicesClient) indexDeleteRequest(concatIndices string) error {
-	_, err := i.request(elasticRequest{
+func (i *IndicesClient) indexDeleteRequest(ctx context.Context, concatIndices string) error {
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: fmt.Sprintf("%s?master_timeout=%ds&ignore_unavailable=%t", concatIndices,
 			i.MasterTimeoutSeconds, i.IgnoreUnavailableIndex),
 		method: http.MethodDelete,
@@ -112,7 +113,7 @@ func (i *IndicesClient) indexDeleteRequest(concatIndices string) error {
 }
 
 // DeleteIndices deletes specified set of indices.
-func (i *IndicesClient) DeleteIndices(indices []Index) error {
+func (i *IndicesClient) DeleteIndices(ctx context.Context, indices []Index) error {
 	concatIndices := ""
 	for j, index := range indices {
 		// verify the length of the concatIndices
@@ -120,7 +121,7 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 		// a line contains other than concatIndices data in the request, ie: master_timeout
 		// for a safer side check the line length should not exceed 4000
 		if (len(concatIndices) + len(index.Index)) > 4000 {
-			err := i.indexDeleteRequest(concatIndices)
+			err := i.indexDeleteRequest(ctx, concatIndices)
 			if err != nil {
 				return err
 			}
@@ -132,15 +133,15 @@ func (i *IndicesClient) DeleteIndices(indices []Index) error {
 
 		// if it is last index, delete request should be executed
 		if j == len(indices)-1 {
-			return i.indexDeleteRequest(concatIndices)
+			return i.indexDeleteRequest(ctx, concatIndices)
 		}
 	}
 	return nil
 }
 
 // CreateIndex an ES index
-func (i *IndicesClient) CreateIndex(index string) error {
-	_, err := i.request(elasticRequest{
+func (i *IndicesClient) CreateIndex(ctx context.Context, index string) error {
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: index,
 		method:   http.MethodPut,
 	})
@@ -157,8 +158,8 @@ func (i *IndicesClient) CreateIndex(index string) error {
 }
 
 // CreateAlias an ES specific set of index aliases
-func (i *IndicesClient) CreateAlias(aliases []Alias) error {
-	err := i.aliasAction("add", aliases)
+func (i *IndicesClient) CreateAlias(ctx context.Context, aliases []Alias) error {
+	err := i.aliasAction(ctx, "add", aliases)
 	if err != nil {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
@@ -172,8 +173,8 @@ func (i *IndicesClient) CreateAlias(aliases []Alias) error {
 }
 
 // DeleteAlias an ES specific set of index aliases
-func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
-	err := i.aliasAction("remove", aliases)
+func (i *IndicesClient) DeleteAlias(ctx context.Context, aliases []Alias) error {
+	err := i.aliasAction(ctx, "remove", aliases)
 	if err != nil {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {
@@ -187,8 +188,8 @@ func (i *IndicesClient) DeleteAlias(aliases []Alias) error {
 }
 
 // AliasExists check whether an alias exists or not
-func (i *IndicesClient) AliasExists(alias string) (bool, error) {
-	_, err := i.request(elasticRequest{
+func (i *IndicesClient) AliasExists(ctx context.Context, alias string) (bool, error) {
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: "_alias/" + alias,
 		method:   http.MethodHead,
 	})
@@ -205,8 +206,8 @@ func (i *IndicesClient) AliasExists(alias string) (bool, error) {
 }
 
 // IndexExists check whether an index exists or not
-func (i *IndicesClient) IndexExists(index string) (bool, error) {
-	_, err := i.request(elasticRequest{
+func (i *IndicesClient) IndexExists(ctx context.Context, index string) (bool, error) {
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: index,
 		method:   http.MethodHead,
 	})
@@ -231,7 +232,7 @@ func (*IndicesClient) aliasesString(aliases []Alias) string {
 	return strings.Trim(concatAliases, ",")
 }
 
-func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
+func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases []Alias) error {
 	actions := []map[string]any{}
 
 	for _, alias := range aliases {
@@ -255,7 +256,7 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	if err != nil {
 		return err
 	}
-	_, err = i.request(elasticRequest{
+	_, err = i.request(ctx, elasticRequest{
 		endpoint: "_aliases",
 		method:   http.MethodPost,
 		body:     bodyBytes,
@@ -264,20 +265,16 @@ func (i *IndicesClient) aliasAction(action string, aliases []Alias) error {
 	return err
 }
 
-func (i IndicesClient) version() (uint, error) {
-	cl := ClusterClient{Client: i.Client}
-	return cl.Version()
-}
-
 // CreateTemplate an ES index template
-func (i IndicesClient) CreateTemplate(template, name string) error {
+func (i IndicesClient) CreateTemplate(ctx context.Context, template, name string) error {
 	endpointFmt := "_template/%s"
-	if v, err := i.version(); err != nil {
+	cl := ClusterClient{Client: i.Client}
+	if v, err := cl.Version(ctx); err != nil {
 		return err
-	} else if v >= 8 {
+	} else if v.UsesV8API() {
 		endpointFmt = "_index_template/%s"
 	}
-	_, err := i.request(elasticRequest{
+	_, err := i.request(ctx, elasticRequest{
 		endpoint: fmt.Sprintf(endpointFmt, name),
 		method:   http.MethodPut,
 		body:     []byte(template),
@@ -295,7 +292,7 @@ func (i IndicesClient) CreateTemplate(template, name string) error {
 }
 
 // Rollover create a rollover for certain index/alias
-func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]any) error {
+func (i IndicesClient) Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error {
 	esReq := elasticRequest{
 		endpoint: rolloverTarget + "/_rollover/",
 		method:   http.MethodPost,
@@ -310,7 +307,7 @@ func (i IndicesClient) Rollover(rolloverTarget string, conditions map[string]any
 		}
 		esReq.body = bodyBytes
 	}
-	_, err := i.request(esReq)
+	_, err := i.request(ctx, esReq)
 	if err != nil {
 		var responseError ResponseError
 		if errors.As(err, &responseError) {

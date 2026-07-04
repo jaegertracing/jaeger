@@ -163,6 +163,50 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 	}
 }
 
+func TestHTTPGatewayGetTraceBase64(t *testing.T) {
+	tests := []struct {
+		name    string
+		urlPath string
+		traceID pcommon.TraceID
+	}{
+		{
+			name:    "standard base64 with padding",
+			urlPath: "/api/v3/traces/AAAAAAAAAAAAAAAAAAAAAQ==",
+			traceID: traceID, // [16]byte{0,...,0,1}
+		},
+		{
+			// base64 contains "/" which must be percent-encoded in URL path
+			name:    "base64 with slash (url-encoded)",
+			urlPath: "/api/v3/traces/AAAAAAAAAP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2Fw==",
+			traceID: pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}),
+		},
+		{
+			// base64 contains "+" which must be percent-encoded in URL path
+			name:    "base64 with plus (url-encoded)",
+			urlPath: "/api/v3/traces/EjRWeJq83vD%2B3LqYdlQyEA==",
+			traceID: pcommon.TraceID([16]byte{0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0, 0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10}),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := setupHTTPGatewayNoServer(t, "")
+			gw.reader.
+				On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: tc.traceID}}).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					yield([]ptrace.Traces{makeTestTrace()}, nil)
+				})).Once()
+
+			r, err := http.NewRequest(http.MethodGet, tc.urlPath, http.NoBody)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusOK, w.Code)
+			gw.reader.AssertCalled(t, "GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: tc.traceID}})
+		})
+	}
+}
+
 func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
 	gw := setupHTTPGatewayNoServer(t, "")
 	gw.reader.On("GetTraces", matchContext, mock.AnythingOfType("[]tracestore.GetTraceParams")).
@@ -558,4 +602,90 @@ func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestTraceIDFromString(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantHi  uint64
+		wantLo  uint64
+		wantErr bool
+	}{
+		{
+			name:   "hex 64-bit",
+			input:  "1",
+			wantLo: 1,
+		},
+		{
+			name:   "hex 128-bit",
+			input:  "00000000000000010000000000000002",
+			wantHi: 1,
+			wantLo: 2,
+		},
+		{
+			name:   "base64 with padding (128-bit)",
+			input:  "AAAAAAAAAAEAAAAAAAAAAQ==",
+			wantHi: 1,
+			wantLo: 1,
+		},
+		{
+			name:   "base64 without padding (128-bit)",
+			input:  "AAAAAAAAAAEAAAAAAAAAAQ",
+			wantHi: 1,
+			wantLo: 1,
+		},
+		{
+			name:   "base64 64-bit",
+			input:  "AAAAAAAAAAAAAAAAAAAAAQ==",
+			wantHi: 0,
+			wantLo: 1,
+		},
+		{
+			name:   "base64 with slash",
+			input:  "AAAAAAAAAP///////////w==",
+			wantHi: 0xFF,
+			wantLo: 0xFFFFFFFFFFFFFFFF,
+		},
+		{
+			name:   "base64 with plus",
+			input:  "EjRWeJq83vD+3LqYdlQyEA==",
+			wantHi: 0x123456789ABCDEF0,
+			wantLo: 0xFEDCBA9876543210,
+		},
+		{
+			name:   "url-safe base64 (dash instead of plus)",
+			input:  "EjRWeJq83vD-3LqYdlQyEA==",
+			wantHi: 0x123456789ABCDEF0,
+			wantLo: 0xFEDCBA9876543210,
+		},
+		{
+			name:   "url-safe base64 (underscore instead of slash)",
+			input:  "AAAAAAAAAP___________w==",
+			wantHi: 0xFF,
+			wantLo: 0xFFFFFFFFFFFFFFFF,
+		},
+		{
+			name:    "invalid string",
+			input:   "not-a-valid-id!",
+			wantErr: true,
+		},
+		{
+			name:    "too long for trace ID",
+			input:   "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAlong",
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tid, err := TraceIDFromString(tc.input)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantHi, tid.High)
+			assert.Equal(t, tc.wantLo, tid.Low)
+		})
+	}
 }

@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -34,7 +33,6 @@ import (
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
-	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 var mockEsServerResponse = []byte(`
@@ -91,21 +89,14 @@ func TestFactoryBase_Purge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a real factory with a mock ES client
 			mockClient := &mocks.Client{}
 			mockDelete := &mocks.IndicesDeleteService{}
 			mockClient.On("DeleteIndex", "*").Return(mockDelete)
 
 			tt.setupMock(mockDelete)
 
-			// Create a mock client that will be stored in the atomic.Pointer
-			f := &FactoryBase{
-				client: atomic.Pointer[es.Client]{},
-			}
-			// Create a concrete type that implements es.Client
 			var client es.Client = mockClient
-			// Store the client in the atomic.Pointer
-			f.client.Store(&client)
+			f := &FactoryBase{client: client}
 
 			err := f.Purge(context.Background())
 			if tt.expectedErr {
@@ -114,7 +105,6 @@ func TestFactoryBase_Purge(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Verify the mock was called as expected
 			mockClient.AssertExpectations(t)
 			mockDelete.AssertExpectations(t)
 		})
@@ -276,6 +266,7 @@ func TestCreateTemplates(t *testing.T) {
 	for _, test := range tests {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
+		mockClient.On("GetVersion").Return(es.ElasticV7)
 		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
 			return mockClient, nil
 		}
@@ -297,10 +288,10 @@ func TestCreateTemplates(t *testing.T) {
 		f.tracer = otel.GetTracerProvider()
 		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
 		require.NoError(t, err)
-		f.client.Store(&client)
+		f.client = client
 		f.templateBuilder = es.TextTemplateBuilder{}
-		jaegerSpanId := test.indexPrefix.Apply("jaeger-span")
-		jaegerServiceId := test.indexPrefix.Apply("jaeger-service")
+		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
+		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 		err = f.createTemplates(context.Background())
@@ -344,34 +335,26 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
-func TestPasswordFromFile(t *testing.T) {
-	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnce(t)
-	})
-	t.Run("primary client", func(t *testing.T) {
-		runPasswordFromFileTest(t)
-	})
+func TestFactoryESClientsAreNil(t *testing.T) {
+	f := &FactoryBase{}
+	assert.Nil(t, f.getClient())
+	assert.NoError(t, f.Close()) // must not panic on nil client
+}
 
-	t.Run("load token error", func(t *testing.T) {
-		file := filepath.Join(t.TempDir(), "does not exist")
-		token, err := loadTokenFromFile(file)
-		require.Error(t, err)
-		assert.Empty(t, token)
-	})
+func TestPasswordFromFile(t *testing.T) {
+	runPasswordFromFileTest(t)
 }
 
 func runPasswordFromFileTest(t *testing.T) {
 	const (
-		pwd1 = "first password"
-		pwd2 = "second password"
-		// and with user name
+		pwd1  = "first password"
+		pwd2  = "second password"
 		upwd1 = "user:" + pwd1
 		upwd2 = "user:" + pwd2
 	)
+
 	var authReceived sync.Map
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Logf("request to fake ES server: %v", r)
-		// epecting header in the form Authorization:[Basic OmZpcnN0IHBhc3N3b3Jk]
 		h := strings.Split(r.Header.Get("Authorization"), " ")
 		if !assert.Len(t, h, 2) {
 			return
@@ -379,9 +362,7 @@ func runPasswordFromFileTest(t *testing.T) {
 		assert.Equal(t, "Basic", h[0])
 		authBytes, err := base64.StdEncoding.DecodeString(h[1])
 		assert.NoError(t, err, "header: %s", h)
-		auth := string(authBytes)
-		authReceived.Store(auth, auth)
-		t.Logf("request to fake ES server contained auth=%s", auth)
+		authReceived.Store(string(authBytes), struct{}{})
 		w.Write(mockEsServerResponse)
 	}))
 	t.Cleanup(server.Close)
@@ -396,108 +377,45 @@ func runPasswordFromFileTest(t *testing.T) {
 			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
 				Username:         "user",
 				PasswordFilePath: pwdFile,
+				ReloadInterval:   50 * time.Millisecond,
 			}),
 		},
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates auth headers
+			MaxBytes:      -1, // disable bulk size limit
+			MaxActions:    -1, // disable bulk action limit
+			FlushInterval: 10 * time.Millisecond,
 		},
 	}
+
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, f.Close())
-	})
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
 
 	writer := core.NewSpanWriter(f.GetSpanWriterParams())
-	span1 := &dbmodel.Span{
-		Process: dbmodel.Process{ServiceName: "foo"},
-	}
-	writer.WriteSpan(time.Now(), span1)
-	assert.Eventually(
-		t,
-		func() bool {
-			pwd, ok := authReceived.Load(upwd1)
-			return ok && pwd == upwd1
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to send the first password",
-	)
+	writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
 
-	t.Log("replace password in the file")
-	client1 := f.getClient()
+	assert.Eventually(t, func() bool {
+		_, ok := authReceived.Load(upwd1)
+		return ok
+	}, 5*time.Second, time.Millisecond, "expecting ES client to use first password")
+
+	// Replace the password file atomically (same pattern as Kubernetes secret rotation)
 	newPwdFile := filepath.Join(t.TempDir(), "pwd2")
 	require.NoError(t, os.WriteFile(newPwdFile, []byte(pwd2), 0o600))
 	require.NoError(t, os.Rename(newPwdFile, pwdFile))
 
-	assert.Eventually(
-		t,
-		func() bool {
-			client2 := f.getClient()
-			return client1 != client2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to change for the new password",
-	)
-
-	span2 := &dbmodel.Span{
-		Process: dbmodel.Process{ServiceName: "foo"},
-	}
-	writer.WriteSpan(time.Now(), span2)
-	assert.Eventually(
-		t,
-		func() bool {
-			pwd, ok := authReceived.Load(upwd2)
-			return ok && pwd == upwd2
-		},
-		5*time.Second, time.Millisecond,
-		"expecting es.Client to send the new password",
-	)
+	// After ReloadInterval expires the transport re-reads the file; keep writing
+	// spans until the new auth header is observed.
+	assert.Eventually(t, func() bool {
+		writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+		_, ok := authReceived.Load(upwd2)
+		return ok
+	}, 5*time.Second, 100*time.Millisecond, "expecting ES client to use second password after cache reload")
 }
 
-func TestFactoryESClientsAreNil(t *testing.T) {
-	f := &FactoryBase{}
-	assert.Nil(t, f.getClient())
-}
-
-func TestPasswordFromFileErrors(t *testing.T) {
-	defer testutils.VerifyGoLeaksOnce(t)
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	defer server.Close()
-
-	pwdFile := filepath.Join(t.TempDir(), "pwd")
-	require.NoError(t, os.WriteFile(pwdFile, []byte("first password"), 0o600))
-
-	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "debug",
-		Authentication: escfg.Authentication{
-			BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-				PasswordFilePath: pwdFile,
-			}),
-		},
-		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates error paths
-		},
-	}
-
-	logger, buf := testutils.NewEchoLogger(t)
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, logger, nil)
-	require.NoError(t, err)
-	defer f.Close()
-
-	f.config.Servers = []string{}
-	f.onPasswordChange()
-	assert.Contains(t, buf.String(), "no servers specified")
-
-	require.NoError(t, os.Remove(pwdFile))
-	f.onPasswordChange()
-}
-
-func TestFactoryBase_NewClient_WatcherError(t *testing.T) {
+// TestFactoryBase_MissingPasswordFile verifies that factory creation fails fast
+// when a PasswordFilePath is configured but the file does not exist.
+func TestFactoryBase_MissingPasswordFile(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:  []string{"http://localhost:9200"},
 		LogLevel: "debug",
@@ -530,7 +448,6 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 		},
 	}
 
-	// Mock authenticator
 	mockAuth := &mockHTTPAuthenticator{}
 
 	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), mockAuth)
@@ -538,9 +455,278 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 	require.NotNil(t, f)
 	defer require.NoError(t, f.Close())
 
-	// Verify factory is properly initialized with authenticator
 	readerParams := f.GetSpanReaderParams()
 	assert.IsType(t, core.SpanReaderParams{}, readerParams)
+}
+
+func TestBuildRotations(t *testing.T) {
+	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
+	spanDataLayout := "2006-01-02-15"
+	serviceDataLayout := "2006-01-02"
+	spanDataLayoutFormat := date.UTC().Format(spanDataLayout)
+	serviceDataLayoutFormat := date.UTC().Format(serviceDataLayout)
+
+	testCases := []struct {
+		name         string
+		cfg          escfg.Configuration
+		readIndices  []string
+		writeIndices []string
+	}{
+		{
+			name: "periodic rotation",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
+				},
+			},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+		},
+		{
+			name: "alias rotation",
+			cfg: escfg.Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+			},
+			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
+			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
+		},
+		{
+			name: "alias with custom suffixes",
+			cfg: escfg.Configuration{
+				UseReadWriteAliases: configoptional.Some(true),
+				ReadAliasSuffix:     "archive-read",
+				WriteAliasSuffix:    "archive-write",
+			},
+			readIndices:  []string{"jaeger-span-archive-read", "jaeger-service-archive-read"},
+			writeIndices: []string{"jaeger-span-archive-write", "jaeger-service-archive-write"},
+		},
+		{
+			name: "explicit aliases",
+			cfg: escfg.Configuration{
+				SpanWriteAlias:    configoptional.Some("custom-span-write"),
+				SpanReadAlias:     configoptional.Some("custom-span-read"),
+				ServiceWriteAlias: configoptional.Some("custom-service-write"),
+				ServiceReadAlias:  configoptional.Some("custom-service-read"),
+			},
+			readIndices:  []string{"custom-span-read", "custom-service-read"},
+			writeIndices: []string{"custom-span-write", "custom-service-write"},
+		},
+		{
+			name: "with index prefix",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					IndexPrefix: "foo:",
+					Spans:       escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services:    escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
+				},
+			},
+			readIndices:  []string{"foo:-jaeger-span-" + spanDataLayoutFormat, "foo:-jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"foo:-jaeger-span-" + spanDataLayoutFormat, "foo:-jaeger-service-" + serviceDataLayoutFormat},
+		},
+		{
+			name: "with remote clusters",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans:    escfg.IndexOptions{DateLayout: configoptional.Some(spanDataLayout)},
+					Services: escfg.IndexOptions{DateLayout: configoptional.Some(serviceDataLayout)},
+				},
+				RemoteReadClusters: []string{"cluster_one", "cluster_two"},
+			},
+			readIndices: []string{
+				"jaeger-span-" + spanDataLayoutFormat,
+				"cluster_one:jaeger-span-" + spanDataLayoutFormat,
+				"cluster_two:jaeger-span-" + spanDataLayoutFormat,
+				"jaeger-service-" + serviceDataLayoutFormat,
+				"cluster_one:jaeger-service-" + serviceDataLayoutFormat,
+				"cluster_two:jaeger-service-" + serviceDataLayoutFormat,
+			},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+		},
+		{
+			name: "rotation config: periodic",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: spanDataLayout}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							Periodic: configoptional.Some(escfg.PeriodicRotation{DateLayout: serviceDataLayout}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+			writeIndices: []string{"jaeger-span-" + spanDataLayoutFormat, "jaeger-service-" + serviceDataLayoutFormat},
+		},
+		{
+			name: "rotation config: manual_rollover",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+								ReadAlias:  "my-span-read",
+								WriteAlias: "my-span-write",
+							}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+								ReadAlias:  "my-service-read",
+								WriteAlias: "my-service-write",
+							}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"my-span-read", "my-service-read"},
+			writeIndices: []string{"my-span-write", "my-service-write"},
+		},
+		{
+			name: "rotation config: auto_rollover with defaults",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+					Services: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+				},
+			},
+			readIndices:  []string{"jaeger-span-read", "jaeger-service-read"},
+			writeIndices: []string{"jaeger-span-write", "jaeger-service-write"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
+			spanRotation, serviceRotation := f.buildRotations()
+			actualRead := append(spanRotation.ReadTargets(date, date), serviceRotation.ReadTargets(date, date)...)
+			assert.Equal(t, tc.readIndices, actualRead)
+			actualWrite := []string{spanRotation.WriteTarget(date), serviceRotation.WriteTarget(date)}
+			assert.Equal(t, tc.writeIndices, actualWrite)
+		})
+	}
+}
+
+func TestMappingBuilderFromConfig(t *testing.T) {
+	tests := []struct {
+		name               string
+		cfg                escfg.Configuration
+		expectedUseILM     bool
+		expectedPolicyName string
+	}{
+		{
+			name:           "periodic rotation - no ILM",
+			cfg:            escfg.Configuration{},
+			expectedUseILM: false,
+		},
+		{
+			name: "auto_rollover with policy name",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{
+								PolicyName: "my-policy",
+							}),
+						},
+					},
+				},
+			},
+			expectedUseILM:     true,
+			expectedPolicyName: "my-policy",
+		},
+		{
+			name: "auto_rollover without policy name",
+			cfg: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						Rotation: escfg.RotationConfig{
+							AutoRollover: configoptional.Some(escfg.AutoRolloverRotation{}),
+						},
+					},
+				},
+			},
+			expectedUseILM: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockClient := &mocks.Client{}
+			mockClient.On("GetVersion").Return(es.ElasticV7)
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop(), client: mockClient}
+			mb := f.mappingBuilderFromConfig(f.config)
+			assert.Equal(t, tc.expectedUseILM, mb.UseILM)
+			assert.Equal(t, tc.expectedPolicyName, mb.ILMPolicyName)
+		})
+	}
+}
+
+func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
+	cfg := escfg.Configuration{
+		Indices: escfg.Indices{
+			Spans: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "span-read",
+						WriteAlias: "span-write",
+					}),
+				},
+			},
+			Services: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					ManualRollover: configoptional.Some(escfg.ManualRolloverRotation{
+						ReadAlias:  "svc-read",
+						WriteAlias: "svc-write",
+					}),
+				},
+			},
+		},
+		MaxSpanAge: 72 * time.Hour,
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	params := f.GetSpanReaderParams()
+	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
+}
+
+func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
+	cfg := escfg.Configuration{
+		Indices: escfg.Indices{
+			Spans: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					Periodic: configoptional.Default(escfg.PeriodicRotation{
+						DateLayout:        "2006-01-02",
+						RolloverFrequency: "day",
+					}),
+				},
+			},
+			Services: escfg.IndexOptions{
+				Rotation: escfg.RotationConfig{
+					Periodic: configoptional.Default(escfg.PeriodicRotation{
+						DateLayout:        "2006-01-02",
+						RolloverFrequency: "day",
+					}),
+				},
+			},
+		},
+		MaxSpanAge:       72 * time.Hour,
+		MaxTraceDuration: 2 * time.Hour,
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	params := f.GetSpanReaderParams()
+	assert.Equal(t, 72*time.Hour, params.MaxSpanAge)
+	assert.Equal(t, 2*time.Hour, params.MaxTraceDuration)
 }
 
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing

@@ -25,58 +25,89 @@ import (
 //go:embed fixtures/*.json
 var FIXTURES embed.FS
 
-func TestMappingBuilderGetMapping(t *testing.T) {
-	tests := []struct {
-		mapping   MappingType
-		esVersion uint
-	}{
-		{mapping: SpanMapping, esVersion: 8},
-		{mapping: SpanMapping, esVersion: 7},
-		{mapping: SpanMapping, esVersion: 6},
-		{mapping: ServiceMapping, esVersion: 8},
-		{mapping: ServiceMapping, esVersion: 7},
-		{mapping: ServiceMapping, esVersion: 6},
-		{mapping: DependenciesMapping, esVersion: 8},
-		{mapping: DependenciesMapping, esVersion: 7},
-		{mapping: DependenciesMapping, esVersion: 6},
+// allMappingTypes and the version lists below define the full
+// {mapping type × backend × version} matrix that the golden tests assert.
+var (
+	allMappingTypes    = []MappingType{SpanMapping, ServiceMapping, DependenciesMapping, SamplingMapping}
+	elasticVersions    = []es.BackendVersion{es.ElasticV6, es.ElasticV7, es.ElasticV8, es.ElasticV9}
+	openSearchVersions = []es.BackendVersion{es.OpenSearch1, es.OpenSearch2, es.OpenSearch3}
+)
+
+// fixtureName returns the golden fixture file name for a given mapping type and
+// backend version. ES8/ES9 both render the "-8" template; all OpenSearch
+// versions render the "-7-opensearch" template.
+func fixtureName(mapping MappingType, version es.BackendVersion) string {
+	suffix := fmt.Sprintf("-%d", version.TemplateVersion())
+	if version.IsOpenSearch() {
+		suffix += "-opensearch"
 	}
-	for _, tt := range tests {
-		templateName := tt.mapping.String()
+	return mapping.String() + suffix + ".json"
+}
 
-		t.Run(templateName, func(t *testing.T) {
-			defaultOpts := func(p int64) config.IndexOptions {
-				return config.IndexOptions{
-					Shards:   3,
-					Replicas: new(int64(3)),
-					Priority: p,
-				}
-			}
-			serviceOps := defaultOpts(501)
-			dependenciesOps := defaultOpts(502)
-			samplingOps := defaultOpts(503)
+func newTestMappingBuilder(version es.BackendVersion) *MappingBuilder {
+	defaultOpts := func(p int64) config.IndexOptions {
+		return config.IndexOptions{
+			Shards:   3,
+			Replicas: new(int64(3)),
+			Priority: p,
+		}
+	}
+	return &MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices: config.Indices{
+			IndexPrefix:  "test-",
+			Spans:        defaultOpts(500),
+			Services:     defaultOpts(501),
+			Dependencies: defaultOpts(502),
+			Sampling:     defaultOpts(503),
+		},
+		Version:       version,
+		UseILM:        true,
+		ILMPolicyName: "jaeger-test-policy",
+	}
+}
 
-			mb := &MappingBuilder{
-				TemplateBuilder: es.TextTemplateBuilder{},
-				Indices: config.Indices{
-					IndexPrefix:  "test-",
-					Spans:        defaultOpts(500),
-					Services:     serviceOps,
-					Dependencies: dependenciesOps,
-					Sampling:     samplingOps,
-				},
-				EsVersion:     tt.esVersion,
-				UseILM:        true,
-				ILMPolicyName: "jaeger-test-policy",
+func assertGoldenMatrix(t *testing.T, versions []es.BackendVersion) {
+	for _, version := range versions {
+		for _, mapping := range allMappingTypes {
+			t.Run(fmt.Sprintf("%s/%s", mapping.String(), version), func(t *testing.T) {
+				mb := newTestMappingBuilder(version)
+				got, err := mb.GetMapping(mapping)
+				require.NoError(t, err)
+				wantbytes, err := FIXTURES.ReadFile("fixtures/" + fixtureName(mapping, version))
+				require.NoError(t, err)
+				assert.Equal(t, string(wantbytes), got)
+			})
+		}
+	}
+}
+
+func TestMappingBuilderGetMapping(t *testing.T) {
+	assertGoldenMatrix(t, elasticVersions)
+}
+
+func TestMappingBuilderGetMapping_OpenSearch(t *testing.T) {
+	assertGoldenMatrix(t, openSearchVersions)
+}
+
+// TestGoldenFixturesAreAllUsed guards against orphaned fixtures: every committed
+// golden file must be loaded by some {mapping type × backend × version} cell in
+// the matrix above. A fixture that no test ever reads (e.g. the dead
+// "-8-opensearch" files) fails this test.
+func TestGoldenFixturesAreAllUsed(t *testing.T) {
+	used := make(map[string]bool)
+	for _, versions := range [][]es.BackendVersion{elasticVersions, openSearchVersions} {
+		for _, version := range versions {
+			for _, mapping := range allMappingTypes {
+				used[fixtureName(mapping, version)] = true
 			}
-			got, err := mb.GetMapping(tt.mapping)
-			require.NoError(t, err)
-			var wantbytes []byte
-			fileSuffix := fmt.Sprintf("-%d", tt.esVersion)
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
-			require.NoError(t, err)
-			want := string(wantbytes)
-			assert.Equal(t, want, got)
-		})
+		}
+	}
+	entries, err := FIXTURES.ReadDir("fixtures")
+	require.NoError(t, err)
+	for _, entry := range entries {
+		assert.Truef(t, used[entry.Name()],
+			"fixture %q is committed but never loaded by any golden test", entry.Name())
 	}
 }
 
@@ -86,10 +117,10 @@ func TestMappingTypeFromString(t *testing.T) {
 		expected MappingType
 		hasError bool
 	}{
-		{"jaeger-span", SpanMapping, false},
-		{"jaeger-service", ServiceMapping, false},
-		{"jaeger-dependencies", DependenciesMapping, false},
-		{"jaeger-sampling", SamplingMapping, false},
+		{config.SpanIndexName, SpanMapping, false},
+		{config.ServiceIndexName, ServiceMapping, false},
+		{config.DependencyIndexName, DependenciesMapping, false},
+		{config.SamplingIndexName, SamplingMapping, false},
 		{"invalid", MappingType(-1), true},
 	}
 
@@ -187,7 +218,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 					Dependencies: indexTemOps,
 					Sampling:     indexTemOps,
 				},
-				EsVersion:     7,
+				Version:       es.ElasticV7,
 				UseILM:        true,
 				ILMPolicyName: "jaeger-test-policy",
 			}
@@ -203,7 +234,7 @@ func TestMappingBuilderFixMapping(t *testing.T) {
 
 func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 	type args struct {
-		esVersion     uint
+		version       es.BackendVersion
 		indexPrefix   string
 		useILM        bool
 		ilmPolicyName string
@@ -217,7 +248,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7",
 			args: args{
-				esVersion:     7,
+				version:       es.ElasticV7,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -234,7 +265,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version 7 Service Error",
 			args: args{
-				esVersion:     7,
+				version:       es.ElasticV7,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -253,7 +284,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7",
 			args: args{
-				esVersion:     6,
+				version:       es.ElasticV6,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -270,7 +301,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Service Error",
 			args: args{
-				esVersion:     6,
+				version:       es.ElasticV6,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -288,7 +319,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version < 7 Span Error",
 			args: args{
-				esVersion:     6,
+				version:       es.ElasticV6,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -305,7 +336,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
-				esVersion:     7,
+				version:       es.ElasticV7,
 				indexPrefix:   "test",
 				useILM:        true,
 				ilmPolicyName: "jaeger-test-policy",
@@ -335,7 +366,7 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 					Dependencies: indexTemOps,
 					Sampling:     indexTemOps,
 				},
-				EsVersion:     test.args.esVersion,
+				Version:       test.args.version,
 				UseILM:        test.args.useILM,
 				ILMPolicyName: test.args.ilmPolicyName,
 			}

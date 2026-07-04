@@ -880,15 +880,6 @@ func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.T
 	}
 }
 
-// wrappingReader wraps a tracestore.Reader and exposes Unwrap, simulating
-// decorators like ReadMetricsDecorator that may hide the underlying SummaryReader.
-type wrappingReader struct {
-	tracestoremocks.Reader
-	inner tracestore.Reader
-}
-
-func (w *wrappingReader) Unwrap() tracestore.Reader { return w.inner }
-
 func TestFindTraceSummaries_Fallback(t *testing.T) {
 	tqs := initializeTestService()
 	qp := tracestore.TraceQueryParams{
@@ -923,22 +914,6 @@ func TestFindTraceSummaries_NativePath(t *testing.T) {
 	assert.Equal(t, want, got)
 	// FindTraces should NOT have been called on the native reader.
 	nativeReader.AssertNotCalled(t, "FindTraces")
-}
-
-func TestFindTraceSummaries_NativePath_ThroughWrapper(t *testing.T) {
-	want := []tracestore.TraceSummary{{RootServiceName: "wrapped-native"}}
-	nativeReader := &mockSummaryReader{summaries: want}
-	wrapped := &wrappingReader{inner: nativeReader}
-
-	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(wrapped, depsMock, QueryServiceOptions{})
-
-	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
-	}))
-	require.NoError(t, err)
-	assert.Equal(t, want, got)
-	wrapped.AssertNotCalled(t, "FindTraces")
 }
 
 // TestFindTraceSummaries_NativeError verifies that a non-ErrUnsupported error

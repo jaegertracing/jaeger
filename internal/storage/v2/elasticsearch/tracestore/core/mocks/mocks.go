@@ -112,6 +112,74 @@ func (_c *Reader_FindTraceIDs_Call) RunAndReturn(run func(ctx context.Context, t
 	return _c
 }
 
+// FindTraceSummaries provides a mock function for the type Reader
+func (_mock *Reader) FindTraceSummaries(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error) {
+	ret := _mock.Called(ctx, traceQuery)
+
+	if len(ret) == 0 {
+		panic("no return value specified for FindTraceSummaries")
+	}
+
+	var r0 []dbmodel.TraceSummary
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error)); ok {
+		return returnFunc(ctx, traceQuery)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, dbmodel.TraceQueryParameters) []dbmodel.TraceSummary); ok {
+		r0 = returnFunc(ctx, traceQuery)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]dbmodel.TraceSummary)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, dbmodel.TraceQueryParameters) error); ok {
+		r1 = returnFunc(ctx, traceQuery)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Reader_FindTraceSummaries_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'FindTraceSummaries'
+type Reader_FindTraceSummaries_Call struct {
+	*mock.Call
+}
+
+// FindTraceSummaries is a helper method to define mock.On call
+//   - ctx context.Context
+//   - traceQuery dbmodel.TraceQueryParameters
+func (_e *Reader_Expecter) FindTraceSummaries(ctx interface{}, traceQuery interface{}) *Reader_FindTraceSummaries_Call {
+	return &Reader_FindTraceSummaries_Call{Call: _e.mock.On("FindTraceSummaries", ctx, traceQuery)}
+}
+
+func (_c *Reader_FindTraceSummaries_Call) Run(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters)) *Reader_FindTraceSummaries_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 dbmodel.TraceQueryParameters
+		if args[1] != nil {
+			arg1 = args[1].(dbmodel.TraceQueryParameters)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Reader_FindTraceSummaries_Call) Return(traceSummarys []dbmodel.TraceSummary, err error) *Reader_FindTraceSummaries_Call {
+	_c.Call.Return(traceSummarys, err)
+	return _c
+}
+
+func (_c *Reader_FindTraceSummaries_Call) RunAndReturn(run func(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.TraceSummary, error)) *Reader_FindTraceSummaries_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // FindTraces provides a mock function for the type Reader
 func (_mock *Reader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQueryParameters) ([]dbmodel.Trace, error) {
 	ret := _mock.Called(ctx, traceQuery)
