@@ -400,7 +400,43 @@ Backward-compatibility integration tests across backends ([#8691](https://github
 
 ---
 
-## 10. References
+## 10. Relationship to prior proposals
+
+This RFC builds on the investigation in [#7612](https://github.com/jaegertracing/jaeger/issues/7612) — principally @thc1006's client survey and @Amaan729's research PR [#8205](https://github.com/jaegertracing/jaeger/pull/8205), plus the driver-independent extraction PRs from @madhav-murali/@hharshhsaini ([#7917](https://github.com/jaegertracing/jaeger/pull/7917), [#8538](https://github.com/jaegertracing/jaeger/pull/8538), [#8503](https://github.com/jaegertracing/jaeger/pull/8503)). It reaches a different architectural conclusion, for reasons worth stating explicitly since a reviewer arriving from #7612 will ask them.
+
+### The core divergence: one owned client vs. two official SDKs
+
+The community investigations converged on a **dual-client** strategy: adopt `go-elasticsearch` for Elasticsearch and `opensearch-go` for OpenSearch, dispatch by detected backend behind a facade. @thc1006 recommended exactly that ("go-elasticsearch/v9 for ES, opensearch-go/v4 for OS, runtime detection"); #8205 proposed `es/` and `os/` sub-packages selected at runtime.
+
+This RFC evaluates that approach as **Option B (§5)** and does not adopt it. It recommends **Option A** — a single Jaeger-owned, driver-neutral client that owns its wire JSON. The matrix in §5.3 is the argument: the dual-client path is two code paths forever, ships two near-duplicate SDK forks (`opensearch-go` is a fork of `go-elasticsearch`), narrows the version matrix (a single `go-elasticsearch` major cannot span ES 6→9; `opensearch-go` cannot reach ES 8/9), and does not actually deliver "one client" — it delivers two behind a curtain.
+
+### Two findings that change the conclusion
+
+The dual-client proposals leaned on the official SDKs largely on the assumption that Jaeger needs their machinery (transport, signing, bulk, retries), and priced the work accordingly (~8–12 weeks in @thc1006's estimate). Two facts, established here and not load-bearing in the prior investigations, undercut that assumption:
+
+1. **The transport is already Jaeger-owned (§6.1, §9).** `clientbuilder.GetHTTPRoundTripper` already provides TLS + auth + **SigV4** + the `GetBody` fix + header-forwarding; the official drivers merely *receive* it via `options.Transport`. Adopting an SDK for its transport therefore buys almost nothing — and the admin path *bypassing* this transport is a pre-existing SigV4/bearer gap, not merely duplication.
+
+2. **The query DSL is byte-identical across ES and OS over Jaeger's actual subset (§6.2).** The ES/OS fork diverged on *management* APIs (ILM/ISM, templates, data streams), not the search DSL. So a small (~17-node) owned AST hides all backend differences with essentially no branching. This makes "own the query layer" cheap rather than the large rewrite the dual-client framing implied.
+
+Neither the "40–60% shareable, keep a facade" analysis nor the dual-client proposals rested on these two points; together they are what justify *not forking the implementation at all*.
+
+### Other improvements over the prior proposals
+
+- **Version-matrix preservation is a first-class goal (G3).** The dual-client path would *narrow* support; this RFC keeps ES 6/7/8/9 + OS 1/2/3 from one binary and treats any regression as a failure condition.
+- **A concrete migration safety net (§7).** Freeze today's wire behavior as request **snapshots** first, then migrate under green goldens — plus an honest audit that the current `olivere` mocks are largely coverage-filler, and a single fixture-naming taxonomy. The prior discussion got as far as "raw JSON vs typed API, lean on integration tests"; it did not propose a wire-contract baseline.
+- **The facade altitude is scoped correctly (§6.2).** Per the #7612 steer toward "Jaeger concepts, not driver concepts," but `esclient` is ES-primitive and driver-neutral — trace-domain methods like `FindTraceIDs` stay in the *storage* layer. The earlier "facade" discussion blurred these levels.
+- **The extraction phase is shown to be unnecessary.** The proposals treated "extract the 40–60% driver-independent logic into shared packages" as a prerequisite. That only pays off if the implementation is *forked* per backend. Because this design keeps one implementation, that logic stays where it is; the in-flight extraction PRs are complementary, not gating.
+- **PR-sized, vertical, snapshot-guarded milestones with exit criteria (§8)**, and tighter scope — folding index management into the factory is explicitly out of scope (data-streams territory), which the prior proposals tended to bundle in.
+
+### What it keeps from the community
+
+This is not a replacement for the prior work. The **product-check finding** — that no single official Go SDK can serve both current Elasticsearch and OpenSearch — is @thc1006's, adopted wholesale and central to §4. The **#2192 / bounded-bulk priority** is kept. The existing `esquery.RangeQuery` is cited as the working AST prototype (§6.2). The extraction PRs are credited as complementary cleanups (§8).
+
+**In one line:** the community concluded "adopt two official SDKs and fork the implementation"; this RFC concludes "own one driver-neutral client and don't fork" — a conclusion that only becomes correct once you notice the transport is already Jaeger's and the query DSL does not actually diverge across backends.
+
+---
+
+## 11. References
 
 **Jaeger issues/PRs**
 - [#7612](https://github.com/jaegertracing/jaeger/issues/7612) — Investigate the path to replace `olivere/elastic` (tracking issue with the full design discussion)
