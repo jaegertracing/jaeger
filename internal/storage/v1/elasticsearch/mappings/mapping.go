@@ -10,7 +10,6 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 )
 
 // MAPPINGS contains embedded index templates.
@@ -28,10 +27,14 @@ const (
 	SamplingMapping
 )
 
-// ComponentTemplateSettingsSuffix is appended to the spans data stream name to
-// form the settings component-template name, following the "@" naming
+// componentTemplateSettingsSuffix is the "@settings" suffix of the spans
+// settings component-template name, following the ES component-template naming
 // convention (RFC 0004 §3.2), e.g. "jaeger.spans@settings".
-const ComponentTemplateSettingsSuffix = "@settings"
+const componentTemplateSettingsSuffix = "@settings"
+
+// spanComponentBaseName is the dot-notation base name of the spans indices,
+// shared by the settings component template and the spans data stream.
+const spanComponentBaseName = "jaeger.spans"
 
 // MappingBuilder holds common parameters required to render an elasticsearch index template
 type MappingBuilder struct {
@@ -48,12 +51,12 @@ type templateParams struct {
 	ILMPolicyName string
 	IsOpenSearch  bool
 	IndexPrefix   string
-	// SpanDataStreamName is the prefixed dot-notation spans data stream name
-	// (e.g. "prod.jaeger.spans"), used to reference its component templates.
-	SpanDataStreamName string
-	Shards             int64
-	Replicas           int64
-	Priority           int64
+	// SpanSettingsComponentName is the full name of the spans @settings component
+	// template (e.g. "prod.jaeger.spans@settings"), referenced in composed_of.
+	SpanSettingsComponentName string
+	Shards                    int64
+	Replicas                  int64
+	Priority                  int64
 }
 
 func (mb MappingBuilder) getMappingTemplateOptions(mappingType MappingType) templateParams {
@@ -148,6 +151,15 @@ func (mb *MappingBuilder) GetSpanSettingsComponentTemplate() (string, error) {
 	return mb.renderMapping("jaeger-spans-component-settings.json", mb.getMappingTemplateOptions(SpanMapping))
 }
 
+// SpanSettingsComponentName returns the name of the spans @settings component
+// template, e.g. "prod.jaeger.spans@settings" (RFC 0004 §3.2). The composable
+// span index template references this exact name in composed_of, and both the
+// collector and es-rollover create the component under it, so it is derived in
+// one place to keep the reference and the created object in sync.
+func (mb *MappingBuilder) SpanSettingsComponentName() string {
+	return mb.Indices.IndexPrefix.DataStreamName(spanComponentBaseName) + componentTemplateSettingsSuffix
+}
+
 // GetDependenciesMappings returns dependencies mappings
 func (mb *MappingBuilder) GetDependenciesMappings() (string, error) {
 	return mb.GetMapping(DependenciesMapping)
@@ -171,7 +183,7 @@ func (mb *MappingBuilder) renderMapping(mapping string, options templateParams) 
 	writer := new(bytes.Buffer)
 
 	options.IndexPrefix = mb.Indices.IndexPrefix.Apply("")
-	options.SpanDataStreamName = indices.SpanDataStreamName(mb.Indices.IndexPrefix)
+	options.SpanSettingsComponentName = mb.SpanSettingsComponentName()
 	if err := tmpl.Execute(writer, options); err != nil {
 		return "", err
 	}

@@ -29,7 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
@@ -321,7 +320,8 @@ func TestCreateTemplates(t *testing.T) {
 		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
 		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
 		if test.wantComponentTemplates {
-			settingsName := indices.SpanDataStreamName(test.indexPrefix) + mappings.ComponentTemplateSettingsSuffix
+			mb := mappings.MappingBuilder{Indices: escfg.Indices{IndexPrefix: test.indexPrefix}}
+			settingsName := mb.SpanSettingsComponentName()
 			mockClient.On("CreateComponentTemplate", mock.Anything, settingsName, mock.Anything).
 				Return(test.componentTemplateErr)
 		}

@@ -12,7 +12,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
 
@@ -44,7 +43,7 @@ func (c Action) createSpanSettingsComponentTemplate(ctx context.Context, mapping
 	if err != nil {
 		return err
 	}
-	name := indices.SpanDataStreamName(config.IndexPrefix(c.Config.Config.IndexPrefix)) + mappings.ComponentTemplateSettingsSuffix
+	name := mappingBuilder.SpanSettingsComponentName()
 	return c.IndicesClient.CreateComponentTemplate(ctx, body, name)
 }
 

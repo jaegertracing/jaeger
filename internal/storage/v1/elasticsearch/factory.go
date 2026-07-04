@@ -271,7 +271,7 @@ func (f *FactoryBase) createSpanSettingsComponentTemplate(ctx context.Context, m
 	if err != nil {
 		return err
 	}
-	name := indices.SpanDataStreamName(f.config.Indices.IndexPrefix) + mappings.ComponentTemplateSettingsSuffix
+	name := mappingBuilder.SpanSettingsComponentName()
 	if err := client.CreateComponentTemplate(ctx, name, settingsBody); err != nil {
 		return fmt.Errorf("failed to create component template %q: %w", name, err)
 	}

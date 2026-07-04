@@ -1,7 +1,7 @@
 {
   "priority": {{ .Priority }},
   "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
-  "composed_of": ["{{ .SpanDataStreamName }}@settings"],
+  "composed_of": ["{{ .SpanSettingsComponentName }}"],
   "template": {
 
     {{- if .UseILM}}
