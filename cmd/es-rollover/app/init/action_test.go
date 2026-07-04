@@ -22,7 +22,29 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
+
+// failingTemplateBuilder is a TemplateBuilder whose Parse always fails, used to
+// exercise the render-error path.
+type failingTemplateBuilder struct{}
+
+func (failingTemplateBuilder) Parse(string) (es.TemplateApplier, error) {
+	return nil, errors.New("template load error")
+}
+
+func TestCreateSpanSettingsComponentTemplate_RenderError(t *testing.T) {
+	action := Action{}
+	mappingBuilder := mappings.MappingBuilder{
+		TemplateBuilder: failingTemplateBuilder{},
+		Version:         es.ElasticV8,
+		Indices: config.Indices{
+			Spans: config.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+		},
+	}
+	err := action.createSpanSettingsComponentTemplate(context.Background(), mappingBuilder)
+	require.EqualError(t, err, "template load error")
+}
 
 func applyTestDefaults(cfg *Config) {
 	indices := []*config.IndexOptions{

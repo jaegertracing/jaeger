@@ -35,17 +35,11 @@ func (c Action) mappingBuilder(version es.BackendVersion) mappings.MappingBuilde
 	}
 }
 
-func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
-	mappingBuilder := c.mappingBuilder(version)
-	return mappingBuilder.GetMapping(mappingType)
-}
-
 // createSpanSettingsComponentTemplate creates the @settings component template
 // that the composable (v8) span index template references in composed_of
 // (RFC 0004 §3.2). The collector creates the same component template at
 // startup; the PUT is idempotent.
-func (c Action) createSpanSettingsComponentTemplate(ctx context.Context, version es.BackendVersion) error {
-	mappingBuilder := c.mappingBuilder(version)
+func (c Action) createSpanSettingsComponentTemplate(ctx context.Context, mappingBuilder mappings.MappingBuilder) error {
 	body, err := mappingBuilder.GetSpanSettingsComponentTemplate()
 	if err != nil {
 		return err
@@ -109,7 +103,8 @@ func (c Action) init(ctx context.Context, version es.BackendVersion, indexopt ap
 		return err
 	}
 
-	mapping, err := c.getMapping(version, mappingType)
+	mappingBuilder := c.mappingBuilder(version)
+	mapping, err := mappingBuilder.GetMapping(mappingType)
 	if err != nil {
 		return err
 	}
@@ -117,7 +112,7 @@ func (c Action) init(ctx context.Context, version es.BackendVersion, indexopt ap
 	// The composable (v8) span template references the spans @settings component
 	// template in composed_of, so the component must exist before the template.
 	if mappingType == mappings.SpanMapping && version.UsesV8API() {
-		if err := c.createSpanSettingsComponentTemplate(ctx, version); err != nil {
+		if err := c.createSpanSettingsComponentTemplate(ctx, mappingBuilder); err != nil {
 			return err
 		}
 	}
