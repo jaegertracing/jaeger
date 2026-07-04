@@ -331,25 +331,41 @@ Two problems with today's snapshots: the ES fixtures use an ad-hoc scheme (`jaeg
 **Pattern:**
 
 ```
-testdata/<subject>[.<backend><range>].json
+testdata/<subject>[.<variants>].json
 ```
 
 - `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping snapshot under `mappings/testdata/` is `dependencies.es6.json`, not `mapping/dependencies.es6.json`.
-- **The variant tail is omitted when the request is identical for all backends and versions:** the snapshot is the bare `<subject>.json`.
-- **Otherwise a `.<backend><range>` tail distinguishes the per-backend snapshots:**
+- **There is exactly one file per distinct wire format.** When every supported backend and version emits the same request, the variant tail is omitted and the snapshot is the bare `<subject>.json`.
+- **Otherwise a `.<variants>` tail lists the version ranges that share that wire format** — a dot-separated list of `<backend><range>` tokens:
   - `<backend>` — `es` or `os`.
-  - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) when consecutive versions emit byte-identical output.
+  - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) of consecutive versions.
+  - Backends that emit byte-identical output share one file, so the token list can span both — `get_services.es7-9.os1-3.json`.
 
-Examples: `testdata/alias_exists.json` (all versions), `testdata/create_template.es6-7.json`, `testdata/get_services.es6.json`, `testdata/find_trace_ids.os1-2.json`, `testdata/span.es8-9.json`.
+Examples: `testdata/alias_exists.json` (all versions); `testdata/get_operations.es6.json` + `testdata/get_operations.es7-9.os1-3.json` (only ES 6 differs); `testdata/create_template.es6-7.os1-3.json` + `testdata/create_template.es8-9.json` (ES 6-7 and OpenSearch share the `_template` endpoint, ES 8-9 use `_index_template`); `testdata/span.es8-9.json` (mapping distinct per backend).
 
 **Rules:**
 
-- **Ranges are inclusive, non-overlapping within a backend, and must cover every supported major.** A resolver maps `(backend, major) → the unique file whose range contains it`; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "do ES 6 and ES 7 differ for this operation?" is answered by `ls testdata/`.
-- **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if output equals an adjacent range, **extend the range in the filename** (`.es8.json` → `.es8-9.json`); if it differs, add `.es9.json`. Coverage is always visible in the diff.
-- **Backends stay separate** even when ES and OS emit identical bytes (no cross-`es`/`os` merge) — the generator may *flag* byte-identical cross-backend snapshots as an FYI, but explicit files keep resolution unambiguous.
-- **The bare `<subject>.json` is reserved for requests that structurally cannot vary by backend or version** — e.g. admin REST calls like `HEAD /_alias/{name}` whose client code has no backend/version branch at all. This is common in the admin plane and rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest: a snapshot either carries a `.<backend><range>` tail or it is making the explicit claim "this request is byte-identical on every backend."
+- **The variant set is content-derived, not backend-derived.** Regeneration groups versions by the exact bytes they emit and writes one file per group, naming it with every range in the group. A resolver maps `(backend, major) → the unique file one of whose ranges contains it`, and every supported major must resolve; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "which versions share this request?" is answered by `ls testdata/`.
+- **No duplication.** Two backends (or majors) that emit identical bytes are never stored twice; they collapse into one file whose name enumerates both.
+- **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if its output matches an existing group its range extends or merges (`.es7-9.` → `.es7-10.`, or `.es8-9.json` → `.es8-9.os1-3.json`); if it differs, a new file appears. Coverage is always visible in the diff.
+- **The bare `<subject>.json` is the explicit claim "byte-identical on every backend and version."** Common in the admin plane (e.g. `HEAD /_alias/{name}`, whose client code has no backend/version branch), rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest.
 
-The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots, and converging the existing `jaeger-*-{6,7,8}.json` files onto it will also surface any accidental duplication (identical `-6`/`-7` files collapse to `.es6-7`). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
+**Why one file per wire format (not per backend).** Always giving ES and OpenSearch their own file is simpler to resolve but duplicates every backend-agnostic request — and since the data plane is backend-agnostic by design, that is most of them. A third option — a base file plus per-version overrides — reads best for the data plane but makes a file's coverage implicit. Trade-offs (🟢 good / 🟡 mixed / 🔴 poor):
+
+| Criterion | ① One file per wire format<br>`es7-9.os1-3.json` **(chosen)** | ② Base + overrides<br>`.json` + `es6.json` | ③ Separate per backend<br>`es7-9.json` + `os1-3.json` |
+|---|:---:|:---:|:---:|
+| Eliminates duplication | 🟢 identical content → one file | 🟢 identical content → base | 🔴 `es7-9` == `os1-3` duplicated |
+| Coverage is explicit | 🟢 filename lists every range | 🔴 base = "whatever isn't overridden" | 🟢 one file per backend |
+| Keeps `bare.json` = "all identical" | 🟢 unchanged | 🔴 redefines bare as "default" | 🟢 unchanged |
+| Reads cleanly for the data plane | 🟡 `es7-9.os1-3` is busy | 🟢 "the query, + es6 is special" | 🔴 one file is a pure duplicate |
+| Reads cleanly for the control plane (backends differ) | 🟢 one explicit file each | 🟡 one variant becomes the implicit base | 🟢 one explicit file each |
+| Filename grammar simplicity | 🟡 dotted range-list | 🟢 simplest | 🟢 simplest |
+| Upkeep when a new ES/OS major is supported | 🟡 regenerate; range extends/merges in the name | 🟢 matches the base ⇒ no new file | 🔴 always a new (often duplicate) file |
+| Scales as the data plane grows | 🟢 | 🟢 | 🔴 duplication multiplies |
+
+① and ② both eliminate the duplication; they differ on where the cost lands. ② has the lowest upkeep and the cleanest data-plane read, but a file's coverage becomes implicit and the bare-file meaning is overloaded — awkward for the control plane, where no variant is a natural default. We choose **①**: an unambiguous resolver and every file's coverage being explicit in its name matter more here than shaving a regeneration step, and the fixture tree stays a literal, no-magic compatibility matrix.
+
+The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots; converging the existing `jaeger-*-{6,7,8}.json` files onto it collapses any accidental duplication (identical `-6`/`-7` files become `.es6-7`, and identical ES/OS files merge into one `.es*.os*` file). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
 
 ### 7.4 Snapshot vs. focused mock — pick the altitude
 
@@ -379,7 +395,7 @@ Anti-patterns this rules out: (a) a snapshot per input permutation of the same q
 The work decomposes into small, independently-shippable milestones — each one PR-sized, guarded by the snapshot + integration suites, with an explicit exit bar. They group into four stages; within the data-plane stage each storage path migrates on its own so no single PR is large. The snapshot suite (M1) is what makes the per-path migrations safe and small: each is "migrate this path, snapshots stay green."
 
 **Stage A — Foundation (no behavior change)**
-- **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot per supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
+- **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot resolving for each supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
 - **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
 - **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (`GetHTTPRoundTripper` layered under `elastic-transport-go`'s pool) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
 - **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
