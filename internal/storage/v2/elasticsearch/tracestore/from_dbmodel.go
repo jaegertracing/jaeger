@@ -65,7 +65,7 @@ func dbSpansToSpans(dbSpans []dbmodel.Span, resourceSpans ptrace.ResourceSpansSl
 		scopeSpan := scopeSpans.AppendEmpty()
 		dbSpanToScope(span, scopeSpan)
 
-		// TODO there should be no errors returned from translation from db model
+		
 		err := dbSpanToSpan(span, scopeSpan.Spans().AppendEmpty())
 		if err != nil {
 			return err
@@ -95,14 +95,18 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 	endTime := startTime.Add(duration)
 	span.SetEndTimestamp(pcommon.NewTimestampFromTime(endTime))
 
-	// TODO rewrite this to use a single loop over tags
-	// and map special tag names to OTEL Span fields
+	// Consolidated tag handling loop
 	attrs := span.Attributes()
 	attrs.EnsureCapacity(len(dbSpan.Tags))
-	dbTagsToAttributes(dbSpan.Tags, attrs)
-	if spanKindAttr, ok := attrs.Get(model.SpanKindKey); ok {
-		span.SetKind(dbSpanKindToOTELSpanKind(spanKindAttr.Str()))
-		attrs.Remove(model.SpanKindKey)
+	for _, tag := range dbSpan.Tags {
+		// Handle special tags directly
+		if tag.Key == model.SpanKindKey {
+			if kindStr, ok := tag.Value.(string); ok {
+				span.SetKind(dbSpanKindToOTELSpanKind(kindStr))
+			}
+			continue
+		}
+		addTagToAttributes(tag, attrs)
 	}
 	setSpanStatus(attrs, span)
 
@@ -126,58 +130,62 @@ func dbSpanToSpan(dbSpan *dbmodel.Span, span ptrace.Span) error {
 
 func dbTagsToAttributes(tags []dbmodel.KeyValue, attributes pcommon.Map) {
 	for _, tag := range tags {
-		tagValue, ok := tag.Value.(string)
-		if !ok {
-			switch tag.Type {
-			case dbmodel.Float64Type, dbmodel.Int64Type:
-				fromDBNumber(tag, attributes)
-			case dbmodel.BoolType:
-				v, ok := tag.Value.(bool)
-				if !ok {
-					recordTagInvalidTypeError(tag, attributes)
-				} else {
-					attributes.PutBool(tag.Key, v)
-				}
-			default:
-				// This means type is string/binary but value is of non string type, hence record the type error
-				recordTagInvalidTypeError(tag, attributes)
-			}
-			continue
-		}
+		addTagToAttributes(tag, attributes)
+	}
+}
+
+func addTagToAttributes(tag dbmodel.KeyValue, attributes pcommon.Map) {
+	tagValue, ok := tag.Value.(string)
+	if !ok {
 		switch tag.Type {
-		case dbmodel.StringType:
-			attributes.PutStr(tag.Key, tagValue)
+		case dbmodel.Float64Type, dbmodel.Int64Type:
+			fromDBNumber(tag, attributes)
 		case dbmodel.BoolType:
-			convBoolVal, err := strconv.ParseBool(tagValue)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
+			v, ok := tag.Value.(bool)
+			if !ok {
+				recordTagInvalidTypeError(tag, attributes)
 			} else {
-				attributes.PutBool(tag.Key, convBoolVal)
-			}
-		case dbmodel.Int64Type:
-			intVal, err := strconv.ParseInt(tagValue, 10, 64)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutInt(tag.Key, intVal)
-			}
-		case dbmodel.Float64Type:
-			floatVal, err := strconv.ParseFloat(tagValue, 64)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutDouble(tag.Key, floatVal)
-			}
-		case dbmodel.BinaryType:
-			value, err := hex.DecodeString(tagValue)
-			if err != nil {
-				recordTagConversionError(tag, err, attributes)
-			} else {
-				attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+				attributes.PutBool(tag.Key, v)
 			}
 		default:
-			attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
+			// This means type is string/binary but value is of non string type, hence record the type error
+			recordTagInvalidTypeError(tag, attributes)
 		}
+		return
+	}
+	switch tag.Type {
+	case dbmodel.StringType:
+		attributes.PutStr(tag.Key, tagValue)
+	case dbmodel.BoolType:
+		convBoolVal, err := strconv.ParseBool(tagValue)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutBool(tag.Key, convBoolVal)
+		}
+	case dbmodel.Int64Type:
+		intVal, err := strconv.ParseInt(tagValue, 10, 64)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutInt(tag.Key, intVal)
+		}
+	case dbmodel.Float64Type:
+		floatVal, err := strconv.ParseFloat(tagValue, 64)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutDouble(tag.Key, floatVal)
+		}
+	case dbmodel.BinaryType:
+		value, err := hex.DecodeString(tagValue)
+		if err != nil {
+			recordTagConversionError(tag, err, attributes)
+		} else {
+			attributes.PutEmptyBytes(tag.Key).FromRaw(value)
+		}
+	default:
+		attributes.PutStr(tag.Key, fmt.Sprintf("<Unknown Jaeger TagType %q>", tag.Type))
 	}
 }
 
