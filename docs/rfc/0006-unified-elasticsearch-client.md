@@ -149,7 +149,7 @@ There is **no** "works with both" official Go client. Real-world patterns: **pla
 ### 5.1 The candidate options
 
 - **Baseline — status quo:** `olivere/elastic` (data plane) + raw-HTTP `client` (control plane) + `go-elasticsearch/v9` for one op. Listed to make "do nothing" a scored option, not an implicit escape.
-- **A — Owned client:** one Jaeger client in one package, implemented over an HTTP transport, **Jaeger owns request/response JSON** at the ES-primitive (driver-neutral) level; backend/version differences resolved internally. The transport tier (TLS + auth + **SigV4** + header-forwarding) already exists as `clientbuilder.GetHTTPRoundTripper` and is reused — no SDK needed even at the transport layer.
+- **A — Owned client:** one Jaeger client in one package, implemented over an HTTP transport, **Jaeger owns request/response JSON** at the ES-primitive (driver-neutral) level; backend/version differences resolved internally. The transport tier reuses our existing `clientbuilder.GetHTTPRoundTripper` (TLS + auth + **SigV4**) layered under `elastic-transport-go`'s *product-check-free* connection pool (multi-node round-robin, retry) — a transport, never the product-checked client (§6.1, §6.3).
 - **B — Two SDKs behind a facade:** `go-elasticsearch` for ES, `opensearch-go` for OpenSearch, dispatched by detected backend behind one Jaeger-concept interface.
 - **C1 — `go-elasticsearch` for both:** single official SDK; reach OpenSearch by a custom transport that **forges** `X-Elastic-Product` and strips the `compatible-with` media type.
 - **C2 — `opensearch-go` for both:** single official SDK; it has no product check and talks to OpenSearch 1/2/3 and ES-OSS 7.10, but has no supported path to ES 8/9.
@@ -190,7 +190,7 @@ Note K8 is deliberately included as the axis where the recommended option scores
 - ⁴ We own it, but the surface is small (§2) and the control plane already works this way. The ongoing-maintenance *cost* is captured under K8, not here.
 - ⁵ SDK is healthy, but we depend on an unsupported bypass that upstream may break at will.
 - ⁶ Ships two near-duplicate forks with colliding symbols (`Config`, `Client`, `BulkIndexer`) plus a third ES major.
-- ⁷ Smaller than it looks: the transport (TLS + auth + **SigV4** + header-forwarding) already exists as `clientbuilder.GetHTTPRoundTripper` and is reused; pooling/gzip come from `http.Transport`; retry replicates today's behavior (§6.1). The genuine new build is the bounded bulk indexer (§6.1, #2192).
+- ⁷ Smaller than it looks: auth/SigV4 already exist as `clientbuilder.GetHTTPRoundTripper`, and pool/round-robin/retry/discovery are reused from the *product-check-free* `elastic-transport-go` with our RoundTripper as its base (§6.1). The genuine new build is the query AST, the response types, and the bounded bulk indexer (#2192).
 
 ### 5.4 Reading the matrix
 
@@ -224,7 +224,14 @@ The matrix's K1/K2 rows summarize this per-version reachability table:
 
 ### 6.1 One shared transport; API structs by composition
 
-The load-bearing invariant is **one shared low-level client** — call it `rawClient` — that owns the *horizontal* concerns: connection pooling, retry, gzip, auth (basic/API-key/**SigV4**), `custom_headers`, the JSON round-trip, and **a single version-detection / capability probe**. Everything that must not be duplicated lives here. Its transport is **not new work**: it reuses the existing `clientbuilder.GetHTTPRoundTripper` (TLS + auth + SigV4 + `GetBody` fix + header-forwarding), which today only the data plane goes through — routing the admin path through it as well both unifies transport and closes an existing SigV4/bearer gap in `es-rollover` (§9).
+The load-bearing invariant is **one shared low-level client** — call it `rawClient` — that owns the *horizontal* concerns: connection pooling, multi-node round-robin, retry, gzip, auth (basic/API-key/**SigV4**), `custom_headers`, the JSON round-trip, and **a single version-detection / capability probe**. Everything that must not be duplicated lives here.
+
+The transport is **largely reused, not built**, composed from two pieces:
+
+- Our existing `clientbuilder.GetHTTPRoundTripper` (TLS + auth + **SigV4** + `GetBody` fix + header-forwarding) — today only the data plane goes through it; routing the admin path through it too unifies auth and closes the `es-rollover` SigV4/bearer gap.
+- **`elastic-transport-go`** — the layer *beneath* `go-elasticsearch`, Apache-2.0, already a transitive dependency, and (verified) **carrying no product check**: the `X-Elastic-Product` gate lives in the `go-elasticsearch` *client*, not the transport. It supplies the connection pool, **multi-node round-robin + failover**, retry, and opt-in node discovery. Our `GetHTTPRoundTripper` plugs in as its base `Config.Transport`, so signing/headers stay ours while the pool/retry/failover come from a battle-tested library; `rawClient` drives it via `Perform`.
+
+This is not just convenience: Jaeger already load-balances across multiple `server_urls` (olivere round-robins them today), so a single-endpoint `http.Transport` would **regress** multi-node support — reusing `elastic-transport-go`'s pool preserves it, without reintroducing the product check. *(The transport-reuse layering was pointed out by [@Me-Priyank](https://github.com/Me-Priyank) in the [#8919](https://github.com/jaegertracing/jaeger/pull/8919) review.)*
 
 The *payload*-level APIs are **distinct structs composed over that `rawClient`**, grouped by cohesion — e.g. a data-plane struct (search/bulk) and one or more admin structs (index/alias/template, lifecycle, cluster). This is deliberately *not* prescribed as a single omni-struct:
 
@@ -234,8 +241,8 @@ The *payload*-level APIs are **distinct structs composed over that `rawClient`**
 
 ```
 internal/storage/elasticsearch/esclient/   (rename of today's .../client pkg, grown upward — see §6.4)
-  transport.go   // rawClient: one HTTP transport — pooling, retry, gzip, auth (basic/API-key/SigV4),
-                 //            custom_headers, JSON round-trip. Horizontal concerns only.
+  transport.go   // rawClient: elastic-transport-go pool (multi-node round-robin, retry, discovery)
+                 //            over our GetHTTPRoundTripper (TLS, auth/SigV4, custom_headers). Horizontal only.
   version.go     // single DetectBackendVersion on rawClient; capability flags (UsesV8API, …, UseISM)
   data.go        // Data struct{ *rawClient }      — Search, MultiSearch, Bulk
   admin.go       // Index/Alias/Template/Lifecycle/Cluster struct(s){ *rawClient } — mgmt payloads
@@ -246,8 +253,8 @@ internal/storage/elasticsearch/esclient/   (rename of today's .../client pkg, gr
 
 - **Backend differences live behind these interfaces**, resolved once from the shared capability struct: ILM vs ISM, template endpoint selection, `rest_total_hits_as_int`, typed-index suppression, data-stream op-type. Callers pass Jaeger concepts, never `elastic.*` structs (removes the §2.1 leak).
 - **Auth/headers/signing are `rawClient` concerns**, applied uniformly to *every* request from *every* API struct — which is exactly what fixes #8916 (headers everywhere) and #8760 (SigV4 sees the body). Concentrating them in one place is the whole point of the shared transport.
-- **Node discovery (sniffing) is off by default, opt-in only.** This matches both official SDKs (`go-elasticsearch`/`opensearch-go` round-robin the configured endpoints, discovery via opt-in `DiscoverNodesOnStart`/`DiscoverNodesInterval`) and unlike `olivere`, whose default-on sniffing is a known source of proxy/AWS misconfig — which is why Jaeger already disables it.
-- **Retry replicates today's behavior — no new policy.** Searches are not retried (Jaeger never sets `olivere`'s retrier). The bounded bulk indexer preserves `BulkProcessor`'s per-item retry: exponential backoff, re-enqueueing bulk items that return 408/429/503/507. Preserving this is a requirement of the #2192 replacement, not just adding a byte cap.
+- **Multi-node round-robin on; node discovery (sniffing) off by default.** The `elastic-transport-go` pool round-robins across the configured `server_urls` with failover (preserving today's `olivere` behavior), while its node discovery (`DiscoverNodesInterval`) stays opt-in — matching the official SDKs and unlike `olivere`, whose default-on sniffing is a known source of proxy/AWS misconfig, which is why Jaeger already disables it.
+- **Retry comes from the transport for reads; the bulk indexer owns write retry.** `elastic-transport-go` retries whole requests on 502/503/504 with backoff — safe for idempotent searches (a mild improvement over today, where reads aren't retried) and disable-able if we choose to match exactly. The bulk *write* path is deliberately different: the bounded bulk indexer keeps `BulkProcessor`'s **per-item** retry (backoff, re-enqueue on 408/429/503/507) rather than a blind whole-batch replay, which would duplicate writes. Preserving that per-item behavior is a requirement of the #2192 replacement, not just a byte cap.
 - **Mockability (ties to §7):** narrow interfaces make focused fakes cheap — a one-method `Searcher` spy can assert *which indices* a reader selected without touching the query body. Snapshots and mocks are complementary and chosen by the test's subject (wire format → snapshot; computed decision like index selection → focused mock); see §7.4. The only thing the strategy retires is re-mocking the query *builder* to re-check the wire format, which proved to be coverage-filler (§7.1).
 
 ### 6.2 What `esclient` is — and is not
@@ -286,7 +293,7 @@ The driver-*independent* read/write logic (trace assembly, tag processing, metri
 
 ### 6.3 What we keep from the SDKs
 
-Nothing — not even at the transport layer. Jaeger already owns the transport (`clientbuilder.GetHTTPRoundTripper`: TLS + auth + **SigV4** via the OTel `sigv4auth` extension + `GetBody` fix + header-forwarding), so there is no signer to borrow from an SDK and no reason to pull in a product-checked `Client`. The only component to own outright is the bounded bulk indexer, which also replicates `BulkProcessor`'s per-item retry (small; §6.1).
+Nothing from the product-checked *client* or the typed API — but the **transport** is worth reusing. `elastic-transport-go` (the layer *beneath* `go-elasticsearch`) is Apache-2.0, already a transitive dependency, and — verified — carries no product check (that gate lives in the `go-elasticsearch` client above it). It provides the connection pool, multi-node round-robin, failover, retry, and opt-in discovery; our own `GetHTTPRoundTripper` (TLS + auth + **SigV4** via the OTel `sigv4auth` extension + `GetBody` fix + header-forwarding) plugs in as its base transport, so signing/headers remain ours. This is "SDK *transport*, not SDK *client*" — fully consistent with Option A, and it preserves the multi-node behavior a plain single-endpoint transport would lose (§6.1). The components still owned outright are the query AST, the response types, and the bounded bulk indexer.
 
 ### 6.4 Package: `esclient` is the renamed `client` package, grown upward
 
@@ -374,7 +381,7 @@ The work decomposes into small, independently-shippable milestones — each one 
 **Stage A — Foundation (no behavior change)**
 - **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot per supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
 - **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
-- **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (reusing `GetHTTPRoundTripper`) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
+- **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (`GetHTTPRoundTripper` layered under `elastic-transport-go`'s pool) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
 - **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
 
 **Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
@@ -416,7 +423,7 @@ This RFC evaluates that approach as **Option B (§5)** and does not adopt it. It
 
 The dual-client proposals leaned on the official SDKs largely on the assumption that Jaeger needs their machinery (transport, signing, bulk, retries), and priced the work accordingly (~8–12 weeks in @thc1006's estimate). Two facts, established here and not load-bearing in the prior investigations, undercut that assumption:
 
-1. **The transport is already Jaeger-owned (§6.1, §9).** `clientbuilder.GetHTTPRoundTripper` already provides TLS + auth + **SigV4** + the `GetBody` fix + header-forwarding; the official drivers merely *receive* it via `options.Transport`. Adopting an SDK for its transport therefore buys almost nothing — and the admin path *bypassing* this transport is a pre-existing SigV4/bearer gap, not merely duplication.
+1. **The transport is solvable without the SDK *client* (§6.1, §6.3).** Auth/SigV4/headers already exist as `clientbuilder.GetHTTPRoundTripper`, and the connection-pool / round-robin / retry machinery is reusable from `elastic-transport-go` — the *product-check-free* layer beneath `go-elasticsearch` — with our RoundTripper as its base. So the dual-client premise that you must adopt the SDK *clients* to get transport machinery does not hold: you get the battle-tested transport *without* the product-checked client. (And the admin path bypassing our transport today is a pre-existing SigV4/bearer gap, not merely duplication.)
 
 2. **The query DSL is byte-identical across ES and OS over Jaeger's actual subset (§6.2).** The ES/OS fork diverged on *management* APIs (ILM/ISM, templates, data streams), not the search DSL. So a small (~17-node) owned AST hides all backend differences with essentially no branching. This makes "own the query layer" cheap rather than the large rewrite the dual-client framing implied.
 
@@ -454,6 +461,7 @@ This is not a replacement for the prior work. The **product-check finding** — 
 
 **External**
 - go-elasticsearch product check — [`elasticsearch.go`](https://github.com/elastic/go-elasticsearch/blob/main/elasticsearch.go); opt-out refused — [elastic/elasticsearch#73424](https://github.com/elastic/elasticsearch/issues/73424)
+- `elastic-transport-go` (Apache-2.0; connection pool, round-robin, retry, discovery; no product check) — [repo](https://github.com/elastic/elastic-transport-go) · `Config.Transport` custom base RoundTripper + `Client.Perform`
 - opensearch-go (fork of go-elasticsearch 7.10.2) — [repo](https://github.com/opensearch-project/opensearch-go) · [COMPATIBILITY.md](https://github.com/opensearch-project/opensearch-go/blob/main/COMPATIBILITY.md)
 - Keeping clients compatible (AWS) — [blog](https://aws.amazon.com/blogs/opensource/keeping-clients-of-opensearch-and-elasticsearch-compatible-with-open-source/)
 - REST API compatibility (`compatible-with`) — [Elastic docs](https://www.elastic.co/docs/reference/elasticsearch/rest-apis/compatibility)
