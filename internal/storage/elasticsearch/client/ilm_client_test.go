@@ -177,5 +177,5 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 		require.NoError(t, err)
 		content[version] = snapshottest.Marshal(t, rec.Requests())
 	}
-	snapshottest.AssertVersionedGoldens(t, "testdata/ilm_exists", content)
+	snapshottest.AssertByVersion(t, "testdata/ilm_exists", content)
 }

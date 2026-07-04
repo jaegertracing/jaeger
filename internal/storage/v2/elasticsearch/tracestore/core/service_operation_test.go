@@ -202,7 +202,7 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		writeService[version] = snapshottest.Marshal(t, rec.Requests())
 	}
 
-	snapshottest.AssertVersionedGoldens(t, "testdata/get_services", getServices)
-	snapshottest.AssertVersionedGoldens(t, "testdata/get_operations", getOperations)
-	snapshottest.AssertVersionedGoldens(t, "testdata/write_service", writeService)
+	snapshottest.AssertByVersion(t, "testdata/get_services", getServices)
+	snapshottest.AssertByVersion(t, "testdata/get_operations", getOperations)
+	snapshottest.AssertByVersion(t, "testdata/write_service", writeService)
 }

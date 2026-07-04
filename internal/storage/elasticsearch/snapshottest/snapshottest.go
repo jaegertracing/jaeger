@@ -206,10 +206,10 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 	return docs, nil
 }
 
-// AssertAgnosticGolden compares content against the bare "<prefix>.json", for a
+// Assert compares content against the single snapshot "<prefix>.json", for a
 // request that is genuinely backend- and version-agnostic (§7.3). With
 // REGENERATE_SNAPSHOTS=true it (re)writes the file.
-func AssertAgnosticGolden(t testing.TB, prefix string, content string) {
+func Assert(t testing.TB, prefix string, content string) {
 	t.Helper()
 	path := prefix + ".json"
 	if Regenerate {
@@ -219,12 +219,12 @@ func AssertAgnosticGolden(t testing.TB, prefix string, content string) {
 	assertFileEquals(t, path, content, "agnostic")
 }
 
-// AssertVersionedGoldens compares each version's content against the golden
-// files "<prefix>.<backend><range>.json", keeping ES and OpenSearch backends in
+// AssertByVersion compares each version's content against the snapshot files
+// "<prefix>.<backend><range>.json", keeping ES and OpenSearch backends in
 // separate files. With REGENERATE_SNAPSHOTS=true it rewrites the files,
 // collapsing byte-identical consecutive majors within a backend into an
-// inclusive range and pruning stale golden files for this subject.
-func AssertVersionedGoldens(t testing.TB, prefix string, contentByVersion map[es.BackendVersion]string) {
+// inclusive range and pruning stale files for this subject.
+func AssertByVersion(t testing.TB, prefix string, contentByVersion map[es.BackendVersion]string) {
 	t.Helper()
 	require.NotEmpty(t, contentByVersion, "no content provided for %s", prefix)
 	dir, stem := splitPrefix(prefix)

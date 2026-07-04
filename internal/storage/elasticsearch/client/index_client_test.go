@@ -708,20 +708,20 @@ func TestGetJaegerIndicesRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	_, err := c.GetJaegerIndices(context.Background(), "")
 	require.NoError(t, err)
-	snapshottest.AssertAgnosticGolden(t, "testdata/get_jaeger_indices", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/get_jaeger_indices", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestCreateIndexRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	require.NoError(t, c.CreateIndex(context.Background(), "jaeger-span-000001"))
-	snapshottest.AssertAgnosticGolden(t, "testdata/create_index", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/create_index", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestDeleteIndicesRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	indices := []Index{{Index: "jaeger-span-000001"}, {Index: "jaeger-service-000001"}}
 	require.NoError(t, c.DeleteIndices(context.Background(), indices))
-	snapshottest.AssertAgnosticGolden(t, "testdata/delete_indices", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/delete_indices", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestCreateAliasRequestSnapshot(t *testing.T) {
@@ -731,7 +731,7 @@ func TestCreateAliasRequestSnapshot(t *testing.T) {
 		{Index: "jaeger-span-000001", Name: "jaeger-span-write", IsWriteIndex: true},
 	}
 	require.NoError(t, c.CreateAlias(context.Background(), aliases))
-	snapshottest.AssertAgnosticGolden(t, "testdata/create_alias", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/create_alias", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestDeleteAliasRequestSnapshot(t *testing.T) {
@@ -741,27 +741,27 @@ func TestDeleteAliasRequestSnapshot(t *testing.T) {
 		{Index: "jaeger-span-000001", Name: "jaeger-span-write", IsWriteIndex: true},
 	}
 	require.NoError(t, c.DeleteAlias(context.Background(), aliases))
-	snapshottest.AssertAgnosticGolden(t, "testdata/delete_alias", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/delete_alias", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestAliasExistsRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	_, err := c.AliasExists(context.Background(), "jaeger-span-read")
 	require.NoError(t, err)
-	snapshottest.AssertAgnosticGolden(t, "testdata/alias_exists", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/alias_exists", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestIndexExistsRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	_, err := c.IndexExists(context.Background(), "jaeger-sampling")
 	require.NoError(t, err)
-	snapshottest.AssertAgnosticGolden(t, "testdata/index_exists", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/index_exists", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestRolloverRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	require.NoError(t, c.Rollover(context.Background(), "jaeger-span-write", map[string]any{"max_age": "2d"}))
-	snapshottest.AssertAgnosticGolden(t, "testdata/rollover", snapshottest.Marshal(t, rec.Requests()))
+	snapshottest.Assert(t, "testdata/rollover", snapshottest.Marshal(t, rec.Requests()))
 }
 
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
@@ -782,5 +782,5 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
 		content[version] = snapshottest.Marshal(t, rec.Requests())
 	}
-	snapshottest.AssertVersionedGoldens(t, "testdata/create_template", content)
+	snapshottest.AssertByVersion(t, "testdata/create_template", content)
 }

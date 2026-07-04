@@ -157,9 +157,9 @@ func TestBackendKey(t *testing.T) {
 	}
 }
 
-// TestAssertVersionedGoldens_RegenerateCollapsesRanges exercises the full
+// TestAssertByVersion_RegenerateCollapsesRanges exercises the full
 // regenerate → assert round trip and verifies §7.3 range collapsing.
-func TestAssertVersionedGoldens_RegenerateCollapsesRanges(t *testing.T) {
+func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
 	// ES6 differs; ES7/8/9 identical; OS1/2/3 identical (but distinct from ES).
@@ -174,7 +174,7 @@ func TestAssertVersionedGoldens_RegenerateCollapsesRanges(t *testing.T) {
 	}
 
 	withRegenerate(t, true, func() {
-		AssertVersionedGoldens(t, prefix, content)
+		AssertByVersion(t, prefix, content)
 	})
 
 	files := listJSON(t, dir)
@@ -188,11 +188,11 @@ func TestAssertVersionedGoldens_RegenerateCollapsesRanges(t *testing.T) {
 
 	// Assert mode passes against the freshly generated goldens.
 	withRegenerate(t, false, func() {
-		AssertVersionedGoldens(t, prefix, content)
+		AssertByVersion(t, prefix, content)
 	})
 }
 
-func TestAssertVersionedGoldens_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
+func TestAssertByVersion_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es8.json"), []byte("OLD\n"), 0o644))
@@ -200,7 +200,7 @@ func TestAssertVersionedGoldens_RegeneratePrunesStaleAndIsSubjectScoped(t *testi
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "keep.txt"), []byte("unrelated"), 0o644))
 
 	withRegenerate(t, true, func() {
-		AssertVersionedGoldens(t, prefix, map[es.BackendVersion]string{es.ElasticV7: "NEW"})
+		AssertByVersion(t, prefix, map[es.BackendVersion]string{es.ElasticV7: "NEW"})
 	})
 
 	files := listJSON(t, dir)
@@ -210,11 +210,11 @@ func TestAssertVersionedGoldens_RegeneratePrunesStaleAndIsSubjectScoped(t *testi
 	assert.NoError(t, err, "unrelated files untouched")
 }
 
-func TestAssertAgnosticGolden(t *testing.T) {
+func TestAssert(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "alias_exists")
 	withRegenerate(t, true, func() {
-		AssertAgnosticGolden(t, prefix, "SAME")
+		Assert(t, prefix, "SAME")
 	})
 	assert.ElementsMatch(t, []string{"alias_exists.json"}, listJSON(t, dir))
 
@@ -224,7 +224,7 @@ func TestAssertAgnosticGolden(t *testing.T) {
 	assert.Equal(t, "alias_exists.json", name)
 
 	withRegenerate(t, false, func() {
-		AssertAgnosticGolden(t, prefix, "SAME")
+		Assert(t, prefix, "SAME")
 	})
 }
 

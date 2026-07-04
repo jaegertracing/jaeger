@@ -45,7 +45,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 				require.NoError(t, err)
 				content[version] = got
 			}
-			snapshottest.AssertVersionedGoldens(t, filepath.Join("testdata", subject.name), content)
+			snapshottest.AssertByVersion(t, filepath.Join("testdata", subject.name), content)
 		})
 	}
 }
