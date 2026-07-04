@@ -95,6 +95,9 @@ func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rec.mu.Lock()
 	rec.requests = append(rec.requests, captured)
 	rec.mu.Unlock()
+	// Restore the body so respond can still read it (e.g. to branch a canned
+	// response on the request payload).
+	r.Body = io.NopCloser(bytes.NewReader(body))
 	rec.respond(w, r)
 }
 
