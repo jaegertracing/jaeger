@@ -312,7 +312,7 @@ The migration *is* a change to the code that serializes queries. So pin the wire
 
 - For each storage operation, point the client at a recording `httptest.Server` and snapshot the exact **`{method, path, sorted query params, canonicalized JSON body}`** to a committed `testdata/*.json` golden. NDJSON (`_bulk`/`_msearch`) handled as multi-doc; timestamps via injected fixed clock; JSON canonicalized (sorted keys) for determinism.
 - **Property:** after swapping `olivere` → owned client, a **green snapshot diff means the change is behavior-preserving on the wire.** Every diff is exactly the bytes that changed — reviewable in the PR.
-- **Backend divergence becomes reviewable:** parameterize by backend/version so ES and OS emit separate goldens (`testdata/find_trace_ids/es8.json`, `.../os1-2.json` — naming per §7.3). ILM-vs-ISM, template-endpoint, typed-index differences appear as concrete diffs instead of hidden branches — directly serving G2's "no leakage" as an auditable artifact.
+- **Backend divergence becomes reviewable:** parameterize by backend/version so ES and OS emit separate goldens (`testdata/find_trace_ids.es8.json`, `testdata/find_trace_ids.os1-2.json` — naming per §7.3). ILM-vs-ISM, template-endpoint, typed-index differences appear as concrete diffs instead of hidden branches — directly serving G2's "no leakage" as an auditable artifact.
 - **Precedent — closest to home: index mappings.** `internal/storage/v1/elasticsearch/mappings/` already does exactly this for ES payloads: it renders each template and asserts it against committed golden fixtures **parameterized by backend × version** — `fixtures/jaeger-{span,service,dependencies,sampling}-{6,7,8}.json` for Elasticsearch, plus a separate `TestMappingBuilderGetMapping_OpenSearch` for `OpenSearch1/2` (`mapping_test.go`). That is the same "one golden per backend/version, full-JSON compare" model this section proposes, just applied to *mapping* JSON rather than *request* JSON — so the pattern is proven and idiomatic here, not new. (Other in-repo golden users: metricstore responses, apiv3 gateway.)
 
 **Caveats (stated honestly):** snapshots assert what we *send*, not that the server accepts it or returns correct results — they are **complementary to**, not a replacement for, the integration matrix (the authority on semantics/version behavior). The `-update` regeneration flow needs review discipline: a wrong query change is easy to rubber-stamp when the tool rewrites the golden. That is the one real risk and reviewers must diff goldens deliberately.
@@ -324,23 +324,25 @@ Two problems with today's goldens: the ES fixtures use an ad-hoc scheme (`jaeger
 **Pattern:**
 
 ```
-testdata/<subject>/<backend><range>.json
+testdata/<subject>[.<backend><range>].json
 ```
 
-- `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `mapping_span`, `mapping_service`, …
-- `<backend>` — `es` or `os`.
-- `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) when consecutive versions emit byte-identical output.
+- `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping golden under `mappings/testdata/` is `dependencies.es6.json`, not `mapping/dependencies.es6.json`.
+- **The variant tail is omitted when the request is genuinely backend- and version-agnostic:** the golden is the bare `<subject>.json`.
+- **Otherwise a `.<backend><range>` tail distinguishes the per-backend goldens:**
+  - `<backend>` — `es` or `os`.
+  - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) when consecutive versions emit byte-identical output.
 
-Examples: `testdata/find_trace_ids/es6-7.json`, `testdata/find_trace_ids/es8.json`, `testdata/find_trace_ids/os1-2.json`, `testdata/mapping_span/es8.json`.
+Examples: `testdata/alias_exists.json` (agnostic), `testdata/create_template.es6-7.json`, `testdata/get_services.es6.json`, `testdata/find_trace_ids.os1-2.json`, `testdata/span.es8-9.json`.
 
 **Rules:**
 
-- **Ranges are inclusive, non-overlapping within a backend, and must cover every supported major.** A resolver maps `(backend, major) → the unique file whose range contains it`; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "do ES 6 and ES 7 differ for this operation?" is answered by `ls testdata/<subject>/`.
-- **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if output equals an adjacent range, **extend the range in the filename** (`es8.json` → `es8-9.json`); if it differs, add `es9.json`. Coverage is always visible in the diff.
+- **Ranges are inclusive, non-overlapping within a backend, and must cover every supported major.** A resolver maps `(backend, major) → the unique file whose range contains it`; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "do ES 6 and ES 7 differ for this operation?" is answered by `ls testdata/`.
+- **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if output equals an adjacent range, **extend the range in the filename** (`.es8.json` → `.es8-9.json`); if it differs, add `.es9.json`. Coverage is always visible in the diff.
 - **Backends stay separate** even when ES and OS emit identical bytes (no cross-`es`/`os` merge) — the generator may *flag* byte-identical cross-backend goldens as an FYI, but explicit files keep resolution unambiguous.
-- **Truly version- and backend-agnostic** fixtures (rare) use `any.json`; keep it the exception, not an escape hatch.
+- **The bare `<subject>.json` is reserved for requests that structurally cannot vary by backend or version** — e.g. admin REST calls like `HEAD /_alias/{name}` whose client code has no backend/version branch at all. This is common in the admin plane and rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest: a golden either carries a `.<backend><range>` tail or it is making the explicit claim "this request is byte-identical on every backend."
 
-The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots, and converging the existing `jaeger-*-{6,7,8}.json` files onto it will also surface any accidental duplication (identical `-6`/`-7` files collapse to `es6-7`). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
+The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots, and converging the existing `jaeger-*-{6,7,8}.json` files onto it will also surface any accidental duplication (identical `-6`/`-7` files collapse to `.es6-7`). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
 
 ### 7.4 Snapshot vs. focused mock — pick the altitude
 
