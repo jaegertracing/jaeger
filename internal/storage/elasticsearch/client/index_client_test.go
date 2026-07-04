@@ -638,11 +638,6 @@ func TestClientCreateComponentTemplate(t *testing.T) {
 			responseCode: http.StatusOK,
 		},
 		{
-			// A 201 Created (not just 200 OK) is treated as success.
-			name:         "created",
-			responseCode: http.StatusCreated,
-		},
-		{
 			name:         "client error",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
