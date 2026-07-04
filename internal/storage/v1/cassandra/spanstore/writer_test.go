@@ -407,7 +407,7 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 
 func BenchmarkShouldIndexTag(b *testing.B) {
 	writer := &SpanWriter{}
-	
+
 	tests := []struct {
 		name string
 		tag  dbmodel.TagInsertion
