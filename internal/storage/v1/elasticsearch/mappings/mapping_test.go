@@ -40,7 +40,7 @@ func TestMappingBuilderGetMapping(t *testing.T) {
 	for _, subject := range subjects {
 		t.Run(subject.name, func(t *testing.T) {
 			content := map[es.BackendVersion]string{}
-			for _, version := range snapshottest.AllVersions {
+			for _, version := range es.AllVersions {
 				got, err := newTestMappingBuilder(version).GetMapping(subject.mapping)
 				require.NoError(t, err)
 				content[version] = got

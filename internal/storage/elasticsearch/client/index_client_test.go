@@ -767,7 +767,7 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
 	content := map[es.BackendVersion]string{}
-	for _, version := range snapshottest.AllVersions {
+	for _, version := range es.AllVersions {
 		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			if r.URL.Path == "/" { // version probe to select the template endpoint

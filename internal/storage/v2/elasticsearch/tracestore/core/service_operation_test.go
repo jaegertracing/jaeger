@@ -177,7 +177,7 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 	getOperations := map[es.BackendVersion]string{}
 	writeService := map[es.BackendVersion]string{}
 
-	for _, version := range snapshottest.AllVersions {
+	for _, version := range es.AllVersions {
 		rec := dataRecorder()
 		server := httptest.NewServer(rec)
 		client := newDataClient(t, server.URL, version)

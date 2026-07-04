@@ -166,7 +166,7 @@ func TestExists_Retries(t *testing.T) {
 // policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
 func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
-	for _, version := range snapshottest.AllVersions {
+	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
 		c := ILMClient{
 			Client:           Client{Client: http.DefaultClient, Endpoint: url},

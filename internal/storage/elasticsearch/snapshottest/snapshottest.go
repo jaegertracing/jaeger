@@ -56,18 +56,6 @@ import (
 // REGENERATE_SNAPSHOTS environment variable.
 var Regenerate = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
-// AllVersions lists every backend major version Jaeger supports (§6 G3). Tests
-// pass this to cover the full compatibility matrix in one golden tree.
-var AllVersions = []es.BackendVersion{
-	es.ElasticV6,
-	es.ElasticV7,
-	es.ElasticV8,
-	es.ElasticV9,
-	es.OpenSearch1,
-	es.OpenSearch2,
-	es.OpenSearch3,
-}
-
 // CapturedRequest is a faithful record of a single HTTP request as received: the
 // method, path, parsed query, and the raw body bytes exactly as sent. Turning it
 // into a canonical, diffable snapshot happens in Marshal, not here.
