@@ -83,7 +83,15 @@ func NewRecorder(respond func(http.ResponseWriter, *http.Request)) *Recorder {
 }
 
 func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		// Fail fast: a partial read must not be recorded, or it could silently
+		// pass a snapshot assertion against a truncated wire format. Erroring the
+		// response surfaces as a client-side failure the test's require.NoError
+		// catches.
+		http.Error(w, "snapshottest: reading request body: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	captured := CapturedRequest{
 		Method: r.Method,
 		Path:   r.URL.Path,
