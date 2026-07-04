@@ -413,7 +413,9 @@ func backendKey(v es.BackendVersion) (string, int) {
 
 // resolveSnapshot finds the snapshot file for stem in dir that applies to
 // (backend, major): the all-versions file if present, otherwise the unique variant
-// one of whose ranges contains it.
+// one of whose ranges contains it. It fails the test if more than one variant
+// claims (backend, major) — ranges must not overlap — so a hand-committed
+// overlap cannot be silently resolved to whichever file happens to sort first.
 func resolveSnapshot(t testing.TB, dir, stem, backend string, major int) (string, bool) {
 	t.Helper()
 	names := subjectSnapshots(t, dir, stem)
@@ -422,15 +424,24 @@ func resolveSnapshot(t testing.TB, dir, stem, backend string, major int) (string
 			return name, true
 		}
 	}
+	var matches []string
 	for _, name := range names {
 		v, _ := parseVariant(stem, name)
 		for _, r := range v.ranges {
 			if r.contains(backend, major) {
-				return name, true
+				matches = append(matches, name)
+				break
 			}
 		}
 	}
-	return "", false
+	if len(matches) == 0 {
+		return "", false
+	}
+	slices.Sort(matches)
+	if len(matches) > 1 {
+		t.Errorf("snapshot files %v in %s all claim %s%d; ranges must not overlap", matches, dir, backend, major)
+	}
+	return matches[0], true
 }
 
 func regenerateVersioned(t testing.TB, dir, stem string, contentByVersion map[es.BackendVersion]string) {

@@ -349,6 +349,25 @@ func TestResolveSnapshotNotFound(t *testing.T) {
 	assert.Empty(t, name)
 }
 
+func TestResolveSnapshotRejectsOverlappingRanges(t *testing.T) {
+	dir := t.TempDir()
+	// Two hand-committed variants both claim es8; regeneration never emits this.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es7-8.json"), []byte("x\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es8-9.json"), []byte("y\n"), 0o644))
+
+	tb := &recordingTB{TB: t}
+	resolveSnapshot(tb, dir, "get_services", "es", 8)
+	require.Len(t, tb.errors, 1)
+	assert.Contains(t, tb.errors[0], "must not overlap")
+
+	// A non-overlapping major still resolves cleanly.
+	tb = &recordingTB{TB: t}
+	name, ok := resolveSnapshot(tb, dir, "get_services", "es", 7)
+	assert.True(t, ok)
+	assert.Equal(t, "get_services.es7-8.json", name)
+	assert.Empty(t, tb.errors)
+}
+
 // recordingTB captures Error/Errorf instead of failing, so tests can exercise the
 // harness's own error-reporting branches. The embedded testing.TB (a real *T)
 // satisfies the interface and backs every other method.
