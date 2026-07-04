@@ -247,6 +247,23 @@ func TestAssert(t *testing.T) {
 	})
 }
 
+func TestAssertPrunesAndReportsOrphanVariants(t *testing.T) {
+	dir := t.TempDir()
+	prefix := filepath.Join(dir, "alias_exists")
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.json"), []byte("SAME\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.es6.json"), []byte("stale\n"), 0o644))
+
+	// Assert mode flags the stray per-version file committed beside the bare one.
+	tb := &recordingTB{TB: t}
+	Assert(tb, prefix, "SAME")
+	require.Len(t, tb.errors, 1)
+	assert.Contains(t, tb.errors[0], "orphan snapshot")
+
+	// Regeneration prunes it, leaving only the bare file.
+	withRegenerate(t, true, func() { Assert(t, prefix, "SAME") })
+	assert.ElementsMatch(t, []string{"alias_exists.json"}, listJSON(t, dir))
+}
+
 func TestFindOrphans(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{

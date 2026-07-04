@@ -235,15 +235,21 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 
 // Assert compares content against the single snapshot "<prefix>.json", for a
 // request that is identical for all backends and versions. With
-// REGENERATE_SNAPSHOTS=true it (re)writes the file.
+// REGENERATE_SNAPSHOTS=true it (re)writes the file and prunes any stale
+// per-version variants for this subject. Like AssertByVersion, it fails on an
+// orphan snapshot — here, any per-version file committed alongside the bare one.
 func Assert(t testing.TB, prefix string, content string) {
 	t.Helper()
-	path := prefix + ".json"
+	dir, stem := splitPrefix(prefix)
+	name := stem + ".json"
+	used := map[string]bool{name: true}
 	if Regenerate {
-		require.NoError(t, os.MkdirAll(filepath.Dir(prefix), 0o755))
-		writeSnapshot(t, path, content)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		writeSnapshot(t, filepath.Join(dir, name), content)
+		pruneStaleSnapshots(t, dir, stem, used)
 	}
-	assertFileEquals(t, path, content, "all versions")
+	assertFileEquals(t, filepath.Join(dir, name), content, "all versions")
+	assertNoOrphans(t, dir, stem, used)
 }
 
 // AssertByVersion compares each version's content against the snapshot files
