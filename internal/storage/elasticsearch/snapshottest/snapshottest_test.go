@@ -330,7 +330,10 @@ func (r *recordingTB) Errorf(format string, args ...any) {
 
 func TestAssertByVersionReportsMissingSnapshot(t *testing.T) {
 	tb := &recordingTB{TB: t}
-	AssertByVersion(tb, filepath.Join(t.TempDir(), "get_services"),
+	// The directory does not exist yet (first run for the subject); the harness
+	// treats it as empty and reports the actionable error instead of failing on
+	// the missing directory.
+	AssertByVersion(tb, filepath.Join(t.TempDir(), "nonexistent", "get_services"),
 		map[es.BackendVersion]string{es.ElasticV7: "REST"})
 	require.Len(t, tb.errors, 1)
 	assert.Contains(t, tb.errors[0], "no snapshot file")

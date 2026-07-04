@@ -31,6 +31,7 @@ package snapshottest
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -309,6 +310,12 @@ func findOrphans(t testing.TB, dir, stem string, used map[string]bool) []string 
 func subjectSnapshots(t testing.TB, dir, stem string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		// A missing directory is an empty snapshot set, so callers report the
+		// actionable "run REGENERATE_SNAPSHOTS=true" message rather than a raw
+		// read error on the first run for a subject.
+		return nil
+	}
 	require.NoError(t, err, "reading snapshot dir %s", dir)
 	var names []string
 	for _, e := range entries {
