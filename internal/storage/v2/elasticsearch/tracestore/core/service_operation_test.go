@@ -182,7 +182,15 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
 		client := newDataClient(t, server.URL, version)
-		t.Cleanup(func() { _ = client.Close() }) // idempotent; also flushed inline below
+		// The write path closes the client inline to flush the bulk request; this
+		// cleanup only runs if an earlier assertion aborts first, so the client is
+		// never closed twice.
+		clientClosed := false
+		t.Cleanup(func() {
+			if !clientClosed {
+				_ = client.Close()
+			}
+		})
 		sos := NewServiceOperationStorage(func() es.Client { return client }, zap.NewNop(), 0)
 		ctx := context.Background()
 
@@ -199,6 +207,7 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		rec.Reset()
 		sos.Write(writeIndex, span)
 		require.NoError(t, client.Close()) // flushes the bulk request
+		clientClosed = true
 		writeService[version] = snapshottest.Marshal(t, rec.Requests())
 	}
 
