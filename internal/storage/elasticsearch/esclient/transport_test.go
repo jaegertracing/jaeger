@@ -6,6 +6,7 @@ package esclient
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/elastic/elastic-transport-go/v8/elastictransport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -172,4 +174,14 @@ func TestClientRequestErrorPaths(t *testing.T) {
 		_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 		require.Error(t, err)
 	})
+}
+
+func TestNewRawClientPoolBuildError(t *testing.T) {
+	orig := newPool
+	t.Cleanup(func() { newPool = orig })
+	newPool = func(...elastictransport.Option) (*elastictransport.Client, error) {
+		return nil, errors.New("boom")
+	}
+	_, err := newRawClient([]string{"http://localhost:9200"}, http.DefaultTransport)
+	require.ErrorContains(t, err, "failed to build transport pool")
 }

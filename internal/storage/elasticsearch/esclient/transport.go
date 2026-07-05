@@ -22,6 +22,11 @@ type rawClient struct {
 	pool *elastictransport.Client
 }
 
+// newPool constructs the underlying connection pool. It is a package var so tests
+// can substitute a failing implementation to exercise the error path, rather than
+// depending on elastic-transport's internal error conditions.
+var newPool = elastictransport.NewClient
+
 // newRawClient builds a rawClient that round-robins requests across servers,
 // sending each through base. Node discovery (sniffing) is left disabled to match
 // the current olivere behavior and avoid AWS/proxy misconfiguration.
@@ -42,7 +47,7 @@ func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) 
 	// Node discovery (sniffing) is left at its default of off. Retry is disabled
 	// to preserve the current admin-client behavior; the data plane can opt into
 	// the pool's read retry when it adopts rawClient in Stage B.
-	pool, err := elastictransport.NewClient(
+	pool, err := newPool(
 		elastictransport.WithURLs(urls...),
 		elastictransport.WithTransport(base),
 		elastictransport.WithDisableRetry(),
