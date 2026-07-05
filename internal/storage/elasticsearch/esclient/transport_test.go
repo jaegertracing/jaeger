@@ -16,6 +16,7 @@ import (
 	"github.com/elastic/elastic-transport-go/v8/elastictransport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
@@ -187,6 +188,22 @@ func TestClientRequestErrorPaths(t *testing.T) {
 		_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 		require.Error(t, err)
 	})
+}
+
+// TestNewClientRoundTripperError covers NewClient surfacing an error from
+// GetHTTPRoundTripper (here, an invalid basic-auth config).
+func TestNewClientRoundTripperError(t *testing.T) {
+	_, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Authentication: config.Authentication{
+			BasicAuthentication: configoptional.Some(config.BasicAuthentication{
+				Username:         "u",
+				Password:         "p",
+				PasswordFilePath: "/does-not-matter",
+			}),
+		},
+	}, zap.NewNop(), nil)
+	require.ErrorContains(t, err, "basic authentication")
 }
 
 func TestNewRawClientPoolBuildError(t *testing.T) {
