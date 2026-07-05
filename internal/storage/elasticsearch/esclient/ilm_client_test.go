@@ -56,8 +56,10 @@ func TestExists(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "user", "pass")
+			client.Version = es.ElasticV7
 			c := &ILMClient{
-				Client: makeClient(t, testServer.URL, "user", "pass"),
+				Client: client,
 				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
@@ -141,8 +143,10 @@ func TestExists_Retries(t *testing.T) {
 	}))
 	defer testServer.Close()
 
+	client := makeClient(t, testServer.URL, "user", "pass")
+	client.Version = es.ElasticV7
 	c := &ILMClient{
-		Client: makeClient(t, testServer.URL, "user", "pass"),
+		Client: client,
 		Logger: zap.NewNop(),
 	}
 

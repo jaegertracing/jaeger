@@ -69,7 +69,7 @@ func TestExecuteAction(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
-	testServer := httptest.NewTLSServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+	testServer := httptest.NewTLSServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
 		res.WriteHeader(http.StatusOK)
 		res.Write([]byte(`{"version":{"number":"7.0.0"}}`))
 	}))

@@ -32,6 +32,10 @@ type ILMClient struct {
 
 // Exists verify if a ILM/ISM policy exists
 func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
+	if i.Version == 0 {
+		return false, errors.New("client version is unset")
+	}
+
 	endpoint := "_ilm/policy/" + name
 	if i.Version.IsOpenSearch() {
 		endpoint = "_plugins/_ism/policies/" + name
