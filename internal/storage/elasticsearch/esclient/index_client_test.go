@@ -621,6 +621,8 @@ func TestClientCreateTemplate(t *testing.T) {
 			err := c.CreateTemplate(context.Background(), templateContent, templateName)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
+			} else {
+				require.NoError(t, err)
 			}
 			assert.EqualValues(t, 1, requestCount.Load(), "CreateTemplate must issue a single request, without a per-call version probe")
 		})

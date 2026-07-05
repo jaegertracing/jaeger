@@ -55,10 +55,11 @@ type Client struct {
 	transport *rawClient
 	timeout   time.Duration
 
-	// Version is the backend version, detected once at construction time
-	// (e.g. via ClusterClient.Version). Operations whose endpoint depends on
-	// the backend flavor (CreateTemplate, ILM/ISM) read it instead of
-	// re-detecting it per call.
+	// Version is the backend version (Elasticsearch/OpenSearch). It is
+	// expected to be detected once during client setup (e.g. via
+	// ClusterClient.Version) and stored here, so operations whose endpoint
+	// depends on the backend flavor (CreateTemplate, ILM/ISM) don't re-probe
+	// the backend per call.
 	Version es.BackendVersion
 }
 
