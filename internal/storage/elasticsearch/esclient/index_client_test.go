@@ -775,3 +775,12 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	}
 	snapshottest.AssertByVersion(t, "testdata/create_template", content)
 }
+
+func TestCreateTemplate_UnsetVersion(t *testing.T) {
+	t.Parallel()
+	c := &IndicesClient{
+		Client: Client{}, // Version is implicitly 0
+	}
+	err := c.CreateTemplate(context.Background(), "{}", "template")
+	require.ErrorContains(t, err, "client version is unset")
+}

@@ -174,3 +174,14 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	}
 	snapshottest.AssertByVersion(t, "testdata/ilm_exists", content)
 }
+
+func TestExists_UnsetVersion(t *testing.T) {
+	t.Parallel()
+	c := &ILMClient{
+		Client: Client{}, // Version is implicitly 0
+		Logger: zap.NewNop(),
+	}
+	result, err := c.Exists(context.Background(), "policy")
+	require.ErrorContains(t, err, "client version is unset")
+	assert.False(t, result)
+}
