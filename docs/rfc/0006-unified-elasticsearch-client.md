@@ -297,7 +297,7 @@ Nothing from the product-checked *client* or the typed API — but the **transpo
 
 ### 6.4 Package: `esclient` is the renamed `client` package, grown upward
 
-**Recommendation:** the new package is the existing `internal/storage/elasticsearch/client` **renamed to `esclient`**, not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
+**Recommendation:** `esclient` is the former `internal/storage/elasticsearch/client` package **renamed** (M2), not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
 
 This framing matters: `esclient` becomes **the foundation of Jaeger's own ES/OS SDK** — the single place that owns wire format, versioning, auth, and the neutral query DSL — rather than a second client bolted next to the old one. Renaming (not rewriting) also means the migration starts from a green, tested baseline: the control-plane behavior is preserved by construction, and the data plane is added incrementally under the snapshot suite (§7). It also disposes of the old data/control-plane split at the package level, not just the interface level.
 
@@ -310,7 +310,7 @@ The current tests do not give us the confidence a driver swap requires, and this
 ### 7.1 What we have (assessment)
 
 - **Data-plane `olivere` mocks — mostly coverage-filler.** Generated for `es.Client` and every fluent service interface. In practice, reader/writer tests match `Query` with `mock.Anything` and assert the fluent call *sequence* the code just made — a tautology coupled to the implementation. They exercise **response deserialization** (real, narrow value) but **never assert the query DSL actually sent.** A query regression passes today.
-- **Control-plane tests — genuinely valuable.** `client/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
+- **Control-plane tests — genuinely valuable.** `esclient/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
 - **Integration matrix — the real safety net.** `internal/storage/integration/*` drives a live cluster across **ES 6–9 and OpenSearch 1–3** via docker-compose + CI. This is the only layer that validates query semantics, mappings, and ILM/rollover against a real backend.
 
 ### 7.2 What we adopt: snapshot testing of the wire format
