@@ -1,0 +1,43 @@
+{
+  "method": "GET",
+  "path": "/_msearch",
+  "ndjson": [
+    {
+      "ignore_unavailable": true,
+      "index": "jaeger-span-read"
+    },
+    {
+      "query": {
+        "bool": {
+          "must": [
+            {
+              "term": {
+                "traceID": "1234567890abcdef"
+              }
+            },
+            {
+              "range": {
+                "startTimeMillis": {
+                  "gte": 1577847845000,
+                  "lte": 1578024245000
+                }
+              }
+            }
+          ]
+        }
+      },
+      "search_after": [
+        1577847845000000
+      ],
+      "size": 100,
+      "sort": [
+        {
+          "startTime": {
+            "order": "asc"
+          }
+        }
+      ],
+      "track_total_hits": true
+    }
+  ]
+}

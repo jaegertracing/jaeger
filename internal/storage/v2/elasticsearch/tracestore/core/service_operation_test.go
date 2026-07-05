@@ -149,17 +149,20 @@ func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Clien
 	return client
 }
 
-// dataRecorder answers searches with an empty result and bulk requests with an
-// empty bulk response, so operations complete without error while the request is
-// captured.
+// dataRecorder answers each request with an empty-but-valid response for its
+// endpoint (search, msearch, or bulk), so operations complete without error
+// while the request is captured.
 func dataRecorder() *snapshottest.Recorder {
 	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		if strings.HasSuffix(r.URL.Path, "_bulk") {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "_bulk"):
 			w.Write([]byte(`{"took":0,"errors":false,"items":[]}`))
-			return
+		case strings.HasSuffix(r.URL.Path, "_msearch"):
+			w.Write([]byte(`{"responses":[{"took":0,"hits":{"total":0,"hits":[]}}]}`))
+		default:
+			w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
 		}
-		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
 	})
 }
 

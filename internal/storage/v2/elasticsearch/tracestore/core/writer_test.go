@@ -6,6 +6,7 @@ package core
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -497,4 +499,49 @@ func stringMatcher(q string) any {
 		return strings.Contains(s, q)
 	}
 	return mock.MatchedBy(matchFunc)
+}
+
+// TestWriterRequestSnapshots freezes the wire format of the span bulk write. ES6
+// tags the index action with _type; newer backends drop it.
+func TestWriterRequestSnapshots(t *testing.T) {
+	const writeIndex = "jaeger-span-write-000001"
+	const startMicros = 1577934245000000
+	span := &dbmodel.Span{
+		TraceID:         "1234567890abcdef",
+		SpanID:          "abcdef1234567890",
+		OperationName:   "test-operation",
+		StartTime:       startMicros,
+		StartTimeMillis: startMicros / 1000, // derived from StartTime, per to_dbmodel.go
+		Duration:        1000,
+		Process:         dbmodel.Process{ServiceName: "test-service"},
+	}
+
+	writeSpan := map[es.BackendVersion]string{}
+	for _, version := range es.AllVersions {
+		rec := dataRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newDataClient(t, server.URL, version)
+		clientClosed := false
+		t.Cleanup(func() {
+			if !clientClosed {
+				_ = client.Close()
+			}
+		})
+		writer := NewSpanWriter(SpanWriterParams{
+			Client:          func() es.Client { return client },
+			Logger:          zap.NewNop(),
+			MetricsFactory:  metrics.NullFactory,
+			SpanRotation:    indices.NewAliasedRotation(writeIndex, "jaeger-span-read"),
+			ServiceRotation: indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+		})
+
+		rec.Reset()
+		writer.writeSpanToIndex(writeIndex, span)
+		require.NoError(t, client.Close()) // flushes the bulk request
+		clientClosed = true
+		writeSpan[version] = rec.Marshal(t)
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/write_span", writeSpan)
 }
