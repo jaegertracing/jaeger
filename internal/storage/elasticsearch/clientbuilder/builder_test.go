@@ -1246,9 +1246,71 @@ func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, rt)
-	wrappedRT, ok := rt.(*mockWrappedRoundTripper)
-	require.True(t, ok, "Should be wrapped round tripper")
-	require.NotNil(t, wrappedRT)
+	// getBodyFixRoundTripper wraps the authenticator on the outside so it runs
+	// first and populates req.GetBody before signing (#8760).
+	fixRT, ok := rt.(*getBodyFixRoundTripper)
+	require.True(t, ok, "getBodyFixRoundTripper should be the outermost wrapper")
+	_, ok = fixRT.base.(*mockWrappedRoundTripper)
+	require.True(t, ok, "authenticator should be wrapped inside getBodyFixRoundTripper")
+}
+
+// TestGetHTTPRoundTripper_PopulatesGetBodyBeforeAuthenticator is the regression
+// guard for #8760: the HTTP authenticator (e.g. sigv4auth) hashes req.GetBody to
+// sign the payload, and the olivere/elastic client sets req.Body without
+// req.GetBody. The getBodyFix wrapper must therefore run BEFORE the authenticator
+// so the body is hashed rather than the empty-payload constant.
+func TestGetHTTPRoundTripper_PopulatesGetBodyBeforeAuthenticator(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	auth := &bodyObservingHTTPAuth{}
+	c := &config.Configuration{
+		Servers: []string{server.URL},
+		TLS:     configtls.ClientConfig{Insecure: true},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), auth)
+	require.NoError(t, err)
+
+	payload := []byte(`{"query":{"match_all":{}}}`)
+	req, err := http.NewRequest(http.MethodPost, server.URL+"/_search", http.NoBody)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(bytes.NewReader(payload)) // olivere sets Body, not GetBody
+	req.GetBody = nil
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	require.True(t, auth.observedGetBody, "authenticator ran before req.GetBody was populated")
+	assert.Equal(t, payload, auth.observedBody, "authenticator must see the real payload, not an empty body")
+}
+
+// bodyObservingHTTPAuth mimics an authenticator that hashes req.GetBody, recording
+// what it observed when its RoundTripper runs.
+type bodyObservingHTTPAuth struct {
+	observedGetBody bool
+	observedBody    []byte
+}
+
+func (a *bodyObservingHTTPAuth) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	return &bodyObservingRoundTripper{observer: a, base: base}, nil
+}
+
+type bodyObservingRoundTripper struct {
+	observer *bodyObservingHTTPAuth
+	base     http.RoundTripper
+}
+
+func (rt *bodyObservingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.GetBody != nil {
+		rt.observer.observedGetBody = true
+		if rc, err := req.GetBody(); err == nil {
+			rt.observer.observedBody, _ = io.ReadAll(rc)
+		}
+	}
+	return rt.base.RoundTrip(req)
 }
 
 // Mock successful HTTP authenticator

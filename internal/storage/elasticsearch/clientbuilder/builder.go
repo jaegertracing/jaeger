@@ -378,17 +378,18 @@ func GetHTTPRoundTripper(ctx context.Context, c *config.Configuration, logger *z
 	}
 
 	// Apply HTTP authenticator extension if configured (e.g., SigV4).
-	// Wrap with getBodyFixRoundTripper first so that authenticators that
-	// rely on req.GetBody for payload hashing (such as sigv4auth) see
-	// a properly populated GetBody even when the upstream HTTP client
-	// (olivere/elastic) does not set it.
+	// getBodyFixRoundTripper must wrap the authenticator on the OUTSIDE so it
+	// runs first and populates req.GetBody before the authenticator hashes the
+	// payload for signing. Authenticators like sigv4auth hash req.GetBody (and
+	// substitute the empty-payload hash when it is nil); the olivere/elastic
+	// client sets req.Body without req.GetBody, so without this ordering
+	// body-bearing requests are signed as empty and rejected (see #8760).
 	if httpAuth != nil {
-		roundTripper = &getBodyFixRoundTripper{base: roundTripper}
 		wrappedRT, err := httpAuth.RoundTripper(roundTripper)
 		if err != nil {
 			return nil, fmt.Errorf("failed to wrap round tripper with HTTP authenticator: %w", err)
 		}
-		return wrappedRT, nil
+		return &getBodyFixRoundTripper{base: wrappedRT}, nil
 	}
 
 	return roundTripper, nil
