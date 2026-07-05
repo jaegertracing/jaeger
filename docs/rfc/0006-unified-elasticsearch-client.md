@@ -14,7 +14,7 @@
 Jaeger talks to Elasticsearch/OpenSearch through **two unrelated client abstractions**:
 
 1. A **data-plane** client (`internal/storage/elasticsearch`, the `es.Client` interface) that wraps the deprecated [`olivere/elastic`](https://github.com/olivere/elastic) library (plus a second, `go-elasticsearch/v9`, client bolted on for one operation). It carries bulk writes, searches, and aggregations.
-2. A **control-plane** client (`internal/storage/elasticsearch/client`, the `IndexAPI`/`ClusterAPI`/`IndexManagementLifecycleAPI` interfaces) built on raw `net/http`. It carries index/alias/template/rollover/ILM management for the `es-rollover` and `es-index-cleaner` tools.
+2. A **control-plane** client (`internal/storage/elasticsearch/esclient`, the `IndexAPI`/`ClusterAPI`/`IndexManagementLifecycleAPI` interfaces) built on raw `net/http`. It carries index/alias/template/rollover/ILM management for the `es-rollover` and `es-index-cleaner` tools.
 
 The split is historical, not principled. The boundary is already leaky — the storage factory performs "control-plane" operations (`CreateTemplate` at bootstrap, `DeleteIndex` on purge) through the data-plane client — and several operations (`IndexExists`, `CreateIndex`, `DeleteIndex`, `CreateTemplate`, version detection) are implemented **twice or three times**.
 
@@ -30,7 +30,7 @@ This is a design exploration, not a committed decision. It builds on the investi
 
 | | Data plane | Control plane |
 |---|---|---|
-| Package | `internal/storage/elasticsearch` (`es`) + `.../wrapper` | `internal/storage/elasticsearch/client` |
+| Package | `internal/storage/elasticsearch` (`es`) + `.../wrapper` | `internal/storage/elasticsearch/esclient` |
 | Interface(s) | `es.Client` + 7 fluent service interfaces | `IndexAPI`, `ClusterAPI`, `IndexManagementLifecycleAPI` |
 | Transport | `olivere/elastic/v7` (+ `go-elasticsearch/v9` for one op) | raw `net/http` |
 | Operations | `_bulk`, `_search` (+aggs), `_msearch` (+`search_after`), template/index create, version | index/alias create+delete, template, rollover, ILM/ISM, list indices, version |
@@ -297,7 +297,7 @@ Nothing from the product-checked *client* or the typed API — but the **transpo
 
 ### 6.4 Package: `esclient` is the renamed `client` package, grown upward
 
-**Recommendation:** the new package is the existing `internal/storage/elasticsearch/client` **renamed to `esclient`**, not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
+**Recommendation:** `esclient` is the former `internal/storage/elasticsearch/client` package **renamed** (M2), not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
 
 This framing matters: `esclient` becomes **the foundation of Jaeger's own ES/OS SDK** — the single place that owns wire format, versioning, auth, and the neutral query DSL — rather than a second client bolted next to the old one. Renaming (not rewriting) also means the migration starts from a green, tested baseline: the control-plane behavior is preserved by construction, and the data plane is added incrementally under the snapshot suite (§7). It also disposes of the old data/control-plane split at the package level, not just the interface level.
 
@@ -310,7 +310,7 @@ The current tests do not give us the confidence a driver swap requires, and this
 ### 7.1 What we have (assessment)
 
 - **Data-plane `olivere` mocks — mostly coverage-filler.** Generated for `es.Client` and every fluent service interface. In practice, reader/writer tests match `Query` with `mock.Anything` and assert the fluent call *sequence* the code just made — a tautology coupled to the implementation. They exercise **response deserialization** (real, narrow value) but **never assert the query DSL actually sent.** A query regression passes today.
-- **Control-plane tests — genuinely valuable.** `client/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
+- **Control-plane tests — genuinely valuable.** `esclient/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
 - **Integration matrix — the real safety net.** `internal/storage/integration/*` drives a live cluster across **ES 6–9 and OpenSearch 1–3** via docker-compose + CI. This is the only layer that validates query semantics, mappings, and ILM/rollover against a real backend.
 
 ### 7.2 What we adopt: snapshot testing of the wire format
@@ -396,9 +396,9 @@ The work decomposes into small, independently-shippable milestones — each one 
 
 **Stage A — Foundation (no behavior change)**
 - **M1 — Snapshot baseline + fixture taxonomy. ✅ Done (#8921, #8922, #8929).** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot resolving for each supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only. (Carve-out: the sampling `InsertThroughput`/`InsertProbabilitiesAndQPS` writes stamp the document body with `time.Now()` internally and have no clock seam, so their bodies are frozen during the migration when a fixed clock is injected, not in the baseline.)
-- **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
+- **M2 — Rename `client` → `esclient`. ✅ Done (#8930).** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
 - **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (`GetHTTPRoundTripper` layered under `elastic-transport-go`'s pool) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
-- **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
+- **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. The backend version is an **initialization-time property of the connection**, sniffed once (or supplied explicitly) and injected into the clients — so no admin/data-plane API method takes a `version` argument and no caller branches on the backend flavor. *Exit:* exactly one version-detection path remains. In particular, the `es-rollover` `init` action stops detecting the version at runtime and mutating `ILMClient.UseOpenSearchISM` through a `*esclient.ILMClient` type assertion; the ILM-vs-ISM endpoint choice moves inside a version-aware `ILMClient` configured at construction. (Until then, that type assertion in `cmd/es-rollover/app/init/action.go` is a known, es-rollover-only leak — no data-plane or query path is affected.)
 
 **Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
 

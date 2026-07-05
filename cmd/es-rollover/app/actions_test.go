@@ -13,7 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 var errActionTest = errors.New("action error")
@@ -78,7 +78,7 @@ func TestExecuteAction(t *testing.T) {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c client.Client, _ Config) Action {
+			}, func(c esclient.Client, _ Config) Action {
 				assert.Equal(t, "https://localhost:9300", c.Endpoint)
 				transport, ok := c.Client.Transport.(*http.Transport)
 				require.True(t, ok)
@@ -115,7 +115,7 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 		Args:   args,
 		Viper:  v,
 		Logger: logger,
-	}, func(_ client.Client, _ Config) Action {
+	}, func(_ esclient.Client, _ Config) Action {
 		return &dummyAction{
 			TestFn: func() error {
 				return nil

@@ -13,10 +13,10 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
-func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client {
+func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) esclient.Client {
 	httpClient := &http.Client{
 		Timeout: time.Duration(cfg.Timeout) * time.Second,
 		Transport: &http.Transport{
@@ -24,10 +24,10 @@ func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) client.Client
 			TLSClientConfig: tlsCfg,
 		},
 	}
-	return client.Client{
+	return esclient.Client{
 		Endpoint:  endpoint,
 		Client:    httpClient,
-		BasicAuth: client.BasicAuth(cfg.Username, cfg.Password),
+		BasicAuth: esclient.BasicAuth(cfg.Username, cfg.Password),
 	}
 }
 
@@ -44,7 +44,7 @@ type ActionExecuteOptions struct {
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
-type ActionCreatorFunction func(client.Client, Config) Action
+type ActionCreatorFunction func(esclient.Client, Config) Action
 
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {
