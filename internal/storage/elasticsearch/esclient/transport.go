@@ -12,21 +12,19 @@ import (
 )
 
 // rawClient is the shared low-level transport beneath the Elasticsearch/OpenSearch
-// clients. It owns the horizontal transport concerns: a multi-node connection pool
-// with round-robin selection and failover, driven over a caller-supplied
-// RoundTripper stack that carries TLS, auth (basic/API-key/bearer/SigV4), and
-// custom headers. Payload-level clients (the admin structs today, the data plane
-// once olivere is replaced) compose over it, so there is a single transport and a
-// single place that owns auth, headers, and node selection.
+// clients. It owns a multi-node connection pool with round-robin selection and
+// failover, driven over a caller-supplied base RoundTripper. What that base
+// applies is up to the caller: today the admin plane supplies TLS + Basic auth;
+// once the full RoundTripper stack (`clientbuilder.GetHTTPRoundTripper`, with
+// bearer/API-key/SigV4/custom_headers) is relocated into this package, both
+// planes will share it. Payload-level clients compose over the pool.
 type rawClient struct {
 	pool *elastictransport.Client
 }
 
 // newRawClient builds a rawClient that round-robins requests across servers,
-// sending each through base — the RoundTripper stack that applies TLS, auth, and
-// custom headers. Node discovery (sniffing) is left disabled to match the current
-// olivere behavior and avoid AWS/proxy misconfiguration; the pool retries
-// idempotent requests on 502/503/504 by default.
+// sending each through base. Node discovery (sniffing) is left disabled to match
+// the current olivere behavior and avoid AWS/proxy misconfiguration.
 func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) {
 	urls := make([]*url.URL, 0, len(servers))
 	for _, server := range servers {
