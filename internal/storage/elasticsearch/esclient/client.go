@@ -6,6 +6,7 @@ package esclient
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,23 +45,26 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 }
 
 // Client executes requests against Elasticsearch/OpenSearch using direct HTTP
-// calls (no official Go client) over the shared rawClient transport pool.
+// calls (no official Go client) over the shared transport pool.
 type Client struct {
-	raw       *rawClient
+	transport *rawClient
 	basicAuth string
 	timeout   time.Duration
 }
 
 // NewClient builds a Client that sends requests across servers through the shared
-// transport pool over base (the RoundTripper stack carrying TLS/auth/headers).
-// basicAuth, when non-empty, is the base64 "user:password" applied as a Basic
-// Authorization header; timeout bounds each request (0 means no bound).
-func NewClient(servers []string, base http.RoundTripper, basicAuth string, timeout time.Duration) (Client, error) {
-	raw, err := newRawClient(servers, base)
+// transport pool. tlsConfig configures TLS (nil for plaintext); basicAuth, when
+// non-empty, is the base64 "user:password" applied as a Basic Authorization
+// header; timeout bounds each request (0 means no bound).
+func NewClient(servers []string, tlsConfig *tls.Config, basicAuth string, timeout time.Duration) (Client, error) {
+	transport, err := newRawClient(servers, &http.Transport{
+		Proxy:           http.ProxyFromEnvironment,
+		TLSClientConfig: tlsConfig,
+	})
 	if err != nil {
 		return Client{}, err
 	}
-	return Client{raw: raw, basicAuth: basicAuth, timeout: timeout}, nil
+	return Client{transport: transport, basicAuth: basicAuth, timeout: timeout}, nil
 }
 
 type elasticRequest struct {
@@ -86,7 +90,7 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 	}
 	c.setAuthorization(r)
 	r.Header.Add("Content-Type", "application/json")
-	res, err := c.raw.perform(r)
+	res, err := c.transport.perform(r)
 	if err != nil {
 		return []byte{}, err
 	}

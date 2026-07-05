@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/spf13/viper"
@@ -17,13 +16,9 @@ import (
 )
 
 func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) (esclient.Client, error) {
-	transport := &http.Transport{
-		Proxy:           http.ProxyFromEnvironment,
-		TLSClientConfig: tlsCfg,
-	}
 	return esclient.NewClient(
 		[]string{endpoint},
-		transport,
+		tlsCfg,
 		esclient.BasicAuth(cfg.Username, cfg.Password),
 		time.Duration(cfg.Timeout)*time.Second,
 	)

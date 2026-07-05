@@ -247,7 +247,7 @@ func TestVersion(t *testing.T) {
 			defer testServer.Close()
 
 			c := &ClusterClient{
-				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
+				Client: mustClient(t, testServer.URL, "foobar"),
 			}
 			result, err := c.Version(context.Background())
 			if test.errContains != "" {
@@ -291,7 +291,7 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
-	c := &ClusterClient{Client: mustClient(t, server.URL, http.DefaultClient, "")}
+	c := &ClusterClient{Client: mustClient(t, server.URL, "")}
 	_, err := c.Version(context.Background())
 	require.NoError(t, err)
 	rec.Assert(t, "testdata/version")
