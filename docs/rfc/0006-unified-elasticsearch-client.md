@@ -14,7 +14,7 @@
 Jaeger talks to Elasticsearch/OpenSearch through **two unrelated client abstractions**:
 
 1. A **data-plane** client (`internal/storage/elasticsearch`, the `es.Client` interface) that wraps the deprecated [`olivere/elastic`](https://github.com/olivere/elastic) library (plus a second, `go-elasticsearch/v9`, client bolted on for one operation). It carries bulk writes, searches, and aggregations.
-2. A **control-plane** client (`internal/storage/elasticsearch/client`, the `IndexAPI`/`ClusterAPI`/`IndexManagementLifecycleAPI` interfaces) built on raw `net/http`. It carries index/alias/template/rollover/ILM management for the `es-rollover` and `es-index-cleaner` tools.
+2. A **control-plane** client (`internal/storage/elasticsearch/esclient`, the `IndexAPI`/`ClusterAPI`/`IndexManagementLifecycleAPI` interfaces) built on raw `net/http`. It carries index/alias/template/rollover/ILM management for the `es-rollover` and `es-index-cleaner` tools.
 
 The split is historical, not principled. The boundary is already leaky — the storage factory performs "control-plane" operations (`CreateTemplate` at bootstrap, `DeleteIndex` on purge) through the data-plane client — and several operations (`IndexExists`, `CreateIndex`, `DeleteIndex`, `CreateTemplate`, version detection) are implemented **twice or three times**.
 
@@ -30,7 +30,7 @@ This is a design exploration, not a committed decision. It builds on the investi
 
 | | Data plane | Control plane |
 |---|---|---|
-| Package | `internal/storage/elasticsearch` (`es`) + `.../wrapper` | `internal/storage/elasticsearch/client` |
+| Package | `internal/storage/elasticsearch` (`es`) + `.../wrapper` | `internal/storage/elasticsearch/esclient` |
 | Interface(s) | `es.Client` + 7 fluent service interfaces | `IndexAPI`, `ClusterAPI`, `IndexManagementLifecycleAPI` |
 | Transport | `olivere/elastic/v7` (+ `go-elasticsearch/v9` for one op) | raw `net/http` |
 | Operations | `_bulk`, `_search` (+aggs), `_msearch` (+`search_after`), template/index create, version | index/alias create+delete, template, rollover, ILM/ISM, list indices, version |
@@ -396,7 +396,7 @@ The work decomposes into small, independently-shippable milestones — each one 
 
 **Stage A — Foundation (no behavior change)**
 - **M1 — Snapshot baseline + fixture taxonomy. ✅ Done (#8921, #8922, #8929).** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot resolving for each supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only. (Carve-out: the sampling `InsertThroughput`/`InsertProbabilitiesAndQPS` writes stamp the document body with `time.Now()` internally and have no clock seam, so their bodies are frozen during the migration when a fixed clock is injected, not in the baseline.)
-- **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
+- **M2 — Rename `client` → `esclient`. ✅ Done (#8930).** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
 - **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (`GetHTTPRoundTripper` layered under `elastic-transport-go`'s pool) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
 - **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
 
