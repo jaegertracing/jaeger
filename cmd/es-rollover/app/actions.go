@@ -5,6 +5,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,6 +18,19 @@ import (
 )
 
 func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (esclient.Client, error) {
+	// Only one auth method may be configured. The shared auth stack adds an
+	// Authorization header per configured method, so more than one would emit
+	// multiple Authorization headers, which ES/OS reject.
+	basicAuth := cfg.Username != "" && cfg.Password != ""
+	authMethods := 0
+	for _, set := range []bool{basicAuth, cfg.TokenFilePath != "", cfg.APIKeyFilePath != ""} {
+		if set {
+			authMethods++
+		}
+	}
+	if authMethods > 1 {
+		return esclient.Client{}, errors.New("only one of basic auth (--es.username/--es.password), --es.token-file, or --es.api-key-file may be configured")
+	}
 	esCfg := &config.Configuration{
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.Timeout) * time.Second,
@@ -24,7 +38,7 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 	}
 	// Enable basic auth only when both are set, matching the prior behavior of
 	// omitting the Authorization header unless username and password are present.
-	if cfg.Username != "" && cfg.Password != "" {
+	if basicAuth {
 		esCfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
 			Username: cfg.Username,
 			Password: cfg.Password,

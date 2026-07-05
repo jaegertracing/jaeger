@@ -170,6 +170,9 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// The request below is synchronous: GetJaegerIndices returns only
+			// after the handler runs and its response is fully read, so this
+			// write happens-before the assertion (no data race; verified -race).
 			var gotAuth string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotAuth = r.Header.Get("Authorization")
@@ -187,6 +190,33 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			_, err = idx.GetJaegerIndices(context.Background(), "")
 			require.NoError(t, err)
 			assert.Equal(t, test.wantAuth, gotAuth)
+		})
+	}
+}
+
+func TestNewESClientRejectsMultipleAuthMethods(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  Config
+	}{
+		{
+			name: "basic and bearer",
+			cfg:  Config{Username: "u", Password: "p", TokenFilePath: "/token"},
+		},
+		{
+			name: "bearer and api key",
+			cfg:  Config{TokenFilePath: "/token", APIKeyFilePath: "/apikey"},
+		},
+		{
+			name: "all three",
+			cfg:  Config{Username: "u", Password: "p", TokenFilePath: "/token", APIKeyFilePath: "/apikey"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := test.cfg
+			_, err := newESClient(context.Background(), "http://localhost:9200", &cfg, zap.NewNop())
+			require.ErrorContains(t, err, "only one of")
 		})
 	}
 }
