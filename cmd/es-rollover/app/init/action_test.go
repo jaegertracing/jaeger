@@ -305,11 +305,10 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	clusterClient := &mocks.ClusterAPI{}
 	clusterClient.On("Version", mock.Anything).Return(es.OpenSearch2, nil)
 
+	esClient, err := esclient.NewClient([]string{testServer.URL}, testServer.Client().Transport, "", 0)
+	require.NoError(t, err)
 	ilmClient := &esclient.ILMClient{
-		Client: esclient.Client{
-			Client:   testServer.Client(),
-			Endpoint: testServer.URL,
-		},
+		Client: esClient,
 		Logger: zap.NewNop(),
 	}
 
@@ -329,7 +328,7 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 		ILMClient:     ilmClient,
 	}
 
-	err := action.Do()
+	err = action.Do()
 	require.NoError(t, err)
 	assert.True(t, ilmClient.UseOpenSearchISM)
 	assert.True(t, ismEndpointCalled.Load(), "expected ISM endpoint to be called")

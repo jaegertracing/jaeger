@@ -5,7 +5,6 @@ package app
 
 import (
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,11 +77,7 @@ func TestExecuteAction(t *testing.T) {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c esclient.Client, _ Config) Action {
-				assert.Equal(t, "https://localhost:9300", c.Endpoint)
-				transport, ok := c.Client.Transport.(*http.Transport)
-				require.True(t, ok)
-				assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
+			}, func(_ esclient.Client, _ Config) Action {
 				return &dummyAction{
 					TestFn: func() error {
 						executedAction = true

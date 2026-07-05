@@ -148,10 +148,7 @@ func TestClientGetIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:   testServer.Client(),
-					Endpoint: testServer.URL,
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), ""),
 			}
 
 			indices, err := c.GetJaegerIndices(context.Background(), test.prefix)
@@ -267,11 +264,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client:                 mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 				MasterTimeoutSeconds:   masterTimeoutSeconds,
 				IgnoreUnavailableIndex: ignoreUnavailableIndex,
 			}
@@ -349,11 +342,7 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			}))
 			defer testServer.Close()
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 			}
 			var exists bool
 			var err error
@@ -375,23 +364,28 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 	}
 }
 
-func TestClientRequestError(t *testing.T) {
-	c := &IndicesClient{
-		Client: Client{
-			Endpoint: "%",
-		},
+// mustClient builds an esclient.Client for a single test server. The server's
+// transport (from httptest.Server.Client() for TLS, or http.DefaultTransport)
+// becomes the pool's base RoundTripper.
+func mustClient(t *testing.T, url string, httpClient *http.Client, basicAuth string) Client {
+	base := http.DefaultTransport
+	if httpClient != nil && httpClient.Transport != nil {
+		base = httpClient.Transport
 	}
-	indices, err := c.GetJaegerIndices(context.Background(), "")
+	c, err := NewClient([]string{url}, base, basicAuth, 0)
+	require.NoError(t, err)
+	return c
+}
+
+func TestClientRequestError(t *testing.T) {
+	// A malformed server URL is rejected when the client is constructed.
+	_, err := NewClient([]string{"%"}, http.DefaultTransport, "", 0)
 	require.Error(t, err)
-	assert.Nil(t, indices)
 }
 
 func TestClientDoError(t *testing.T) {
 	c := &IndicesClient{
-		Client: Client{
-			Client:   &http.Client{},
-			Endpoint: "localhost:1",
-		},
+		Client: mustClient(t, "http://localhost:1", http.DefaultClient, ""),
 	}
 
 	indices, err := c.GetJaegerIndices(context.Background(), "")
@@ -430,11 +424,7 @@ func TestClientCreateIndex(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 			}
 			err := c.CreateIndex(context.Background(), indexName)
 			if test.errContains != "" {
@@ -490,11 +480,7 @@ func TestClientCreateAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 			}
 			err := c.CreateAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -549,11 +535,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 			}
 			err := c.DeleteAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -612,11 +594,7 @@ func TestClientCreateTemplate(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 			}
 			err := c.CreateTemplate(context.Background(), templateContent, templateName)
 			if test.errContains != "" {
@@ -665,11 +643,7 @@ func TestRollover(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 			}
 			err := c.Rollover(context.Background(), "jaeger-span", mapConditions)
 			if test.errContains != "" {
@@ -699,7 +673,7 @@ func okServer(t *testing.T) (*snapshottest.Recorder, string) {
 func indicesClient(t *testing.T) (*snapshottest.Recorder, *IndicesClient) {
 	rec, url := okServer(t)
 	return rec, &IndicesClient{
-		Client:                 Client{Client: http.DefaultClient, Endpoint: url},
+		Client:                 mustClient(t, url, http.DefaultClient, ""),
 		MasterTimeoutSeconds:   5,
 		IgnoreUnavailableIndex: true,
 	}
@@ -779,7 +753,7 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 		})
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
-		c := IndicesClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
+		c := IndicesClient{Client: mustClient(t, server.URL, http.DefaultClient, "")}
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
 		content[version] = rec.Marshal(t)
 	}

@@ -41,10 +41,13 @@ func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) 
 		}
 		urls = append(urls, u)
 	}
-	// Node discovery (sniffing) is left at its default of off.
+	// Node discovery (sniffing) is left at its default of off. Retry is disabled
+	// to preserve the current admin-client behavior; the data plane can opt into
+	// the pool's read retry when it adopts rawClient in Stage B.
 	pool, err := elastictransport.NewClient(
 		elastictransport.WithURLs(urls...),
 		elastictransport.WithTransport(base),
+		elastictransport.WithDisableRetry(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transport pool: %w", err)

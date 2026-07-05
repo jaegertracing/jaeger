@@ -64,19 +64,21 @@ func main() {
 				return fmt.Errorf("error loading tls config : %w", err)
 			}
 
-			c := &http.Client{
-				Timeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					TLSClientConfig: tlscfg,
-				},
+			base := &http.Transport{
+				Proxy:           http.ProxyFromEnvironment,
+				TLSClientConfig: tlscfg,
+			}
+			esClient, err := esclient.NewClient(
+				[]string{args[1]},
+				base,
+				basicAuth(cfg.Username, cfg.Password),
+				time.Duration(cfg.MasterNodeTimeoutSeconds)*time.Second,
+			)
+			if err != nil {
+				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
 			i := esclient.IndicesClient{
-				Client: esclient.Client{
-					Endpoint:  args[1],
-					Client:    c,
-					BasicAuth: basicAuth(cfg.Username, cfg.Password),
-				},
+				Client:                 esClient,
 				MasterTimeoutSeconds:   cfg.MasterNodeTimeoutSeconds,
 				IgnoreUnavailableIndex: true,
 			}

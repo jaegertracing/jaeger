@@ -57,11 +57,7 @@ func TestExists(t *testing.T) {
 			defer testServer.Close()
 
 			c := &ILMClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
@@ -111,10 +107,7 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			defer testServer.Close()
 
 			c := &ILMClient{
-				Client: Client{
-					Client:   testServer.Client(),
-					Endpoint: testServer.URL,
-				},
+				Client:           mustClient(t, testServer.URL, testServer.Client(), ""),
 				Logger:           zap.NewNop(),
 				UseOpenSearchISM: true,
 			}
@@ -148,11 +141,7 @@ func TestExists_Retries(t *testing.T) {
 	defer testServer.Close()
 
 	c := &ILMClient{
-		Client: Client{
-			Client:    testServer.Client(),
-			Endpoint:  testServer.URL,
-			BasicAuth: "foobar",
-		},
+		Client: mustClient(t, testServer.URL, testServer.Client(), "foobar"),
 		Logger: zap.NewNop(),
 	}
 
@@ -169,7 +158,7 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
 		c := ILMClient{
-			Client:           Client{Client: http.DefaultClient, Endpoint: url},
+			Client:           mustClient(t, url, http.DefaultClient, ""),
 			Logger:           zap.NewNop(),
 			UseOpenSearchISM: version.IsOpenSearch(),
 		}
