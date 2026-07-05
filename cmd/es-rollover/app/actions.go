@@ -21,12 +21,14 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.Timeout) * time.Second,
 		TLS:          cfg.TLSConfig,
-		Authentication: config.Authentication{
-			BasicAuthentication: configoptional.Some(config.BasicAuthentication{
-				Username: cfg.Username,
-				Password: cfg.Password,
-			}),
-		},
+	}
+	// Enable basic auth only when both are set, matching the prior behavior of
+	// omitting the Authorization header unless username and password are present.
+	if cfg.Username != "" && cfg.Password != "" {
+		esCfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+			Username: cfg.Username,
+			Password: cfg.Password,
+		})
 	}
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }

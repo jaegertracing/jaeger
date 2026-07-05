@@ -63,12 +63,14 @@ func main() {
 				Servers:      []string{args[1]},
 				QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
 				TLS:          cfg.TLSConfig,
-				Authentication: escfg.Authentication{
-					BasicAuthentication: configoptional.Some(escfg.BasicAuthentication{
-						Username: cfg.Username,
-						Password: cfg.Password,
-					}),
-				},
+			}
+			// Enable basic auth only when both are set, matching the prior behavior
+			// of omitting the Authorization header unless username and password are present.
+			if cfg.Username != "" && cfg.Password != "" {
+				esCfg.Authentication.BasicAuthentication = configoptional.Some(escfg.BasicAuthentication{
+					Username: cfg.Username,
+					Password: cfg.Password,
+				})
 			}
 			esClient, err := esclient.NewClient(ctx, esCfg, logger, nil)
 			if err != nil {
