@@ -64,13 +64,13 @@ func main() {
 				return fmt.Errorf("error loading tls config : %w", err)
 			}
 
-			base := &http.Transport{
+			transport := &http.Transport{
 				Proxy:           http.ProxyFromEnvironment,
 				TLSClientConfig: tlscfg,
 			}
 			esClient, err := esclient.NewClient(
 				[]string{args[1]},
-				base,
+				transport,
 				basicAuth(cfg.Username, cfg.Password),
 				time.Duration(cfg.MasterNodeTimeoutSeconds)*time.Second,
 			)

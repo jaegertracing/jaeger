@@ -17,13 +17,13 @@ import (
 )
 
 func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) (esclient.Client, error) {
-	base := &http.Transport{
+	transport := &http.Transport{
 		Proxy:           http.ProxyFromEnvironment,
 		TLSClientConfig: tlsCfg,
 	}
 	return esclient.NewClient(
 		[]string{endpoint},
-		base,
+		transport,
 		esclient.BasicAuth(cfg.Username, cfg.Password),
 		time.Duration(cfg.Timeout)*time.Second,
 	)
