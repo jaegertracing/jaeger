@@ -185,9 +185,9 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
 		client := newDataClient(t, server.URL, version)
-		// The write path closes the client inline to flush the bulk request; this
-		// cleanup only runs if an earlier assertion aborts first, so the client is
-		// never closed twice.
+		// The test closes the client inline (below) to flush the bulk request; this
+		// cleanup is a fallback for when an earlier assertion aborts first, so the
+		// client is never closed twice.
 		clientClosed := false
 		t.Cleanup(func() {
 			if !clientClosed {
