@@ -1630,10 +1630,15 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetHTTPRoundTripperCustomHeaders(t *testing.T) {
-	var gotHeader, gotHost string
+	var (
+		mu                 sync.Mutex
+		gotHeader, gotHost string
+	)
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
 		gotHeader = req.Header.Get("X-Custom-Header")
 		gotHost = req.Host
+		mu.Unlock()
 		res.WriteHeader(http.StatusOK)
 	}))
 	defer testServer.Close()
@@ -1655,6 +1660,8 @@ func TestGetHTTPRoundTripperCustomHeaders(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
+	mu.Lock()
+	defer mu.Unlock()
 	assert.Equal(t, "custom-value", gotHeader)
 	assert.Equal(t, "signed.example.com", gotHost)
 }
@@ -1682,9 +1689,14 @@ func TestGetHTTPRoundTripperCustomHeadersDoNotMutateOriginalRequest(t *testing.T
 }
 
 func TestGetHTTPRoundTripperCustomHeadersDoNotOverridePerRequestHeaders(t *testing.T) {
-	var gotHeader string
+	var (
+		mu        sync.Mutex
+		gotHeader string
+	)
 	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
 		gotHeader = req.Header.Get("X-Custom-Header")
+		mu.Unlock()
 		res.WriteHeader(http.StatusOK)
 	}))
 	defer testServer.Close()
@@ -1703,5 +1715,7 @@ func TestGetHTTPRoundTripperCustomHeadersDoNotOverridePerRequestHeaders(t *testi
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
+	mu.Lock()
+	defer mu.Unlock()
 	assert.Equal(t, "per-request-value", gotHeader)
 }
