@@ -1,0 +1,26 @@
+{
+  "method": "POST",
+  "path": "/_bulk",
+  "ndjson": [
+    {
+      "index": {
+        "_index": "jaeger-span-write-000001"
+      }
+    },
+    {
+      "duration": 1000,
+      "logs": null,
+      "operationName": "test-operation",
+      "process": {
+        "serviceName": "test-service",
+        "tags": null
+      },
+      "references": null,
+      "spanID": "abcdef1234567890",
+      "startTime": 1577934245000000,
+      "startTimeMillis": 1577934245000,
+      "tags": null,
+      "traceID": "1234567890abcdef"
+    }
+  ]
+}

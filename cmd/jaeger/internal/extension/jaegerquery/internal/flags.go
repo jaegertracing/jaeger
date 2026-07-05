@@ -46,7 +46,14 @@ type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
-	AgentURL string `mapstructure:"agent_url" valid:"required"`
+	// Optional: leave empty (and set EnableMCP) to expose the telemetry MCP
+	// endpoint without the AI chat surface.
+	AgentURL string `mapstructure:"agent_url" valid:"optional"`
+	// EnableMCP exposes the Jaeger telemetry MCP server at
+	// <basePath>/api/ai/mcp/ on the query port. Off by default. It replaces the
+	// retired standalone jaeger_mcp extension (which served :16687); point
+	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
+	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 	// HealthCheckInterval controls how often the AI health checker contacts
@@ -83,8 +90,8 @@ func (c *OTLPProxyConfig) Validate() error {
 // (see the AIConfig type-level comment) so by the time Validate runs the
 // caller's struct already has sensible values for any field they omitted.
 func (c *AIConfig) Validate() error {
-	if c.AgentURL == "" {
-		return errors.New("ai.agent_url is required")
+	if c.AgentURL == "" && !c.EnableMCP {
+		return errors.New("ai requires agent_url (AI chat) or enable_mcp (telemetry MCP tools)")
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")

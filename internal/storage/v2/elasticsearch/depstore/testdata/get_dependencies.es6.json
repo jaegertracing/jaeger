@@ -1,0 +1,20 @@
+{
+  "method": "POST",
+  "path": "/jaeger-dependencies-2020-01-02/_search",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ]
+  },
+  "body": {
+    "query": {
+      "range": {
+        "timestamp": {
+          "gte": "2020-01-02T02:04:05Z",
+          "lte": "2020-01-02T03:04:05Z"
+        }
+      }
+    },
+    "size": 10000
+  }
+}

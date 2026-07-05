@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
@@ -22,6 +23,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -30,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -1328,4 +1331,64 @@ func TestTagsMap(t *testing.T) {
 			assert.Equal(t, tags, span.Process.Tags)
 		})
 	}
+}
+
+// newSnapshotReader builds a SpanReader wired to client, with aliased (fixed)
+// index names so the recorded request paths are deterministic across runs.
+func newSnapshotReader(client es.Client) *SpanReader {
+	return NewSpanReader(SpanReaderParams{
+		Client:           func() es.Client { return client },
+		MaxSpanAge:       72 * time.Hour,
+		MaxTraceDuration: 24 * time.Hour,
+		MaxDocCount:      100,
+		Logger:           zap.NewNop(),
+		Tracer:           noop.NewTracerProvider().Tracer("test"),
+		SpanRotation:     indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
+		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+	})
+}
+
+// TestReaderRequestSnapshots freezes the wire format of the trace-read path:
+// find_trace_ids (_search with a terms aggregation) and get_traces (_msearch
+// with search_after). Fixed query times keep the range filters deterministic.
+func TestReaderRequestSnapshots(t *testing.T) {
+	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	end := start.Add(time.Hour)
+	traceQuery := dbmodel.TraceQueryParameters{
+		ServiceName:   "test-service",
+		OperationName: "test-operation",
+		Tags:          map[string]string{"http.status_code": "200"},
+		StartTimeMin:  start,
+		StartTimeMax:  end,
+		DurationMin:   time.Second,
+		DurationMax:   time.Minute,
+		SearchDepth:   20,
+	}
+	traceIDs := []dbmodel.TraceID{"1234567890abcdef"}
+
+	findTraceIDs := map[es.BackendVersion]string{}
+	getTraces := map[es.BackendVersion]string{}
+
+	for _, version := range es.AllVersions {
+		rec := dataRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newDataClient(t, server.URL, version)
+		t.Cleanup(func() { _ = client.Close() })
+		reader := newSnapshotReader(client)
+		ctx := context.Background()
+
+		rec.Reset()
+		_, err := reader.FindTraceIDs(ctx, traceQuery)
+		require.NoError(t, err)
+		findTraceIDs[version] = rec.Marshal(t)
+
+		rec.Reset()
+		_, err = reader.multiRead(ctx, traceIDs, start, end)
+		require.NoError(t, err)
+		getTraces[version] = rec.Marshal(t)
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/find_trace_ids", findTraceIDs)
+	snapshottest.AssertByVersion(t, "testdata/get_traces", getTraces)
 }

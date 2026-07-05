@@ -7,6 +7,8 @@ package depstore
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -17,10 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -261,6 +266,90 @@ func stringMatcher(q string) any {
 		return strings.Contains(s, q)
 	}
 	return mock.MatchedBy(matchFunc)
+}
+
+// TestDependencyStoreRequestSnapshots freezes the exact wire format of the
+// dependency read+write path over the current olivere client. Only ES6 differs
+// (no rest_total_hits_as_int on searches; _type on writes); every other version
+// emits the same request, so snapshots collapse to es6 / es7-9.os1-3.
+
+// newDataClient builds a real es.Client for the given backend version, pointed at
+// the recording server. Version is set explicitly so no ping is issued, and the
+// bulk processor only flushes on Close.
+func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
+	cfg := &config.Configuration{
+		Servers:            []string{url},
+		Version:            uint(version),
+		DisableHealthCheck: true,
+		LogLevel:           "info",
+		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
+	}
+	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	return client
+}
+
+// dataRecorder answers each request with an empty-but-valid response for its
+// endpoint (search or bulk), so operations complete without error while the
+// request is captured.
+func dataRecorder() *snapshottest.Recorder {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "_bulk"):
+			w.Write([]byte(`{"took":0,"errors":false,"items":[]}`))
+		default:
+			w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
+		}
+	})
+}
+
+func TestDependencyStoreRequestSnapshots(t *testing.T) {
+	fixedTime := time.Date(2020, time.January, 2, 3, 4, 5, 0, time.UTC)
+	const lookback = time.Hour
+	dependencies := []dbmodel.DependencyLink{
+		{Parent: "svcA", Child: "svcB", CallCount: 1},
+	}
+
+	getDependencies := map[es.BackendVersion]string{}
+	writeDependencies := map[es.BackendVersion]string{}
+
+	for _, version := range es.AllVersions {
+		rec := dataRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newDataClient(t, server.URL, version)
+		// The test closes the client inline (below) to flush the bulk request; this
+		// cleanup is a fallback for when an earlier assertion aborts first, so the
+		// client is never closed twice.
+		clientClosed := false
+		t.Cleanup(func() {
+			if !clientClosed {
+				_ = client.Close()
+			}
+		})
+		store := NewDependencyStore(Params{
+			Client:      func() es.Client { return client },
+			Logger:      zap.NewNop(),
+			MaxDocCount: defaultMaxDocCount,
+			Rotation:    periodicRotation("", "2006-01-02"),
+		})
+		ctx := context.Background()
+
+		rec.Reset()
+		_, err := store.GetDependencies(ctx, fixedTime, lookback)
+		require.NoError(t, err)
+		getDependencies[version] = rec.Marshal(t)
+
+		rec.Reset()
+		require.NoError(t, store.WriteDependencies(fixedTime, dependencies))
+		require.NoError(t, client.Close()) // flushes the bulk request
+		clientClosed = true
+		writeDependencies[version] = rec.Marshal(t)
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/get_dependencies", getDependencies)
+	snapshottest.AssertByVersion(t, "testdata/write_dependencies", writeDependencies)
 }
 
 func TestMain(m *testing.M) {
