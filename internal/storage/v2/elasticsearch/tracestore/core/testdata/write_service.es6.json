@@ -1,0 +1,17 @@
+{
+  "method": "POST",
+  "path": "/_bulk",
+  "ndjson": [
+    {
+      "index": {
+        "_id": "cb42af354c445afb",
+        "_index": "test-jaeger-service-write-000001",
+        "_type": "service"
+      }
+    },
+    {
+      "operationName": "test-operation",
+      "serviceName": "test-service"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "method": "POST",
+  "path": "/test-jaeger-service-read/_search",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ]
+  },
+  "body": {
+    "aggregations": {
+      "distinct_services": {
+        "terms": {
+          "field": "serviceName",
+          "size": 10
+        }
+      }
+    },
+    "size": 0
+  }
+}

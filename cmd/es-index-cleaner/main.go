@@ -21,7 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 var relativeIndexCleaner *featuregate.Gate
@@ -71,8 +71,8 @@ func main() {
 					TLSClientConfig: tlscfg,
 				},
 			}
-			i := client.IndicesClient{
-				Client: client.Client{
+			i := esclient.IndicesClient{
+				Client: esclient.Client{
 					Endpoint:  args[1],
 					Client:    c,
 					BasicAuth: basicAuth(cfg.Username, cfg.Password),

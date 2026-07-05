@@ -1,0 +1,18 @@
+[
+  {
+    "method": "HEAD",
+    "path": "/jaeger-sampling-read"
+  },
+  {
+    "method": "POST",
+    "path": "/jaeger-sampling-read/_search",
+    "query": {
+      "ignore_unavailable": [
+        "true"
+      ]
+    },
+    "body": {
+      "size": 1000
+    }
+  }
+]

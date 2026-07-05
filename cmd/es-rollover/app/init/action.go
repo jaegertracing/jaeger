@@ -9,8 +9,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
@@ -18,9 +18,9 @@ import (
 // Action holds the configuration and clients for init action
 type Action struct {
 	Config        Config
-	ClusterClient client.ClusterAPI
-	IndicesClient client.IndexAPI
-	ILMClient     client.IndexManagementLifecycleAPI
+	ClusterClient esclient.ClusterAPI
+	IndicesClient esclient.IndexAPI
+	ILMClient     esclient.IndexManagementLifecycleAPI
 }
 
 func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
@@ -47,7 +47,7 @@ func (c Action) Do() error {
 		if !version.SupportsILM() {
 			return fmt.Errorf("ILM/ISM is not supported in %s", version)
 		}
-		if ilm, ok := c.ILMClient.(*client.ILMClient); ok && version.IsOpenSearch() {
+		if ilm, ok := c.ILMClient.(*esclient.ILMClient); ok && version.IsOpenSearch() {
 			ilm.UseOpenSearchISM = true
 		}
 		policyExist, err := c.ILMClient.Exists(ctx, c.Config.ILMPolicyName)
@@ -67,7 +67,7 @@ func (c Action) Do() error {
 	return nil
 }
 
-func createIndexIfNotExist(ctx context.Context, c client.IndexAPI, index string) error {
+func createIndexIfNotExist(ctx context.Context, c esclient.IndexAPI, index string) error {
 	exists, err := c.IndexExists(ctx, index)
 	if err != nil {
 		return err
@@ -114,10 +114,10 @@ func (c Action) init(ctx context.Context, version es.BackendVersion, indexopt ap
 
 	readAlias := indexopt.ReadAliasName()
 	writeAlias := indexopt.WriteAliasName()
-	aliases := []client.Alias{}
+	aliases := []esclient.Alias{}
 
 	if !filter.AliasExists(jaegerIndices, readAlias) {
-		aliases = append(aliases, client.Alias{
+		aliases = append(aliases, esclient.Alias{
 			Index:        index,
 			Name:         readAlias,
 			IsWriteIndex: false,
@@ -125,7 +125,7 @@ func (c Action) init(ctx context.Context, version es.BackendVersion, indexopt ap
 	}
 
 	if !filter.AliasExists(jaegerIndices, writeAlias) {
-		aliases = append(aliases, client.Alias{
+		aliases = append(aliases, esclient.Alias{
 			Index:        index,
 			Name:         writeAlias,
 			IsWriteIndex: c.Config.UseILM,
