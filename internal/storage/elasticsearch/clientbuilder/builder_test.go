@@ -1628,3 +1628,94 @@ func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
 }
+
+func TestGetHTTPRoundTripperCustomHeaders(t *testing.T) {
+	var (
+		mu                 sync.Mutex
+		gotHeader, gotHost string
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		gotHeader = req.Header.Get("X-Custom-Header")
+		gotHost = req.Host
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	cfg := &config.Configuration{
+		TLS: configtls.ClientConfig{Insecure: true},
+		CustomHeaders: map[string]string{
+			"X-Custom-Header": "custom-value",
+			"Host":            "signed.example.com",
+		},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	client := &http.Client{Transport: rt}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, testServer.URL, http.NoBody)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, "custom-value", gotHeader)
+	assert.Equal(t, "signed.example.com", gotHost)
+}
+
+func TestGetHTTPRoundTripperCustomHeadersDoNotMutateOriginalRequest(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	cfg := &config.Configuration{
+		TLS:           configtls.ClientConfig{Insecure: true},
+		CustomHeaders: map[string]string{"X-Custom-Header": "custom-value"},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, testServer.URL, http.NoBody)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Empty(t, req.Header.Get("X-Custom-Header"))
+}
+
+func TestGetHTTPRoundTripperCustomHeadersDoNotOverridePerRequestHeaders(t *testing.T) {
+	var (
+		mu        sync.Mutex
+		gotHeader string
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		gotHeader = req.Header.Get("X-Custom-Header")
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	cfg := &config.Configuration{
+		TLS:           configtls.ClientConfig{Insecure: true},
+		CustomHeaders: map[string]string{"X-Custom-Header": "static-value"},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, testServer.URL, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("X-Custom-Header", "per-request-value")
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, "per-request-value", gotHeader)
+}
