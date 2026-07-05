@@ -60,6 +60,10 @@ func (t *getBodyFixRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 		if err != nil {
 			return nil, err
 		}
+		// Mutate in place on purpose: GetBody must be populated on the very
+		// request that flows to the authenticator and the retrying pool, not on a
+		// clone. The bodies this fixes are olivere-created io.NopCloser wrappers
+		// over byte buffers, so the original needs no Close.
 		req.Body = io.NopCloser(bytes.NewReader(body))
 		req.GetBody = func() (io.ReadCloser, error) {
 			return io.NopCloser(bytes.NewReader(body)), nil
