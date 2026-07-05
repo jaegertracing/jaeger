@@ -22,7 +22,7 @@ type IndexAPI interface {
 }
 
 type ClusterAPI interface {
-	Version(ctx context.Context) (es.BackendVersion, error)
+	ResolveVersion(ctx context.Context, configured uint) (es.BackendVersion, error)
 }
 
 type IndexManagementLifecycleAPI interface {

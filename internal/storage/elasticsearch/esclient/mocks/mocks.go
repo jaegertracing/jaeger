@@ -625,62 +625,68 @@ func (_m *ClusterAPI) EXPECT() *ClusterAPI_Expecter {
 	return &ClusterAPI_Expecter{mock: &_m.Mock}
 }
 
-// Version provides a mock function for the type ClusterAPI
-func (_mock *ClusterAPI) Version(ctx context.Context) (elasticsearch.BackendVersion, error) {
-	ret := _mock.Called(ctx)
+// ResolveVersion provides a mock function for the type ClusterAPI
+func (_mock *ClusterAPI) ResolveVersion(ctx context.Context, configured uint) (elasticsearch.BackendVersion, error) {
+	ret := _mock.Called(ctx, configured)
 
 	if len(ret) == 0 {
-		panic("no return value specified for Version")
+		panic("no return value specified for ResolveVersion")
 	}
 
 	var r0 elasticsearch.BackendVersion
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context) (elasticsearch.BackendVersion, error)); ok {
-		return returnFunc(ctx)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uint) (elasticsearch.BackendVersion, error)); ok {
+		return returnFunc(ctx, configured)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) elasticsearch.BackendVersion); ok {
-		r0 = returnFunc(ctx)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, uint) elasticsearch.BackendVersion); ok {
+		r0 = returnFunc(ctx, configured)
 	} else {
 		r0 = ret.Get(0).(elasticsearch.BackendVersion)
 	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = returnFunc(ctx)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, uint) error); ok {
+		r1 = returnFunc(ctx, configured)
 	} else {
 		r1 = ret.Error(1)
 	}
 	return r0, r1
 }
 
-// ClusterAPI_Version_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Version'
-type ClusterAPI_Version_Call struct {
+// ClusterAPI_ResolveVersion_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResolveVersion'
+type ClusterAPI_ResolveVersion_Call struct {
 	*mock.Call
 }
 
-// Version is a helper method to define mock.On call
+// ResolveVersion is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *ClusterAPI_Expecter) Version(ctx interface{}) *ClusterAPI_Version_Call {
-	return &ClusterAPI_Version_Call{Call: _e.mock.On("Version", ctx)}
+//   - configured uint
+func (_e *ClusterAPI_Expecter) ResolveVersion(ctx interface{}, configured interface{}) *ClusterAPI_ResolveVersion_Call {
+	return &ClusterAPI_ResolveVersion_Call{Call: _e.mock.On("ResolveVersion", ctx, configured)}
 }
 
-func (_c *ClusterAPI_Version_Call) Run(run func(ctx context.Context)) *ClusterAPI_Version_Call {
+func (_c *ClusterAPI_ResolveVersion_Call) Run(run func(ctx context.Context, configured uint)) *ClusterAPI_ResolveVersion_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
+		var arg1 uint
+		if args[1] != nil {
+			arg1 = args[1].(uint)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *ClusterAPI_Version_Call) Return(backendVersion elasticsearch.BackendVersion, err error) *ClusterAPI_Version_Call {
+func (_c *ClusterAPI_ResolveVersion_Call) Return(backendVersion elasticsearch.BackendVersion, err error) *ClusterAPI_ResolveVersion_Call {
 	_c.Call.Return(backendVersion, err)
 	return _c
 }
 
-func (_c *ClusterAPI_Version_Call) RunAndReturn(run func(ctx context.Context) (elasticsearch.BackendVersion, error)) *ClusterAPI_Version_Call {
+func (_c *ClusterAPI_ResolveVersion_Call) RunAndReturn(run func(ctx context.Context, configured uint) (elasticsearch.BackendVersion, error)) *ClusterAPI_ResolveVersion_Call {
 	_c.Call.Return(run)
 	return _c
 }

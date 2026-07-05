@@ -249,7 +249,7 @@ func TestVersion(t *testing.T) {
 			c := &ClusterClient{
 				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
-			result, err := c.Version(context.Background())
+			result, err := c.ResolveVersion(context.Background(), 0)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 				return
@@ -292,7 +292,23 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	defer server.Close()
 
 	c := &ClusterClient{Client: makeClient(t, server.URL, "", "")}
-	_, err := c.Version(context.Background())
+	_, err := c.ResolveVersion(context.Background(), 0)
 	require.NoError(t, err)
 	rec.Assert(t, "testdata/version")
+}
+
+// TestResolveVersionHonorsConfigured verifies that an explicit configured
+// version is returned without probing the cluster.
+func TestResolveVersionHonorsConfigured(t *testing.T) {
+	var pinged bool
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		pinged = true
+	}))
+	defer server.Close()
+
+	c := &ClusterClient{Client: makeClient(t, server.URL, "", "")}
+	version, err := c.ResolveVersion(context.Background(), uint(es.OpenSearch2))
+	require.NoError(t, err)
+	assert.Equal(t, es.OpenSearch2, version)
+	assert.False(t, pinged, "configured version must not trigger a cluster probe")
 }

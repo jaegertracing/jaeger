@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
-	"strings"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
@@ -21,8 +19,10 @@ type ClusterClient struct {
 	Client
 }
 
-// Version returns the detected backend version.
-func (c *ClusterClient) Version(ctx context.Context) (es.BackendVersion, error) {
+// ping fetches the raw version fields from the cluster root document ("GET /").
+// Version derivation is left to es.ResolveBackendVersion so that both client
+// planes share one detection path.
+func (c *ClusterClient) ping(ctx context.Context) (es.PingResult, error) {
 	type clusterInfo struct {
 		Version map[string]any `json:"version"`
 		TagLine string         `json:"tagline"`
@@ -32,23 +32,24 @@ func (c *ClusterClient) Version(ctx context.Context) (es.BackendVersion, error) 
 		method:   http.MethodGet,
 	})
 	if err != nil {
-		return 0, err
+		return es.PingResult{}, err
 	}
 	var info clusterInfo
-	err = json.Unmarshal(body, &info)
-	if err != nil {
-		return 0, err
+	if err := json.Unmarshal(body, &info); err != nil {
+		return es.PingResult{}, err
 	}
 
 	versionField := info.Version["number"]
 	versionNumber, isString := versionField.(string)
 	if !isString {
-		return 0, fmt.Errorf("invalid version format: %v", versionField)
+		return es.PingResult{}, fmt.Errorf("invalid version format: %v", versionField)
 	}
-	version := strings.Split(versionNumber, ".")
-	major, err := strconv.Atoi(version[0])
-	if err != nil {
-		return 0, fmt.Errorf("invalid version format: %s", version[0])
-	}
-	return es.DetectBackendVersion(info.TagLine, major), nil
+	return es.PingResult{VersionNumber: versionNumber, TagLine: info.TagLine}, nil
+}
+
+// ResolveVersion returns the configured version when non-zero; otherwise it
+// probes the cluster once. It shares es.ResolveBackendVersion with the
+// data-plane builder so version detection has a single implementation.
+func (c *ClusterClient) ResolveVersion(ctx context.Context, configured uint) (es.BackendVersion, error) {
+	return es.ResolveBackendVersion(ctx, configured, c.ping)
 }

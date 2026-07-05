@@ -4,7 +4,10 @@
 package elasticsearch
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -93,6 +96,38 @@ func (v BackendVersion) SupportsTypedIndices() bool {
 // ILM requires ES 7+ or OpenSearch (which uses ISM, the equivalent feature).
 func (v BackendVersion) SupportsILM() bool {
 	return v != ElasticV6
+}
+
+// PingResult holds the version fields Jaeger reads from an Elasticsearch or
+// OpenSearch root document ("GET /"), independent of which HTTP client fetched
+// it. It is the input to the shared version-resolution path.
+type PingResult struct {
+	// VersionNumber is the raw version string (e.g. "7.10.2").
+	VersionNumber string
+	// TagLine distinguishes OpenSearch from Elasticsearch.
+	TagLine string
+}
+
+// ResolveBackendVersion is the single version-detection path shared by the
+// data-plane and admin-plane client builders. It returns the configured version
+// when it is non-zero (an explicit override, honored without a network call);
+// otherwise it calls ping once and derives the version from the response.
+func ResolveBackendVersion(ctx context.Context, configured uint, ping func(context.Context) (PingResult, error)) (BackendVersion, error) {
+	if configured != 0 {
+		return BackendVersion(configured), nil
+	}
+	result, err := ping(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if result.VersionNumber == "" {
+		return 0, errors.New("backend returned an empty version number")
+	}
+	majorVersion, err := strconv.Atoi(string(result.VersionNumber[0]))
+	if err != nil {
+		return 0, fmt.Errorf("invalid version format: %s", result.VersionNumber)
+	}
+	return DetectBackendVersion(result.TagLine, majorVersion), nil
 }
 
 // DetectBackendVersion determines the BackendVersion from the ping response.

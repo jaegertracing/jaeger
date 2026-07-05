@@ -55,12 +55,25 @@ type Client struct {
 	transport *rawClient
 	timeout   time.Duration
 
-	// Version is the backend version (Elasticsearch/OpenSearch). It is
-	// expected to be detected once during client setup (e.g. via
-	// ClusterClient.Version) and stored here, so operations whose endpoint
-	// depends on the backend flavor (CreateTemplate, ILM/ISM) don't re-probe
-	// the backend per call.
-	Version es.BackendVersion
+	// version is the backend version (Elasticsearch/OpenSearch), resolved once
+	// during setup and injected via WithVersion. Sub-clients read it to pick
+	// flavor-dependent endpoints (CreateTemplate, ILM vs ISM) without re-probing
+	// the backend per call. It is unexported so callers cannot mutate it after
+	// construction; out-of-package readers use the Version accessor.
+	version es.BackendVersion
+}
+
+// WithVersion returns a copy of the client with the resolved backend version
+// set. The version is fixed at construction of the working sub-clients and is
+// never mutated afterward.
+func (c Client) WithVersion(v es.BackendVersion) Client {
+	c.version = v
+	return c
+}
+
+// Version returns the backend version the client was constructed with.
+func (c Client) Version() es.BackendVersion {
+	return c.version
 }
 
 // NewClient builds a Client that sends requests across c.Servers through the shared

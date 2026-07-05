@@ -294,7 +294,7 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
-	esClient.Version = es.OpenSearch2
+	esClient = esClient.WithVersion(es.OpenSearch2)
 
 	ilmClient := &esclient.ILMClient{
 		Client: esClient,

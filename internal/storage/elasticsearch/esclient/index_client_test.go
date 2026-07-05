@@ -613,8 +613,7 @@ func TestClientCreateTemplate(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "user", "pass")
-			client.Version = test.version
+			client := makeClient(t, testServer.URL, "user", "pass").WithVersion(test.version)
 			c := &IndicesClient{
 				Client: client,
 			}
@@ -769,20 +768,10 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
-		client := makeClient(t, url, "", "")
-		client.Version = version
+		client := makeClient(t, url, "", "").WithVersion(version)
 		c := IndicesClient{Client: client}
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/create_template", content)
-}
-
-func TestCreateTemplate_UnsetVersion(t *testing.T) {
-	t.Parallel()
-	c := &IndicesClient{
-		Client: Client{}, // Version is implicitly 0
-	}
-	err := c.CreateTemplate(context.Background(), "{}", "template")
-	require.ErrorContains(t, err, "client version is unset")
 }

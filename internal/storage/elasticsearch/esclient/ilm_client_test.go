@@ -56,8 +56,7 @@ func TestExists(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "user", "pass")
-			client.Version = es.ElasticV7
+			client := makeClient(t, testServer.URL, "user", "pass").WithVersion(es.ElasticV7)
 			c := &ILMClient{
 				Client: client,
 				Logger: zap.NewNop(),
@@ -108,8 +107,7 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "", "")
-			client.Version = es.OpenSearch2
+			client := makeClient(t, testServer.URL, "", "").WithVersion(es.OpenSearch2)
 			c := &ILMClient{
 				Client: client,
 				Logger: zap.NewNop(),
@@ -143,8 +141,7 @@ func TestExists_Retries(t *testing.T) {
 	}))
 	defer testServer.Close()
 
-	client := makeClient(t, testServer.URL, "user", "pass")
-	client.Version = es.ElasticV7
+	client := makeClient(t, testServer.URL, "user", "pass").WithVersion(es.ElasticV7)
 	c := &ILMClient{
 		Client: client,
 		Logger: zap.NewNop(),
@@ -162,8 +159,7 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
-		client := makeClient(t, url, "", "")
-		client.Version = version
+		client := makeClient(t, url, "", "").WithVersion(version)
 		c := ILMClient{
 			Client: client,
 			Logger: zap.NewNop(),
@@ -173,15 +169,4 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/ilm_exists", content)
-}
-
-func TestExists_UnsetVersion(t *testing.T) {
-	t.Parallel()
-	c := &ILMClient{
-		Client: Client{}, // Version is implicitly 0
-		Logger: zap.NewNop(),
-	}
-	result, err := c.Exists(context.Background(), "policy")
-	require.ErrorContains(t, err, "client version is unset")
-	assert.False(t, result)
 }

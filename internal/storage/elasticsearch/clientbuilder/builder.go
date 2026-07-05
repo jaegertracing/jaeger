@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -55,31 +54,31 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 		logger: logger,
 	}
 
-	version := es.BackendVersion(c.Version)
-	if version == 0 {
-		// Determine backend version
+	// Resolve the backend version through the single shared detection path:
+	// honor an explicit c.Version, otherwise ping the cluster once. The ping
+	// itself stays on this plane's olivere client.
+	detected := c.Version == 0
+	version, err := es.ResolveBackendVersion(ctx, c.Version, func(ctx context.Context) (es.PingResult, error) {
 		pingResult, pingStatus, err := rawClient.Ping(c.Servers[0]).Do(ctx)
 		if err != nil {
-			return nil, err
+			return es.PingResult{}, err
 		}
-
 		// Non-2xx responses aren't reported as errors by the ping code (7.0.32 version of
 		// the elastic client).
 		if pingStatus < 200 || pingStatus >= 300 {
-			return nil, fmt.Errorf("ElasticSearch server %s returned HTTP %d, expected 2xx", c.Servers[0], pingStatus)
+			return es.PingResult{}, fmt.Errorf("ElasticSearch server %s returned HTTP %d, expected 2xx", c.Servers[0], pingStatus)
 		}
-
 		// The deserialization in the ping implementation may succeed even if the response
 		// contains no relevant properties and we may get empty values in that case.
 		if pingResult.Version.Number == "" {
-			return nil, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
+			return es.PingResult{}, fmt.Errorf("ElasticSearch server %s returned invalid ping response", c.Servers[0])
 		}
-
-		majorVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-		if err != nil {
-			return nil, err
-		}
-		version = es.DetectBackendVersion(pingResult.TagLine, majorVersion)
+		return es.PingResult{VersionNumber: pingResult.Version.Number, TagLine: pingResult.TagLine}, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if detected {
 		c.Version = uint(version)
 		logger.Info("Backend detected", zap.Stringer("version", version))
 	}
