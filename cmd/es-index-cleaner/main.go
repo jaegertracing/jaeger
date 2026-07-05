@@ -14,13 +14,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/internal/config"
-	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
@@ -59,20 +57,7 @@ func main() {
 			}
 
 			ctx := context.Background()
-			esCfg := &escfg.Configuration{
-				Servers:      []string{args[1]},
-				QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
-				TLS:          cfg.TLSConfig,
-			}
-			// Enable basic auth only when both are set, matching the prior behavior
-			// of omitting the Authorization header unless username and password are present.
-			if cfg.Username != "" && cfg.Password != "" {
-				esCfg.Authentication.BasicAuthentication = configoptional.Some(escfg.BasicAuthentication{
-					Username: cfg.Username,
-					Password: cfg.Password,
-				})
-			}
-			esClient, err := esclient.NewClient(ctx, esCfg, logger, nil)
+			esClient, err := app.NewESClient(ctx, args[1], cfg, logger)
 			if err != nil {
 				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
