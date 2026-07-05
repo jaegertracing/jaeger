@@ -526,3 +526,36 @@ func TestGetHTTPRoundTripperCustomHeadersDoNotOverridePerRequestHeaders(t *testi
 	defer mu.Unlock()
 	assert.Equal(t, "per-request-value", gotHeader)
 }
+
+// TestGetHTTPRoundTripper_AllAuthMethods exercises the API-key, bearer, and basic
+// branches together (these were covered by clientbuilder's end-to-end tests
+// before the relocation).
+func TestGetHTTPRoundTripper_AllAuthMethods(t *testing.T) {
+	c := &config.Configuration{
+		TLS: configtls.ClientConfig{Insecure: true},
+		Authentication: config.Authentication{
+			BasicAuthentication: configoptional.Some(config.BasicAuthentication{Username: "u", Password: "p"}),
+			BearerTokenAuth:     bearerAuth("", true),
+			APIKeyAuth:          configoptional.Some(config.TokenAuthentication{AllowFromContext: true}),
+		},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), nil)
+	require.NoError(t, err)
+	authRT, ok := rt.(*auth.RoundTripper)
+	require.True(t, ok)
+	assert.Len(t, authRT.Auths, 3)
+}
+
+func TestGetHTTPRoundTripper_AuthInitErrors(t *testing.T) {
+	tests := map[string]config.Authentication{
+		"basic":  {BasicAuthentication: configoptional.Some(config.BasicAuthentication{Username: "u", Password: "p", PasswordFilePath: "/x"})},
+		"apikey": {APIKeyAuth: configoptional.Some(config.TokenAuthentication{FilePath: "/nonexistent"})},
+	}
+	for name, authn := range tests {
+		t.Run(name, func(t *testing.T) {
+			c := &config.Configuration{TLS: configtls.ClientConfig{Insecure: true}, Authentication: authn}
+			_, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), nil)
+			require.Error(t, err)
+		})
+	}
+}
