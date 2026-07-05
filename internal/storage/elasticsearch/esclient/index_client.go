@@ -268,10 +268,7 @@ func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases 
 // CreateTemplate an ES index template
 func (i IndicesClient) CreateTemplate(ctx context.Context, template, name string) error {
 	endpointFmt := "_template/%s"
-	cl := ClusterClient{Client: i.Client}
-	if v, err := cl.Version(ctx); err != nil {
-		return err
-	} else if v.UsesV8API() {
+	if i.Version.UsesV8API() {
 		endpointFmt = "_index_template/%s"
 	}
 	_, err := i.request(ctx, elasticRequest{

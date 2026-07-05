@@ -18,9 +18,10 @@ import (
 // Action holds the configuration and clients for init action
 type Action struct {
 	Config        Config
-	ClusterClient esclient.ClusterAPI
 	IndicesClient esclient.IndexAPI
 	ILMClient     esclient.IndexManagementLifecycleAPI
+	// Version is the backend version detected once at client construction.
+	Version es.BackendVersion
 }
 
 func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
@@ -39,16 +40,9 @@ func (c Action) getMapping(version es.BackendVersion, mappingType mappings.Mappi
 // Do the init action
 func (c Action) Do() error {
 	ctx := context.TODO()
-	version, err := c.ClusterClient.Version(ctx)
-	if err != nil {
-		return err
-	}
 	if c.Config.UseILM {
-		if !version.SupportsILM() {
-			return fmt.Errorf("ILM/ISM is not supported in %s", version)
-		}
-		if ilm, ok := c.ILMClient.(*esclient.ILMClient); ok && version.IsOpenSearch() {
-			ilm.UseOpenSearchISM = true
+		if !c.Version.SupportsILM() {
+			return fmt.Errorf("ILM/ISM is not supported in %s", c.Version)
 		}
 		policyExist, err := c.ILMClient.Exists(ctx, c.Config.ILMPolicyName)
 		if err != nil {
@@ -60,7 +54,7 @@ func (c Action) Do() error {
 	}
 	rolloverIndices := app.RolloverIndices(c.Config.Archive, c.Config.SkipDependencies, c.Config.AdaptiveSampling, c.Config.Config.IndexPrefix)
 	for _, indexName := range rolloverIndices {
-		if err := c.init(ctx, version, indexName); err != nil {
+		if err := c.init(ctx, c.Version, indexName); err != nil {
 			return err
 		}
 	}

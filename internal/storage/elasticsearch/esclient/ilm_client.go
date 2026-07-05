@@ -22,19 +22,18 @@ const (
 var _ IndexManagementLifecycleAPI = (*ILMClient)(nil)
 
 // ILMClient is a client used to manipulate Index lifecycle management policies.
-// It supports both Elasticsearch ILM and OpenSearch ISM APIs.
+// It supports both Elasticsearch ILM and OpenSearch ISM APIs, selecting the
+// endpoint from the backend version the embedded Client was constructed with.
 type ILMClient struct {
 	Client
 	MasterTimeoutSeconds int
 	Logger               *zap.Logger
-	// UseOpenSearchISM switches from _ilm/policy/ to _plugins/_ism/policies/.
-	UseOpenSearchISM bool
 }
 
 // Exists verify if a ILM/ISM policy exists
 func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
 	endpoint := "_ilm/policy/" + name
-	if i.UseOpenSearchISM {
+	if i.Version.IsOpenSearch() {
 		endpoint = "_plugins/_ism/policies/" + name
 	}
 	operation := func() ([]byte, error) {

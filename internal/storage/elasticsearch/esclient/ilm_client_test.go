@@ -106,10 +106,11 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "", "")
+			client.Version = es.OpenSearch2
 			c := &ILMClient{
-				Client:           makeClient(t, testServer.URL, "", ""),
-				Logger:           zap.NewNop(),
-				UseOpenSearchISM: true,
+				Client: client,
+				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 			if test.errContains != "" {
@@ -157,10 +158,11 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
+		client := makeClient(t, url, "", "")
+		client.Version = version
 		c := ILMClient{
-			Client:           makeClient(t, url, "", ""),
-			Logger:           zap.NewNop(),
-			UseOpenSearchISM: version.IsOpenSearch(),
+			Client: client,
+			Logger: zap.NewNop(),
 		}
 		_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 		require.NoError(t, err)

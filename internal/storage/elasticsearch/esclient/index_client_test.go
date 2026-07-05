@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -562,24 +563,34 @@ func TestClientCreateTemplate(t *testing.T) {
 	templateContent := "template content"
 	tests := []struct {
 		name         string
-		versionResp  string
+		version      es.BackendVersion
+		expectedPath string
 		responseCode int
 		response     string
 		errContains  string
 	}{
 		{
 			name:         "success/v7",
-			versionResp:  elasticsearch7,
+			version:      es.ElasticV7,
+			expectedPath: "_template/jaeger-template",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/v8",
-			versionResp:  elasticsearch8,
+			version:      es.ElasticV8,
+			expectedPath: "_index_template/jaeger-template",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "success/opensearch",
+			version:      es.OpenSearch2,
+			expectedPath: "_template/jaeger-template",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "client error",
-			versionResp:  elasticsearch7,
+			version:      es.ElasticV7,
+			expectedPath: "_template/jaeger-template",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to create template: jaeger-template",
@@ -587,13 +598,10 @@ func TestClientCreateTemplate(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			var requestCount atomic.Int64
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				if req.URL.String() == "/" { // ES version check
-					res.WriteHeader(http.StatusOK)
-					res.Write([]byte(test.versionResp))
-					return
-				}
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
+				requestCount.Add(1)
+				assert.True(t, strings.HasSuffix(req.URL.String(), test.expectedPath))
 				assert.Equal(t, http.MethodPut, req.Method)
 				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
@@ -605,13 +613,16 @@ func TestClientCreateTemplate(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "user", "pass")
+			client.Version = test.version
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "user", "pass"),
+				Client: client,
 			}
 			err := c.CreateTemplate(context.Background(), templateContent, templateName)
 			if test.errContains != "" {
 				assert.ErrorContains(t, err, test.errContains)
 			}
+			assert.EqualValues(t, 1, requestCount.Load(), "CreateTemplate must issue a single request, without a per-call version probe")
 		})
 	}
 }
@@ -755,17 +766,10 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
-		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			if r.URL.Path == "/" { // version probe to select the template endpoint
-				w.Write([]byte(versionResponse(version)))
-				return
-			}
-			w.Write([]byte("{}"))
-		})
-		server := httptest.NewServer(rec)
-		t.Cleanup(server.Close)
-		c := IndicesClient{Client: makeClient(t, server.URL, "", "")}
+		rec, url := okServer(t)
+		client := makeClient(t, url, "", "")
+		client.Version = version
+		c := IndicesClient{Client: client}
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
 		content[version] = rec.Marshal(t)
 	}

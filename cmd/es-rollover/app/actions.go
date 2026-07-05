@@ -16,6 +16,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
+// newESClient builds the client and detects the backend version once, so all
+// version-dependent operations (template endpoint, ILM vs ISM) are resolved at
+// construction time instead of re-detecting per call.
 func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (esclient.Client, error) {
 	esCfg := &config.Configuration{
 		Servers:      []string{endpoint},
@@ -40,7 +43,18 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
-	return esclient.NewClient(ctx, esCfg, logger, nil)
+	client, err := esclient.NewClient(ctx, esCfg, logger, nil)
+	if err != nil {
+		return esclient.Client{}, err
+	}
+
+	clusterClient := &esclient.ClusterClient{Client: client}
+	version, err := clusterClient.Version(ctx)
+	if err != nil {
+		return esclient.Client{}, fmt.Errorf("failed to detect backend version: %w", err)
+	}
+	client.Version = version
+	return client, nil
 }
 
 // Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement

@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
@@ -53,6 +54,12 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 type Client struct {
 	transport *rawClient
 	timeout   time.Duration
+
+	// Version is the backend version, detected once at construction time
+	// (e.g. via ClusterClient.Version). Operations whose endpoint depends on
+	// the backend flavor (CreateTemplate, ILM/ISM) read it instead of
+	// re-detecting it per call.
+	Version es.BackendVersion
 }
 
 // NewClient builds a Client that sends requests across c.Servers through the shared

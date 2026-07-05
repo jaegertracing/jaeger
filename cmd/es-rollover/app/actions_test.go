@@ -69,8 +69,13 @@ func TestExecuteAction(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
+	testServer := httptest.NewTLSServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(http.StatusOK)
+		res.Write([]byte(`{"version":{"number":"7.0.0"}}`))
+	}))
+	defer testServer.Close()
 	args := []string{
-		"https://localhost:9300",
+		testServer.URL,
 	}
 
 	for _, test := range tests {
