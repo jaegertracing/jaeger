@@ -14,13 +14,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/internal/config"
-	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
@@ -59,7 +57,7 @@ func main() {
 			}
 
 			ctx := context.Background()
-			esClient, err := newESClient(ctx, args[1], cfg, logger)
+			esClient, err := app.NewESClient(ctx, args[1], cfg, logger)
 			if err != nil {
 				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
@@ -106,44 +104,4 @@ func main() {
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func newESClient(ctx context.Context, endpoint string, cfg *app.Config, logger *zap.Logger) (esclient.Client, error) {
-	// Only one auth method may be configured. The shared auth stack adds an
-	// Authorization header per configured method, so more than one would emit
-	// multiple Authorization headers, which ES/OS reject.
-	basicAuth := cfg.Username != "" && cfg.Password != ""
-	authMethods := 0
-	for _, set := range []bool{basicAuth, cfg.TokenFilePath != "", cfg.APIKeyFilePath != ""} {
-		if set {
-			authMethods++
-		}
-	}
-	if authMethods > 1 {
-		return esclient.Client{}, errors.New("only one of basic auth (--es.username/--es.password), --es.token-file, or --es.api-key-file may be configured")
-	}
-	esCfg := &escfg.Configuration{
-		Servers:      []string{endpoint},
-		QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
-		TLS:          cfg.TLSConfig,
-	}
-	// Enable basic auth only when both are set, matching the prior behavior
-	// of omitting the Authorization header unless username and password are present.
-	if basicAuth {
-		esCfg.Authentication.BasicAuthentication = configoptional.Some(escfg.BasicAuthentication{
-			Username: cfg.Username,
-			Password: cfg.Password,
-		})
-	}
-	if cfg.TokenFilePath != "" {
-		esCfg.Authentication.BearerTokenAuth = configoptional.Some(escfg.TokenAuthentication{
-			FilePath: cfg.TokenFilePath,
-		})
-	}
-	if cfg.APIKeyFilePath != "" {
-		esCfg.Authentication.APIKeyAuth = configoptional.Some(escfg.TokenAuthentication{
-			FilePath: cfg.APIKeyFilePath,
-		})
-	}
-	return esclient.NewClient(ctx, esCfg, logger, nil)
 }

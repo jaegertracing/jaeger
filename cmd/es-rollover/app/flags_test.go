@@ -28,8 +28,6 @@ func TestBindFlags(t *testing.T) {
 		"--timeout=150",
 		"--es.username=admin",
 		"--es.password=qwerty123",
-		"--es.token-file=/etc/token",
-		"--es.api-key-file=/etc/apikey",
 		"--es.use-ilm=true",
 		"--es.ilm-policy-name=jaeger-ilm",
 		"--skip-dependencies=true",
@@ -43,11 +41,39 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, 150, c.Timeout)
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "qwerty123", c.Password)
-	assert.Equal(t, "/etc/token", c.TokenFilePath)
-	assert.Equal(t, "/etc/apikey", c.APIKeyFilePath)
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
 	assert.True(t, c.SkipDependencies)
 	assert.True(t, c.AdaptiveSampling)
+}
+
+func TestInitFromViper_AuthFlagsBind(t *testing.T) {
+	tests := []struct {
+		name  string
+		arg   string
+		check func(t *testing.T, c *Config)
+	}{
+		{"token file", "--es.token-file=/etc/token", func(t *testing.T, c *Config) {
+			assert.Equal(t, "/etc/token", c.TokenFilePath)
+		}},
+		{"api key file", "--es.api-key-file=/etc/apikey", func(t *testing.T, c *Config) {
+			assert.Equal(t, "/etc/apikey", c.APIKeyFilePath)
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v := viper.New()
+			c := &Config{}
+			command := cobra.Command{}
+			flags := &flag.FlagSet{}
+			AddFlags(flags)
+			command.PersistentFlags().AddGoFlagSet(flags)
+			v.BindPFlags(command.PersistentFlags())
+
+			require.NoError(t, command.ParseFlags([]string{test.arg}))
+			require.NoError(t, c.InitFromViper(v))
+			test.check(t, c)
+		})
+	}
 }
 
 func TestInitFromViper_TLSError(t *testing.T) {
@@ -66,4 +92,27 @@ func TestInitFromViper_TLSError(t *testing.T) {
 
 	err = c.InitFromViper(v)
 	require.Error(t, err)
+}
+
+func TestInitFromViper_MultipleAuthMethods(t *testing.T) {
+	tests := map[string][]string{
+		"basic and bearer":   {"--es.username=u", "--es.password=p", "--es.token-file=/token"},
+		"bearer and api key": {"--es.token-file=/token", "--es.api-key-file=/apikey"},
+		"all three":          {"--es.username=u", "--es.password=p", "--es.token-file=/token", "--es.api-key-file=/apikey"},
+	}
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			v := viper.New()
+			c := &Config{}
+			command := cobra.Command{}
+			flags := &flag.FlagSet{}
+			AddFlags(flags)
+			command.PersistentFlags().AddGoFlagSet(flags)
+			v.BindPFlags(command.PersistentFlags())
+
+			require.NoError(t, command.ParseFlags(args))
+			err := c.InitFromViper(v)
+			require.ErrorContains(t, err, "only one of")
+		})
+	}
 }

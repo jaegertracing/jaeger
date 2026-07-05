@@ -4,6 +4,7 @@
 package app
 
 import (
+	"errors"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -77,5 +78,22 @@ func (c *Config) InitFromViper(v *viper.Viper) error {
 		return err
 	}
 	c.TLSConfig = tlsCfg
+	return validateAuthFlags(c.Username, c.Password, c.TokenFilePath, c.APIKeyFilePath)
+}
+
+// validateAuthFlags rejects configuring more than one authentication method.
+// The shared auth stack adds an Authorization header per configured method, so
+// more than one would emit multiple Authorization headers, which ES/OS reject.
+func validateAuthFlags(username, password, tokenFilePath, apiKeyFilePath string) error {
+	basicAuth := username != "" && password != ""
+	authMethods := 0
+	for _, set := range []bool{basicAuth, tokenFilePath != "", apiKeyFilePath != ""} {
+		if set {
+			authMethods++
+		}
+	}
+	if authMethods > 1 {
+		return errors.New("only one of basic auth (--es.username/--es.password), --es.token-file, or --es.api-key-file may be configured")
+	}
 	return nil
 }

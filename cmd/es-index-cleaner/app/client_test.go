@@ -1,7 +1,7 @@
 // Copyright (c) 2025 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package main
+package app
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
@@ -28,12 +27,12 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 	}
 	tests := []struct {
 		name      string
-		configure func(t *testing.T, cfg *app.Config)
+		configure func(t *testing.T, cfg *Config)
 		wantAuth  string
 	}{
 		{
 			name: "basic auth both set sends Authorization",
-			configure: func(_ *testing.T, cfg *app.Config) {
+			configure: func(_ *testing.T, cfg *Config) {
 				cfg.Username = "user"
 				cfg.Password = "pass"
 			},
@@ -41,21 +40,21 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 		},
 		{
 			name: "basic auth password only omits Authorization",
-			configure: func(_ *testing.T, cfg *app.Config) {
+			configure: func(_ *testing.T, cfg *Config) {
 				cfg.Password = "pass"
 			},
 			wantAuth: "",
 		},
 		{
 			name: "bearer token from file",
-			configure: func(t *testing.T, cfg *app.Config) {
+			configure: func(t *testing.T, cfg *Config) {
 				cfg.TokenFilePath = tokenFile(t, "my-bearer-token")
 			},
 			wantAuth: "Bearer my-bearer-token",
 		},
 		{
 			name: "api key from file",
-			configure: func(t *testing.T, cfg *app.Config) {
+			configure: func(t *testing.T, cfg *Config) {
 				cfg.APIKeyFilePath = tokenFile(t, "my-api-key")
 			},
 			wantAuth: "APIKey my-api-key",
@@ -74,42 +73,15 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			}))
 			defer server.Close()
 
-			cfg := &app.Config{}
+			cfg := &Config{}
 			test.configure(t, cfg)
-			client, err := newESClient(context.Background(), server.URL, cfg, zap.NewNop())
+			client, err := NewESClient(context.Background(), server.URL, cfg, zap.NewNop())
 			require.NoError(t, err)
 
 			idx := esclient.IndicesClient{Client: client}
 			_, err = idx.GetJaegerIndices(context.Background(), "")
 			require.NoError(t, err)
 			assert.Equal(t, test.wantAuth, gotAuth)
-		})
-	}
-}
-
-func TestNewESClientRejectsMultipleAuthMethods(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  app.Config
-	}{
-		{
-			name: "basic and bearer",
-			cfg:  app.Config{Username: "u", Password: "p", TokenFilePath: "/token"},
-		},
-		{
-			name: "bearer and api key",
-			cfg:  app.Config{TokenFilePath: "/token", APIKeyFilePath: "/apikey"},
-		},
-		{
-			name: "all three",
-			cfg:  app.Config{Username: "u", Password: "p", TokenFilePath: "/token", APIKeyFilePath: "/apikey"},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cfg := test.cfg
-			_, err := newESClient(context.Background(), "http://localhost:9200", &cfg, zap.NewNop())
-			require.ErrorContains(t, err, "only one of")
 		})
 	}
 }

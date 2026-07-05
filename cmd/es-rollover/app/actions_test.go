@@ -194,33 +194,6 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 	}
 }
 
-func TestNewESClientRejectsMultipleAuthMethods(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  Config
-	}{
-		{
-			name: "basic and bearer",
-			cfg:  Config{Username: "u", Password: "p", TokenFilePath: "/token"},
-		},
-		{
-			name: "bearer and api key",
-			cfg:  Config{TokenFilePath: "/token", APIKeyFilePath: "/apikey"},
-		},
-		{
-			name: "all three",
-			cfg:  Config{Username: "u", Password: "p", TokenFilePath: "/token", APIKeyFilePath: "/apikey"},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cfg := test.cfg
-			_, err := newESClient(context.Background(), "http://localhost:9200", &cfg, zap.NewNop())
-			require.ErrorContains(t, err, "only one of")
-		})
-	}
-}
-
 func TestExecuteAction_ClientError(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	require.NoError(t, command.ParseFlags(nil))
