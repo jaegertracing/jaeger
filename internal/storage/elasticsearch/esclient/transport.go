@@ -34,6 +34,11 @@ func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) 
 		if err != nil {
 			return nil, fmt.Errorf("invalid server URL %q: %w", server, err)
 		}
+		// url.Parse accepts host:port or bare hosts as scheme/path-only URLs; the
+		// pool needs a scheme and host, so reject those up front with a clear error.
+		if u.Scheme == "" || u.Host == "" {
+			return nil, fmt.Errorf("server URL %q must include a scheme and host, e.g. http://host:9200", server)
+		}
 		urls = append(urls, u)
 	}
 	// Node discovery (sniffing) is left at its default of off.

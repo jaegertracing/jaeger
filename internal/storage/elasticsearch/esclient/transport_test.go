@@ -65,6 +65,15 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 }
 
 func TestNewRawClientInvalidURL(t *testing.T) {
-	_, err := newRawClient([]string{"http://host:notaport"}, http.DefaultTransport)
-	require.Error(t, err)
+	tests := map[string]string{
+		"unparseable":    "http://host:notaport",
+		"missing scheme": "localhost:9200",
+		"bare host":      "localhost",
+	}
+	for name, server := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := newRawClient([]string{server}, http.DefaultTransport)
+			require.Error(t, err)
+		})
+	}
 }
