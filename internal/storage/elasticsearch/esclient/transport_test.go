@@ -140,10 +140,10 @@ func TestClientRequestBodyAndTimeout(t *testing.T) {
 	_, err = c.request(context.Background(), elasticRequest{
 		method:   http.MethodPost,
 		endpoint: "_bulk",
-		body:     []byte(`{"index":{}}`),
+		body:     []byte("request-payload"),
 	})
 	require.NoError(t, err)
-	assert.Equal(t, `{"index":{}}`, gotBody.Load())
+	assert.Equal(t, "request-payload", gotBody.Load())
 }
 
 // errBodyRoundTripper returns a 200 whose body errors on read.
