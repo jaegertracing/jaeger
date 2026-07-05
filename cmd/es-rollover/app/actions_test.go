@@ -120,3 +120,17 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to initialize config")
 }
+
+func TestExecuteAction_ClientError(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	require.NoError(t, command.ParseFlags(nil))
+	err := ExecuteAction(ActionExecuteOptions{
+		Args:   []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
+		Viper:  v,
+		Logger: zap.NewNop(),
+	}, func(esclient.Client, Config) Action {
+		t.Fatal("action must not be created when the client fails")
+		return nil
+	})
+	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+}

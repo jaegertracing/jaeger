@@ -6,10 +6,12 @@ package esclient
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -120,4 +122,54 @@ func TestNewClientAppliesTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 	_, err = insecure.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 	require.NoError(t, err, "InsecureSkipVerify must be honored")
+}
+
+// TestClientRequestBodyAndTimeout covers request() sending a body under a
+// configured per-request timeout.
+func TestClientRequestBodyAndTimeout(t *testing.T) {
+	var gotBody atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotBody.Store(string(b))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	c, err := NewClient([]string{server.URL}, nil, "", time.Minute)
+	require.NoError(t, err)
+	_, err = c.request(context.Background(), elasticRequest{
+		method:   http.MethodPost,
+		endpoint: "_bulk",
+		body:     []byte(`{"index":{}}`),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, `{"index":{}}`, gotBody.Load())
+}
+
+// errBodyRoundTripper returns a 200 whose body errors on read.
+type errBodyRoundTripper struct{}
+
+func (errBodyRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(errReader{})}, nil
+}
+
+type errReader struct{}
+
+func (errReader) Read([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestClientRequestErrorPaths(t *testing.T) {
+	t.Run("invalid method fails request construction", func(t *testing.T) {
+		c, err := NewClient([]string{"http://localhost:9200"}, nil, "", 0)
+		require.NoError(t, err)
+		_, err = c.request(context.Background(), elasticRequest{method: "BAD METHOD", endpoint: "x"})
+		require.Error(t, err)
+	})
+
+	t.Run("response body read error propagates", func(t *testing.T) {
+		raw, err := newRawClient([]string{"http://localhost:9200"}, errBodyRoundTripper{})
+		require.NoError(t, err)
+		c := Client{transport: raw}
+		_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
+		require.Error(t, err)
+	})
 }
