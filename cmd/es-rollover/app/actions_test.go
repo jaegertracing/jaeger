@@ -9,6 +9,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -125,23 +127,45 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 	assert.ErrorContains(t, err, "failed to initialize config")
 }
 
-func TestNewESClientForwardsBasicAuth(t *testing.T) {
+func TestNewESClientForwardsAuth(t *testing.T) {
+	tokenFile := func(t *testing.T, content string) string {
+		path := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		return path
+	}
 	tests := []struct {
-		name     string
-		username string
-		password string
-		wantAuth string
+		name      string
+		configure func(t *testing.T, cfg *Config)
+		wantAuth  string
 	}{
 		{
-			name:     "both set sends Authorization",
-			username: "user",
-			password: "pass",
+			name: "basic auth both set sends Authorization",
+			configure: func(_ *testing.T, cfg *Config) {
+				cfg.Username = "user"
+				cfg.Password = "pass"
+			},
 			wantAuth: "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass")),
 		},
 		{
-			name:     "password only omits Authorization",
-			password: "pass",
+			name: "basic auth password only omits Authorization",
+			configure: func(_ *testing.T, cfg *Config) {
+				cfg.Password = "pass"
+			},
 			wantAuth: "",
+		},
+		{
+			name: "bearer token from file",
+			configure: func(t *testing.T, cfg *Config) {
+				cfg.TokenFilePath = tokenFile(t, "my-bearer-token")
+			},
+			wantAuth: "Bearer my-bearer-token",
+		},
+		{
+			name: "api key from file",
+			configure: func(t *testing.T, cfg *Config) {
+				cfg.APIKeyFilePath = tokenFile(t, "my-api-key")
+			},
+			wantAuth: "APIKey my-api-key",
 		},
 	}
 	for _, test := range tests {
@@ -155,8 +179,7 @@ func TestNewESClientForwardsBasicAuth(t *testing.T) {
 			defer server.Close()
 
 			cfg := &Config{}
-			cfg.Username = test.username
-			cfg.Password = test.password
+			test.configure(t, cfg)
 			client, err := newESClient(context.Background(), server.URL, cfg, zap.NewNop())
 			require.NoError(t, err)
 

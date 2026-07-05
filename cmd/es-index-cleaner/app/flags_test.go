@@ -30,6 +30,8 @@ func TestBindFlags(t *testing.T) {
 		"--index-date-separator=@",
 		"--es.username=admin",
 		"--es.password=admin",
+		"--es.token-file=/etc/token",
+		"--es.api-key-file=/etc/apikey",
 	})
 	require.NoError(t, err)
 
@@ -41,6 +43,8 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, "@", c.IndexDateSeparator)
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "admin", c.Password)
+	assert.Equal(t, "/etc/token", c.TokenFilePath)
+	assert.Equal(t, "/etc/apikey", c.APIKeyFilePath)
 }
 
 func TestInitFromViper_TLSError(t *testing.T) {

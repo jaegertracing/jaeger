@@ -59,20 +59,7 @@ func main() {
 			}
 
 			ctx := context.Background()
-			esCfg := &escfg.Configuration{
-				Servers:      []string{args[1]},
-				QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
-				TLS:          cfg.TLSConfig,
-			}
-			// Enable basic auth only when both are set, matching the prior behavior
-			// of omitting the Authorization header unless username and password are present.
-			if cfg.Username != "" && cfg.Password != "" {
-				esCfg.Authentication.BasicAuthentication = configoptional.Some(escfg.BasicAuthentication{
-					Username: cfg.Username,
-					Password: cfg.Password,
-				})
-			}
-			esClient, err := esclient.NewClient(ctx, esCfg, logger, nil)
+			esClient, err := newESClient(ctx, args[1], cfg, logger)
 			if err != nil {
 				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
@@ -119,4 +106,31 @@ func main() {
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func newESClient(ctx context.Context, endpoint string, cfg *app.Config, logger *zap.Logger) (esclient.Client, error) {
+	esCfg := &escfg.Configuration{
+		Servers:      []string{endpoint},
+		QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
+		TLS:          cfg.TLSConfig,
+	}
+	// Enable basic auth only when both are set, matching the prior behavior
+	// of omitting the Authorization header unless username and password are present.
+	if cfg.Username != "" && cfg.Password != "" {
+		esCfg.Authentication.BasicAuthentication = configoptional.Some(escfg.BasicAuthentication{
+			Username: cfg.Username,
+			Password: cfg.Password,
+		})
+	}
+	if cfg.TokenFilePath != "" {
+		esCfg.Authentication.BearerTokenAuth = configoptional.Some(escfg.TokenAuthentication{
+			FilePath: cfg.TokenFilePath,
+		})
+	}
+	if cfg.APIKeyFilePath != "" {
+		esCfg.Authentication.APIKeyAuth = configoptional.Some(escfg.TokenAuthentication{
+			FilePath: cfg.APIKeyFilePath,
+		})
+	}
+	return esclient.NewClient(ctx, esCfg, logger, nil)
 }

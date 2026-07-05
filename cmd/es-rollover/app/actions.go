@@ -30,6 +30,16 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			Password: cfg.Password,
 		})
 	}
+	if cfg.TokenFilePath != "" {
+		esCfg.Authentication.BearerTokenAuth = configoptional.Some(config.TokenAuthentication{
+			FilePath: cfg.TokenFilePath,
+		})
+	}
+	if cfg.APIKeyFilePath != "" {
+		esCfg.Authentication.APIKeyAuth = configoptional.Some(config.TokenAuthentication{
+			FilePath: cfg.APIKeyFilePath,
+		})
+	}
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
 

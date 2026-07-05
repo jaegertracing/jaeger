@@ -19,6 +19,8 @@ const (
 	archive          = "archive"
 	username         = "es.username"
 	password         = "es.password"
+	tokenFile        = "es.token-file"   //nolint:gosec // G101: flag name, not a credential
+	apiKeyFile       = "es.api-key-file" //nolint:gosec // G101: flag name, not a credential
 	useILM           = "es.use-ilm"
 	ilmPolicyName    = "es.ilm-policy-name"
 	timeout          = "timeout"
@@ -32,6 +34,8 @@ type Config struct {
 	Archive          bool
 	Username         string
 	Password         string
+	TokenFilePath    string
+	APIKeyFilePath   string
 	TLSEnabled       bool
 	ILMPolicyName    string
 	UseILM           bool
@@ -47,6 +51,8 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(archive, false, "Handle archive indices")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
+	flags.String(tokenFile, "", "Path to a file containing bearer token")
+	flags.String(apiKeyFile, "", "Path to a file containing API key")
 	flags.Bool(useILM, false, "Use ILM to manage jaeger indices")
 	flags.String(ilmPolicyName, "jaeger-ilm-policy", "The name of the ILM policy to use if ILM is active")
 	flags.Int(timeout, 120, "Number of seconds to wait for master node response")
@@ -64,6 +70,8 @@ func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.Archive = v.GetBool(archive)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
+	c.TokenFilePath = v.GetString(tokenFile)
+	c.APIKeyFilePath = v.GetString(apiKeyFile)
 	c.ILMPolicyName = v.GetString(ilmPolicyName)
 	c.UseILM = v.GetBool(useILM)
 	c.Timeout = v.GetInt(timeout)

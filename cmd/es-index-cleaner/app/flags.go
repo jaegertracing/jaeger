@@ -21,6 +21,8 @@ const (
 	indexDateSeparator = "index-date-separator"
 	username           = "es.username"
 	password           = "es.password"
+	tokenFile          = "es.token-file"   //nolint:gosec // G101: flag name, not a credential
+	apiKeyFile         = "es.api-key-file" //nolint:gosec // G101: flag name, not a credential
 )
 
 var tlsFlagsCfg = tlscfg.ClientFlagsConfig{Prefix: "es"}
@@ -34,6 +36,8 @@ type Config struct {
 	IndexDateSeparator       string
 	Username                 string
 	Password                 string
+	TokenFilePath            string
+	APIKeyFilePath           string
 	TLSEnabled               bool
 	TLSConfig                configtls.ClientConfig
 }
@@ -47,6 +51,8 @@ func (*Config) AddFlags(flags *flag.FlagSet) {
 	flags.String(indexDateSeparator, "-", "Index date separator")
 	flags.String(username, "", "The username required by storage")
 	flags.String(password, "", "The password required by storage")
+	flags.String(tokenFile, "", "Path to a file containing bearer token")
+	flags.String(apiKeyFile, "", "Path to a file containing API key")
 	tlsFlagsCfg.AddFlags(flags)
 	featuregate.GlobalRegistry().RegisterFlags(flags)
 }
@@ -64,6 +70,8 @@ func (c *Config) InitFromViper(v *viper.Viper) error {
 	c.IndexDateSeparator = v.GetString(indexDateSeparator)
 	c.Username = v.GetString(username)
 	c.Password = v.GetString(password)
+	c.TokenFilePath = v.GetString(tokenFile)
+	c.APIKeyFilePath = v.GetString(apiKeyFile)
 	tlsCfg, err := tlsFlagsCfg.InitFromViper(v)
 	if err != nil {
 		return err

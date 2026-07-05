@@ -28,6 +28,8 @@ func TestBindFlags(t *testing.T) {
 		"--timeout=150",
 		"--es.username=admin",
 		"--es.password=qwerty123",
+		"--es.token-file=/etc/token",
+		"--es.api-key-file=/etc/apikey",
 		"--es.use-ilm=true",
 		"--es.ilm-policy-name=jaeger-ilm",
 		"--skip-dependencies=true",
@@ -41,6 +43,8 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, 150, c.Timeout)
 	assert.Equal(t, "admin", c.Username)
 	assert.Equal(t, "qwerty123", c.Password)
+	assert.Equal(t, "/etc/token", c.TokenFilePath)
+	assert.Equal(t, "/etc/apikey", c.APIKeyFilePath)
 	assert.Equal(t, "jaeger-ilm", c.ILMPolicyName)
 	assert.True(t, c.SkipDependencies)
 	assert.True(t, c.AdaptiveSampling)
