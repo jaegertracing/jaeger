@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/spf13/viper"
@@ -16,19 +15,13 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
-func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) esclient.Client {
-	httpClient := &http.Client{
-		Timeout: time.Duration(cfg.Timeout) * time.Second,
-		Transport: &http.Transport{
-			Proxy:           http.ProxyFromEnvironment,
-			TLSClientConfig: tlsCfg,
-		},
-	}
-	return esclient.Client{
-		Endpoint:  endpoint,
-		Client:    httpClient,
-		BasicAuth: esclient.BasicAuth(cfg.Username, cfg.Password),
-	}
+func newESClient(endpoint string, cfg *Config, tlsCfg *tls.Config) (esclient.Client, error) {
+	return esclient.NewClient(
+		[]string{endpoint},
+		tlsCfg,
+		esclient.BasicAuth(cfg.Username, cfg.Password),
+		time.Duration(cfg.Timeout)*time.Second,
+	)
 }
 
 // Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement
@@ -59,7 +52,10 @@ func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction
 		return fmt.Errorf("TLS configuration failed: %w", err)
 	}
 
-	esClient := newESClient(opts.Args[0], &cfg, tlsCfg)
+	esClient, err := newESClient(opts.Args[0], &cfg, tlsCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create Elasticsearch client: %w", err)
+	}
 	action := createAction(esClient, cfg)
 	return action.Do()
 }

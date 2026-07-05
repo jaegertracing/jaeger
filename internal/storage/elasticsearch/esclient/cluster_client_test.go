@@ -247,11 +247,7 @@ func TestVersion(t *testing.T) {
 			defer testServer.Close()
 
 			c := &ClusterClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			result, err := c.Version(context.Background())
 			if test.errContains != "" {
@@ -295,7 +291,7 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
-	c := &ClusterClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
+	c := &ClusterClient{Client: makeClient(t, server.URL, "")}
 	_, err := c.Version(context.Background())
 	require.NoError(t, err)
 	rec.Assert(t, "testdata/version")

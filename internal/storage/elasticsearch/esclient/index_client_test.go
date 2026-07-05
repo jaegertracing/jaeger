@@ -148,10 +148,7 @@ func TestClientGetIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:   testServer.Client(),
-					Endpoint: testServer.URL,
-				},
+				Client: makeClient(t, testServer.URL, ""),
 			}
 
 			indices, err := c.GetJaegerIndices(context.Background(), test.prefix)
@@ -267,11 +264,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client:                 makeClient(t, testServer.URL, "foobar"),
 				MasterTimeoutSeconds:   masterTimeoutSeconds,
 				IgnoreUnavailableIndex: ignoreUnavailableIndex,
 			}
@@ -349,11 +342,7 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			}))
 			defer testServer.Close()
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			var exists bool
 			var err error
@@ -375,23 +364,22 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 	}
 }
 
+// makeClient builds an esclient.Client for a single plaintext test server.
+func makeClient(t *testing.T, url, basicAuth string) Client {
+	c, err := NewClient([]string{url}, nil, basicAuth, 0)
+	require.NoError(t, err)
+	return c
+}
+
 func TestClientRequestError(t *testing.T) {
-	c := &IndicesClient{
-		Client: Client{
-			Endpoint: "%",
-		},
-	}
-	indices, err := c.GetJaegerIndices(context.Background(), "")
+	// A malformed server URL is rejected when the client is constructed.
+	_, err := NewClient([]string{"%"}, nil, "", 0)
 	require.Error(t, err)
-	assert.Nil(t, indices)
 }
 
 func TestClientDoError(t *testing.T) {
 	c := &IndicesClient{
-		Client: Client{
-			Client:   &http.Client{},
-			Endpoint: "localhost:1",
-		},
+		Client: makeClient(t, "http://localhost:1", ""),
 	}
 
 	indices, err := c.GetJaegerIndices(context.Background(), "")
@@ -430,11 +418,7 @@ func TestClientCreateIndex(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			err := c.CreateIndex(context.Background(), indexName)
 			if test.errContains != "" {
@@ -490,11 +474,7 @@ func TestClientCreateAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			err := c.CreateAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -549,11 +529,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			err := c.DeleteAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -612,11 +588,7 @@ func TestClientCreateTemplate(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			err := c.CreateTemplate(context.Background(), templateContent, templateName)
 			if test.errContains != "" {
@@ -665,11 +637,7 @@ func TestRollover(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "foobar"),
 			}
 			err := c.Rollover(context.Background(), "jaeger-span", mapConditions)
 			if test.errContains != "" {
@@ -699,7 +667,7 @@ func okServer(t *testing.T) (*snapshottest.Recorder, string) {
 func indicesClient(t *testing.T) (*snapshottest.Recorder, *IndicesClient) {
 	rec, url := okServer(t)
 	return rec, &IndicesClient{
-		Client:                 Client{Client: http.DefaultClient, Endpoint: url},
+		Client:                 makeClient(t, url, ""),
 		MasterTimeoutSeconds:   5,
 		IgnoreUnavailableIndex: true,
 	}
@@ -779,7 +747,7 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 		})
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
-		c := IndicesClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
+		c := IndicesClient{Client: makeClient(t, server.URL, "")}
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
 		content[version] = rec.Marshal(t)
 	}
