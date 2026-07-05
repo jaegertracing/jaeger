@@ -240,14 +240,14 @@ func TestVersion(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.Equal(t, http.MethodGet, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
 			c := &ClusterClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			result, err := c.Version(context.Background())
 			if test.errContains != "" {
@@ -291,7 +291,7 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
-	c := &ClusterClient{Client: makeClient(t, server.URL, "")}
+	c := &ClusterClient{Client: makeClient(t, server.URL, "", "")}
 	_, err := c.Version(context.Background())
 	require.NoError(t, err)
 	rec.Assert(t, "testdata/version")

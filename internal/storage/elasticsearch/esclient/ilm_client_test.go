@@ -50,14 +50,14 @@ func TestExists(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_ilm/policy/jaeger-ilm-policy"))
 				assert.Equal(t, http.MethodGet, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
 			c := &ILMClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
@@ -107,7 +107,7 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			defer testServer.Close()
 
 			c := &ILMClient{
-				Client:           makeClient(t, testServer.URL, ""),
+				Client:           makeClient(t, testServer.URL, "", ""),
 				Logger:           zap.NewNop(),
 				UseOpenSearchISM: true,
 			}
@@ -128,7 +128,7 @@ func TestExists_Retries(t *testing.T) {
 		callCount++
 		assert.True(t, strings.HasSuffix(req.URL.String(), "_ilm/policy/jaeger-ilm-policy"))
 		assert.Equal(t, http.MethodGet, req.Method)
-		assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+		assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 
 		if callCount < maxTries {
 			res.WriteHeader(http.StatusInternalServerError)
@@ -141,7 +141,7 @@ func TestExists_Retries(t *testing.T) {
 	defer testServer.Close()
 
 	c := &ILMClient{
-		Client: makeClient(t, testServer.URL, "foobar"),
+		Client: makeClient(t, testServer.URL, "user", "pass"),
 		Logger: zap.NewNop(),
 	}
 
@@ -158,7 +158,7 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
 		c := ILMClient{
-			Client:           makeClient(t, url, ""),
+			Client:           makeClient(t, url, "", ""),
 			Logger:           zap.NewNop(),
 			UseOpenSearchISM: version.IsOpenSearch(),
 		}

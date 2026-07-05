@@ -6,11 +6,15 @@ package esclient
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/collector/extension/extensionauth"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 // ResponseError holds information about a request error
@@ -48,23 +52,24 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 // calls (no official Go client) over the shared transport pool.
 type Client struct {
 	transport *rawClient
-	basicAuth string
 	timeout   time.Duration
 }
 
-// NewClient builds a Client that sends requests across servers through the shared
-// transport pool. tlsConfig configures TLS (nil for plaintext); basicAuth, when
-// non-empty, is the base64 "user:password" applied as a Basic Authorization
-// header; timeout bounds each request (0 means no bound).
-func NewClient(servers []string, tlsConfig *tls.Config, basicAuth string, timeout time.Duration) (Client, error) {
-	transport, err := newRawClient(servers, &http.Transport{
-		Proxy:           http.ProxyFromEnvironment,
-		TLSClientConfig: tlsConfig,
-	})
+// NewClient builds a Client that sends requests across c.Servers through the shared
+// transport pool. Its base RoundTripper is the full stack from GetHTTPRoundTripper
+// (TLS, basic/bearer/API-key, custom headers, and — when httpAuth is non-nil —
+// SigV4), so every request carries the configured auth and headers.
+// c.QueryTimeout bounds each request (0 means no bound).
+func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (Client, error) {
+	base, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
 		return Client{}, err
 	}
-	return Client{transport: transport, basicAuth: basicAuth, timeout: timeout}, nil
+	transport, err := newRawClient(c.Servers, base)
+	if err != nil {
+		return Client{}, err
+	}
+	return Client{transport: transport, timeout: c.QueryTimeout}, nil
 }
 
 type elasticRequest struct {
@@ -88,7 +93,6 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 	if err != nil {
 		return []byte{}, err
 	}
-	c.setAuthorization(r)
 	r.Header.Add("Content-Type", "application/json")
 	res, err := c.transport.perform(r)
 	if err != nil {
@@ -105,12 +109,6 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 		return []byte{}, err
 	}
 	return body, nil
-}
-
-func (c *Client) setAuthorization(r *http.Request) {
-	if c.basicAuth != "" {
-		r.Header.Add("Authorization", "Basic "+c.basicAuth)
-	}
 }
 
 func (*Client) handleFailedRequest(res *http.Response) error {
