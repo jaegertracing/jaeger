@@ -4,7 +4,11 @@
 package app
 
 import (
+	"context"
+	"encoding/base64"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -119,6 +123,49 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "failed to initialize config")
+}
+
+func TestNewESClientForwardsBasicAuth(t *testing.T) {
+	tests := []struct {
+		name     string
+		username string
+		password string
+		wantAuth string
+	}{
+		{
+			name:     "both set sends Authorization",
+			username: "user",
+			password: "pass",
+			wantAuth: "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass")),
+		},
+		{
+			name:     "password only omits Authorization",
+			password: "pass",
+			wantAuth: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var gotAuth string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotAuth = r.Header.Get("Authorization")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("{}"))
+			}))
+			defer server.Close()
+
+			cfg := &Config{}
+			cfg.Username = test.username
+			cfg.Password = test.password
+			client, err := newESClient(context.Background(), server.URL, cfg, zap.NewNop())
+			require.NoError(t, err)
+
+			idx := esclient.IndicesClient{Client: client}
+			_, err = idx.GetJaegerIndices(context.Background(), "")
+			require.NoError(t, err)
+			assert.Equal(t, test.wantAuth, gotAuth)
+		})
+	}
 }
 
 func TestExecuteAction_ClientError(t *testing.T) {
