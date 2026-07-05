@@ -4,6 +4,8 @@
 package esclient
 
 import (
+	"context"
+	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -76,4 +78,46 @@ func TestNewRawClientInvalidURL(t *testing.T) {
 			require.Error(t, err)
 		})
 	}
+}
+
+// TestRawClientHonorsServerPathPrefix guards that a path prefix on the server URL
+// (e.g. behind a reverse proxy) is preserved: the pool prepends the connection's
+// path to the request's relative path.
+func TestRawClientHonorsServerPathPrefix(t *testing.T) {
+	var gotPath atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath.Store(r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	rc, err := newRawClient([]string{server.URL + "/es"}, http.DefaultTransport)
+	require.NoError(t, err)
+	req, err := http.NewRequest(http.MethodGet, "/_cluster/health", http.NoBody)
+	require.NoError(t, err)
+	resp, err := rc.perform(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "/es/_cluster/health", gotPath.Load())
+}
+
+// TestNewClientAppliesTLSConfig verifies that NewClient threads the tls.Config
+// into the transport: an untrusted server cert fails, and InsecureSkipVerify
+// makes it succeed.
+func TestNewClientAppliesTLSConfig(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	strict, err := NewClient([]string{server.URL}, &tls.Config{}, "", 0)
+	require.NoError(t, err)
+	_, err = strict.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
+	require.Error(t, err, "an untrusted self-signed cert must fail TLS verification")
+
+	insecure, err := NewClient([]string{server.URL}, &tls.Config{InsecureSkipVerify: true}, "", 0)
+	require.NoError(t, err)
+	_, err = insecure.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
+	require.NoError(t, err, "InsecureSkipVerify must be honored")
 }
