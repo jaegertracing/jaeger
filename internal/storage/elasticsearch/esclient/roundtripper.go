@@ -80,7 +80,12 @@ func GetHTTPRoundTripper(ctx context.Context, c *config.Configuration, logger *z
 		Proxy: http.ProxyFromEnvironment,
 	}
 
-	// Configure TLS.
+	// Configure TLS. Note: configtls.ClientConfig.Insecure means "TLS disabled"
+	// (mapped from !--es.tls.enabled), NOT "skip certificate verification" — that
+	// is a separate field, InsecureSkipVerify (--es.tls.skip-host-verify). Client
+	// certificates, CA, and skip-host-verify all require TLS to be enabled, so
+	// they flow through LoadTLSConfig below, which preserves them. The Insecure
+	// branch only applies when TLS is turned off entirely, where no certs exist.
 	if c.TLS.Insecure {
 		// #nosec G402
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
