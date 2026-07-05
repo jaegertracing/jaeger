@@ -6,6 +6,7 @@ package esclient
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,8 +19,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
@@ -148,7 +152,7 @@ func TestClientGetIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, ""),
+				Client: makeClient(t, testServer.URL, "", ""),
 			}
 
 			indices, err := c.GetJaegerIndices(context.Background(), test.prefix)
@@ -241,7 +245,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				apiTriggered = true
 				assert.Equal(t, http.MethodDelete, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
 				assert.Equal(t, strconv.FormatBool(ignoreUnavailableIndex), req.URL.Query().Get("ignore_unavailable"))
 				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
@@ -264,7 +268,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client:                 makeClient(t, testServer.URL, "foobar"),
+				Client:                 makeClient(t, testServer.URL, "user", "pass"),
 				MasterTimeoutSeconds:   masterTimeoutSeconds,
 				IgnoreUnavailableIndex: ignoreUnavailableIndex,
 			}
@@ -336,13 +340,13 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				apiTriggered = true
 				assert.Equal(t, http.MethodHead, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
 				res.WriteHeader(test.responseCode)
 			}))
 			defer testServer.Close()
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			var exists bool
 			var err error
@@ -364,22 +368,36 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 	}
 }
 
-// makeClient builds an esclient.Client for a single plaintext test server.
-func makeClient(t *testing.T, url, basicAuth string) Client {
-	c, err := NewClient([]string{url}, nil, basicAuth, 0)
+// testBasicAuthHeader is the Authorization header value that basic auth with
+// user "user" / password "pass" produces once it flows through the auth stack.
+var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
+
+// makeClient builds an esclient.Client for a single plaintext test server. A
+// non-empty user enables basic auth so requests carry an Authorization header.
+func makeClient(t *testing.T, url, user, pass string) Client {
+	cfg := &config.Configuration{Servers: []string{url}}
+	if user != "" {
+		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+			Username: user,
+			Password: pass,
+		})
+	}
+	c, err := NewClient(context.Background(), cfg, zap.NewNop(), nil)
 	require.NoError(t, err)
 	return c
 }
 
 func TestClientRequestError(t *testing.T) {
 	// A malformed server URL is rejected when the client is constructed.
-	_, err := NewClient([]string{"%"}, nil, "", 0)
+	_, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{"%"},
+	}, zap.NewNop(), nil)
 	require.Error(t, err)
 }
 
 func TestClientDoError(t *testing.T) {
 	c := &IndicesClient{
-		Client: makeClient(t, "http://localhost:1", ""),
+		Client: makeClient(t, "http://localhost:1", "", ""),
 	}
 
 	indices, err := c.GetJaegerIndices(context.Background(), "")
@@ -411,14 +429,14 @@ func TestClientCreateIndex(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span"))
 				assert.Equal(t, http.MethodPut, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.CreateIndex(context.Background(), indexName)
 			if test.errContains != "" {
@@ -463,7 +481,7 @@ func TestClientCreateAliases(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
 				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				if assert.NoError(t, err) {
 					assert.Equal(t, expectedRequestBody, string(body))
@@ -474,7 +492,7 @@ func TestClientCreateAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.CreateAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -519,7 +537,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
 				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
@@ -529,7 +547,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.DeleteAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -577,7 +595,7 @@ func TestClientCreateTemplate(t *testing.T) {
 				}
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
 				assert.Equal(t, http.MethodPut, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
 				assert.Equal(t, templateContent, string(body))
@@ -588,7 +606,7 @@ func TestClientCreateTemplate(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.CreateTemplate(context.Background(), templateContent, templateName)
 			if test.errContains != "" {
@@ -626,7 +644,7 @@ func TestRollover(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span/_rollover/"))
 				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
@@ -637,7 +655,7 @@ func TestRollover(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "foobar"),
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.Rollover(context.Background(), "jaeger-span", mapConditions)
 			if test.errContains != "" {
@@ -667,7 +685,7 @@ func okServer(t *testing.T) (*snapshottest.Recorder, string) {
 func indicesClient(t *testing.T) (*snapshottest.Recorder, *IndicesClient) {
 	rec, url := okServer(t)
 	return rec, &IndicesClient{
-		Client:                 makeClient(t, url, ""),
+		Client:                 makeClient(t, url, "", ""),
 		MasterTimeoutSeconds:   5,
 		IgnoreUnavailableIndex: true,
 	}
@@ -747,7 +765,7 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 		})
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
-		c := IndicesClient{Client: makeClient(t, server.URL, "")}
+		c := IndicesClient{Client: makeClient(t, server.URL, "", "")}
 		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
 		content[version] = rec.Marshal(t)
 	}

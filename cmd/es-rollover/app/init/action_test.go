@@ -306,10 +306,10 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 	clusterClient.On("Version", mock.Anything).Return(es.OpenSearch2, nil)
 
 	esClient, err := esclient.NewClient(
-		[]string{testServer.URL},
+		context.Background(),
+		&config.Configuration{Servers: []string{testServer.URL}},
+		zap.NewNop(),
 		nil,
-		"",
-		0,
 	)
 	require.NoError(t, err)
 	ilmClient := &esclient.ILMClient{

@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
@@ -15,11 +14,13 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/internal/config"
+	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
@@ -58,17 +59,20 @@ func main() {
 			}
 
 			ctx := context.Background()
-			tlscfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
-			if err != nil {
-				return fmt.Errorf("error loading tls config : %w", err)
+			esCfg := &escfg.Configuration{
+				Servers:      []string{args[1]},
+				QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
+				TLS:          cfg.TLSConfig,
 			}
-
-			esClient, err := esclient.NewClient(
-				[]string{args[1]},
-				tlscfg,
-				basicAuth(cfg.Username, cfg.Password),
-				time.Duration(cfg.MasterNodeTimeoutSeconds)*time.Second,
-			)
+			// Enable basic auth only when both are set, matching the prior behavior
+			// of omitting the Authorization header unless username and password are present.
+			if cfg.Username != "" && cfg.Password != "" {
+				esCfg.Authentication.BasicAuthentication = configoptional.Some(escfg.BasicAuthentication{
+					Username: cfg.Username,
+					Password: cfg.Password,
+				})
+			}
+			esClient, err := esclient.NewClient(ctx, esCfg, logger, nil)
 			if err != nil {
 				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
@@ -115,11 +119,4 @@ func main() {
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func basicAuth(username, password string) string {
-	if username == "" || password == "" {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 }

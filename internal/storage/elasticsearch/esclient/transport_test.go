@@ -5,7 +5,6 @@ package esclient
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"io"
 	"net/http"
@@ -17,6 +16,11 @@ import (
 	"github.com/elastic/elastic-transport-go/v8/elastictransport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 // headerStampRoundTripper stands in for the auth/header stack: it stamps a header
@@ -115,12 +119,17 @@ func TestNewClientAppliesTLSConfig(t *testing.T) {
 	}))
 	defer server.Close()
 
-	strict, err := NewClient([]string{server.URL}, &tls.Config{}, "", 0)
+	strict, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{server.URL},
+	}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	_, err = strict.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 	require.Error(t, err, "an untrusted self-signed cert must fail TLS verification")
 
-	insecure, err := NewClient([]string{server.URL}, &tls.Config{InsecureSkipVerify: true}, "", 0)
+	insecure, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{server.URL},
+		TLS:     configtls.ClientConfig{Insecure: true},
+	}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	_, err = insecure.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 	require.NoError(t, err, "InsecureSkipVerify must be honored")
@@ -137,7 +146,10 @@ func TestClientRequestBodyAndTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c, err := NewClient([]string{server.URL}, nil, "", time.Minute)
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers:      []string{server.URL},
+		QueryTimeout: time.Minute,
+	}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	_, err = c.request(context.Background(), elasticRequest{
 		method:   http.MethodPost,
@@ -161,7 +173,9 @@ func (errReader) Read([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
 func TestClientRequestErrorPaths(t *testing.T) {
 	t.Run("invalid method fails request construction", func(t *testing.T) {
-		c, err := NewClient([]string{"http://localhost:9200"}, nil, "", 0)
+		c, err := NewClient(context.Background(), &config.Configuration{
+			Servers: []string{"http://localhost:9200"},
+		}, zap.NewNop(), nil)
 		require.NoError(t, err)
 		_, err = c.request(context.Background(), elasticRequest{method: "BAD METHOD", endpoint: "x"})
 		require.Error(t, err)
@@ -174,6 +188,22 @@ func TestClientRequestErrorPaths(t *testing.T) {
 		_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 		require.Error(t, err)
 	})
+}
+
+// TestNewClientRoundTripperError covers NewClient surfacing an error from
+// GetHTTPRoundTripper (here, an invalid basic-auth config).
+func TestNewClientRoundTripperError(t *testing.T) {
+	_, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Authentication: config.Authentication{
+			BasicAuthentication: configoptional.Some(config.BasicAuthentication{
+				Username:         "u",
+				Password:         "p",
+				PasswordFilePath: "/does-not-matter",
+			}),
+		},
+	}, zap.NewNop(), nil)
+	require.ErrorContains(t, err, "basic authentication")
 }
 
 func TestNewRawClientPoolBuildError(t *testing.T) {
