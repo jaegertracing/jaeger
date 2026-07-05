@@ -1,7 +1,7 @@
 // Copyright (c) 2021 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package client
+package esclient
 
 import (
 	"cmp"
@@ -18,6 +18,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
 const esIndexResponse = `
@@ -674,4 +677,111 @@ func TestRollover(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The tests below freeze the exact wire format of each IndicesClient request as
+// snapshots. Version-invariant requests are stored as a bare <subject>.json;
+// CreateTemplate varies (es6-7 and OpenSearch share the _template endpoint,
+// es8-9 use _index_template) and is stored per distinct wire format.
+// okServer/indicesClient are shared with the cluster and ILM snapshot tests.
+
+// okServer records requests and always answers 200 with an empty JSON object.
+func okServer(t *testing.T) (*snapshottest.Recorder, string) {
+	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("{}"))
+	})
+	server := httptest.NewServer(rec)
+	t.Cleanup(server.Close)
+	return rec, server.URL
+}
+
+func indicesClient(t *testing.T) (*snapshottest.Recorder, *IndicesClient) {
+	rec, url := okServer(t)
+	return rec, &IndicesClient{
+		Client:                 Client{Client: http.DefaultClient, Endpoint: url},
+		MasterTimeoutSeconds:   5,
+		IgnoreUnavailableIndex: true,
+	}
+}
+
+func TestGetJaegerIndicesRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	_, err := c.GetJaegerIndices(context.Background(), "")
+	require.NoError(t, err)
+	rec.Assert(t, "testdata/get_jaeger_indices")
+}
+
+func TestCreateIndexRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	require.NoError(t, c.CreateIndex(context.Background(), "jaeger-span-000001"))
+	rec.Assert(t, "testdata/create_index")
+}
+
+func TestDeleteIndicesRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	indices := []Index{{Index: "jaeger-span-000001"}, {Index: "jaeger-service-000001"}}
+	require.NoError(t, c.DeleteIndices(context.Background(), indices))
+	rec.Assert(t, "testdata/delete_indices")
+}
+
+func TestCreateAliasRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	aliases := []Alias{
+		{Index: "jaeger-span-000001", Name: "jaeger-span-read"},
+		{Index: "jaeger-span-000001", Name: "jaeger-span-write", IsWriteIndex: true},
+	}
+	require.NoError(t, c.CreateAlias(context.Background(), aliases))
+	rec.Assert(t, "testdata/create_alias")
+}
+
+func TestDeleteAliasRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	aliases := []Alias{
+		{Index: "jaeger-span-000001", Name: "jaeger-span-read"},
+		{Index: "jaeger-span-000001", Name: "jaeger-span-write", IsWriteIndex: true},
+	}
+	require.NoError(t, c.DeleteAlias(context.Background(), aliases))
+	rec.Assert(t, "testdata/delete_alias")
+}
+
+func TestAliasExistsRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	_, err := c.AliasExists(context.Background(), "jaeger-span-read")
+	require.NoError(t, err)
+	rec.Assert(t, "testdata/alias_exists")
+}
+
+func TestIndexExistsRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	_, err := c.IndexExists(context.Background(), "jaeger-sampling")
+	require.NoError(t, err)
+	rec.Assert(t, "testdata/index_exists")
+}
+
+func TestRolloverRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	require.NoError(t, c.Rollover(context.Background(), "jaeger-span-write", map[string]any{"max_age": "2d"}))
+	rec.Assert(t, "testdata/rollover")
+}
+
+func TestCreateTemplateRequestSnapshot(t *testing.T) {
+	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
+	content := map[es.BackendVersion]string{}
+	for _, version := range es.AllVersions {
+		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			if r.URL.Path == "/" { // version probe to select the template endpoint
+				w.Write([]byte(versionResponse(version)))
+				return
+			}
+			w.Write([]byte("{}"))
+		})
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		c := IndicesClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
+		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
+		content[version] = rec.Marshal(t)
+	}
+	snapshottest.AssertByVersion(t, "testdata/create_template", content)
 }

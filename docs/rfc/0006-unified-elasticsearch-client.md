@@ -14,7 +14,7 @@
 Jaeger talks to Elasticsearch/OpenSearch through **two unrelated client abstractions**:
 
 1. A **data-plane** client (`internal/storage/elasticsearch`, the `es.Client` interface) that wraps the deprecated [`olivere/elastic`](https://github.com/olivere/elastic) library (plus a second, `go-elasticsearch/v9`, client bolted on for one operation). It carries bulk writes, searches, and aggregations.
-2. A **control-plane** client (`internal/storage/elasticsearch/client`, the `IndexAPI`/`ClusterAPI`/`IndexManagementLifecycleAPI` interfaces) built on raw `net/http`. It carries index/alias/template/rollover/ILM management for the `es-rollover` and `es-index-cleaner` tools.
+2. A **control-plane** client (`internal/storage/elasticsearch/esclient`, the `IndexAPI`/`ClusterAPI`/`IndexManagementLifecycleAPI` interfaces) built on raw `net/http`. It carries index/alias/template/rollover/ILM management for the `es-rollover` and `es-index-cleaner` tools.
 
 The split is historical, not principled. The boundary is already leaky — the storage factory performs "control-plane" operations (`CreateTemplate` at bootstrap, `DeleteIndex` on purge) through the data-plane client — and several operations (`IndexExists`, `CreateIndex`, `DeleteIndex`, `CreateTemplate`, version detection) are implemented **twice or three times**.
 
@@ -30,7 +30,7 @@ This is a design exploration, not a committed decision. It builds on the investi
 
 | | Data plane | Control plane |
 |---|---|---|
-| Package | `internal/storage/elasticsearch` (`es`) + `.../wrapper` | `internal/storage/elasticsearch/client` |
+| Package | `internal/storage/elasticsearch` (`es`) + `.../wrapper` | `internal/storage/elasticsearch/esclient` |
 | Interface(s) | `es.Client` + 7 fluent service interfaces | `IndexAPI`, `ClusterAPI`, `IndexManagementLifecycleAPI` |
 | Transport | `olivere/elastic/v7` (+ `go-elasticsearch/v9` for one op) | raw `net/http` |
 | Operations | `_bulk`, `_search` (+aggs), `_msearch` (+`search_after`), template/index create, version | index/alias create+delete, template, rollover, ILM/ISM, list indices, version |
@@ -297,7 +297,7 @@ Nothing from the product-checked *client* or the typed API — but the **transpo
 
 ### 6.4 Package: `esclient` is the renamed `client` package, grown upward
 
-**Recommendation:** the new package is the existing `internal/storage/elasticsearch/client` **renamed to `esclient`**, not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
+**Recommendation:** `esclient` is the former `internal/storage/elasticsearch/client` package **renamed** (M2), not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
 
 This framing matters: `esclient` becomes **the foundation of Jaeger's own ES/OS SDK** — the single place that owns wire format, versioning, auth, and the neutral query DSL — rather than a second client bolted next to the old one. Renaming (not rewriting) also means the migration starts from a green, tested baseline: the control-plane behavior is preserved by construction, and the data plane is added incrementally under the snapshot suite (§7). It also disposes of the old data/control-plane split at the package level, not just the interface level.
 
@@ -310,7 +310,7 @@ The current tests do not give us the confidence a driver swap requires, and this
 ### 7.1 What we have (assessment)
 
 - **Data-plane `olivere` mocks — mostly coverage-filler.** Generated for `es.Client` and every fluent service interface. In practice, reader/writer tests match `Query` with `mock.Anything` and assert the fluent call *sequence* the code just made — a tautology coupled to the implementation. They exercise **response deserialization** (real, narrow value) but **never assert the query DSL actually sent.** A query regression passes today.
-- **Control-plane tests — genuinely valuable.** `client/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
+- **Control-plane tests — genuinely valuable.** `esclient/*_test.go` stand up an `httptest.Server` and assert real HTTP: method, path, auth header, query params, URL-length batching, error handling. Keep and extend this pattern.
 - **Integration matrix — the real safety net.** `internal/storage/integration/*` drives a live cluster across **ES 6–9 and OpenSearch 1–3** via docker-compose + CI. This is the only layer that validates query semantics, mappings, and ILM/rollover against a real backend.
 
 ### 7.2 What we adopt: snapshot testing of the wire format
@@ -331,25 +331,41 @@ Two problems with today's snapshots: the ES fixtures use an ad-hoc scheme (`jaeg
 **Pattern:**
 
 ```
-testdata/<subject>[.<backend><range>].json
+testdata/<subject>[.<variants>].json
 ```
 
 - `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping snapshot under `mappings/testdata/` is `dependencies.es6.json`, not `mapping/dependencies.es6.json`.
-- **The variant tail is omitted when the request is identical for all backends and versions:** the snapshot is the bare `<subject>.json`.
-- **Otherwise a `.<backend><range>` tail distinguishes the per-backend snapshots:**
+- **There is exactly one file per distinct wire format.** When every supported backend and version emits the same request, the variant tail is omitted and the snapshot is the bare `<subject>.json`.
+- **Otherwise a `.<variants>` tail lists the version ranges that share that wire format** — a dot-separated list of `<backend><range>` tokens:
   - `<backend>` — `es` or `os`.
-  - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) when consecutive versions emit byte-identical output.
+  - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) of consecutive versions.
+  - Backends that emit byte-identical output share one file, so the token list can span both — `get_services.es7-9.os1-3.json`.
 
-Examples: `testdata/alias_exists.json` (all versions), `testdata/create_template.es6-7.json`, `testdata/get_services.es6.json`, `testdata/find_trace_ids.os1-2.json`, `testdata/span.es8-9.json`.
+Examples: `testdata/alias_exists.json` (all versions); `testdata/get_operations.es6.json` + `testdata/get_operations.es7-9.os1-3.json` (only ES 6 differs); `testdata/create_template.es6-7.os1-3.json` + `testdata/create_template.es8-9.json` (ES 6-7 and OpenSearch share the `_template` endpoint, ES 8-9 use `_index_template`); `testdata/span.es8-9.json` (mapping distinct per backend).
 
 **Rules:**
 
-- **Ranges are inclusive, non-overlapping within a backend, and must cover every supported major.** A resolver maps `(backend, major) → the unique file whose range contains it`; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "do ES 6 and ES 7 differ for this operation?" is answered by `ls testdata/`.
-- **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if output equals an adjacent range, **extend the range in the filename** (`.es8.json` → `.es8-9.json`); if it differs, add `.es9.json`. Coverage is always visible in the diff.
-- **Backends stay separate** even when ES and OS emit identical bytes (no cross-`es`/`os` merge) — the generator may *flag* byte-identical cross-backend snapshots as an FYI, but explicit files keep resolution unambiguous.
-- **The bare `<subject>.json` is reserved for requests that structurally cannot vary by backend or version** — e.g. admin REST calls like `HEAD /_alias/{name}` whose client code has no backend/version branch at all. This is common in the admin plane and rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest: a snapshot either carries a `.<backend><range>` tail or it is making the explicit claim "this request is byte-identical on every backend."
+- **The variant set is content-derived, not backend-derived.** Regeneration groups versions by the exact bytes they emit and writes one file per group, naming it with every range in the group. A resolver maps `(backend, major) → the unique file one of whose ranges contains it`, and every supported major must resolve; two files claiming the same major is a test error. This **replaces `v <= 7`-style branches with data in filenames** — "which versions share this request?" is answered by `ls testdata/`.
+- **No duplication.** Two backends (or majors) that emit identical bytes are never stored twice; they collapse into one file whose name enumerates both.
+- **Version changes are reviewed diffs, never silent.** Adding a supported major: regenerate; if its output matches an existing group its range extends or merges (`.es7-9.` → `.es7-10.`, or `.es8-9.json` → `.es8-9.os1-3.json`); if it differs, a new file appears. Coverage is always visible in the diff.
+- **The bare `<subject>.json` is the explicit claim "byte-identical on every backend and version."** Common in the admin plane (e.g. `HEAD /_alias/{name}`, whose client code has no backend/version branch), rare in the query plane. The self-describing bare name (not an `any` token) keeps it honest.
 
-The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots, and converging the existing `jaeger-*-{6,7,8}.json` files onto it will also surface any accidental duplication (identical `-6`/`-7` files collapse to `.es6-7`). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
+**Why one file per wire format (not per backend).** Always giving ES and OpenSearch their own file is simpler to resolve but duplicates every backend-agnostic request — and since the data plane is backend-agnostic by design, that is most of them. A third option — a base file plus per-version overrides — reads best for the data plane but makes a file's coverage implicit. Trade-offs (🟢 good / 🟡 mixed / 🔴 poor):
+
+| Criterion | ① One file per wire format<br>`es7-9.os1-3.json` **(chosen)** | ② Base + overrides<br>`.json` + `es6.json` | ③ Separate per backend<br>`es7-9.json` + `os1-3.json` |
+|---|:---:|:---:|:---:|
+| Eliminates duplication | 🟢 identical content → one file | 🟢 identical content → base | 🔴 `es7-9` == `os1-3` duplicated |
+| Coverage is explicit | 🟢 filename lists every range | 🔴 base = "whatever isn't overridden" | 🟢 one file per backend |
+| Keeps `bare.json` = "all identical" | 🟢 unchanged | 🔴 redefines bare as "default" | 🟢 unchanged |
+| Reads cleanly for the data plane | 🟡 `es7-9.os1-3` is busy | 🟢 "the query, + es6 is special" | 🔴 one file is a pure duplicate |
+| Reads cleanly for the control plane (backends differ) | 🟢 one explicit file each | 🟡 one variant becomes the implicit base | 🟢 one explicit file each |
+| Filename grammar simplicity | 🟡 dotted range-list | 🟢 simplest | 🟢 simplest |
+| Upkeep when a new ES/OS major is supported | 🟡 regenerate; range extends/merges in the name | 🟢 matches the base ⇒ no new file | 🔴 always a new (often duplicate) file |
+| Scales as the data plane grows | 🟢 | 🟢 | 🔴 duplication multiplies |
+
+① and ② both eliminate the duplication; they differ on where the cost lands. ② has the lowest upkeep and the cleanest data-plane read, but a file's coverage becomes implicit and the bare-file meaning is overloaded — awkward for the control plane, where no variant is a natural default. We choose **①**: an unambiguous resolver and every file's coverage being explicit in its name matter more here than shaving a regeneration step, and the fixture tree stays a literal, no-magic compatibility matrix.
+
+The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots; converging the existing `jaeger-*-{6,7,8}.json` files onto it collapses any accidental duplication (identical `-6`/`-7` files become `.es6-7`, and identical ES/OS files merge into one `.es*.os*` file). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
 
 ### 7.4 Snapshot vs. focused mock — pick the altitude
 
@@ -379,10 +395,10 @@ Anti-patterns this rules out: (a) a snapshot per input permutation of the same q
 The work decomposes into small, independently-shippable milestones — each one PR-sized, guarded by the snapshot + integration suites, with an explicit exit bar. They group into four stages; within the data-plane stage each storage path migrates on its own so no single PR is large. The snapshot suite (M1) is what makes the per-path migrations safe and small: each is "migrate this path, snapshots stay green."
 
 **Stage A — Foundation (no behavior change)**
-- **M1 — Snapshot baseline + fixture taxonomy.** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot per supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only.
-- **M2 — Rename `client` → `esclient`.** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
+- **M1 — Snapshot baseline + fixture taxonomy. ✅ Done (#8921, #8922, #8929).** Add the request-snapshot suite (§7.2) over the *current* clients; converge existing snapshots onto §7.3 naming. *Exit:* every data-plane and admin operation has a snapshot resolving for each supported backend/version in §7.3 naming; CI runs it; diff is tests + fixtures only. (Carve-out: the sampling `InsertThroughput`/`InsertProbabilitiesAndQPS` writes stamp the document body with `time.Now()` internally and have no clock seam, so their bodies are frozen during the migration when a fixed clock is injected, not in the baseline.)
+- **M2 — Rename `client` → `esclient`. ✅ Done (#8930).** Mechanical package rename (§6.4), imports updated. *Exit:* `internal/storage/elasticsearch/client` gone; all tests green; zero behavior change.
 - **M3 — One shared transport for *both* planes (admin + data).** Establish the shared `rawClient` transport (`GetHTTPRoundTripper` layered under `elastic-transport-go`'s pool) and route every request through it — the admin structs (`IndicesClient`/`ClusterClient`/`ILMClient`) *and* the existing data-plane client — so TLS/auth/SigV4/`custom_headers` are applied in one place for all traffic. This is purely a transport change, independent of the query-DSL migration (Stage B), so it lands early. *Exit:* admin **and** data-path (bulk/search) requests all carry SigV4/bearer/API-key/`custom_headers`, proven by httptest — closing the admin gap in `es-rollover`'s `newESClient` **and fixing #8916 (headers on all data-path requests) and #8760 (SigV4 body signing)**; admin and data tests green.
-- **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. *Exit:* exactly one version-detection path remains.
+- **M4 — Unify version detection.** One `DetectBackendVersion`/capability probe consumed by all structs. The backend version is an **initialization-time property of the connection**, sniffed once (or supplied explicitly) and injected into the clients — so no admin/data-plane API method takes a `version` argument and no caller branches on the backend flavor. *Exit:* exactly one version-detection path remains. In particular, the `es-rollover` `init` action stops detecting the version at runtime and mutating `ILMClient.UseOpenSearchISM` through a `*esclient.ILMClient` type assertion; the ILM-vs-ISM endpoint choice moves inside a version-aware `ILMClient` configured at construction. (Until then, that type assertion in `cmd/es-rollover/app/init/action.go` is a known, es-rollover-only leak — no data-plane or query path is affected.)
 
 **Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
 

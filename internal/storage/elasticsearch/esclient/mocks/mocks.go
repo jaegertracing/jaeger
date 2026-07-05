@@ -13,7 +13,7 @@ import (
 	"context"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -111,7 +111,7 @@ func (_c *IndexAPI_AliasExists_Call) RunAndReturn(run func(ctx context.Context, 
 }
 
 // CreateAlias provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) CreateAlias(ctx context.Context, aliases []client.Alias) error {
+func (_mock *IndexAPI) CreateAlias(ctx context.Context, aliases []esclient.Alias) error {
 	ret := _mock.Called(ctx, aliases)
 
 	if len(ret) == 0 {
@@ -119,7 +119,7 @@ func (_mock *IndexAPI) CreateAlias(ctx context.Context, aliases []client.Alias) 
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []client.Alias) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.Alias) error); ok {
 		r0 = returnFunc(ctx, aliases)
 	} else {
 		r0 = ret.Error(0)
@@ -134,20 +134,20 @@ type IndexAPI_CreateAlias_Call struct {
 
 // CreateAlias is a helper method to define mock.On call
 //   - ctx context.Context
-//   - aliases []client.Alias
+//   - aliases []esclient.Alias
 func (_e *IndexAPI_Expecter) CreateAlias(ctx interface{}, aliases interface{}) *IndexAPI_CreateAlias_Call {
 	return &IndexAPI_CreateAlias_Call{Call: _e.mock.On("CreateAlias", ctx, aliases)}
 }
 
-func (_c *IndexAPI_CreateAlias_Call) Run(run func(ctx context.Context, aliases []client.Alias)) *IndexAPI_CreateAlias_Call {
+func (_c *IndexAPI_CreateAlias_Call) Run(run func(ctx context.Context, aliases []esclient.Alias)) *IndexAPI_CreateAlias_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []client.Alias
+		var arg1 []esclient.Alias
 		if args[1] != nil {
-			arg1 = args[1].([]client.Alias)
+			arg1 = args[1].([]esclient.Alias)
 		}
 		run(
 			arg0,
@@ -162,7 +162,7 @@ func (_c *IndexAPI_CreateAlias_Call) Return(err error) *IndexAPI_CreateAlias_Cal
 	return _c
 }
 
-func (_c *IndexAPI_CreateAlias_Call) RunAndReturn(run func(ctx context.Context, aliases []client.Alias) error) *IndexAPI_CreateAlias_Call {
+func (_c *IndexAPI_CreateAlias_Call) RunAndReturn(run func(ctx context.Context, aliases []esclient.Alias) error) *IndexAPI_CreateAlias_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -288,7 +288,7 @@ func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Contex
 }
 
 // DeleteAlias provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) DeleteAlias(ctx context.Context, aliases []client.Alias) error {
+func (_mock *IndexAPI) DeleteAlias(ctx context.Context, aliases []esclient.Alias) error {
 	ret := _mock.Called(ctx, aliases)
 
 	if len(ret) == 0 {
@@ -296,7 +296,7 @@ func (_mock *IndexAPI) DeleteAlias(ctx context.Context, aliases []client.Alias) 
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []client.Alias) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.Alias) error); ok {
 		r0 = returnFunc(ctx, aliases)
 	} else {
 		r0 = ret.Error(0)
@@ -311,20 +311,20 @@ type IndexAPI_DeleteAlias_Call struct {
 
 // DeleteAlias is a helper method to define mock.On call
 //   - ctx context.Context
-//   - aliases []client.Alias
+//   - aliases []esclient.Alias
 func (_e *IndexAPI_Expecter) DeleteAlias(ctx interface{}, aliases interface{}) *IndexAPI_DeleteAlias_Call {
 	return &IndexAPI_DeleteAlias_Call{Call: _e.mock.On("DeleteAlias", ctx, aliases)}
 }
 
-func (_c *IndexAPI_DeleteAlias_Call) Run(run func(ctx context.Context, aliases []client.Alias)) *IndexAPI_DeleteAlias_Call {
+func (_c *IndexAPI_DeleteAlias_Call) Run(run func(ctx context.Context, aliases []esclient.Alias)) *IndexAPI_DeleteAlias_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []client.Alias
+		var arg1 []esclient.Alias
 		if args[1] != nil {
-			arg1 = args[1].([]client.Alias)
+			arg1 = args[1].([]esclient.Alias)
 		}
 		run(
 			arg0,
@@ -339,13 +339,13 @@ func (_c *IndexAPI_DeleteAlias_Call) Return(err error) *IndexAPI_DeleteAlias_Cal
 	return _c
 }
 
-func (_c *IndexAPI_DeleteAlias_Call) RunAndReturn(run func(ctx context.Context, aliases []client.Alias) error) *IndexAPI_DeleteAlias_Call {
+func (_c *IndexAPI_DeleteAlias_Call) RunAndReturn(run func(ctx context.Context, aliases []esclient.Alias) error) *IndexAPI_DeleteAlias_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // DeleteIndices provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) DeleteIndices(ctx context.Context, indices []client.Index) error {
+func (_mock *IndexAPI) DeleteIndices(ctx context.Context, indices []esclient.Index) error {
 	ret := _mock.Called(ctx, indices)
 
 	if len(ret) == 0 {
@@ -353,7 +353,7 @@ func (_mock *IndexAPI) DeleteIndices(ctx context.Context, indices []client.Index
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, []client.Index) error); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.Index) error); ok {
 		r0 = returnFunc(ctx, indices)
 	} else {
 		r0 = ret.Error(0)
@@ -368,20 +368,20 @@ type IndexAPI_DeleteIndices_Call struct {
 
 // DeleteIndices is a helper method to define mock.On call
 //   - ctx context.Context
-//   - indices []client.Index
+//   - indices []esclient.Index
 func (_e *IndexAPI_Expecter) DeleteIndices(ctx interface{}, indices interface{}) *IndexAPI_DeleteIndices_Call {
 	return &IndexAPI_DeleteIndices_Call{Call: _e.mock.On("DeleteIndices", ctx, indices)}
 }
 
-func (_c *IndexAPI_DeleteIndices_Call) Run(run func(ctx context.Context, indices []client.Index)) *IndexAPI_DeleteIndices_Call {
+func (_c *IndexAPI_DeleteIndices_Call) Run(run func(ctx context.Context, indices []esclient.Index)) *IndexAPI_DeleteIndices_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 []client.Index
+		var arg1 []esclient.Index
 		if args[1] != nil {
-			arg1 = args[1].([]client.Index)
+			arg1 = args[1].([]esclient.Index)
 		}
 		run(
 			arg0,
@@ -396,29 +396,29 @@ func (_c *IndexAPI_DeleteIndices_Call) Return(err error) *IndexAPI_DeleteIndices
 	return _c
 }
 
-func (_c *IndexAPI_DeleteIndices_Call) RunAndReturn(run func(ctx context.Context, indices []client.Index) error) *IndexAPI_DeleteIndices_Call {
+func (_c *IndexAPI_DeleteIndices_Call) RunAndReturn(run func(ctx context.Context, indices []esclient.Index) error) *IndexAPI_DeleteIndices_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetJaegerIndices provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) GetJaegerIndices(ctx context.Context, prefix string) ([]client.Index, error) {
+func (_mock *IndexAPI) GetJaegerIndices(ctx context.Context, prefix string) ([]esclient.Index, error) {
 	ret := _mock.Called(ctx, prefix)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetJaegerIndices")
 	}
 
-	var r0 []client.Index
+	var r0 []esclient.Index
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]client.Index, error)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]esclient.Index, error)); ok {
 		return returnFunc(ctx, prefix)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []client.Index); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []esclient.Index); ok {
 		r0 = returnFunc(ctx, prefix)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]client.Index)
+			r0 = ret.Get(0).([]esclient.Index)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
@@ -459,12 +459,12 @@ func (_c *IndexAPI_GetJaegerIndices_Call) Run(run func(ctx context.Context, pref
 	return _c
 }
 
-func (_c *IndexAPI_GetJaegerIndices_Call) Return(indexs []client.Index, err error) *IndexAPI_GetJaegerIndices_Call {
+func (_c *IndexAPI_GetJaegerIndices_Call) Return(indexs []esclient.Index, err error) *IndexAPI_GetJaegerIndices_Call {
 	_c.Call.Return(indexs, err)
 	return _c
 }
 
-func (_c *IndexAPI_GetJaegerIndices_Call) RunAndReturn(run func(ctx context.Context, prefix string) ([]client.Index, error)) *IndexAPI_GetJaegerIndices_Call {
+func (_c *IndexAPI_GetJaegerIndices_Call) RunAndReturn(run func(ctx context.Context, prefix string) ([]esclient.Index, error)) *IndexAPI_GetJaegerIndices_Call {
 	_c.Call.Return(run)
 	return _c
 }

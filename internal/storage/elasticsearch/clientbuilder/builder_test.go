@@ -1246,8 +1246,12 @@ func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, rt)
-	wrappedRT, ok := rt.(*mockWrappedRoundTripper)
-	require.True(t, ok, "Should be wrapped round tripper")
+	// getBodyFixRoundTripper must be outermost so that it populates
+	// req.GetBody before the authenticator hashes the payload.
+	bodyFixRT, ok := rt.(*getBodyFixRoundTripper)
+	require.True(t, ok, "outermost round tripper should be getBodyFixRoundTripper")
+	wrappedRT, ok := bodyFixRT.base.(*mockWrappedRoundTripper)
+	require.True(t, ok, "authenticator wrapper should be inside getBodyFixRoundTripper")
 	require.NotNil(t, wrappedRT)
 }
 
@@ -1265,6 +1269,60 @@ type mockWrappedRoundTripper struct {
 
 func (m *mockWrappedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return m.base.RoundTrip(req)
+}
+
+// getBodyRecordingAuth mimics an authenticator like sigv4auth: its
+// RoundTripper inspects req.GetBody at the start of RoundTrip (where
+// sigv4auth hashes the payload) before delegating to the base transport.
+type getBodyRecordingAuth struct {
+	sawGetBody bool
+}
+
+func (a *getBodyRecordingAuth) RoundTripper(base http.RoundTripper) (http.RoundTripper, error) {
+	return &getBodyRecordingRoundTripper{auth: a, base: base}, nil
+}
+
+type getBodyRecordingRoundTripper struct {
+	auth *getBodyRecordingAuth
+	base http.RoundTripper
+}
+
+func (rt *getBodyRecordingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.auth.sawGetBody = req.GetBody != nil
+	// Short-circuit instead of hitting the network.
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
+}
+
+// TestGetHTTPRoundTripper_AuthSeesGetBody verifies that an HTTP
+// authenticator sees a populated req.GetBody at signing time for requests
+// where the client set req.Body without GetBody (as olivere/elastic does).
+// If getBodyFixRoundTripper is wrapped inside the authenticator instead of
+// outside, the authenticator hashes an empty payload and AWS-managed
+// OpenSearch rejects every body-bearing request with HTTP 403.
+func TestGetHTTPRoundTripper_AuthSeesGetBody(t *testing.T) {
+	recordingAuth := &getBodyRecordingAuth{}
+
+	c := &config.Configuration{
+		Servers:  []string{"http://localhost:9200"},
+		LogLevel: "error",
+		TLS:      configtls.ClientConfig{Insecure: true},
+	}
+
+	rt, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), recordingAuth)
+	require.NoError(t, err)
+
+	// Mimic olivere/elastic: Body set directly, GetBody left nil.
+	req, err := http.NewRequest(http.MethodPut, "http://localhost:9200/_index_template/test", http.NoBody)
+	require.NoError(t, err)
+	req.Body = io.NopCloser(bytes.NewReader([]byte(`{"index_patterns":["jaeger-*"]}`)))
+	req.GetBody = nil
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.True(t, recordingAuth.sawGetBody,
+		"authenticator must see req.GetBody populated at signing time")
 }
 
 func TestBulkCallbackInvoke_NilResponse(t *testing.T) {
@@ -1569,4 +1627,95 @@ func TestNewClient_NoCapturedHeaders_NoForwardedHeader(t *testing.T) {
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+func TestGetHTTPRoundTripperCustomHeaders(t *testing.T) {
+	var (
+		mu                 sync.Mutex
+		gotHeader, gotHost string
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		gotHeader = req.Header.Get("X-Custom-Header")
+		gotHost = req.Host
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	cfg := &config.Configuration{
+		TLS: configtls.ClientConfig{Insecure: true},
+		CustomHeaders: map[string]string{
+			"X-Custom-Header": "custom-value",
+			"Host":            "signed.example.com",
+		},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	client := &http.Client{Transport: rt}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, testServer.URL, http.NoBody)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, "custom-value", gotHeader)
+	assert.Equal(t, "signed.example.com", gotHost)
+}
+
+func TestGetHTTPRoundTripperCustomHeadersDoNotMutateOriginalRequest(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	cfg := &config.Configuration{
+		TLS:           configtls.ClientConfig{Insecure: true},
+		CustomHeaders: map[string]string{"X-Custom-Header": "custom-value"},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, testServer.URL, http.NoBody)
+	require.NoError(t, err)
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Empty(t, req.Header.Get("X-Custom-Header"))
+}
+
+func TestGetHTTPRoundTripperCustomHeadersDoNotOverridePerRequestHeaders(t *testing.T) {
+	var (
+		mu        sync.Mutex
+		gotHeader string
+	)
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		gotHeader = req.Header.Get("X-Custom-Header")
+		mu.Unlock()
+		res.WriteHeader(http.StatusOK)
+	}))
+	defer testServer.Close()
+
+	cfg := &config.Configuration{
+		TLS:           configtls.ClientConfig{Insecure: true},
+		CustomHeaders: map[string]string{"X-Custom-Header": "static-value"},
+	}
+	rt, err := GetHTTPRoundTripper(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, testServer.URL, http.NoBody)
+	require.NoError(t, err)
+	req.Header.Set("X-Custom-Header", "per-request-value")
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, "per-request-value", gotHeader)
 }

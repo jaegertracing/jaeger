@@ -1,0 +1,61 @@
+{
+  "method": "POST",
+  "path": "/jaeger-span-read/_search",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ]
+  },
+  "body": {
+    "aggregations": {
+      "results_buckets": {
+        "aggregations": {
+          "cumulative_requests": {
+            "cumulative_sum": {
+              "buckets_path": "_count"
+            }
+          }
+        },
+        "date_histogram": {
+          "extended_bounds": {
+            "max": 1577934245000,
+            "min": 1577930045000
+          },
+          "field": "startTimeMillis",
+          "fixed_interval": "60000ms",
+          "min_doc_count": 0
+        }
+      }
+    },
+    "query": {
+      "bool": {
+        "filter": [
+          {
+            "terms": {
+              "process.serviceName": [
+                "test-service"
+              ]
+            }
+          },
+          {
+            "terms": {
+              "tag.span@kind": [
+                "server"
+              ]
+            }
+          },
+          {
+            "range": {
+              "startTimeMillis": {
+                "format": "epoch_millis",
+                "gte": 1577930045000,
+                "lte": 1577934245000
+              }
+            }
+          }
+        ]
+      }
+    },
+    "size": 0
+  }
+}
