@@ -40,12 +40,39 @@ func TestFromRow_DecodeID(t *testing.T) {
 			want: "failed to decode trace ID: encoding/hex: invalid byte: U+0078 'x'",
 		},
 		{
+			name: "empty span trace id failed",
+			arg:  &SpanRow{},
+			want: "failed to decode trace ID: invalid length: got 0 bytes, want 16 bytes",
+		},
+		{
+			name: "short span trace id failed",
+			arg: &SpanRow{
+				TraceID: "0001",
+			},
+			want: "failed to decode trace ID: invalid length: got 2 bytes, want 16 bytes",
+		},
+		{
 			name: "decode span id failed",
 			arg: &SpanRow{
 				TraceID: "00010001000100010001000100010001",
 				ID:      "0x",
 			},
 			want: "failed to decode span ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+		{
+			name: "empty span id failed",
+			arg: &SpanRow{
+				TraceID: "00010001000100010001000100010001",
+			},
+			want: "failed to decode span ID: invalid length: got 0 bytes, want 8 bytes",
+		},
+		{
+			name: "short span id failed",
+			arg: &SpanRow{
+				TraceID: "00010001000100010001000100010001",
+				ID:      "0001",
+			},
+			want: "failed to decode span ID: invalid length: got 2 bytes, want 8 bytes",
 		},
 		{
 			name: "decode span parent id failed",
@@ -55,6 +82,15 @@ func TestFromRow_DecodeID(t *testing.T) {
 				ParentSpanID: "0x",
 			},
 			want: "failed to decode parent span ID: encoding/hex: invalid byte: U+0078 'x'",
+		},
+		{
+			name: "short span parent id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001",
+			},
+			want: "failed to decode parent span ID: invalid length: got 2 bytes, want 8 bytes",
 		},
 		{
 			name: "decode link trace id failed",
@@ -67,6 +103,26 @@ func TestFromRow_DecodeID(t *testing.T) {
 			want: "failed to decode link trace ID: encoding/hex: invalid byte: U+0078 'x'",
 		},
 		{
+			name: "empty link trace id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001000100010001",
+				LinkTraceIDs: []string{""},
+			},
+			want: "failed to decode link trace ID: invalid length: got 0 bytes, want 16 bytes",
+		},
+		{
+			name: "short link trace id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001000100010001",
+				LinkTraceIDs: []string{"0001"},
+			},
+			want: "failed to decode link trace ID: invalid length: got 2 bytes, want 16 bytes",
+		},
+		{
 			name: "decode link span id failed",
 			arg: &SpanRow{
 				TraceID:      "00010001000100010001000100010001",
@@ -77,11 +133,36 @@ func TestFromRow_DecodeID(t *testing.T) {
 			},
 			want: "failed to decode link span ID: encoding/hex: invalid byte: U+0078 'x'",
 		},
+		{
+			name: "empty link span id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001000100010001",
+				LinkTraceIDs: []string{"00010001000100010001000100010001"},
+				LinkSpanIDs:  []string{""},
+			},
+			want: "failed to decode link span ID: invalid length: got 0 bytes, want 8 bytes",
+		},
+		{
+			name: "short link span id failed",
+			arg: &SpanRow{
+				TraceID:      "00010001000100010001000100010001",
+				ID:           "0001000100010001",
+				ParentSpanID: "0001000100010001",
+				LinkTraceIDs: []string{"00010001000100010001000100010001"},
+				LinkSpanIDs:  []string{"0001"},
+			},
+			want: "failed to decode link span ID: invalid length: got 2 bytes, want 8 bytes",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			trace := FromRow(tt.arg)
+			var trace ptrace.Traces
+			require.NotPanics(t, func() {
+				trace = FromRow(tt.arg)
+			})
 			span := trace.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
 			require.Contains(t, jptrace.GetWarnings(span), tt.want)
 		})
