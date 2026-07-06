@@ -143,6 +143,10 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
+	if s.bulkWriter == nil {
+		s.logger.Error("cannot write span: writer was constructed without a bulk writer")
+		return
+	}
 	s.bulkWriter.Add(esclient.BulkItem{
 		Index:  indexName,
 		OpType: s.spanRotation.WriteOpType(),

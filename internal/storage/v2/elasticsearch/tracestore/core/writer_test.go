@@ -201,6 +201,21 @@ func TestSpanIndexName(t *testing.T) {
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
 
+// TestWriteSpanToIndex_WithoutBulkWriter verifies writeSpanToIndex on a writer
+// built without a bulk writer (e.g. the rotation/tag-only test constructions) is
+// a logged no-op rather than a nil-pointer panic.
+func TestWriteSpanToIndex_WithoutBulkWriter(t *testing.T) {
+	writer := NewSpanWriter(SpanWriterParams{
+		Logger:          zap.NewNop(),
+		MetricsFactory:  metrics.NullFactory,
+		SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+		ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
+	})
+	assert.NotPanics(t, func() {
+		writer.writeSpanToIndex("idx", &dbmodel.Span{})
+	})
+}
+
 func TestWriteSpanInternal(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		indexName := "jaeger-1995-04-21"
