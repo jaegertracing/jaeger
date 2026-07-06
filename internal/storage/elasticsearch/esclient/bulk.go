@@ -37,17 +37,14 @@ func encodeBulkItem(buf *bytes.Buffer, item BulkItem, typed bool) error {
 	if opType == "" {
 		opType = es.WriteOpIndex
 	}
-	action, err := json.Marshal(map[string]map[string]string{string(opType): meta})
-	if err != nil {
-		return err
+	// Emit the action line then the source line, each newline-terminated.
+	for _, line := range []any{map[string]map[string]string{string(opType): meta}, item.Body} {
+		encoded, err := json.Marshal(line)
+		if err != nil {
+			return err
+		}
+		buf.Write(encoded)
+		buf.WriteByte('\n')
 	}
-	source, err := json.Marshal(item.Body)
-	if err != nil {
-		return err
-	}
-	buf.Write(action)
-	buf.WriteByte('\n')
-	buf.Write(source)
-	buf.WriteByte('\n')
 	return nil
 }
