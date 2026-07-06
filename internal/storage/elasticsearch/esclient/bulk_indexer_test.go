@@ -131,6 +131,23 @@ func TestBulkIndexerUnbounded(t *testing.T) {
 	assert.Equal(t, 4, countBulkDocs(reqs[0].Body))
 }
 
+// TestBulkIndexerFlushesAtExactMaxActions verifies the action-count trigger
+// fires as soon as the batch reaches MaxActions, without waiting for a further
+// Add or for Close (send is synchronous, so the request lands before Close).
+func TestBulkIndexerFlushesAtExactMaxActions(t *testing.T) {
+	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) { okBulk(w) })
+	server := httptest.NewServer(rec)
+	defer server.Close()
+
+	b := newTestIndexer(t, server.URL, BulkIndexerConfig{MaxActions: 2}, es.ElasticV7, metrics.NullFactory)
+	t.Cleanup(func() { _ = b.Close() })
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
+	assert.Empty(t, rec.Requests(), "one document should stay buffered")
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"b": 2}})
+	require.Len(t, rec.Requests(), 1, "reaching MaxActions flushes immediately, before Close")
+	assert.Equal(t, 2, countBulkDocs(rec.Requests()[0].Body))
+}
+
 func TestBulkIndexerFlushInterval(t *testing.T) {
 	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) { okBulk(w) })
 	server := httptest.NewServer(rec)

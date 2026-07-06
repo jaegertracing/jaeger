@@ -119,15 +119,22 @@ func (b *BulkIndexer) Add(item BulkItem) {
 		b.logger.Warn("bulk document added after Close; dropping", zap.String("index", item.Index))
 		return
 	}
-	var batch []bulkDoc
-	if len(b.pending) > 0 && (b.exceedsBytesLocked(len(doc.payload)) || b.reachedMaxActionsLocked()) {
-		batch = b.takePendingLocked()
+	var batches [][]bulkDoc
+	// Byte cap: flush the current batch before adding a document that would push
+	// it past FlushBytes, so no single request exceeds the cap.
+	if len(b.pending) > 0 && b.exceedsBytesLocked(len(doc.payload)) {
+		batches = append(batches, b.takePendingLocked())
 	}
 	b.pending = append(b.pending, doc)
 	b.pendingBytes += len(doc.payload)
+	// Action cap: flush as soon as the batch reaches MaxActions, so a burst that
+	// stops on an exact multiple isn't held until Close.
+	if b.reachedMaxActionsLocked() {
+		batches = append(batches, b.takePendingLocked())
+	}
 	b.mu.Unlock()
 
-	if batch != nil {
+	for _, batch := range batches {
 		b.send(batch)
 	}
 }
