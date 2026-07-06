@@ -378,6 +378,34 @@ func TestChatHandlerInjectsTraceContextIntoPromptMeta(t *testing.T) {
 		"injected traceparent should carry the same trace id as the request span, so the sidecar can join the same trace")
 }
 
+func TestChatHandlerRegistersSessionStreamForTurn(t *testing.T) {
+	streams := newSessionStreams()
+	var duringTurn int
+	agent := &mockACPAgent{
+		// Observe the registry mid-turn: by the time Prompt runs, the chat
+		// handler has registered this turn's stream.
+		promptHook: func(context.Context, *acp.AgentSideConnection, acp.PromptRequest) {
+			duringTurn = streams.count()
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+	handler.streams = streams
+
+	reqBody, err := json.Marshal(newAGUIRequest("where is the latency"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "body=%q", rr.Body.String())
+	assert.Equal(t, 1, duringTurn, "the turn's stream must be registered while the turn is in flight")
+	assert.Equal(t, 0, streams.count(), "the stream must be removed at end of turn")
+}
+
 func TestChatHandlerAppendsContextEntriesToPromptBlocks(t *testing.T) {
 	agent := &mockACPAgent{}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)

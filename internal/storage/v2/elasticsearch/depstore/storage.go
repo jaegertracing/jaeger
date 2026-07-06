@@ -21,8 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 )
 
-const dependencyType = "dependencies"
-
 // CoreDependencyStore is a DB Level abstraction which directly read/write dependencies into ElasticSearch
 type CoreDependencyStore interface {
 	// WriteDependencies write dependencies to Elasticsearch
@@ -76,7 +74,7 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 }
 
 func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Time, dependencies []dbmodel.DependencyLink) {
-	s.client().Index().Index(indexName).Type(dependencyType).
+	s.client().Index().Index(indexName).
 		BodyJson(&dbmodel.TimeDependencies{
 			Timestamp:    ts,
 			Dependencies: dependencies,

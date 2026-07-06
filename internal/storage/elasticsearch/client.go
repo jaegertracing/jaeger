@@ -61,7 +61,6 @@ const (
 // IndexService is an abstraction for elastic BulkService
 type IndexService interface {
 	Index(index string) IndexService
-	Type(typ string) IndexService
 	Id(id string) IndexService
 	BodyJson(body any) IndexService
 	// OpType sets the bulk operation type. Data streams require WriteOpCreate;

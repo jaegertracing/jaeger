@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	spanType               = "span"
-	serviceType            = "service"
 	serviceCacheTTLDefault = 12 * time.Hour
 	indexCacheTTLDefault   = 48 * time.Hour
 )
@@ -75,7 +73,8 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tags[k] = true
 	}
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
+	// The writer only calls Write (never the read methods), so it needs no searcher.
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, nil, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,
@@ -132,7 +131,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).
+	s.client().Index().Index(indexName).
 		OpType(s.spanRotation.WriteOpType()).
 		BodyJson(&jsonSpan).Add()
 }
