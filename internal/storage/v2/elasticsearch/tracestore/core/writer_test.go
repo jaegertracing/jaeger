@@ -448,8 +448,7 @@ func stringMatcher(q string) any {
 	return mock.MatchedBy(matchFunc)
 }
 
-// TestWriterRequestSnapshots freezes the wire format of the span bulk write. ES6
-// tags the index action with _type; newer backends drop it.
+// TestWriterRequestSnapshots freezes the wire format of the span bulk write.
 func TestWriterRequestSnapshots(t *testing.T) {
 	const writeIndex = "jaeger-span-write-000001"
 	const startMicros = 1577934245000000
@@ -470,7 +469,8 @@ func TestWriterRequestSnapshots(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		// A real esclient bulk indexer over the recording server; version is pinned
-		// so the client skips its probe and FlushBytes:-1 defers the flush to Close.
+		// so the client skips its probe. The single span buffers until Close, which
+		// flushes the one bulk request we record.
 		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
 		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
 		require.NoError(t, err)

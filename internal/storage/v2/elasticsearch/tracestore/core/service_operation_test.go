@@ -192,9 +192,9 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 }
 
 // TestServiceOperationRequestSnapshots freezes the exact wire format of the
-// service/operation read+write path over the current olivere client. Only ES6
-// differs (no rest_total_hits_as_int on searches; _type on writes); every other
-// version emits the same request, so snapshots collapse to es6 / es7-9.os1-3.
+// service/operation read + write path over esclient (SearchClient for reads,
+// the bulk indexer for writes). Every supported version emits the same request,
+// so the snapshots collapse to a single file per operation.
 
 // newDataClient builds a real es.Client for the given backend version, pointed at
 // the recording server. Version is set explicitly so no ping is issued, and the
@@ -249,9 +249,8 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		// One real esclient over the recording server backs both the search path
-		// and the bulk writer. Version is pinned so the client skips its probe, and
-		// FlushBytes:-1 keeps the indexer from flushing until Close, so only the
-		// requests we drive are recorded.
+		// and the bulk writer. Version is pinned so the client skips its probe. The
+		// documents buffer until Close, which flushes the one bulk request we record.
 		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
 		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
 		require.NoError(t, err)
