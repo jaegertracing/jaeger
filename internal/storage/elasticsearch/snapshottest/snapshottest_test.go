@@ -119,13 +119,13 @@ func TestParseVariant(t *testing.T) {
 		ok          bool
 	}{
 		{name: "get_services.json", allVersions: true, ok: true},
-		{name: "get_services.es4.json", ranges: []backendRange{{"es", 4, 4}}, ok: true},
-		{name: "get_services.es4-7.json", ranges: []backendRange{{"es", 4, 7}}, ok: true},
+		{name: "get_services.es7.json", ranges: []backendRange{{"es", 7, 7}}, ok: true},
+		{name: "get_services.es7-8.json", ranges: []backendRange{{"es", 7, 8}}, ok: true},
 		{name: "get_services.os1-3.json", ranges: []backendRange{{"os", 1, 3}}, ok: true},
 		{name: "get_services.es7-9.os1-3.json", ranges: []backendRange{{"es", 7, 9}, {"os", 1, 3}}, ok: true},
-		{name: "get_operations.es4.json", ok: false},    // different subject
+		{name: "get_operations.es7.json", ok: false},    // different subject
 		{name: "get_services.es.json", ok: false},       // missing major
-		{name: "get_services.es4..os1.json", ok: false}, // empty range token
+		{name: "get_services.es7..os1.json", ok: false}, // empty range token
 		{name: "get_services.txt", ok: false},
 	}
 	for _, tt := range tests {
@@ -214,7 +214,7 @@ func TestAssertByVersion_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es8.json"), []byte("OLD\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_operations.es4.json"), []byte("other\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_operations.es7.json"), []byte("other\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "keep.txt"), []byte("unrelated"), 0o644))
 
 	withRegenerate(t, true, func() {
@@ -222,7 +222,7 @@ func TestAssertByVersion_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
 	})
 
 	files := listJSON(t, dir)
-	assert.ElementsMatch(t, []string{"get_services.es7.json", "get_operations.es4.json"}, files,
+	assert.ElementsMatch(t, []string{"get_services.es7.json", "get_operations.es7.json"}, files,
 		"stale get_services.es8.json pruned; other subjects untouched")
 	_, err := os.Stat(filepath.Join(dir, "keep.txt"))
 	assert.NoError(t, err, "unrelated files untouched")
@@ -250,7 +250,7 @@ func TestAssertPrunesAndReportsOrphanVariants(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "alias_exists")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.json"), []byte("SAME\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.es4.json"), []byte("stale\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.es7.json"), []byte("stale\n"), 0o644))
 
 	// Assert mode flags the stray per-version file committed beside the bare one.
 	tb := &recordingTB{TB: t}
@@ -266,13 +266,13 @@ func TestAssertPrunesAndReportsOrphanVariants(t *testing.T) {
 func TestFindOrphans(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{
-		"get_services.es4.json", "get_services.es7-9.json", "get_services.os1-3.json",
-		"get_services.os5.json", "get_operations.es4.json", "readme.md",
+		"get_services.es7.json", "get_services.es7-9.json", "get_services.os1-3.json",
+		"get_services.os5.json", "get_operations.es7.json", "readme.md",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x\n"), 0o644))
 	}
 	used := map[string]bool{
-		"get_services.es4.json": true, "get_services.es7-9.json": true, "get_services.os1-3.json": true,
+		"get_services.es7.json": true, "get_services.es7-9.json": true, "get_services.os1-3.json": true,
 	}
 	// os5 is an unclaimed get_services snapshot; get_operations/readme belong to other subjects.
 	assert.Equal(t, []string{"get_services.os5.json"}, findOrphans(t, dir, "get_services", used))
@@ -393,7 +393,7 @@ func TestAssertByVersionReportsMissingSnapshot(t *testing.T) {
 
 func TestAssertNoOrphansReports(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es4.json"), []byte("x\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es7.json"), []byte("x\n"), 0o644))
 	tb := &recordingTB{TB: t}
 	assertNoOrphans(tb, dir, "get_services", map[string]bool{})
 	require.Len(t, tb.errors, 1)
