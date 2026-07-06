@@ -64,9 +64,14 @@ func NewServiceOperationStorage(
 	}
 }
 
-// Write saves a service to operation pair. It requires a bulk writer (see
-// NewServiceOperationStorage).
+// Write saves a service to operation pair. It is a no-op on a read-only
+// instance (nil bulk writer, see NewServiceOperationStorage), since the same
+// type backs both the read and write paths.
 func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
+	if s.bulkWriter == nil {
+		s.logger.Error("cannot write service:operation pair: storage was constructed for read-only use")
+		return
+	}
 	// Insert serviceName:operationName document
 	service := dbmodel.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,

@@ -168,6 +168,15 @@ func TestServiceOperationStorage_ReadWithoutSearcher(t *testing.T) {
 	require.ErrorIs(t, err, errNoSearcher)
 }
 
+// TestServiceOperationStorage_WriteWithoutBulkWriter verifies Write on a
+// read-only instance (nil bulk writer) is a logged no-op, not a panic.
+func TestServiceOperationStorage_WriteWithoutBulkWriter(t *testing.T) {
+	s := NewServiceOperationStorage(nil, nil, zap.NewNop(), 0)
+	assert.NotPanics(t, func() {
+		s.Write("idx", &dbmodel.Span{})
+	})
+}
+
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
