@@ -6,7 +6,7 @@ package jaegerai
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/telemetry/tracecontext"
 )
 
 // injectTraceContextIntoMeta injects the active span context from ctx into a
@@ -16,7 +16,7 @@ import (
 // a sidecar that extracts it parents its own agentic-loop spans under this
 // request's span instead of starting a disconnected trace.
 func injectTraceContextIntoMeta(ctx context.Context, meta map[string]any) map[string]any {
-	carrier := &otelsemconv.TraceContextCarrier{Meta: meta}
-	otelsemconv.TraceContextPropagator.Inject(ctx, carrier)
+	carrier := &tracecontext.Carrier{Meta: meta}
+	tracecontext.Propagator.Inject(ctx, carrier)
 	return carrier.Meta
 }

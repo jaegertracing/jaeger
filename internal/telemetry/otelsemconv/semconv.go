@@ -5,7 +5,6 @@ package otelsemconv
 
 import (
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
@@ -121,40 +120,4 @@ func GenAIConversationID(value string) attribute.KeyValue {
 
 func ErrorType(value string) attribute.KeyValue {
 	return semconv.ErrorTypeKey.String(value)
-}
-
-// TraceContextPropagator is the SEP-414 composite propagator (W3C
-// traceparent/tracestate + baggage) for carrying trace context across a
-// protocol's _meta field — the MCP tool-call boundary and the ACP prompt
-// boundary both use this same convention.
-var TraceContextPropagator = propagation.NewCompositeTextMapPropagator(
-	propagation.TraceContext{},
-	propagation.Baggage{},
-)
-
-// TraceContextCarrier adapts a map[string]any — the shape of every MCP and
-// ACP request's _meta field — to propagation.TextMapCarrier, so
-// TraceContextPropagator can inject into or extract from it directly.
-type TraceContextCarrier struct {
-	Meta map[string]any
-}
-
-func (c *TraceContextCarrier) Get(key string) string {
-	value, _ := c.Meta[key].(string)
-	return value
-}
-
-func (c *TraceContextCarrier) Set(key, value string) {
-	if c.Meta == nil {
-		c.Meta = map[string]any{}
-	}
-	c.Meta[key] = value
-}
-
-func (c *TraceContextCarrier) Keys() []string {
-	keys := make([]string, 0, len(c.Meta))
-	for key := range c.Meta {
-		keys = append(keys, key)
-	}
-	return keys
 }
