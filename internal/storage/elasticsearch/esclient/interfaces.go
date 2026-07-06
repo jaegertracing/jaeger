@@ -30,9 +30,9 @@ type Searcher interface {
 	Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error)
 }
 
-// BulkWriter buffers documents and writes them via the bulk API. Add enqueues a
-// document; Close flushes the remainder and stops the writer.
+// BulkWriter enqueues documents for writing via the bulk API. It is the narrow
+// surface callers depend on; the concrete indexer's lifecycle (Close) is owned
+// by whoever constructs it (the factory).
 type BulkWriter interface {
 	Add(item BulkItem)
-	Close() error
 }

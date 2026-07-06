@@ -267,7 +267,7 @@ func TestCreateTemplates(t *testing.T) {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
 		mockClient.On("GetVersion").Return(es.ElasticV7)
-		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
+		f.newLegacyClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
 			return mockClient, nil
 		}
 		f.logger = zaptest.NewLogger(t)
@@ -286,7 +286,7 @@ func TestCreateTemplates(t *testing.T) {
 			},
 		}}
 		f.tracer = otel.GetTracerProvider()
-		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
+		client, err := f.newLegacyClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
 		require.NoError(t, err)
 		f.client = client
 		f.templateBuilder = es.TextTemplateBuilder{}

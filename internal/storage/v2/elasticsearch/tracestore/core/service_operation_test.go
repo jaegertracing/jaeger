@@ -43,7 +43,6 @@ func TestWriteService(t *testing.T) {
 
 		require.Len(t, *w.added, 1)
 		assert.Equal(t, indexName, (*w.added)[0].Index)
-		assert.Equal(t, serviceType, (*w.added)[0].Type)
 		assert.Equal(t, serviceHash, (*w.added)[0].ID)
 		assert.Empty(t, w.logBuffer.String())
 
@@ -169,15 +168,6 @@ func TestServiceOperationStorage_ReadWithoutSearcher(t *testing.T) {
 	require.ErrorIs(t, err, errNoSearcher)
 }
 
-// TestServiceOperationStorage_WriteWithoutBulkWriter verifies Write on a
-// read-only instance (nil bulk writer) is a logged no-op, not a panic.
-func TestServiceOperationStorage_WriteWithoutBulkWriter(t *testing.T) {
-	s := NewServiceOperationStorage(nil, nil, zap.NewNop(), 0)
-	assert.NotPanics(t, func() {
-		s.Write("idx", &dbmodel.Span{})
-	})
-}
-
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
@@ -266,7 +256,8 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
 		require.NoError(t, err)
 		searcher := esclient.SearchClient{Client: esClient}
-		bulkWriter := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{FlushBytes: -1}, metrics.NullFactory, zap.NewNop())
+		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
 		sos := NewServiceOperationStorage(searcher, bulkWriter, zap.NewNop(), 0)
 		ctx := context.Background()
 

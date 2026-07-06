@@ -26,14 +26,12 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 type spanWriterTest struct {
-	client     *mocks.Client
 	bulkWriter *esclientmocks.BulkWriter
 	added      *[]esclient.BulkItem
 	logger     *zap.Logger
@@ -42,19 +40,16 @@ type spanWriterTest struct {
 }
 
 func withSpanWriter(fn func(w *spanWriterTest)) {
-	client := &mocks.Client{}
 	bulkWriter := &esclientmocks.BulkWriter{}
 	added := captureBulk(bulkWriter)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
-		client:     client,
 		bulkWriter: bulkWriter,
 		added:      added,
 		logger:     logger,
 		logBuffer:  logBuffer,
 		writer: NewSpanWriter(SpanWriterParams{
-			Client:          func() es.Client { return client },
 			BulkWriter:      bulkWriter,
 			Logger:          logger,
 			MetricsFactory:  metricsFactory,
@@ -76,8 +71,6 @@ func captureBulk(m *esclientmocks.BulkWriter) *[]esclient.BulkItem {
 }
 
 func TestSpanWriterRotations(t *testing.T) {
-	client := &mocks.Client{}
-	clientFn := func() es.Client { return client }
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
@@ -107,7 +100,6 @@ func TestSpanWriterRotations(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			w := NewSpanWriter(SpanWriterParams{
-				Client:          clientFn,
 				Logger:          logger,
 				MetricsFactory:  metricsFactory,
 				SpanRotation:    tc.spanRotation,
@@ -119,13 +111,11 @@ func TestSpanWriterRotations(t *testing.T) {
 	}
 }
 
-func TestClientClose(t *testing.T) {
+func TestSpanWriterClose(t *testing.T) {
+	// The writer owns no resources; Close is a no-op (the factory owns the bulk
+	// indexer). This just pins that contract.
 	withSpanWriter(func(w *spanWriterTest) {
-		w.client.On("Close").Return(nil)
-		w.bulkWriter.On("Close").Return(nil)
 		require.NoError(t, w.writer.Close())
-		w.client.AssertNumberOfCalls(t, "Close", 1)
-		w.bulkWriter.AssertNumberOfCalls(t, "Close", 1)
 	})
 }
 
@@ -171,11 +161,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				require.Len(t, *w.added, 2)
 				service, spanItem := (*w.added)[0], (*w.added)[1]
 				assert.Equal(t, serviceIndexName, service.Index)
-				assert.Equal(t, serviceType, service.Type)
 				assert.Equal(t, serviceHash, service.ID)
 				assert.IsType(t, dbmodel.Service{}, service.Body)
 				assert.Equal(t, spanIndexName, spanItem.Index)
-				assert.Equal(t, spanType, spanItem.Type)
 				assert.Equal(t, es.WriteOpIndex, spanItem.OpType)
 
 				for _, expectedLog := range testCase.expectedLogs {
@@ -201,21 +189,6 @@ func TestSpanIndexName(t *testing.T) {
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
 
-// TestWriteSpanToIndex_WithoutBulkWriter verifies writeSpanToIndex on a writer
-// built without a bulk writer (e.g. the rotation/tag-only test constructions) is
-// a logged no-op rather than a nil-pointer panic.
-func TestWriteSpanToIndex_WithoutBulkWriter(t *testing.T) {
-	writer := NewSpanWriter(SpanWriterParams{
-		Logger:          zap.NewNop(),
-		MetricsFactory:  metrics.NullFactory,
-		SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
-		ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
-	})
-	assert.NotPanics(t, func() {
-		writer.writeSpanToIndex("idx", &dbmodel.Span{})
-	})
-}
-
 func TestWriteSpanInternal(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		indexName := "jaeger-1995-04-21"
@@ -226,7 +199,6 @@ func TestWriteSpanInternal(t *testing.T) {
 		require.Len(t, *w.added, 1)
 		item := (*w.added)[0]
 		assert.Equal(t, indexName, item.Index)
-		assert.Equal(t, spanType, item.Type)
 		assert.Equal(t, es.WriteOpIndex, item.OpType)
 		assert.Empty(t, w.logBuffer.String())
 	})
@@ -502,7 +474,8 @@ func TestWriterRequestSnapshots(t *testing.T) {
 		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
 		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
 		require.NoError(t, err)
-		bulkWriter := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{FlushBytes: -1}, metrics.NullFactory, zap.NewNop())
+		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
 		writer := NewSpanWriter(SpanWriterParams{
 			BulkWriter:      bulkWriter,
 			Logger:          zap.NewNop(),

@@ -4,83 +4,103 @@
 package esclient
 
 import (
-	"bytes"
-	"encoding/json"
-	"strings"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
-func TestEncodeBulkItem(t *testing.T) {
-	tests := []struct {
-		name       string
-		item       BulkItem
-		typed      bool
-		wantAction string
-		wantSource string
-	}{
-		{
-			name:       "span, typed backend",
-			item:       BulkItem{Index: "jaeger-span-000001", Type: "span", Body: map[string]any{"traceID": "abc"}},
-			typed:      true,
-			wantAction: `{"index":{"_index":"jaeger-span-000001","_type":"span"}}`,
-			wantSource: `{"traceID":"abc"}`,
-		},
-		{
-			name:       "span, typeless backend drops _type",
-			item:       BulkItem{Index: "jaeger-span-000001", Type: "span", Body: map[string]any{"traceID": "abc"}},
-			typed:      false,
-			wantAction: `{"index":{"_index":"jaeger-span-000001"}}`,
-			wantSource: `{"traceID":"abc"}`,
-		},
-		{
-			name:       "service carries _id",
-			item:       BulkItem{Index: "svc-000001", Type: "service", ID: "cb42af354c445afb", Body: map[string]any{"serviceName": "s"}},
-			typed:      true,
-			wantAction: `{"index":{"_id":"cb42af354c445afb","_index":"svc-000001","_type":"service"}}`,
-			wantSource: `{"serviceName":"s"}`,
-		},
-		{
-			name:       "create op-type for data streams",
-			item:       BulkItem{Index: "jaeger.spans", Type: "span", OpType: es.WriteOpCreate, Body: map[string]any{"traceID": "abc"}},
-			typed:      false,
-			wantAction: `{"create":{"_index":"jaeger.spans"}}`,
-			wantSource: `{"traceID":"abc"}`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			require.NoError(t, encodeBulkItem(&buf, tt.item, tt.typed))
-
-			lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-			require.Len(t, lines, 2)
-			assert.JSONEq(t, tt.wantAction, lines[0])
-			assert.JSONEq(t, tt.wantSource, lines[1])
-			// The body must be newline-terminated so the next pair starts cleanly.
-			assert.True(t, bytes.HasSuffix(buf.Bytes(), []byte("\n")))
-		})
-	}
+// bulkServer records requests and answers each with the response chosen by
+// respond. It returns the Recorder (for captured requests) and the URL.
+func bulkServer(t *testing.T, respond func(w http.ResponseWriter)) (*snapshottest.Recorder, string) {
+	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) { respond(w) })
+	server := httptest.NewServer(rec)
+	t.Cleanup(server.Close)
+	return rec, server.URL
 }
 
-func TestEncodeBulkItemUnmarshalableBody(t *testing.T) {
-	var buf bytes.Buffer
-	err := encodeBulkItem(&buf, BulkItem{Index: "i", Body: make(chan int)}, false)
-	require.Error(t, err)
+func okBulk(w http.ResponseWriter) {
+	w.Write([]byte(`{"took":1,"errors":false,"items":[{"index":{"status":201}}]}`))
 }
 
-// TestEncodeBulkItemActionParses is a guard that the action line is a single JSON
-// object keyed by the op-type, as the _bulk protocol requires.
-func TestEncodeBulkItemActionParses(t *testing.T) {
-	var buf bytes.Buffer
-	require.NoError(t, encodeBulkItem(&buf, BulkItem{Index: "i", OpType: es.WriteOpIndex, Body: struct{}{}}, false))
-	action := strings.SplitN(buf.String(), "\n", 2)[0]
-	var parsed map[string]map[string]string
-	require.NoError(t, json.Unmarshal([]byte(action), &parsed))
-	require.Contains(t, parsed, "index")
-	assert.Equal(t, "i", parsed["index"]["_index"])
+func TestBulkIndexerWritesNDJSON(t *testing.T) {
+	rec, url := bulkServer(t, okBulk)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "jaeger-span-000001", ID: "abc", Body: map[string]any{"traceID": "1"}})
+	require.NoError(t, b.Close())
+
+	reqs := rec.Requests()
+	require.Len(t, reqs, 1)
+	assert.Equal(t, http.MethodPost, reqs[0].Method)
+	assert.Contains(t, reqs[0].Path, "_bulk")
+	body := string(reqs[0].Body)
+	assert.Contains(t, body, `"_index":"jaeger-span-000001"`)
+	assert.Contains(t, body, `"_id":"abc"`)
+	assert.Contains(t, body, `"traceID":"1"`)
+}
+
+func TestBulkIndexerCreateOpType(t *testing.T) {
+	rec, url := bulkServer(t, okBulk)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "jaeger.spans", OpType: es.WriteOpCreate, Body: map[string]any{"a": 1}})
+	require.NoError(t, b.Close())
+	require.Len(t, rec.Requests(), 1)
+	assert.Contains(t, string(rec.Requests()[0].Body), `"create":`)
+}
+
+func TestBulkIndexerEncodeErrorDropped(t *testing.T) {
+	rec, url := bulkServer(t, okBulk)
+	core, logs := observer.New(zap.ErrorLevel)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.New(core))
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "idx", Body: make(chan int)}) // unmarshalable
+	require.NoError(t, b.Close())
+	assert.Empty(t, rec.Requests(), "an unencodable document is never sent")
+	assert.Positive(t, logs.FilterMessageSnippet("failed to encode").Len())
+}
+
+func TestBulkIndexerSuccessMetrics(t *testing.T) {
+	_, url := bulkServer(t, okBulk)
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.NewNop())
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
+	require.NoError(t, b.Close())
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 1},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 0},
+	)
+}
+
+func TestBulkIndexerFailureMetrics(t *testing.T) {
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"took":1,"errors":true,"items":[{"index":{"status":400,"error":{"type":"mapper_parsing_exception"}}}]}`))
+	})
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	core, logs := observer.New(zap.ErrorLevel)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.New(core))
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
+	require.NoError(t, b.Close())
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 0},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1},
+	)
+	assert.Positive(t, logs.FilterMessageSnippet("part of bulk request failed").Len())
 }

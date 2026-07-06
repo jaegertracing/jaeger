@@ -5,7 +5,6 @@
 package core
 
 import (
-	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -14,7 +13,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
@@ -28,9 +26,8 @@ const (
 
 type serviceWriter func(string, *dbmodel.Span)
 
-// SpanWriter is a wrapper around elastic.Client
+// SpanWriter writes spans and their service:operation pairs via the bulk indexer.
 type SpanWriter struct {
-	client     func() es.Client
 	bulkWriter esclient.BulkWriter
 	logger     *zap.Logger
 	// indexCache       cache.Cache
@@ -51,9 +48,9 @@ type Writer interface {
 	Close() error
 }
 
-// SpanWriterParams holds constructor parameters for NewSpanWriter
+// SpanWriterParams holds constructor parameters for NewSpanWriter. BulkWriter is
+// required — the writer enqueues every span and service document through it.
 type SpanWriterParams struct {
-	Client            func() es.Client
 	BulkWriter        esclient.BulkWriter
 	Logger            *zap.Logger
 	MetricsFactory    metrics.Factory
@@ -80,7 +77,6 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	// The writer only calls Write (never the read methods), so it needs no searcher.
 	serviceOperationStorage := NewServiceOperationStorage(nil, p.BulkWriter, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client:            p.Client,
 		bulkWriter:        p.BulkWriter,
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
@@ -118,16 +114,10 @@ func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
 	span.Tag = fieldTags
 }
 
-// Close flushes buffered writes and releases the underlying clients. The bulk
-// indexer is also owned (and closed) by the factory; Close is idempotent, so
-// flushing here just ensures buffered spans are sent promptly when the writer
-// is done.
-func (s *SpanWriter) Close() error {
-	var bulkErr error
-	if s.bulkWriter != nil {
-		bulkErr = s.bulkWriter.Close()
-	}
-	return errors.Join(bulkErr, s.client().Close())
+// Close is a no-op: the writer owns no resources. The bulk indexer that backs it
+// is owned and closed by the factory (which flushes buffered writes on shutdown).
+func (*SpanWriter) Close() error {
+	return nil
 }
 
 func keyInCache(key string, c cache.Cache) bool {
@@ -143,10 +133,6 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	if s.bulkWriter == nil {
-		s.logger.Error("cannot write span: writer was constructed without a bulk writer")
-		return
-	}
 	s.bulkWriter.Add(esclient.BulkItem{
 		Index:  indexName,
 		OpType: s.spanRotation.WriteOpType(),
