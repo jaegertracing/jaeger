@@ -282,8 +282,9 @@ func TestCachedFileTokenLoader_FilePermissions(t *testing.T) {
 // -race to be meaningful; the token provider is invoked on every HTTP request
 // and can run concurrently across goroutines.
 func TestTokenProviderWithTime_ConcurrentCalls(t *testing.T) {
-	// A zero interval reloads on every call, maximizing writes to the
-	// fallback token and thus the chance of catching an unsynchronized access.
+	// Every call writes the fallback token from the returned closure, so many
+	// concurrent callers maximize the chance of catching an unsynchronized
+	// access. The reload interval is irrelevant here (the file never changes).
 	currentTime := time.Unix(0, 0)
 	timeFn := func() time.Time { return currentTime }
 	tokenFile := createTempTokenFile(t, "concurrent-token\n")
