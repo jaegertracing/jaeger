@@ -20,11 +20,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
 
-const (
-	throughputType    = "throughput-sampling"
-	probabilitiesType = "probabilities-sampling"
-)
-
 type SamplingStore struct {
 	client      func() es.Client
 	logger      *zap.Logger
@@ -55,7 +50,7 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := time.Now()
 	indexName := s.rotation.WriteTarget(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
-		s.client().Index().Index(indexName).Type(throughputType).
+		s.client().Index().Index(indexName).
 			BodyJson(&dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
@@ -138,7 +133,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	s.client().Index().Index(indexName).Type(probabilitiesType).
+	s.client().Index().Index(indexName).
 		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,

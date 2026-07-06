@@ -215,12 +215,6 @@ func (i IndexServiceWrapper) Index(index string) es.IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService, i.version)
 }
 
-// Type is a no-op: ES7+ and OpenSearch are typeless, so the mapping type is
-// ignored. It remains for es.IndexService compatibility.
-func (i IndexServiceWrapper) Type(_ string) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.version)
-}
-
 // OpType sets the bulk operation type on the request.
 func (i IndexServiceWrapper) OpType(opType es.WriteOpType) es.IndexService {
 	return WrapESIndexService(i.bulkIndexReq.OpType(string(opType)), i.bulkService, i.version)

@@ -148,17 +148,15 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexServicePut := &mocks.IndexService{}
 				indexSpanPut := &mocks.IndexService{}
 
-				indexService.On("Index", stringMatcher(spanIndexName)).Return(indexService)
-				indexService.On("Index", stringMatcher(serviceIndexName)).Return(indexService)
-
-				indexService.On("Type", stringMatcher(serviceType)).Return(indexServicePut)
-				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
+				// The span and service writes now fork on the index name (the _type
+				// fork point is gone), routing to per-document mocks.
+				indexService.On("Index", stringMatcher(spanIndexName)).Return(indexSpanPut)
+				indexService.On("Index", stringMatcher(serviceIndexName)).Return(indexServicePut)
 
 				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 
-				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
 				indexSpanPut.On("OpType", es.WriteOpIndex).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Add")
@@ -203,7 +201,6 @@ func TestWriteSpanInternal(t *testing.T) {
 
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 		indexService.On("OpType", es.WriteOpIndex).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
@@ -224,7 +221,6 @@ func TestWriteSpanInternalError(t *testing.T) {
 
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 		indexService.On("OpType", es.WriteOpIndex).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
@@ -257,7 +253,6 @@ func TestWriteSpanToIndex_DataStreamOpType(t *testing.T) {
 
 	indexService := &mocks.IndexService{}
 	indexService.On("Index", stringMatcher("jaeger.spans")).Return(indexService)
-	indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 	indexService.On("OpType", es.WriteOpCreate).Return(indexService)
 	indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 	indexService.On("Add")
@@ -294,7 +289,6 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 
 	indexService := &mocks.IndexService{}
 	indexService.On("Index", stringMatcher("jaeger.spans")).Return(indexService)
-	indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 	indexService.On("OpType", es.WriteOpCreate).Return(indexService)
 	indexService.On("BodyJson", mock.Anything).Return(indexService)
 	indexService.On("Add")
@@ -361,7 +355,6 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 			indexService := &mocks.IndexService{}
 
 			indexService.On("Index", stringMatcher(serviceIndexName)).Return(indexService)
-			indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 			indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 			indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 			indexService.On("Add")

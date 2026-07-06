@@ -147,7 +147,6 @@ func TestInsertThroughput(t *testing.T) {
 			writeService := &mocks.IndexService{}
 			w.client.On("Index").Return(writeService)
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything)
 			err := w.storage.InsertThroughput(throughputs)
@@ -181,7 +180,6 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 			writeService := &mocks.IndexService{}
 			w.client.On("Index").Return(writeService)
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything)
 			err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)

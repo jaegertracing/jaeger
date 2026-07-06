@@ -35,7 +35,6 @@ func TestWriteService(t *testing.T) {
 		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
@@ -70,7 +69,6 @@ func TestWriteServiceError(*testing.T) {
 		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")

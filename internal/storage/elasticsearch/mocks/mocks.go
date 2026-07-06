@@ -1231,59 +1231,6 @@ func (_c *IndexService_OpType_Call) RunAndReturn(run func(opType elasticsearch.W
 	return _c
 }
 
-// Type provides a mock function for the type IndexService
-func (_mock *IndexService) Type(typ string) elasticsearch.IndexService {
-	ret := _mock.Called(typ)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Type")
-	}
-
-	var r0 elasticsearch.IndexService
-	if returnFunc, ok := ret.Get(0).(func(string) elasticsearch.IndexService); ok {
-		r0 = returnFunc(typ)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(elasticsearch.IndexService)
-		}
-	}
-	return r0
-}
-
-// IndexService_Type_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Type'
-type IndexService_Type_Call struct {
-	*mock.Call
-}
-
-// Type is a helper method to define mock.On call
-//   - typ string
-func (_e *IndexService_Expecter) Type(typ interface{}) *IndexService_Type_Call {
-	return &IndexService_Type_Call{Call: _e.mock.On("Type", typ)}
-}
-
-func (_c *IndexService_Type_Call) Run(run func(typ string)) *IndexService_Type_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
-		if args[0] != nil {
-			arg0 = args[0].(string)
-		}
-		run(
-			arg0,
-		)
-	})
-	return _c
-}
-
-func (_c *IndexService_Type_Call) Return(indexService elasticsearch.IndexService) *IndexService_Type_Call {
-	_c.Call.Return(indexService)
-	return _c
-}
-
-func (_c *IndexService_Type_Call) RunAndReturn(run func(typ string) elasticsearch.IndexService) *IndexService_Type_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // NewSearchService creates a new instance of SearchService. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewSearchService(t interface {

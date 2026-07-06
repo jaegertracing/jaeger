@@ -88,7 +88,6 @@ func TestWriteDependencies(t *testing.T) {
 			r.client.On("GetVersion").Return(testCase.esVersion)
 
 			writeService.On("Index", stringMatcher(expectedIndex)).Return(writeService)
-			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
 			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
