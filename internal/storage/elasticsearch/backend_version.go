@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -37,6 +38,13 @@ var AllVersions = []BackendVersion{
 	OpenSearch1,
 	OpenSearch2,
 	OpenSearch3,
+}
+
+// IsSupportedVersion reports whether v is a version number Jaeger accepts as an
+// explicit config.Version override. 0 (auto-detect) is not itself a version and
+// returns false; callers treat 0 specially.
+func IsSupportedVersion(v uint) bool {
+	return slices.Contains(AllVersions, BackendVersion(v))
 }
 
 func (v BackendVersion) String() string {
