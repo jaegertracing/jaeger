@@ -31,7 +31,7 @@ The v2 writer interface is explicit ([`internal/storage/v2/api/tracestore/writer
 WriteTraces(ctx context.Context, td ptrace.Traces) error
 ```
 
-The ES implementation does not honor it. `TraceWriter.WriteTraces` converts the batch and, per span, calls the fire-and-forget `SpanWriter.WriteSpan`, then unconditionally returns `nil` ([`internal/storage/v2/elasticsearch/tracestore/writer.go:27`](../../internal/storage/v2/elasticsearch/tracestore/writer.go)):
+The ES implementation does not honor it. `TraceWriter.WriteTraces` converts the batch and, per span, calls the fire-and-forget `SpanWriter.WriteSpan`, then unconditionally returns `nil` ([`internal/storage/v2/elasticsearch/tracestore/writer.go`](../../internal/storage/v2/elasticsearch/tracestore/writer.go)):
 
 ```go
 func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
@@ -44,7 +44,7 @@ func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 }
 ```
 
-`WriteSpan` ultimately calls `client.Index()…BodyJson(&jsonSpan).Add()` ([`core/writer.go:134`](../../internal/storage/v2/elasticsearch/tracestore/core/writer.go)). `Add()` merely **enqueues** into the shared `elastic.BulkProcessor` ([`wrapper/wrapper.go:235`](../../internal/storage/elasticsearch/wrapper/wrapper.go)) and returns. The buffer flushes later on its own triggers, and bulk failures surface only in the processor's `After` callback ([`clientbuilder/builder.go`](../../internal/storage/elasticsearch/clientbuilder/builder.go)), which logs and updates metrics but **cannot influence the already-returned `WriteTraces`**.
+`WriteSpan` ultimately calls `client.Index()…BodyJson(&jsonSpan).Add()` ([`core/writer.go`](../../internal/storage/v2/elasticsearch/tracestore/core/writer.go)). `Add()` merely **enqueues** into the shared `elastic.BulkProcessor` ([`wrapper/wrapper.go`](../../internal/storage/elasticsearch/wrapper/wrapper.go)) and returns. The buffer flushes later on its own triggers, and bulk failures surface only in the processor's `After` callback ([`clientbuilder/builder.go`](../../internal/storage/elasticsearch/clientbuilder/builder.go)), which logs and updates metrics but **cannot influence the already-returned `WriteTraces`**.
 
 Cassandra and ClickHouse v2 writers honor the same contract synchronously (they `errors.Join` per-span failures / return `Append`/`Send` errors). **ES is the outlier.**
 
@@ -108,7 +108,7 @@ So the ClickHouse option is off the table for ES/OS. The equivalent has to be bu
 
 ### 2.4 The current async knobs
 
-The `BulkProcessor` is configured from `bulk_processing` ([`config.go:254`](../../internal/storage/elasticsearch/config/config.go)); Jaeger defaults: `max_bytes` 5 MB, `max_actions` 1000, `flush_interval` 200 ms, `workers` 1. These shape *client-side* flushes. Note the processor has no hard pre-flush byte ceiling, which is the root of the unbounded-memory / `413 Request Entity Too Large` bug [#2192](https://github.com/jaegertracing/jaeger/issues/2192) — a size-bounded indexer is already planned in [RFC 0006](./0006-unified-elasticsearch-client.md).
+The `BulkProcessor` is configured from `bulk_processing` ([`config.go`](../../internal/storage/elasticsearch/config/config.go)); Jaeger defaults: `max_bytes` 5 MB, `max_actions` 1000, `flush_interval` 200 ms, `workers` 1. These shape *client-side* flushes. Note the processor has no hard pre-flush byte ceiling, which is the root of the unbounded-memory / `413 Request Entity Too Large` bug [#2192](https://github.com/jaegertracing/jaeger/issues/2192) — a size-bounded indexer is already planned in [RFC 0006](./0006-unified-elasticsearch-client.md).
 
 ---
 
