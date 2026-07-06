@@ -335,6 +335,32 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
 }
 
+// TestESStorageFactoryClosesOnTemplateError drives NewFactoryBase past client
+// construction and fails at template creation, exercising the error return and
+// the deferred cleanup that closes the already-built client and bulk indexer.
+func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut { // template creation fails
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse) // version ping succeeds
+	}))
+	defer server.Close()
+	cfg := escfg.Configuration{
+		Servers:              []string{server.URL},
+		CreateIndexTemplates: true,
+		DisableHealthCheck:   true,
+		LogLevel:             "error",
+		Indices: escfg.Indices{
+			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
+			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
+		},
+	}
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	require.Error(t, err)
+}
+
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &FactoryBase{}
 	assert.Nil(t, f.getClient())
