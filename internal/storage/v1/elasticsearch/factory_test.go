@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
@@ -359,6 +360,35 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.Error(t, err)
+}
+
+func withLegacyClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error)) factoryOption {
+	return func(f *FactoryBase) { f.newLegacyClientFn = fn }
+}
+
+func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error)) factoryOption {
+	return func(f *FactoryBase) { f.newESClientFn = fn }
+}
+
+// TestNewFactoryBaseDataClientError injects a failing esclient constructor (the
+// legacy client succeeds) to exercise the data-client error path and verify the
+// deferred cleanup closes the already-built legacy client.
+func TestNewFactoryBaseDataClientError(t *testing.T) {
+	legacyClient := &mocks.Client{}
+	legacyClient.On("Close").Return(nil)
+	_, err := NewFactoryBase(
+		context.Background(),
+		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
+		metrics.NullFactory, zap.NewNop(), nil,
+		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
+			return legacyClient, nil
+		}),
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
+			return esclient.Client{}, errors.New("data client boom")
+		}),
+	)
+	require.ErrorContains(t, err, "data client")
+	legacyClient.AssertCalled(t, "Close") // deferred cleanup closed the legacy client
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {

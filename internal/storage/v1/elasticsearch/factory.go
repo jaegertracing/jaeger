@@ -61,18 +61,27 @@ type FactoryBase struct {
 	tags []string
 }
 
+// factoryOption overrides a factory field before construction proceeds. It lets
+// tests inject failing/fake client constructors through the newLegacyClientFn /
+// newESClientFn seams to exercise the construction error paths.
+type factoryOption func(*FactoryBase)
+
 func NewFactoryBase(
 	ctx context.Context,
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	httpAuth extensionauth.HTTPClient,
+	opts ...factoryOption,
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
 		config:            &cfg,
 		newLegacyClientFn: clientbuilder.NewClient,
 		newESClientFn:     esclient.NewClient,
 		tracer:            otel.GetTracerProvider(),
+	}
+	for _, opt := range opts {
+		opt(f)
 	}
 	// If construction fails partway, close whatever was already created (the
 	// legacy client and the bulk indexer's workers). Close is nil-safe.
