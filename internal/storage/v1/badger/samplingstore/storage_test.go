@@ -31,6 +31,15 @@ func TestInsertThroughput(t *testing.T) {
 	})
 }
 
+func TestInsertThroughputError(t *testing.T) {
+	store := newClosedSamplingStore(t)
+	throughputs := []*samplemodel.Throughput{
+		{Service: "my-svc", Operation: "op"},
+	}
+	err := store.InsertThroughput(throughputs)
+	require.ErrorIs(t, err, badger.ErrDBClosed)
+}
+
 func TestGetThroughput(t *testing.T) {
 	runWithBadger(t, func(t *testing.T, store *SamplingStore) {
 		start := time.Now()
@@ -56,6 +65,16 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 		)
 		require.NoError(t, err)
 	})
+}
+
+func TestInsertProbabilitiesAndQPSError(t *testing.T) {
+	store := newClosedSamplingStore(t)
+	err := store.InsertProbabilitiesAndQPS(
+		"dell11eg843d",
+		samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+		samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+	)
+	require.ErrorIs(t, err, badger.ErrDBClosed)
 }
 
 func TestGetLatestProbabilities(t *testing.T) {
@@ -128,6 +147,21 @@ func runWithBadger(t *testing.T, test func(t *testing.T, store *SamplingStore)) 
 	}()
 	ss := newTestSamplingStore(store)
 	test(t, ss)
+}
+
+// newClosedSamplingStore returns a SamplingStore backed by a closed Badger DB so
+// that any write transaction fails with badger.ErrDBClosed.
+func newClosedSamplingStore(t *testing.T) *SamplingStore {
+	opts := badger.DefaultOptions("")
+	opts.SyncWrites = false
+	dir := t.TempDir()
+	opts.Dir = dir
+	opts.ValueDir = dir
+
+	db, err := badger.Open(opts)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+	return newTestSamplingStore(db)
 }
 
 func TestMain(m *testing.M) {
