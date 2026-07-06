@@ -105,9 +105,8 @@ func TestRolloverAction(t *testing.T) {
 		expectedErr           error
 	}{
 		{
-			name:                  "Unsupported version",
-			version:               es.ElasticV6,
-			setupCallExpectations: func(_ *mocks.IndexAPI, _ *mocks.IndexManagementLifecycleAPI) {},
+			name:    "Unsupported version",
+			version: es.ElasticV6,
 			config: Config{
 				Config: app.Config{
 					Archive: true,
@@ -264,7 +263,9 @@ func TestRolloverAction(t *testing.T) {
 				ILMClient:     ilmClient,
 			}
 
-			test.setupCallExpectations(indexClient, ilmClient)
+			if test.setupCallExpectations != nil {
+				test.setupCallExpectations(indexClient, ilmClient)
+			}
 
 			err := initAction.Do()
 			if test.expectedErr != nil {
