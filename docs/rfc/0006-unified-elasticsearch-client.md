@@ -203,14 +203,16 @@ Note K8 is deliberately included as the axis where the recommended option scores
 
 The matrix's K1/K2 rows summarize this per-version reachability table:
 
+🟢 reachable · 🟡 reachable with caveats · 🔴 not reachable
+
 | Approach | ES 6 | ES 7 | ES 8 | ES 9 | OS 1 | OS 2 | OS 3 | One binary? |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Baseline (`olivere`) | ✔ | ✔ | ✔¹ | ✔¹ | ✔ | ✔ | ✔ | ✔ |
-| **A: owned client** | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ |
-| B: two SDKs | ⚠⁴ | ✔² | ✔ | ✔ | ✔ | ✔ | ✔ | ✔ (2+ deps) |
-| C1: go-es forged | ✘ | ✔³ | ✔ | ✔ | ⚠ forge | ⚠ forge | ⚠ forge | ✔ |
-| C2: opensearch-go | ✘ | ✔ (OSS 7.10) | ✘ | ✘ | ✔ | ✔ | ✔ | ✔ |
-| Typed go-es as-is | ✘ | ✘ (v9) | v8 only | ✔ | ✘ | ✘ | ✘ | ✘ |
+| Baseline (`olivere`) | 🟢 | 🟢 | 🟢¹ | 🟢¹ | 🟢 | 🟢 | 🟢 | 🟢 |
+| **A: owned client** | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 |
+| B: two SDKs | 🟡⁴ | 🟢² | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 (2+ deps) |
+| C1: go-es forged | 🔴 | 🟢³ | 🟢 | 🟢 | 🟡 forge | 🟡 forge | 🟡 forge | 🟢 |
+| C2: opensearch-go | 🔴 | 🟢 (OSS 7.10) | 🔴 | 🔴 | 🟢 | 🟢 | 🟢 | 🟢 |
+| Typed go-es as-is | 🔴 | 🔴 (v9) | 🟡 v8 only | 🟢 | 🔴 | 🔴 | 🔴 | 🔴 |
 
 ¹ `olivere` reaches ES 8/9 for the REST subset Jaeger uses because it doesn't gate on version; the one composable-template gap is why `go-elasticsearch/v9` was bolted on. ² needs `go-elasticsearch/v7` too. ³ requires stripping the compat header. ⁴ B would additionally need the EOL `go-elasticsearch/v6` module.
 
@@ -243,9 +245,10 @@ The *payload*-level APIs are **distinct structs composed over that `rawClient`**
 internal/storage/elasticsearch/esclient/   (rename of today's .../client pkg, grown upward — see §6.4)
   transport.go   // rawClient: elastic-transport-go pool (multi-node round-robin, retry, discovery)
                  //            over our GetHTTPRoundTripper (TLS, auth/SigV4, custom_headers). Horizontal only.
-  version.go     // single DetectBackendVersion on rawClient; capability flags (UsesV8API, …, UseISM)
-  data.go        // Data struct{ *rawClient }      — Search, MultiSearch, Bulk
-  admin.go       // Index/Alias/Template/Lifecycle/Cluster struct(s){ *rawClient } — mgmt payloads
+  client.go      // Client{ *rawClient }: request primitive (timeout, JSON, errors); the base the API structs embed
+  version.go     // single DetectBackendVersion resolved once, held on Client; capability flags (UsesV8API, …, UseISM)
+  data.go        // Data struct{ Client }      — Search, MultiSearch, Bulk
+  admin.go       // Index/Alias/Template/Lifecycle/Cluster struct(s){ Client } — mgmt payloads
   api.go         // small role interfaces: Searcher, BulkWriter, IndexManager, AliasManager,
                  //                        TemplateManager, LifecycleManager, ClusterInfo
   bulk.go        // bounded bulk indexer (FlushBytes + workers) — fixes #2192
@@ -300,6 +303,71 @@ Nothing from the product-checked *client* or the typed API — but the **transpo
 **Recommendation:** `esclient` is the former `internal/storage/elasticsearch/client` package **renamed** (M2), not a greenfield package built alongside it. That package is already the right foundation — a raw-HTTP, driver-neutral ES/OS client with a strong `httptest`-based test suite and the small `IndicesClient`/`ClusterClient`/`ILMClient` structs this RFC wants to generalize. We keep its structs and tests and **grow the data-plane surface (`Searcher`, `BulkWriter`) into the same package**, over the shared `rawClient` (§6.1).
 
 This framing matters: `esclient` becomes **the foundation of Jaeger's own ES/OS SDK** — the single place that owns wire format, versioning, auth, and the neutral query DSL — rather than a second client bolted next to the old one. Renaming (not rewriting) also means the migration starts from a green, tested baseline: the control-plane behavior is preserved by construction, and the data plane is added incrementally under the snapshot suite (§7). It also disposes of the old data/control-plane split at the package level, not just the interface level.
+
+### 6.5 The client structs, layered — today and target
+
+The design above (§6.1–6.4) is easier to hold as one picture. Two follow: today's **transitional** shape (Stage A — the admin plane already rides the shared pool, the data plane still runs on `olivere`), and the **target** shape (post Stage B — one shared client).
+
+**Today (Stage A): two stacks meeting at one transport.**
+
+```
+   DATA PLANE  (storage read/write)                 ADMIN PLANE  (es-rollover, es-index-cleaner)
+   spanstore · tracestore · depstore                init · rollover · lookback · index-cleaner
+   samplingstore · metricstore
+        │ depends on                                     │ depends on
+        ▼                                                ▼
+   es.Client  (one fat interface:                   esclient role interfaces:
+   Search, Bulk, CreateTemplate, GetVersion…)       IndexAPI · ClusterAPI · IndexManagementLifecycleAPI
+        │ implemented by                                 │ implemented by
+        ▼                                                ▼
+   ClientWrapper {                                   IndicesClient · ClusterClient · ILMClient
+     olivere/elastic v7  *elastic.Client,             (each embeds esclient.Client)
+     go-elasticsearch v9 *esv8.Client,                     │
+     *elastic.BulkProcessor }                              ▼
+        │ built by clientbuilder.NewClient           esclient.Client { *rawClient, version }
+        │                                                  │
+        │ olivere keeps its OWN round-robin                ▼
+        │ (adopts the pool in Stage B)                rawClient { elastic-transport-go pool:
+        │                                               multi-node round-robin, retry, discovery-off }
+        └────────────────────┬─────────────────────────────┘
+                             ▼
+        shared base transport:  GetHTTPRoundTripper
+        (TLS · basic/bearer/API-key · SigV4 · GetBody fix · custom_headers)
+                             ▼
+                  Elasticsearch / OpenSearch REST
+```
+
+The two implementation stacks are independent above the transport and converge only at `GetHTTPRoundTripper`. The data plane reaches ES/OS through the fat `es.Client` interface implemented by `ClientWrapper` (`olivere` v7 + `go-elasticsearch` v9 + a bulk processor); the admin plane reaches it through small role interfaces implemented by `IndicesClient`/`ClusterClient`/`ILMClient` over the `elastic-transport-go` pool. `olivere` keeps its own round-robin, so it cannot sit on the pool yet (the decisive constraint from §6.1) — the admin plane adopts the pool in M3, the data plane in Stage B.
+
+**Target (post Stage B): one shared client.**
+
+```
+   STORAGE  (Jaeger domain)                          ADMIN  (es-rollover · es-index-cleaner)
+   tracestore · spanstore · depstore                 init · rollover · lookback · index-cleaner
+   samplingstore · metricstore
+        │ builds query AST, decides indices               │
+        ▼ (depends on small role interfaces)              ▼ (depends on small role interfaces)
+   Searcher · BulkWriter        IndexManager · AliasManager · TemplateManager · LifecycleManager · ClusterInfo
+        └───────────────┬─────────────────────────────────────────┬───────────────┘
+                        │   implemented by cohesive API structs (composition, no god object)
+                        ▼                                          ▼
+                 Data{ esclient.Client }                   Admin structs{ esclient.Client }
+                 Search · MultiSearch · Bulk               Index · Alias · Template · Lifecycle · Cluster
+                 owned query AST → wire JSON
+                        └────────────────────┬────────────────────┘
+                                             ▼
+                 esclient.Client{ *rawClient }  — request primitive (timeout · JSON · errors);
+                   holds the resolved backend version + capability gates (UsesV8API · ISM-vs-ILM ·
+                   rest_total_hits_as_int · typed-index), set once at construction, never exposed up
+                                             ▼
+                 rawClient{ elastic-transport-go pool }  — multi-node round-robin · retry · discovery-off
+                                             ▼
+                 GetHTTPRoundTripper  — TLS · basic/bearer/API-key · SigV4 · GetBody fix · custom_headers
+                                             ▼
+                               Elasticsearch / OpenSearch REST
+```
+
+`olivere`, `go-elasticsearch`, `ClientWrapper`, and the fat `es.Client` interface are gone. The `esclient.Client`-over-`rawClient` split stays — `Client` is the request primitive (and holds the resolved version + capability gates), `rawClient` the transport pool — but now one such base underlies *both* a `Data` struct (search/bulk) and the admin structs, all behind small role interfaces, so storage readers and CLIs alike depend only on narrow, Jaeger-vocabulary contracts. Auth/signing, the owned query AST, and — crucially — backend-version resolution and its capability gates all live **below the interface line**: the version is resolved once at construction and never surfaces to a caller (the M4 objective, §8).
 
 ---
 
@@ -405,7 +473,11 @@ The work decomposes into small, independently-shippable milestones — each one 
     - **M3.5a — Relocate the RoundTripper stack. ✅ Done (#8936).** Move `GetHTTPRoundTripper` + `getBodyFix` + `customHeaders` + auth helpers from `clientbuilder` into `esclient` (no cycle, olivere-free); `clientbuilder` calls into `esclient`. Pure move, zero behavior change.
     - **M3.5b — Wire `esclient.NewClient` through the stack. ✅ Done (#8937).** `NewClient` takes a `*config.Configuration` and builds its base via `GetHTTPRoundTripper`, so the admin plane inherits TLS + basic/bearer/API-key/`custom_headers`; `Client.basicAuth`/`setAuthorization` and the `esclient.BasicAuth` helper are removed (auth lives in the stack). The M1 admin snapshots stay byte-identical.
     - **M3.5c — CLI auth config.** Add `--es.token-file` (bearer) and `--es.api-key-file` flags to `es-rollover`/`es-index-cleaner`, mirroring the retired v1 ES flag names, so those CLIs can authenticate to token/API-key-secured clusters. `custom_headers` stays YAML-only (it never had a CLI flag and these binaries have no YAML path); reload-interval and from-context knobs are omitted since the CLIs are one-shot. (Standalone SigV4 for the CLIs is a follow-up — the `sigv4auth` extension is collector-host-only.)
-- **M4 — Unify version detection. ✅ Done (#8938).** A single shared resolver, `es.ResolveBackendVersion(configured, ping)`, is the only place that decides a backend version: it honors an explicit `config.Version` override and otherwise pings once via `DetectBackendVersion`. Both planes route through it — the data-plane `clientbuilder.NewClient` (ping over its olivere client) and the admin-plane `es-rollover` `newESClient` (ping over the shared `esclient` transport). The two client stacks stay separate (Stage B unifies them); only the detection path is unified. The backend version is now an **initialization-time property of the connection**, resolved once and injected into the admin sub-clients at construction (unexported `esclient.Client.version`, set via `WithVersion`), so no admin API method takes a `version` argument and no caller branches on the backend flavor. The `es-rollover` `init` action no longer detects the version at runtime or mutates `ILMClient.UseOpenSearchISM` through a `*esclient.ILMClient` type assertion; the ILM-vs-ISM endpoint choice lives inside the version-aware `ILMClient`, and `CreateTemplate`/`Exists` read the injected version instead of re-pinging per call. *Exit met:* exactly one version-detection path remains.
+- **M4 — Encapsulate the backend version.** Resolve the version once — an explicit `config.Version` override, else a single ping through one shared `es.ResolveBackendVersion` — and inject it into the client at construction. From there it is **fully encapsulated**: no business-logic-facing surface exposes or accepts a `BackendVersion`. Version-dependent choices (`_template` vs `_index_template`, ILM vs ISM, `rest_total_hits_as_int`, typed-index suppression) live *inside* the client/domain APIs; callers invoke them in Jaeger terms (§6.5, "below the interface line"). *Exit:* (1) exactly one version-resolution path; (2) **no `Version()` accessor, no `Version` field, and no `BackendVersion` parameter on any caller/orchestrator** (e.g. `es-rollover`'s `init.Action`) — the CLIs say "create the templates" / "ensure the policy" without ever holding a version; (3) the `UseOpenSearchISM` type-assertion in `cmd/es-rollover/app/init/action.go` is gone, the ISM-vs-ILM choice living inside a version-aware `ILMClient`. *(The "one detection path" framing alone was too weak — it's satisfied by relocating the leak; the real bar is non-exposure.)*
+
+  Delivered incrementally:
+  - **M4a — Version resolution + admin encapsulation (callback).** Land the shared `es.ResolveBackendVersion` resolver (both planes route through it, honoring `config.Version`); inject the resolved version into `esclient.Client` at construction (unexported `version`); and make `IndicesClient.CreateTemplate` take a version-receiving render callback so the `es-rollover` `init` action stops holding a `Version`/`getMapping(version)`, and the `Version()` accessor and `init.Action.Version` are removed. The callback is a **transitionary** encapsulation: the caller no longer stores or branches on the version, but the mapping is still rendered by the app-layer `mappings` package (invoked with the client's own version). This meets exit-(1), exit-(3), and exit-(2) for the admin plane.
+  - **M4b — `esclient` owns index templates.** Collapse the per-version `jaeger-*-{6,7,8}.json` files — whose *only* differences are wire-envelope gates (`template` vs `index_patterns`, the ES8 composable wrapper, ES6 mapping-type cruft), not the field schema — into a single neutral template representation owned by `esclient`, rendered to the per-version envelope internally. `CreateTemplate` then takes pure Jaeger intent (mapping type), retiring the callback — fully symmetric with the query AST. This closes exit-(2) on the data plane too (retiring `es.Client.GetVersion` consumption in `factory`/`mappings`), and naturally lands with Stage B.
 
 **Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
 
