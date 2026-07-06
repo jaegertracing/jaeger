@@ -17,6 +17,36 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
+// Client executes requests against Elasticsearch/OpenSearch using direct HTTP
+// calls (no official Go client) over the shared transport pool.
+type Client struct {
+	transport *rawClient
+	timeout   time.Duration
+}
+
+// NewClient builds a Client that sends requests across c.Servers through the shared
+// transport pool. Its base RoundTripper is the full stack from GetHTTPRoundTripper
+// (TLS, basic/bearer/API-key, custom headers, and — when httpAuth is non-nil —
+// SigV4), so every request carries the configured auth and headers.
+// c.QueryTimeout bounds each request (0 means no bound).
+func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (Client, error) {
+	base, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
+	if err != nil {
+		return Client{}, err
+	}
+	transport, err := newRawClient(c.Servers, base)
+	if err != nil {
+		return Client{}, err
+	}
+	return Client{transport: transport, timeout: c.QueryTimeout}, nil
+}
+
+type elasticRequest struct {
+	endpoint string
+	body     []byte
+	method   string
+}
+
 // ResponseError holds information about a request error
 type ResponseError struct {
 	// Error returned by the http client
@@ -46,36 +76,6 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 		StatusCode: code,
 		Body:       body,
 	}
-}
-
-// Client executes requests against Elasticsearch/OpenSearch using direct HTTP
-// calls (no official Go client) over the shared transport pool.
-type Client struct {
-	transport *rawClient
-	timeout   time.Duration
-}
-
-// NewClient builds a Client that sends requests across c.Servers through the shared
-// transport pool. Its base RoundTripper is the full stack from GetHTTPRoundTripper
-// (TLS, basic/bearer/API-key, custom headers, and — when httpAuth is non-nil —
-// SigV4), so every request carries the configured auth and headers.
-// c.QueryTimeout bounds each request (0 means no bound).
-func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (Client, error) {
-	base, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
-	if err != nil {
-		return Client{}, err
-	}
-	transport, err := newRawClient(c.Servers, base)
-	if err != nil {
-		return Client{}, err
-	}
-	return Client{transport: transport, timeout: c.QueryTimeout}, nil
-}
-
-type elasticRequest struct {
-	endpoint string
-	body     []byte
-	method   string
 }
 
 func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
@@ -111,7 +111,7 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 	return body, nil
 }
 
-func (*Client) handleFailedRequest(res *http.Response) error {
+func (*Client) handleFailedRequest(res *http.Response) ResponseError {
 	if res.Body != nil {
 		bodyBytes, err := io.ReadAll(res.Body)
 		if err != nil {
