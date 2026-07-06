@@ -21,7 +21,7 @@ import (
 type BulkItem struct {
 	Index  string         // target index, alias, or data stream
 	ID     string         // optional document _id (empty ⇒ server-generated)
-	OpType es.WriteOpType // "index" (default) or "create"
+	OpType es.WriteOpType // "index" (default) or "create", depending on rotation strategy
 	Body   any            // JSON-serializable source document
 }
 
