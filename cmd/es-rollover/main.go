@@ -57,7 +57,6 @@ func main() {
 					IndicesClient: indicesClient,
 					ILMClient:     ilmClient,
 					Config:        *initCfg,
-					Version:       c.Version(),
 				}
 			})
 		},

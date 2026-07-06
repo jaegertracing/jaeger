@@ -225,16 +225,16 @@ func (_c *IndexAPI_CreateIndex_Call) RunAndReturn(run func(ctx context.Context, 
 }
 
 // CreateTemplate provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) CreateTemplate(ctx context.Context, template string, name string) error {
-	ret := _mock.Called(ctx, template, name)
+func (_mock *IndexAPI) CreateTemplate(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error)) error {
+	ret := _mock.Called(ctx, name, render)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTemplate")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
-		r0 = returnFunc(ctx, template, name)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, func(elasticsearch.BackendVersion) (string, error)) error); ok {
+		r0 = returnFunc(ctx, name, render)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -248,13 +248,13 @@ type IndexAPI_CreateTemplate_Call struct {
 
 // CreateTemplate is a helper method to define mock.On call
 //   - ctx context.Context
-//   - template string
 //   - name string
-func (_e *IndexAPI_Expecter) CreateTemplate(ctx interface{}, template interface{}, name interface{}) *IndexAPI_CreateTemplate_Call {
-	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, template, name)}
+//   - render func(elasticsearch.BackendVersion) (string, error)
+func (_e *IndexAPI_Expecter) CreateTemplate(ctx interface{}, name interface{}, render interface{}) *IndexAPI_CreateTemplate_Call {
+	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, name, render)}
 }
 
-func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, template string, name string)) *IndexAPI_CreateTemplate_Call {
+func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error))) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -264,9 +264,9 @@ func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, templa
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 string
+		var arg2 func(elasticsearch.BackendVersion) (string, error)
 		if args[2] != nil {
-			arg2 = args[2].(string)
+			arg2 = args[2].(func(elasticsearch.BackendVersion) (string, error))
 		}
 		run(
 			arg0,
@@ -282,7 +282,7 @@ func (_c *IndexAPI_CreateTemplate_Call) Return(err error) *IndexAPI_CreateTempla
 	return _c
 }
 
-func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, template string, name string) error) *IndexAPI_CreateTemplate_Call {
+func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error)) error) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -780,6 +780,50 @@ func (_c *IndexManagementLifecycleAPI_Exists_Call) Return(b bool, err error) *In
 }
 
 func (_c *IndexManagementLifecycleAPI_Exists_Call) RunAndReturn(run func(ctx context.Context, name string) (bool, error)) *IndexManagementLifecycleAPI_Exists_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SupportsILM provides a mock function for the type IndexManagementLifecycleAPI
+func (_mock *IndexManagementLifecycleAPI) SupportsILM() bool {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for SupportsILM")
+	}
+
+	var r0 bool
+	if returnFunc, ok := ret.Get(0).(func() bool); ok {
+		r0 = returnFunc()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	return r0
+}
+
+// IndexManagementLifecycleAPI_SupportsILM_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SupportsILM'
+type IndexManagementLifecycleAPI_SupportsILM_Call struct {
+	*mock.Call
+}
+
+// SupportsILM is a helper method to define mock.On call
+func (_e *IndexManagementLifecycleAPI_Expecter) SupportsILM() *IndexManagementLifecycleAPI_SupportsILM_Call {
+	return &IndexManagementLifecycleAPI_SupportsILM_Call{Call: _e.mock.On("SupportsILM")}
+}
+
+func (_c *IndexManagementLifecycleAPI_SupportsILM_Call) Run(run func()) *IndexManagementLifecycleAPI_SupportsILM_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *IndexManagementLifecycleAPI_SupportsILM_Call) Return(b bool) *IndexManagementLifecycleAPI_SupportsILM_Call {
+	_c.Call.Return(b)
+	return _c
+}
+
+func (_c *IndexManagementLifecycleAPI_SupportsILM_Call) RunAndReturn(run func() bool) *IndexManagementLifecycleAPI_SupportsILM_Call {
 	_c.Call.Return(run)
 	return _c
 }

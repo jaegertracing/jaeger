@@ -617,7 +617,9 @@ func TestClientCreateTemplate(t *testing.T) {
 			c := &IndicesClient{
 				Client: client,
 			}
-			err := c.CreateTemplate(context.Background(), templateContent, templateName)
+			err := c.CreateTemplate(context.Background(), templateName, func(es.BackendVersion) (string, error) {
+				return templateContent, nil
+			})
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 			} else {
@@ -770,7 +772,9 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 		rec, url := okServer(t)
 		client := makeClient(t, url, "", "").WithVersion(version)
 		c := IndicesClient{Client: client}
-		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
+		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
+			return template, nil
+		}))
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/create_template", content)

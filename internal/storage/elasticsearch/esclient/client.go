@@ -27,8 +27,8 @@ type Client struct {
 	// version is the backend version (Elasticsearch/OpenSearch), resolved once
 	// during setup and injected via WithVersion. Sub-clients read it to pick
 	// flavor-dependent endpoints (CreateTemplate, ILM vs ISM) without re-probing
-	// the backend per call. It is unexported so callers cannot mutate it after
-	// construction; out-of-package readers use the Version accessor.
+	// the backend per call. It is unexported and has no accessor, so it stays
+	// encapsulated — business logic never sees a BackendVersion.
 	version es.BackendVersion
 }
 
@@ -87,16 +87,12 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 }
 
 // WithVersion returns a copy of the client with the resolved backend version
-// set. The version is fixed at construction of the working sub-clients and is
-// never mutated afterward.
+// set once at construction. The version stays encapsulated — sub-clients read
+// it internally to pick flavor-dependent endpoints; it is never exposed to
+// callers via an accessor.
 func (c Client) WithVersion(v es.BackendVersion) Client {
 	c.version = v
 	return c
-}
-
-// Version returns the backend version the client was constructed with.
-func (c Client) Version() es.BackendVersion {
-	return c.version
 }
 
 func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
