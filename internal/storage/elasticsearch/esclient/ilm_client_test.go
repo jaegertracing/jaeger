@@ -159,6 +159,12 @@ func TestLifecycleExistsUnresolvedVersion(t *testing.T) {
 	require.ErrorContains(t, err, "backend version was not resolved")
 }
 
+func TestILMClientSupportsILM(t *testing.T) {
+	url := "http://localhost:9200"
+	assert.False(t, ILMClient{Client: makeClient(t, url, "", "").WithVersion(es.ElasticV6)}.SupportsILM())
+	assert.True(t, ILMClient{Client: makeClient(t, url, "", "").WithVersion(es.ElasticV7)}.SupportsILM())
+}
+
 // TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
 // policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
 func TestLifecycleExistsRequestSnapshot(t *testing.T) {
