@@ -18,6 +18,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
@@ -39,6 +40,9 @@ type FactoryBase struct {
 	config *config.Configuration
 
 	client es.Client
+	// searcher is the esclient data-plane search client (RFC 0006 M5), used by
+	// the migrated service/operation read path over the shared transport pool.
+	searcher esclient.Searcher
 
 	templateBuilder es.TemplateBuilder
 
@@ -73,6 +77,14 @@ func NewFactoryBase(
 	}
 	f.client = client
 
+	// The migrated service/operation read path (RFC 0006 M5) runs over the
+	// esclient transport pool; other paths still use the olivere client above.
+	searchClient, err := esclient.NewClient(ctx, f.config, logger, httpAuth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Elasticsearch search client: %w", err)
+	}
+	f.searcher = esclient.SearchClient{Client: searchClient}
+
 	err = f.createTemplates(ctx)
 	if err != nil {
 		return nil, err
@@ -100,6 +112,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	}
 	return esspanstore.SpanReaderParams{
 		Client:            f.getClient,
+		Searcher:          f.searcher,
 		MaxDocCount:       f.config.MaxDocCount,
 		MaxSpanAge:        maxSpanAge,
 		MaxTraceDuration:  f.config.MaxTraceDuration,
