@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -67,19 +66,25 @@ func TokenProviderWithTime(path string, interval time.Duration, logger *zap.Logg
 	// currentToken is the last successfully loaded token, held so it can be
 	// returned as a fallback if a later reload fails. The returned closure is
 	// invoked by the auth RoundTripper on every HTTP request and may run
-	// concurrently, so access is synchronized via atomic.Pointer.
-	var currentToken atomic.Pointer[string]
-	currentToken.Store(&token)
+	// concurrently, so access is guarded by mu. A mutex (rather than an
+	// atomic.Pointer/atomic.Value) keeps this hot path allocation-free.
+	var (
+		mu           sync.Mutex
+		currentToken = token
+	)
 
 	return func() string {
 		newToken, err := loader()
+
+		mu.Lock()
+		defer mu.Unlock()
 		if err != nil {
 			logger.Warn("Token reload failed", zap.Error(err))
-			return *currentToken.Load()
+			return currentToken
 		}
 
 		// save it in case the load fails later (e.g. if file is removed)
-		currentToken.Store(&newToken)
-		return newToken
+		currentToken = newToken
+		return currentToken
 	}, nil
 }
