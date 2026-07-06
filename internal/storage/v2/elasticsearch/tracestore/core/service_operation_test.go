@@ -123,6 +123,10 @@ func TestSpanReader_GetServices(t *testing.T) {
 			respErr: errors.New("Search failure"),
 			errMsg:  "search services failed: Search failure",
 		},
+		{
+			name:   "nil response",
+			errMsg: "nil search response",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -164,6 +168,10 @@ func TestSpanReader_GetOperations(t *testing.T) {
 			respErr: errors.New("Search failure"),
 			errMsg:  "search operations failed: Search failure",
 		},
+		{
+			name:   "nil response",
+			errMsg: "nil search response",
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -183,6 +191,20 @@ func TestSpanReader_GetOperations(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestServiceOperationStorage_ReadWithoutSearcher verifies the read methods
+// fail clearly (not with a nil-pointer panic) when the storage was built for
+// write-only use, i.e. with a nil searcher.
+func TestServiceOperationStorage_ReadWithoutSearcher(t *testing.T) {
+	client := &mocks.Client{}
+	s := NewServiceOperationStorage(func() es.Client { return client }, nil, zap.NewNop(), 0)
+
+	_, err := s.getServices(context.Background(), []string{"idx"}, 10)
+	require.ErrorIs(t, err, errNoSearcher)
+
+	_, err = s.getOperations(context.Background(), []string{"idx"}, "svc", 10)
+	require.ErrorIs(t, err, errNoSearcher)
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {

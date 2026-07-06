@@ -28,6 +28,12 @@ const (
 	servicesAggregation   = "distinct_services"
 )
 
+// errNoSearcher is returned by the read methods (getServices/getOperations) when
+// the storage was constructed without a searcher — the write-only case described
+// on NewServiceOperationStorage. It turns that misconfiguration into a clear
+// error rather than a nil-pointer panic.
+var errNoSearcher = errors.New("service/operation reads require a searcher, but this storage was constructed for write-only use")
+
 // ServiceOperationStorage stores service to operation pairs.
 type ServiceOperationStorage struct {
 	client       func() es.Client
@@ -74,6 +80,9 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 }
 
 func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []string, maxDocCount int) ([]string, error) {
+	if s.searcher == nil {
+		return nil, errNoSearcher
+	}
 	resp, err := s.searcher.Search(ctx, indices, esclient.SearchRequest{
 		Size: 0, // aggregation only; we don't want the documents themselves
 		Aggregations: map[string]query.Aggregation{
@@ -89,6 +98,9 @@ func (s *ServiceOperationStorage) getServices(ctx context.Context, indices []str
 }
 
 func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []string, service string, maxDocCount int) ([]string, error) {
+	if s.searcher == nil {
+		return nil, errNoSearcher
+	}
 	resp, err := s.searcher.Search(ctx, indices, esclient.SearchRequest{
 		Size:  0,
 		Query: query.NewTermQuery(serviceName, service),
@@ -106,6 +118,9 @@ func (s *ServiceOperationStorage) getOperations(ctx context.Context, indices []s
 // response with no aggregations yields an empty slice; a response missing the
 // requested aggregation is an error.
 func aggregationKeys(resp *esclient.SearchResponse, name string) ([]string, error) {
+	if resp == nil {
+		return nil, errors.New("nil search response")
+	}
 	if resp.Aggregations == nil {
 		return []string{}, nil
 	}
