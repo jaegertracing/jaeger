@@ -18,6 +18,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
@@ -35,10 +36,17 @@ type FactoryBase struct {
 	tracer         trace.TracerProvider
 
 	newClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error)
+	// newSearcherFn constructs the esclient data-plane search client. It is a seam
+	// mirroring newClientFn so tests can inject a searcher that doesn't probe a
+	// live cluster (esclient.NewClient issues a GET / at construction).
+	newSearcherFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Searcher, error)
 
 	config *config.Configuration
 
 	client es.Client
+	// searcher is the esclient data-plane search client (RFC 0006 M5), used by
+	// the migrated service/operation read path over the shared transport pool.
+	searcher esclient.Searcher
 
 	templateBuilder es.TemplateBuilder
 
@@ -55,7 +63,11 @@ func NewFactoryBase(
 	f := &FactoryBase{
 		config:      &cfg,
 		newClientFn: clientbuilder.NewClient,
-		tracer:      otel.GetTracerProvider(),
+		newSearcherFn: func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Searcher, error) {
+			client, err := esclient.NewClient(ctx, c, logger, httpAuth)
+			return esclient.SearchClient{Client: client}, err
+		},
+		tracer: otel.GetTracerProvider(),
 	}
 	f.metricsFactory = metricsFactory
 	f.logger = logger
@@ -72,6 +84,14 @@ func NewFactoryBase(
 		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
 	}
 	f.client = client
+
+	// The migrated service/operation read path (RFC 0006 M5) runs over the
+	// esclient transport pool; other paths still use the olivere client above.
+	searcher, err := f.newSearcherFn(ctx, f.config, logger, httpAuth)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Elasticsearch search client: %w", err)
+	}
+	f.searcher = searcher
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -100,6 +120,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	}
 	return esspanstore.SpanReaderParams{
 		Client:            f.getClient,
+		Searcher:          f.searcher,
 		MaxDocCount:       f.config.MaxDocCount,
 		MaxSpanAge:        maxSpanAge,
 		MaxTraceDuration:  f.config.MaxTraceDuration,
