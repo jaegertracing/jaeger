@@ -56,7 +56,7 @@ func TestExists(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "user", "pass").WithVersion(es.ElasticV7)
+			client := makeClient(t, testServer.URL, "user", "pass", es.ElasticV7)
 			c := &ILMClient{
 				Client: client,
 				Logger: zap.NewNop(),
@@ -107,7 +107,7 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "", "").WithVersion(es.OpenSearch2)
+			client := makeClient(t, testServer.URL, "", "", es.OpenSearch2)
 			c := &ILMClient{
 				Client: client,
 				Logger: zap.NewNop(),
@@ -141,7 +141,7 @@ func TestExists_Retries(t *testing.T) {
 	}))
 	defer testServer.Close()
 
-	client := makeClient(t, testServer.URL, "user", "pass").WithVersion(es.ElasticV7)
+	client := makeClient(t, testServer.URL, "user", "pass", es.ElasticV7)
 	c := &ILMClient{
 		Client: client,
 		Logger: zap.NewNop(),
@@ -162,8 +162,8 @@ func TestLifecycleExistsUnresolvedVersion(t *testing.T) {
 
 func TestILMClientSupportsILM(t *testing.T) {
 	url := "http://localhost:9200"
-	assert.False(t, ILMClient{Client: makeClient(t, url, "", "").WithVersion(es.ElasticV6)}.SupportsILM())
-	assert.True(t, ILMClient{Client: makeClient(t, url, "", "").WithVersion(es.ElasticV7)}.SupportsILM())
+	assert.False(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV6)}.SupportsILM())
+	assert.True(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV7)}.SupportsILM())
 }
 
 // TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
@@ -172,7 +172,7 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
-		client := makeClient(t, url, "", "").WithVersion(version)
+		client := makeClient(t, url, "", "", version)
 		c := ILMClient{
 			Client: client,
 			Logger: zap.NewNop(),

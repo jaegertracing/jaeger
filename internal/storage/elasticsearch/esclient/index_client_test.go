@@ -375,11 +375,14 @@ var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("u
 
 // makeClient builds an esclient.Client for a single plaintext test server. A
 // non-empty user enables basic auth so requests carry an Authorization header.
-func makeClient(t *testing.T, url, user, pass string) Client {
-	// Pin a version so NewClient resolves it from config instead of probing the
-	// test server; tests that care about a specific version override via
-	// WithVersion.
-	cfg := &config.Configuration{Servers: []string{url}, Version: uint(es.ElasticV7)}
+func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) Client {
+	// Resolve the version from config so NewClient doesn't probe the test server.
+	// Defaults to ElasticV7; version-specific tests pass an explicit version.
+	v := es.ElasticV7
+	if len(version) > 0 {
+		v = version[0]
+	}
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(v)}
 	if user != "" {
 		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
 			Username: user,
@@ -616,7 +619,7 @@ func TestClientCreateTemplate(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "user", "pass").WithVersion(test.version)
+			client := makeClient(t, testServer.URL, "user", "pass", test.version)
 			c := &IndicesClient{
 				Client: client,
 			}
@@ -778,7 +781,7 @@ func TestCreateTemplateUnresolvedVersion(t *testing.T) {
 }
 
 func TestCreateTemplateRenderError(t *testing.T) {
-	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "").WithVersion(es.ElasticV7)}
+	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
 	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
 		return "", assert.AnError
 	})
@@ -790,7 +793,7 @@ func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
-		client := makeClient(t, url, "", "").WithVersion(version)
+		client := makeClient(t, url, "", "", version)
 		c := IndicesClient{Client: client}
 		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
 			return template, nil

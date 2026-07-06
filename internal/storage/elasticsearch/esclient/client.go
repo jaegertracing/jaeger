@@ -100,14 +100,6 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 	}
 }
 
-// WithVersion returns a copy of the client with an explicit backend version,
-// overriding the one NewClient resolved. Production resolves the version in
-// NewClient; this is used to pin a specific version (mainly in tests).
-func (c Client) WithVersion(v es.BackendVersion) Client {
-	c.version = v
-	return c
-}
-
 func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
 	if c.timeout > 0 {
 		var cancel context.CancelFunc
