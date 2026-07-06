@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
@@ -22,14 +23,17 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -83,6 +87,7 @@ var exampleESSpan = []byte(
 
 type spanReaderTest struct {
 	client      *mocks.Client
+	searcher    *esclientmocks.Searcher
 	logger      *zap.Logger
 	logBuffer   *testutils.Buffer
 	traceBuffer *tracetest.InMemoryExporter
@@ -103,16 +108,19 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
 	r := &spanReaderTest{
 		client:      client,
+		searcher:    searcher,
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            func() es.Client { return client },
+			Searcher:          searcher,
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
@@ -128,6 +136,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 
 func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -147,11 +156,13 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 
 	r := &spanReaderTest{
 		client:      client,
+		searcher:    searcher,
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            func() es.Client { return client },
+			Searcher:          searcher,
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
@@ -892,18 +903,10 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	testCases := []struct {
-		aggregrationID string
-	}{
-		{traceIDAggregation},
-		{servicesAggregation},
-		{operationsAggregation},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.aggregrationID, func(t *testing.T) {
-			testGet(testCase.aggregrationID, t)
-		})
-	}
+	// Services/operations reads have moved to the esclient searcher and are
+	// covered by TestSpanReader_GetServices/GetOperations; findTraceIDs still
+	// runs over the olivere client exercised by testGet.
+	testGet(traceIDAggregation, t)
 }
 
 func TestReturnSearchFunc_DefaultCase(t *testing.T) {
@@ -1328,4 +1331,64 @@ func TestTagsMap(t *testing.T) {
 			assert.Equal(t, tags, span.Process.Tags)
 		})
 	}
+}
+
+// newSnapshotReader builds a SpanReader wired to client, with aliased (fixed)
+// index names so the recorded request paths are deterministic across runs.
+func newSnapshotReader(client es.Client) *SpanReader {
+	return NewSpanReader(SpanReaderParams{
+		Client:           func() es.Client { return client },
+		MaxSpanAge:       72 * time.Hour,
+		MaxTraceDuration: 24 * time.Hour,
+		MaxDocCount:      100,
+		Logger:           zap.NewNop(),
+		Tracer:           noop.NewTracerProvider().Tracer("test"),
+		SpanRotation:     indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
+		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+	})
+}
+
+// TestReaderRequestSnapshots freezes the wire format of the trace-read path:
+// find_trace_ids (_search with a terms aggregation) and get_traces (_msearch
+// with search_after). Fixed query times keep the range filters deterministic.
+func TestReaderRequestSnapshots(t *testing.T) {
+	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	end := start.Add(time.Hour)
+	traceQuery := dbmodel.TraceQueryParameters{
+		ServiceName:   "test-service",
+		OperationName: "test-operation",
+		Tags:          map[string]string{"http.status_code": "200"},
+		StartTimeMin:  start,
+		StartTimeMax:  end,
+		DurationMin:   time.Second,
+		DurationMax:   time.Minute,
+		SearchDepth:   20,
+	}
+	traceIDs := []dbmodel.TraceID{"1234567890abcdef"}
+
+	findTraceIDs := map[es.BackendVersion]string{}
+	getTraces := map[es.BackendVersion]string{}
+
+	for _, version := range es.AllVersions {
+		rec := dataRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newDataClient(t, server.URL, version)
+		t.Cleanup(func() { _ = client.Close() })
+		reader := newSnapshotReader(client)
+		ctx := context.Background()
+
+		rec.Reset()
+		_, err := reader.FindTraceIDs(ctx, traceQuery)
+		require.NoError(t, err)
+		findTraceIDs[version] = rec.Marshal(t)
+
+		rec.Reset()
+		_, err = reader.multiRead(ctx, traceIDs, start, end)
+		require.NoError(t, err)
+		getTraces[version] = rec.Marshal(t)
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/find_trace_ids", findTraceIDs)
+	snapshottest.AssertByVersion(t, "testdata/get_traces", getTraces)
 }

@@ -4,7 +4,10 @@
 package samplingstore
 
 import (
+	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -15,10 +18,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -417,4 +423,73 @@ func stringMatcher(q string) any {
 
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+// newSnapshotClient builds a real es.Client for a backend version, pointed at the
+// recording server. Version is set explicitly so no ping is issued.
+func newSnapshotClient(t *testing.T, url string, version es.BackendVersion) es.Client {
+	cfg := &config.Configuration{
+		Servers:            []string{url},
+		Version:            uint(version),
+		DisableHealthCheck: true,
+		LogLevel:           "info",
+		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
+	}
+	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
+	require.NoError(t, err)
+	return client
+}
+
+// samplingRecorder answers a HEAD index-exists check with 200 (so the index
+// resolves) and searches with an empty result, capturing each request.
+func samplingRecorder() *snapshottest.Recorder {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
+	})
+}
+
+// TestSamplingStoreReadRequestSnapshots freezes the wire format of the sampling
+// read path: get_throughput (a _search with a timestamp range) and
+// get_latest_probabilities (an index-exists HEAD followed by a _search).
+//
+// The write path (InsertThroughput / InsertProbabilitiesAndQPS) is intentionally
+// not snapshot here: both stamp the document body with time.Now() internally, with
+// no clock seam to inject a fixed time, so their request bodies cannot be frozen
+// without a production change — out of scope for the snapshot baseline (tests +
+// fixtures only). They can be captured once a clock is injected during migration.
+func TestSamplingStoreReadRequestSnapshots(t *testing.T) {
+	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	end := start.Add(time.Hour)
+
+	getThroughput := map[es.BackendVersion]string{}
+	getLatestProbabilities := map[es.BackendVersion]string{}
+
+	for _, version := range es.AllVersions {
+		rec := samplingRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newSnapshotClient(t, server.URL, version)
+		t.Cleanup(func() { _ = client.Close() })
+		store := NewSamplingStore(Params{
+			Client:      func() es.Client { return client },
+			Logger:      zap.NewNop(),
+			MaxDocCount: 1000,
+			Lookback:    72 * time.Hour,
+			Rotation:    indices.NewAliasedRotation("jaeger-sampling-write", "jaeger-sampling-read"),
+		})
+
+		rec.Reset()
+		_, err := store.GetThroughput(start, end)
+		require.NoError(t, err)
+		getThroughput[version] = rec.Marshal(t)
+
+		rec.Reset()
+		_, err = store.GetLatestProbabilities()
+		require.NoError(t, err)
+		getLatestProbabilities[version] = rec.Marshal(t)
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/get_throughput", getThroughput)
+	snapshottest.AssertByVersion(t, "testdata/get_latest_probabilities", getLatestProbabilities)
 }

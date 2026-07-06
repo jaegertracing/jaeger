@@ -4,7 +4,11 @@
 package elasticsearch
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -23,6 +27,25 @@ const (
 	OpenSearch2 BackendVersion = 102
 	OpenSearch3 BackendVersion = 103
 )
+
+// AllVersions lists every backend major version Jaeger supports: Elasticsearch
+// 6/7/8/9 and OpenSearch 1/2/3.
+var AllVersions = []BackendVersion{
+	ElasticV6,
+	ElasticV7,
+	ElasticV8,
+	ElasticV9,
+	OpenSearch1,
+	OpenSearch2,
+	OpenSearch3,
+}
+
+// IsSupportedVersion reports whether v is a version number Jaeger accepts as an
+// explicit config.Version override. 0 (auto-detect) is not itself a version and
+// returns false; callers treat 0 specially.
+func IsSupportedVersion(v uint) bool {
+	return slices.Contains(AllVersions, BackendVersion(v))
+}
 
 func (v BackendVersion) String() string {
 	switch v {
@@ -81,6 +104,40 @@ func (v BackendVersion) SupportsTypedIndices() bool {
 // ILM requires ES 7+ or OpenSearch (which uses ISM, the equivalent feature).
 func (v BackendVersion) SupportsILM() bool {
 	return v != ElasticV6
+}
+
+// PingResult holds the version fields Jaeger reads from an Elasticsearch or
+// OpenSearch root document ("GET /"), independent of which HTTP client fetched
+// it. It is the input to the shared version-resolution path.
+type PingResult struct {
+	// VersionNumber is the raw version string (e.g. "7.10.2").
+	VersionNumber string
+	// TagLine distinguishes OpenSearch from Elasticsearch.
+	TagLine string
+}
+
+// ResolveBackendVersion is the single version-detection path shared by the
+// data-plane and admin-plane client builders. It returns the configured version
+// when it is non-zero (an explicit override, honored without a network call);
+// otherwise it calls ping once and derives the version from the response.
+func ResolveBackendVersion(ctx context.Context, configured uint, ping func(context.Context) (PingResult, error)) (BackendVersion, error) {
+	if configured != 0 {
+		return BackendVersion(configured), nil
+	}
+	result, err := ping(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if result.VersionNumber == "" {
+		return 0, errors.New("backend returned an empty version number")
+	}
+	// Parse the whole major component (up to the first dot), not just the first
+	// byte — otherwise "10.x" would be misread as major 1.
+	majorVersion, err := strconv.Atoi(strings.Split(result.VersionNumber, ".")[0])
+	if err != nil {
+		return 0, fmt.Errorf("invalid version format: %s", result.VersionNumber)
+	}
+	return DetectBackendVersion(result.TagLine, majorVersion), nil
 }
 
 // DetectBackendVersion determines the BackendVersion from the ping response.

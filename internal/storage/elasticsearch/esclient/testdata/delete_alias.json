@@ -1,0 +1,21 @@
+{
+  "method": "POST",
+  "path": "/_aliases",
+  "body": {
+    "actions": [
+      {
+        "remove": {
+          "alias": "jaeger-span-read",
+          "index": "jaeger-span-000001"
+        }
+      },
+      {
+        "remove": {
+          "alias": "jaeger-span-write",
+          "index": "jaeger-span-000001",
+          "is_write_index": true
+        }
+      }
+    ]
+  }
+}

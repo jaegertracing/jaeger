@@ -75,7 +75,8 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tags[k] = true
 	}
 
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, serviceCacheTTL)
+	// The writer only calls Write (never the read methods), so it needs no searcher.
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, nil, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
 		client:            p.Client,
 		logger:            p.Logger,

@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/lookback"
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app/rollover"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 func main() {
@@ -42,23 +42,19 @@ func main() {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c client.Client, cfg app.Config) app.Action {
+			}, func(c esclient.Client, cfg app.Config) app.Action {
 				initCfg.Config = cfg
 				initCfg.InitFromViper(v)
-				indicesClient := &client.IndicesClient{
+				indicesClient := &esclient.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: initCfg.Timeout,
 				}
-				clusterClient := &client.ClusterClient{
-					Client: c,
-				}
-				ilmClient := &client.ILMClient{
+				ilmClient := &esclient.ILMClient{
 					Client: c,
 					Logger: logger,
 				}
 				return &initialize.Action{
 					IndicesClient: indicesClient,
-					ClusterClient: clusterClient,
 					ILMClient:     ilmClient,
 					Config:        *initCfg,
 				}
@@ -80,10 +76,10 @@ func main() {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c client.Client, cfg app.Config) app.Action {
+			}, func(c esclient.Client, cfg app.Config) app.Action {
 				rolloverCfg.Config = cfg
 				rolloverCfg.InitFromViper(v)
-				indicesClient := &client.IndicesClient{
+				indicesClient := &esclient.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: rolloverCfg.Timeout,
 				}
@@ -108,10 +104,10 @@ func main() {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c client.Client, cfg app.Config) app.Action {
+			}, func(c esclient.Client, cfg app.Config) app.Action {
 				lookbackCfg.Config = cfg
 				lookbackCfg.InitFromViper(v)
-				indicesClient := &client.IndicesClient{
+				indicesClient := &esclient.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: lookbackCfg.Timeout,
 				}

@@ -22,6 +22,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -37,6 +38,7 @@ const (
 	startTimeMillisField   = "startTimeMillis"
 	serviceNameField       = "process.serviceName"
 	operationNameField     = "operationName"
+	parentSpanIDField      = "parentSpanID"
 	objectTagsField        = "tag"
 	objectProcessTagsField = "process.tag"
 	nestedTagsField        = "tags"
@@ -134,7 +136,10 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client            func() es.Client
+	Client func() es.Client
+	// Searcher is the esclient data-plane search client used by the migrated
+	// service/operation read path (RFC 0006 M5). Other read paths still use Client.
+	Searcher          esclient.Searcher
 	MaxSpanAge        time.Duration
 	MaxTraceDuration  time.Duration
 	MaxDocCount       int
@@ -151,7 +156,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		maxSpanAge:              p.MaxSpanAge,
 		maxTraceDuration:        p.MaxTraceDuration,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Searcher, p.Logger, 0), // the decorator takes care of metrics
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
 		sourceFn:                getSourceFn(p.MaxDocCount),

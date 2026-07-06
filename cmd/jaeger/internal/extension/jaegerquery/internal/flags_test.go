@@ -54,10 +54,17 @@ func TestAIConfigValidateAcceptsDefaults(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateRejectsEmptyAgentURL(t *testing.T) {
+func TestAIConfigValidateRejectsEmptyAgentURLWithoutMCP(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.AgentURL = ""
-	require.EqualError(t, cfg.Validate(), "ai.agent_url is required")
+	require.EqualError(t, cfg.Validate(), "ai requires agent_url (AI chat) or enable_mcp (telemetry MCP tools)")
+}
+
+func TestAIConfigValidateAcceptsMCPOnly(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.AgentURL = ""
+	cfg.EnableMCP = true
+	require.NoError(t, cfg.Validate())
 }
 
 func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {

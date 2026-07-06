@@ -4,10 +4,22 @@
 package elasticsearch
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestIsSupportedVersion(t *testing.T) {
+	for _, v := range AllVersions {
+		assert.True(t, IsSupportedVersion(uint(v)), "%s should be supported", v)
+	}
+	for _, v := range []uint{0, 1, 5, 10, 100, 104} {
+		assert.False(t, IsSupportedVersion(v), "%d should not be supported", v)
+	}
+}
 
 func TestBackendVersion_String(t *testing.T) {
 	tests := []struct {
@@ -137,5 +149,85 @@ func TestDetectBackendVersion(t *testing.T) {
 	for _, tt := range tests {
 		result := DetectBackendVersion(tt.tagLine, tt.majorVersion)
 		assert.Equal(t, tt.expected, result, "tagLine=%q major=%d", tt.tagLine, tt.majorVersion)
+	}
+}
+
+func TestResolveBackendVersion(t *testing.T) {
+	errPing := errors.New("ping failed")
+	tests := []struct {
+		name        string
+		configured  uint
+		ping        func(context.Context) (PingResult, error)
+		expected    BackendVersion
+		errContains string
+		wantPinged  bool
+	}{
+		{
+			name:       "configured version skips ping",
+			configured: uint(OpenSearch2),
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{}, errPing // must not be called
+			},
+			expected: OpenSearch2,
+		},
+		{
+			name: "ping resolves version",
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{VersionNumber: "7.10.2", TagLine: "You Know, for Search"}, nil
+			},
+			expected:   ElasticV7,
+			wantPinged: true,
+		},
+		{
+			name: "ping error propagates",
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{}, errPing
+			},
+			errContains: "ping failed",
+			wantPinged:  true,
+		},
+		{
+			name: "empty version number",
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{VersionNumber: "", TagLine: "You Know, for Search"}, nil
+			},
+			errContains: "empty version number",
+			wantPinged:  true,
+		},
+		{
+			name: "non-numeric major version",
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{VersionNumber: "vNext", TagLine: "You Know, for Search"}, nil
+			},
+			errContains: "invalid version format: vNext",
+			wantPinged:  true,
+		},
+		{
+			// Regression: parsing only the first byte would read "10" as major 1
+			// (OpenSearch1) instead of 10 (OpenSearch3).
+			name: "multi-digit major is parsed fully",
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{VersionNumber: "10.0.0", TagLine: "The OpenSearch Project"}, nil
+			},
+			expected:   OpenSearch3,
+			wantPinged: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var pinged bool
+			ping := func(ctx context.Context) (PingResult, error) {
+				pinged = true
+				return tt.ping(ctx)
+			}
+			got, err := ResolveBackendVersion(context.Background(), tt.configured, ping)
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.expected, got)
+			}
+			assert.Equal(t, tt.wantPinged, pinged)
+		})
 	}
 }
