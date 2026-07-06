@@ -153,11 +153,6 @@ func TestExists_Retries(t *testing.T) {
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")
 }
 
-func TestILMClientSupportsILM(t *testing.T) {
-	url := "http://localhost:9200"
-	assert.True(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV7)}.SupportsILM())
-}
-
 // TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
 // policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
 func TestLifecycleExistsRequestSnapshot(t *testing.T) {

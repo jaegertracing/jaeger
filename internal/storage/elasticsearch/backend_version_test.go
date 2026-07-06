@@ -90,23 +90,6 @@ func TestBackendVersion_UsesV8API(t *testing.T) {
 	}
 }
 
-func TestBackendVersion_SupportsILM(t *testing.T) {
-	tests := []struct {
-		version  BackendVersion
-		expected bool
-	}{
-		{ElasticV7, true},
-		{ElasticV8, true},
-		{ElasticV9, true},
-		{OpenSearch1, true},
-		{OpenSearch2, true},
-		{OpenSearch3, true},
-	}
-	for _, tt := range tests {
-		assert.Equal(t, tt.expected, tt.version.SupportsILM(), tt.version.String())
-	}
-}
-
 func TestDetectBackendVersion(t *testing.T) {
 	tests := []struct {
 		tagLine      string

@@ -84,12 +84,6 @@ func (v BackendVersion) UsesV8API() bool {
 	return v == ElasticV8 || v == ElasticV9
 }
 
-// SupportsILM returns true if the backend supports Index Lifecycle Management.
-// Every supported backend does — ES 7+ via ILM, OpenSearch via ISM.
-func (BackendVersion) SupportsILM() bool {
-	return true
-}
-
 // PingResult holds the version fields Jaeger reads from an Elasticsearch or
 // OpenSearch root document ("GET /"), independent of which HTTP client fetched
 // it. It is the input to the shared version-resolution path.
