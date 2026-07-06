@@ -58,7 +58,7 @@ func TokenProviderWithTime(path string, interval time.Duration, logger *zap.Logg
 	loader := cachedFileTokenLoader(path, interval, timeFn)
 
 	// current token load
-	token, err := loader()
+	currentToken, err := loader()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token from file: %w", err)
 	}
@@ -68,10 +68,7 @@ func TokenProviderWithTime(path string, interval time.Duration, logger *zap.Logg
 	// invoked by the auth RoundTripper on every HTTP request and may run
 	// concurrently, so access is guarded by mu. A mutex (rather than an
 	// atomic.Pointer/atomic.Value) keeps this hot path allocation-free.
-	var (
-		mu           sync.Mutex
-		currentToken = token
-	)
+	var mu sync.Mutex
 
 	return func() string {
 		newToken, err := loader()
