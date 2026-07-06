@@ -5,6 +5,7 @@ package esclient
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -80,4 +81,43 @@ func TestSearchParsesAggregationBuckets(t *testing.T) {
 	assert.Equal(t, "svc-a", buckets[0].Key)
 	assert.Equal(t, 3, buckets[0].DocCount)
 	assert.Equal(t, "svc-b", buckets[1].Key)
+}
+
+// errSource is a query/aggregation node whose Source always fails.
+type errSource struct{}
+
+func (errSource) Source() (any, error) { return nil, errors.New("source boom") }
+
+func TestSearchQuerySourceError(t *testing.T) {
+	sc := SearchClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
+	_, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{Query: errSource{}})
+	require.ErrorContains(t, err, "source boom")
+}
+
+func TestSearchAggregationSourceError(t *testing.T) {
+	sc := SearchClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
+	_, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{
+		Aggregations: map[string]query.Aggregation{"a": errSource{}},
+	})
+	require.ErrorContains(t, err, "source boom")
+}
+
+func TestSearchTransportError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	_, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{})
+	require.Error(t, err)
+}
+
+func TestSearchMalformedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	_, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{})
+	require.Error(t, err)
 }

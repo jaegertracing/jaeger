@@ -6,12 +6,12 @@ package core
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -21,6 +21,7 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -89,22 +90,105 @@ func TestWriteServiceError(*testing.T) {
 	})
 }
 
+// oneBucketResponse is a search response with a single terms-aggregation bucket
+// keyed "123", used to assert getServices/getOperations extract the bucket keys.
+func oneBucketResponse(aggName string) *esclient.SearchResponse {
+	return &esclient.SearchResponse{
+		Aggregations: map[string]esclient.AggregationResult{
+			aggName: {Buckets: []esclient.AggregationBucket{{Key: "123", DocCount: 16}}},
+		},
+	}
+}
+
 func TestSpanReader_GetServices(t *testing.T) {
-	testGet(servicesAggregation, t)
+	tests := []struct {
+		name     string
+		resp     *esclient.SearchResponse
+		respErr  error
+		expected []string
+		errMsg   string
+	}{
+		{
+			name:     "full behavior",
+			resp:     oneBucketResponse(servicesAggregation),
+			expected: []string{"123"},
+		},
+		{
+			name:   "missing aggregation",
+			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			errMsg: "could not find aggregation of " + servicesAggregation,
+		},
+		{
+			name:    "search error",
+			respErr: errors.New("Search failure"),
+			errMsg:  "search services failed: Search failure",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			withSpanReader(t, func(r *spanReaderTest) {
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).Return(tc.resp, tc.respErr)
+				services, err := r.reader.GetServices(context.Background())
+				if tc.errMsg != "" {
+					require.EqualError(t, err, tc.errMsg)
+					assert.Nil(t, services)
+				} else {
+					require.NoError(t, err)
+					assert.Equal(t, tc.expected, services)
+				}
+			})
+		})
+	}
 }
 
 func TestSpanReader_GetOperations(t *testing.T) {
-	testGet(operationsAggregation, t)
+	tests := []struct {
+		name     string
+		resp     *esclient.SearchResponse
+		respErr  error
+		expected []dbmodel.Operation
+		errMsg   string
+	}{
+		{
+			name:     "full behavior",
+			resp:     oneBucketResponse(operationsAggregation),
+			expected: []dbmodel.Operation{{Name: "123"}},
+		},
+		{
+			name:   "missing aggregation",
+			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			errMsg: "could not find aggregation of " + operationsAggregation,
+		},
+		{
+			name:    "search error",
+			respErr: errors.New("Search failure"),
+			errMsg:  "search operations failed: Search failure",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			withSpanReader(t, func(r *spanReaderTest) {
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).Return(tc.resp, tc.respErr)
+				operations, err := r.reader.GetOperations(
+					context.Background(),
+					dbmodel.OperationQueryParameters{ServiceName: "someService"},
+				)
+				if tc.errMsg != "" {
+					require.EqualError(t, err, tc.errMsg)
+					assert.Nil(t, operations)
+				} else {
+					require.NoError(t, err)
+					assert.Equal(t, tc.expected, operations)
+				}
+			})
+		})
+	}
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).
-			Return(&elastic.SearchResult{}, nil)
-		mockMultiSearchService(r).
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{},
-			}, nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(&esclient.SearchResponse{}, nil)
 		services, err := r.reader.GetServices(context.Background())
 		require.NoError(t, err)
 		assert.Empty(t, services)
@@ -113,12 +197,8 @@ func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 
 func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).
-			Return(&elastic.SearchResult{}, nil)
-		mockMultiSearchService(r).
-			Return(&elastic.MultiSearchResult{
-				Responses: []*elastic.SearchResult{},
-			}, nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(&esclient.SearchResponse{}, nil)
 		services, err := r.reader.GetOperations(
 			context.Background(),
 			dbmodel.OperationQueryParameters{ServiceName: "foo"},
@@ -194,11 +274,18 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 				_ = client.Close()
 			}
 		})
-		sos := NewServiceOperationStorage(func() es.Client { return client }, zap.NewNop(), 0)
+		// getServices/getOperations run over a real esclient.SearchClient pointed at
+		// the same recording server. Version is pinned so the client skips its probe
+		// and only the search requests are recorded.
+		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
+		searchC, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
+		require.NoError(t, err)
+		searcher := esclient.SearchClient{Client: searchC}
+		sos := NewServiceOperationStorage(func() es.Client { return client }, searcher, zap.NewNop(), 0)
 		ctx := context.Background()
 
 		rec.Reset()
-		_, err := sos.getServices(ctx, []string{readIndex}, 10)
+		_, err = sos.getServices(ctx, []string{readIndex}, 10)
 		require.NoError(t, err)
 		getServices[version] = rec.Marshal(t)
 
