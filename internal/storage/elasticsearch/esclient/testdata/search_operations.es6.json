@@ -1,0 +1,25 @@
+{
+  "method": "POST",
+  "path": "/test-index/_search",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ]
+  },
+  "body": {
+    "aggregations": {
+      "distinct_operations": {
+        "terms": {
+          "field": "operationName",
+          "size": 10
+        }
+      }
+    },
+    "query": {
+      "term": {
+        "serviceName": "test-service"
+      }
+    },
+    "size": 0
+  }
+}
