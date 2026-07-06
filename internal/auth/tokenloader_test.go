@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -274,6 +275,32 @@ func TestCachedFileTokenLoader_FilePermissions(t *testing.T) {
 	_, err = loader()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "permission denied")
+}
+
+// TestTokenProviderWithTime_ConcurrentCalls is a regression test for a data
+// race on the fallback token in the returned closure. It must be run with
+// -race to be meaningful; the token provider is invoked on every HTTP request
+// and can run concurrently across goroutines.
+func TestTokenProviderWithTime_ConcurrentCalls(t *testing.T) {
+	// A zero interval reloads on every call, maximizing writes to the
+	// fallback token and thus the chance of catching an unsynchronized access.
+	currentTime := time.Unix(0, 0)
+	timeFn := func() time.Time { return currentTime }
+	tokenFile := createTempTokenFile(t, "concurrent-token\n")
+	logger := zap.NewNop()
+
+	tokenFn, err := TokenProviderWithTime(tokenFile, 0, logger, timeFn)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Go(func() {
+			for range 100 {
+				assert.Equal(t, "concurrent-token", tokenFn())
+			}
+		})
+	}
+	wg.Wait()
 }
 
 func TestTokenProvider_Wrapper(t *testing.T) {
