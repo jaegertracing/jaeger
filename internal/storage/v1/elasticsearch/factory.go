@@ -49,12 +49,12 @@ type FactoryBase struct {
 	config *config.Configuration
 
 	client es.Client
-	// searcher and bulkIndexer are the migrated data-plane surfaces over the
+	// searcher and bulkWriter are the migrated data-plane surfaces over the
 	// esclient transport pool: service/operation reads (RFC 0006 M5) and span
 	// writes (M6). Other paths still use the olivere client above. The factory
 	// owns the bulk indexer's lifecycle and closes it in Close.
-	searcher    esclient.Searcher
-	bulkIndexer *esclient.BulkIndexer
+	searcher   esclient.Searcher
+	bulkWriter *esclient.BulkIndexer
 
 	templateBuilder es.TemplateBuilder
 
@@ -109,7 +109,7 @@ func NewFactoryBase(
 	f.searcher = esclient.SearchClient{Client: esClient}
 	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
 	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
-	bulkIndexer, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{
+	bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{
 		FlushBytes:    f.config.BulkProcessing.MaxBytes,
 		FlushInterval: f.config.BulkProcessing.FlushInterval,
 		Workers:       f.config.BulkProcessing.Workers,
@@ -117,7 +117,7 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch bulk indexer: %w", err)
 	}
-	f.bulkIndexer = bulkIndexer
+	f.bulkWriter = bulkWriter
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -163,7 +163,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		BulkWriter:        f.bulkIndexer,
+		BulkWriter:        f.bulkWriter,
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
 		TagDotReplacement: f.config.Tags.DotReplacement,
@@ -230,8 +230,8 @@ func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappin
 // was created, e.g. a query-only service.
 func (f *FactoryBase) Close() error {
 	var errs []error
-	if f.bulkIndexer != nil {
-		errs = append(errs, f.bulkIndexer.Close())
+	if f.bulkWriter != nil {
+		errs = append(errs, f.bulkWriter.Close())
 	}
 	if c := f.getClient(); c != nil {
 		errs = append(errs, c.Close())
