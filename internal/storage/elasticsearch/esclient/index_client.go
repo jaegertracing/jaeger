@@ -269,9 +269,10 @@ func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases 
 
 // CreateTemplate an ES index template
 // CreateTemplate installs an index template. The template body is produced by
-// render, which the client invokes with its own resolved backend version — so
-// callers select and render the mapping in Jaeger terms without ever holding a
-// BackendVersion themselves (the version stays encapsulated in the client).
+// render (which must be non-nil), invoked by the client with its own resolved
+// backend version — so callers select and render the mapping in Jaeger terms
+// without ever holding a BackendVersion themselves (the version stays
+// encapsulated in the client).
 func (i IndicesClient) CreateTemplate(ctx context.Context, name string, render func(es.BackendVersion) (string, error)) error {
 	template, err := render(i.version)
 	if err != nil {
