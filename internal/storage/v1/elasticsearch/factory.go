@@ -67,7 +67,7 @@ func NewFactoryBase(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	httpAuth extensionauth.HTTPClient,
-) (_ *FactoryBase, err error) {
+) (*FactoryBase, error) {
 	f := &FactoryBase{
 		config:            &cfg,
 		newLegacyClientFn: clientbuilder.NewClient,
@@ -76,8 +76,9 @@ func NewFactoryBase(
 	}
 	// If construction fails partway, close whatever was already created (the
 	// legacy client and the bulk indexer's workers). Close is nil-safe.
+	success := false
 	defer func() { //nolint:contextcheck // Close releases resources and takes no context
-		if err != nil {
+		if !success {
 			_ = f.Close()
 		}
 	}()
@@ -123,6 +124,7 @@ func NewFactoryBase(
 		return nil, err
 	}
 
+	success = true
 	return f, nil
 }
 
