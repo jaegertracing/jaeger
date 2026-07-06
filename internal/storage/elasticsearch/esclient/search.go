@@ -78,7 +78,12 @@ func (s SearchClient) Search(ctx context.Context, indices []string, req SearchRe
 	}
 	// ignore_unavailable is always set; ES7+/OS also need rest_total_hits_as_int
 	// to report total hits as a plain number (ES6 predates typed total hits).
-	endpoint := strings.Join(indices, ",") + "/_search?ignore_unavailable=true"
+	// With no indices the endpoint stays relative ("_search"), so request's "/"
+	// prefix doesn't produce a double slash.
+	endpoint := "_search?ignore_unavailable=true"
+	if len(indices) > 0 {
+		endpoint = strings.Join(indices, ",") + "/" + endpoint
+	}
 	if !s.version.SupportsTypedIndices() {
 		endpoint += "&rest_total_hits_as_int=true"
 	}

@@ -44,6 +44,16 @@ func TestSearchRequestVersionGating(t *testing.T) {
 	}
 }
 
+// TestSearchEmptyIndicesPath verifies that searching with no indices produces a
+// clean "/_search" path rather than a double-slashed "//_search".
+func TestSearchEmptyIndicesPath(t *testing.T) {
+	rec, url := okServer(t)
+	sc := SearchClient{Client: makeClient(t, url, "", "", es.ElasticV7)}
+	_, err := sc.Search(context.Background(), nil, SearchRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, "/_search", rec.Requests()[0].Path)
+}
+
 func TestSearchParsesAggregationBuckets(t *testing.T) {
 	const body = `{"aggregations":{"distinct_services":{"buckets":[` +
 		`{"key":"svc-a","doc_count":3},{"key":"svc-b","doc_count":1}]}}}`
