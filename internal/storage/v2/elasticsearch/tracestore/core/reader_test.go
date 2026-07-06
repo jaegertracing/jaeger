@@ -108,7 +108,7 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
-	searcher := &esclientmocks.Searcher{}
+	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -136,7 +136,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 
 func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
-	searcher := &esclientmocks.Searcher{}
+	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
