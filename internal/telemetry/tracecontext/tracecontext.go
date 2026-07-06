@@ -3,9 +3,10 @@
 
 // Package tracecontext carries W3C trace context across a protocol's _meta
 // field (SEP-414) — the convention MCP and ACP both use since neither
-// transport reliably carries plain HTTP headers end to end. The MCP
-// tool-call boundary and the ACP prompt boundary both use this same
-// carrier/propagator pair rather than each defining their own.
+// transport reliably carries plain HTTP headers end to end.
+//
+// This package is intended to be shared by the MCP tool-call boundary and the
+// ACP prompt boundary to avoid duplicating carrier/propagator logic.
 package tracecontext
 
 import (
