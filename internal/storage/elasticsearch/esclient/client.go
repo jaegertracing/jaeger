@@ -135,7 +135,7 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 		contentType = "application/json"
 	}
 	r.Header.Add("Content-Type", contentType)
-	res, err := c.transport.perform(r)
+	res, err := c.Perform(r)
 	if err != nil {
 		return []byte{}, err
 	}
