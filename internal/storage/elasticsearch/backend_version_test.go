@@ -12,6 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsSupportedVersion(t *testing.T) {
+	for _, v := range AllVersions {
+		assert.True(t, IsSupportedVersion(uint(v)), "%s should be supported", v)
+	}
+	for _, v := range []uint{0, 1, 5, 10, 100, 104} {
+		assert.False(t, IsSupportedVersion(v), "%d should not be supported", v)
+	}
+}
+
 func TestBackendVersion_String(t *testing.T) {
 	tests := []struct {
 		version  BackendVersion
