@@ -501,8 +501,7 @@ func stringMatcher(q string) any {
 	return mock.MatchedBy(matchFunc)
 }
 
-// TestWriterRequestSnapshots freezes the wire format of the span bulk write. ES6
-// tags the index action with _type; newer backends drop it.
+// TestWriterRequestSnapshots freezes the wire format of the span bulk write.
 func TestWriterRequestSnapshots(t *testing.T) {
 	const writeIndex = "jaeger-span-write-000001"
 	const startMicros = 1577934245000000

@@ -26,7 +26,6 @@ func TestBackendVersion_String(t *testing.T) {
 		version  BackendVersion
 		expected string
 	}{
-		{ElasticV6, "Elasticsearch 6.x"},
 		{ElasticV7, "Elasticsearch 7.x"},
 		{ElasticV8, "Elasticsearch 8.x"},
 		{ElasticV9, "Elasticsearch 9.x"},
@@ -45,7 +44,6 @@ func TestBackendVersion_IsOpenSearch(t *testing.T) {
 		version  BackendVersion
 		expected bool
 	}{
-		{ElasticV6, false},
 		{ElasticV7, false},
 		{ElasticV8, false},
 		{ElasticV9, false},
@@ -63,7 +61,6 @@ func TestBackendVersion_TemplateVersion(t *testing.T) {
 		version  BackendVersion
 		expected uint
 	}{
-		{ElasticV6, 6},
 		{ElasticV7, 7},
 		{ElasticV8, 8},
 		{ElasticV9, 8},
@@ -81,7 +78,6 @@ func TestBackendVersion_UsesV8API(t *testing.T) {
 		version  BackendVersion
 		expected bool
 	}{
-		{ElasticV6, false},
 		{ElasticV7, false},
 		{ElasticV8, true},
 		{ElasticV9, true},
@@ -94,30 +90,11 @@ func TestBackendVersion_UsesV8API(t *testing.T) {
 	}
 }
 
-func TestBackendVersion_SupportsTypedIndices(t *testing.T) {
-	tests := []struct {
-		version  BackendVersion
-		expected bool
-	}{
-		{ElasticV6, true},
-		{ElasticV7, false},
-		{ElasticV8, false},
-		{ElasticV9, false},
-		{OpenSearch1, false},
-		{OpenSearch2, false},
-		{OpenSearch3, false},
-	}
-	for _, tt := range tests {
-		assert.Equal(t, tt.expected, tt.version.SupportsTypedIndices(), tt.version.String())
-	}
-}
-
 func TestBackendVersion_SupportsILM(t *testing.T) {
 	tests := []struct {
 		version  BackendVersion
 		expected bool
 	}{
-		{ElasticV6, false},
 		{ElasticV7, true},
 		{ElasticV8, true},
 		{ElasticV9, true},
@@ -136,7 +113,7 @@ func TestDetectBackendVersion(t *testing.T) {
 		majorVersion int
 		expected     BackendVersion
 	}{
-		{"You Know, for Search", 6, ElasticV6},
+		{"You Know, for Search", 6, ElasticV8}, // Elasticsearch 6 unsupported → default
 		{"You Know, for Search", 7, ElasticV7},
 		{"You Know, for Search", 8, ElasticV8},
 		{"You Know, for Search", 9, ElasticV9},

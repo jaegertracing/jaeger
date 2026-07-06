@@ -100,13 +100,15 @@ func TestRolloverAction(t *testing.T) {
 	tests := []struct {
 		name                  string
 		version               es.BackendVersion
+		ilmUnsupported        bool
 		setupCallExpectations func(indexClient *mocks.IndexAPI, ilmClient *mocks.IndexManagementLifecycleAPI)
 		config                Config
 		expectedErr           error
 	}{
 		{
-			name:    "Unsupported version",
-			version: es.ElasticV6,
+			name:           "Unsupported version",
+			version:        es.ElasticV7,
+			ilmUnsupported: true,
 			config: Config{
 				Config: app.Config{
 					Archive: true,
@@ -263,7 +265,7 @@ func TestRolloverAction(t *testing.T) {
 			ilmClient := &mocks.IndexManagementLifecycleAPI{}
 			if test.config.Config.UseILM {
 				// The action gates on the client's ILM capability, not a version.
-				ilmClient.On("SupportsILM").Return(test.version.SupportsILM())
+				ilmClient.On("SupportsILM").Return(!test.ilmUnsupported)
 			}
 			initAction := Action{
 				Config:        test.config,

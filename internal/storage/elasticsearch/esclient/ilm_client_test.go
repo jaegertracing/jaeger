@@ -155,7 +155,6 @@ func TestExists_Retries(t *testing.T) {
 
 func TestILMClientSupportsILM(t *testing.T) {
 	url := "http://localhost:9200"
-	assert.False(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV6)}.SupportsILM())
 	assert.True(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV7)}.SupportsILM())
 }
 

@@ -23,7 +23,7 @@ import (
 )
 
 // TestMappingBuilderGetMapping snapshots the rendered index template for every
-// mapping type across the full ES 6/7/8/9 + OpenSearch 1/2/3 matrix, into
+// mapping type across the full ES 7/8/9 + OpenSearch 1/2/3 matrix, into
 // testdata/<subject>.<backend><range>.json. Byte-identical consecutive majors
 // collapse into a range, so the fixture tree itself is the compatibility matrix.
 func TestMappingBuilderGetMapping(t *testing.T) {
@@ -103,13 +103,10 @@ func TestMappingBuilderLoadMapping(t *testing.T) {
 	tests := []struct {
 		name string
 	}{
-		{name: "jaeger-span-6.json"},
 		{name: "jaeger-span-7.json"},
 		{name: "jaeger-span-8.json"},
-		{name: "jaeger-service-6.json"},
 		{name: "jaeger-service-7.json"},
 		{name: "jaeger-service-8.json"},
-		{name: "jaeger-dependencies-6.json"},
 		{name: "jaeger-dependencies-7.json"},
 		{name: "jaeger-dependencies-8.json"},
 	}
@@ -242,58 +239,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 			err: "template load error",
 		},
 
-		{
-			name: "ES Version < 7",
-			args: args{
-				version:       es.ElasticV6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
-			},
-			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
-				tb := mocks.TemplateBuilder{}
-				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
-				return &tb
-			},
-			err: "",
-		},
-		{
-			name: "ES Version < 7 Service Error",
-			args: args{
-				version:       es.ElasticV6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
-			},
-			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
-				tb := mocks.TemplateBuilder{}
-				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
-				return &tb
-			},
-			err: "template load error",
-		},
-		{
-			name: "ES Version < 7 Span Error",
-			args: args{
-				version:       es.ElasticV6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
-			},
-			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
-				tb := mocks.TemplateBuilder{}
-				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
-				return &tb
-			},
-			err: "template load error",
-		},
 		{
 			name: "ES Version  7 Span Error",
 			args: args{

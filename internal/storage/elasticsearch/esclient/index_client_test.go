@@ -687,7 +687,7 @@ func TestRollover(t *testing.T) {
 
 // The tests below freeze the exact wire format of each IndicesClient request as
 // snapshots. Version-invariant requests are stored as a bare <subject>.json;
-// CreateTemplate varies (es6-7 and OpenSearch share the _template endpoint,
+// CreateTemplate varies (es7 and OpenSearch share the _template endpoint,
 // es8-9 use _index_template) and is stored per distinct wire format.
 // okServer/indicesClient are shared with the cluster and ILM snapshot tests.
 
