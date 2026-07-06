@@ -1,16 +1,10 @@
-[
-  {
-    "method": "GET",
-    "path": "/"
-  },
-  {
-    "method": "PUT",
-    "path": "/_template/jaeger-span",
-    "body": {
-      "index_patterns": [
-        "jaeger-span-*"
-      ],
-      "mappings": {}
-    }
+{
+  "method": "PUT",
+  "path": "/_template/jaeger-span",
+  "body": {
+    "index_patterns": [
+      "jaeger-span-*"
+    ],
+    "mappings": {}
   }
-]
+}

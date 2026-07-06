@@ -16,6 +16,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
+// newESClient builds the client and detects the backend version once, so all
+// version-dependent operations (template endpoint, ILM vs ISM) are resolved at
+// construction time instead of re-detecting per call.
 func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (esclient.Client, error) {
 	esCfg := &config.Configuration{
 		Servers:      []string{endpoint},
@@ -40,6 +43,7 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
+	// NewClient resolves the backend version at construction.
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
 

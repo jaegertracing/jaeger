@@ -17,14 +17,13 @@ type IndexAPI interface {
 	CreateIndex(ctx context.Context, index string) error
 	CreateAlias(ctx context.Context, aliases []Alias) error
 	DeleteAlias(ctx context.Context, aliases []Alias) error
-	CreateTemplate(ctx context.Context, template, name string) error
+	CreateTemplate(ctx context.Context, name string, render func(es.BackendVersion) (string, error)) error
 	Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error
 }
 
-type ClusterAPI interface {
-	Version(ctx context.Context) (es.BackendVersion, error)
-}
-
 type IndexManagementLifecycleAPI interface {
+	// SupportsILM reports whether the backend supports ILM/ISM, so callers can
+	// gate lifecycle work without inspecting the backend version.
+	SupportsILM() bool
 	Exists(ctx context.Context, name string) (bool, error)
 }

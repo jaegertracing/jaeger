@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.uber.org/zap"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
@@ -22,6 +23,14 @@ import (
 type Client struct {
 	transport *rawClient
 	timeout   time.Duration
+
+	// version is the backend version (Elasticsearch/OpenSearch), resolved once by
+	// NewClient (from an explicit config.Version, else a single probe of the
+	// cluster). Sub-clients read it internally to pick flavor-dependent endpoints
+	// (CreateTemplate, ILM vs ISM) without re-probing per call. It is unexported
+	// and has no accessor, so it stays encapsulated — business logic never sees a
+	// BackendVersion.
+	version es.BackendVersion
 }
 
 // NewClient builds a Client that sends requests across c.Servers through the shared
@@ -29,6 +38,11 @@ type Client struct {
 // (TLS, basic/bearer/API-key, custom headers, and — when httpAuth is non-nil —
 // SigV4), so every request carries the configured auth and headers.
 // c.QueryTimeout bounds each request (0 means no bound).
+//
+// The backend version is resolved here, at construction: NewClient honors an
+// explicit c.Version, otherwise it probes the cluster once. Every returned
+// Client therefore carries a resolved version, so version-dependent operations
+// never re-probe and business logic never handles a BackendVersion.
 func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (Client, error) {
 	base, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
@@ -38,7 +52,15 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 	if err != nil {
 		return Client{}, err
 	}
-	return Client{transport: transport, timeout: c.QueryTimeout}, nil
+	client := Client{transport: transport, timeout: c.QueryTimeout}
+	// Honor an explicit c.Version, otherwise probe the cluster once via the
+	// low-level ping. Both planes share es.ResolveBackendVersion.
+	version, err := es.ResolveBackendVersion(ctx, c.Version, client.ping)
+	if err != nil {
+		return Client{}, fmt.Errorf("failed to resolve backend version: %w", err)
+	}
+	client.version = version
+	return client, nil
 }
 
 type elasticRequest struct {
