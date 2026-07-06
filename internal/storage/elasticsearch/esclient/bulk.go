@@ -67,8 +67,9 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 		logger:  logger,
 	}
 	// Default to a single worker (matching the historical olivere BulkProcessor
-	// default); esutil would otherwise fan out to NumCPU workers. This also keeps
-	// concurrent requests off the shared, not-yet-thread-safe auth token provider.
+	// default); esutil would otherwise fan out to NumCPU workers, whose concurrent
+	// bulk requests would race on the not-yet-thread-safe auth token provider
+	// (#8951).
 	workers := cfg.Workers
 	if workers <= 0 {
 		workers = 1
