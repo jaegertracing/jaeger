@@ -7,7 +7,9 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 func TestServiceNameAttribute(t *testing.T) {
@@ -246,5 +248,117 @@ func TestGenAIOperationNameExecuteTool(t *testing.T) {
 	}
 	if GenAIOperationNameExecuteTool.Value.AsString() != "execute_tool" {
 		t.Fatalf("expected value execute_tool, got %s", GenAIOperationNameExecuteTool.Value.AsString())
+	}
+}
+
+func TestGenAIOperationNameInvokeAgent(t *testing.T) {
+	if string(GenAIOperationNameInvokeAgent.Key) != string(semconv.GenAIOperationNameKey) {
+		t.Fatalf("expected key %s, got %s", semconv.GenAIOperationNameKey, GenAIOperationNameInvokeAgent.Key)
+	}
+	if GenAIOperationNameInvokeAgent.Value.AsString() != "invoke_agent" {
+		t.Fatalf("expected value invoke_agent, got %s", GenAIOperationNameInvokeAgent.Value.AsString())
+	}
+}
+
+func TestGenAIAgentAndConversationAttributes(t *testing.T) {
+	tests := []struct {
+		name    string
+		attr    attribute.KeyValue
+		wantKey string
+		wantVal string
+	}{
+		{
+			name:    "agent name",
+			attr:    GenAIAgentName("jaeger-gemini-sidecar"),
+			wantKey: string(semconv.GenAIAgentNameKey),
+			wantVal: "jaeger-gemini-sidecar",
+		},
+		{
+			name:    "agent version",
+			attr:    GenAIAgentVersion("0.1.0"),
+			wantKey: string(semconv.GenAIAgentVersionKey),
+			wantVal: "0.1.0",
+		},
+		{
+			name:    "conversation id",
+			attr:    GenAIConversationID("sess-1"),
+			wantKey: string(semconv.GenAIConversationIDKey),
+			wantVal: "sess-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if string(tt.attr.Key) != tt.wantKey {
+				t.Fatalf("expected key %s, got %s", tt.wantKey, tt.attr.Key)
+			}
+			if tt.attr.Value.Type() != attribute.STRING {
+				t.Fatalf("expected type STRING, got %v", tt.attr.Value.Type())
+			}
+			if tt.attr.Value.AsString() != tt.wantVal {
+				t.Fatalf("expected value %q, got %q", tt.wantVal, tt.attr.Value.AsString())
+			}
+		})
+	}
+}
+
+func TestTraceContextCarrierGetSetKeys(t *testing.T) {
+	carrier := &TraceContextCarrier{}
+	carrier.Set("traceparent", "00-abc-def-01")
+	carrier.Set("tracestate", "vendor=value")
+
+	if got := carrier.Get("traceparent"); got != "00-abc-def-01" {
+		t.Fatalf("expected traceparent %q, got %q", "00-abc-def-01", got)
+	}
+	if got := carrier.Get("tracestate"); got != "vendor=value" {
+		t.Fatalf("expected tracestate %q, got %q", "vendor=value", got)
+	}
+	if got := carrier.Get("missing"); got != "" {
+		t.Fatalf("expected empty string for missing key, got %q", got)
+	}
+
+	keys := carrier.Keys()
+	if len(keys) != 2 {
+		t.Fatalf("expected 2 keys, got %d: %v", len(keys), keys)
+	}
+}
+
+func TestTraceContextCarrierSetOnNilMapAllocates(t *testing.T) {
+	carrier := &TraceContextCarrier{}
+	carrier.Set("traceparent", "00-abc-def-01")
+
+	if carrier.Meta == nil {
+		t.Fatal("expected Set to allocate Meta when nil")
+	}
+	if carrier.Meta["traceparent"] != "00-abc-def-01" {
+		t.Fatalf("expected Meta to contain the set value, got %+v", carrier.Meta)
+	}
+}
+
+func TestTraceContextPropagatorInjectExtractRoundTrip(t *testing.T) {
+	// A plain map[string]any round-tripped through Inject then Extract should
+	// carry the same trace id — this is the exact shape both the MCP
+	// tool-call boundary and the ACP prompt boundary rely on. Requires a real
+	// recording tracer: a noop tracer's span context is invalid, and the W3C
+	// TraceContext propagator skips injection entirely for invalid contexts.
+	provider := tracesdk.NewTracerProvider(tracesdk.WithSampler(tracesdk.AlwaysSample()))
+	t.Cleanup(func() {
+		if err := provider.Shutdown(t.Context()); err != nil {
+			t.Fatalf("failed to shut down tracer provider: %v", err)
+		}
+	})
+	ctx, span := provider.Tracer("test").Start(t.Context(), "test-span")
+	defer span.End()
+
+	meta := map[string]any{}
+	TraceContextPropagator.Inject(ctx, &TraceContextCarrier{Meta: meta})
+	if _, ok := meta["traceparent"]; !ok {
+		t.Fatalf("expected traceparent to be injected into meta, got %+v", meta)
+	}
+
+	extractedCtx := TraceContextPropagator.Extract(t.Context(), &TraceContextCarrier{Meta: meta})
+	extractedSpanContext := oteltrace.SpanContextFromContext(extractedCtx)
+	if extractedSpanContext.TraceID() != span.SpanContext().TraceID() {
+		t.Fatalf("expected extracted trace id %s, got %s", span.SpanContext().TraceID(), extractedSpanContext.TraceID())
 	}
 }

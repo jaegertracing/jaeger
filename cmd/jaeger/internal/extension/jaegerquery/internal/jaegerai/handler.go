@@ -12,8 +12,10 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -138,6 +140,21 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Enrich the existing HTTP server span (created by otelhttp around this
+	// handler) with GenAI attributes identifying the sidecar agent handling
+	// this turn. No new span: the agent's own name/version only becomes known
+	// after this response, so it can't be set as a span-start attribute, and
+	// a dedicated child span would just duplicate what the HTTP span already
+	// records for timing/status.
+	span := oteltrace.SpanFromContext(ctx)
+	span.SetAttributes(otelsemconv.GenAIOperationNameInvokeAgent)
+	if init.AgentInfo != nil {
+		span.SetAttributes(otelsemconv.GenAIAgentName(init.AgentInfo.Name))
+		if init.AgentInfo.Version != "" {
+			span.SetAttributes(otelsemconv.GenAIAgentVersion(init.AgentInfo.Version))
+		}
+	}
+
 	newSessionReq := acp.NewSessionRequest{
 		// "/" is a placeholder: the gateway advertises no fs capability in
 		// Initialize, so Cwd is never resolved against a real filesystem.
@@ -157,6 +174,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Error creating session: %v", err), http.StatusBadGateway)
 		return
 	}
+	span.SetAttributes(otelsemconv.GenAIConversationID(string(sess.SessionId)))
 
 	defer closeACPSession(ctx, acpConn, init.AgentCapabilities, sess.SessionId, h.Logger)
 
@@ -183,9 +201,15 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// acp-go-sdk drains pending SessionUpdate notifications before the
 	// call returns, so by the time we reach finishRun() all streamed
 	// content has been written.
+	//
+	// Inject the active trace context into _meta so a sidecar that extracts
+	// it (SEP-414 style, same as the MCP tool-call boundary) parents its own
+	// agentic-loop spans under this request's span, joining what would
+	// otherwise be two disconnected traces into one.
 	promptResp, err := acp.SendRequest[acp.PromptResponse](acpConn, acpCtx, acp.AgentMethodSessionPrompt, acp.PromptRequest{
 		SessionId: sess.SessionId,
 		Prompt:    promptBlocks,
+		Meta:      injectTraceContextIntoMeta(ctx, nil),
 	})
 	if err != nil {
 		clientImpl.failRun(fmt.Sprintf("Error starting prompt: %v", err))

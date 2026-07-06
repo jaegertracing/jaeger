@@ -5,6 +5,7 @@ package otelsemconv
 
 import (
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/propagation"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
@@ -83,7 +84,10 @@ func HTTPStatusCodeAttribute(value int) attribute.KeyValue {
 var HTTPResponseStatusCode = semconv.HTTPResponseStatusCode
 
 // MCP + GenAI helper values/functions.
-var GenAIOperationNameExecuteTool = semconv.GenAIOperationNameExecuteTool
+var (
+	GenAIOperationNameExecuteTool = semconv.GenAIOperationNameExecuteTool
+	GenAIOperationNameInvokeAgent = semconv.GenAIOperationNameInvokeAgent
+)
 
 func McpMethodName(value string) attribute.KeyValue {
 	return semconv.McpMethodNameKey.String(value)
@@ -97,6 +101,60 @@ func GenAIToolName(value string) attribute.KeyValue {
 	return semconv.GenAIToolName(value)
 }
 
+// GenAIAgentName identifies the sidecar agent handling a chat turn (e.g. the
+// name the agent reports in its ACP InitializeResponse.AgentInfo).
+func GenAIAgentName(value string) attribute.KeyValue {
+	return semconv.GenAIAgentName(value)
+}
+
+// GenAIAgentVersion is the version the sidecar agent reports in its ACP
+// InitializeResponse.AgentInfo.
+func GenAIAgentVersion(value string) attribute.KeyValue {
+	return semconv.GenAIAgentVersion(value)
+}
+
+// GenAIConversationID correlates the chat span with the ACP session id
+// assigned by the sidecar agent for this turn.
+func GenAIConversationID(value string) attribute.KeyValue {
+	return semconv.GenAIConversationID(value)
+}
+
 func ErrorType(value string) attribute.KeyValue {
 	return semconv.ErrorTypeKey.String(value)
+}
+
+// TraceContextPropagator is the SEP-414 composite propagator (W3C
+// traceparent/tracestate + baggage) for carrying trace context across a
+// protocol's _meta field — the MCP tool-call boundary and the ACP prompt
+// boundary both use this same convention.
+var TraceContextPropagator = propagation.NewCompositeTextMapPropagator(
+	propagation.TraceContext{},
+	propagation.Baggage{},
+)
+
+// TraceContextCarrier adapts a map[string]any — the shape of every MCP and
+// ACP request's _meta field — to propagation.TextMapCarrier, so
+// TraceContextPropagator can inject into or extract from it directly.
+type TraceContextCarrier struct {
+	Meta map[string]any
+}
+
+func (c *TraceContextCarrier) Get(key string) string {
+	value, _ := c.Meta[key].(string)
+	return value
+}
+
+func (c *TraceContextCarrier) Set(key, value string) {
+	if c.Meta == nil {
+		c.Meta = map[string]any{}
+	}
+	c.Meta[key] = value
+}
+
+func (c *TraceContextCarrier) Keys() []string {
+	keys := make([]string, 0, len(c.Meta))
+	for key := range c.Meta {
+		keys = append(keys, key)
+	}
+	return keys
 }
