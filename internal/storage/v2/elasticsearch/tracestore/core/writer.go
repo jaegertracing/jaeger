@@ -133,6 +133,9 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
+	// bulkWriter is a required dependency (see SpanWriterParams); it is not
+	// nil-checked here on purpose — a writer built without one is a construction
+	// error, not a runtime condition to tolerate.
 	s.bulkWriter.Add(esclient.BulkItem{
 		Index:  indexName,
 		OpType: s.spanRotation.WriteOpType(),
