@@ -42,5 +42,8 @@ func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
+	if err := esCfg.Validate(); err != nil {
+		return esclient.Client{}, err
+	}
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }

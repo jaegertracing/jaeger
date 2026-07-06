@@ -43,6 +43,9 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
+	if err := esCfg.Validate(); err != nil {
+		return esclient.Client{}, err
+	}
 	// NewClient resolves the backend version at construction.
 	return esclient.NewClient(ctx, esCfg, logger, nil)
 }

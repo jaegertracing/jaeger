@@ -351,6 +351,40 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "multiple auth configured: basic and bearer",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("user", "pass", ""),
+					BearerTokenAuth:     configoptional.Some(TokenAuthentication{FilePath: "path"}),
+				},
+			},
+			expectedError: "at most one HTTP authentication method (basic, bearer_token, api_key) can be configured",
+		},
+		{
+			name: "multiple auth configured: bearer and api key",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{FilePath: "path1"}),
+					APIKeyAuth:      configoptional.Some(TokenAuthentication{FilePath: "path2"}),
+				},
+			},
+			expectedError: "at most one HTTP authentication method (basic, bearer_token, api_key) can be configured",
+		},
+		{
+			name: "multiple auth configured: all three",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: basicAuth("user", "pass", ""),
+					BearerTokenAuth:     configoptional.Some(TokenAuthentication{FilePath: "path1"}),
+					APIKeyAuth:      configoptional.Some(TokenAuthentication{FilePath: "path2"}),
+				},
+			},
+			expectedError: "at most one HTTP authentication method (basic, bearer_token, api_key) can be configured",
+		},
+		{
 			name:   "explicit supported version accepted",
 			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 102},
 		},

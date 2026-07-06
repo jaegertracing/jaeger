@@ -471,6 +471,20 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
+	authCount := 0
+	if c.Authentication.BasicAuthentication.HasValue() {
+		authCount++
+	}
+	if c.Authentication.BearerTokenAuth.HasValue() {
+		authCount++
+	}
+	if c.Authentication.APIKeyAuth.HasValue() {
+		authCount++
+	}
+	if authCount > 1 {
+		return errors.New("at most one HTTP authentication method (basic, bearer_token, api_key) can be configured")
+	}
+
 	// A non-zero Version is an explicit backend override; reject unsupported
 	// values so they don't silently become an Unknown version. 0 means auto-detect.
 	if c.Version != 0 && !es.IsSupportedVersion(c.Version) {
