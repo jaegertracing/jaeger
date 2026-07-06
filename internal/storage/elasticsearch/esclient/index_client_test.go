@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -374,8 +375,14 @@ var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("u
 
 // makeClient builds an esclient.Client for a single plaintext test server. A
 // non-empty user enables basic auth so requests carry an Authorization header.
-func makeClient(t *testing.T, url, user, pass string) Client {
-	cfg := &config.Configuration{Servers: []string{url}}
+func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) Client {
+	// Resolve the version from config so NewClient doesn't probe the test server.
+	// Defaults to ElasticV7; version-specific tests pass an explicit version.
+	v := es.ElasticV7
+	if len(version) > 0 {
+		v = version[0]
+	}
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(v)}
 	if user != "" {
 		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
 			Username: user,
@@ -562,24 +569,34 @@ func TestClientCreateTemplate(t *testing.T) {
 	templateContent := "template content"
 	tests := []struct {
 		name         string
-		versionResp  string
+		version      es.BackendVersion
+		expectedPath string
 		responseCode int
 		response     string
 		errContains  string
 	}{
 		{
 			name:         "success/v7",
-			versionResp:  elasticsearch7,
+			version:      es.ElasticV7,
+			expectedPath: "_template/jaeger-template",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/v8",
-			versionResp:  elasticsearch8,
+			version:      es.ElasticV8,
+			expectedPath: "_index_template/jaeger-template",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "success/opensearch",
+			version:      es.OpenSearch2,
+			expectedPath: "_template/jaeger-template",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "client error",
-			versionResp:  elasticsearch7,
+			version:      es.ElasticV7,
+			expectedPath: "_template/jaeger-template",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
 			errContains:  "failed to create template: jaeger-template",
@@ -587,13 +604,10 @@ func TestClientCreateTemplate(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			var requestCount atomic.Int64
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				if req.URL.String() == "/" { // ES version check
-					res.WriteHeader(http.StatusOK)
-					res.Write([]byte(test.versionResp))
-					return
-				}
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
+				requestCount.Add(1)
+				assert.True(t, strings.HasSuffix(req.URL.String(), test.expectedPath))
 				assert.Equal(t, http.MethodPut, req.Method)
 				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
@@ -605,13 +619,19 @@ func TestClientCreateTemplate(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "user", "pass", test.version)
 			c := &IndicesClient{
-				Client: makeClient(t, testServer.URL, "user", "pass"),
+				Client: client,
 			}
-			err := c.CreateTemplate(context.Background(), templateContent, templateName)
+			err := c.CreateTemplate(context.Background(), templateName, func(es.BackendVersion) (string, error) {
+				return templateContent, nil
+			})
 			if test.errContains != "" {
-				assert.ErrorContains(t, err, test.errContains)
+				require.ErrorContains(t, err, test.errContains)
+			} else {
+				require.NoError(t, err)
 			}
+			assert.EqualValues(t, 1, requestCount.Load(), "CreateTemplate must issue a single request, without a per-call version probe")
 		})
 	}
 }
@@ -751,22 +771,24 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 	rec.Assert(t, "testdata/rollover")
 }
 
+func TestCreateTemplateRenderError(t *testing.T) {
+	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
+	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
+		return "", assert.AnError
+	})
+	require.ErrorIs(t, err, assert.AnError)
+}
+
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
-		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			if r.URL.Path == "/" { // version probe to select the template endpoint
-				w.Write([]byte(versionResponse(version)))
-				return
-			}
-			w.Write([]byte("{}"))
-		})
-		server := httptest.NewServer(rec)
-		t.Cleanup(server.Close)
-		c := IndicesClient{Client: makeClient(t, server.URL, "", "")}
-		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
+		rec, url := okServer(t)
+		client := makeClient(t, url, "", "", version)
+		c := IndicesClient{Client: client}
+		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
+			return template, nil
+		}))
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/create_template", content)

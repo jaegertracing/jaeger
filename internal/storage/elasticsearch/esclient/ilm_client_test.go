@@ -56,8 +56,9 @@ func TestExists(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "user", "pass", es.ElasticV7)
 			c := &ILMClient{
-				Client: makeClient(t, testServer.URL, "user", "pass"),
+				Client: client,
 				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
@@ -106,10 +107,10 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "", "", es.OpenSearch2)
 			c := &ILMClient{
-				Client:           makeClient(t, testServer.URL, "", ""),
-				Logger:           zap.NewNop(),
-				UseOpenSearchISM: true,
+				Client: client,
+				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 			if test.errContains != "" {
@@ -140,8 +141,9 @@ func TestExists_Retries(t *testing.T) {
 	}))
 	defer testServer.Close()
 
+	client := makeClient(t, testServer.URL, "user", "pass", es.ElasticV7)
 	c := &ILMClient{
-		Client: makeClient(t, testServer.URL, "user", "pass"),
+		Client: client,
 		Logger: zap.NewNop(),
 	}
 
@@ -151,16 +153,22 @@ func TestExists_Retries(t *testing.T) {
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")
 }
 
+func TestILMClientSupportsILM(t *testing.T) {
+	url := "http://localhost:9200"
+	assert.False(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV6)}.SupportsILM())
+	assert.True(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV7)}.SupportsILM())
+}
+
 // TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
 // policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
 func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
+		client := makeClient(t, url, "", "", version)
 		c := ILMClient{
-			Client:           makeClient(t, url, "", ""),
-			Logger:           zap.NewNop(),
-			UseOpenSearchISM: version.IsOpenSearch(),
+			Client: client,
+			Logger: zap.NewNop(),
 		}
 		_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 		require.NoError(t, err)

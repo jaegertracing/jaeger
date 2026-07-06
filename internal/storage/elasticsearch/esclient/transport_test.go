@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
@@ -121,6 +122,7 @@ func TestNewClientAppliesTLSConfig(t *testing.T) {
 
 	strict, err := NewClient(context.Background(), &config.Configuration{
 		Servers: []string{server.URL},
+		Version: uint(es.ElasticV7), // pin so NewClient doesn't probe; test the request path
 	}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	_, err = strict.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
@@ -128,6 +130,7 @@ func TestNewClientAppliesTLSConfig(t *testing.T) {
 
 	insecure, err := NewClient(context.Background(), &config.Configuration{
 		Servers: []string{server.URL},
+		Version: uint(es.ElasticV7),
 		TLS:     configtls.ClientConfig{Insecure: true},
 	}, zap.NewNop(), nil)
 	require.NoError(t, err)
@@ -149,6 +152,7 @@ func TestClientRequestBodyAndTimeout(t *testing.T) {
 	c, err := NewClient(context.Background(), &config.Configuration{
 		Servers:      []string{server.URL},
 		QueryTimeout: time.Minute,
+		Version:      uint(es.ElasticV7),
 	}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	_, err = c.request(context.Background(), elasticRequest{
@@ -175,6 +179,7 @@ func TestClientRequestErrorPaths(t *testing.T) {
 	t.Run("invalid method fails request construction", func(t *testing.T) {
 		c, err := NewClient(context.Background(), &config.Configuration{
 			Servers: []string{"http://localhost:9200"},
+			Version: uint(es.ElasticV7),
 		}, zap.NewNop(), nil)
 		require.NoError(t, err)
 		_, err = c.request(context.Background(), elasticRequest{method: "BAD METHOD", endpoint: "x"})

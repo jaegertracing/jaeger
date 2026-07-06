@@ -351,6 +351,15 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name:   "explicit supported version accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 102},
+		},
+		{
+			name:          "explicit unsupported version rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 10},
+			expectedError: "unsupported version 10",
+		},
+		{
 			name:          "no valid input are set",
 			config:        &Configuration{},
 			expectedError: "Servers: non zero value required",

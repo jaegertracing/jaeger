@@ -69,8 +69,13 @@ func TestExecuteAction(t *testing.T) {
 		},
 	}
 	logger := zap.NewNop()
+	testServer := httptest.NewTLSServer(http.HandlerFunc(func(res http.ResponseWriter, _ *http.Request) {
+		res.WriteHeader(http.StatusOK)
+		res.Write([]byte(`{"version":{"number":"7.0.0"}}`))
+	}))
+	defer testServer.Close()
 	args := []string{
-		"https://localhost:9300",
+		testServer.URL,
 	}
 
 	for _, test := range tests {
@@ -177,6 +182,10 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotAuth = r.Header.Get("Authorization")
 				w.WriteHeader(http.StatusOK)
+				if r.URL.Path == "/" { // construction-time version probe
+					w.Write([]byte(`{"version":{"number":"8.0.0"},"tagline":"You Know, for Search"}`))
+					return
+				}
 				w.Write([]byte("{}"))
 			}))
 			defer server.Close()
@@ -192,6 +201,17 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			assert.Equal(t, test.wantAuth, gotAuth)
 		})
 	}
+}
+
+func TestNewESClient_VersionDetectionError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`)) // response has no version field
+	}))
+	defer server.Close()
+
+	_, err := newESClient(context.Background(), server.URL, &Config{}, zap.NewNop())
+	require.ErrorContains(t, err, "failed to resolve backend version")
 }
 
 func TestExecuteAction_ClientError(t *testing.T) {
