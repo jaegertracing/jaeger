@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v9/esapi"
 	"github.com/elastic/go-elasticsearch/v9/esutil"
 	"go.uber.org/zap"
 
@@ -47,6 +48,17 @@ var _ BulkWriter = (*BulkIndexer)(nil)
 
 type flushStartKey struct{}
 
+// bulkTransport exposes the client's connection pool as an esapi.Transport, so
+// the official esutil.BulkIndexer runs over our own transport — the same
+// multi-node pool and auth/TLS/SigV4 RoundTripper stack every other request uses
+// — rather than a product-checked go-elasticsearch client. esutil only needs a
+// Perform(*http.Request); it builds and parses the _bulk request itself, so this
+// is the right layer (esclient.Client.request would add its own content-type and
+// error handling that esutil does not want).
+func (c Client) bulkTransport() esapi.Transport {
+	return c.transport.pool
+}
+
 // NewBulkIndexer returns a running BulkIndexer. The caller owns its lifecycle and
 // must call Close to flush buffered documents and stop the workers.
 func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics.Factory, logger *zap.Logger) (*BulkIndexer, error) {
@@ -62,7 +74,7 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 		workers = 1
 	}
 	bi, err := esutil.NewBulkIndexer(esutil.BulkIndexerConfig{
-		Client:        client.transport.pool, // *elastictransport.Client satisfies esapi.Transport
+		Client:        client.bulkTransport(),
 		NumWorkers:    workers,
 		FlushBytes:    cfg.FlushBytes,
 		FlushInterval: cfg.FlushInterval,
