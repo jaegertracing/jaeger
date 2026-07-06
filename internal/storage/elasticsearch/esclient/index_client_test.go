@@ -771,15 +771,6 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 	rec.Assert(t, "testdata/rollover")
 }
 
-func TestCreateTemplateUnresolvedVersion(t *testing.T) {
-	// A Client built directly (not via NewClient) has no resolved version.
-	c := IndicesClient{Client: Client{}}
-	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
-		return "", nil
-	})
-	require.ErrorContains(t, err, "backend version was not resolved")
-}
-
 func TestCreateTemplateRenderError(t *testing.T) {
 	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
 	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {

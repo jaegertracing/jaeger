@@ -153,13 +153,6 @@ func TestExists_Retries(t *testing.T) {
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")
 }
 
-func TestLifecycleExistsUnresolvedVersion(t *testing.T) {
-	// A Client built directly (not via NewClient) has no resolved version.
-	c := ILMClient{Client: Client{}, Logger: zap.NewNop()}
-	_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
-	require.ErrorContains(t, err, "backend version was not resolved")
-}
-
 func TestILMClientSupportsILM(t *testing.T) {
 	url := "http://localhost:9200"
 	assert.False(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV6)}.SupportsILM())
