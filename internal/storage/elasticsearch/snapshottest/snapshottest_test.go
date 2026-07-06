@@ -163,7 +163,10 @@ func TestBackendKey(t *testing.T) {
 func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
-	// ES7 differs; every other version emits the same "REST" wire format.
+	// Contrived content (not a real wire difference): ES7 emits a distinct
+	// payload while every other version emits an identical one, so regeneration
+	// must produce two files — es7.json plus a merged es8-9.os1-3.json —
+	// exercising the range-collapse logic.
 	content := map[es.BackendVersion]string{
 		es.ElasticV7:   "ES7",
 		es.ElasticV8:   "REST",
