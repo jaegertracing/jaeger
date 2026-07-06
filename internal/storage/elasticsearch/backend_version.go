@@ -123,7 +123,9 @@ func ResolveBackendVersion(ctx context.Context, configured uint, ping func(conte
 	if result.VersionNumber == "" {
 		return 0, errors.New("backend returned an empty version number")
 	}
-	majorVersion, err := strconv.Atoi(string(result.VersionNumber[0]))
+	// Parse the whole major component (up to the first dot), not just the first
+	// byte — otherwise "10.x" would be misread as major 1.
+	majorVersion, err := strconv.Atoi(strings.Split(result.VersionNumber, ".")[0])
 	if err != nil {
 		return 0, fmt.Errorf("invalid version format: %s", result.VersionNumber)
 	}

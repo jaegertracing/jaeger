@@ -193,6 +193,16 @@ func TestResolveBackendVersion(t *testing.T) {
 			errContains: "invalid version format: vNext",
 			wantPinged:  true,
 		},
+		{
+			// Regression: parsing only the first byte would read "10" as major 1
+			// (OpenSearch1) instead of 10 (OpenSearch3).
+			name: "multi-digit major is parsed fully",
+			ping: func(context.Context) (PingResult, error) {
+				return PingResult{VersionNumber: "10.0.0", TagLine: "The OpenSearch Project"}, nil
+			},
+			expected:   OpenSearch3,
+			wantPinged: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
