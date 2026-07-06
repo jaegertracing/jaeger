@@ -478,6 +478,21 @@ func (c *Configuration) Validate() error {
 		return fmt.Errorf("unsupported version %d: set 0 to auto-detect, or use 6/7/8/9 (Elasticsearch) or 101/102/103 (OpenSearch 1/2/3)", c.Version)
 	}
 
+	// Ensure at most one auth method is configured (they all set the Authorization header).
+	var authCount int
+	if c.Authentication.BasicAuthentication.HasValue() {
+		authCount++
+	}
+	if c.Authentication.BearerTokenAuth.HasValue() {
+		authCount++
+	}
+	if c.Authentication.APIKeyAuth.HasValue() {
+		authCount++
+	}
+	if authCount > 1 {
+		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
+	}
+
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
