@@ -121,7 +121,7 @@ func TestRolloverAction(t *testing.T) {
 			setupCallExpectations: func(_ *mocks.IndexAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
 				ilmClient.On("Exists", mock.Anything, "myilmpolicy").Return(false, nil)
 			},
-			expectedErr: errors.New("ILM policy myilmpolicy doesn't exist in Elasticsearch. Please create it and re-run init"),
+			expectedErr: errors.New("ILM/ISM policy myilmpolicy doesn't exist. Please create it and re-run init"),
 			config: Config{
 				Config: app.Config{
 					Archive:       true,
