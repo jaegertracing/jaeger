@@ -153,6 +153,12 @@ func TestExists_Retries(t *testing.T) {
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")
 }
 
+func TestLifecycleExistsUnresolvedVersion(t *testing.T) {
+	c := ILMClient{Client: makeClient(t, "http://localhost:9200", "", ""), Logger: zap.NewNop()}
+	_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
+	require.ErrorContains(t, err, "backend version was not resolved")
+}
+
 // TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
 // policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
 func TestLifecycleExistsRequestSnapshot(t *testing.T) {

@@ -273,6 +273,12 @@ func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases 
 // callers select and render the mapping in Jaeger terms without ever holding a
 // BackendVersion themselves (the version stays encapsulated in the client).
 func (i IndicesClient) CreateTemplate(ctx context.Context, name string, render func(es.BackendVersion) (string, error)) error {
+	// The endpoint and the rendered body both depend on the backend version, so
+	// refuse rather than silently defaulting to the legacy _template endpoint
+	// when the client was built without version detection.
+	if i.version == 0 {
+		return errors.New("cannot create template: the client's backend version was not resolved")
+	}
 	template, err := render(i.version)
 	if err != nil {
 		return err

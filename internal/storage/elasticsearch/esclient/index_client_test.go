@@ -765,6 +765,14 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 	rec.Assert(t, "testdata/rollover")
 }
 
+func TestCreateTemplateUnresolvedVersion(t *testing.T) {
+	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "")}
+	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
+		return "", nil
+	})
+	require.ErrorContains(t, err, "backend version was not resolved")
+}
+
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
 	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
 	content := map[es.BackendVersion]string{}

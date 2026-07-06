@@ -39,6 +39,12 @@ func (i ILMClient) SupportsILM() bool {
 
 // Exists verify if a ILM/ISM policy exists
 func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
+	// The ILM-vs-ISM endpoint is chosen from the backend version, so refuse
+	// rather than probing the wrong path when the client was built without
+	// version detection.
+	if i.version == 0 {
+		return false, errors.New("cannot query ILM/ISM policy: the client's backend version was not resolved")
+	}
 	endpoint := "_ilm/policy/" + name
 	if i.version.IsOpenSearch() {
 		endpoint = "_plugins/_ism/policies/" + name
