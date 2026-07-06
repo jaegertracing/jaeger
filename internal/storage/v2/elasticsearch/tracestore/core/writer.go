@@ -20,8 +20,6 @@ import (
 )
 
 const (
-	spanType               = "span"
-	serviceType            = "service"
 	serviceCacheTTLDefault = 12 * time.Hour
 	indexCacheTTLDefault   = 48 * time.Hour
 )
@@ -133,7 +131,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).
+	s.client().Index().Index(indexName).
 		OpType(s.spanRotation.WriteOpType()).
 		BodyJson(&jsonSpan).Add()
 }

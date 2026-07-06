@@ -5,7 +5,6 @@ package init
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
@@ -40,11 +39,8 @@ func (c Action) getMapping(version es.BackendVersion, mappingType mappings.Mappi
 func (c Action) Do() error {
 	ctx := context.TODO()
 	if c.Config.UseILM {
-		// The client answers the ILM/ISM capability question from the version it
-		// was built with, so the action never inspects the backend version.
-		if !c.ILMClient.SupportsILM() {
-			return errors.New("ILM/ISM is not supported by the Elasticsearch/OpenSearch backend")
-		}
+		// Every supported backend provides lifecycle management (ILM on
+		// Elasticsearch, ISM on OpenSearch), so no capability check is needed.
 		policyExist, err := c.ILMClient.Exists(ctx, c.Config.ILMPolicyName)
 		if err != nil {
 			return err

@@ -30,13 +30,6 @@ type ILMClient struct {
 	Logger               *zap.Logger
 }
 
-// SupportsILM reports whether the backend the client was built against supports
-// Index Lifecycle Management (ILM on Elasticsearch, ISM on OpenSearch). It lets
-// callers gate ILM work without ever handling a BackendVersion.
-func (i ILMClient) SupportsILM() bool {
-	return i.version.SupportsILM()
-}
-
 // Exists verify if a ILM/ISM policy exists
 func (i ILMClient) Exists(ctx context.Context, name string) (bool, error) {
 	endpoint := "_ilm/policy/" + name

@@ -88,7 +88,6 @@ func TestWriteDependencies(t *testing.T) {
 			r.client.On("GetVersion").Return(testCase.esVersion)
 
 			writeService.On("Index", stringMatcher(expectedIndex)).Return(writeService)
-			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
 			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
@@ -269,9 +268,9 @@ func stringMatcher(q string) any {
 }
 
 // TestDependencyStoreRequestSnapshots freezes the exact wire format of the
-// dependency read+write path over the current olivere client. Only ES6 differs
-// (no rest_total_hits_as_int on searches; _type on writes); every other version
-// emits the same request, so snapshots collapse to es6 / es7-9.os1-3.
+// dependency read+write path over the current olivere client. Every supported
+// version emits the same request, so snapshots collapse to a single all-versions
+// file.
 
 // newDataClient builds a real es.Client for the given backend version, pointed at
 // the recording server. Version is set explicitly so no ping is issued, and the

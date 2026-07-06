@@ -103,7 +103,7 @@ The realistic total surface is **small and REST-shaped** — a strong signal tha
 
 - **G1.** One client for both data plane and control plane, meaning **one shared low-level transport and one version-detection path** — the horizontal concerns are not duplicated. Payload APIs may be one struct or several cohesive structs composed over that shared transport (a free choice; §6.1). Callers see **small, focused role interfaces** (`Searcher`, `BulkWriter`, `IndexManager`, `LifecycleManager`, …) — segregated interfaces are explicitly wanted (easier to mock, no coupling to unused methods), a fat interface is not.
 - **G2.** Compatible with both Elasticsearch and OpenSearch **without leaking backend differences to callers.** ILM-vs-ISM, `_template`-vs-`_index_template`, typed-vs-untyped indices are resolved *inside* the client.
-- **G3.** Preserve the current single-binary version matrix: **Elasticsearch 6/7/8/9 and OpenSearch 1/2/3** from one build (ES 6 is EOL but still modeled by `BackendVersion` and exercised in CI — see §7.1). Do not regress supported backends (§4, §6).
+- **G3.** Preserve the current single-binary version matrix: **Elasticsearch 7/8/9 and OpenSearch 1/2/3** from one build (Elasticsearch 6 reached EOL and support was removed). Do not regress supported backends (§4, §6).
 - **G4.** Unblock the bugs `olivere` cannot fix: bounded bulk memory (#2192), universal `custom_headers` (#8916), correct SigV4 body signing (#8760).
 - **G5.** Remove `olivere` and the duplicated version/operation logic.
 - **G6.** A testing model that makes the emitted wire format explicit and regression-sensitive (§7).
@@ -284,7 +284,7 @@ A single neutral AST suffices because Jaeger's query surface is small, closed, a
 
 - **The surface is ~17 node types:** **8 query nodes** (`bool`, `term`, `terms`, `match`, `range`, `exists`, `nested`, `regexp`) + **9 aggregations** (`terms`, `min`, `max` incl. Painless-scripted, `date_histogram`, `percentiles`, `cumulative_sum`, `filter`, `top_hits`) + a small search envelope (`size`, `sort`, `search_after`, `track_total_hits`, `_source`, `ignore_unavailable`, `_msearch`). No scroll; no `wildcard`/`prefix`/`ids`/`query_string`.
 - **ES and OS request bodies are byte-identical over this subset.** These are pre-fork core DSL that OpenSearch inherited unchanged; the fork diverged on *management* APIs (templates, ILM/ISM, data streams), which the query AST does not touch — so the AST carries essentially no ES-vs-OS branching.
-- **The only frictions are version gates within the ES lineage, all already centralized behind `BackendVersion`:** `range` emits only `gt/gte/lt/lte` (ES9-safe), `date_histogram` uses `fixed_interval` (ES8+), `hits.total` is normalized via `rest_total_hits_as_int` (ES6-vs-rest), `_type` is suppressed for ES7+/OS (write path). None add branching to the query JSON.
+- **The only frictions are version gates within the ES lineage, all already centralized behind `BackendVersion`:** `range` emits only `gt/gte/lt/lte` (ES9-safe), `date_histogram` uses `fixed_interval` (ES8+), `hits.total` is normalized via `rest_total_hits_as_int`, `_type` is suppressed for ES7+/OS (write path). None add branching to the query JSON.
 
 The AST is **built, not borrowed.** `internal/storage/elasticsearch/query/range_query.go` already demonstrates the pattern — a hand-written, ES9-safe range node with a `Source() (any, error)` returning `map[string]any`. Reusing `olivere`'s builders as a pure-JSON DSL is possible (their `Source()` methods have no client dependency) but strictly worse: it keeps a dead dependency, still requires overriding `RangeQuery`, and re-leaks the `elastic.*` type across the boundary. `go-elasticsearch`'s `esdsl` (ES-spec-only, product-checked, v8/v9-only) and `opensearch-go` (no builder) are unfit for a driver-neutral boundary.
 
@@ -402,14 +402,14 @@ Two problems with today's snapshots: the ES fixtures use an ad-hoc scheme (`jaeg
 testdata/<subject>[.<variants>].json
 ```
 
-- `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping snapshot under `mappings/testdata/` is `dependencies.es6.json`, not `mapping/dependencies.es6.json`.
+- `<subject>` — the operation/artifact in snake_case: `find_trace_ids`, `get_services`, `write_span`, `create_template`, `rollover`, `alias_exists`, `span`, `service`, … `<subject>` may nest with `/` to group a family, but only when the enclosing directory does not already imply it — a mapping snapshot under `mappings/testdata/` is `dependencies.es7.json`, not `mapping/dependencies.es7.json`.
 - **There is exactly one file per distinct wire format.** When every supported backend and version emits the same request, the variant tail is omitted and the snapshot is the bare `<subject>.json`.
 - **Otherwise a `.<variants>` tail lists the version ranges that share that wire format** — a dot-separated list of `<backend><range>` tokens:
   - `<backend>` — `es` or `os`.
   - `<range>` — a single major (`8`) or an **inclusive major range** (`6-7`) of consecutive versions.
   - Backends that emit byte-identical output share one file, so the token list can span both — `get_services.es7-9.os1-3.json`.
 
-Examples: `testdata/alias_exists.json` (all versions); `testdata/get_operations.es6.json` + `testdata/get_operations.es7-9.os1-3.json` (only ES 6 differs); `testdata/create_template.es6-7.os1-3.json` + `testdata/create_template.es8-9.json` (ES 6-7 and OpenSearch share the `_template` endpoint, ES 8-9 use `_index_template`); `testdata/span.es8-9.json` (mapping distinct per backend).
+Examples: `testdata/alias_exists.json` (all versions); `testdata/create_template.es7.os1-3.json` + `testdata/create_template.es8-9.json` (ES 7 and OpenSearch share the `_template` endpoint, ES 8-9 use `_index_template`); `testdata/span.es8-9.json` (mapping distinct per backend).
 
 **Rules:**
 
@@ -420,12 +420,12 @@ Examples: `testdata/alias_exists.json` (all versions); `testdata/get_operations.
 
 **Why one file per wire format (not per backend).** Always giving ES and OpenSearch their own file is simpler to resolve but duplicates every backend-agnostic request — and since the data plane is backend-agnostic by design, that is most of them. A third option — a base file plus per-version overrides — reads best for the data plane but makes a file's coverage implicit. Trade-offs (🟢 good / 🟡 mixed / 🔴 poor):
 
-| Criterion | ① One file per wire format<br>`es7-9.os1-3.json` **(chosen)** | ② Base + overrides<br>`.json` + `es6.json` | ③ Separate per backend<br>`es7-9.json` + `os1-3.json` |
+| Criterion | ① One file per wire format<br>`es7-9.os1-3.json` **(chosen)** | ② Base + overrides<br>`.json` + `<variant>.json` | ③ Separate per backend<br>`es7-9.json` + `os1-3.json` |
 |---|:---:|:---:|:---:|
 | Eliminates duplication | 🟢 identical content → one file | 🟢 identical content → base | 🔴 `es7-9` == `os1-3` duplicated |
 | Coverage is explicit | 🟢 filename lists every range | 🔴 base = "whatever isn't overridden" | 🟢 one file per backend |
 | Keeps `bare.json` = "all identical" | 🟢 unchanged | 🔴 redefines bare as "default" | 🟢 unchanged |
-| Reads cleanly for the data plane | 🟡 `es7-9.os1-3` is busy | 🟢 "the query, + es6 is special" | 🔴 one file is a pure duplicate |
+| Reads cleanly for the data plane | 🟡 `es7-9.os1-3` is busy | 🟢 "the query, + one variant is special" | 🔴 one file is a pure duplicate |
 | Reads cleanly for the control plane (backends differ) | 🟢 one explicit file each | 🟡 one variant becomes the implicit base | 🟢 one explicit file each |
 | Filename grammar simplicity | 🟡 dotted range-list | 🟢 simplest | 🟢 simplest |
 | Upkeep when a new ES/OS major is supported | 🟡 regenerate; range extends/merges in the name | 🟢 matches the base ⇒ no new file | 🔴 always a new (often duplicate) file |
@@ -433,7 +433,7 @@ Examples: `testdata/alias_exists.json` (all versions); `testdata/get_operations.
 
 ① and ② both eliminate the duplication; they differ on where the cost lands. ② has the lowest upkeep and the cleanest data-plane read, but a file's coverage becomes implicit and the bare-file meaning is overloaded — awkward for the control plane, where no variant is a natural default. We choose **①**: an unambiguous resolver and every file's coverage being explicit in its name matter more here than shaving a regeneration step, and the fixture tree stays a literal, no-magic compatibility matrix.
 
-The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots; converging the existing `jaeger-*-{6,7,8}.json` files onto it collapses any accidental duplication (identical `-6`/`-7` files become `.es6-7`, and identical ES/OS files merge into one `.es*.os*` file). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
+The payoff: **the fixture tree *is* the compatibility matrix.** One convention spans mappings and request snapshots; converging the existing `jaeger-*-{7,8}.json` files onto it collapses any accidental duplication (identical adjacent-version files merge into a range, and identical ES/OS files merge into one `.es*.os*` file). This convergence is milestone M1 (§8) so the baseline lands in the final naming.
 
 ### 7.4 Snapshot vs. focused mock — pick the altitude
 
@@ -477,7 +477,7 @@ The work decomposes into small, independently-shippable milestones — each one 
 
   Delivered incrementally:
   - **M4a — Version resolution + admin encapsulation (callback). ✅ Done (#8938).** `esclient.NewClient` resolves the backend version at construction — honoring `config.Version`, else probing once via the shared `es.ResolveBackendVersion` (the data-plane `clientbuilder` uses the same resolver) — and stores it on an unexported `Client.version` (the low-level `GET /` probe is `Client.ping`; there is no post-construction override). Version-dependent admin methods read it internally: `IndicesClient.CreateTemplate` takes a version-receiving render callback (so `es-rollover` `init` selects the mapping type but never holds a `BackendVersion`), and the ILM-supported gate is the capability method `ILMClient.SupportsILM()`. The `Version()` accessor and `init.Action.Version` are gone, and `ClusterClient` (which only wrapped version detection) is removed. The callback is a **transitionary** encapsulation: the caller no longer stores or branches on the version, but the mapping is still rendered by the app-layer `mappings` package (invoked with the client's own version). Meets exit-(1), exit-(3), and exit-(2) for the admin plane.
-  - **M4b — `esclient` owns index templates.** Collapse the per-version `jaeger-*-{6,7,8}.json` files — whose *only* differences are wire-envelope gates (`template` vs `index_patterns`, the ES8 composable wrapper, ES6 mapping-type cruft), not the field schema — into a single neutral template representation owned by `esclient`, rendered to the per-version envelope internally. `CreateTemplate` then takes pure Jaeger intent (mapping type), retiring the callback — fully symmetric with the query AST. This closes exit-(2) on the data plane too (retiring `es.Client.GetVersion` consumption in `factory`/`mappings`), and naturally lands with Stage B.
+  - **M4b — `esclient` owns index templates.** Collapse the per-version `jaeger-*-{7,8}.json` files — whose *only* differences are wire-envelope gates (`template` vs `index_patterns`, the ES8 composable wrapper), not the field schema — into a single neutral template representation owned by `esclient`, rendered to the per-version envelope internally. `CreateTemplate` then takes pure Jaeger intent (mapping type), retiring the callback — fully symmetric with the query AST. This closes exit-(2) on the data plane too (retiring `es.Client.GetVersion` consumption in `factory`/`mappings`), and naturally lands with Stage B. `BackendVersion.TemplateVersion()` is removed here as well: it exists only to select the per-version `<mapping>-N.json` file in `mappings`, so once `esclient` renders the envelope internally it has no remaining caller.
 
 **Stage B — Migrate storage paths, growing the API on demand (one PR per path).** Each slice is *vertical*: it adds only the AST nodes, response fields, and bulk features its caller needs, and migrates that caller in the same PR — so the caller's snapshot + integration tests validate the new API immediately. There is no unvalidated client layer sitting ahead of its users; a design flaw in the AST or response type surfaces in the first slice that hits it, not three PRs later. The first read and first write slices carry the scaffolding (the AST core, the response type, the bulk indexer); later slices are small deltas. Every slice's exit bar is "this path's snapshots stay green and its integration passes."
 

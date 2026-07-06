@@ -105,17 +105,6 @@ func TestRolloverAction(t *testing.T) {
 		expectedErr           error
 	}{
 		{
-			name:    "Unsupported version",
-			version: es.ElasticV6,
-			config: Config{
-				Config: app.Config{
-					Archive: true,
-					UseILM:  true,
-				},
-			},
-			expectedErr: errors.New("ILM/ISM is not supported by the Elasticsearch/OpenSearch backend"),
-		},
-		{
 			name:    "ilm doesnt exist",
 			version: es.ElasticV7,
 			setupCallExpectations: func(_ *mocks.IndexAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
@@ -261,10 +250,6 @@ func TestRolloverAction(t *testing.T) {
 			applyTestDefaults(&test.config)
 			indexClient := &mocks.IndexAPI{}
 			ilmClient := &mocks.IndexManagementLifecycleAPI{}
-			if test.config.Config.UseILM {
-				// The action gates on the client's ILM capability, not a version.
-				ilmClient.On("SupportsILM").Return(test.version.SupportsILM())
-			}
 			initAction := Action{
 				Config:        test.config,
 				IndicesClient: indexClient,

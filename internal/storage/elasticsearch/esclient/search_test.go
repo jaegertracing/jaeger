@@ -17,18 +17,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 )
 
-// TestSearchRequestVersionGating covers the only version-dependent branch in
-// Search: ES7+/OS add rest_total_hits_as_int, ES6 omits it (ignore_unavailable
-// is always set). The full wire format of the service/operation searches is
-// frozen end-to-end by the caller-level snapshots in the tracestore/core
-// package (get_services/get_operations), which drive a real SearchClient — so
-// there's no snapshot here, only the branch this package alone owns.
+// TestSearchRequestVersionGating covers the query parameters Search always
+// sets: rest_total_hits_as_int and ignore_unavailable. The full wire format of
+// the service/operation searches is frozen end-to-end by the caller-level
+// snapshots in the tracestore/core package (get_services/get_operations), which
+// drive a real SearchClient — so there's no snapshot here, only the params this
+// package alone owns.
 func TestSearchRequestVersionGating(t *testing.T) {
 	for _, tt := range []struct {
 		version     es.BackendVersion
 		wantRestInt bool
 	}{
-		{es.ElasticV6, false},
 		{es.ElasticV7, true},
 	} {
 		t.Run(tt.version.String(), func(t *testing.T) {

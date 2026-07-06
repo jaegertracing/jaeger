@@ -35,7 +35,6 @@ func TestWriteService(t *testing.T) {
 		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
@@ -70,7 +69,6 @@ func TestWriteServiceError(*testing.T) {
 		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
@@ -231,9 +229,9 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 }
 
 // TestServiceOperationRequestSnapshots freezes the exact wire format of the
-// service/operation read+write path over the current olivere client. Only ES6
-// differs (no rest_total_hits_as_int on searches; _type on writes); every other
-// version emits the same request, so snapshots collapse to es6 / es7-9.os1-3.
+// service/operation read+write path over the current olivere client. Every
+// supported version emits the same request, so snapshots collapse to a single
+// all-versions file.
 
 // newDataClient builds a real es.Client for the given backend version, pointed at
 // the recording server. Version is set explicitly so no ping is issued, and the

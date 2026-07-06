@@ -22,9 +22,6 @@ type IndexAPI interface {
 }
 
 type IndexManagementLifecycleAPI interface {
-	// SupportsILM reports whether the backend supports ILM/ISM, so callers can
-	// gate lifecycle work without inspecting the backend version.
-	SupportsILM() bool
 	Exists(ctx context.Context, name string) (bool, error)
 }
 
