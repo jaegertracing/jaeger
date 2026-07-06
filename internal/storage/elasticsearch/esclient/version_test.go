@@ -12,8 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
@@ -246,16 +249,20 @@ func TestVersion(t *testing.T) {
 			}))
 			defer testServer.Close()
 
-			c := &ClusterClient{
-				Client: makeClient(t, testServer.URL, "user", "pass"),
-			}
-			result, err := c.ResolveVersion(context.Background(), 0)
+			// Version 0 (unset) makes NewClient probe the cluster (GET /) and
+			// resolve the version at construction.
+			c, err := NewClient(context.Background(), &config.Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: config.Authentication{
+					BasicAuthentication: configoptional.Some(config.BasicAuthentication{Username: "user", Password: "pass"}),
+				},
+			}, zap.NewNop(), nil)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, test.expectedResult, result)
+			assert.Equal(t, test.expectedResult, c.version)
 		})
 	}
 }
@@ -291,8 +298,7 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
-	c := &ClusterClient{Client: makeClient(t, server.URL, "", "")}
-	_, err := c.ResolveVersion(context.Background(), 0)
+	_, err := NewClient(context.Background(), &config.Configuration{Servers: []string{server.URL}}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	rec.Assert(t, "testdata/version")
 }
@@ -306,9 +312,11 @@ func TestResolveVersionHonorsConfigured(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c := &ClusterClient{Client: makeClient(t, server.URL, "", "")}
-	version, err := c.ResolveVersion(context.Background(), uint(es.OpenSearch2))
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{server.URL},
+		Version: uint(es.OpenSearch2),
+	}, zap.NewNop(), nil)
 	require.NoError(t, err)
-	assert.Equal(t, es.OpenSearch2, version)
+	assert.Equal(t, es.OpenSearch2, c.version)
 	assert.False(t, pinged, "configured version must not trigger a cluster probe")
 }

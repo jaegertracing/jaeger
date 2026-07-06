@@ -43,17 +43,8 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 			FilePath: cfg.APIKeyFilePath,
 		})
 	}
-	client, err := esclient.NewClient(ctx, esCfg, logger, nil)
-	if err != nil {
-		return esclient.Client{}, err
-	}
-
-	clusterClient := &esclient.ClusterClient{Client: client}
-	version, err := clusterClient.ResolveVersion(ctx, esCfg.Version)
-	if err != nil {
-		return esclient.Client{}, fmt.Errorf("failed to detect backend version: %w", err)
-	}
-	return client.WithVersion(version), nil
+	// NewClient resolves the backend version at construction.
+	return esclient.NewClient(ctx, esCfg, logger, nil)
 }
 
 // Action is an interface that each action (init, rollover and lookback) of the es-rollover should implement

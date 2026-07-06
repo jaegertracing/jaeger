@@ -21,10 +21,6 @@ type IndexAPI interface {
 	Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error
 }
 
-type ClusterAPI interface {
-	ResolveVersion(ctx context.Context, configured uint) (es.BackendVersion, error)
-}
-
 type IndexManagementLifecycleAPI interface {
 	// SupportsILM reports whether the backend supports ILM/ISM, so callers can
 	// gate lifecycle work without inspecting the backend version.

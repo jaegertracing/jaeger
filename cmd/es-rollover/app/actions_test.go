@@ -211,7 +211,7 @@ func TestNewESClient_VersionDetectionError(t *testing.T) {
 	defer server.Close()
 
 	_, err := newESClient(context.Background(), server.URL, &Config{}, zap.NewNop())
-	require.ErrorContains(t, err, "failed to detect backend version")
+	require.ErrorContains(t, err, "failed to resolve backend version")
 }
 
 func TestExecuteAction_ClientError(t *testing.T) {

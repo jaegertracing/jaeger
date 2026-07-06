@@ -24,11 +24,12 @@ type Client struct {
 	transport *rawClient
 	timeout   time.Duration
 
-	// version is the backend version (Elasticsearch/OpenSearch), resolved once
-	// during setup and injected via WithVersion. Sub-clients read it to pick
-	// flavor-dependent endpoints (CreateTemplate, ILM vs ISM) without re-probing
-	// the backend per call. It is unexported and has no accessor, so it stays
-	// encapsulated — business logic never sees a BackendVersion.
+	// version is the backend version (Elasticsearch/OpenSearch), resolved once by
+	// NewClient (from an explicit config.Version, else a single probe of the
+	// cluster). Sub-clients read it internally to pick flavor-dependent endpoints
+	// (CreateTemplate, ILM vs ISM) without re-probing per call. It is unexported
+	// and has no accessor, so it stays encapsulated — business logic never sees a
+	// BackendVersion.
 	version es.BackendVersion
 }
 
@@ -37,6 +38,11 @@ type Client struct {
 // (TLS, basic/bearer/API-key, custom headers, and — when httpAuth is non-nil —
 // SigV4), so every request carries the configured auth and headers.
 // c.QueryTimeout bounds each request (0 means no bound).
+//
+// The backend version is resolved here, at construction: NewClient honors an
+// explicit c.Version, otherwise it probes the cluster once. Every returned
+// Client therefore carries a resolved version, so version-dependent operations
+// never re-probe and business logic never handles a BackendVersion.
 func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (Client, error) {
 	base, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
@@ -46,7 +52,15 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 	if err != nil {
 		return Client{}, err
 	}
-	return Client{transport: transport, timeout: c.QueryTimeout}, nil
+	client := Client{transport: transport, timeout: c.QueryTimeout}
+	// Honor an explicit c.Version, otherwise probe the cluster once via the
+	// low-level ping. Both planes share es.ResolveBackendVersion.
+	version, err := es.ResolveBackendVersion(ctx, c.Version, client.ping)
+	if err != nil {
+		return Client{}, fmt.Errorf("failed to resolve backend version: %w", err)
+	}
+	client.version = version
+	return client, nil
 }
 
 type elasticRequest struct {
@@ -86,10 +100,9 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 	}
 }
 
-// WithVersion returns a copy of the client with the resolved backend version
-// set once at construction. The version stays encapsulated — sub-clients read
-// it internally to pick flavor-dependent endpoints; it is never exposed to
-// callers via an accessor.
+// WithVersion returns a copy of the client with an explicit backend version,
+// overriding the one NewClient resolved. Production resolves the version in
+// NewClient; this is used to pin a specific version (mainly in tests).
 func (c Client) WithVersion(v es.BackendVersion) Client {
 	c.version = v
 	return c

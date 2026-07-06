@@ -154,7 +154,8 @@ func TestExists_Retries(t *testing.T) {
 }
 
 func TestLifecycleExistsUnresolvedVersion(t *testing.T) {
-	c := ILMClient{Client: makeClient(t, "http://localhost:9200", "", ""), Logger: zap.NewNop()}
+	// A Client built directly (not via NewClient) has no resolved version.
+	c := ILMClient{Client: Client{}, Logger: zap.NewNop()}
 	_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 	require.ErrorContains(t, err, "backend version was not resolved")
 }

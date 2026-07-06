@@ -69,6 +69,10 @@ func TestNewESClientForwardsAuth(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotAuth = r.Header.Get("Authorization")
 				w.WriteHeader(http.StatusOK)
+				if r.URL.Path == "/" { // construction-time version probe
+					w.Write([]byte(`{"version":{"number":"8.0.0"},"tagline":"You Know, for Search"}`))
+					return
+				}
 				w.Write([]byte("{}"))
 			}))
 			defer server.Close()

@@ -294,12 +294,12 @@ func TestRolloverAction_OpenSearchUsesISMEndpoint(t *testing.T) {
 
 	esClient, err := esclient.NewClient(
 		context.Background(),
-		&config.Configuration{Servers: []string{testServer.URL}},
+		// Pin OpenSearch so NewClient resolves the version without probing.
+		&config.Configuration{Servers: []string{testServer.URL}, Version: uint(es.OpenSearch2)},
 		zap.NewNop(),
 		nil,
 	)
 	require.NoError(t, err)
-	esClient = esClient.WithVersion(es.OpenSearch2)
 
 	ilmClient := &esclient.ILMClient{
 		Client: esClient,

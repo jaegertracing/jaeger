@@ -376,7 +376,10 @@ var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("u
 // makeClient builds an esclient.Client for a single plaintext test server. A
 // non-empty user enables basic auth so requests carry an Authorization header.
 func makeClient(t *testing.T, url, user, pass string) Client {
-	cfg := &config.Configuration{Servers: []string{url}}
+	// Pin a version so NewClient resolves it from config instead of probing the
+	// test server; tests that care about a specific version override via
+	// WithVersion.
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(es.ElasticV7)}
 	if user != "" {
 		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
 			Username: user,
@@ -766,7 +769,8 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 }
 
 func TestCreateTemplateUnresolvedVersion(t *testing.T) {
-	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "")}
+	// A Client built directly (not via NewClient) has no resolved version.
+	c := IndicesClient{Client: Client{}}
 	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
 		return "", nil
 	})
