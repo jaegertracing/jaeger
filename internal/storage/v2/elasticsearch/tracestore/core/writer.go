@@ -28,9 +28,8 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter writes spans and their service:operation pairs via the bulk indexer.
 type SpanWriter struct {
-	bulkWriter esclient.BulkWriter
-	logger     *zap.Logger
-	// indexCache       cache.Cache
+	bulkWriter        esclient.BulkWriter
+	logger            *zap.Logger
 	writerMetrics     *spanstoremetrics.WriteMetrics
 	serviceWriter     serviceWriter
 	spanRotation      indices.Rotation
