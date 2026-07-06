@@ -89,6 +89,17 @@ func TestBulkIndexerSuccessMetrics(t *testing.T) {
 	)
 }
 
+func TestBulkIndexerFlushError(t *testing.T) {
+	// A whole-request failure (non-2xx on _bulk) surfaces via esutil's OnError.
+	_, url := bulkServer(t, func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) })
+	core, logs := observer.New(zap.ErrorLevel)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.New(core))
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
+	require.NoError(t, b.Close())
+	assert.Positive(t, logs.FilterMessageSnippet("bulk indexer error").Len())
+}
+
 func TestBulkIndexerFailureMetrics(t *testing.T) {
 	_, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"took":1,"errors":true,"items":[{"index":{"status":400,"error":{"type":"mapper_parsing_exception"}}}]}`))
