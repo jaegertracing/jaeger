@@ -67,13 +67,20 @@ func NewFactoryBase(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	httpAuth extensionauth.HTTPClient,
-) (*FactoryBase, error) {
+) (_ *FactoryBase, err error) {
 	f := &FactoryBase{
 		config:            &cfg,
 		newLegacyClientFn: clientbuilder.NewClient,
 		newESClientFn:     esclient.NewClient,
 		tracer:            otel.GetTracerProvider(),
 	}
+	// If construction fails partway, close whatever was already created (the
+	// legacy client and the bulk indexer's workers). Close is nil-safe.
+	defer func() { //nolint:contextcheck // Close releases resources and takes no context
+		if err != nil {
+			_ = f.Close()
+		}
+	}()
 	f.metricsFactory = metricsFactory
 	f.logger = logger
 	f.templateBuilder = es.TextTemplateBuilder{}
@@ -99,6 +106,8 @@ func NewFactoryBase(
 		return nil, fmt.Errorf("failed to create Elasticsearch data client: %w", err)
 	}
 	f.searcher = esclient.SearchClient{Client: esClient}
+	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
+	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
 	bulkIndexer, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{
 		FlushBytes:    f.config.BulkProcessing.MaxBytes,
 		FlushInterval: f.config.BulkProcessing.FlushInterval,
