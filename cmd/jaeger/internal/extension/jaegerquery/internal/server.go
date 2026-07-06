@@ -222,7 +222,7 @@ func initRouter(
 					).RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset, aiCfg.MCPConfig())
 				}
 			}
 		}
@@ -277,8 +277,8 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings, cfg mcptools.Config) {
+	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))

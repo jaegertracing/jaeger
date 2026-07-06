@@ -6,6 +6,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -13,6 +14,7 @@ import (
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/ports"
@@ -37,6 +39,14 @@ const (
 	DefaultAIHealthCheckTimeout        = 2 * time.Second
 )
 
+// Upper bounds for the configurable MCP tool limits, mirroring the ranges the
+// retired jaeger_mcp extension enforced. A value of 0 means "use the default".
+const (
+	mcpMaxReadFileSizeLimit          int64 = 10 * 1024 * 1024 // 10 MiB
+	mcpMaxSearchResultsLimit               = 1000
+	mcpMaxSpanDetailsPerRequestLimit       = 100
+)
+
 // AIConfig is the AI-related slice of QueryOptions. All defaults are seeded
 // by DefaultQueryOptions via configoptional.Default, and a user's partial
 // YAML block overlays only the fields they specify (configoptional unmarshals
@@ -54,6 +64,15 @@ type AIConfig struct {
 	// retired standalone jaeger_mcp extension (which served :16687); point
 	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
 	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
+	// MCPMaxReadFileSize bounds the size (bytes) of a file served by the read_skill
+	// MCP tool. 0 uses the default (512 KiB). Only applies when EnableMCP is set.
+	MCPMaxReadFileSize int64 `mapstructure:"mcp_max_read_file_size" valid:"optional"`
+	// MCPMaxSearchResults caps the results returned by the search_traces MCP tool.
+	// 0 uses the default (100). Only applies when EnableMCP is set.
+	MCPMaxSearchResults int `mapstructure:"mcp_max_search_results" valid:"optional"`
+	// MCPMaxSpanDetailsPerRequest caps the spans returned per get_span_details and
+	// get_trace_* MCP request. 0 uses the default (20). Only applies when EnableMCP is set.
+	MCPMaxSpanDetailsPerRequest int `mapstructure:"mcp_max_span_details_per_request" valid:"optional"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 	// HealthCheckInterval controls how often the AI health checker contacts
@@ -102,7 +121,32 @@ func (c *AIConfig) Validate() error {
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
+	if c.MCPMaxReadFileSize < 0 || c.MCPMaxReadFileSize > mcpMaxReadFileSizeLimit {
+		return fmt.Errorf("ai.mcp_max_read_file_size must be between 0 and %d", mcpMaxReadFileSizeLimit)
+	}
+	if c.MCPMaxSearchResults < 0 || c.MCPMaxSearchResults > mcpMaxSearchResultsLimit {
+		return fmt.Errorf("ai.mcp_max_search_results must be between 0 and %d", mcpMaxSearchResultsLimit)
+	}
+	if c.MCPMaxSpanDetailsPerRequest < 0 || c.MCPMaxSpanDetailsPerRequest > mcpMaxSpanDetailsPerRequestLimit {
+		return fmt.Errorf("ai.mcp_max_span_details_per_request must be between 0 and %d", mcpMaxSpanDetailsPerRequestLimit)
+	}
 	return nil
+}
+
+// MCPConfig returns the mcptools.Config for the in-process MCP server: the
+// defaults with any explicit (non-zero) overrides from the AI config applied.
+func (c *AIConfig) MCPConfig() mcptools.Config {
+	cfg := mcptools.DefaultConfig()
+	if c.MCPMaxReadFileSize > 0 {
+		cfg.MaxReadFileSize = c.MCPMaxReadFileSize
+	}
+	if c.MCPMaxSearchResults > 0 {
+		cfg.MaxSearchResults = c.MCPMaxSearchResults
+	}
+	if c.MCPMaxSpanDetailsPerRequest > 0 {
+		cfg.MaxSpanDetailsPerRequest = c.MCPMaxSpanDetailsPerRequest
+	}
+	return cfg
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2
