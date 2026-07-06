@@ -62,11 +62,6 @@ type AggregationBucket struct {
 	DocCount int    `json:"doc_count"`
 }
 
-// Searcher runs searches against Elasticsearch/OpenSearch.
-type Searcher interface {
-	Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error)
-}
-
 // SearchClient is the data-plane search API over the shared transport, analogous
 // to IndicesClient/ILMClient on the admin plane.
 type SearchClient struct {

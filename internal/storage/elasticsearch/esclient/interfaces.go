@@ -27,3 +27,8 @@ type IndexManagementLifecycleAPI interface {
 	SupportsILM() bool
 	Exists(ctx context.Context, name string) (bool, error)
 }
+
+// Searcher runs searches against Elasticsearch/OpenSearch.
+type Searcher interface {
+	Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error)
+}
