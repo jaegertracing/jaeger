@@ -67,6 +67,9 @@ type elasticRequest struct {
 	endpoint string
 	body     []byte
 	method   string
+	// contentType overrides the request Content-Type; empty defaults to
+	// application/json. The _bulk NDJSON path sets application/x-ndjson.
+	contentType string
 }
 
 // ResponseError holds information about a request error
@@ -115,7 +118,11 @@ func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte,
 	if err != nil {
 		return []byte{}, err
 	}
-	r.Header.Add("Content-Type", "application/json")
+	contentType := esRequest.contentType
+	if contentType == "" {
+		contentType = "application/json"
+	}
+	r.Header.Add("Content-Type", contentType)
 	res, err := c.transport.perform(r)
 	if err != nil {
 		return []byte{}, err

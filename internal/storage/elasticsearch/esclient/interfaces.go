@@ -29,3 +29,10 @@ type IndexManagementLifecycleAPI interface {
 type Searcher interface {
 	Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error)
 }
+
+// BulkWriter buffers documents and writes them via the bulk API. Add enqueues a
+// document; Close flushes the remainder and stops the writer.
+type BulkWriter interface {
+	Add(item BulkItem)
+	Close() error
+}
