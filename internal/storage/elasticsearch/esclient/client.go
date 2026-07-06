@@ -103,6 +103,18 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 	}
 }
 
+// Perform sends a fully-formed HTTP request through the client's transport — the
+// shared multi-node pool with the auth/TLS/SigV4 RoundTripper stack — and returns
+// the raw response. It delegates down through rawClient rather than exposing the
+// pool, so transport-layer behavior applies. It satisfies go-elasticsearch's
+// esapi.Transport, which lets the official esutil.BulkIndexer run over our
+// transport instead of a product-checked go-elasticsearch client. Unlike request,
+// Perform neither builds the request nor interprets the status code — the caller
+// owns those (esutil writes and parses the _bulk protocol itself).
+func (c Client) Perform(req *http.Request) (*http.Response, error) {
+	return c.transport.perform(req)
+}
+
 func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
 	if c.timeout > 0 {
 		var cancel context.CancelFunc
