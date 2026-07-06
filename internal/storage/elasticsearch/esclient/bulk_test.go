@@ -63,12 +63,15 @@ func TestBulkIndexerCreateOpType(t *testing.T) {
 func TestBulkIndexerEncodeErrorDropped(t *testing.T) {
 	rec, url := bulkServer(t, okBulk)
 	core, logs := observer.New(zap.ErrorLevel)
-	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.New(core))
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.New(core))
 	require.NoError(t, err)
 	b.Add(BulkItem{Index: "idx", Body: make(chan int)}) // unmarshalable
 	require.NoError(t, b.Close())
 	assert.Empty(t, rec.Requests(), "an unencodable document is never sent")
 	assert.Positive(t, logs.FilterMessageSnippet("failed to encode").Len())
+	mf.AssertCounterMetrics(t, metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1})
 }
 
 func TestBulkIndexerSuccessMetrics(t *testing.T) {

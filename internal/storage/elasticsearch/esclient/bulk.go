@@ -91,6 +91,8 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 func (b *BulkIndexer) Add(item BulkItem) {
 	body, err := json.Marshal(item.Body)
 	if err != nil {
+		b.metrics.Attempts.Inc(1)
+		b.metrics.Errors.Inc(1)
 		b.logger.Error("failed to encode bulk document", zap.String("index", item.Index), zap.Error(err))
 		return
 	}
@@ -108,14 +110,18 @@ func (b *BulkIndexer) Add(item BulkItem) {
 			b.metrics.Inserts.Inc(1)
 		},
 		OnFailure: func(_ context.Context, _ esutil.BulkIndexerItem, resp esutil.BulkIndexerResponseItem, itemErr error) {
+			// A per-item failure is not a request-latency event (the flush itself
+			// completed and its duration is recorded as LatencyOk in OnFlushEnd), so
+			// only the error is counted here.
 			b.metrics.Attempts.Inc(1)
 			b.metrics.Errors.Inc(1)
-			b.metrics.LatencyErr.Record(0)
 			b.logger.Error("Elasticsearch part of bulk request failed",
 				zap.String("index", item.Index), zap.Int("status", resp.Status), zap.Error(itemErr))
 		},
 	})
 	if err != nil {
+		b.metrics.Attempts.Inc(1)
+		b.metrics.Errors.Inc(1)
 		b.logger.Error("failed to enqueue bulk document", zap.String("index", item.Index), zap.Error(err))
 	}
 }
