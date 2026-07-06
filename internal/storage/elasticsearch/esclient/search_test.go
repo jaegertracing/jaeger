@@ -15,48 +15,31 @@ import (
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
-// TestSearchRequestSnapshot freezes the wire format of the service/operation
-// searches: POST /<index>/_search with a terms aggregation (+ a term query for
-// operations). ES7+/OS add rest_total_hits_as_int; ES6 omits it.
-func TestSearchRequestSnapshot(t *testing.T) {
-	tests := []struct {
-		name string
-		req  SearchRequest
+// TestSearchRequestVersionGating covers the only version-dependent branch in
+// Search: ES7+/OS add rest_total_hits_as_int, ES6 omits it (ignore_unavailable
+// is always set). The full wire format of the service/operation searches is
+// frozen end-to-end by the caller-level snapshots in the tracestore/core
+// package (get_services/get_operations), which drive a real SearchClient — so
+// there's no snapshot here, only the branch this package alone owns.
+func TestSearchRequestVersionGating(t *testing.T) {
+	for _, tt := range []struct {
+		version     es.BackendVersion
+		wantRestInt bool
 	}{
-		{
-			name: "search_services",
-			req: SearchRequest{
-				Size: 0,
-				Aggregations: map[string]query.Aggregation{
-					"distinct_services": query.NewTermsAggregation("serviceName").Size(10),
-				},
-			},
-		},
-		{
-			name: "search_operations",
-			req: SearchRequest{
-				Size:  0,
-				Query: query.NewTermQuery("serviceName", "test-service"),
-				Aggregations: map[string]query.Aggregation{
-					"distinct_operations": query.NewTermsAggregation("operationName").Size(10),
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			content := map[es.BackendVersion]string{}
-			for _, version := range es.AllVersions {
-				rec, url := okServer(t)
-				sc := SearchClient{Client: makeClient(t, url, "", "", version)}
-				_, err := sc.Search(context.Background(), []string{"test-index"}, tt.req)
-				require.NoError(t, err)
-				content[version] = rec.Marshal(t)
-			}
-			snapshottest.AssertByVersion(t, "testdata/"+tt.name, content)
+		{es.ElasticV6, false},
+		{es.ElasticV7, true},
+	} {
+		t.Run(tt.version.String(), func(t *testing.T) {
+			rec, url := okServer(t)
+			sc := SearchClient{Client: makeClient(t, url, "", "", tt.version)}
+			_, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{})
+			require.NoError(t, err)
+
+			req := rec.Requests()[0]
+			assert.Equal(t, "true", req.Query.Get("ignore_unavailable"))
+			assert.Equal(t, tt.wantRestInt, req.Query.Has("rest_total_hits_as_int"))
 		})
 	}
 }
@@ -71,6 +54,7 @@ func TestSearchParsesAggregationBuckets(t *testing.T) {
 
 	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
 	resp, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{
+		Query: query.NewTermQuery("serviceName", "svc-a"),
 		Aggregations: map[string]query.Aggregation{
 			"distinct_services": query.NewTermsAggregation("serviceName").Size(10),
 		},
