@@ -45,7 +45,17 @@ type BulkIndexer struct {
 
 var _ BulkWriter = (*BulkIndexer)(nil)
 
-type flushStartKey struct{}
+// flushState tracks one in-flight flush. esutil's OnFlushEnd callback carries no
+// success/failure signal, so OnError flips failed and OnFlushEnd reads it to
+// record the flush latency under latency-ok or latency-err. A pointer is stored
+// in the flush context (esutil runs a flush's callbacks on one goroutine, so the
+// read/write need no synchronization) and is scoped to that single flush.
+type flushState struct {
+	start  time.Time
+	failed bool
+}
+
+type flushStateKey struct{}
 
 // NewBulkIndexer returns a running BulkIndexer. The caller owns its lifecycle and
 // must call Close to flush buffered documents and stop the workers.
@@ -70,15 +80,27 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 		NumWorkers:    workers,
 		FlushBytes:    cfg.FlushBytes,
 		FlushInterval: cfg.FlushInterval,
-		OnError: func(_ context.Context, err error) {
+		OnError: func(ctx context.Context, err error) {
+			// A whole-request flush failure (transport error or non-2xx _bulk
+			// response) lands here; mark the flush so OnFlushEnd records latency-err.
+			if st, ok := ctx.Value(flushStateKey{}).(*flushState); ok {
+				st.failed = true
+			}
 			logger.Error("bulk indexer error", zap.Error(err))
 		},
 		OnFlushStart: func(ctx context.Context) context.Context {
-			return context.WithValue(ctx, flushStartKey{}, time.Now())
+			return context.WithValue(ctx, flushStateKey{}, &flushState{start: time.Now()})
 		},
 		OnFlushEnd: func(ctx context.Context) {
-			if start, ok := ctx.Value(flushStartKey{}).(time.Time); ok {
-				b.metrics.LatencyOk.Record(time.Since(start))
+			st, ok := ctx.Value(flushStateKey{}).(*flushState)
+			if !ok {
+				return
+			}
+			latency := time.Since(st.start)
+			if st.failed {
+				b.metrics.LatencyErr.Record(latency)
+			} else {
+				b.metrics.LatencyOk.Record(latency)
 			}
 		},
 	})
@@ -114,9 +136,11 @@ func (b *BulkIndexer) Add(item BulkItem) {
 			b.metrics.Inserts.Inc(1)
 		},
 		OnFailure: func(_ context.Context, _ esutil.BulkIndexerItem, resp esutil.BulkIndexerResponseItem, itemErr error) {
-			// A per-item failure is not a request-latency event (the flush itself
-			// completed and its duration is recorded as LatencyOk in OnFlushEnd), so
-			// only the error is counted here.
+			// esutil calls this both for a per-item error inside an otherwise-OK
+			// flush and for every item of a whole-request flush failure (its
+			// notifyItemsOnError fans a transport/non-2xx error out to each item),
+			// so both cases increment attempts+errors here. Flush latency is
+			// recorded once per flush in OnFlushEnd (latency-err on whole failure).
 			b.metrics.Attempts.Inc(1)
 			b.metrics.Errors.Inc(1)
 			b.logger.Error("Elasticsearch part of bulk request failed",

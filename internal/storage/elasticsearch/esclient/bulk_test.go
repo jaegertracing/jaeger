@@ -6,6 +6,7 @@ package esclient
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,17 +88,44 @@ func TestBulkIndexerSuccessMetrics(t *testing.T) {
 		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 1},
 		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 0},
 	)
+	_, gauges := mf.Snapshot()
+	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "successful flush records latency-ok: %v", gauges)
+	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "successful flush must not record latency-err: %v", gauges)
 }
 
 func TestBulkIndexerFlushError(t *testing.T) {
-	// A whole-request failure (non-2xx on _bulk) surfaces via esutil's OnError.
+	// A whole-request failure (non-2xx on _bulk) surfaces via esutil's OnError and,
+	// because esutil also fans the flush error out to every item's OnFailure, still
+	// increments attempts+errors (not silently swallowed) and records the flush
+	// latency under latency-err rather than latency-ok.
 	_, url := bulkServer(t, func(w http.ResponseWriter) { w.WriteHeader(http.StatusInternalServerError) })
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
 	core, logs := observer.New(zap.ErrorLevel)
-	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.New(core))
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.New(core))
 	require.NoError(t, err)
 	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
 	require.NoError(t, b.Close())
 	assert.Positive(t, logs.FilterMessageSnippet("bulk indexer error").Len())
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 0},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1},
+	)
+	_, gauges := mf.Snapshot()
+	assert.True(t, hasTimer(gauges, "bulk_index.latency-err"), "failed flush records latency-err: %v", gauges)
+	assert.False(t, hasTimer(gauges, "bulk_index.latency-ok"), "failed flush must not record latency-ok: %v", gauges)
+}
+
+// hasTimer reports whether the snapshot holds any percentile gauge for the named
+// timer (metricstest emits timers as <name>.P50/P90/... gauges).
+func hasTimer(gauges map[string]int64, name string) bool {
+	for k := range gauges {
+		if strings.HasPrefix(k, name+".") {
+			return true
+		}
+	}
+	return false
 }
 
 func TestBulkIndexerFailureMetrics(t *testing.T) {
