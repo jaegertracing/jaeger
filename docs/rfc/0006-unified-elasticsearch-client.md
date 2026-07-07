@@ -483,7 +483,18 @@ The work decomposes into small, independently-shippable milestones — each one 
 
 The **small role interfaces (§6.1) are what make this clean**: a slice introduces just the interface its caller needs (`Searcher` in M5, `BulkWriter` in M6, …), and each caller depends only on its own narrow interface — so slices don't touch each other's surface and, apart from the two that bootstrap shared scaffolding, can proceed in parallel. A single fat `DataAPI` would have coupled every path to one growing interface and serialized the work.
 - **M5 — Service/operation read (first read slice; bootstraps `Searcher` + AST core).** ✅ Done ([#8943](https://github.com/jaegertracing/jaeger/pull/8943)). Introduces the AST's `term` query + `terms`-aggregation nodes (alongside the pre-existing `range` query) and the owned response type (terms buckets), migrating the `getServices`/`getOperations` search path onto `esclient.Searcher` over the shared transport pool. The write and trace-read paths stay on `olivere` for later slices. *Exit:* service/operation snapshots byte-identical; the new AST nodes and response fields are exercised by real caller tests, not stubs.
-- **M6 — Span writer (first write slice; bootstraps `BulkWriter` + bounded bulk indexer).** *Exit:* span-write snapshots green; hard byte cap (#2192) and per-item 408/429/503/507 retry proven by test; write integration green.
+- **M6 — Span writer (first write slice; bootstraps `BulkWriter` + bounded bulk indexer).** ✅ Done ([#8944](https://github.com/jaegertracing/jaeger/pull/8944)). Introduces the narrow `esclient.BulkWriter` (`Add` only) and a `BulkIndexer` that wraps the official `esutil.BulkIndexer` driven by **our** transport pool, and migrates the span + service:operation write paths onto it. *Exit:* span-write snapshots byte-identical; bounded bulk memory (#2192); write integration green.
+
+  **Decision (during M6 review): use the official `esutil.BulkIndexer`, not a hand-rolled one.** M6 first shipped a from-scratch bounded indexer; review established that `esutil.BulkIndexer` (`go-elasticsearch/v9`, Apache-2.0, already a dep) takes an `esapi.Transport` — a bare `Perform(*http.Request)` interface our `elastic-transport-go` pool already satisfies — so it runs on **our** transport with **no product-checked `*elasticsearch.Client`**. It is battle-tested, handles the buffering/flush/#2192 byte-cap itself, and its `OnSuccess`/`OnFailure` callbacks feed the `bulk_index` metrics.
+
+  | Criterion | A: hand-write | B: use `esutil` ✅ | C: fork `esutil` |
+  | --- | --- | --- | --- |
+  | Production-tested | 🔴 new | 🟢 upstream | 🟡 forked |
+  | Code we maintain | 🟡 ~250 lines | 🟢 config + glue | 🔴 ~700 lines |
+  | Upstream bug fixes | 🔴 none | 🟢 automatic | 🔴 manual |
+  | ES6 typed bulk¹ | 🟢 emits `_type` | 🔴 typeless-only | 🟡 refork |
+
+  🟢 good · 🟡 partial · 🔴 poor. ¹ `esutil` is typeless-only and ES6 `_bulk` requires `_type` (verified: ES 6.8.23 rejects a typeless `_bulk` with `HTTP 400 "type is missing"`), so B required removing ES6 first ([#8948](https://github.com/jaegertracing/jaeger/pull/8948)). Consequence: `go-elasticsearch` stays a **transport-level** dependency; M11 is narrowed to removing its product-checked *client*.
 - **M7 — Span reader** (find-traces / find-trace-IDs / get-trace). Extends the AST with `nested`/`regexp`/`range`/`match`, `search_after`, `_msearch`. *Exit:* reader snapshots green; find-traces integration green across the matrix.
 - **M8 — Dependency store.** *Exit:* snapshots green.
 - **M9 — Sampling store.** *Exit:* snapshots green.

@@ -156,7 +156,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		maxSpanAge:              p.MaxSpanAge,
 		maxTraceDuration:        p.MaxTraceDuration,
-		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Searcher, p.Logger, 0), // the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, nil, p.Logger, 0), // read-only: no bulk writer; the decorator takes care of metrics
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
 		sourceFn:                getSourceFn(p.MaxDocCount),

@@ -29,3 +29,10 @@ type IndexManagementLifecycleAPI interface {
 type Searcher interface {
 	Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error)
 }
+
+// BulkWriter enqueues documents for writing via the bulk API. It is the narrow
+// surface callers depend on; the concrete indexer's lifecycle (Close) is owned
+// by whoever constructs it (the factory).
+type BulkWriter interface {
+	Add(item BulkItem)
+}
