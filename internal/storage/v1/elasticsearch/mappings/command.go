@@ -40,7 +40,7 @@ func Command() *cobra.Command {
 func generateMappings(options Options) (string, error) {
 	mappingType, err := esclient.MappingTypeFromString(options.Mapping)
 	if err != nil {
-		return "", fmt.Errorf("invalid mapping type '%s': please pass either 'jaeger-service' or 'jaeger-span' as the mapping type %w", options.Mapping, err)
+		return "", fmt.Errorf("invalid mapping type %q: please pass one of %q, %q, %q, or %q as the mapping type: %w", options.Mapping, config.SpanIndexName, config.ServiceIndexName, config.DependencyIndexName, config.SamplingIndexName, err)
 	}
 	enableILM, err := strconv.ParseBool(options.UseILM)
 	if err != nil {
