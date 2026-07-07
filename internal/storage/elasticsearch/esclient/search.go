@@ -200,6 +200,11 @@ func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest
 	if err != nil {
 		return nil, err
 	}
+	// A per-sub-response error (an item carrying an "error"/non-2xx "status" while
+	// the overall _msearch is HTTP 200) is not surfaced here: such an item decodes
+	// to empty hits, which the caller skips — matching the olivere MultiSearch path
+	// this replaced. Turning those into a hard error is a behavior change left to a
+	// follow-up, not this wire-preserving migration.
 	var resp struct {
 		Responses []SearchResponse `json:"responses"`
 	}
