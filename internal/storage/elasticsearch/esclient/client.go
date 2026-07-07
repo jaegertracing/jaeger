@@ -112,7 +112,42 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 // Perform neither builds the request nor interprets the status code — the caller
 // owns those (esutil writes and parses the _bulk protocol itself).
 func (c Client) Perform(req *http.Request) (*http.Response, error) {
-	return c.transport.perform(req)
+	// A caller may submit a request with no deadline — esutil.BulkIndexer builds
+	// its _bulk flushes (and its shutdown Close flush) from a background context.
+	// Apply the client's QueryTimeout so those writes can't hang forever, matching
+	// the http.Client.Timeout the olivere data plane put on every request. request()
+	// already sets its own deadline, so this only fills the gap when one is absent.
+	if c.timeout <= 0 {
+		return c.transport.perform(req)
+	}
+	if _, hasDeadline := req.Context().Deadline(); hasDeadline {
+		return c.transport.perform(req)
+	}
+	// The timeout must cover the whole response read (like http.Client.Timeout), so
+	// the cancel fires when the body is closed rather than when Perform returns —
+	// the caller reads the body afterwards.
+	ctx, cancel := context.WithTimeout(req.Context(), c.timeout)
+	res, err := c.transport.perform(req.WithContext(ctx))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	res.Body = &cancelOnCloseReader{ReadCloser: res.Body, cancel: cancel}
+	return res, nil
+}
+
+// cancelOnCloseReader cancels a context once the wrapped body is closed. Perform
+// uses it so a deadline it applies is released only when the caller finishes
+// reading, instead of the moment Perform returns (which would abort the read).
+type cancelOnCloseReader struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnCloseReader) Close() error {
+	err := r.ReadCloser.Close()
+	r.cancel()
+	return err
 }
 
 func (c *Client) request(ctx context.Context, esRequest elasticRequest) ([]byte, error) {
