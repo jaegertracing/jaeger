@@ -53,10 +53,15 @@ type FactoryBase struct {
 	config *config.Configuration
 
 	client es.Client
+	// esClient is the shared esclient over the transport pool that backs the
+	// migrated data-plane paths; searcher and bulkWriter compose over it, and the
+	// sampling store's index-existence check runs an IndicesClient over it too.
+	esClient esclient.Client
 	// searcher and bulkWriter are the migrated data-plane surfaces over the
-	// esclient transport pool: service/operation reads (RFC 0006 M5) and span
-	// writes (M6). Other paths still use the olivere client above. The factory
-	// owns the bulk indexer's lifecycle and closes it in Close.
+	// esclient transport pool: service/operation reads (RFC 0006 M5), span
+	// writes (M6), and sampling reads/writes (M9). Other paths still use the
+	// olivere client above. The factory owns the bulk indexer's lifecycle and
+	// closes it in Close.
 	searcher   esclient.Searcher
 	bulkWriter *esclient.BulkIndexer
 
@@ -120,6 +125,7 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch data client: %w", err)
 	}
+	f.esClient = esClient
 	f.searcher = esclient.SearchClient{Client: esClient}
 	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
 	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
@@ -201,7 +207,9 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
-		Client:      f.getClient,
+		Searcher:    f.searcher,
+		BulkWriter:  f.bulkWriter,
+		IndexClient: &esclient.IndicesClient{Client: f.esClient},
 		Logger:      f.logger,
 		Lookback:    f.config.AdaptiveSamplingLookback,
 		MaxDocCount: f.config.MaxDocCount,
