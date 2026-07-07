@@ -27,10 +27,10 @@ type SearchRequest struct {
 }
 
 // SortOrder sorts hits by a field. It renders to {field: {"order": order}} where
-// order is "asc" or "desc".
+// order is query.Ascending or query.Descending.
 type SortOrder struct {
 	Field string
-	Order string
+	Order query.SortDirection
 }
 
 func (r SearchRequest) body() ([]byte, error) {

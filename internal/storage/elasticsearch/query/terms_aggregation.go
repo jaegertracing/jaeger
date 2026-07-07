@@ -26,10 +26,10 @@ func (a *TermsAggregation) Size(size int) *TermsAggregation {
 }
 
 // Order sorts buckets by the named metric (e.g. a sub-aggregation) in the given
-// direction ("asc"/"desc"). Repeated calls append tie-breakers, and the whole
-// set always renders as an array, matching olivere.
-func (a *TermsAggregation) Order(name, direction string) *TermsAggregation {
-	a.order = append(a.order, map[string]string{name: direction})
+// direction. Repeated calls append tie-breakers, and the whole set always renders
+// as an array, matching olivere.
+func (a *TermsAggregation) Order(name string, direction SortDirection) *TermsAggregation {
+	a.order = append(a.order, map[string]string{name: string(direction)})
 	return a
 }
 

@@ -171,7 +171,7 @@ func (s *SpanReader) buildTraceReadRequest(q esquery.Query, nextTime uint64) esc
 	return esclient.SearchRequest{
 		Query:          q,
 		Size:           s.maxDocCount,
-		Sort:           []esclient.SortOrder{{Field: startTimeField, Order: "asc"}},
+		Sort:           []esclient.SortOrder{{Field: startTimeField, Order: esquery.Ascending}},
 		SearchAfter:    []any{nextTime},
 		TrackTotalHits: true,
 	}
@@ -492,7 +492,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) esquery.Aggregation {
 	return esquery.NewTermsAggregation(traceIDField).
 		Size(numOfTraces).
-		Order(startTimeField, "desc").
+		Order(startTimeField, esquery.Descending).
 		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
 }
 

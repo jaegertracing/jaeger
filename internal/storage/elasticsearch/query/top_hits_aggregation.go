@@ -24,9 +24,9 @@ func (a *TopHitsAggregation) Size(size int) *TopHitsAggregation {
 	return a
 }
 
-// Sort orders the hits by field in the given direction ("asc"/"desc").
-func (a *TopHitsAggregation) Sort(field, order string) *TopHitsAggregation {
-	a.sorts = append(a.sorts, map[string]any{field: map[string]any{"order": order}})
+// Sort orders the hits by field in the given direction.
+func (a *TopHitsAggregation) Sort(field string, order SortDirection) *TopHitsAggregation {
+	a.sorts = append(a.sorts, map[string]any{field: map[string]any{"order": string(order)}})
 	return a
 }
 

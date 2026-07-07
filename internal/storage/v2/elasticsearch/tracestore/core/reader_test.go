@@ -304,7 +304,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		paginates := func(req esclient.MultiSearchRequest, wantCursor uint64) bool {
 			s := req.Search
 			return len(s.Sort) == 1 &&
-				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: "asc"} &&
+				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: esquery.Ascending} &&
 				s.TrackTotalHits &&
 				len(s.SearchAfter) == 1 && s.SearchAfter[0] == any(wantCursor)
 		}

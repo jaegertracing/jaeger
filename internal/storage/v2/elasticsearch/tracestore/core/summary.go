@@ -169,12 +169,12 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) esquery.Agg
 		esquery.NewBoolQuery().MustNot(esquery.NewExistsQuery(parentSpanIDField)),
 	).SubAggregation("root_hit", esquery.NewTopHitsAggregation().
 		Size(1).
-		Sort(startTimeField, "asc"). // earliest root first
+		Sort(startTimeField, esquery.Ascending). // earliest root first
 		SourceIncludes(serviceNameField, operationNameField))
 
 	return esquery.NewTermsAggregation(traceIDField).
 		Size(numOfTraces).
-		Order("max_start", "desc"). // most recent traces first
+		Order("max_start", esquery.Descending). // most recent traces first
 		SubAggregation("min_start", esquery.NewMinAggregation(startTimeField)).
 		SubAggregation("max_start", esquery.NewMaxAggregation(startTimeField)).
 		// max_end is derived by script: ES persists no end-time field (end = start + duration).

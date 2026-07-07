@@ -133,7 +133,7 @@ func TestSearchRequestBodyIncludesPaginationFields(t *testing.T) {
 	body, err := SearchRequest{
 		Size:           100,
 		Query:          query.NewTermQuery("traceID", "abc"),
-		Sort:           []SortOrder{{Field: "startTime", Order: "asc"}},
+		Sort:           []SortOrder{{Field: "startTime", Order: query.Ascending}},
 		SearchAfter:    []any{uint64(1577847845000000)},
 		TrackTotalHits: true,
 	}.body()
@@ -177,7 +177,7 @@ func TestMultiSearchNDJSONAndResponse(t *testing.T) {
 		Search: SearchRequest{
 			Size:           100,
 			Query:          query.NewTermQuery("traceID", "abc"),
-			Sort:           []SortOrder{{Field: "startTime", Order: "asc"}},
+			Sort:           []SortOrder{{Field: "startTime", Order: query.Ascending}},
 			SearchAfter:    []any{uint64(1)},
 			TrackTotalHits: true,
 		},
