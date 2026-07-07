@@ -495,7 +495,7 @@ The **small role interfaces (§6.1) are what make this clean**: a slice introduc
   | ES6 typed bulk¹ | 🟢 emits `_type` | 🔴 typeless-only | 🟡 refork |
 
   🟢 good · 🟡 partial · 🔴 poor. ¹ `esutil` is typeless-only and ES6 `_bulk` requires `_type` (verified: ES 6.8.23 rejects a typeless `_bulk` with `HTTP 400 "type is missing"`), so B required removing ES6 first ([#8948](https://github.com/jaegertracing/jaeger/pull/8948)). Consequence: `go-elasticsearch` stays a **transport-level** dependency; M11 is narrowed to removing its product-checked *client*.
-- **M7 — Span reader** (find-traces / find-trace-IDs / get-trace). Extends the AST with `nested`/`regexp`/`range`/`match`, `search_after`, `_msearch`. *Exit:* reader snapshots green; find-traces integration green across the matrix.
+- **M7 — Span reader** ✅ Done ([#8956](https://github.com/jaegertracing/jaeger/pull/8956)) — find-traces / find-trace-IDs / get-trace **and native trace summaries** migrated onto the owned `Searcher` + query AST (`bool`/`match`/`regexp`/`nested`/`terms`/`exists`, `search_after`, `_msearch`, and the summaries aggregations `min`/`filter`/`top_hits`/scripted-`max`). olivere is fully removed from the reader; the reader/summaries request snapshots stay byte-identical.
 - **M8 — Dependency store.** *Exit:* snapshots green.
 - **M9 — Sampling store.** *Exit:* snapshots green.
 - **M10 — Metricstore.** Extends the AST with `date_histogram`/`percentiles`/`cumulative_sum`/`filter`/`top_hits` aggregations. *Exit:* metrics snapshots green; metrics integration green.
