@@ -718,6 +718,74 @@ func (_m *Searcher) EXPECT() *Searcher_Expecter {
 	return &Searcher_Expecter{mock: &_m.Mock}
 }
 
+// MultiSearch provides a mock function for the type Searcher
+func (_mock *Searcher) MultiSearch(ctx context.Context, reqs []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error) {
+	ret := _mock.Called(ctx, reqs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MultiSearch")
+	}
+
+	var r0 []esclient.SearchResponse
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error)); ok {
+		return returnFunc(ctx, reqs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.MultiSearchRequest) []esclient.SearchResponse); ok {
+		r0 = returnFunc(ctx, reqs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]esclient.SearchResponse)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []esclient.MultiSearchRequest) error); ok {
+		r1 = returnFunc(ctx, reqs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Searcher_MultiSearch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MultiSearch'
+type Searcher_MultiSearch_Call struct {
+	*mock.Call
+}
+
+// MultiSearch is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reqs []esclient.MultiSearchRequest
+func (_e *Searcher_Expecter) MultiSearch(ctx interface{}, reqs interface{}) *Searcher_MultiSearch_Call {
+	return &Searcher_MultiSearch_Call{Call: _e.mock.On("MultiSearch", ctx, reqs)}
+}
+
+func (_c *Searcher_MultiSearch_Call) Run(run func(ctx context.Context, reqs []esclient.MultiSearchRequest)) *Searcher_MultiSearch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []esclient.MultiSearchRequest
+		if args[1] != nil {
+			arg1 = args[1].([]esclient.MultiSearchRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Searcher_MultiSearch_Call) Return(searchResponses []esclient.SearchResponse, err error) *Searcher_MultiSearch_Call {
+	_c.Call.Return(searchResponses, err)
+	return _c
+}
+
+func (_c *Searcher_MultiSearch_Call) RunAndReturn(run func(ctx context.Context, reqs []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error)) *Searcher_MultiSearch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Search provides a mock function for the type Searcher
 func (_mock *Searcher) Search(ctx context.Context, indices []string, req esclient.SearchRequest) (*esclient.SearchResponse, error) {
 	ret := _mock.Called(ctx, indices, req)

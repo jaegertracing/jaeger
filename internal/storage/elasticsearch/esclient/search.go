@@ -4,6 +4,7 @@
 package esclient
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -158,4 +159,58 @@ func (s SearchClient) Search(ctx context.Context, indices []string, req SearchRe
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// MultiSearchRequest is one sub-request of a _msearch: a search body and the
+// indices it targets.
+type MultiSearchRequest struct {
+	Indices []string
+	Search  SearchRequest
+}
+
+// MultiSearch issues all reqs in a single _msearch and returns one response per
+// request, in order. Each sub-request contributes an NDJSON header line (its
+// indices and ignore_unavailable) followed by its search body. A single index
+// renders as a string and several as an array, matching what the storage layer
+// previously produced via olivere's MultiSearch.
+func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest) ([]SearchResponse, error) {
+	var buf bytes.Buffer
+	for _, r := range reqs {
+		header := map[string]any{"ignore_unavailable": true}
+		switch len(r.Indices) {
+		case 0:
+		case 1:
+			header["index"] = r.Indices[0]
+		default:
+			header["index"] = r.Indices
+		}
+		headerJSON, err := json.Marshal(header)
+		if err != nil {
+			return nil, err
+		}
+		bodyJSON, err := r.Search.body()
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(headerJSON)
+		buf.WriteByte('\n')
+		buf.Write(bodyJSON)
+		buf.WriteByte('\n')
+	}
+	raw, err := s.request(ctx, elasticRequest{
+		endpoint:    "_msearch",
+		method:      http.MethodGet,
+		body:        buf.Bytes(),
+		contentType: "application/x-ndjson",
+	})
+	if err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Responses []SearchResponse `json:"responses"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Responses, nil
 }

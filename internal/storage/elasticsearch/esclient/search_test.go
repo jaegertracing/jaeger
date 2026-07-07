@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,6 +158,80 @@ func TestSearchParsesHits(t *testing.T) {
 	assert.Equal(t, 2, resp.Hits.Total.Value)
 	require.Len(t, resp.Hits.Hits, 2)
 	assert.JSONEq(t, `{"traceID":"abc"}`, string(resp.Hits.Hits[0].Source))
+}
+
+func TestMultiSearchNDJSONAndResponse(t *testing.T) {
+	const respBody = `{"responses":[{"hits":{"total":1,"hits":[{"_source":{"traceID":"abc"}}]}}]}`
+	var gotMethod, gotPath, gotCT string
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath, gotCT = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Write([]byte(respBody))
+	}))
+	defer server.Close()
+
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	resps, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{{
+		Indices: []string{"jaeger-span-read"},
+		Search: SearchRequest{
+			Size:           100,
+			Query:          query.NewTermQuery("traceID", "abc"),
+			Sort:           []SortOrder{{Field: "startTime", Order: "asc"}},
+			SearchAfter:    []any{uint64(1)},
+			TrackTotalHits: true,
+		},
+	}})
+	require.NoError(t, err)
+
+	assert.Equal(t, http.MethodGet, gotMethod)
+	assert.Equal(t, "/_msearch", gotPath)
+	assert.Equal(t, "application/x-ndjson", gotCT)
+	lines := strings.Split(strings.TrimRight(string(gotBody), "\n"), "\n")
+	require.Len(t, lines, 2, "each request is a header line plus a body line")
+	assert.JSONEq(t, `{"ignore_unavailable":true,"index":"jaeger-span-read"}`, lines[0])
+	assert.Contains(t, lines[1], `"search_after":[1]`)
+	assert.Contains(t, lines[1], `"track_total_hits":true`)
+
+	require.Len(t, resps, 1)
+	assert.Equal(t, 1, resps[0].Hits.Total.Value)
+	require.Len(t, resps[0].Hits.Hits, 1)
+}
+
+func TestMultiSearchMultipleIndicesRenderAsArray(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Write([]byte(`{"responses":[]}`))
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	_, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{{
+		Indices: []string{"idx-a", "idx-b"},
+		Search:  SearchRequest{Size: 1},
+	}})
+	require.NoError(t, err)
+	header := strings.SplitN(string(gotBody), "\n", 2)[0]
+	assert.JSONEq(t, `{"ignore_unavailable":true,"index":["idx-a","idx-b"]}`, header)
+}
+
+func TestMultiSearchBodySourceError(t *testing.T) {
+	sc := SearchClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
+	_, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{{
+		Indices: []string{"idx"},
+		Search:  SearchRequest{Query: errSource{}},
+	}})
+	require.ErrorContains(t, err, "source boom")
+}
+
+func TestMultiSearchMalformedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("not json"))
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	_, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{{Indices: []string{"idx"}}})
+	require.Error(t, err)
 }
 
 func TestTotalHitsUnmarshalBothForms(t *testing.T) {
