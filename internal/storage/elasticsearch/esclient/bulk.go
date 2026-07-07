@@ -80,29 +80,9 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 		NumWorkers:    workers,
 		FlushBytes:    cfg.FlushBytes,
 		FlushInterval: cfg.FlushInterval,
-		OnError: func(ctx context.Context, err error) {
-			// A whole-request flush failure (transport error or non-2xx _bulk
-			// response) lands here; mark the flush so OnFlushEnd records latency-err.
-			if st, ok := ctx.Value(flushStateKey{}).(*flushState); ok {
-				st.failed = true
-			}
-			logger.Error("bulk indexer error", zap.Error(err))
-		},
-		OnFlushStart: func(ctx context.Context) context.Context {
-			return context.WithValue(ctx, flushStateKey{}, &flushState{start: time.Now()})
-		},
-		OnFlushEnd: func(ctx context.Context) {
-			st, ok := ctx.Value(flushStateKey{}).(*flushState)
-			if !ok {
-				return
-			}
-			latency := time.Since(st.start)
-			if st.failed {
-				b.metrics.LatencyErr.Record(latency)
-			} else {
-				b.metrics.LatencyOk.Record(latency)
-			}
-		},
+		OnError:       b.onFlushError,
+		OnFlushStart:  b.onFlushStart,
+		OnFlushEnd:    b.onFlushEnd,
 	})
 	if err != nil {
 		return nil, err
@@ -111,15 +91,44 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 	return b, nil
 }
 
+// onFlushStart stamps the flush start time into the context so onFlushEnd can
+// measure latency and onFlushError can flag the flush as failed.
+func (*BulkIndexer) onFlushStart(ctx context.Context) context.Context {
+	return context.WithValue(ctx, flushStateKey{}, &flushState{start: time.Now()})
+}
+
+// onFlushError handles a whole-request flush failure (transport error or non-2xx
+// _bulk response). It flags the flush so onFlushEnd records latency-err; the
+// per-item error counts are handled in onItemFailure, which esutil also invokes
+// for every item of a failed flush.
+func (b *BulkIndexer) onFlushError(ctx context.Context, err error) {
+	if st, ok := ctx.Value(flushStateKey{}).(*flushState); ok {
+		st.failed = true
+	}
+	b.logger.Error("bulk indexer error", zap.Error(err))
+}
+
+// onFlushEnd records the flush latency once per flush, under latency-err when the
+// whole flush failed and latency-ok otherwise.
+func (b *BulkIndexer) onFlushEnd(ctx context.Context) {
+	st, ok := ctx.Value(flushStateKey{}).(*flushState)
+	if !ok {
+		return
+	}
+	if st.failed {
+		b.metrics.LatencyErr.Record(time.Since(st.start))
+		return
+	}
+	b.metrics.LatencyOk.Record(time.Since(st.start))
+}
+
 // Add encodes and enqueues a document. Encoding or enqueue failures are logged
 // and counted; the bulk API's own semantics (buffering, flush, per-item results)
 // are handled by esutil.
 func (b *BulkIndexer) Add(item BulkItem) {
 	body, err := json.Marshal(item.Body)
 	if err != nil {
-		b.metrics.Attempts.Inc(1)
-		b.metrics.Errors.Inc(1)
-		b.logger.Error("failed to encode bulk document", zap.String("index", item.Index), zap.Error(err))
+		b.recordDropped(item.Index, "failed to encode bulk document", err)
 		return
 	}
 	action := string(item.OpType)
@@ -132,26 +141,44 @@ func (b *BulkIndexer) Add(item BulkItem) {
 		DocumentID: item.ID,
 		Body:       bytes.NewReader(body),
 		OnSuccess: func(context.Context, esutil.BulkIndexerItem, esutil.BulkIndexerResponseItem) {
-			b.metrics.Attempts.Inc(1)
-			b.metrics.Inserts.Inc(1)
+			b.onItemSuccess()
 		},
 		OnFailure: func(_ context.Context, _ esutil.BulkIndexerItem, resp esutil.BulkIndexerResponseItem, itemErr error) {
-			// esutil calls this both for a per-item error inside an otherwise-OK
-			// flush and for every item of a whole-request flush failure (its
-			// notifyItemsOnError fans a transport/non-2xx error out to each item),
-			// so both cases increment attempts+errors here. Flush latency is
-			// recorded once per flush in OnFlushEnd (latency-err on whole failure).
-			b.metrics.Attempts.Inc(1)
-			b.metrics.Errors.Inc(1)
-			b.logger.Error("Elasticsearch part of bulk request failed",
-				zap.String("index", item.Index), zap.Int("status", resp.Status), zap.Error(itemErr))
+			b.onItemFailure(item.Index, resp.Status, itemErr)
 		},
 	})
 	if err != nil {
-		b.metrics.Attempts.Inc(1)
-		b.metrics.Errors.Inc(1)
-		b.logger.Error("failed to enqueue bulk document", zap.String("index", item.Index), zap.Error(err))
+		// Unreachable with our inputs (a background context and a *bytes.Reader
+		// body never make esutil's Add fail), but a full queue or closed indexer
+		// would land here; treat it as a dropped document rather than ignore it.
+		b.recordDropped(item.Index, "failed to enqueue bulk document", err)
 	}
+}
+
+// onItemSuccess counts one successfully indexed document.
+func (b *BulkIndexer) onItemSuccess() {
+	b.metrics.Attempts.Inc(1)
+	b.metrics.Inserts.Inc(1)
+}
+
+// onItemFailure counts one document that the server rejected. esutil calls it
+// both for a per-item error inside an otherwise-OK flush and for every item of a
+// whole-request flush failure (its notifyItemsOnError fans a transport/non-2xx
+// error out to each item), so both cases are counted here. Flush latency is
+// recorded once per flush in onFlushEnd (latency-err on whole failure).
+func (b *BulkIndexer) onItemFailure(index string, status int, err error) {
+	b.metrics.Attempts.Inc(1)
+	b.metrics.Errors.Inc(1)
+	b.logger.Error("Elasticsearch part of bulk request failed",
+		zap.String("index", index), zap.Int("status", status), zap.Error(err))
+}
+
+// recordDropped counts a document that never reached the server — dropped before
+// enqueue because it could not be encoded or accepted — as a failed attempt.
+func (b *BulkIndexer) recordDropped(index, reason string, err error) {
+	b.metrics.Attempts.Inc(1)
+	b.metrics.Errors.Inc(1)
+	b.logger.Error(reason, zap.String("index", index), zap.Error(err))
 }
 
 // Close flushes buffered documents and stops the workers.

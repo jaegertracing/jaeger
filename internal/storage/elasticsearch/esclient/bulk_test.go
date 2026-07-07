@@ -4,6 +4,8 @@
 package esclient
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 )
 
 // bulkServer records requests and answers each with the response chosen by
@@ -126,6 +129,58 @@ func hasTimer(gauges map[string]int64, name string) bool {
 		}
 	}
 	return false
+}
+
+func TestBulkIndexerHonorsWorkerCount(t *testing.T) {
+	_, url := bulkServer(t, okBulk)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{Workers: 3}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
+	require.NoError(t, b.Close())
+}
+
+// TestBulkIndexerFlushCallbacksWithoutState drives the flush callbacks with a
+// bare context (no flush state stamped by onFlushStart) to exercise the
+// defensive branches esutil never triggers itself: onFlushError just logs and
+// onFlushEnd records no latency.
+func TestBulkIndexerFlushCallbacksWithoutState(t *testing.T) {
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	core, logs := observer.New(zap.ErrorLevel)
+	b := &BulkIndexer{
+		metrics: spanstoremetrics.NewWriter(mf, "bulk_index"),
+		logger:  zap.New(core),
+	}
+
+	b.onFlushError(context.Background(), errors.New("boom"))
+	b.onFlushEnd(context.Background())
+
+	assert.Positive(t, logs.FilterMessageSnippet("bulk indexer error").Len())
+	_, gauges := mf.Snapshot()
+	assert.False(t, hasTimer(gauges, "bulk_index.latency-ok"))
+	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"))
+}
+
+// TestBulkIndexerRecordDropped covers the drop path shared by the encode-failure
+// and enqueue-failure branches (the latter is unreachable through esutil.Add with
+// our inputs, so it is exercised directly here).
+func TestBulkIndexerRecordDropped(t *testing.T) {
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	core, logs := observer.New(zap.ErrorLevel)
+	b := &BulkIndexer{
+		metrics: spanstoremetrics.NewWriter(mf, "bulk_index"),
+		logger:  zap.New(core),
+	}
+
+	b.recordDropped("idx", "failed to enqueue bulk document", errors.New("queue full"))
+
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.attempts", Value: 1},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1},
+	)
+	assert.Positive(t, logs.FilterMessageSnippet("failed to enqueue").Len())
 }
 
 func TestBulkIndexerFailureMetrics(t *testing.T) {
