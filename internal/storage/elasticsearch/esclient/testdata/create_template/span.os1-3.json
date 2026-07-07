@@ -1,8 +1,11 @@
 {
   "method": "PUT",
-  "path": "/_template/jaeger-span",
+  "path": "/_template/test-jaeger-span",
   "body": {
-    "index_patterns": "*jaeger-span-*",
+    "aliases": {
+      "test-jaeger-span-read": {}
+    },
+    "index_patterns": "*test-jaeger-span-*",
     "mappings": {
       "dynamic_templates": [
         {
@@ -208,9 +211,10 @@
     },
     "settings": {
       "index.mapping.nested_fields.limit": 50,
-      "index.number_of_replicas": 1,
-      "index.number_of_shards": 5,
-      "index.requests.cache.enable": true
+      "index.number_of_replicas": 3,
+      "index.number_of_shards": 3,
+      "index.requests.cache.enable": true,
+      "plugins.index_state_management.rollover_alias": "test-jaeger-span-write"
     }
   }
 }

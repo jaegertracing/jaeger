@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 func Command() *cobra.Command {
@@ -33,47 +33,33 @@ func Command() *cobra.Command {
 	return command
 }
 
+// generateMappings renders the index template for the requested mapping type and
+// backend version. It is an offline generator, so it renders through
+// esclient.RenderIndexTemplate for an explicitly-passed version rather than a
+// version resolved from a live cluster.
 func generateMappings(options Options) (string, error) {
-	if _, err := MappingTypeFromString(options.Mapping); err != nil {
+	mappingType, err := esclient.MappingTypeFromString(options.Mapping)
+	if err != nil {
 		return "", fmt.Errorf("invalid mapping type '%s': please pass either 'jaeger-service' or 'jaeger-span' as the mapping type %w", options.Mapping, err)
 	}
-
-	parsedMapping, err := getMappingAsString(es.TextTemplateBuilder{}, options)
-	if err != nil {
-		return "", fmt.Errorf("failed to render mapping to string: %w", err)
-	}
-
-	return parsedMapping, nil
-}
-
-// getMappingAsString returns rendered index templates as string
-func getMappingAsString(builder es.TemplateBuilder, opt Options) (string, error) {
-	enableILM, err := strconv.ParseBool(opt.UseILM)
+	enableILM, err := strconv.ParseBool(options.UseILM)
 	if err != nil {
 		return "", err
 	}
 	indexOpts := config.IndexOptions{
-		Shards:   opt.Shards,
-		Replicas: opt.Replicas,
+		Shards:   options.Shards,
+		Replicas: options.Replicas,
 	}
-	mappingBuilder := MappingBuilder{
-		TemplateBuilder: builder,
-		Indices: config.Indices{
-			IndexPrefix:  config.IndexPrefix(opt.IndexPrefix),
-			Spans:        indexOpts,
-			Services:     indexOpts,
-			Dependencies: indexOpts,
-			Sampling:     indexOpts,
-		},
-		Version:       opt.BackendVersion(),
-		UseILM:        enableILM,
-		ILMPolicyName: opt.ILMPolicyName,
+	indices := config.Indices{
+		IndexPrefix:  config.IndexPrefix(options.IndexPrefix),
+		Spans:        indexOpts,
+		Services:     indexOpts,
+		Dependencies: indexOpts,
+		Sampling:     indexOpts,
 	}
-
-	mappingType, err := MappingTypeFromString(opt.Mapping)
+	rendered, err := esclient.RenderIndexTemplate(mappingType, indices, enableILM, options.ILMPolicyName, options.BackendVersion())
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to render mapping to string: %w", err)
 	}
-
-	return mappingBuilder.GetMapping(mappingType)
+	return rendered, nil
 }

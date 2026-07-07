@@ -278,7 +278,7 @@ func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases 
 // in the version-appropriate envelope from its own resolved backend version — so
 // callers express pure Jaeger intent and never hold a BackendVersion.
 func (i IndicesClient) CreateTemplate(ctx context.Context, name string, mappingType MappingType) error {
-	template, err := renderIndexTemplate(mappingType, i.Indices, i.UseILM, i.ILMPolicyName, i.version)
+	template, err := RenderIndexTemplate(mappingType, i.Indices, i.UseILM, i.ILMPolicyName, i.version)
 	if err != nil {
 		return err
 	}

@@ -1,10 +1,13 @@
 {
   "method": "PUT",
-  "path": "/_index_template/jaeger-span",
+  "path": "/_index_template/test-jaeger-span",
   "body": {
-    "index_patterns": "jaeger-span-*",
-    "priority": 0,
+    "index_patterns": "test-jaeger-span-*",
+    "priority": 500,
     "template": {
+      "aliases": {
+        "test-jaeger-span-read": {}
+      },
       "mappings": {
         "dynamic_templates": [
           {
@@ -210,9 +213,13 @@
       },
       "settings": {
         "index.mapping.nested_fields.limit": 50,
-        "index.number_of_replicas": 1,
-        "index.number_of_shards": 5,
-        "index.requests.cache.enable": true
+        "index.number_of_replicas": 3,
+        "index.number_of_shards": 3,
+        "index.requests.cache.enable": true,
+        "lifecycle": {
+          "name": "jaeger-test-policy",
+          "rollover_alias": "test-jaeger-span-write"
+        }
       }
     }
   }

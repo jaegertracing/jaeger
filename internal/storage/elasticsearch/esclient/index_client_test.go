@@ -625,6 +625,25 @@ func testIndices() config.Indices {
 	return config.Indices{Spans: opts, Services: opts, Dependencies: opts, Sampling: opts}
 }
 
+// templateSnapshotIndices returns the index config the CreateTemplate wire
+// snapshots render against: a prefix, distinct per-type priorities, and shards/
+// replicas. Paired with ILM on (below), it exercises both the ILM and ISM
+// settings branches across the backend matrix. These values mirror the pre-M4b
+// mappings golden test so the snapshot bodies stay comparable to it.
+func templateSnapshotIndices() config.Indices {
+	opts := func(priority int64) config.IndexOptions {
+		reps := int64(3)
+		return config.IndexOptions{Shards: 3, Replicas: &reps, Priority: priority}
+	}
+	return config.Indices{
+		IndexPrefix:  "test-",
+		Spans:        opts(500),
+		Services:     opts(501),
+		Dependencies: opts(502),
+		Sampling:     opts(503),
+	}
+}
+
 func TestClientCreateTemplate(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -744,8 +763,10 @@ func TestRollover(t *testing.T) {
 
 // The tests below freeze the exact wire format of each IndicesClient request as
 // snapshots. Version-invariant requests are stored as a bare <subject>.json;
-// CreateTemplate varies (es7 and OpenSearch share the _template endpoint,
-// es8-9 use _index_template) and is stored per distinct wire format.
+// CreateTemplate varies by mapping type and backend (es7 and OpenSearch share
+// the _template endpoint but split on ILM vs ISM settings, es8-9 use the
+// composable _index_template envelope) and is stored per distinct wire format
+// under testdata/create_template/<type>.<variants>.json.
 // okServer/indicesClient are shared with the cluster and ILM snapshot tests.
 
 // okServer records requests and always answers 200 with an empty JSON object.
@@ -835,12 +856,32 @@ func TestCreateTemplateRenderError(t *testing.T) {
 }
 
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
-	content := map[es.BackendVersion]string{}
-	for _, version := range es.AllVersions {
-		rec, url := okServer(t)
-		c := IndicesClient{Client: makeClient(t, url, "", "", version), Indices: testIndices()}
-		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", SpanMapping))
-		content[version] = rec.Marshal(t)
+	indices := templateSnapshotIndices()
+	subjects := []struct {
+		name    string
+		mapping MappingType
+	}{
+		{"span", SpanMapping},
+		{"service", ServiceMapping},
+		{"dependencies", DependencyMapping},
+		{"sampling", SamplingMapping},
 	}
-	snapshottest.AssertByVersion(t, "testdata/create_template", content)
+	for _, subject := range subjects {
+		t.Run(subject.name, func(t *testing.T) {
+			content := map[es.BackendVersion]string{}
+			for _, version := range es.AllVersions {
+				rec, url := okServer(t)
+				c := IndicesClient{
+					Client:        makeClient(t, url, "", "", version),
+					Indices:       indices,
+					UseILM:        true,
+					ILMPolicyName: "jaeger-test-policy",
+				}
+				name := indices.IndexPrefix.Apply(subject.mapping.indexBase())
+				require.NoError(t, c.CreateTemplate(context.Background(), name, subject.mapping))
+				content[version] = rec.Marshal(t)
+			}
+			snapshottest.AssertByVersion(t, "testdata/create_template/"+subject.name, content)
+		})
+	}
 }

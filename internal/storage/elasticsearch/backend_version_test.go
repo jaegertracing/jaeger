@@ -56,23 +56,6 @@ func TestBackendVersion_IsOpenSearch(t *testing.T) {
 	}
 }
 
-func TestBackendVersion_TemplateVersion(t *testing.T) {
-	tests := []struct {
-		version  BackendVersion
-		expected uint
-	}{
-		{ElasticV7, 7},
-		{ElasticV8, 8},
-		{ElasticV9, 8},
-		{OpenSearch1, 7},
-		{OpenSearch2, 7},
-		{OpenSearch3, 7},
-	}
-	for _, tt := range tests {
-		assert.Equal(t, tt.expected, tt.version.TemplateVersion(), tt.version.String())
-	}
-}
-
 func TestBackendVersion_UsesV8API(t *testing.T) {
 	tests := []struct {
 		version  BackendVersion

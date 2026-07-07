@@ -126,11 +126,16 @@ type innerParams struct {
 	IsOpenSearch  bool
 }
 
-// renderIndexTemplate renders the full index template body for a mapping type,
+// RenderIndexTemplate renders the full index template body for a mapping type,
 // wrapping the neutral inner object in the envelope required by the backend
 // version: the legacy top-level `_template` shape (ES7/OpenSearch) or the
 // composable `_index_template` wrapper with a priority (ES8+).
-func renderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
+//
+// CreateTemplate renders internally from the client's own resolved version, so
+// online callers never pass a version. This entry point is exported only for the
+// offline `esmapping-generator` CLI, which has no cluster to probe and renders a
+// template for an explicitly-requested version.
+func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
 	file := m.file()
 	if file == "" {
 		return "", fmt.Errorf("unknown index template mapping type %d", m)
