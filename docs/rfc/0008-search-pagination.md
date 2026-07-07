@@ -191,9 +191,10 @@ implements it:
 // SearchDepth and never emit a NextPageToken.
 type PaginatingReader interface {
     Reader
-    // FindTracesPage is like FindTraces but accepts an opaque page token
-    // and returns the next-page token alongside the results.
-    FindTracesPage(ctx context.Context, query PagedTraceQuery) iter.Seq2[[]ptrace.Traces, error]
+    // FindTracesPage streams trace chunks for one page of results.
+    // Each yielded TracesPage carries a ptrace.Traces chunk; the final chunk
+    // of the page carries a non-empty NextPageToken if more results exist.
+    FindTracesPage(ctx context.Context, query PagedTraceQuery) iter.Seq2[[]TracesPage, error]
 }
 
 type PagedTraceQuery struct {
@@ -201,9 +202,13 @@ type PagedTraceQuery struct {
     PageToken string // opaque, backend-specific; empty means first page
 }
 
-// PageToken is an opaque, backend-specific cursor attached to
-// the result of a FindTracesPage call. An empty value means no further pages.
-type PageToken string
+// TracesPage is a single chunk from a FindTracesPage call.
+// NextPageToken is non-empty only on the final chunk and only when more
+// results exist beyond this page.
+type TracesPage struct {
+    Traces        ptrace.Traces
+    NextPageToken string
+}
 ```
 
 The handler checks:
