@@ -3,19 +3,33 @@
 
 package query
 
-// MaxAggregation computes the maximum value of a numeric field. It renders to
-// {"max": {"field": field}}, matching what the storage layer previously produced
-// via olivere's MaxAggregation. It is typically nested under a TermsAggregation
-// to order buckets (e.g. latest startTime per traceID).
+// MaxAggregation computes the maximum of either a numeric field or a Painless
+// script. It renders to {"max": {"field": field}} or {"max": {"script":
+// {"source": script}}}, matching what the storage layer previously produced via
+// olivere's MaxAggregation. It is typically nested under a TermsAggregation to
+// order buckets (e.g. latest startTime per traceID).
 type MaxAggregation struct {
-	field string
+	field  string
+	script string
 }
 
-// NewMaxAggregation creates a MaxAggregation on the given field.
+// NewMaxAggregation creates a MaxAggregation over the given field.
 func NewMaxAggregation(field string) *MaxAggregation {
 	return &MaxAggregation{field: field}
 }
 
+// NewScriptedMaxAggregation creates a MaxAggregation over a Painless script
+// (used where the value is derived, e.g. end time = startTime + duration).
+func NewScriptedMaxAggregation(script string) *MaxAggregation {
+	return &MaxAggregation{script: script}
+}
+
 func (a *MaxAggregation) Source() (any, error) {
-	return map[string]any{"max": map[string]any{"field": a.field}}, nil
+	inner := map[string]any{}
+	if a.script != "" {
+		inner["script"] = map[string]any{"source": a.script}
+	} else {
+		inner["field"] = a.field
+	}
+	return map[string]any{"max": inner}, nil
 }

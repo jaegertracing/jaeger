@@ -55,15 +55,11 @@ func (a *TermsAggregation) Source() (any, error) {
 		terms["order"] = order
 	}
 	result := map[string]any{"terms": terms}
-	if len(a.subAggs) > 0 {
-		aggs := make(map[string]any, len(a.subAggs))
-		for name, agg := range a.subAggs {
-			src, err := agg.Source()
-			if err != nil {
-				return nil, err
-			}
-			aggs[name] = src
-		}
+	aggs, err := subAggregationsSource(a.subAggs)
+	if err != nil {
+		return nil, err
+	}
+	if aggs != nil {
 		result["aggregations"] = aggs
 	}
 	return result, nil
