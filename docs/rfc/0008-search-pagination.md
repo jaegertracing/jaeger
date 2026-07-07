@@ -416,10 +416,12 @@ over gRPC. For pagination:
 
 ### Phase 2 — gRPC / proto propagation
 
-1. **`jaeger-idl` submodule:** Add `string page_token = 9` to
-   `TraceQueryParameters` and `string next_page_token = 1` to
-   `FindTraceSummariesResponse` (new wrapper message) in `query_service.proto` and
-   `trace_storage.proto`. This requires a PR to the `jaeger-idl` repository.
+1. **`jaeger-idl` submodule:** Add `string page_token = 10` to
+   `TraceQueryParameters` in `query_service.proto` (field 9 is already `raw_traces`),
+   and `string page_token = 9` to `TraceQueryParameters` in `trace_storage.proto`
+   (currently ends at field 8). Add `string next_page_token = 2` to
+   `FindTraceSummariesResponse` in both protos (field 1 is already `summaries`).
+   This requires a PR to the `jaeger-idl` repository.
 
 2. **Regenerate protos:** Run `make generate-proto` after the IDL PR merges.
 
@@ -450,7 +452,7 @@ for each backend. Neither is required to make Phase 1 or 2 shippable.
   "total": 0,
   "limit": 20,
   "offset": 0,
-  "nextPageToken": "eyJzdGFydFRpbWUiOjE3MjAwMDAwMDAwMDAsInRyYWNlSUQiOiJhYmMxMjMifQ==",
+  "nextPageToken": "eyJzdGFydFRpbWUiOjE3MjAwMDAwMDAwMDAsInRyYWNlSUQiOiJhYmMxMjMifQ",
   "errors": []
 }
 ```
@@ -479,11 +481,13 @@ omit it, which is indistinguishable to callers from reaching the last page.
 ```protobuf
 message TraceQueryParameters {
   // ... existing fields ...
-  string page_token = 10; // opaque; empty means first page
+  // field 9 is raw_traces (api_v3); page_token is 10 in query_service.proto
+  // field 9 is available in trace_storage.proto (ends at 8 today)
+  string page_token = 10; // api_v3: opaque; empty means first page
 }
 
 message FindTracesResponse {
-  // ... existing fields ...
+  // ... existing fields (field 1 = summaries) ...
   string next_page_token = 2; // empty means no further pages
 }
 ```
