@@ -439,29 +439,32 @@ func newSnapshotClient(t *testing.T, url string, version es.BackendVersion) es.C
 }
 
 // samplingRecorder answers a HEAD index-exists check with 200 (so the index
-// resolves) and searches with an empty result, capturing each request.
+// resolves), searches with an empty result, and _bulk writes with an empty item
+// list, capturing each request.
 func samplingRecorder() *snapshottest.Recorder {
-	return snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
+		if strings.HasSuffix(r.URL.Path, "_bulk") {
+			w.Write([]byte(`{"took":0,"errors":false,"items":[]}`))
+			return
+		}
 		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
 	})
 }
 
-// TestSamplingStoreReadRequestSnapshots freezes the wire format of the sampling
-// read path: get_throughput (a _search with a timestamp range) and
-// get_latest_probabilities (an index-exists HEAD followed by a _search).
-//
-// The write path (InsertThroughput / InsertProbabilitiesAndQPS) is intentionally
-// not snapshot here: both stamp the document body with time.Now() internally, with
-// no clock seam to inject a fixed time, so their request bodies cannot be frozen
-// without a production change — out of scope for the snapshot baseline (tests +
-// fixtures only). They can be captured once a clock is injected during migration.
-func TestSamplingStoreReadRequestSnapshots(t *testing.T) {
+// TestSamplingStoreRequestSnapshots asserts the wire format of the sampling read
+// and write paths: get_throughput (a _search with a timestamp range),
+// get_latest_probabilities (an index-exists HEAD followed by a _search), and the
+// two bulk writes. A fixed clock makes the write document timestamps deterministic.
+func TestSamplingStoreRequestSnapshots(t *testing.T) {
 	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	end := start.Add(time.Hour)
+	writeTime := time.Date(2024, 2, 8, 12, 0, 0, 0, time.UTC)
 
 	getThroughput := map[es.BackendVersion]string{}
 	getLatestProbabilities := map[es.BackendVersion]string{}
+	writeThroughput := map[es.BackendVersion]string{}
+	writeProbabilities := map[es.BackendVersion]string{}
 
 	for _, version := range es.AllVersions {
 		rec := samplingRecorder()
@@ -486,8 +489,42 @@ func TestSamplingStoreReadRequestSnapshots(t *testing.T) {
 		_, err = store.GetLatestProbabilities()
 		require.NoError(t, err)
 		getLatestProbabilities[version] = rec.Marshal(t)
+
+		writeThroughput[version] = captureSamplingWrite(t, server.URL, version, rec, writeTime, func(s *SamplingStore) {
+			require.NoError(t, s.InsertThroughput([]*samplemodel.Throughput{
+				{Service: "my-svc", Operation: "op", Count: 10},
+			}))
+		})
+		writeProbabilities[version] = captureSamplingWrite(t, server.URL, version, rec, writeTime, func(s *SamplingStore) {
+			require.NoError(t, s.InsertProbabilitiesAndQPS(
+				"dell11eg843d",
+				samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+				samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+			))
+		})
 	}
 
 	snapshottest.AssertByVersion(t, "testdata/get_throughput", getThroughput)
 	snapshottest.AssertByVersion(t, "testdata/get_latest_probabilities", getLatestProbabilities)
+	snapshottest.AssertByVersion(t, "testdata/write_throughput", writeThroughput)
+	snapshottest.AssertByVersion(t, "testdata/write_probabilities", writeProbabilities)
+}
+
+// captureSamplingWrite drives one sampling write through a fresh olivere client
+// (with a fixed clock) pointed at the recording server, then closes the client to
+// flush the buffered bulk request the recorder captures. A fresh client per write
+// keeps each write's _bulk request in its own snapshot.
+func captureSamplingWrite(t *testing.T, url string, version es.BackendVersion, rec *snapshottest.Recorder, writeTime time.Time, write func(*SamplingStore)) string {
+	client := newSnapshotClient(t, url, version)
+	store := NewSamplingStore(Params{
+		Client:      func() es.Client { return client },
+		Logger:      zap.NewNop(),
+		MaxDocCount: 1000,
+		Rotation:    indices.NewAliasedRotation("jaeger-sampling-write", "jaeger-sampling-read"),
+	})
+	store.now = func() time.Time { return writeTime }
+	rec.Reset()
+	write(store)
+	require.NoError(t, client.Close()) // flushes the buffered bulk request
+	return rec.Marshal(t)
 }

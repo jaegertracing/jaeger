@@ -1,0 +1,20 @@
+{
+  "method": "POST",
+  "path": "/_bulk",
+  "ndjson": [
+    {
+      "index": {
+        "_index": "jaeger-sampling-write"
+      }
+    },
+    {
+      "throughputs": {
+        "Count": 10,
+        "Operation": "op",
+        "Probabilities": null,
+        "Service": "my-svc"
+      },
+      "timestamp": "2024-02-08T12:00:00Z"
+    }
+  ]
+}
