@@ -26,6 +26,10 @@ type SamplingStore struct {
 	maxDocCount int
 	lookback    time.Duration
 	rotation    indices.Rotation
+	// now holds the function returning the current time — time.Now by default, but
+	// tests replace it with one returning a fixed time to freeze the timestamps
+	// written by InsertThroughput and InsertProbabilitiesAndQPS.
+	now func() time.Time
 }
 
 type Params struct {
@@ -43,11 +47,12 @@ func NewSamplingStore(p Params) *SamplingStore {
 		maxDocCount: p.MaxDocCount,
 		lookback:    p.Lookback,
 		rotation:    p.Rotation,
+		now:         time.Now,
 	}
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	ts := time.Now()
+	ts := s.now()
 	indexName := s.rotation.WriteTarget(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
 		s.client().Index().Index(indexName).
@@ -87,7 +92,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
-	ts := time.Now()
+	ts := s.now()
 	writeIndexName := s.rotation.WriteTarget(ts)
 	val := dbmodel.ProbabilitiesAndQPS{
 		Hostname:      hostname,
