@@ -372,7 +372,9 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) esquery.Query {
 // jaeger.es.disableLegacyId gate is enabled — stays testable.
 func buildTraceByIDQueryWithLegacy(traceID dbmodel.TraceID, disableLegacy bool) esquery.Query {
 	traceIDStr := string(traceID)
-	if traceIDStr[0] != '0' || disableLegacy {
+	// An empty ID has no leading-zero variant (and indexing traceIDStr[0] would
+	// panic); a term query on "" simply matches nothing.
+	if traceIDStr == "" || traceIDStr[0] != '0' || disableLegacy {
 		return esquery.NewTermQuery(traceIDField, traceIDStr)
 	}
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs

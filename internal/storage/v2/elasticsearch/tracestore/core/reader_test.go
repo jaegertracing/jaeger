@@ -1047,6 +1047,13 @@ func TestBuildTraceByIDQuery(t *testing.T) {
 				map[string]any{"term": map[string]any{"traceID": "1"}},
 			}}},
 		},
+		{
+			// An empty ID must not panic (traceIDStr[0]); it yields a match-nothing term.
+			name:          "empty id, legacy enabled",
+			traceID:       "",
+			disableLegacy: false,
+			expected:      map[string]any{"term": map[string]any{"traceID": ""}},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
