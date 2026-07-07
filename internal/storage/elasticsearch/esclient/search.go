@@ -13,12 +13,23 @@ import (
 )
 
 // SearchRequest is a driver-neutral search body: an optional query, named
-// aggregations, and the number of documents to return. The storage layer builds
-// it from the owned query AST, so no driver type crosses this boundary.
+// aggregations, the number of documents to return, and the sort / search_after /
+// track_total_hits controls the paginated trace read needs. The storage layer
+// builds it from the owned query AST, so no driver type crosses this boundary.
 type SearchRequest struct {
-	Query        query.Query
-	Aggregations map[string]query.Aggregation
-	Size         int
+	Query          query.Query
+	Aggregations   map[string]query.Aggregation
+	Size           int
+	Sort           []SortOrder
+	SearchAfter    []any
+	TrackTotalHits bool
+}
+
+// SortOrder sorts hits by a field. It renders to {field: {"order": order}} where
+// order is "asc" or "desc".
+type SortOrder struct {
+	Field string
+	Order string
 }
 
 func (r SearchRequest) body() ([]byte, error) {
@@ -41,14 +52,65 @@ func (r SearchRequest) body() ([]byte, error) {
 		}
 		m["aggregations"] = aggs
 	}
+	if len(r.Sort) > 0 {
+		sort := make([]any, len(r.Sort))
+		for i, s := range r.Sort {
+			sort[i] = map[string]any{s.Field: map[string]any{"order": s.Order}}
+		}
+		m["sort"] = sort
+	}
+	if len(r.SearchAfter) > 0 {
+		m["search_after"] = r.SearchAfter
+	}
+	if r.TrackTotalHits {
+		m["track_total_hits"] = true
+	}
 	return json.Marshal(m)
 }
 
-// SearchResponse is the owned, driver-neutral search response. It currently
-// exposes aggregation buckets; hits and other aggregation shapes are added by
-// later migration slices as their callers need them.
+// SearchResponse is the owned, driver-neutral search response. It exposes the
+// matched documents (hits) and aggregation buckets; other aggregation shapes are
+// added by later migration slices as their callers need them.
 type SearchResponse struct {
+	Hits         HitsResult                   `json:"hits"`
 	Aggregations map[string]AggregationResult `json:"aggregations"`
+}
+
+// HitsResult holds the documents a search matched and, when the request asked for
+// it (track_total_hits), the total number of matches — used to page the trace read.
+type HitsResult struct {
+	Total TotalHits   `json:"total"`
+	Hits  []SearchHit `json:"hits"`
+}
+
+// SearchHit is a single matched document. Source is the raw _source JSON, left
+// unparsed so the storage layer unmarshals it into its own dbmodel type — the
+// client never knows what a span or throughput document is.
+type SearchHit struct {
+	Source json.RawMessage `json:"_source"`
+}
+
+// TotalHits is the number of matching documents. Elasticsearch reports it either
+// as a plain integer (with rest_total_hits_as_int) or as an object {"value": n,
+// "relation": ...}; TotalHits accepts both so callers see a single int.
+type TotalHits struct {
+	Value int
+}
+
+func (t *TotalHits) UnmarshalJSON(data []byte) error {
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		t.Value = n
+		return nil
+	}
+	var obj struct {
+		Value int `json:"value"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	t.Value = obj.Value
+	return nil
 }
 
 // AggregationResult holds the buckets of a bucketing aggregation (e.g. terms).

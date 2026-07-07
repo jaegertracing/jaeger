@@ -5,6 +5,7 @@ package esclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -113,4 +114,59 @@ func TestSearchMalformedResponse(t *testing.T) {
 	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
 	_, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{})
 	require.Error(t, err)
+}
+
+func TestSearchRequestBodyOmitsUnsetPaginationFields(t *testing.T) {
+	body, err := SearchRequest{Size: 0, Query: query.NewTermQuery("a", 1)}.body()
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(body, &m))
+	assert.NotContains(t, m, "sort")
+	assert.NotContains(t, m, "search_after")
+	assert.NotContains(t, m, "track_total_hits")
+	assert.NotContains(t, m, "aggregations")
+}
+
+func TestSearchRequestBodyIncludesPaginationFields(t *testing.T) {
+	body, err := SearchRequest{
+		Size:           100,
+		Query:          query.NewTermQuery("traceID", "abc"),
+		Sort:           []SortOrder{{Field: "startTime", Order: "asc"}},
+		SearchAfter:    []any{uint64(1577847845000000)},
+		TrackTotalHits: true,
+	}.body()
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(body, &m))
+	assert.Equal(t, []any{map[string]any{"startTime": map[string]any{"order": "asc"}}}, m["sort"])
+	assert.Equal(t, []any{float64(1577847845000000)}, m["search_after"])
+	assert.Equal(t, true, m["track_total_hits"])
+}
+
+func TestSearchParsesHits(t *testing.T) {
+	const body = `{"hits":{"total":2,"hits":[` +
+		`{"_source":{"traceID":"abc"}},{"_source":{"traceID":"def"}}]}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(body))
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	resp, err := sc.Search(context.Background(), []string{"idx"}, SearchRequest{})
+	require.NoError(t, err)
+	assert.Equal(t, 2, resp.Hits.Total.Value)
+	require.Len(t, resp.Hits.Hits, 2)
+	assert.JSONEq(t, `{"traceID":"abc"}`, string(resp.Hits.Hits[0].Source))
+}
+
+func TestTotalHitsUnmarshalBothForms(t *testing.T) {
+	var intForm TotalHits
+	require.NoError(t, json.Unmarshal([]byte(`5`), &intForm))
+	assert.Equal(t, 5, intForm.Value)
+
+	var objForm TotalHits
+	require.NoError(t, json.Unmarshal([]byte(`{"value":7,"relation":"eq"}`), &objForm))
+	assert.Equal(t, 7, objForm.Value)
+
+	var bad TotalHits
+	require.Error(t, json.Unmarshal([]byte(`"nope"`), &bad))
 }
