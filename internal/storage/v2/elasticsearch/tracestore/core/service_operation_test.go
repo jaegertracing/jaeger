@@ -19,7 +19,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
@@ -204,22 +203,6 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 // service/operation read + write path over esclient (SearchClient for reads,
 // the bulk indexer for writes). Every supported version emits the same request,
 // so the snapshots collapse to a single file per operation.
-
-// newDataClient builds a real es.Client for the given backend version, pointed at
-// the recording server. Version is set explicitly so no ping is issued, and the
-// bulk processor only flushes on Close.
-func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
-	cfg := &config.Configuration{
-		Servers:            []string{url},
-		Version:            uint(version),
-		DisableHealthCheck: true,
-		LogLevel:           "info",
-		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
-	}
-	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
-	require.NoError(t, err)
-	return client
-}
 
 // dataRecorder answers each request with an empty-but-valid response for its
 // endpoint (search, msearch, or bulk), so operations complete without error

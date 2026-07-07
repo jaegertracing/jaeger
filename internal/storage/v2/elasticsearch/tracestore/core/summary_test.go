@@ -15,15 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
@@ -49,43 +49,34 @@ const summaryAggregationJSON = `{
 }`
 
 // Phase 1 (findTraceIDsFromQuery) reads this "traceIDs" aggregation; phase 2 reads
-// "trace_summaries". A single mocked search result carries both so the two-phase
-// FindTraceSummaries can run end to end.
+// "trace_summaries". A single mocked search response carries both so the two-phase
+// FindTraceSummaries can run end to end against one Search stub.
 const traceIDsAggregationJSON = `{
   "buckets": [
     {"key": "00000000000000000000000000000001", "doc_count": 3, "startTime": {"value": 1500000}}
   ]
 }`
 
-func summaryResult(summaryJSON string) *elastic.SearchResult {
-	return &elastic.SearchResult{Aggregations: elastic.Aggregations{
-		traceIDAggregation: []byte(traceIDsAggregationJSON),
-		"trace_summaries":  []byte(summaryJSON),
-	}}
+// summaryResponse builds an owned SearchResponse carrying both the phase-1 traceIDs
+// aggregation and the phase-2 trace_summaries aggregation. The nested
+// sub-aggregations are unexported, so the response is constructed by unmarshaling
+// the ES aggregation-response JSON rather than a struct literal.
+func summaryResponse(t *testing.T, summaryJSON string) *esclient.SearchResponse {
+	raw := fmt.Sprintf(`{"aggregations":{"traceIDs":%s,"trace_summaries":%s}}`, traceIDsAggregationJSON, summaryJSON)
+	var resp esclient.SearchResponse
+	require.NoError(t, json.Unmarshal([]byte(raw), &resp))
+	return &resp
 }
 
-func mockSummarySearchServiceObj(r *spanReaderTest) *mocks.SearchService {
-	searchService := &mocks.SearchService{}
-	searchService.On("Query", mock.Anything).Return(searchService)
-	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
-	searchService.On("Size", mock.AnythingOfType("int")).Return(searchService)
-	searchService.On("Aggregation", mock.AnythingOfType("string"), mock.Anything).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
-	return searchService
-}
-
-func mockSummarySearchService(r *spanReaderTest) *mock.Call {
-	return mockSummarySearchServiceObj(r).On("Do", mock.Anything)
-}
-
-// traceIDsResult is a phase-1-only search result: it carries just the traceIDs
+// traceIDsResponse is a phase-1-only response: it carries just the traceIDs
 // aggregation, so findTraceIDsFromQuery succeeds and FindTraceSummaries proceeds
-// to phase 2. Pairing it (via .Once()) with a second Do return lets tests drive
+// to phase 2. Pairing it (via .Once()) with a second Search stub lets tests drive
 // the phase-2 branches that phase 1 would otherwise short-circuit.
-func traceIDsResult() *elastic.SearchResult {
-	return &elastic.SearchResult{Aggregations: elastic.Aggregations{
-		traceIDAggregation: []byte(traceIDsAggregationJSON),
-	}}
+func traceIDsResponse(t *testing.T) *esclient.SearchResponse {
+	raw := fmt.Sprintf(`{"aggregations":{"traceIDs":%s}}`, traceIDsAggregationJSON)
+	var resp esclient.SearchResponse
+	require.NoError(t, json.Unmarshal([]byte(raw), &resp))
+	return &resp
 }
 
 func validSummaryQuery() dbmodel.TraceQueryParameters {
@@ -105,7 +96,8 @@ func TestSpanReader_FindTraceSummaries_IndexWindowMatchesMaxTraceDuration(t *tes
 	// indices are not searched the summary (SpanCount, services, errors, duration) is
 	// partial. The withSpanReader fixture uses daily indices and MaxTraceDuration=24h.
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSummarySearchService(r).Return(summaryResult(summaryAggregationJSON), nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, summaryAggregationJSON), nil)
 
 		const maxTraceDuration = 24 * time.Hour // matches the withSpanReader fixture
 		day := time.Date(2019, 10, 10, 12, 0, 0, 0, time.UTC)
@@ -125,14 +117,14 @@ func TestSpanReader_FindTraceSummaries_IndexWindowMatchesMaxTraceDuration(t *tes
 		// Guard: the fixture must actually distinguish the two windows, otherwise the
 		// assertion below would pass even with the old ±1h padding.
 		require.Greater(t, len(wideWindow), len(narrowWindow))
-		r.client.AssertCalled(t, "Search", wideWindow)
+		r.searcher.AssertCalled(t, "Search", mock.Anything, wideWindow, mock.Anything)
 	})
 }
 
 func TestSpanReader_FindTraceSummaries(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSummarySearchService(r).
-			Return(summaryResult(summaryAggregationJSON), nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, summaryAggregationJSON), nil)
 
 		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.NoError(t, err)
@@ -160,7 +152,8 @@ func TestSpanReader_FindTraceSummaries(t *testing.T) {
 
 func TestSpanReader_FindTraceSummaries_DefaultsSearchDepth(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSummarySearchService(r).Return(summaryResult(summaryAggregationJSON), nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, summaryAggregationJSON), nil)
 		// SearchDepth 0 must fall back to defaultSearchDepth rather than requesting
 		// a zero-size terms aggregation.
 		query := validSummaryQuery()
@@ -172,30 +165,27 @@ func TestSpanReader_FindTraceSummaries_DefaultsSearchDepth(t *testing.T) {
 }
 
 // TestSpanReader_FindTraceSummaries_Phase2 drives the phase-2 failure branches
-// that phase 1 short-circuits: phase 1 returns trace IDs (first Do), then phase 2
-// (second Do) returns the failure under test.
+// that phase 1 short-circuits: phase 1 returns trace IDs (first Search), then phase 2
+// (second Search) returns the failure under test.
 func TestSpanReader_FindTraceSummaries_Phase2(t *testing.T) {
-	missingSummary := &elastic.SearchResult{Aggregations: elastic.Aggregations{
-		"other": []byte(`{"buckets": []}`),
-	}}
-	nonStringKey := &elastic.SearchResult{Aggregations: elastic.Aggregations{
-		"trace_summaries": []byte(`{"buckets": [{"key": 123, "doc_count": 1}]}`),
+	missingSummary := &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+		"other": {},
 	}}
 	tests := []struct {
 		name   string
-		result *elastic.SearchResult
+		result *esclient.SearchResponse
 		err    error
 	}{
 		{name: "search error", err: errors.New("phase-2 search failed")},
 		{name: "missing summaries aggregation", result: missingSummary},
-		{name: "non-string trace ID key", result: nonStringKey},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			withSpanReader(t, func(r *spanReaderTest) {
-				ss := mockSummarySearchServiceObj(r)
-				ss.On("Do", mock.Anything).Return(traceIDsResult(), nil).Once()
-				ss.On("Do", mock.Anything).Return(tt.result, tt.err).Once()
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+					Return(traceIDsResponse(t), nil).Once()
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+					Return(tt.result, tt.err).Once()
 
 				_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 				require.Error(t, err)
@@ -221,7 +211,8 @@ func TestSpanReader_FindTraceSummaries_NilRootSource(t *testing.T) {
     }
   ]
 }`
-		mockSummarySearchService(r).Return(summaryResult(nilSource), nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, nilSource), nil)
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.ErrorContains(t, err, "missing _source")
 	})
@@ -237,7 +228,8 @@ func TestSpanReader_FindTraceSummaries_InvalidQuery(t *testing.T) {
 
 func TestSpanReader_FindTraceSummaries_SearchError(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSummarySearchService(r).Return(nil, errors.New("search failed"))
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, errors.New("search failed"))
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.Error(t, err)
 	})
@@ -249,23 +241,68 @@ func TestSpanReader_FindTraceSummaries_SearchError(t *testing.T) {
 // aggregation instead of failing the request.
 func TestSpanReader_FindTraceSummaries_ScriptingDisabled(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		scriptErr := &elastic.Error{
-			Status: 400,
-			Details: &elastic.ErrorDetails{
-				Type:   "search_phase_execution_exception",
-				Reason: "all shards failed",
-				RootCause: []*elastic.ErrorDetails{
-					{Type: "illegal_argument_exception", Reason: "cannot execute [inline] scripts"},
-				},
-			},
+		scriptErr := esclient.ResponseError{
+			Err:        errors.New("all shards failed"),
+			StatusCode: 400,
+			Body: []byte(`{"error":{"reason":"all shards failed","root_cause":[` +
+				`{"reason":"cannot execute [inline] scripts"}]}}`),
 		}
-		ss := mockSummarySearchServiceObj(r)
-		ss.On("Do", mock.Anything).Return(traceIDsResult(), nil).Once()
-		ss.On("Do", mock.Anything).Return(nil, scriptErr).Once()
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(traceIDsResponse(t), nil).Once()
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(nil, scriptErr).Once()
 
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.ErrorIs(t, err, errors.ErrUnsupported)
 	})
+}
+
+// TestSpanReader_FindTraceSummaries_MinimalBucket covers a bucket that carries no
+// services and no root_span sub-aggregations, so parseServiceSummaries and
+// parseRootSpan take their "absent" paths and the summary has empty services and
+// root fields.
+func TestSpanReader_FindTraceSummaries_MinimalBucket(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		summaryJSON := `{"buckets": [{
+			"key": "00000000000000000000000000000001", "doc_count": 2,
+			"min_start": {"value": 1000000}, "max_end": {"value": 2000000},
+			"error_count": {"doc_count": 0}
+		}]}`
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, summaryJSON), nil)
+		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+		require.NoError(t, err)
+		require.Len(t, summaries, 1)
+		assert.Empty(t, summaries[0].Services)
+		assert.Empty(t, summaries[0].RootServiceName)
+		assert.Empty(t, summaries[0].RootOperationName)
+	})
+}
+
+// TestSpanReader_FindTraceSummaries_NonScriptError checks that a phase-2
+// ResponseError unrelated to scripting is surfaced as a generic error, not
+// misreported as ErrUnsupported.
+func TestSpanReader_FindTraceSummaries_NonScriptError(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body []byte
+	}{
+		{"non-script reason", []byte(`{"error":{"reason":"index_not_found_exception"}}`)},
+		{"malformed body", []byte(`not json`)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			withSpanReader(t, func(r *spanReaderTest) {
+				respErr := esclient.ResponseError{Err: errors.New("boom"), StatusCode: 400, Body: tt.body}
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+					Return(traceIDsResponse(t), nil).Once()
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+					Return(nil, respErr).Once()
+				_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
+				require.Error(t, err)
+				require.NotErrorIs(t, err, errors.ErrUnsupported)
+			})
+		})
+	}
 }
 
 // TestSpanReader_FindTraceSummaries_PreMigrationRoot covers traces written before
@@ -283,7 +320,8 @@ func TestSpanReader_FindTraceSummaries_PreMigrationRoot(t *testing.T) {
 				{"_source": {"operationName": "earliest-op", "process": {"serviceName": "svcEarliest"}}}
 			]}}}
 		}]}`
-		mockSummarySearchService(r).Return(summaryResult(summaryJSON), nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, summaryJSON), nil)
 		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.NoError(t, err)
 		require.Len(t, summaries, 1)
@@ -294,7 +332,8 @@ func TestSpanReader_FindTraceSummaries_PreMigrationRoot(t *testing.T) {
 
 func TestSpanReader_FindTraceSummaries_NoAggregations(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSummarySearchService(r).Return(&elastic.SearchResult{Aggregations: nil}, nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(&esclient.SearchResponse{Aggregations: nil}, nil)
 		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.NoError(t, err)
 		assert.Empty(t, summaries)
@@ -320,42 +359,19 @@ func TestSpanReader_FindTraceSummaries_BadRootSource(t *testing.T) {
     }
   ]
 }`
-		mockSummarySearchService(r).
-			Return(summaryResult(badRoot), nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(summaryResponse(t, badRoot), nil)
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.Error(t, err)
 	})
 }
 
-func TestSpanReader_FindTraceSummaries_NonStringServiceKey(t *testing.T) {
-	withSpanReader(t, func(r *spanReaderTest) {
-		// A non-string service-name bucket key is a malformed/schema-regressed response
-		// and must fail fast, mirroring the trace-ID key handling, rather than producing
-		// an empty-named service entry.
-		badService := `{
-  "buckets": [
-    {
-      "key": "00000000000000000000000000000001",
-      "doc_count": 1,
-      "min_start": {"value": 1000000},
-      "max_end": {"value": 2000000},
-      "error_count": {"doc_count": 0},
-      "services": {"buckets": [{"key": 123, "doc_count": 1}]},
-      "root_span": {"doc_count": 0, "root_hit": {"hits": {"hits": []}}}
-    }
-  ]
-}`
-		mockSummarySearchService(r).Return(summaryResult(badService), nil)
-		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
-		require.ErrorContains(t, err, "non-string service name")
-	})
-}
-
 func TestSpanReader_FindTraceSummaries_MissingBucketAggregation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		aggs := map[string]json.RawMessage{"other": []byte(`{"buckets": []}`)}
-		mockSummarySearchService(r).
-			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(aggs)}, nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+				"other": {},
+			}}, nil)
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.ErrorIs(t, err, ErrUnableToFindTraceIDAggregation)
 	})
@@ -364,11 +380,10 @@ func TestSpanReader_FindTraceSummaries_MissingBucketAggregation(t *testing.T) {
 func TestSpanReader_FindTraceSummaries_NoMatchingTraces(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		// Phase 1 finds no trace IDs, so no phase-2 aggregation runs.
-		emptyIDs := `{"buckets": []}`
-		result := &elastic.SearchResult{Aggregations: elastic.Aggregations{
-			traceIDAggregation: []byte(emptyIDs),
-		}}
-		mockSummarySearchService(r).Return(result, nil)
+		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+			Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+				traceIDAggregation: {Buckets: []esclient.AggregationBucket{}},
+			}}, nil)
 		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.NoError(t, err)
 		assert.Empty(t, summaries)
@@ -408,7 +423,8 @@ func TestSpanReader_FindTraceSummaries_RootSpan(t *testing.T) {
 					"error_count": {"doc_count": 0}, "services": {"buckets": []},
 					"root_span": %s
 				}]}`, traceID, tt.rootSpan)
-				mockSummarySearchService(r).Return(summaryResult(summaryJSON), nil)
+				r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+					Return(summaryResponse(t, summaryJSON), nil)
 				summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 				require.NoError(t, err)
 				require.Len(t, summaries, 1)
@@ -437,12 +453,13 @@ func TestSummaryRequestSnapshots(t *testing.T) {
 		rec := summaryRecorder()
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
-		client := newDataClient(t, server.URL, version)
-		t.Cleanup(func() { _ = client.Close() })
-		reader := newSnapshotReader(client)
+		esClient, err := esclient.NewClient(context.Background(), &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}, zap.NewNop(), nil)
+		require.NoError(t, err)
+		searcher := esclient.SearchClient{Client: esClient}
+		reader := newSnapshotReader(searcher)
 
 		rec.Reset()
-		_, err := reader.FindTraceSummaries(context.Background(), traceQuery)
+		_, err = reader.FindTraceSummaries(context.Background(), traceQuery)
 		require.NoError(t, err)
 		requests := rec.Requests()
 		require.Len(t, requests, 2, "phase 1 (find trace IDs) + phase 2 (summaries)")
