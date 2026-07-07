@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
@@ -267,7 +268,7 @@ func TestCreateTemplates(t *testing.T) {
 		f := FactoryBase{}
 		mockClient := &mocks.Client{}
 		mockClient.On("GetVersion").Return(es.ElasticV7)
-		f.newClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
+		f.newLegacyClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
 			return mockClient, nil
 		}
 		f.logger = zaptest.NewLogger(t)
@@ -286,7 +287,7 @@ func TestCreateTemplates(t *testing.T) {
 			},
 		}}
 		f.tracer = otel.GetTracerProvider()
-		client, err := f.newClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
+		client, err := f.newLegacyClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
 		require.NoError(t, err)
 		f.client = client
 		f.templateBuilder = es.TextTemplateBuilder{}
@@ -333,6 +334,88 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+}
+
+// TestESStorageFactoryClosesOnTemplateError drives NewFactoryBase past client
+// construction and fails at template creation, exercising the error return and
+// the deferred cleanup that closes the already-built client and bulk indexer.
+func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut { // template creation fails
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse) // version ping succeeds
+	}))
+	defer server.Close()
+	cfg := escfg.Configuration{
+		Servers:              []string{server.URL},
+		CreateIndexTemplates: true,
+		DisableHealthCheck:   true,
+		LogLevel:             "error",
+		Indices: escfg.Indices{
+			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
+			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
+		},
+	}
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	require.Error(t, err)
+}
+
+func withLegacyClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error)) factoryOption {
+	return func(f *FactoryBase) { f.newLegacyClientFn = fn }
+}
+
+func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error)) factoryOption {
+	return func(f *FactoryBase) { f.newESClientFn = fn }
+}
+
+func withBulkIndexerFn(fn func(esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error)) factoryOption {
+	return func(f *FactoryBase) { f.newBulkIndexerFn = fn }
+}
+
+// TestNewFactoryBaseDataClientError injects a failing esclient constructor (the
+// legacy client succeeds) to exercise the data-client error path and verify the
+// deferred cleanup closes the already-built legacy client.
+func TestNewFactoryBaseDataClientError(t *testing.T) {
+	legacyClient := &mocks.Client{}
+	legacyClient.On("Close").Return(nil)
+	_, err := NewFactoryBase(
+		context.Background(),
+		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
+		metrics.NullFactory, zap.NewNop(), nil,
+		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
+			return legacyClient, nil
+		}),
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
+			return esclient.Client{}, errors.New("data client boom")
+		}),
+	)
+	require.ErrorContains(t, err, "data client")
+	legacyClient.AssertCalled(t, "Close") // deferred cleanup closed the legacy client
+}
+
+// TestNewFactoryBaseBulkIndexerError injects a failing bulk-indexer constructor
+// (both clients succeed) to exercise that error path and its deferred cleanup.
+func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
+	legacyClient := &mocks.Client{}
+	legacyClient.On("Close").Return(nil)
+	_, err := NewFactoryBase(
+		context.Background(),
+		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
+		metrics.NullFactory, zap.NewNop(), nil,
+		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
+			return legacyClient, nil
+		}),
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
+			return esclient.Client{}, nil
+		}),
+		withBulkIndexerFn(func(esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error) {
+			return nil, errors.New("bulk boom")
+		}),
+	)
+	require.ErrorContains(t, err, "bulk indexer")
+	legacyClient.AssertCalled(t, "Close")
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {

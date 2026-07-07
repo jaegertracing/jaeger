@@ -412,6 +412,58 @@ func TestClientDoError(t *testing.T) {
 	assert.Nil(t, indices)
 }
 
+// clientWithTimeout builds a Client with an explicit QueryTimeout, resolving the
+// version from config so NewClient doesn't probe (and stall on) the test server.
+func clientWithTimeout(t *testing.T, url string, timeout time.Duration) Client {
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(es.ElasticV7), QueryTimeout: timeout}
+	c, err := NewClient(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+	return c
+}
+
+// TestPerformAppliesTimeoutWhenNoDeadline covers the gap the reviewer flagged:
+// esutil hands Perform a background-context request with no deadline, so without
+// this the bulk/flush write could hang forever. The client's QueryTimeout must
+// bound it.
+func TestPerformAppliesTimeoutWhenNoDeadline(t *testing.T) {
+	block := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-block // hang until the test releases it
+	}))
+	defer server.Close()
+	defer close(block) // unblock the handler so server.Close can return
+
+	c := clientWithTimeout(t, server.URL, 50*time.Millisecond)
+	req, err := http.NewRequest(http.MethodGet, "/_bulk", http.NoBody) // no deadline
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, err = c.Perform(req)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), time.Second, "Perform returned at the timeout, not when the server unblocked")
+}
+
+// TestPerformWithTimeoutReadsBody covers the success path: a deadline applied by
+// Perform must not abort the caller's later body read, and closing the body
+// releases the context.
+func TestPerformWithTimeoutReadsBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("pong"))
+	}))
+	defer server.Close()
+
+	c := clientWithTimeout(t, server.URL, time.Minute)
+	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
+	require.NoError(t, err)
+
+	res, err := c.Perform(req)
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body) // read happens after Perform returned
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	assert.Equal(t, "pong", string(body))
+}
+
 func TestClientCreateIndex(t *testing.T) {
 	indexName := "jaeger-span"
 	tests := []struct {

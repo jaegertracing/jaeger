@@ -59,6 +59,12 @@ func (b *Binary) Start(t *testing.T) {
 		if t.Failed() || os.Getenv("GITHUB_ACTIONS") == "true" {
 			b.dumpLogs(t, outFile, errFile)
 		}
+		if err := outFile.Close(); err != nil {
+			t.Logf("Failed to close output log file: %v", err)
+		}
+		if err := errFile.Close(); err != nil {
+			t.Logf("Failed to close error log file: %v", err)
+		}
 	})
 	client := testingHttpClient(t)
 	// Wait for the binary to start and become ready to serve requests.

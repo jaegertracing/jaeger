@@ -10,26 +10,40 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
 
+// IndexExistenceChecker reports whether an index exists. It is the narrow
+// admin-plane capability the sampling store needs to find the latest sampling
+// index; the factory satisfies it with an esclient.IndicesClient.
+type IndexExistenceChecker interface {
+	IndexExists(ctx context.Context, index string) (bool, error)
+}
+
 type SamplingStore struct {
-	client      func() es.Client
+	searcher    esclient.Searcher
+	bulkWriter  esclient.BulkWriter
+	indexClient IndexExistenceChecker
 	logger      *zap.Logger
 	maxDocCount int
 	lookback    time.Duration
 	rotation    indices.Rotation
+	// now holds the function returning the current time — time.Now by default, but
+	// tests replace it with one returning a fixed time to freeze the timestamps
+	// written by InsertThroughput and InsertProbabilitiesAndQPS.
+	now func() time.Time
 }
 
 type Params struct {
-	Client      func() es.Client
+	Searcher    esclient.Searcher
+	BulkWriter  esclient.BulkWriter
+	IndexClient IndexExistenceChecker
 	Logger      *zap.Logger
 	Lookback    time.Duration
 	MaxDocCount int
@@ -38,23 +52,28 @@ type Params struct {
 
 func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
-		client:      p.Client,
+		searcher:    p.Searcher,
+		bulkWriter:  p.BulkWriter,
+		indexClient: p.IndexClient,
 		logger:      p.Logger,
 		maxDocCount: p.MaxDocCount,
 		lookback:    p.Lookback,
 		rotation:    p.Rotation,
+		now:         time.Now,
 	}
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	ts := time.Now()
+	ts := s.now()
 	indexName := s.rotation.WriteTarget(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
-		s.client().Index().Index(indexName).
-			BodyJson(&dbmodel.TimeThroughput{
+		s.bulkWriter.Add(esclient.BulkItem{
+			Index: indexName,
+			Body: &dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
-			}).Add()
+			},
+		})
 	}
 	return nil
 }
@@ -62,11 +81,10 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
 	readIndices := s.rotation.ReadTargets(start, end)
-	searchResult, err := s.client().Search(readIndices...).
-		Size(s.maxDocCount).
-		Query(buildTSQuery(start, end)).
-		IgnoreUnavailable(true).
-		Do(ctx)
+	searchResult, err := s.searcher.Search(ctx, readIndices, esclient.SearchRequest{
+		Size:  s.maxDocCount,
+		Query: buildTSQuery(start, end),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
 	}
@@ -87,7 +105,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
-	ts := time.Now()
+	ts := s.now()
 	writeIndexName := s.rotation.WriteTarget(ts)
 	val := dbmodel.ProbabilitiesAndQPS{
 		Hostname:      hostname,
@@ -100,15 +118,13 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
-	clientFn := s.client()
-	index, err := s.getLatestIndex(ctx, clientFn)
+	index, err := s.getLatestIndex(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
-	searchResult, err := clientFn.Search(index).
-		Size(s.maxDocCount).
-		IgnoreUnavailable(true).
-		Do(ctx)
+	searchResult, err := s.searcher.Search(ctx, []string{index}, esclient.SearchRequest{
+		Size: s.maxDocCount,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
 	}
@@ -133,18 +149,20 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	s.client().Index().Index(indexName).
-		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
+	s.bulkWriter.Add(esclient.BulkItem{
+		Index: indexName,
+		Body: &dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
-		}).Add()
+		},
+	})
 }
 
-func (s *SamplingStore) getLatestIndex(ctx context.Context, client es.Client) (string, error) {
-	now := time.Now().UTC()
+func (s *SamplingStore) getLatestIndex(ctx context.Context) (string, error) {
+	now := s.now().UTC()
 	candidates := s.rotation.ReadTargets(now.Add(-s.lookback), now)
 	for _, idx := range candidates {
-		exists, err := client.IndexExists(idx).Do(ctx)
+		exists, err := s.indexClient.IndexExists(ctx, idx)
 		if err != nil {
 			return "", fmt.Errorf("failed to check index existence: %w", err)
 		}
@@ -155,6 +173,6 @@ func (s *SamplingStore) getLatestIndex(ctx context.Context, client es.Client) (s
 	return "", errors.New("failed to find latest index")
 }
 
-func buildTSQuery(start, end time.Time) elastic.Query {
-	return esquery.NewRangeQuery("timestamp").Gte(start).Lte(end)
+func buildTSQuery(start, end time.Time) query.Query {
+	return query.NewRangeQuery("timestamp").Gte(start).Lte(end)
 }

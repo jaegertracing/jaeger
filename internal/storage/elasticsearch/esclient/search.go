@@ -44,11 +44,24 @@ func (r SearchRequest) body() ([]byte, error) {
 	return json.Marshal(m)
 }
 
-// SearchResponse is the owned, driver-neutral search response. It currently
-// exposes aggregation buckets; hits and other aggregation shapes are added by
-// later migration slices as their callers need them.
+// SearchResponse is the owned, driver-neutral search response. It exposes the
+// matched documents (hits) and aggregation buckets; other aggregation shapes are
+// added by later migration slices as their callers need them.
 type SearchResponse struct {
+	Hits         HitsResult                   `json:"hits"`
 	Aggregations map[string]AggregationResult `json:"aggregations"`
+}
+
+// HitsResult holds the documents a search matched.
+type HitsResult struct {
+	Hits []SearchHit `json:"hits"`
+}
+
+// SearchHit is a single matched document. Source is the raw _source JSON, left
+// unparsed so the storage layer unmarshals it into its own dbmodel type — the
+// client never knows what a span or throughput document is.
+type SearchHit struct {
+	Source json.RawMessage `json:"_source"`
 }
 
 // AggregationResult holds the buckets of a bucketing aggregation (e.g. terms).
