@@ -4,10 +4,14 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -16,9 +20,11 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
@@ -411,4 +417,52 @@ func TestSpanReader_FindTraceSummaries_RootSpan(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestSummaryRequestSnapshots freezes the wire format of the native trace-summaries
+// aggregation. FindTraceSummaries runs two searches (phase 1 discovers matching
+// trace IDs, phase 2 aggregates over all their spans); phase 1 is the same request
+// already snapshot as find_trace_ids, so only the phase-2 request is captured here.
+func TestSummaryRequestSnapshots(t *testing.T) {
+	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	traceQuery := dbmodel.TraceQueryParameters{
+		ServiceName:  "test-service",
+		StartTimeMin: start,
+		StartTimeMax: start.Add(time.Hour),
+		SearchDepth:  20,
+	}
+
+	findTraceSummaries := map[es.BackendVersion]string{}
+	for _, version := range es.AllVersions {
+		rec := summaryRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newDataClient(t, server.URL, version)
+		t.Cleanup(func() { _ = client.Close() })
+		reader := newSnapshotReader(client)
+
+		rec.Reset()
+		_, err := reader.FindTraceSummaries(context.Background(), traceQuery)
+		require.NoError(t, err)
+		requests := rec.Requests()
+		require.Len(t, requests, 2, "phase 1 (find trace IDs) + phase 2 (summaries)")
+		// Snapshot only the phase-2 summaries search.
+		findTraceSummaries[version] = snapshottest.Marshal(t, requests[1:])
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/find_trace_summaries", findTraceSummaries)
+}
+
+// summaryRecorder returns one matching trace ID for the phase-1 find-trace-IDs
+// search so phase 2 runs, and an empty summaries aggregation for phase 2.
+func summaryRecorder() *snapshottest.Recorder {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		w.WriteHeader(http.StatusOK)
+		if bytes.Contains(body, []byte("trace_summaries")) {
+			w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]},"aggregations":{"trace_summaries":{"buckets":[]}}}`))
+			return
+		}
+		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]},"aggregations":{"traceIDs":{"buckets":[{"key":"1234567890abcdef","doc_count":1}]}}}`))
+	})
 }

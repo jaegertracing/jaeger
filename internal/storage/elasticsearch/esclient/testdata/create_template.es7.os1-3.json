@@ -1,0 +1,10 @@
+{
+  "method": "PUT",
+  "path": "/_template/jaeger-span",
+  "body": {
+    "index_patterns": [
+      "jaeger-span-*"
+    ],
+    "mappings": {}
+  }
+}

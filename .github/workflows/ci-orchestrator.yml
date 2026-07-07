@@ -92,10 +92,11 @@ jobs:
               fi
             fi
 
-            # Parallel for known bots (dependency update automation and Copilot agent).
+            # Parallel for known bots (dependency update automation, Copilot agent, and
+            # the ysh-bot maintainer automation account that authors agent-generated PRs).
             # "Copilot" is the user.login for the copilot-swe-agent[bot] GitHub App; GitHub
             # Search API returns 422 for that login so the merged-PR fallback cannot detect it.
-            if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" || "$PR_AUTHOR" == "Copilot" ]]; then
+            if [[ "$PR_AUTHOR" == "dependabot[bot]" || "$PR_AUTHOR" == "renovate-bot" || "$PR_AUTHOR" == "Copilot" || "$PR_AUTHOR" == "ysh-bot" ]]; then
               echo "Parallel: bot PR author ($PR_AUTHOR)"
               PARALLEL=true
             else

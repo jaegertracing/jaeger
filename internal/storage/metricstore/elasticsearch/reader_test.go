@@ -21,6 +21,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
 	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
@@ -29,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -1116,4 +1118,95 @@ func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParam
 		RatePer:          &ratePer,
 		SpanKinds:        tc.spanKinds,
 	}
+}
+
+// newMetricsClient builds a real es.Client for the given backend version, pointed
+// at the recording server. Version is set explicitly so no ping is issued, and
+// only reads happen here so no bulk processor flush is needed.
+func newMetricsClient(t *testing.T, url string, version es.BackendVersion) es.Client {
+	cfg := metricsSnapshotConfig(url, version)
+	client, err := clientbuilder.NewClient(context.Background(), &cfg, zap.NewNop(), esmetrics.NullFactory, nil)
+	require.NoError(t, err)
+	return client
+}
+
+// metricsSnapshotConfig is the fixed configuration shared by the recording client
+// and the MetricsReader, so both the request routing and the query building are
+// deterministic across versions.
+func metricsSnapshotConfig(url string, version es.BackendVersion) config.Configuration {
+	return config.Configuration{
+		Servers:            []string{url},
+		Version:            uint(version),
+		DisableHealthCheck: true,
+		LogLevel:           "info",
+		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
+		Tags:               config.TagsAsFields{DotReplacement: "@"},
+	}
+}
+
+// metricsRecorder answers every _search with an empty-but-valid date-histogram
+// aggregation response, so each read operation completes without error while its
+// request is captured.
+func metricsRecorder() *snapshottest.Recorder {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]},"aggregations":{"results_buckets":{"buckets":[]}}}`))
+	})
+}
+
+// TestMetricsReaderRequestSnapshots freezes the exact _search wire format that the
+// latency, call-rate, and error-rate read paths emit over the olivere client. All
+// query parameters are fixed and identical across every supported version, so
+// snapshots collapse to a single all-versions file.
+func TestMetricsReaderRequestSnapshots(t *testing.T) {
+	endTime := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	lookback := time.Hour
+	step := time.Minute
+	ratePer := 10 * time.Minute
+	baseParams := metricstore.BaseQueryParameters{
+		ServiceNames: []string{"test-service"},
+		SpanKinds:    []string{"SPAN_KIND_SERVER"},
+		EndTime:      &endTime,
+		Lookback:     &lookback,
+		Step:         &step,
+		RatePer:      &ratePer,
+	}
+
+	getLatencies := map[es.BackendVersion]string{}
+	getCallRates := map[es.BackendVersion]string{}
+	getErrorRates := map[es.BackendVersion]string{}
+
+	for _, version := range es.AllVersions {
+		rec := metricsRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+		client := newMetricsClient(t, server.URL, version)
+		t.Cleanup(func() { _ = client.Close() })
+
+		spanRotation := indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read")
+		reader := NewMetricsReader(client, metricsSnapshotConfig(server.URL, version), zap.NewNop(), noop.NewTracerProvider(), spanRotation)
+		ctx := context.Background()
+
+		rec.Reset()
+		_, err := reader.GetLatencies(ctx, &metricstore.LatenciesQueryParameters{
+			BaseQueryParameters: baseParams,
+			Quantile:            0.95,
+		})
+		require.NoError(t, err)
+		getLatencies[version] = rec.Marshal(t)
+
+		rec.Reset()
+		_, err = reader.GetCallRates(ctx, &metricstore.CallRateQueryParameters{BaseQueryParameters: baseParams})
+		require.NoError(t, err)
+		getCallRates[version] = rec.Marshal(t)
+
+		rec.Reset()
+		_, err = reader.GetErrorRates(ctx, &metricstore.ErrorRateQueryParameters{BaseQueryParameters: baseParams})
+		require.NoError(t, err)
+		getErrorRates[version] = rec.Marshal(t)
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/get_latencies", getLatencies)
+	snapshottest.AssertByVersion(t, "testdata/get_call_rates", getCallRates)
+	snapshottest.AssertByVersion(t, "testdata/get_error_rates", getErrorRates)
 }

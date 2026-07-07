@@ -19,6 +19,7 @@ cover.html
 vendor/
 
 # Jaeger binaries
+/jaeger
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
 cmd/agent/agent
@@ -51,4 +52,3 @@ test-results.json
 .mockery.log
 build.log
 sidecar.py.orig
-jaeger

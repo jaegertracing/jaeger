@@ -4,21 +4,27 @@
 package samplingstore
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -26,32 +32,23 @@ import (
 
 const defaultMaxDocCount = 10_000
 
-type samplingStorageTest struct {
-	client    *mocks.Client
-	logger    *zap.Logger
-	logBuffer *testutils.Buffer
-	storage   *SamplingStore
+// hitsResponse builds an owned SearchResponse whose hits carry the given raw
+// _source JSON documents, so the read-path parsing can be exercised without a
+// live backend.
+func hitsResponse(sources ...string) *esclient.SearchResponse {
+	hits := make([]esclient.SearchHit, len(sources))
+	for i, src := range sources {
+		hits[i] = esclient.SearchHit{Source: json.RawMessage(src)}
+	}
+	return &esclient.SearchResponse{Hits: esclient.HitsResult{Hits: hits}}
 }
 
-func withEsSampling(indexPrefix config.IndexPrefix, indexDateLayout string, maxDocCount int, fn func(w *samplingStorageTest)) {
-	client := &mocks.Client{}
-	logger, logBuffer := testutils.NewLogger()
-	w := &samplingStorageTest{
-		client:    client,
-		logger:    logger,
-		logBuffer: logBuffer,
-		storage: NewSamplingStore(Params{
-			Client:      func() es.Client { return client },
-			Logger:      logger,
-			MaxDocCount: maxDocCount,
-			Rotation: indices.NewPeriodicRotation(
-				indexPrefix.Apply(config.SamplingIndexName),
-				indexDateLayout,
-				config.RolloverFrequencyDuration("day"),
-			),
-		}),
-	}
-	fn(w)
+func dailyRotation() indices.Rotation {
+	return indices.NewPeriodicRotation(
+		config.SamplingIndexName,
+		"2006-01-02",
+		config.RolloverFrequencyDuration("day"),
+	)
 }
 
 func TestGetLatestIndex(t *testing.T) {
@@ -84,112 +81,88 @@ func TestGetLatestIndex(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client := &mocks.Client{}
+			indexClient := esclientmocks.NewIndexAPI(t)
+			indexClient.On("IndexExists", mock.Anything, mock.Anything).
+				Return(test.indexExist, test.indexError)
 			store := NewSamplingStore(Params{
-				Client:      func() es.Client { return client },
+				IndexClient: indexClient,
 				Logger:      zap.NewNop(),
 				MaxDocCount: defaultMaxDocCount,
 				Lookback:    test.lookback,
-				Rotation: indices.NewPeriodicRotation(
-					config.SamplingIndexName,
-					"2006-01-02",
-					config.RolloverFrequencyDuration("day"),
-				),
+				Rotation:    dailyRotation(),
 			})
-			indexService := &mocks.IndicesExistsService{}
-			client.On("IndexExists", mock.Anything).Return(indexService)
-			indexService.On("Do", mock.Anything).Return(test.indexExist, test.indexError)
 
-			if test.indexExist && test.indexError == nil {
-				searchService := &mocks.SearchService{}
-				client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
-				searchService.On("Size", mock.Anything).Return(searchService)
-				searchService.On("IgnoreUnavailable", true).Return(searchService)
-				emptyResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: []*elastic.SearchHit{}}}
-				searchService.On("Do", mock.Anything).Return(emptyResult, nil)
-			}
-
-			actual, err := store.GetLatestProbabilities()
+			_, err := store.getLatestIndex(context.Background())
 			if test.expectedError != "" {
 				require.ErrorContains(t, err, test.expectedError)
-				assert.Nil(t, actual)
 			} else {
 				require.NoError(t, err)
-				assert.Nil(t, actual)
 			}
 		})
 	}
 }
 
 func TestInsertThroughput(t *testing.T) {
-	test := struct {
-		name          string
-		expectedError string
-	}{
-		name:          "insert throughput",
-		expectedError: "",
-	}
+	bulkWriter := esclientmocks.NewBulkWriter(t)
+	var added []esclient.BulkItem
+	bulkWriter.On("Add", mock.Anything).Run(func(args mock.Arguments) {
+		added = append(added, args.Get(0).(esclient.BulkItem))
+	}).Return()
 
-	t.Run(test.name, func(t *testing.T) {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			throughputs := []*samplemodel.Throughput{
-				{Service: "my-svc", Operation: "op"},
-				{Service: "our-svc", Operation: "op2"},
-			}
-			fixedTime := time.Now()
-			indexName := "jaeger-sampling-" + fixedTime.UTC().Format("2006-01-02")
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(throughputType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything)
-			err := w.storage.InsertThroughput(throughputs)
-			if test.expectedError != "" {
-				require.EqualError(t, err, test.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+	fixedTime := time.Date(2024, 2, 8, 12, 0, 0, 0, time.UTC)
+	store := NewSamplingStore(Params{
+		BulkWriter:  bulkWriter,
+		Logger:      zap.NewNop(),
+		MaxDocCount: defaultMaxDocCount,
+		Rotation:    dailyRotation(),
 	})
+	store.now = func() time.Time { return fixedTime }
+
+	throughputs := []*samplemodel.Throughput{
+		{Service: "my-svc", Operation: "op"},
+		{Service: "our-svc", Operation: "op2"},
+	}
+	require.NoError(t, store.InsertThroughput(throughputs))
+
+	indexName := "jaeger-sampling-2024-02-08"
+	require.Len(t, added, 2)
+	assert.Equal(t, indexName, added[0].Index)
+	body := added[0].Body.(*dbmodel.TimeThroughput)
+	assert.Equal(t, fixedTime, body.Timestamp)
+	assert.Equal(t, "my-svc", body.Throughput.Service)
 }
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
-	test := struct {
-		name          string
-		expectedError string
-	}{
-		name:          "insert probabilities and qps",
-		expectedError: "",
-	}
+	bulkWriter := esclientmocks.NewBulkWriter(t)
+	var added []esclient.BulkItem
+	bulkWriter.On("Add", mock.Anything).Run(func(args mock.Arguments) {
+		added = append(added, args.Get(0).(esclient.BulkItem))
+	}).Return()
 
-	t.Run(test.name, func(t *testing.T) {
-		withEsSampling("", "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-			pAQ := dbmodel.ProbabilitiesAndQPS{
-				Hostname:      "dell11eg843d",
-				Probabilities: samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
-				QPS:           samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
-			}
-			fixedTime := time.Now()
-			indexName := "jaeger-sampling-" + fixedTime.UTC().Format("2006-01-02")
-			writeService := &mocks.IndexService{}
-			w.client.On("Index").Return(writeService)
-			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
-			writeService.On("Type", stringMatcher(probabilitiesType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything)
-			err := w.storage.InsertProbabilitiesAndQPS(pAQ.Hostname, pAQ.Probabilities, pAQ.QPS)
-			if test.expectedError != "" {
-				require.EqualError(t, err, test.expectedError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
+	fixedTime := time.Date(2024, 2, 8, 12, 0, 0, 0, time.UTC)
+	store := NewSamplingStore(Params{
+		BulkWriter:  bulkWriter,
+		Logger:      zap.NewNop(),
+		MaxDocCount: defaultMaxDocCount,
+		Rotation:    dailyRotation(),
 	})
+	store.now = func() time.Time { return fixedTime }
+
+	require.NoError(t, store.InsertProbabilitiesAndQPS(
+		"dell11eg843d",
+		samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+		samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+	))
+
+	indexName := "jaeger-sampling-2024-02-08"
+	require.Len(t, added, 1)
+	assert.Equal(t, indexName, added[0].Index)
+	body := added[0].Body.(*dbmodel.TimeProbabilitiesAndQPS)
+	assert.Equal(t, fixedTime, body.Timestamp)
+	assert.Equal(t, "dell11eg843d", body.ProbabilitiesAndQPS.Hostname)
 }
 
 func TestGetThroughput(t *testing.T) {
-	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
 	goodThroughputs := `{
 			"timestamp": "2024-02-08T12:00:00Z",
 			"throughputs": {
@@ -200,96 +173,54 @@ func TestGetThroughput(t *testing.T) {
 	}`
 	tests := []struct {
 		name           string
-		searchResult   *elastic.SearchResult
+		searchResult   *esclient.SearchResponse
 		searchError    error
 		expectedError  string
 		expectedOutput []*samplemodel.Throughput
-		indexPrefix    config.IndexPrefix
-		maxDocCount    int
-		index          string
 	}{
 		{
-			name:         "good throughputs without prefix",
-			searchResult: createSearchResult(goodThroughputs),
+			name:         "good throughputs",
+			searchResult: hitsResponse(goodThroughputs),
 			expectedOutput: []*samplemodel.Throughput{
-				{
-					Service:   "my-svc",
-					Operation: "op",
-					Count:     10,
-				},
+				{Service: "my-svc", Operation: "op", Count: 10},
 			},
-			index:       mockIndex,
-			maxDocCount: 1000,
-		},
-		{
-			name:         "good throughputs without prefix",
-			searchResult: createSearchResult(goodThroughputs),
-			expectedOutput: []*samplemodel.Throughput{
-				{
-					Service:   "my-svc",
-					Operation: "op",
-					Count:     10,
-				},
-			},
-			index:       mockIndex,
-			maxDocCount: 1000,
-		},
-		{
-			name:         "good throughputs with prefix",
-			searchResult: createSearchResult(goodThroughputs),
-			expectedOutput: []*samplemodel.Throughput{
-				{
-					Service:   "my-svc",
-					Operation: "op",
-					Count:     10,
-				},
-			},
-			index:       mockIndex,
-			indexPrefix: "foo",
-			maxDocCount: 1000,
 		},
 		{
 			name:          "bad throughputs",
-			searchResult:  createSearchResult(`badJson{hello}world`),
+			searchResult:  hitsResponse(`badJson{hello}world`),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
-			index:         mockIndex,
 		},
 		{
 			name:          "search fails",
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for throughputs: search failure",
-			index:         mockIndex,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			withEsSampling(test.indexPrefix, "2006-01-02", defaultMaxDocCount, func(w *samplingStorageTest) {
-				searchService := &mocks.SearchService{}
-				if test.indexPrefix != "" {
-					test.indexPrefix += "-"
-				}
-				index := test.indexPrefix.Apply(test.index)
-				w.client.On("Search", []string{index}).Return(searchService)
-				searchService.On("Size", mock.Anything).Return(searchService)
-				searchService.On("Query", mock.Anything).Return(searchService)
-				searchService.On("IgnoreUnavailable", true).Return(searchService)
-				searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
-
-				actual, err := w.storage.GetThroughput(time.Now().Add(-time.Minute), time.Now())
-				if test.expectedError != "" {
-					require.EqualError(t, err, test.expectedError)
-					assert.Nil(t, actual)
-				} else {
-					require.NoError(t, err)
-					assert.Equal(t, test.expectedOutput, actual)
-				}
+			searcher := esclientmocks.NewSearcher(t)
+			searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+				Return(test.searchResult, test.searchError)
+			store := NewSamplingStore(Params{
+				Searcher:    searcher,
+				Logger:      zap.NewNop(),
+				MaxDocCount: 1000,
+				Rotation:    dailyRotation(),
 			})
+
+			actual, err := store.GetThroughput(time.Now().Add(-time.Minute), time.Now())
+			if test.expectedError != "" {
+				require.EqualError(t, err, test.expectedError)
+				assert.Nil(t, actual)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.expectedOutput, actual)
+			}
 		})
 	}
 }
 
 func TestGetLatestProbabilities(t *testing.T) {
-	mockIndex := "jaeger-sampling-" + time.Now().UTC().Format("2006-01-02")
 	goodProbabilities := `{
 		"timestamp": "2024-02-08T12:00:00Z",
 		"probabilitiesandqps": {
@@ -304,87 +235,62 @@ func TestGetLatestProbabilities(t *testing.T) {
 	}`
 	tests := []struct {
 		name           string
-		searchResult   *elastic.SearchResult
+		searchResult   *esclient.SearchResponse
 		searchError    error
 		expectedOutput samplemodel.ServiceOperationProbabilities
 		expectedError  string
-		maxDocCount    int
-		index          string
 		indexPresent   bool
 		indexError     error
-		indexPrefix    config.IndexPrefix
 	}{
 		{
-			name:         "good probabilities without prefix",
-			searchResult: createSearchResult(goodProbabilities),
+			name:         "good probabilities",
+			searchResult: hitsResponse(goodProbabilities),
 			expectedOutput: samplemodel.ServiceOperationProbabilities{
-				"new-srv": {
-					"op": 0.1,
-				},
+				"new-srv": {"op": 0.1},
 			},
-			index:        mockIndex,
-			maxDocCount:  1000,
 			indexPresent: true,
 		},
 		{
-			name:         "good probabilities with prefix",
-			searchResult: createSearchResult(goodProbabilities),
-			expectedOutput: samplemodel.ServiceOperationProbabilities{
-				"new-srv": {
-					"op": 0.1,
-				},
-			},
-			index:        mockIndex,
-			maxDocCount:  1000,
+			name:         "empty result",
+			searchResult: hitsResponse(),
 			indexPresent: true,
-			indexPrefix:  "foo",
 		},
 		{
 			name:          "bad probabilities",
-			searchResult:  createSearchResult(`badJson{hello}world`),
+			searchResult:  hitsResponse(`badJson{hello}world`),
 			expectedError: "unmarshalling documents failed: invalid character 'b' looking for beginning of value",
-			index:         mockIndex,
 			indexPresent:  true,
 		},
 		{
 			name:          "search fail",
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for Latest Probabilities: search failure",
-			index:         mockIndex,
 			indexPresent:  true,
 		},
 		{
 			name:          "index check fail",
 			indexError:    errors.New("index check failure"),
 			expectedError: "failed to get latest index: failed to check index existence: index check failure",
-			index:         mockIndex,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client := &mocks.Client{}
+			indexClient := esclientmocks.NewIndexAPI(t)
+			indexClient.On("IndexExists", mock.Anything, mock.Anything).
+				Return(test.indexPresent, test.indexError)
+			searcher := esclientmocks.NewSearcher(t)
+			if test.indexPresent && test.indexError == nil {
+				searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+					Return(test.searchResult, test.searchError)
+			}
 			store := NewSamplingStore(Params{
-				Client:      func() es.Client { return client },
+				Searcher:    searcher,
+				IndexClient: indexClient,
 				Logger:      zap.NewNop(),
-				MaxDocCount: defaultMaxDocCount,
+				MaxDocCount: 1000,
 				Lookback:    72 * time.Hour,
-				Rotation: indices.NewPeriodicRotation(
-					test.indexPrefix.Apply("jaeger-sampling"),
-					"2006-01-02",
-					config.RolloverFrequencyDuration("day"),
-				),
+				Rotation:    indices.NewAliasedRotation("jaeger-sampling-write", "jaeger-sampling-read"),
 			})
-
-			searchService := &mocks.SearchService{}
-			index := test.indexPrefix.Apply(test.index)
-			client.On("Search", []string{index}).Return(searchService)
-			searchService.On("Size", mock.Anything).Return(searchService)
-			searchService.On("IgnoreUnavailable", true).Return(searchService)
-			searchService.On("Do", mock.Anything).Return(test.searchResult, test.searchError)
-
-			indicesexistsservice := &mocks.IndicesExistsService{}
-			client.On("IndexExists", index).Return(indicesexistsservice)
-			indicesexistsservice.On("Do", mock.Anything).Return(test.indexPresent, test.indexError)
 
 			actual, err := store.GetLatestProbabilities()
 			if test.expectedError != "" {
@@ -398,23 +304,99 @@ func TestGetLatestProbabilities(t *testing.T) {
 	}
 }
 
-func createSearchResult(rawJsonStr string) *elastic.SearchResult {
-	rawJsonArr := []byte(rawJsonStr)
-	hits := make([]*elastic.SearchHit, 1)
-	hits[0] = &elastic.SearchHit{
-		Source: rawJsonArr,
-	}
-	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
-	return searchResult
-}
-
-func stringMatcher(q string) any {
-	matchFunc := func(s string) bool {
-		return strings.Contains(s, q)
-	}
-	return mock.MatchedBy(matchFunc)
-}
-
 func TestMain(m *testing.M) {
 	testutils.VerifyGoLeaks(m)
+}
+
+// samplingRecorder answers a HEAD index-exists check with 200 (so the index
+// resolves), searches with an empty result, and _bulk writes with an empty item
+// list, capturing each request.
+func samplingRecorder() *snapshottest.Recorder {
+	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if strings.HasSuffix(r.URL.Path, "_bulk") {
+			w.Write([]byte(`{"took":0,"errors":false,"items":[]}`))
+			return
+		}
+		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
+	})
+}
+
+// TestSamplingStoreRequestSnapshots freezes the wire format of the sampling
+// read and write paths over esclient: get_throughput (a _search with a timestamp
+// range), get_latest_probabilities (an index-exists HEAD followed by a _search),
+// and the two bulk writes. A fixed clock (injected through the now field) stamps
+// the write bodies so they are deterministic.
+func TestSamplingStoreRequestSnapshots(t *testing.T) {
+	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	end := start.Add(time.Hour)
+	writeTime := time.Date(2024, 2, 8, 12, 0, 0, 0, time.UTC)
+
+	getThroughput := map[es.BackendVersion]string{}
+	getLatestProbabilities := map[es.BackendVersion]string{}
+	writeThroughput := map[es.BackendVersion]string{}
+	writeProbabilities := map[es.BackendVersion]string{}
+
+	for _, version := range es.AllVersions {
+		rec := samplingRecorder()
+		server := httptest.NewServer(rec)
+		t.Cleanup(server.Close)
+
+		// One real esclient over the recording server backs the search, the bulk
+		// writer, and the index-exists check. Version is pinned so the client skips
+		// its probe; written documents buffer until Close flushes the bulk request.
+		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
+		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
+		require.NoError(t, err)
+		store := NewSamplingStore(Params{
+			Searcher:    esclient.SearchClient{Client: esClient},
+			IndexClient: &esclient.IndicesClient{Client: esClient},
+			Logger:      zap.NewNop(),
+			MaxDocCount: 1000,
+			Lookback:    72 * time.Hour,
+			Rotation:    indices.NewAliasedRotation("jaeger-sampling-write", "jaeger-sampling-read"),
+		})
+		store.now = func() time.Time { return writeTime }
+
+		rec.Reset()
+		_, err = store.GetThroughput(start, end)
+		require.NoError(t, err)
+		getThroughput[version] = rec.Marshal(t)
+
+		rec.Reset()
+		_, err = store.GetLatestProbabilities()
+		require.NoError(t, err)
+		getLatestProbabilities[version] = rec.Marshal(t)
+
+		writeThroughput[version] = captureBulkWrite(t, esClient, rec, store, func() {
+			require.NoError(t, store.InsertThroughput([]*samplemodel.Throughput{
+				{Service: "my-svc", Operation: "op", Count: 10},
+			}))
+		})
+		writeProbabilities[version] = captureBulkWrite(t, esClient, rec, store, func() {
+			require.NoError(t, store.InsertProbabilitiesAndQPS(
+				"dell11eg843d",
+				samplemodel.ServiceOperationProbabilities{"new-srv": {"op": 0.1}},
+				samplemodel.ServiceOperationQPS{"new-srv": {"op": 4}},
+			))
+		})
+	}
+
+	snapshottest.AssertByVersion(t, "testdata/get_throughput", getThroughput)
+	snapshottest.AssertByVersion(t, "testdata/get_latest_probabilities", getLatestProbabilities)
+	snapshottest.AssertByVersion(t, "testdata/write_throughput", writeThroughput)
+	snapshottest.AssertByVersion(t, "testdata/write_probabilities", writeProbabilities)
+}
+
+// captureBulkWrite gives the store a fresh bulk indexer, runs write, then closes
+// the indexer to flush the single bulk request the recorder captures. A new
+// indexer per write keeps each write's request in its own snapshot.
+func captureBulkWrite(t *testing.T, client esclient.Client, rec *snapshottest.Recorder, store *SamplingStore, write func()) string {
+	bulkWriter, err := esclient.NewBulkIndexer(client, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	store.bulkWriter = bulkWriter
+	rec.Reset()
+	write()
+	require.NoError(t, bulkWriter.Close())
+	return rec.Marshal(t)
 }

@@ -4,11 +4,10 @@
 package mappings
 
 import (
-	"embed"
 	"errors"
-	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 	"text/template"
 
@@ -19,117 +18,57 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-//go:embed fixtures/*.json
-var FIXTURES embed.FS
-
+// TestMappingBuilderGetMapping snapshots the rendered index template for every
+// mapping type across the full ES 7/8/9 + OpenSearch 1/2/3 matrix, into
+// testdata/<subject>.<backend><range>.json. Byte-identical consecutive majors
+// collapse into a range, so the fixture tree itself is the compatibility matrix.
 func TestMappingBuilderGetMapping(t *testing.T) {
-	tests := []struct {
+	subjects := []struct {
+		name    string
 		mapping MappingType
-		version es.BackendVersion
 	}{
-		{mapping: SpanMapping, version: es.ElasticV8},
-		{mapping: SpanMapping, version: es.ElasticV7},
-		{mapping: SpanMapping, version: es.ElasticV6},
-		{mapping: ServiceMapping, version: es.ElasticV8},
-		{mapping: ServiceMapping, version: es.ElasticV7},
-		{mapping: ServiceMapping, version: es.ElasticV6},
-		{mapping: DependenciesMapping, version: es.ElasticV8},
-		{mapping: DependenciesMapping, version: es.ElasticV7},
-		{mapping: DependenciesMapping, version: es.ElasticV6},
+		{"span", SpanMapping},
+		{"service", ServiceMapping},
+		{"dependencies", DependenciesMapping},
+		{"sampling", SamplingMapping},
 	}
-	for _, tt := range tests {
-		templateName := tt.mapping.String()
-
-		t.Run(templateName, func(t *testing.T) {
-			defaultOpts := func(p int64) config.IndexOptions {
-				return config.IndexOptions{
-					Shards:   3,
-					Replicas: new(int64(3)),
-					Priority: p,
-				}
+	for _, subject := range subjects {
+		t.Run(subject.name, func(t *testing.T) {
+			content := map[es.BackendVersion]string{}
+			for _, version := range es.AllVersions {
+				got, err := newTestMappingBuilder(version).GetMapping(subject.mapping)
+				require.NoError(t, err)
+				content[version] = got
 			}
-			serviceOps := defaultOpts(501)
-			dependenciesOps := defaultOpts(502)
-			samplingOps := defaultOpts(503)
-
-			mb := &MappingBuilder{
-				TemplateBuilder: es.TextTemplateBuilder{},
-				Indices: config.Indices{
-					IndexPrefix:  "test-",
-					Spans:        defaultOpts(500),
-					Services:     serviceOps,
-					Dependencies: dependenciesOps,
-					Sampling:     samplingOps,
-				},
-				Version:       tt.version,
-				UseILM:        true,
-				ILMPolicyName: "jaeger-test-policy",
-			}
-			got, err := mb.GetMapping(tt.mapping)
-			require.NoError(t, err)
-			var wantbytes []byte
-			fileSuffix := fmt.Sprintf("-%d", tt.version.TemplateVersion())
-			wantbytes, err = FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
-			require.NoError(t, err)
-			want := string(wantbytes)
-			assert.Equal(t, want, got)
+			snapshottest.AssertByVersion(t, filepath.Join("testdata", subject.name), content)
 		})
 	}
 }
 
-func TestMappingBuilderGetMapping_OpenSearch(t *testing.T) {
-	tests := []struct {
-		mapping MappingType
-		version es.BackendVersion
-	}{
-		{mapping: SpanMapping, version: es.OpenSearch2},
-		{mapping: SpanMapping, version: es.OpenSearch1},
-		{mapping: ServiceMapping, version: es.OpenSearch2},
-		{mapping: ServiceMapping, version: es.OpenSearch1},
-		{mapping: DependenciesMapping, version: es.OpenSearch2},
-		{mapping: DependenciesMapping, version: es.OpenSearch1},
-		{mapping: SamplingMapping, version: es.OpenSearch2},
-		{mapping: SamplingMapping, version: es.OpenSearch1},
+func newTestMappingBuilder(version es.BackendVersion) *MappingBuilder {
+	defaultOpts := func(p int64) config.IndexOptions {
+		return config.IndexOptions{
+			Shards:   3,
+			Replicas: new(int64(3)),
+			Priority: p,
+		}
 	}
-	for _, tt := range tests {
-		templateName := tt.mapping.String()
-
-		t.Run(fmt.Sprintf("%s/%s", templateName, tt.version), func(t *testing.T) {
-			defaultOpts := func(p int64) config.IndexOptions {
-				return config.IndexOptions{
-					Shards:   3,
-					Replicas: new(int64(3)),
-					Priority: p,
-				}
-			}
-			serviceOps := defaultOpts(501)
-			dependenciesOps := defaultOpts(502)
-			samplingOps := defaultOpts(503)
-
-			mb := &MappingBuilder{
-				TemplateBuilder: es.TextTemplateBuilder{},
-				Indices: config.Indices{
-					IndexPrefix:  "test-",
-					Spans:        defaultOpts(500),
-					Services:     serviceOps,
-					Dependencies: dependenciesOps,
-					Sampling:     samplingOps,
-				},
-				Version:       tt.version,
-				UseILM:        true,
-				ILMPolicyName: "jaeger-test-policy",
-			}
-			got, err := mb.GetMapping(tt.mapping)
-			require.NoError(t, err)
-			fileSuffix := fmt.Sprintf("-%d-opensearch", tt.version.TemplateVersion())
-			wantbytes, err := FIXTURES.ReadFile("fixtures/" + templateName + fileSuffix + ".json")
-			require.NoError(t, err)
-			want := string(wantbytes)
-			assert.Equal(t, want, got)
-		})
+	return &MappingBuilder{
+		TemplateBuilder: es.TextTemplateBuilder{},
+		Indices: config.Indices{
+			IndexPrefix:  "test-",
+			Spans:        defaultOpts(500),
+			Services:     defaultOpts(501),
+			Dependencies: defaultOpts(502),
+			Sampling:     defaultOpts(503),
+		},
+		Version:       version,
+		UseILM:        true,
+		ILMPolicyName: "jaeger-test-policy",
 	}
 }
 
@@ -164,13 +103,10 @@ func TestMappingBuilderLoadMapping(t *testing.T) {
 	tests := []struct {
 		name string
 	}{
-		{name: "jaeger-span-6.json"},
 		{name: "jaeger-span-7.json"},
 		{name: "jaeger-span-8.json"},
-		{name: "jaeger-service-6.json"},
 		{name: "jaeger-service-7.json"},
 		{name: "jaeger-service-8.json"},
-		{name: "jaeger-dependencies-6.json"},
 		{name: "jaeger-dependencies-7.json"},
 		{name: "jaeger-dependencies-8.json"},
 	}
@@ -303,58 +239,6 @@ func TestMappingBuilderGetSpanServiceMappings(t *testing.T) {
 			err: "template load error",
 		},
 
-		{
-			name: "ES Version < 7",
-			args: args{
-				version:       es.ElasticV6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
-			},
-			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
-				tb := mocks.TemplateBuilder{}
-				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(nil)
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
-				return &tb
-			},
-			err: "",
-		},
-		{
-			name: "ES Version < 7 Service Error",
-			args: args{
-				version:       es.ElasticV6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
-			},
-			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
-				tb := mocks.TemplateBuilder{}
-				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(nil).Once()
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error")).Once()
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
-				return &tb
-			},
-			err: "template load error",
-		},
-		{
-			name: "ES Version < 7 Span Error",
-			args: args{
-				version:       es.ElasticV6,
-				indexPrefix:   "test",
-				useILM:        true,
-				ilmPolicyName: "jaeger-test-policy",
-			},
-			mockNewTextTemplateBuilder: func() es.TemplateBuilder {
-				tb := mocks.TemplateBuilder{}
-				ta := mocks.TemplateApplier{}
-				ta.On("Execute", mock.Anything, mock.Anything).Return(errors.New("template load error"))
-				tb.On("Parse", mock.Anything).Return(&ta, nil)
-				return &tb
-			},
-			err: "template load error",
-		},
 		{
 			name: "ES Version  7 Span Error",
 			args: args{
