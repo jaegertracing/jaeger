@@ -120,6 +120,13 @@ Post-M6, the `esutil.BulkIndexer` is configured from the same `bulk_processing` 
 
 Goal: `WriteTraces` returns a truthful error for the batch it was given, and (on Kafka) the offset commits only after that batch is durable — without collapsing throughput.
 
+The options:
+
+- **A. Async status quo (post-M6).** Leave the write path as it is: `WriteSpan` enqueues into the async `esutil.BulkIndexer` and `WriteTraces` returns `nil` immediately; failures land in `OnFailure` callbacks that only log and count. This is the current behavior and the bug — it is included as the baseline.
+- **B. Sticky-error ([#8651](https://github.com/jaegertracing/jaeger/pull/8651)).** Keep the async indexer, but record the most recent bulk error behind an `atomic.Pointer` and return it from the *next* `WriteTraces`. A minimal patch that surfaces *some* error eventually, without changing the async model.
+- **C. Per-call buffer drain.** Keep the async indexer but force a synchronous flush of the shared buffer at the end of every `WriteTraces`, then inspect results. Spec-conformant in principle, but it flushes the whole shared buffer per call.
+- **D. Synchronous batch write (recommended).** Replace the per-span enqueue with one synchronous, size-bounded `_bulk` per batch: assemble the batch's documents, issue a blocking round-trip, check item-level results, and return a real error (§4). Batching moves to a blocking pipeline batcher (§4.2). This is the model the reporter proposed.
+
 Criteria:
 - **Contract** — does `WriteTraces` return real write errors?
 - **Correct offset / at-least-once** — is the *failing* batch's Kafka offset withheld (backpressure/retry)?
