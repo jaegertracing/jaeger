@@ -335,6 +335,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 
 		for _, result := range responses {
+			// Hits is a value (esclient.HitsResult), not olivere's *SearchHits pointer,
+			// so there's no nil to guard — only the inner slice can be empty.
 			if len(result.Hits.Hits) == 0 {
 				continue
 			}
