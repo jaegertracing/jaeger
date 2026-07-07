@@ -3,7 +3,10 @@
 
 package esclient
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 // subAggregations holds the named sub-aggregation results of a bucket or filter,
 // captured raw and decoded on demand by the typed accessors below. Nesting
@@ -82,10 +85,13 @@ func (b *AggregationBucket) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	// Bucket keys are strings for the fields we aggregate (traceID, serviceName);
-	// a non-string key is left empty rather than failing the whole response.
+	// Bucket keys are strings for the fields we aggregate (traceID, serviceName).
+	// A present-but-non-string key means a mapping regression, so fail the decode
+	// rather than silently yield an empty key that callers treat as a valid ID.
 	if k, ok := raw["key"]; ok {
-		_ = json.Unmarshal(k, &b.Key)
+		if err := json.Unmarshal(k, &b.Key); err != nil {
+			return fmt.Errorf("aggregation bucket has a non-string key: %w", err)
+		}
 		delete(raw, "key")
 	}
 	if dc, ok := raw["doc_count"]; ok {

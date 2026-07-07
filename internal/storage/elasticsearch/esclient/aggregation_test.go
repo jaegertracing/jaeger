@@ -105,6 +105,9 @@ func TestAggregationBucketUnmarshalErrors(t *testing.T) {
 	var b AggregationBucket
 	require.Error(t, json.Unmarshal([]byte(`"not-an-object"`), &b))
 	require.Error(t, json.Unmarshal([]byte(`{"doc_count":"not-a-number"}`), &b))
+	// A non-string key (mapping regression) fails fast rather than yielding "".
+	err := json.Unmarshal([]byte(`{"key":123,"doc_count":1}`), &b)
+	require.ErrorContains(t, err, "non-string key")
 }
 
 func TestFilterResultUnmarshalError(t *testing.T) {
