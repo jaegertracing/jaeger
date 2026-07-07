@@ -297,11 +297,23 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 2}, Hits: []esclient.SearchHit{{Source: spanBytesID1}}}},
 		}
 
+		// Every sub-request must page startTime-ascending, track total hits, and carry
+		// the expected search_after cursor: the padded window start on round 1, and
+		// the last span's startTime on the follow-up.
+		initialCursor := model.TimeAsEpochMicroseconds(date.Add(-24 * time.Hour))
+		paginates := func(req esclient.MultiSearchRequest, wantCursor uint64) bool {
+			s := req.Search
+			return len(s.Sort) == 1 &&
+				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: "asc"} &&
+				s.TrackTotalHits &&
+				len(s.SearchAfter) == 1 && s.SearchAfter[0] == any(wantCursor)
+		}
+
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
-			return len(reqs) == 2
+			return len(reqs) == 2 && paginates(reqs[0], initialCursor) && paginates(reqs[1], initialCursor)
 		})).Return(firstRound, nil).Once()
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
-			return len(reqs) == 1
+			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime)
 		})).Return(secondRound, nil).Once()
 
 		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
