@@ -516,6 +516,15 @@ func TestSamplingStoreRequestSnapshots(t *testing.T) {
 // keeps each write's _bulk request in its own snapshot.
 func captureSamplingWrite(t *testing.T, url string, version es.BackendVersion, rec *snapshottest.Recorder, writeTime time.Time, write func(*SamplingStore)) string {
 	client := newSnapshotClient(t, url, version)
+	// Close the client to flush the bulk buffer on the happy path; the guarded
+	// cleanup closes it (stopping the bulk-processor goroutines) if write or Marshal
+	// aborts the test first, so a failure can't leak goroutines into VerifyGoLeaks.
+	closed := false
+	t.Cleanup(func() {
+		if !closed {
+			_ = client.Close()
+		}
+	})
 	store := NewSamplingStore(Params{
 		Client:      func() es.Client { return client },
 		Logger:      zap.NewNop(),
@@ -526,5 +535,6 @@ func captureSamplingWrite(t *testing.T, url string, version es.BackendVersion, r
 	rec.Reset()
 	write(store)
 	require.NoError(t, client.Close()) // flushes the buffered bulk request
+	closed = true
 	return rec.Marshal(t)
 }
