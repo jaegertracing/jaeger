@@ -11,11 +11,13 @@
 
 ## Abstract
 
-Jaeger's Elasticsearch/OpenSearch (ES/OS) trace writer enqueues spans into an **asynchronous** client-side bulk buffer (`olivere/elastic`'s `BulkProcessor`) and returns success to its caller **before** the data is durable in the backend. This silently violates the `tracestore.Writer` contract — `WriteTraces` returns `nil` even when the eventual bulk flush fails — and, on the Kafka ingester path, causes Jaeger to **commit Kafka offsets for data that was never persisted**, i.e. silent trace loss on backend outage or overload ([#8476](https://github.com/jaegertracing/jaeger/issues/8476)).
+Jaeger's Elasticsearch/OpenSearch (ES/OS) trace writer enqueues spans into an **asynchronous** client-side bulk buffer and returns success to its caller **before** the data is durable in the backend. This silently violates the `tracestore.Writer` contract — `WriteTraces` returns `nil` even when the eventual bulk flush fails — and, on the Kafka ingester path, causes Jaeger to **commit Kafka offsets for data that was never persisted**, i.e. silent trace loss on backend outage or overload ([#8476](https://github.com/jaegertracing/jaeger/issues/8476)).
+
+This gap is **unchanged by [RFC 0006 M6](./0006-unified-elasticsearch-client.md#8-migration-plan)** ([#8944](https://github.com/jaegertracing/jaeger/pull/8944)), which migrated the span write path off `olivere/elastic`'s `BulkProcessor` onto an owned bounded `BulkWriter` over `esutil.BulkIndexer`. M6 fixed the unbounded-memory bug ([#2192](https://github.com/jaegertracing/jaeger/issues/2192)) with a hard byte cap, but the new `BulkWriter.Add` is still fire-and-forget — errors surface only in `OnFailure` callbacks — so `WriteTraces` still returns `nil` at enqueue time. M6 swapped the async buffer; it did not make writes synchronous.
 
 This RFC establishes the facts that shape the fix — a single `_bulk` HTTP request to ES/OS is already **synchronous and durable**; the asynchrony is entirely a client-side artifact — and shows that the ClickHouse-style *server-side* batched-insert model the reporter asked about **does not exist** in ES/OS. It then proposes a **synchronous batch-write mode**: preserve the OTLP batch through the pipeline and issue **one synchronous, size-bounded `_bulk` request per batch**, checking item-level results and returning a real error. This restores the writer contract, gives Kafka correct at-least-once behavior, and turns the pipeline's existing batching (Kafka producer sizing + the OTel batch processor) into the sole, sufficient batching layer — removing the redundant client-side buffer.
 
-This is a design exploration, not a committed decision. It is scoped to interact cleanly with the bounded bulk indexer already planned in [RFC 0006 M6](./0006-unified-elasticsearch-client.md#8-migration-plan).
+This is a design exploration, not a committed decision. It builds directly on the owned `esclient.BulkWriter` M6 delivered, adding a complementary **synchronous** write primitive over the same transport.
 
 ---
 
@@ -44,7 +46,7 @@ func (t *TraceWriter) WriteTraces(_ context.Context, td ptrace.Traces) error {
 }
 ```
 
-`WriteSpan` ultimately calls `client.Index()…BodyJson(&jsonSpan).Add()` ([`core/writer.go`](../../internal/storage/v2/elasticsearch/tracestore/core/writer.go)). `Add()` merely **enqueues** into the shared `elastic.BulkProcessor` ([`wrapper/wrapper.go`](../../internal/storage/elasticsearch/wrapper/wrapper.go)) and returns. The buffer flushes later on its own triggers, and bulk failures surface only in the processor's `After` callback ([`clientbuilder/builder.go`](../../internal/storage/elasticsearch/clientbuilder/builder.go)), which logs and updates metrics but **cannot influence the already-returned `WriteTraces`**.
+`WriteSpan` ultimately calls `s.bulkWriter.Add(esclient.BulkItem{…})` ([`core/writer.go`](../../internal/storage/v2/elasticsearch/tracestore/core/writer.go)). `BulkWriter.Add` returns **nothing** ([`esclient/interfaces.go`](../../internal/storage/elasticsearch/esclient/interfaces.go) — `Add(item BulkItem)`); it encodes the document and hands it to the background `esutil.BulkIndexer` ([`esclient/bulk.go`](../../internal/storage/elasticsearch/esclient/bulk.go)). The buffer flushes later on its own triggers, and per-item failures surface only in the indexer's `OnFailure` callback, which logs and updates the `bulk_index` metrics but **cannot influence the already-returned `WriteTraces`**. (Before M6 this was `olivere`'s `BulkProcessor` with an `After` callback — same fire-and-forget shape, different library.)
 
 Cassandra and ClickHouse v2 writers honor the same contract synchronously (they `errors.Join` per-span failures / return `Append`/`Send` errors). **ES is the outlier.**
 
@@ -56,14 +58,14 @@ Jaeger v2 is an OpenTelemetry Collector assembly. The ingester pipeline is:
 kafka receiver ──▶ batch processor ──▶ jaeger_storage_exporter ──▶ WriteTraces
 ```
 
-(`config-kafka-ingester.yaml`). The storage exporter wraps `WriteTraces` in `exporterhelper` with **no sending queue and retry disabled by default** ([`storageexporter/factory.go`](../../cmd/jaeger/internal/exporters/storageexporter/factory.go), [`config.go`](../../cmd/jaeger/internal/exporters/storageexporter/config.go)), so `ConsumeTraces → pushTraces → WriteTraces` is a straight synchronous call — **the only asynchronous hop is the `BulkProcessor` buffer inside the writer.**
+(`config-kafka-ingester.yaml`). The storage exporter wraps `WriteTraces` in `exporterhelper` with **no sending queue and retry disabled by default** ([`storageexporter/factory.go`](../../cmd/jaeger/internal/exporters/storageexporter/factory.go), [`config.go`](../../cmd/jaeger/internal/exporters/storageexporter/config.go)), so `ConsumeTraces → pushTraces → WriteTraces` is a straight synchronous call — **the only asynchronous hop is the `esutil.BulkIndexer` buffer inside the writer.**
 
 The upstream OTel `kafkareceiver` commits a message's offset **when `ConsumeTraces` returns `nil`**. Because `WriteTraces` returns `nil` at *enqueue* time, the sequence is:
 
 1. Ingester reads a Kafka message (a batch of spans).
 2. `WriteTraces` enqueues them and returns `nil`.
 3. Receiver marks the offset committed.
-4. **Later**, the `BulkProcessor` flushes — and if ES is down, overloaded, or rejects the mapping, the batch is lost.
+4. **Later**, the `esutil.BulkIndexer` flushes — and if ES is down, overloaded, or rejects the mapping, the batch is lost.
 
 The offset is already gone. This converts any transient backend problem into **permanent, invisible trace loss**, and defeats the entire point of buffering traces in Kafka. The same gap removes backpressure: the pipeline cannot slow down or apply retry because it never learns the write failed.
 
@@ -84,7 +86,7 @@ Three facts, each load-bearing for the design and each easy to get wrong.
 
 A single `_bulk` HTTP request is **not** asynchronous on the server. Under the default `index.translog.durability: request`, ES/OS `fsync` and commit the translog on the primary **and every allocated replica** before responding, so a `200` means *"all acknowledged writes have been committed to disk"* ([ES translog settings](https://www.elastic.co/docs/reference/elasticsearch/index-settings/translog)). OpenSearch is identical. The `async` durability mode only changes *when* the fsync happens (every `sync_interval`, default 5s) — it does not make the request itself asynchronous, and is a separate, orthogonal knob.
 
-**Implication:** durability is a property Jaeger already gets for free from a single bulk round-trip. The async behavior Jaeger exhibits is **purely client-side** — an artifact of the `BulkProcessor`, not of ES.
+**Implication:** durability is a property Jaeger already gets for free from a single bulk round-trip. The async behavior Jaeger exhibits is **purely client-side** — an artifact of the client-side bulk buffer (`esutil.BulkIndexer` today), not of ES.
 
 ### 2.2 Durable ≠ searchable (and that's fine here)
 
@@ -101,14 +103,14 @@ The reporter asked whether ES has a ClickHouse-style server-side batched insert 
 **ES/OS have no equivalent.** There is no server-side mode that buffers across separate client requests with an optional wait-for-flush ack. The only batching primitives are:
 
 - the `_bulk` API — batches many docs, but within *one* client request; no cross-request coalescing;
-- client-side buffering helpers (olivere `BulkProcessor`, go-elasticsearch `esutil.BulkIndexer`, Logstash/Beats) — batching lives in the *client*;
+- client-side buffering helpers (`esutil.BulkIndexer` — what Jaeger now uses — olivere `BulkProcessor`, Logstash/Beats) — batching lives in the *client*;
 - `translog.durability: async` — an fsync-timing knob, still per-request, not coalescing.
 
 So the ClickHouse option is off the table for ES/OS. The equivalent has to be built where ES puts it — **at the client / pipeline** — which is precisely what this RFC does: let the pipeline (Kafka + batch processor) form the batch, and make the *client's* per-batch write synchronous. (The one place ES could "block until a batch fills" is the client-side buffer's `FlushInterval` — but that blocks *nothing* and acks *nothing*, which is the bug.)
 
 ### 2.4 The current async knobs
 
-The `BulkProcessor` is configured from `bulk_processing` ([`config.go`](../../internal/storage/elasticsearch/config/config.go)); Jaeger defaults: `max_bytes` 5 MB, `max_actions` 1000, `flush_interval` 200 ms, `workers` 1. These shape *client-side* flushes. Note the processor has no hard pre-flush byte ceiling, which is the root of the unbounded-memory / `413 Request Entity Too Large` bug [#2192](https://github.com/jaegertracing/jaeger/issues/2192) — a size-bounded indexer is already planned in [RFC 0006](./0006-unified-elasticsearch-client.md).
+Post-M6, the `esutil.BulkIndexer` is configured from the same `bulk_processing` block ([`config.go`](../../internal/storage/elasticsearch/config/config.go)), mapped to the indexer's `FlushBytes` / `FlushInterval` / `Workers` ([`esclient/bulk.go`](../../internal/storage/elasticsearch/esclient/bulk.go)); Jaeger defaults: `max_bytes` 5 MB, `flush_interval` 200 ms, `workers` 1. `FlushBytes` is now a **hard byte ceiling** — the buffer flushes before exceeding it — which is what closed the unbounded-memory / `413 Request Entity Too Large` bug [#2192](https://github.com/jaegertracing/jaeger/issues/2192) in M6. (`max_actions` no longer maps to anything: `esutil` has no doc-count trigger. This is a minor config-surface wrinkle M6 introduced, orthogonal to this RFC.) These knobs shape *client-side* flushing; none of them make a write synchronous or its failure observable to the caller.
 
 ---
 
@@ -126,18 +128,18 @@ Criteria:
 
 Options as columns, criteria as rows. 🟢 good · 🟡 partial/caveated · 🔴 poor.
 
-| Criterion | A. Async status quo | B. Sticky-error (#8651) | C. `Flush()` per call | **D. Sync batch write (rec.)** |
+| Criterion | A. Async status quo (post-M6) | B. Sticky-error (#8651) | C. Per-call buffer drain | **D. Sync batch write (rec.)** |
 |---|:--:|:--:|:--:|:--:|
 | Contract (real errors) | 🔴 always `nil` | 🟡 delayed, best-effort | 🟢 | 🟢 |
 | Correct offset / at-least-once | 🔴 | 🔴¹ | 🟢 | 🟢 |
 | Attribution | 🔴 | 🔴¹ | 🟢 | 🟢 |
 | Throughput | 🟢 | 🟢 | 🔴² | 🟡³ |
 | Backpressure | 🔴 | 🔴 | 🟡 | 🟢 |
-| Complexity | 🟢 exists | 🟢 small | 🟢 small | 🟡 moderate |
+| Complexity | 🟢 exists | 🟢 small | 🔴² | 🟡 moderate |
 
 Legend / footnotes:
 - ¹ The error is recorded against a later call; the batch that actually failed has **already** had its offset committed. At-least-once is not restored.
-- ² `BulkProcessor.Flush()` is a *global* synchronous drain of the shared buffer across all workers; calling it every `WriteTraces` serializes every caller onto one flush and destroys coalescing.
+- ² A per-call synchronous drain of the shared buffer would serialize every caller onto one flush and destroy coalescing. Worse post-M6: `esutil.BulkIndexer` exposes **no** per-call flush — only `Close()` (a full shutdown-flush). Approximating "drain now" means closing and recreating the indexer per batch, which is absurd. Option C is effectively unavailable on the current library, not merely slow.
 - ³ Efficiency now depends on the **pipeline** delivering appropriately sized batches (§4.2). With a well-sized batch it is one efficient bulk per batch; with a firehose of tiny batches it degrades to many small bulks (mitigated by upstream batching, which already exists).
 
 **Option D is recommended.** It is the only option that restores both the contract *and* Kafka at-least-once with correct attribution, and it is the model the reporter proposed. C is rejected (throughput). B is a stop-gap that does not fix the data-loss bug for the failing batch. A is the bug.
@@ -152,7 +154,7 @@ Replace the per-span enqueue with a per-batch synchronous write:
 
 1. `WriteTraces` converts the whole `ptrace.Traces` batch to `[]dbmodel.Span` (as today).
 2. It assembles **one** `_bulk` body containing every span document **and** any service/operation documents the batch requires (§4.3), split into size-bounded sub-requests (§4.4).
-3. It issues the bulk **synchronously** (`Bulk().Do(ctx)` on the current client, or `BulkWriter` in the RFC 0006 world — §5), inspects `resp.Errors` and each item's status, and **returns an error** if the transport failed or any item failed.
+3. It issues the bulk **synchronously** via a new blocking primitive on `esclient` (§5) — one `_bulk` round-trip that returns the parsed response — inspects `resp.Errors` and each item's status, and **returns an error** if the transport failed or any item failed.
 4. Only on `nil` does the exporter return success → the Kafka offset commits.
 
 This requires the core writer to expose a batch, error-returning entry point (the `#8476` discussion sketched exactly this):
@@ -171,7 +173,7 @@ With synchronous per-batch writes, batch **size** is what determines efficiency,
 - **Kafka path (primary beneficiary).** The collector's `kafka` exporter serializes each exported `ptrace.Traces` into one Kafka message, already shaped by the collector's `batch` processor. On the ingester, **one Kafka message → one synchronous bulk** is the natural, optimal mapping — the batch formed once at produce time is preserved end-to-end and written atomically. The ingester's own `batch` processor becomes optional: keep it to *re-shape* (coalesce small messages / split huge ones), or drop it to preserve the exact Kafka message boundary. This is the reporter's core insight — Kafka already did the batching; don't redo it in a fire-and-forget client buffer that also throws away the durability signal.
 - **Collector path (OTLP/Jaeger receivers → storage directly).** Here batches arrive at whatever cadence receivers produce. The OTel `batch` processor (or the newer `exporterhelper` `QueueBatchConfig` batcher on the storage exporter) sizes them. Operators who want large bulks configure `send_batch_size`/`timeout` as they would for any exporter.
 
-The redundant third buffer (the client-side `BulkProcessor`) is removed in sync mode. Batching is done **once**, in the pipeline, where it is observable and tunable — not hidden inside the storage client.
+The redundant third buffer (the client-side `esutil.BulkIndexer`) is removed in sync mode. Batching is done **once**, in the pipeline, where it is observable and tunable — not hidden inside the storage client.
 
 ### 4.3 Service/operation documents
 
@@ -179,7 +181,7 @@ The redundant third buffer (the client-side `BulkProcessor`) is removed in sync 
 
 ### 4.4 Size bounding, retries, and duplicates
 
-- **Size bound (`#2192`).** A single Kafka message can be large; a naive one-bulk-per-batch could exceed `http.max_content_length` (default 100 MB) and 413. The sync writer chunks a batch into sub-requests capped at `max_bytes`, issues them in sequence, and joins their errors. This gives the sync path the hard byte ceiling the async processor never had — closing [#2192](https://github.com/jaegertracing/jaeger/issues/2192) for this path directly.
+- **Size bound.** A single Kafka message can be large; a naive one-bulk-per-batch could exceed `http.max_content_length` (default 100 MB) and 413. The sync writer chunks a batch into sub-requests capped at `max_bytes`, issues them in sequence, and joins their errors. This is the same byte discipline M6's async `FlushBytes` already enforces ([#2192](https://github.com/jaegertracing/jaeger/issues/2192) is fixed for the async path) — the sync path must carry it too rather than inherit it, since it does not go through `esutil`'s buffer.
 - **Retry.** On a returned error the pipeline retries the *whole* batch (Kafka re-delivery, or `exporterhelper` retry). Item-level `429/503` (backpressure) therefore retry naturally. We do **not** silently swallow partial failures.
 - **Duplicates / idempotency.** Jaeger sets no document `_id`, so retries can create duplicate span docs — but this is **already** the case today on any retry, and is tolerated (append-only, at-least-once; see [RFC 0004 §3.4](./0004-elasticsearch-data-streams.md)). Synchronous retry makes it *more visible*, not new. A deterministic `_id` (trace+span+start) with `op_type=create` would give at-least-once dedup and is cross-referenced as a future improvement in RFC 0004; out of scope here.
 
@@ -189,29 +191,28 @@ Introduce an explicit write mode rather than overloading the async knobs:
 
 ```yaml
 elasticsearch:
-  write_mode: async   # async (default, legacy) | sync
-  bulk_processing:     # applies to async mode; in sync mode only `max_bytes` is honored (chunk cap)
+  write_mode: async   # async (default) | sync
+  bulk_processing:     # shapes async esutil.BulkIndexer flushing; in sync mode only `max_bytes` is honored (chunk cap)
     max_bytes: 5000000
-    max_actions: 1000
     flush_interval: 200ms
     workers: 1
 ```
 
-- `async` (default): today's `BulkProcessor` behavior, unchanged — backward compatible.
-- `sync`: the design above. `max_bytes` is reused as the per-request chunk ceiling (§4.4); `max_actions`, `flush_interval`, `workers` are inert (batching is the pipeline's job).
+- `async` (default): today's `esutil.BulkIndexer` behavior (post-M6), unchanged — backward compatible.
+- `sync`: the design above. `max_bytes` is reused as the per-request chunk ceiling (§4.4); `flush_interval` and `workers` are inert (batching is the pipeline's job, and each write is one blocking round-trip).
 
 Rationale for opt-in first: sync mode changes throughput characteristics and depends on sane upstream batch sizing; making it default (especially for the Kafka ingester) is a follow-up once validated (§7 Q1).
 
 ---
 
-## 5. Sequencing with RFC 0006 and RFC 0004
+## 5. Building on RFC 0006 and RFC 0004
 
-This work is small but touches the write path that [RFC 0006](./0006-unified-elasticsearch-client.md) is actively replacing:
+This work is small and lands cleanly on top of the client foundation [RFC 0006](./0006-unified-elasticsearch-client.md) is building:
 
-- **RFC 0006 M6** introduces the owned `BulkWriter` and the bounded bulk indexer (fixing #2192). The synchronous write should be a **first-class method on `BulkWriter`** (e.g. `Bulk(ctx, items) (BulkResult, error)`), not bolted onto `olivere`. The cleanest sequencing is to **land the sync-mode plumbing (writer API `WriteSpans`, config, service-doc ordering) against the current client, then have M6 provide the synchronous, size-bounded bulk primitive** — or to fold the synchronous path into M6 directly. Either way, sync mode must **not** reintroduce a dependency on `olivere`'s async processor.
-- **RFC 0004 (Data Streams)** already changes the write op-type (`index`→`create`) and adds `@timestamp`. The sync writer inherits both transparently — it writes whatever documents `SpanWriter` produces. The service-doc cache ordering (§4.3) reuses the same "cache after durable write" discipline data streams' trace-timestamp index needs.
+- **RFC 0006 M6 has merged** ([#8944](https://github.com/jaegertracing/jaeger/pull/8944)): the owned `esclient.BulkWriter` and the bounded bulk indexer over `esutil.BulkIndexer` exist and carry all span/service writes; `olivere` is gone from the write path (it remains only for the reader/control-plane, being migrated by later 0006 milestones). M6 delivered the **async** half; this RFC adds the **synchronous** half over the same `esclient` transport. Because `esutil.BulkIndexer` is async-only (no blocking round-trip), the sync path is a **new, distinct primitive** — a blocking bulk on `esclient` (e.g. `Bulk(ctx, items) (BulkResult, error)`), reusing 0006's owned request/response types and the shared transport pool. It is **not** a method on the existing async `BulkWriter`; the two are peers selected by `write_mode`. Concretely: `SpanWriter` holds either the async `BulkWriter` (today) or a synchronous bulk client, chosen at construction from config.
+- **RFC 0004 (Data Streams)** already changes the write op-type (`index`→`create`) and adds `@timestamp`. The sync writer inherits both transparently — it writes whatever documents `SpanWriter` produces (which already emits `esclient.BulkItem`s with the right `OpType`). The service-doc cache ordering (§4.3) reuses the same "cache after durable write" discipline data streams' trace-timestamp index needs.
 
-There is no conflict; there is shared surface. The recommendation is to treat "synchronous write mode" as a property delivered **on top of** the RFC 0006 `BulkWriter`, with the contract/Kafka fix (this RFC) as the motivating requirement for that primitive.
+There is no conflict; there is shared surface. Treat "synchronous write mode" as a peer of M6's async `BulkWriter` on the same `esclient`, with the contract/Kafka fix (this RFC) as the motivating requirement for the synchronous primitive.
 
 ---
 
@@ -248,7 +249,7 @@ The newer `QueueBatchConfig` batcher on the storage exporter could replace the p
 Each step is independently shippable and guarded by unit + ES/OS integration tests.
 
 1. **Writer contract + core API.** Add `core.Writer.WriteSpans(ctx, []span) error`; keep `WriteSpan` for the async path. Update the `tracestore.Writer` doc comment (Q3). *Exit:* Cassandra/ClickHouse parity of intent documented; no behavior change yet.
-2. **Synchronous bulk primitive.** Provide a synchronous, size-bounded (`max_bytes`) bulk call that returns transport + item-level errors. Prefer implementing on the RFC 0006 `BulkWriter` (§5); if landing earlier, wrap `client.Bulk().Do(ctx)` behind the same internal interface so M6 can swap it. *Exit:* byte-cap + item-error propagation proven by unit test.
+2. **Synchronous bulk primitive.** Add a new blocking bulk method on `esclient` (peer of M6's async `BulkWriter`, over the same transport — §5): one `_bulk` round-trip, size-bounded by `max_bytes`, returning transport + item-level errors from 0006's owned response types. *Exit:* byte-cap + item-error propagation proven by unit test.
 3. **`write_mode` config.** Add `write_mode: async|sync` (default `async`), reuse `max_bytes` as chunk cap. *Exit:* config parse/validate + defaults tests.
 4. **Wire sync path.** `TraceWriter.WriteTraces` → `WriteSpans` → synchronous bulk; append service/operation docs into the same request; update the service cache only after success (§4.3). *Exit:* `WriteTraces` returns real errors; integration test asserts a failing ES rejects the batch and the error propagates (and, on the ingester, the Kafka offset is **not** committed).
 5. **Ingester validation.** End-to-end test on the Kafka path: kill/reject ES mid-stream, assert no offset advance and full recovery on ES return (no data loss). *Exit:* at-least-once demonstrated.
