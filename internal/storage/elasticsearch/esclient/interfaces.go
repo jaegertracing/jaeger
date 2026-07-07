@@ -5,8 +5,6 @@ package esclient
 
 import (
 	"context"
-
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 type IndexAPI interface {
@@ -17,7 +15,7 @@ type IndexAPI interface {
 	CreateIndex(ctx context.Context, index string) error
 	CreateAlias(ctx context.Context, aliases []Alias) error
 	DeleteAlias(ctx context.Context, aliases []Alias) error
-	CreateTemplate(ctx context.Context, name string, render func(es.BackendVersion) (string, error)) error
+	CreateTemplate(ctx context.Context, name string, mappingType MappingType) error
 	Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error
 }
 

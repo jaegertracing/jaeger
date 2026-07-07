@@ -55,4 +55,8 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
 	c.Indices.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
 	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
+
+	// Config.IndexPrefix supersedes Indices.IndexPrefix: the client renders the
+	// templates from Indices, so reconcile the prefix onto it here.
+	c.Indices.IndexPrefix = cfg.IndexPrefix(c.Config.IndexPrefix)
 }

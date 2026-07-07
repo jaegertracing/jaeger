@@ -36,6 +36,23 @@ const (
 	SamplingMapping
 )
 
+// MappingTypeFromString resolves a Jaeger index base name (e.g. "jaeger-span")
+// to its MappingType.
+func MappingTypeFromString(name string) (MappingType, error) {
+	switch name {
+	case config.SpanIndexName:
+		return SpanMapping, nil
+	case config.ServiceIndexName:
+		return ServiceMapping, nil
+	case config.DependencyIndexName:
+		return DependencyMapping, nil
+	case config.SamplingIndexName:
+		return SamplingMapping, nil
+	default:
+		return 0, fmt.Errorf("invalid mapping type: %s", name)
+	}
+}
+
 // file returns the embedded neutral-body file name, or "" for an unknown type.
 func (m MappingType) file() string {
 	switch m {

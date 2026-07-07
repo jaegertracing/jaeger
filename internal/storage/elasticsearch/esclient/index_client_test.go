@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -616,9 +617,15 @@ func TestClientDeleteAliases(t *testing.T) {
 	}
 }
 
+// testIndices returns minimal index options sufficient to render any template
+// (non-nil replicas), with no prefix and lifecycle off.
+func testIndices() config.Indices {
+	reps := int64(1)
+	opts := config.IndexOptions{Shards: 5, Replicas: &reps}
+	return config.Indices{Spans: opts, Services: opts, Dependencies: opts, Sampling: opts}
+}
+
 func TestClientCreateTemplate(t *testing.T) {
-	templateName := "jaeger-template"
-	templateContent := "template content"
 	tests := []struct {
 		name         string
 		version      es.BackendVersion
@@ -630,28 +637,28 @@ func TestClientCreateTemplate(t *testing.T) {
 		{
 			name:         "success/v7",
 			version:      es.ElasticV7,
-			expectedPath: "_template/jaeger-template",
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/v8",
 			version:      es.ElasticV8,
-			expectedPath: "_index_template/jaeger-template",
+			expectedPath: "_index_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/opensearch",
 			version:      es.OpenSearch2,
-			expectedPath: "_template/jaeger-template",
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "client error",
 			version:      es.ElasticV7,
-			expectedPath: "_template/jaeger-template",
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "failed to create template: jaeger-template",
+			errContains:  "failed to create template: jaeger-span",
 		},
 	}
 	for _, test := range tests {
@@ -664,20 +671,18 @@ func TestClientCreateTemplate(t *testing.T) {
 				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
-				assert.Equal(t, templateContent, string(body))
+				assert.True(t, json.Valid(body), "rendered template body must be valid JSON")
 
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "user", "pass", test.version)
 			c := &IndicesClient{
-				Client: client,
+				Client:  makeClient(t, testServer.URL, "user", "pass", test.version),
+				Indices: testIndices(),
 			}
-			err := c.CreateTemplate(context.Background(), templateName, func(es.BackendVersion) (string, error) {
-				return templateContent, nil
-			})
+			err := c.CreateTemplate(context.Background(), "jaeger-span", SpanMapping)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 			} else {
@@ -824,23 +829,17 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 }
 
 func TestCreateTemplateRenderError(t *testing.T) {
-	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
-	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
-		return "", assert.AnError
-	})
-	require.ErrorIs(t, err, assert.AnError)
+	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7), Indices: testIndices()}
+	err := c.CreateTemplate(context.Background(), "jaeger-span", MappingType(99))
+	require.ErrorContains(t, err, "unknown index template mapping type")
 }
 
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
-	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
-		client := makeClient(t, url, "", "", version)
-		c := IndicesClient{Client: client}
-		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
-			return template, nil
-		}))
+		c := IndicesClient{Client: makeClient(t, url, "", "", version), Indices: testIndices()}
+		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", SpanMapping))
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/create_template", content)
