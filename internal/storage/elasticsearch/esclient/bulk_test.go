@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v9/esutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -161,19 +162,29 @@ func TestBulkIndexerFlushCallbacksWithoutState(t *testing.T) {
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"))
 }
 
-// TestBulkIndexerRecordDropped covers the drop path shared by the encode-failure
-// and enqueue-failure branches (the latter is unreachable through esutil.Add with
-// our inputs, so it is exercised directly here).
-func TestBulkIndexerRecordDropped(t *testing.T) {
+// stubBulkIndexer is an esutil.BulkIndexer whose Add returns a fixed error, used
+// to drive BulkIndexer.Add's enqueue-error branch (which real esutil never hits
+// with our background context and *bytes.Reader body).
+type stubBulkIndexer struct{ addErr error }
+
+func (s stubBulkIndexer) Add(context.Context, esutil.BulkIndexerItem) error { return s.addErr }
+func (stubBulkIndexer) Close(context.Context) error                         { return nil }
+func (stubBulkIndexer) Flush(context.Context) error                         { return nil }
+func (stubBulkIndexer) Stats() esutil.BulkIndexerStats                      { return esutil.BulkIndexerStats{} }
+
+// TestBulkIndexerEnqueueError covers Add's enqueue-error branch: a document that
+// esutil refuses (here via a stub) is counted as a failed attempt and logged.
+func TestBulkIndexerEnqueueError(t *testing.T) {
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()
 	core, logs := observer.New(zap.ErrorLevel)
 	b := &BulkIndexer{
+		bi:      stubBulkIndexer{addErr: errors.New("queue full")},
 		metrics: spanstoremetrics.NewWriter(mf, "bulk_index"),
 		logger:  zap.New(core),
 	}
 
-	b.recordDropped("idx", "failed to enqueue bulk document", errors.New("queue full"))
+	b.Add(BulkItem{Index: "idx", Body: map[string]any{"a": 1}})
 
 	mf.AssertCounterMetrics(
 		t,
@@ -181,6 +192,18 @@ func TestBulkIndexerRecordDropped(t *testing.T) {
 		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1},
 	)
 	assert.Positive(t, logs.FilterMessageSnippet("failed to enqueue").Len())
+}
+
+// TestBulkIndexerConstructorError covers NewBulkIndexer's error return by making
+// the esutil constructor seam fail (real esutil only errors on a nil Client).
+func TestBulkIndexerConstructorError(t *testing.T) {
+	orig := newESUtilBulkIndexer
+	defer func() { newESUtilBulkIndexer = orig }()
+	newESUtilBulkIndexer = func(esutil.BulkIndexerConfig) (esutil.BulkIndexer, error) {
+		return nil, errors.New("bad config")
+	}
+	_, err := NewBulkIndexer(makeClient(t, "http://localhost:9200", "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.ErrorContains(t, err, "bad config")
 }
 
 func TestBulkIndexerFailureMetrics(t *testing.T) {

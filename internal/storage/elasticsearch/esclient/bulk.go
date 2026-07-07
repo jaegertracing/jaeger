@@ -45,6 +45,11 @@ type BulkIndexer struct {
 
 var _ BulkWriter = (*BulkIndexer)(nil)
 
+// newESUtilBulkIndexer is a seam over esutil.NewBulkIndexer so tests can exercise
+// the constructor error path (which real esutil only returns for a nil Client,
+// and we always pass a non-nil one).
+var newESUtilBulkIndexer = esutil.NewBulkIndexer
+
 // flushState tracks one in-flight flush. esutil's OnFlushEnd callback carries no
 // success/failure signal, so OnError flips failed and OnFlushEnd reads it to
 // record the flush latency under latency-ok or latency-err. A pointer is stored
@@ -71,7 +76,7 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 	if workers <= 0 {
 		workers = 1
 	}
-	bi, err := esutil.NewBulkIndexer(esutil.BulkIndexerConfig{
+	bi, err := newESUtilBulkIndexer(esutil.BulkIndexerConfig{
 		// Client is the esapi.Transport esutil sends _bulk requests through; our
 		// Client satisfies it (Perform delegates down through rawClient to the
 		// pool), so esutil runs on our transport — the same multi-node pool and

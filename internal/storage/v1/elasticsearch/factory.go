@@ -45,6 +45,10 @@ type FactoryBase struct {
 	// a seam mirroring newLegacyClientFn so tests can inject a client that doesn't
 	// probe a live cluster (esclient.NewClient issues a GET / at construction).
 	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Client, error)
+	// newBulkIndexerFn constructs the bulk writer over the esclient. It is a seam,
+	// like the client constructors above, so tests can inject a failing indexer to
+	// exercise the construction error path.
+	newBulkIndexerFn func(client esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
 
 	config *config.Configuration
 
@@ -78,6 +82,7 @@ func NewFactoryBase(
 		config:            &cfg,
 		newLegacyClientFn: clientbuilder.NewClient,
 		newESClientFn:     esclient.NewClient,
+		newBulkIndexerFn:  esclient.NewBulkIndexer,
 		tracer:            otel.GetTracerProvider(),
 	}
 	for _, opt := range opts {
@@ -118,7 +123,7 @@ func NewFactoryBase(
 	f.searcher = esclient.SearchClient{Client: esClient}
 	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
 	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
-	bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{
+	bulkWriter, err := f.newBulkIndexerFn(esClient, esclient.BulkIndexerConfig{
 		FlushBytes:    f.config.BulkProcessing.MaxBytes,
 		FlushInterval: f.config.BulkProcessing.FlushInterval,
 		Workers:       f.config.BulkProcessing.Workers,
