@@ -1156,9 +1156,8 @@ func metricsRecorder() *snapshottest.Recorder {
 
 // TestMetricsReaderRequestSnapshots freezes the exact _search wire format that the
 // latency, call-rate, and error-rate read paths emit over the olivere client. All
-// query parameters are fixed, so the only variable is the backend version; the
-// requests are identical across versions except for the ES6 search parameters, so
-// snapshots collapse to es6 / es7-9.os1-3.
+// query parameters are fixed and identical across every supported version, so
+// snapshots collapse to a single all-versions file.
 func TestMetricsReaderRequestSnapshots(t *testing.T) {
 	endTime := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	lookback := time.Hour

@@ -50,18 +50,15 @@ func TestExists(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_ilm/policy/jaeger-ilm-policy"))
 				assert.Equal(t, http.MethodGet, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "user", "pass", es.ElasticV7)
 			c := &ILMClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: client,
 				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
@@ -110,13 +107,10 @@ func TestExists_OpenSearchISM(t *testing.T) {
 			}))
 			defer testServer.Close()
 
+			client := makeClient(t, testServer.URL, "", "", es.OpenSearch2)
 			c := &ILMClient{
-				Client: Client{
-					Client:   testServer.Client(),
-					Endpoint: testServer.URL,
-				},
-				Logger:           zap.NewNop(),
-				UseOpenSearchISM: true,
+				Client: client,
+				Logger: zap.NewNop(),
 			}
 			result, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 			if test.errContains != "" {
@@ -135,7 +129,7 @@ func TestExists_Retries(t *testing.T) {
 		callCount++
 		assert.True(t, strings.HasSuffix(req.URL.String(), "_ilm/policy/jaeger-ilm-policy"))
 		assert.Equal(t, http.MethodGet, req.Method)
-		assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+		assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 
 		if callCount < maxTries {
 			res.WriteHeader(http.StatusInternalServerError)
@@ -147,12 +141,9 @@ func TestExists_Retries(t *testing.T) {
 	}))
 	defer testServer.Close()
 
+	client := makeClient(t, testServer.URL, "user", "pass", es.ElasticV7)
 	c := &ILMClient{
-		Client: Client{
-			Client:    testServer.Client(),
-			Endpoint:  testServer.URL,
-			BasicAuth: "foobar",
-		},
+		Client: client,
 		Logger: zap.NewNop(),
 	}
 
@@ -168,10 +159,10 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
 		rec, url := okServer(t)
+		client := makeClient(t, url, "", "", version)
 		c := ILMClient{
-			Client:           Client{Client: http.DefaultClient, Endpoint: url},
-			Logger:           zap.NewNop(),
-			UseOpenSearchISM: version.IsOpenSearch(),
+			Client: client,
+			Logger: zap.NewNop(),
 		}
 		_, err := c.Exists(context.Background(), "jaeger-ilm-policy")
 		require.NoError(t, err)

@@ -11,17 +11,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 )
-
-const dependencyType = "dependencies"
 
 // CoreDependencyStore is a DB Level abstraction which directly read/write dependencies into ElasticSearch
 type CoreDependencyStore interface {
@@ -35,7 +33,12 @@ type CoreDependencyStore interface {
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
+	// client is retained only for CreateTemplates; index-template creation is
+	// migrated to esclient separately (RFC 0006 M4b). The read and write data-plane
+	// paths run over searcher and bulkWriter.
 	client      func() es.Client
+	searcher    esclient.Searcher
+	bulkWriter  esclient.BulkWriter
 	logger      *zap.Logger
 	maxDocCount int
 	rotation    indices.Rotation
@@ -44,6 +47,8 @@ type DependencyStore struct {
 // Params holds constructor parameters for NewDependencyStore
 type Params struct {
 	Client      func() es.Client
+	Searcher    esclient.Searcher
+	BulkWriter  esclient.BulkWriter
 	Logger      *zap.Logger
 	MaxDocCount int
 	Rotation    indices.Rotation
@@ -53,6 +58,8 @@ type Params struct {
 func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
 		client:      p.Client,
+		searcher:    p.Searcher,
+		bulkWriter:  p.BulkWriter,
 		logger:      p.Logger,
 		maxDocCount: p.MaxDocCount,
 		rotation:    p.Rotation,
@@ -76,31 +83,30 @@ func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 }
 
 func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Time, dependencies []dbmodel.DependencyLink) {
-	s.client().Index().Index(indexName).Type(dependencyType).
-		BodyJson(&dbmodel.TimeDependencies{
+	s.bulkWriter.Add(esclient.BulkItem{
+		Index: indexName,
+		Body: &dbmodel.TimeDependencies{
 			Timestamp:    ts,
 			Dependencies: dependencies,
-		}).Add()
+		},
+	})
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error) {
 	readIndices := s.rotation.ReadTargets(endTs.Add(-lookback), endTs)
-	searchResult, err := s.client().Search(readIndices...).
-		Size(s.maxDocCount).
-		Query(buildTSQuery(endTs, lookback)).
-		IgnoreUnavailable(true).
-		Do(ctx)
+	searchResult, err := s.searcher.Search(ctx, readIndices, esclient.SearchRequest{
+		Size:  s.maxDocCount,
+		Query: buildTSQuery(endTs, lookback),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for dependencies: %w", err)
 	}
 
 	var retDependencies []dbmodel.DependencyLink
-	hits := searchResult.Hits.Hits
-	for _, hit := range hits {
-		source := hit.Source
+	for _, hit := range searchResult.Hits.Hits {
 		var tToD dbmodel.TimeDependencies
-		if err := json.Unmarshal(source, &tToD); err != nil {
+		if err := json.Unmarshal(hit.Source, &tToD); err != nil {
 			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
 		retDependencies = append(retDependencies, tToD.Dependencies...)
@@ -108,6 +114,6 @@ func (s *DependencyStore) GetDependencies(ctx context.Context, endTs time.Time, 
 	return retDependencies, nil
 }
 
-func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
-	return esquery.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
+func buildTSQuery(endTs time.Time, lookback time.Duration) query.Query {
+	return query.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }

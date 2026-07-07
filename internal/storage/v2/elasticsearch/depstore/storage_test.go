@@ -6,6 +6,7 @@ package depstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -21,8 +21,9 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
@@ -32,30 +33,6 @@ import (
 
 const defaultMaxDocCount = 10_000
 
-type depStorageTest struct {
-	client    *mocks.Client
-	logger    *zap.Logger
-	logBuffer *testutils.Buffer
-	storage   *DependencyStore
-}
-
-func withDepStorage(rotation indices.Rotation, maxDocCount int, fn func(r *depStorageTest)) {
-	client := &mocks.Client{}
-	logger, logBuffer := testutils.NewLogger()
-	r := &depStorageTest{
-		client:    client,
-		logger:    logger,
-		logBuffer: logBuffer,
-		storage: NewDependencyStore(Params{
-			Client:      func() es.Client { return client },
-			Logger:      logger,
-			MaxDocCount: maxDocCount,
-			Rotation:    rotation,
-		}),
-	}
-	fn(r)
-}
-
 func periodicRotation(prefix config.IndexPrefix, dateLayout string) indices.Rotation {
 	return indices.NewPeriodicRotation(
 		prefix.Apply(config.DependencyIndexName),
@@ -64,36 +41,67 @@ func periodicRotation(prefix config.IndexPrefix, dateLayout string) indices.Rota
 	)
 }
 
+// hitsResponse builds an owned SearchResponse whose hits carry the given raw
+// _source JSON documents, so the read-path parsing can be exercised without a
+// live backend.
+func hitsResponse(sources ...string) *esclient.SearchResponse {
+	hits := make([]esclient.SearchHit, len(sources))
+	for i, src := range sources {
+		hits[i] = esclient.SearchHit{Source: json.RawMessage(src)}
+	}
+	return &esclient.SearchResponse{Hits: esclient.HitsResult{Hits: hits}}
+}
+
 var _ CoreDependencyStore = &DependencyStore{} // check API conformance
 
 func TestWriteDependencies(t *testing.T) {
-	testCases := []struct {
-		writeError    error
-		expectedError string
-		esVersion     uint
+	bulkWriter := esclientmocks.NewBulkWriter(t)
+	var added []esclient.BulkItem
+	bulkWriter.On("Add", mock.Anything).Run(func(args mock.Arguments) {
+		added = append(added, args.Get(0).(esclient.BulkItem))
+	}).Return()
+	store := NewDependencyStore(Params{
+		BulkWriter:  bulkWriter,
+		Logger:      zap.NewNop(),
+		MaxDocCount: defaultMaxDocCount,
+		Rotation:    periodicRotation("", "2006-01-02"),
+	})
+
+	fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
+	dependencies := []dbmodel.DependencyLink{{Parent: "svcA", Child: "svcB", CallCount: 1}}
+	require.NoError(t, store.WriteDependencies(fixedTime, dependencies))
+
+	require.Len(t, added, 1)
+	assert.Equal(t, "jaeger-dependencies-1995-04-21", added[0].Index)
+	body := added[0].Body.(*dbmodel.TimeDependencies)
+	assert.Equal(t, fixedTime, body.Timestamp)
+	assert.Equal(t, dependencies, body.Dependencies)
+}
+
+func TestCreateTemplates(t *testing.T) {
+	tests := []struct {
+		name        string
+		doErr       error
+		expectedErr string
 	}{
-		{
-			expectedError: "",
-			esVersion:     7,
-		},
+		{name: "success"},
+		{name: "error", doErr: errors.New("template failure"), expectedErr: "template failure"},
 	}
-	for _, testCase := range testCases {
-		rotation := periodicRotation("", "2006-01-02")
-		withDepStorage(rotation, defaultMaxDocCount, func(r *depStorageTest) {
-			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			expectedIndex := "jaeger-dependencies-1995-04-21"
-			writeService := &mocks.IndexService{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := &mocks.Client{}
+			templateService := &mocks.TemplateCreateService{}
+			client.On("CreateTemplate", config.DependencyIndexName).Return(templateService)
+			templateService.On("Body", "the-template").Return(templateService)
+			templateService.On("Do", mock.Anything).Return(nil, test.doErr)
+			store := NewDependencyStore(Params{
+				Client: func() es.Client { return client },
+				Logger: zap.NewNop(),
+			})
 
-			r.client.On("Index").Return(writeService)
-			r.client.On("GetVersion").Return(testCase.esVersion)
-
-			writeService.On("Index", stringMatcher(expectedIndex)).Return(writeService)
-			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
-			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-			err := r.storage.WriteDependencies(fixedTime, []dbmodel.DependencyLink{})
-			if testCase.expectedError != "" {
-				require.EqualError(t, err, testCase.expectedError)
+			err := store.CreateTemplates("the-template")
+			if test.expectedErr != "" {
+				require.ErrorContains(t, err, test.expectedErr)
 			} else {
 				require.NoError(t, err)
 			}
@@ -114,59 +122,44 @@ func TestGetDependencies(t *testing.T) {
 	badDependencies := `badJson{hello}world`
 
 	testCases := []struct {
-		searchResult   *elastic.SearchResult
+		name           string
+		searchResult   *esclient.SearchResponse
 		searchError    error
 		expectedError  string
 		expectedOutput []dbmodel.DependencyLink
-		indexPrefix    config.IndexPrefix
-		maxDocCount    int
-		indices        []any
 	}{
 		{
-			searchResult: createSearchResult(goodDependencies),
+			name:         "good dependencies",
+			searchResult: hitsResponse(goodDependencies),
 			expectedOutput: []dbmodel.DependencyLink{
-				{
-					Parent:    "hello",
-					Child:     "world",
-					CallCount: 12,
-				},
+				{Parent: "hello", Child: "world", CallCount: 12},
 			},
-			indices:     []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
-			maxDocCount: 1000,
 		},
 		{
-			searchResult:  createSearchResult(badDependencies),
+			name:          "bad dependencies",
+			searchResult:  hitsResponse(badDependencies),
 			expectedError: "unmarshalling ElasticSearch documents failed",
-			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
+			name:          "search failure",
 			searchError:   errors.New("search failure"),
 			expectedError: "failed to search for dependencies: search failure",
-			indices:       []any{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
-		},
-		{
-			searchError:   errors.New("search failure"),
-			expectedError: "failed to search for dependencies: search failure",
-			indexPrefix:   "foo",
-			indices:       []any{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
 		},
 	}
 	for _, testCase := range testCases {
-		rotation := periodicRotation(testCase.indexPrefix, "2006-01-02")
-		withDepStorage(rotation, testCase.maxDocCount, func(r *depStorageTest) {
+		t.Run(testCase.name, func(t *testing.T) {
+			searcher := esclientmocks.NewSearcher(t)
+			searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
+				Return(testCase.searchResult, testCase.searchError)
+			store := NewDependencyStore(Params{
+				Searcher:    searcher,
+				Logger:      zap.NewNop(),
+				MaxDocCount: 1000,
+				Rotation:    periodicRotation("", "2006-01-02"),
+			})
+
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-
-			searchService := &mocks.SearchService{}
-			r.client.On("Search", mock.AnythingOfType("[]string")).Return(searchService)
-
-			searchService.On("Size", mock.MatchedBy(func(size int) bool {
-				return size == testCase.maxDocCount
-			})).Return(searchService)
-			searchService.On("Query", mock.Anything).Return(searchService)
-			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
-			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
-
-			actual, err := r.storage.GetDependencies(context.Background(), fixedTime, 24*time.Hour)
+			actual, err := store.GetDependencies(context.Background(), fixedTime, 24*time.Hour)
 			if testCase.expectedError != "" {
 				require.EqualError(t, err, testCase.expectedError)
 				assert.Nil(t, actual)
@@ -176,16 +169,6 @@ func TestGetDependencies(t *testing.T) {
 			}
 		})
 	}
-}
-
-func createSearchResult(dependencyLink string) *elastic.SearchResult {
-	dependencyLinkRaw := []byte(dependencyLink)
-	hits := make([]*elastic.SearchHit, 1)
-	hits[0] = &elastic.SearchHit{
-		Source: dependencyLinkRaw,
-	}
-	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
-	return searchResult
 }
 
 func TestReadTargets(t *testing.T) {
@@ -260,50 +243,24 @@ func TestWriteTarget(t *testing.T) {
 	}
 }
 
-// stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) any {
-	matchFunc := func(s string) bool {
-		return strings.Contains(s, q)
-	}
-	return mock.MatchedBy(matchFunc)
-}
-
-// TestDependencyStoreRequestSnapshots freezes the exact wire format of the
-// dependency read+write path over the current olivere client. Only ES6 differs
-// (no rest_total_hits_as_int on searches; _type on writes); every other version
-// emits the same request, so snapshots collapse to es6 / es7-9.os1-3.
-
-// newDataClient builds a real es.Client for the given backend version, pointed at
-// the recording server. Version is set explicitly so no ping is issued, and the
-// bulk processor only flushes on Close.
-func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
-	cfg := &config.Configuration{
-		Servers:            []string{url},
-		Version:            uint(version),
-		DisableHealthCheck: true,
-		LogLevel:           "info",
-		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
-	}
-	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
-	require.NoError(t, err)
-	return client
-}
-
 // dataRecorder answers each request with an empty-but-valid response for its
 // endpoint (search or bulk), so operations complete without error while the
 // request is captured.
 func dataRecorder() *snapshottest.Recorder {
 	return snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		switch {
-		case strings.HasSuffix(r.URL.Path, "_bulk"):
+		if strings.HasSuffix(r.URL.Path, "_bulk") {
 			w.Write([]byte(`{"took":0,"errors":false,"items":[]}`))
-		default:
-			w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
+			return
 		}
+		w.Write([]byte(`{"took":0,"hits":{"total":0,"hits":[]}}`))
 	})
 }
 
+// TestDependencyStoreRequestSnapshots asserts the wire format of the dependency
+// read and write paths over esclient: get_dependencies (a _search with a timestamp
+// range) and write_dependencies (a bulk write). Every supported version emits the
+// same request, so the snapshots collapse to a single all-versions file.
 func TestDependencyStoreRequestSnapshots(t *testing.T) {
 	fixedTime := time.Date(2020, time.January, 2, 3, 4, 5, 0, time.UTC)
 	const lookback = time.Hour
@@ -318,18 +275,18 @@ func TestDependencyStoreRequestSnapshots(t *testing.T) {
 		rec := dataRecorder()
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
-		client := newDataClient(t, server.URL, version)
-		// The test closes the client inline (below) to flush the bulk request; this
-		// cleanup is a fallback for when an earlier assertion aborts first, so the
-		// client is never closed twice.
-		clientClosed := false
-		t.Cleanup(func() {
-			if !clientClosed {
-				_ = client.Close()
-			}
-		})
+
+		// One real esclient over the recording server backs both the search path and
+		// the bulk writer. Version is pinned so the client skips its probe; the single
+		// document buffers until Close, which flushes the one bulk request we record.
+		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
+		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
+		require.NoError(t, err)
+		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
 		store := NewDependencyStore(Params{
-			Client:      func() es.Client { return client },
+			Searcher:    esclient.SearchClient{Client: esClient},
+			BulkWriter:  bulkWriter,
 			Logger:      zap.NewNop(),
 			MaxDocCount: defaultMaxDocCount,
 			Rotation:    periodicRotation("", "2006-01-02"),
@@ -337,14 +294,13 @@ func TestDependencyStoreRequestSnapshots(t *testing.T) {
 		ctx := context.Background()
 
 		rec.Reset()
-		_, err := store.GetDependencies(ctx, fixedTime, lookback)
+		_, err = store.GetDependencies(ctx, fixedTime, lookback)
 		require.NoError(t, err)
 		getDependencies[version] = rec.Marshal(t)
 
 		rec.Reset()
 		require.NoError(t, store.WriteDependencies(fixedTime, dependencies))
-		require.NoError(t, client.Close()) // flushes the bulk request
-		clientClosed = true
+		require.NoError(t, bulkWriter.Close()) // flushes the bulk request
 		writeDependencies[version] = rec.Marshal(t)
 	}
 

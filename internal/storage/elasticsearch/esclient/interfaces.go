@@ -17,14 +17,22 @@ type IndexAPI interface {
 	CreateIndex(ctx context.Context, index string) error
 	CreateAlias(ctx context.Context, aliases []Alias) error
 	DeleteAlias(ctx context.Context, aliases []Alias) error
-	CreateTemplate(ctx context.Context, template, name string) error
+	CreateTemplate(ctx context.Context, name string, render func(es.BackendVersion) (string, error)) error
 	Rollover(ctx context.Context, rolloverTarget string, conditions map[string]any) error
-}
-
-type ClusterAPI interface {
-	Version(ctx context.Context) (es.BackendVersion, error)
 }
 
 type IndexManagementLifecycleAPI interface {
 	Exists(ctx context.Context, name string) (bool, error)
+}
+
+// Searcher runs searches against Elasticsearch/OpenSearch.
+type Searcher interface {
+	Search(ctx context.Context, indices []string, req SearchRequest) (*SearchResponse, error)
+}
+
+// BulkWriter enqueues documents for writing via the bulk API. It is the narrow
+// surface callers depend on; the concrete indexer's lifecycle (Close) is owned
+// by whoever constructs it (the factory).
+type BulkWriter interface {
+	Add(item BulkItem)
 }

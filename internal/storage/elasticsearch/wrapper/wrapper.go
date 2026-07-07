@@ -76,10 +76,8 @@ func (c ClientWrapper) Index() es.IndexService {
 
 // Search calls this function to internal client.
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
-	searchService := c.client.Search(indices...)
-	if !c.version.SupportsTypedIndices() {
-		searchService = searchService.RestTotalHitsAsInt(true)
-	}
+	// ES7+/OpenSearch report total hits as an object unless asked for an int.
+	searchService := c.client.Search(indices...).RestTotalHitsAsInt(true)
 	return WrapESSearchService(searchService)
 }
 
@@ -215,14 +213,6 @@ func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *ela
 // Index calls this function to internal service.
 func (i IndexServiceWrapper) Index(index string) es.IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService, i.version)
-}
-
-// Type calls this function to internal service.
-func (i IndexServiceWrapper) Type(typ string) es.IndexService {
-	if !i.version.SupportsTypedIndices() {
-		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.version)
-	}
-	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.version)
 }
 
 // OpType sets the bulk operation type on the request.

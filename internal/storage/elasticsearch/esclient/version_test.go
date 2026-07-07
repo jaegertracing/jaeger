@@ -12,8 +12,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
@@ -147,26 +150,6 @@ const elasticsearch8 = `
   }
 `
 
-const elasticsearch6 = `
-{
-	"name" : "elasticsearch-0",
-	"cluster_name" : "clustername",
-	"cluster_uuid" : "HUtdg7bRTomSFaOk7Wzt8w",
-	"version" : {
-	  "number" : "6.8.0",
-	  "build_flavor" : "default",
-	  "build_type" : "docker",
-	  "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
-	  "build_date" : "2020-02-29T00:15:25.529771Z",
-	  "build_snapshot" : false,
-	  "lucene_version" : "8.4.0",
-	  "minimum_wire_compatibility_version" : "6.8.0",
-	  "minimum_index_compatibility_version" : "6.0.0-beta1"
-	},
-	"tagline" : "You Know, for Search"
-  }
-`
-
 func TestVersion(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -175,12 +158,6 @@ func TestVersion(t *testing.T) {
 		errContains    string
 		expectedResult es.BackendVersion
 	}{
-		{
-			name:           "success with elasticsearch 6",
-			responseCode:   http.StatusOK,
-			response:       elasticsearch6,
-			expectedResult: es.ElasticV6,
-		},
 		{
 			name:           "success with elasticsearch 7",
 			responseCode:   http.StatusOK,
@@ -240,26 +217,26 @@ func TestVersion(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.Equal(t, http.MethodGet, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
-			c := &ClusterClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
+			// Version 0 (unset) makes NewClient probe the cluster (GET /) and
+			// resolve the version at construction.
+			c, err := NewClient(context.Background(), &config.Configuration{
+				Servers: []string{testServer.URL},
+				Authentication: config.Authentication{
+					BasicAuthentication: configoptional.Some(config.BasicAuthentication{Username: "user", Password: "pass"}),
 				},
-			}
-			result, err := c.Version(context.Background())
+			}, zap.NewNop(), nil)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, test.expectedResult, result)
+			assert.Equal(t, test.expectedResult, c.version)
 		})
 	}
 }
@@ -269,7 +246,6 @@ func TestVersion(t *testing.T) {
 // CreateTemplate probe in index_client_test.go).
 func versionResponse(v es.BackendVersion) string {
 	number := map[es.BackendVersion]string{
-		es.ElasticV6:   "6.8.0",
 		es.ElasticV7:   "7.10.2",
 		es.ElasticV8:   "8.0.0",
 		es.ElasticV9:   "9.0.0",
@@ -295,8 +271,25 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
-	c := &ClusterClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
-	_, err := c.Version(context.Background())
+	_, err := NewClient(context.Background(), &config.Configuration{Servers: []string{server.URL}}, zap.NewNop(), nil)
 	require.NoError(t, err)
 	rec.Assert(t, "testdata/version")
+}
+
+// TestResolveVersionHonorsConfigured verifies that an explicit configured
+// version is returned without probing the cluster.
+func TestResolveVersionHonorsConfigured(t *testing.T) {
+	var pinged bool
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		pinged = true
+	}))
+	defer server.Close()
+
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{server.URL},
+		Version: uint(es.OpenSearch2),
+	}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, es.OpenSearch2, c.version)
+	assert.False(t, pinged, "configured version must not trigger a cluster probe")
 }

@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
@@ -86,6 +87,7 @@ var exampleESSpan = []byte(
 
 type spanReaderTest struct {
 	client      *mocks.Client
+	searcher    *esclientmocks.Searcher
 	logger      *zap.Logger
 	logBuffer   *testutils.Buffer
 	traceBuffer *tracetest.InMemoryExporter
@@ -106,16 +108,19 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 
 func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
 	r := &spanReaderTest{
 		client:      client,
+		searcher:    searcher,
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            func() es.Client { return client },
+			Searcher:          searcher,
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
@@ -131,6 +136,7 @@ func withSpanReader(t *testing.T, fn func(r *spanReaderTest)) {
 
 func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string, fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
+	searcher := esclientmocks.NewSearcher(t)
 	tracer, exp, closer := tracerProvider(t)
 	defer closer()
 	logger, logBuffer := testutils.NewLogger()
@@ -150,11 +156,13 @@ func withArchiveSpanReader(t *testing.T, readAlias bool, readAliasSuffix string,
 
 	r := &spanReaderTest{
 		client:      client,
+		searcher:    searcher,
 		logger:      logger,
 		logBuffer:   logBuffer,
 		traceBuffer: exp,
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            func() es.Client { return client },
+			Searcher:          searcher,
 			Logger:            zap.NewNop(),
 			Tracer:            tracer.Tracer("test"),
 			MaxSpanAge:        0,
@@ -895,18 +903,10 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 }
 
 func TestFindTraceIDs(t *testing.T) {
-	testCases := []struct {
-		aggregrationID string
-	}{
-		{traceIDAggregation},
-		{servicesAggregation},
-		{operationsAggregation},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.aggregrationID, func(t *testing.T) {
-			testGet(testCase.aggregrationID, t)
-		})
-	}
+	// Services/operations reads have moved to the esclient searcher and are
+	// covered by TestSpanReader_GetServices/GetOperations; findTraceIDs still
+	// runs over the olivere client exercised by testGet.
+	testGet(traceIDAggregation, t)
 }
 
 func TestReturnSearchFunc_DefaultCase(t *testing.T) {

@@ -119,13 +119,13 @@ func TestParseVariant(t *testing.T) {
 		ok          bool
 	}{
 		{name: "get_services.json", allVersions: true, ok: true},
-		{name: "get_services.es6.json", ranges: []backendRange{{"es", 6, 6}}, ok: true},
-		{name: "get_services.es6-7.json", ranges: []backendRange{{"es", 6, 7}}, ok: true},
+		{name: "get_services.es7.json", ranges: []backendRange{{"es", 7, 7}}, ok: true},
+		{name: "get_services.es7-8.json", ranges: []backendRange{{"es", 7, 8}}, ok: true},
 		{name: "get_services.os1-3.json", ranges: []backendRange{{"os", 1, 3}}, ok: true},
 		{name: "get_services.es7-9.os1-3.json", ranges: []backendRange{{"es", 7, 9}, {"os", 1, 3}}, ok: true},
-		{name: "get_operations.es6.json", ok: false},    // different subject
+		{name: "get_operations.es7.json", ok: false},    // different subject
 		{name: "get_services.es.json", ok: false},       // missing major
-		{name: "get_services.es6..os1.json", ok: false}, // empty range token
+		{name: "get_services.es7..os1.json", ok: false}, // empty range token
 		{name: "get_services.txt", ok: false},
 	}
 	for _, tt := range tests {
@@ -146,7 +146,7 @@ func TestBackendKey(t *testing.T) {
 		backend string
 		major   int
 	}{
-		{es.ElasticV6, "es", 6},
+		{es.ElasticV7, "es", 7},
 		{es.ElasticV9, "es", 9},
 		{es.OpenSearch1, "os", 1},
 		{es.OpenSearch3, "os", 3},
@@ -163,10 +163,12 @@ func TestBackendKey(t *testing.T) {
 func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
-	// ES6 differs; every other version emits the same "REST" wire format.
+	// Contrived content (not a real wire difference): ES7 emits a distinct
+	// payload while every other version emits an identical one, so regeneration
+	// must produce two files — es7.json plus a merged es8-9.os1-3.json —
+	// exercising the range-collapse logic.
 	content := map[es.BackendVersion]string{
-		es.ElasticV6:   "ES6",
-		es.ElasticV7:   "REST",
+		es.ElasticV7:   "ES7",
 		es.ElasticV8:   "REST",
 		es.ElasticV9:   "REST",
 		es.OpenSearch1: "REST",
@@ -180,10 +182,10 @@ func TestAssertByVersion_RegenerateCollapsesRanges(t *testing.T) {
 
 	files := listJSON(t, dir)
 	assert.ElementsMatch(t, []string{
-		"get_services.es6.json", "get_services.es7-9.os1-3.json",
+		"get_services.es7.json", "get_services.es8-9.os1-3.json",
 	}, files, "byte-identical backends merge into one file")
 
-	got, err := os.ReadFile(filepath.Join(dir, "get_services.es7-9.os1-3.json"))
+	got, err := os.ReadFile(filepath.Join(dir, "get_services.es8-9.os1-3.json"))
 	require.NoError(t, err)
 	assert.Equal(t, "REST\n", string(got))
 
@@ -215,7 +217,7 @@ func TestAssertByVersion_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "get_services")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es8.json"), []byte("OLD\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_operations.es6.json"), []byte("other\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_operations.es7.json"), []byte("other\n"), 0o644))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "keep.txt"), []byte("unrelated"), 0o644))
 
 	withRegenerate(t, true, func() {
@@ -223,7 +225,7 @@ func TestAssertByVersion_RegeneratePrunesStaleAndIsSubjectScoped(t *testing.T) {
 	})
 
 	files := listJSON(t, dir)
-	assert.ElementsMatch(t, []string{"get_services.es7.json", "get_operations.es6.json"}, files,
+	assert.ElementsMatch(t, []string{"get_services.es7.json", "get_operations.es7.json"}, files,
 		"stale get_services.es8.json pruned; other subjects untouched")
 	_, err := os.Stat(filepath.Join(dir, "keep.txt"))
 	assert.NoError(t, err, "unrelated files untouched")
@@ -251,7 +253,7 @@ func TestAssertPrunesAndReportsOrphanVariants(t *testing.T) {
 	dir := t.TempDir()
 	prefix := filepath.Join(dir, "alias_exists")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.json"), []byte("SAME\n"), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.es6.json"), []byte("stale\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "alias_exists.es7.json"), []byte("stale\n"), 0o644))
 
 	// Assert mode flags the stray per-version file committed beside the bare one.
 	tb := &recordingTB{TB: t}
@@ -267,13 +269,13 @@ func TestAssertPrunesAndReportsOrphanVariants(t *testing.T) {
 func TestFindOrphans(t *testing.T) {
 	dir := t.TempDir()
 	for _, name := range []string{
-		"get_services.es6.json", "get_services.es7-9.json", "get_services.os1-3.json",
-		"get_services.os5.json", "get_operations.es6.json", "readme.md",
+		"get_services.es7.json", "get_services.es7-9.json", "get_services.os1-3.json",
+		"get_services.os5.json", "get_operations.es7.json", "readme.md",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("x\n"), 0o644))
 	}
 	used := map[string]bool{
-		"get_services.es6.json": true, "get_services.es7-9.json": true, "get_services.os1-3.json": true,
+		"get_services.es7.json": true, "get_services.es7-9.json": true, "get_services.os1-3.json": true,
 	}
 	// os5 is an unclaimed get_services snapshot; get_operations/readme belong to other subjects.
 	assert.Equal(t, []string{"get_services.os5.json"}, findOrphans(t, dir, "get_services", used))
@@ -394,7 +396,7 @@ func TestAssertByVersionReportsMissingSnapshot(t *testing.T) {
 
 func TestAssertNoOrphansReports(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es6.json"), []byte("x\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "get_services.es7.json"), []byte("x\n"), 0o644))
 	tb := &recordingTB{TB: t}
 	assertNoOrphans(tb, dir, "get_services", map[string]bool{})
 	require.Len(t, tb.errors, 1)

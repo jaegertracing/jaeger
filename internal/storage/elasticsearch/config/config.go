@@ -18,6 +18,8 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 const (
@@ -468,6 +470,12 @@ func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	if err != nil {
 		return err
+	}
+
+	// A non-zero Version is an explicit backend override; reject unsupported
+	// values so they don't silently become an Unknown version. 0 means auto-detect.
+	if c.Version != 0 && !es.IsSupportedVersion(c.Version) {
+		return fmt.Errorf("unsupported version %d: set 0 to auto-detect, or use 7/8/9 (Elasticsearch) or 101/102/103 (OpenSearch 1/2/3)", c.Version)
 	}
 
 	// Validate rotation config for each index type

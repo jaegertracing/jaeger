@@ -5,11 +5,9 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -59,24 +57,12 @@ func main() {
 			}
 
 			ctx := context.Background()
-			tlscfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
+			esClient, err := app.NewESClient(ctx, args[1], cfg, logger)
 			if err != nil {
-				return fmt.Errorf("error loading tls config : %w", err)
-			}
-
-			c := &http.Client{
-				Timeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					TLSClientConfig: tlscfg,
-				},
+				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
 			i := esclient.IndicesClient{
-				Client: esclient.Client{
-					Endpoint:  args[1],
-					Client:    c,
-					BasicAuth: basicAuth(cfg.Username, cfg.Password),
-				},
+				Client:                 esClient,
 				MasterTimeoutSeconds:   cfg.MasterNodeTimeoutSeconds,
 				IgnoreUnavailableIndex: true,
 			}
@@ -118,11 +104,4 @@ func main() {
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func basicAuth(username, password string) string {
-	if username == "" || password == "" {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 }
