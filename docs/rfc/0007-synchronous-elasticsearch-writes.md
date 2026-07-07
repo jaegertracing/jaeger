@@ -71,7 +71,22 @@ There are actually **two** independent commit-before-durable gaps, and both must
 
 The offset is already gone. This converts any transient backend problem into **permanent, invisible trace loss**, and defeats the entire point of buffering traces in Kafka. The same gap removes backpressure: the pipeline cannot slow down or apply retry because it never learns the write failed. This RFC fixes gap (2); the required `message_marking.after: true` for gap (1) is an operator configuration this RFC documents (§4.5) rather than a code change.
 
-### 1.3 Existing attempts
+### 1.3 How we got here: ES writes were synchronous first
+
+This is not a new capability so much as a return to the original design, made possible again by the v2 pipeline. The ES writer **started synchronous**, exactly like Cassandra:
+
+- **v1 storage interface forced one span per write.** The `spanstore.Writer` interface was `WriteSpan(span *model.Span) error` — a single span, no batch method (introduced in [PR #47](https://github.com/jaegertracing/jaeger/pull/47), `db6587b9`, 2017-02-15; today `internal/storage/v1/api/spanstore/interface.go` with a `ctx`). Any batching therefore had to be hidden *below* the interface.
+- **The first ES writer was synchronous, one document per HTTP request.** [PR #200](https://github.com/jaegertracing/jaeger/pull/200) (`f3717836`, 2017-06-19) added `plugin/storage/es/spanstore/writer.go`, whose `WriteSpan` issued blocking `.Do(s.ctx)` calls per document and **returned the write error synchronously** — the same shape Cassandra still has.
+- **It was replaced wholesale by the async bulk processor for throughput.** [PR #656 "Use elasticsearch bulk API"](https://github.com/jaegertracing/jaeger/pull/656) (`e52ecffb`, 2018-01-23, Pavol Loffay) swapped the per-span `.Do(s.ctx)` for `.Add()` into a shared background `elastic.BulkProcessor`, and introduced the `.bulk.*` knobs (later the `BulkProcessing` struct, [PR #6090](https://github.com/jaegertracing/jaeger/pull/6090)). The exact diff:
+  ```diff
+  - _, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(&elasticSpan).Do(s.ctx)
+  + s.client.Index().Index(indexName).Type(spanType).BodyJson(&elasticSpan).Add()
+  ```
+  `writeSpan`/`writeService` lost their error returns in that commit — because with a one-span interface, issuing an HTTP round-trip per span is far too slow at collector scale, and the only way to batch under `WriteSpan(one span)` was a buffer with the outcome reported asynchronously. **The async model was the correct answer to the v1 constraint.**
+
+The v2 `tracestore.Writer` interface removes that constraint — `WriteTraces(ctx, ptrace.Traces)` already hands the writer a whole **batch**. Synchronous batched writes are now expressible without one-request-per-span; the historical reason for going async no longer binds. (M6, [PR #8944](https://github.com/jaegertracing/jaeger/pull/8944), later swapped the olivere processor for an owned `esutil.BulkIndexer`, but preserved the async, fire-and-forget shape — §2.4.)
+
+### 1.4 Existing attempts
 
 - **[PR #8281](https://github.com/jaegertracing/jaeger/pull/8281)** (closed) — replaced the async processor in the v2 path with a synchronous `client.Bulk().Do(ctx)` plus `resp.Errors` checking. The right direction, closed pending a design decision.
 - **[PR #8651](https://github.com/jaegertracing/jaeger/pull/8651)** (open, draft) — "sticky error": record the last async bulk error behind an `atomic.Pointer` and return it on the *next* `WriteTraces`. A minimal patch that closes the contract gap in the loosest sense but attributes the error to the wrong batch and still commits the failing batch's offset.
@@ -118,11 +133,11 @@ Post-M6, the `esutil.BulkIndexer` is configured from the same `bulk_processing` 
 
 ## 3. Design options
 
-Goal: `WriteTraces` returns a truthful error for the batch it was given, and (on Kafka) the offset commits only after that batch is durable — without collapsing throughput.
+Goal: **make it *possible*** for `WriteTraces` to return a truthful error for the batch it was given, so that (on Kafka) the offset commits only after that batch is durable — without collapsing throughput. Note "possible", not "always on": async writing is a legitimate mode for the unbatched direct-ingest path (§3.1), so this is about *adding* a synchronous option and choosing sensible defaults, not deleting the async one.
 
 The options:
 
-- **A. Async status quo (post-M6).** Leave the write path as it is: `WriteSpan` enqueues into the async `esutil.BulkIndexer` and `WriteTraces` returns `nil` immediately; failures land in `OnFailure` callbacks that only log and count. This is the current behavior and the bug — it is included as the baseline.
+- **A. Async status quo (post-M6).** Leave the write path as it is: `WriteSpan` enqueues into the async `esutil.BulkIndexer` and `WriteTraces` returns `nil` immediately; failures land in `OnFailure` callbacks that only log and count. This is today's behavior. It is the *bug* for the Kafka-buffered topology (silent loss, §1.2), but — importantly — it is also the *right default* for direct, unbatched ingest (§3.1), which is why it is a real option and not merely a strawman baseline.
 - **B. Sticky-error ([#8651](https://github.com/jaegertracing/jaeger/pull/8651)).** Keep the async indexer, but record the most recent bulk error behind an `atomic.Pointer` and return it from the *next* `WriteTraces`. A minimal patch that surfaces *some* error eventually, without changing the async model.
 - **C. Per-call buffer drain.** Keep the async indexer but force a synchronous flush of the shared buffer at the end of every `WriteTraces`, then inspect results. Spec-conformant in principle, but it flushes the whole shared buffer per call.
 - **D. Synchronous batch write (recommended).** Replace the per-span enqueue with one synchronous, size-bounded `_bulk` per batch: assemble the batch's documents, issue a blocking round-trip, check item-level results, and return a real error (§4). Batching moves to a blocking pipeline batcher (§4.2). This is the model the reporter proposed.
@@ -151,7 +166,19 @@ Legend / footnotes:
 - ² A per-call synchronous drain of the shared buffer would serialize every caller onto one flush and destroy coalescing. Worse post-M6: `esutil.BulkIndexer` exposes **no** per-call flush — only `Close()` (a full shutdown-flush). Approximating "drain now" means closing and recreating the indexer per batch, which is absurd. Option C is effectively unavailable on the current library, not merely slow.
 - ³ Efficiency now depends on the **pipeline** delivering appropriately sized batches (§4.2). With a well-sized batch it is one efficient bulk per batch; with a firehose of tiny batches it degrades to many small bulks (mitigated by upstream batching, which already exists).
 
-**Option D is recommended.** It is the only option that restores both the contract *and* Kafka at-least-once with correct attribution, and it is the model the reporter proposed. C is rejected (throughput). B is a stop-gap that does not fix the data-loss bug for the failing batch. A is the bug.
+The matrix scores against the *Kafka at-least-once* goal. Read that way: **B** is a stop-gap that never withholds the failing batch's offset; **C** is spec-conformant but destroys batching and is anyway unimplementable on `esutil` (footnote 2); **D** is the only option that restores the contract *and* at-least-once with correct attribution, and is the model the reporter proposed. **A** scores red across the correctness rows — but only because those rows encode a goal that does not apply to every topology (§3.1).
+
+So the recommendation is **not simply "pick D"** — it is:
+
+1. **Implement D.** Build the synchronous write primitive (§4, §5); without it the at-least-once topology is impossible.
+2. **Recover A's throughput with a batcher, not with async.** A's one virtue is coalescing many spans into few `_bulk` requests. That virtue is *not* exclusive to async: **D + a blocking batcher** (§4.2) — or even D behind the plain `batch` processor, if one is willing to trade the durability guarantee for raw batching — reproduces A's request shape while keeping (or knowingly dropping) the error signal. Choosing D therefore does not cost throughput wherever batching exists.
+3. **Keep A as the default for now; phase it toward D via a feature gate.** Async stays the shipped default so no existing deployment changes behavior, gated by a feature gate (e.g. `es.write.synchronous`) that flips the default over the standard Jaeger alpha→beta→stable lifecycle. This gives operators time to add the required pipeline shape (§4.5) before sync becomes default.
+
+### 3.1 When async is the *right* choice, not just legacy
+
+Async writing is not merely the old behavior to be tolerated until removed — it is the correct mode for one real topology: **direct, unbatched ingest**. When spans arrive over TCP straight into the collector (OTLP/Jaeger receivers → storage, no Kafka), there is no natural batch boundary and no offset to protect. Forcing a synchronous `_bulk` per inbound request would mean either tiny, inefficient bulks or a blocking batcher that adds `flush_timeout` latency to every request for a guarantee (at-least-once against a durable log) that this topology does not even have — the client, not a Kafka offset, owns retry. There, fire-and-forget client-side batching is exactly right.
+
+Synchronous writes earn their cost specifically where there **is** a durable buffer to be honest with — the **Kafka ingester** — and where losing an ack means losing data that Kafka still believes was delivered. This is why the two modes coexist: `async` for unbatched direct ingest, `sync` for Kafka-buffered ingest. The feature gate governs the *default*; whether async is ever fully removed (vs. retained as a non-default option for the direct-ingest path) is left open (§7).
 
 ---
 
@@ -244,6 +271,8 @@ elasticsearch:
 - `async` (default): today's `esutil.BulkIndexer` behavior (post-M6), unchanged — fully backward compatible.
 - `sync`: §4.1. `max_bytes` is reused as the safety-net chunk ceiling (§4.4); `flush_interval` and `workers` are inert (each write is one blocking round-trip).
 
+The **default** value of `write_mode` (when unset) is governed by a feature gate — e.g. `es.write.synchronous` — following Jaeger's standard lifecycle: **alpha** (default `async`, opt into `sync`) → **beta** (default `sync`, opt out to `async`) → **stable**. An explicit `write_mode` in config always wins over the gate, so operators can pin either mode regardless of lifecycle stage (§3, point 3).
+
 Second — and this is the part operators must get right — the **pipeline** must batch with a *blocking* batcher and must **not** use the fire-and-forget `batch` processor (§4.2). The recommended shape for the Kafka ingester:
 
 ```yaml
@@ -313,10 +342,10 @@ There is no conflict; there is shared surface. Treat "synchronous write mode" as
 
 ## 6. Migration & backward compatibility
 
-- **Default unchanged.** `write_mode: async` remains the default; existing deployments see no behavior change.
-- **Opt-in.** Operators set `write_mode: sync` **together with** a blocking pipeline batcher and removal of the fire-and-forget `batch` processor (§4.2/§4.5). Correctness improves (no acked-but-lost data); throughput becomes a function of the batcher's size settings.
+- **Default unchanged at introduction.** `write_mode: async` remains the default in the alpha stage of the `es.write.synchronous` feature gate (§4.5); existing deployments see no behavior change.
+- **Opt-in, then default-flip via feature gate.** Operators opt into `write_mode: sync` **together with** `message_marking.after: true` and a blocking pipeline batcher, removing the fire-and-forget `batch` processor (§4.2/§4.5). Over the gate's alpha→beta→stable lifecycle the *default* moves to `sync`, giving operators a release window to adopt the pipeline shape before it becomes default.
 - **No schema/on-disk change.** Documents, indices, mappings, and read paths are identical. This is purely a write-*mechanism* change.
-- **Rollback.** Flip back to `write_mode: async`. No data migration.
+- **Rollback.** Set `write_mode: async` explicitly (overrides the gate). No data migration.
 
 ---
 
@@ -329,10 +358,13 @@ The blocking-and-fan-out semantics of `queue.wait_for_result` + `queue.batch` ar
 `write_mode: sync` with a fire-and-forget `batch` processor still in the pipeline silently defeats the guarantee (§4.5). Can the exporter detect this at startup and warn/fail? The exporter does not see the full pipeline graph, so detection may not be feasible from inside the component; the fallback is prominent documentation. Recommendation: investigate a collector-level check; ship docs regardless.
 
 **Q3 — Interface doc for `WriteTraces` async allowance.**
-Regardless of mode, the `tracestore.Writer` doc comment should state explicitly whether an implementation may be asynchronous. Today the comment implies synchronous semantics that only Cassandra/ClickHouse honor. Recommendation: document that `WriteTraces` **must** return write errors synchronously; `async` mode is a deliberate, documented deviation for throughput at the cost of the guarantee.
+The `tracestore.Writer` doc comment should state explicitly whether an implementation may be asynchronous. Today the comment implies synchronous semantics that only Cassandra/ClickHouse honor. Recommendation: document that a *conformant* `WriteTraces` returns write errors synchronously, and that `async` mode is a deliberate, documented deviation trading the guarantee for throughput on unbatched ingest (§3.1) — not an accident.
 
 **Q4 — Deterministic `_id` for span dedup?**
 Service documents already use a deterministic hash `_id` (§4.3); spans do not. Adopting the same pattern for spans (`traceID+spanID+startTime`, `op_type=create`) would give at-least-once span dedup and make synchronous retries clean. Recommendation: keep out of scope here; track with RFC 0004's identical open question to avoid coupling two decisions. Not blocking for this RFC.
+
+**Q5 — Is `async` ever removed, or retained for direct ingest?**
+The feature gate flips the *default* to `sync`, but async remains the better fit for unbatched direct ingest (§3.1). Two end-states: (a) at "stable", remove async entirely and require the blocking batcher even for direct ingest (accepting its `flush_timeout` latency); or (b) keep async as a permanent non-default option for the collector→storage path, only deprecating it for the Kafka ingester. Recommendation: decide at the beta→stable boundary once operational data exists; lean toward (b), since async is genuinely correct for that topology.
 
 ---
 
@@ -342,7 +374,7 @@ Each step is independently shippable and guarded by unit + ES/OS integration tes
 
 1. **Writer contract + core API.** Add `core.Writer.WriteSpans(ctx, []span) error`; keep `WriteSpan` for the async path. Update the `tracestore.Writer` doc comment (Q3). *Exit:* Cassandra/ClickHouse parity of intent documented; no behavior change yet.
 2. **Synchronous bulk primitive.** Add a new blocking bulk method on `esclient` (peer of M6's async `BulkWriter`, over the same transport — §5): one `_bulk` round-trip, size-bounded by `max_bytes`, returning transport + item-level errors from 0006's owned response types. *Exit:* byte-cap + item-error propagation proven by unit test.
-3. **`write_mode` config.** Add `write_mode: async|sync` (default `async`), reuse `max_bytes` as chunk cap. *Exit:* config parse/validate + defaults tests.
+3. **`write_mode` config + feature gate.** Add `write_mode: async|sync` (explicit wins) and the `es.write.synchronous` feature gate governing the unset default (alpha: `async` — §4.5, §6); reuse `max_bytes` as chunk cap. *Exit:* config parse/validate + defaults + gate tests.
 4. **Wire sync path.** `TraceWriter.WriteTraces` → `WriteSpans` → synchronous bulk; append service/operation docs into the same request; update the service cache only after success (§4.3). *Exit:* `WriteTraces` returns real errors; integration test asserts a failing ES rejects the batch and the error propagates (and, on the ingester, the Kafka offset is **not** committed).
 5. **Blocking batcher (config, no new code).** Provide/validate the ingester pipeline shape: `queue.wait_for_result: true` + `queue.batch` on the storage exporter, the pipeline `batch` processor removed, and the Kafka receiver's `message_marking.after: true`. The `exporterhelper` fan-out/blocking is already proven by its own tests (§4.2), so this step is an example config + a Jaeger-side integration test, not a new component. *Exit:* an ingester config that nacks every message in a failed batch and advances no offset.
 6. **Ingester validation.** End-to-end test on the Kafka path with the sync writer + blocking batcher + `message_marking.after: true`: kill/reject ES mid-stream, assert no offset advance and full recovery on ES return (no data loss). *Exit:* at-least-once demonstrated end-to-end.
@@ -358,6 +390,8 @@ Each step is independently shippable and guarded by unit + ES/OS integration tes
 - [PR #8651 — surface async bulk-write errors (draft)](https://github.com/jaegertracing/jaeger/pull/8651)
 - [Issue #2192 — unbounded bulk memory / 413](https://github.com/jaegertracing/jaeger/issues/2192)
 - [Issue #7612 — Replace olivere/elastic driver](https://github.com/jaegertracing/jaeger/issues/7612)
+- **History:** [PR #47 — v1 `spanstore.Writer` interface (`WriteSpan`, one span)](https://github.com/jaegertracing/jaeger/pull/47) (`db6587b9`, 2017-02-15) · [PR #200 — original synchronous ES writer](https://github.com/jaegertracing/jaeger/pull/200) (`f3717836`, 2017-06-19) · [PR #656 — "Use elasticsearch bulk API" (the sync→async switch)](https://github.com/jaegertracing/jaeger/pull/656) (`e52ecffb`, 2018-01-23) · [PR #6090 — `BulkProcessing` config struct](https://github.com/jaegertracing/jaeger/pull/6090) · [PR #8944 — M6, owned `esutil.BulkIndexer`](https://github.com/jaegertracing/jaeger/pull/8944)
+- [Cassandra v2 trace writer (`internal/storage/v2/cassandra/tracestore/writer.go`) — synchronous per-span, `errors.Join`](../../internal/storage/v2/cassandra/tracestore/writer.go)
 - [RFC 0004 — Data Streams](./0004-elasticsearch-data-streams.md)
 - [RFC 0006 — Unified Elasticsearch/OpenSearch Client](./0006-unified-elasticsearch-client.md)
 - [Elasticsearch translog & durability](https://www.elastic.co/docs/reference/elasticsearch/index-settings/translog)
