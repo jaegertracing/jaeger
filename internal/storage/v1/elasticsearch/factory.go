@@ -199,6 +199,8 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
 		Client:      f.getClient,
+		Searcher:    f.searcher,
+		BulkWriter:  f.bulkWriter,
 		Logger:      f.logger,
 		MaxDocCount: f.config.MaxDocCount,
 		Rotation:    f.buildDependencyRotation(),
