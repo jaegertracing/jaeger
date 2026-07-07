@@ -526,12 +526,19 @@ without changing the API surface.
 When a client needs to know upfront whether pagination is supported (e.g., the UI
 deciding whether to show a "load more" button), two mechanisms are available:
 
-1. **Implicit:** attempt the first query; if `nextPageToken` is absent on a full
-   page (`len(data) == limit`), pagination is not supported.
+1. **Implicit:** the only reliable client-side signal is the **presence of
+   `nextPageToken`** in the response. A missing or empty token means either "no
+   more pages" or "this backend does not support pagination" — the two cases are
+   intentionally indistinguishable to callers. Clients MUST NOT infer pagination
+   support from `len(data) == limit`; that condition is neither necessary nor
+   sufficient.
 2. **Explicit:** a future `/api/capabilities` endpoint (out of scope for this RFC)
-   can advertise `pagination: true/false`.
+   can advertise `pagination: true/false` for backends that want to signal support
+   upfront, allowing UIs to show or hide the "load more" button before the first
+   query.
 
-For the initial implementation, the implicit mechanism is sufficient.
+For the initial implementation, showing "load more" only when `nextPageToken` is
+present in the response is sufficient and correct.
 
 ---
 
