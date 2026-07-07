@@ -234,6 +234,30 @@ func TestMultiSearchMalformedResponse(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestMultiSearchEmptyIndicesOmitsIndexHeader(t *testing.T) {
+	var gotBody []byte
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Write([]byte(`{"responses":[]}`))
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	_, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{{Search: SearchRequest{Size: 1}}})
+	require.NoError(t, err)
+	header := strings.SplitN(string(gotBody), "\n", 2)[0]
+	assert.JSONEq(t, `{"ignore_unavailable":true}`, header)
+}
+
+func TestMultiSearchTransportError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	_, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{{Indices: []string{"idx"}}})
+	require.Error(t, err)
+}
+
 func TestTotalHitsUnmarshalBothForms(t *testing.T) {
 	var intForm TotalHits
 	require.NoError(t, json.Unmarshal([]byte(`5`), &intForm))

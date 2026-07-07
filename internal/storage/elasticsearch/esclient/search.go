@@ -119,12 +119,6 @@ type AggregationResult struct {
 	Buckets []AggregationBucket `json:"buckets"`
 }
 
-// AggregationBucket is a single bucket: its key and document count.
-type AggregationBucket struct {
-	Key      string `json:"key"`
-	DocCount int    `json:"doc_count"`
-}
-
 // SearchClient is the data-plane search API over the shared transport, analogous
 // to IndicesClient/ILMClient on the admin plane.
 type SearchClient struct {
