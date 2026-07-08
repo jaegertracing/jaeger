@@ -104,6 +104,9 @@ This is desirable for multi-tenant clusters — e.g., a `prod@custom` template c
 
 Alternative considered: `jaeger-ds-span` (proposed in Google Doc). Rejected because the `-ds-` infix is non-standard and doesn't integrate with the `@custom` convention.
 
+> [!IMPORTANT]
+> **Index-discovery tooling must learn dot-notation.** The existing index-management code discovers Jaeger indices with the dash-notation wildcard `<prefix>jaeger-*` — see `esclient.IndicesClient.GetJaegerIndices` and its callers (`jaeger-es-index-cleaner`, `jaeger-es-rollover`). That pattern does **not** match the dot-notation data streams above (`<prefix>.jaeger.spans`) nor their hidden `.ds-*` backing indices, so any code that enumerates "all Jaeger indices" through it (cleanup/wipe paths, and the integration-test helpers that reuse `GetJaegerIndices`) will silently skip data-stream data. Implementing this RFC must update that discovery path (or add a data-stream-aware equivalent) so data streams and their backing indices are found; otherwise mixed-mode clusters and test teardown leak state. Tracked under #4708.
+
 ### 3.2 Index Template
 
 #### Background: Composable Index Templates
