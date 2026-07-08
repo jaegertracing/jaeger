@@ -100,7 +100,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.
 	// make sure ES is cleaned after test
 	defer cleanES(t, client, ilmPolicyName)
 	defer client.cleanTemplates(t, prefix)
-	createILMPolicy(t, client, version, ilmPolicyName)
+	PutRolloverLifecyclePolicy(t, client.ilm, ilmPolicyName)
 
 	if prefix != "" {
 		prefix += "-"
@@ -138,39 +138,6 @@ func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.
 	assert.ElementsMatch(t, indices, expected)
 	// Check rollover alias is write alias
 	assert.ElementsMatch(t, actualWriteAliases, expectedWriteAliases)
-}
-
-// createILMPolicy installs the lifecycle policy es-rollover requires. Only the
-// policy body is backend-specific (the ISM and ILM schemas differ); the esclient
-// picks the endpoint, so there is no endpoint branch here.
-func createILMPolicy(t *testing.T, client *esTestClient, version es.BackendVersion, policyName string) {
-	if version.IsOpenSearch() {
-		client.putLifecyclePolicy(t, policyName, `{
-			"policy": {
-				"description": "Jaeger ILM integration test policy",
-				"default_state": "hot",
-				"states": [{
-					"name": "hot",
-					"actions": [{"rollover": {"min_index_age": "1d"}}],
-					"transitions": []
-				}]
-			}
-		}`)
-	} else {
-		client.putLifecyclePolicy(t, policyName, `{
-			"policy": {
-				"phases": {
-					"hot": {
-						"min_age": "0ms",
-						"actions": {
-							"rollover": {"max_age": "1d"},
-							"set_priority": {"priority": 100}
-						}
-					}
-				}
-			}
-		}`)
-	}
 }
 
 func cleanES(t *testing.T, client *esTestClient, policyName string) {
