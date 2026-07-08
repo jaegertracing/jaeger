@@ -70,15 +70,6 @@ func (v BackendVersion) IsOpenSearch() bool {
 	return v >= OpenSearch1
 }
 
-// TemplateVersion returns the ES template version to use (7 or 8).
-// OpenSearch uses ES 7.x templates; ES 9+ uses ES 8.x templates.
-func (v BackendVersion) TemplateVersion() uint {
-	if v.IsOpenSearch() || v == ElasticV7 {
-		return 7
-	}
-	return 8
-}
-
 // UsesV8API returns true if the backend requires the v8 index template API.
 func (v BackendVersion) UsesV8API() bool {
 	return v == ElasticV8 || v == ElasticV9

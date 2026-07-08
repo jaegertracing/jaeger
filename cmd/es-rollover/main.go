@@ -48,6 +48,9 @@ func main() {
 				indicesClient := &esclient.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: initCfg.Timeout,
+					Indices:              initCfg.Indices,
+					UseILM:               initCfg.UseILM,
+					ILMPolicyName:        initCfg.ILMPolicyName,
 				}
 				ilmClient := &esclient.ILMClient{
 					Client: c,

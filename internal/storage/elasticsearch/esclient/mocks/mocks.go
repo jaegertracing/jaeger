@@ -12,7 +12,6 @@ package mocks
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -225,16 +224,16 @@ func (_c *IndexAPI_CreateIndex_Call) RunAndReturn(run func(ctx context.Context, 
 }
 
 // CreateTemplate provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) CreateTemplate(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error)) error {
-	ret := _mock.Called(ctx, name, render)
+func (_mock *IndexAPI) CreateTemplate(ctx context.Context, name string, mappingType esclient.MappingType) error {
+	ret := _mock.Called(ctx, name, mappingType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTemplate")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, func(elasticsearch.BackendVersion) (string, error)) error); ok {
-		r0 = returnFunc(ctx, name, render)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, esclient.MappingType) error); ok {
+		r0 = returnFunc(ctx, name, mappingType)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -249,12 +248,12 @@ type IndexAPI_CreateTemplate_Call struct {
 // CreateTemplate is a helper method to define mock.On call
 //   - ctx context.Context
 //   - name string
-//   - render func(elasticsearch.BackendVersion) (string, error)
-func (_e *IndexAPI_Expecter) CreateTemplate(ctx interface{}, name interface{}, render interface{}) *IndexAPI_CreateTemplate_Call {
-	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, name, render)}
+//   - mappingType esclient.MappingType
+func (_e *IndexAPI_Expecter) CreateTemplate(ctx interface{}, name interface{}, mappingType interface{}) *IndexAPI_CreateTemplate_Call {
+	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, name, mappingType)}
 }
 
-func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error))) *IndexAPI_CreateTemplate_Call {
+func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name string, mappingType esclient.MappingType)) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -264,9 +263,9 @@ func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name s
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 func(elasticsearch.BackendVersion) (string, error)
+		var arg2 esclient.MappingType
 		if args[2] != nil {
-			arg2 = args[2].(func(elasticsearch.BackendVersion) (string, error))
+			arg2 = args[2].(esclient.MappingType)
 		}
 		run(
 			arg0,
@@ -282,7 +281,7 @@ func (_c *IndexAPI_CreateTemplate_Call) Return(err error) *IndexAPI_CreateTempla
 	return _c
 }
 
-func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error)) error) *IndexAPI_CreateTemplate_Call {
+func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, name string, mappingType esclient.MappingType) error) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -196,112 +196,121 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
+// TestCreateTemplates drives the migrated data-plane path: createTemplates now
+// installs the span and service templates through the owned esclient, so the
+// test records the PUTs against a real server rather than asserting an olivere
+// fluent-call sequence.
 func TestCreateTemplates(t *testing.T) {
 	tests := []struct {
-		err                    string
-		spanTemplateService    func() *mocks.TemplateCreateService
-		serviceTemplateService func() *mocks.TemplateCreateService
-		indexPrefix            escfg.IndexPrefix
+		name      string
+		status    int
+		expectErr string
 	}{
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			indexPrefix: "test",
-		},
-		{
-			err: "span-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			err: "service-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
-				return tService
-			},
-		},
+		{name: "success", status: http.StatusOK},
+		{name: "template error", status: http.StatusInternalServerError, expectErr: "failed to create template"},
 	}
-
 	for _, test := range tests {
-		f := FactoryBase{}
-		mockClient := &mocks.Client{}
-		mockClient.On("GetVersion").Return(es.ElasticV7)
-		f.newLegacyClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
-			return mockClient, nil
-		}
-		f.logger = zaptest.NewLogger(t)
-		f.metricsFactory = metrics.NullFactory
-		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{
-			IndexPrefix: test.indexPrefix,
-			Spans: escfg.IndexOptions{
-				Shards:   3,
-				Replicas: new(int64(1)),
-				Priority: 10,
-			},
-			Services: escfg.IndexOptions{
-				Shards:   3,
-				Replicas: new(int64(1)),
-				Priority: 10,
-			},
-		}}
-		f.tracer = otel.GetTracerProvider()
-		client, err := f.newLegacyClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
-		require.NoError(t, err)
-		f.client = client
-		f.templateBuilder = es.TextTemplateBuilder{}
-		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
-		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
-		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
-		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
-		err = f.createTemplates(context.Background())
-		if test.err != "" {
-			require.ErrorContains(t, err, test.err)
-		} else {
+		t.Run(test.name, func(t *testing.T) {
+			var puts []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					puts = append(puts, r.URL.Path)
+					w.WriteHeader(test.status)
+					w.Write([]byte("{}"))
+					return
+				}
+				w.Write(mockEsServerResponse)
+			}))
+			defer server.Close()
+
+			esClient, err := esclient.NewClient(
+				context.Background(),
+				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)},
+				zap.NewNop(), nil,
+			)
 			require.NoError(t, err)
-		}
+			f := &FactoryBase{
+				esClient: esClient,
+				logger:   zap.NewNop(),
+				config: &escfg.Configuration{
+					CreateIndexTemplates: true,
+					Indices: escfg.Indices{
+						Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+						Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+					},
+				},
+			}
+			err = f.createTemplates(context.Background())
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, []string{"/_template/jaeger-span", "/_template/jaeger-service"}, puts)
+			}
+		})
 	}
+}
+
+// TestCreateTemplatesServiceError exercises the service-template error branch:
+// the span PUT succeeds and only the service PUT fails.
+func TestCreateTemplatesServiceError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			if strings.Contains(r.URL.Path, escfg.ServiceIndexName) {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte("{}"))
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+				Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+	require.ErrorContains(t, f.createTemplates(context.Background()), escfg.ServiceIndexName)
+}
+
+// TestCreateSamplingStoreTemplateError exercises the sampling-template error
+// branch in CreateSamplingStore.
+func TestCreateSamplingStoreTemplateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Sampling: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+	_, err = f.CreateSamplingStore(1)
+	require.ErrorContains(t, err, "failed to create template")
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
@@ -702,7 +711,10 @@ func TestBuildRotations(t *testing.T) {
 	}
 }
 
-func TestMappingBuilderFromConfig(t *testing.T) {
+// TestIndicesClientFromConfig verifies the factory derives the template-rendering
+// ILM inputs from the span rotation config: auto_rollover with a policy name
+// enables ILM, while periodic rotation (or an empty policy name) leaves it off.
+func TestIndicesClientFromConfig(t *testing.T) {
 	tests := []struct {
 		name               string
 		cfg                escfg.Configuration
@@ -746,12 +758,10 @@ func TestMappingBuilderFromConfig(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockClient := &mocks.Client{}
-			mockClient.On("GetVersion").Return(es.ElasticV7)
-			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop(), client: mockClient}
-			mb := f.mappingBuilderFromConfig(f.config)
-			assert.Equal(t, tc.expectedUseILM, mb.UseILM)
-			assert.Equal(t, tc.expectedPolicyName, mb.ILMPolicyName)
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
+			ic := f.indicesClient()
+			assert.Equal(t, tc.expectedUseILM, ic.UseILM)
+			assert.Equal(t, tc.expectedPolicyName, ic.ILMPolicyName)
 		})
 	}
 }

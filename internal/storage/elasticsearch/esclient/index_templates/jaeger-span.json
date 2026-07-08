@@ -1,9 +1,5 @@
 {
-  "priority": {{ .Priority }},
-  "index_patterns": "{{ .IndexPrefix }}jaeger-span-*",
-  "template": {
-
-    {{- if .UseILM}}
+  {{- if .UseILM}}
     "aliases": {
       "{{ .IndexPrefix }}jaeger-span-read": {}
     },
@@ -227,5 +223,4 @@
         }
       }
     }
-  }
 }

@@ -1,20 +1,21 @@
 {
-  "priority": 502,
-  "index_patterns": "test-jaeger-dependencies-*",
-  "template": {
+  "method": "PUT",
+  "path": "/_template/test-jaeger-dependencies",
+  "body": {
     "aliases": {
       "test-jaeger-dependencies-read": {}
     },
+    "index_patterns": "*jaeger-dependencies-*",
+    "mappings": {},
     "settings": {
-      "index.number_of_shards": 3,
-      "index.number_of_replicas": 3,
       "index.mapping.nested_fields.limit": 50,
+      "index.number_of_replicas": 3,
+      "index.number_of_shards": 3,
       "index.requests.cache.enable": true,
       "lifecycle": {
         "name": "jaeger-test-policy",
         "rollover_alias": "test-jaeger-dependencies-write"
       }
-    },
-    "mappings": {}
+    }
   }
 }

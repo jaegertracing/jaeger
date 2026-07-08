@@ -5,17 +5,14 @@ package mappings
 
 import (
 	"encoding/json"
-	"errors"
-	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
 func TestCommandExecute(t *testing.T) {
@@ -56,79 +53,6 @@ func TestCommandExecuteError(t *testing.T) {
 	require.ErrorContains(t, cmd.Execute(), "foobar")
 }
 
-func TestIsValidOption(t *testing.T) {
-	tests := []struct {
-		name          string
-		arg           string
-		expectedValue bool
-	}{
-		{name: "span mapping", arg: "jaeger-span", expectedValue: true},
-		{name: "service mapping", arg: "jaeger-service", expectedValue: true},
-		{name: "Invalid mapping", arg: "dependency-service", expectedValue: false},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			_, err := MappingTypeFromString(test.arg)
-			if test.expectedValue {
-				assert.NoError(t, err)
-			} else {
-				assert.Error(t, err)
-			}
-		})
-	}
-}
-
-func Test_getMappingAsString(t *testing.T) {
-	tests := []struct {
-		name    string
-		args    Options
-		want    string
-		wantErr error
-	}{
-		{
-			name: "ES version 7", args: Options{Mapping: config.SpanIndexName, EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
-			want: "ES version 7",
-		},
-		{
-			name: "Parse Error version 7", args: Options{Mapping: config.SpanIndexName, EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
-			wantErr: errors.New("parse error"),
-		},
-		{
-			name: "Parse bool error", args: Options{Mapping: config.SpanIndexName, EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "foo", ILMPolicyName: "jaeger-test-policy"},
-			wantErr: errors.New("strconv.ParseBool: parsing \"foo\": invalid syntax"),
-		},
-		{
-			name: "Invalid Mapping type", args: Options{Mapping: "invalid-mapping", EsVersion: 7, Shards: 5, Replicas: new(int64(1)), IndexPrefix: "test", UseILM: "true", ILMPolicyName: "jaeger-test-policy"},
-			wantErr: errors.New("invalid mapping type: invalid-mapping"),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Prepare
-			mockTemplateApplier := &mocks.TemplateApplier{}
-			mockTemplateApplier.On("Execute", mock.Anything, mock.Anything).Return(
-				func(wr io.Writer, _ any) error {
-					wr.Write([]byte(tt.want))
-					return nil
-				},
-			)
-			mockTemplateBuilder := &mocks.TemplateBuilder{}
-			mockTemplateBuilder.On("Parse", mock.Anything).Return(mockTemplateApplier, tt.wantErr)
-
-			// Test
-			got, err := getMappingAsString(mockTemplateBuilder, tt.args)
-
-			// Validate
-			if tt.wantErr != nil {
-				require.EqualError(t, err, tt.wantErr.Error())
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestGenerateMappings(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -142,6 +66,15 @@ func TestGenerateMappings(t *testing.T) {
 				UseILM:  "foobar",
 			},
 			expectErr: "foobar",
+		},
+		{
+			name: "render error surfaced",
+			options: Options{
+				Mapping: config.SpanIndexName,
+				UseILM:  "false",
+				// no Replicas → RenderIndexTemplate fails, and generateMappings wraps it.
+			},
+			expectErr: "failed to render mapping",
 		},
 		{
 			name: "valid jaeger-span mapping",
@@ -181,7 +114,7 @@ func TestGenerateMappings(t *testing.T) {
 			options: Options{
 				Mapping: "",
 			},
-			expectErr: "invalid mapping type ''",
+			expectErr: `invalid mapping type ""`,
 		},
 	}
 
@@ -203,4 +136,8 @@ func TestGenerateMappings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMain(m *testing.M) {
+	testutils.VerifyGoLeaks(m)
 }
