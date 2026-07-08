@@ -62,7 +62,7 @@ func setupAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
 }
 
 func initAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
-	createLifecyclePolicy(t, policyName)
+	integration.PutRolloverLifecyclePolicy(t, newESAdmin(t).ilm, policyName)
 	runEsRollover(
 		t, "init",
 		"--index-prefix="+indexPrefix,
@@ -79,40 +79,6 @@ func runEsRollover(t *testing.T, action string, flags ...string) {
 	out, err := cmd.CombinedOutput()
 	t.Logf("jaeger-es-rollover %s output:\n%s", action, string(out))
 	require.NoError(t, err, "jaeger-es-rollover %s failed", action)
-}
-
-// createLifecyclePolicy installs the lifecycle policy es-rollover requires. Only
-// the body is backend-specific (the ISM and ILM schemas differ); esclient picks
-// the endpoint, so the backend is read from the resolved client rather than
-// threaded in.
-func createLifecyclePolicy(t *testing.T, policyName string) {
-	admin := newESAdmin(t)
-	if admin.isOpenSearch() {
-		admin.putPolicy(t, policyName, `{
-			"policy": {
-				"description": "Jaeger e2e test policy",
-				"default_state": "hot",
-				"states": [{
-					"name": "hot",
-					"actions": [{"rollover": {"min_index_age": "1d"}}],
-					"transitions": []
-				}]
-			}
-		}`)
-	} else {
-		admin.putPolicy(t, policyName, `{
-			"policy": {
-				"phases": {
-					"hot": {
-						"min_age": "0ms",
-						"actions": {
-							"rollover": {"max_age": "1d"}
-						}
-					}
-				}
-			}
-		}`)
-	}
 }
 
 func deleteLifecyclePolicy(t *testing.T, policyName string) {

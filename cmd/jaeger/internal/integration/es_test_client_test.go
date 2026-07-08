@@ -14,12 +14,13 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
-// esAdmin drives the lifecycle-policy setup and index/policy cleanup the rotation
-// e2e tests need, through the owned esclient. It delegates to esclient admin
+// esAdmin drives the index/policy cleanup the rotation e2e tests need and exposes
+// the owned esclient handles they seed through (its ilm feeds the shared
+// integration.PutRolloverLifecyclePolicy helper). It delegates to esclient admin
 // methods rather than building requests of its own, so the wire formats and
-// version gating live in one place. The lifecycle-policy helpers are esclient
-// TestsOnly operations: Jaeger never creates policies in production (es-rollover
-// requires an operator-created policy to exist).
+// version gating live in one place. These are esclient TestsOnly operations:
+// Jaeger never creates or deletes policies in production (es-rollover requires an
+// operator-created policy to exist).
 //
 // The helpers take the current *testing.T as their first argument rather than
 // capturing one, so assertions attribute to the running test/subtest. They use
@@ -28,7 +29,6 @@ import (
 // the time cleanup functions run — a canceled context would fail the teardown
 // request.
 type esAdmin struct {
-	client  esclient.Client
 	ilm     *esclient.ILMClient
 	indices *esclient.IndicesClient
 }
@@ -42,21 +42,9 @@ func newESAdmin(t *testing.T) *esAdmin {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	return &esAdmin{
-		client:  client,
 		ilm:     &esclient.ILMClient{Client: client, Logger: zap.NewNop()},
 		indices: &esclient.IndicesClient{Client: client, IgnoreUnavailableIndex: true},
 	}
-}
-
-// isOpenSearch reports the backend the esclient resolved at construction, used to
-// pick the backend-specific policy body (the ILM/ISM endpoint is chosen inside
-// esclient).
-func (a *esAdmin) isOpenSearch() bool {
-	return a.client.TestsOnlyBackendVersion().IsOpenSearch()
-}
-
-func (a *esAdmin) putPolicy(t *testing.T, name, body string) {
-	require.NoError(t, a.ilm.TestsOnlyPutPolicy(context.Background(), name, body))
 }
 
 // deletePolicy and deleteJaegerIndices are cleanup helpers: they log rather than
