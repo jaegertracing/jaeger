@@ -105,17 +105,6 @@ func TestRolloverAction(t *testing.T) {
 		expectedErr           error
 	}{
 		{
-			name:    "Unsupported version",
-			version: es.ElasticV6,
-			config: Config{
-				Config: app.Config{
-					Archive: true,
-					UseILM:  true,
-				},
-			},
-			expectedErr: errors.New("ILM/ISM is not supported by the Elasticsearch/OpenSearch backend"),
-		},
-		{
 			name:    "ilm doesnt exist",
 			version: es.ElasticV7,
 			setupCallExpectations: func(_ *mocks.IndexAPI, ilmClient *mocks.IndexManagementLifecycleAPI) {
@@ -205,15 +194,8 @@ func TestRolloverAction(t *testing.T) {
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, _ *mocks.IndexManagementLifecycleAPI) {
 				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
 				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
-				// Invoke the render callback the client would call, exercising the
-				// action's mapping selection (getMapping) end to end.
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span", mock.Anything).
-					Run(func(args mock.Arguments) {
-						render := args.Get(2).(func(es.BackendVersion) (string, error))
-						mapping, err := render(es.ElasticV7)
-						require.NoError(t, err)
-						require.NotEmpty(t, mapping)
-					}).Return(nil)
+				// The action selects the mapping type; the client renders the body.
+				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span", esclient.SpanMapping).Return(nil)
 				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]esclient.Index{}, nil)
 				indexClient.On("CreateAlias", mock.Anything, []esclient.Alias{
@@ -261,10 +243,6 @@ func TestRolloverAction(t *testing.T) {
 			applyTestDefaults(&test.config)
 			indexClient := &mocks.IndexAPI{}
 			ilmClient := &mocks.IndexManagementLifecycleAPI{}
-			if test.config.Config.UseILM {
-				// The action gates on the client's ILM capability, not a version.
-				ilmClient.On("SupportsILM").Return(test.version.SupportsILM())
-			}
 			initAction := Action{
 				Config:        test.config,
 				IndicesClient: indexClient,

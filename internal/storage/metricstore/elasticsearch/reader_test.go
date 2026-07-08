@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -24,11 +23,10 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 
-	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -177,14 +175,10 @@ func tracerProvider(t *testing.T) (trace.TracerProvider, *tracetest.InMemoryExpo
 	return tp, exporter
 }
 
-func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger, metricsFactory esmetrics.Factory) es.Client {
-	client, err := clientbuilder.NewClient(context.Background(), c, logger, metricsFactory, nil)
+func clientProvider(t *testing.T, c *config.Configuration, logger *zap.Logger) esclient.Searcher {
+	client, err := esclient.NewClient(context.Background(), c, logger, nil)
 	require.NoError(t, err)
-	require.NotNil(t, client)
-	t.Cleanup(func() {
-		require.NoError(t, client.Close())
-	})
-	return client
+	return esclient.SearchClient{Client: client}
 }
 
 func assertMetricFamily(t *testing.T, got *metrics.MetricFamily, m metricsTestCase) {
@@ -645,28 +639,28 @@ func TestGetLatencies_WithDifferentQuantiles(t *testing.T) {
 func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name            string
-		buckets         []*elastic.AggregationBucketHistogramItem
+		buckets         []esclient.HistogramBucket
 		percentileValue float64
 	}{
 		{
 			name:            "missing percentiles aggregation",
 			percentileValue: 95.0,
-			buckets: []*elastic.AggregationBucketHistogramItem{
+			buckets: []esclient.HistogramBucket{
 				{
 					Key:          1749894900000,
 					DocCount:     1,
-					Aggregations: map[string]json.RawMessage{},
+					Aggregations: esclient.Aggregations{},
 				},
 			},
 		},
 		{
 			name:            "missing percentile key",
 			percentileValue: 95.0,
-			buckets: []*elastic.AggregationBucketHistogramItem{
+			buckets: []esclient.HistogramBucket{
 				{
 					Key:      1749894900000,
 					DocCount: 1,
-					Aggregations: map[string]json.RawMessage{
+					Aggregations: esclient.Aggregations{
 						percentilesAggName: json.RawMessage(`{"values": {"90.0": 200.0}}`),
 					},
 				},
@@ -674,11 +668,11 @@ func TestGetLatenciesBucketsToPoints_ErrorCases(t *testing.T) {
 		},
 		{
 			name: "nil percentile value",
-			buckets: []*elastic.AggregationBucketHistogramItem{
+			buckets: []esclient.HistogramBucket{
 				{
 					Key:      1749894900000,
 					DocCount: 1,
-					Aggregations: map[string]json.RawMessage{
+					Aggregations: esclient.Aggregations{
 						percentilesAggName: json.RawMessage(`{"values": {"95.0": null}}`),
 					},
 				},
@@ -885,15 +879,15 @@ func TestGetErrorRates(t *testing.T) {
 func TestGetCallRateBucketsToPoints_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name    string
-		buckets []*elastic.AggregationBucketHistogramItem
+		buckets []esclient.HistogramBucket
 	}{
 		{
 			name: "nil cumulative sum value",
-			buckets: []*elastic.AggregationBucketHistogramItem{
+			buckets: []esclient.HistogramBucket{
 				{
 					Key:      1749894900000,
 					DocCount: 1,
-					Aggregations: map[string]json.RawMessage{
+					Aggregations: esclient.Aggregations{
 						culmuAggName: json.RawMessage(`{"value": null}`),
 					},
 				},
@@ -934,12 +928,24 @@ func sendResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
 	require.NoError(t, err)
 }
 
+// writeSearchResponse serves a canned _search response. The error fixture models a
+// server-side failure, so it is returned with a 5xx status that the client surfaces
+// as a query execution error; every other fixture is a valid 200 response.
+func writeSearchResponse(t *testing.T, w http.ResponseWriter, responseFile string) {
+	if responseFile == mockErrorResponse {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+	sendResponse(t, w, responseFile)
+}
+
 func startMockEsErrorRateServer(t *testing.T, wantEsQuery string, responseFile string, callRateResponseFile string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 		// Handle initial ping request
 		if r.Method == http.MethodHead || r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
 			sendResponse(t, w, mockEsValidResponse)
 			return
 		}
@@ -957,9 +963,9 @@ func startMockEsErrorRateServer(t *testing.T, wantEsQuery string, responseFile s
 		if isErrorQuery(query) {
 			// Validate query if provided
 			checkQuery(t, wantEsQuery, body)
-			sendResponse(t, w, responseFile)
+			writeSearchResponse(t, w, responseFile)
 		} else {
-			sendResponse(t, w, callRateResponseFile)
+			writeSearchResponse(t, w, callRateResponseFile)
 		}
 	}))
 }
@@ -967,10 +973,10 @@ func startMockEsErrorRateServer(t *testing.T, wantEsQuery string, responseFile s
 func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
 
 		// Handle initial ping request
 		if r.Method == http.MethodHead || r.URL.Path == "/" {
+			w.WriteHeader(http.StatusOK)
 			sendResponse(t, w, mockEsValidResponse)
 			return
 		}
@@ -982,7 +988,7 @@ func startMockEsServer(t *testing.T, wantEsQuery string, responseFile string) *h
 
 		// Validate query if provided
 		checkQuery(t, wantEsQuery, body)
-		sendResponse(t, w, responseFile)
+		writeSearchResponse(t, w, responseFile)
 	}))
 }
 
@@ -1095,7 +1101,7 @@ func setupMetricsReaderFromServer(t *testing.T, mockServer *httptest.Server) (*M
 		},
 	}
 
-	client := clientProvider(t, &cfg, logger, esmetrics.NullFactory)
+	client := clientProvider(t, &cfg, logger)
 	spanRotation := indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", config.RolloverFrequencyDuration("day"))
 	reader := NewMetricsReader(client, cfg, logger, tracer, spanRotation)
 	require.NotNil(t, reader)
@@ -1120,14 +1126,14 @@ func buildTestBaseQueryParameters(tc metricsTestCase) metricstore.BaseQueryParam
 	}
 }
 
-// newMetricsClient builds a real es.Client for the given backend version, pointed
-// at the recording server. Version is set explicitly so no ping is issued, and
-// only reads happen here so no bulk processor flush is needed.
-func newMetricsClient(t *testing.T, url string, version es.BackendVersion) es.Client {
+// newMetricsClient builds a Searcher for the given backend version, pointed at the
+// recording server. Version is set explicitly so no ping is issued, and only reads
+// happen here so no bulk processor flush is needed.
+func newMetricsClient(t *testing.T, url string, version es.BackendVersion) esclient.Searcher {
 	cfg := metricsSnapshotConfig(url, version)
-	client, err := clientbuilder.NewClient(context.Background(), &cfg, zap.NewNop(), esmetrics.NullFactory, nil)
+	client, err := esclient.NewClient(context.Background(), &cfg, zap.NewNop(), nil)
 	require.NoError(t, err)
-	return client
+	return esclient.SearchClient{Client: client}
 }
 
 // metricsSnapshotConfig is the fixed configuration shared by the recording client
@@ -1155,10 +1161,9 @@ func metricsRecorder() *snapshottest.Recorder {
 }
 
 // TestMetricsReaderRequestSnapshots freezes the exact _search wire format that the
-// latency, call-rate, and error-rate read paths emit over the olivere client. All
-// query parameters are fixed, so the only variable is the backend version; the
-// requests are identical across versions except for the ES6 search parameters, so
-// snapshots collapse to es6 / es7-9.os1-3.
+// latency, call-rate, and error-rate read paths emit over the esclient searcher. All
+// query parameters are fixed and identical across every supported version, so
+// snapshots collapse to a single all-versions file.
 func TestMetricsReaderRequestSnapshots(t *testing.T) {
 	endTime := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	lookback := time.Hour
@@ -1182,7 +1187,6 @@ func TestMetricsReaderRequestSnapshots(t *testing.T) {
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
 		client := newMetricsClient(t, server.URL, version)
-		t.Cleanup(func() { _ = client.Close() })
 
 		spanRotation := indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read")
 		reader := NewMetricsReader(client, metricsSnapshotConfig(server.URL, version), zap.NewNop(), noop.NewTracerProvider(), spanRotation)

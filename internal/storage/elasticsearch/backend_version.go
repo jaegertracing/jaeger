@@ -19,7 +19,6 @@ import (
 type BackendVersion uint
 
 const (
-	ElasticV6   BackendVersion = 6
 	ElasticV7   BackendVersion = 7
 	ElasticV8   BackendVersion = 8
 	ElasticV9   BackendVersion = 9
@@ -29,9 +28,9 @@ const (
 )
 
 // AllVersions lists every backend major version Jaeger supports: Elasticsearch
-// 6/7/8/9 and OpenSearch 1/2/3.
+// 7/8/9 and OpenSearch 1/2/3. Elasticsearch 6 reached EOL and is no longer
+// supported.
 var AllVersions = []BackendVersion{
-	ElasticV6,
 	ElasticV7,
 	ElasticV8,
 	ElasticV9,
@@ -49,8 +48,6 @@ func IsSupportedVersion(v uint) bool {
 
 func (v BackendVersion) String() string {
 	switch v {
-	case ElasticV6:
-		return "Elasticsearch 6.x"
 	case ElasticV7:
 		return "Elasticsearch 7.x"
 	case ElasticV8:
@@ -73,37 +70,9 @@ func (v BackendVersion) IsOpenSearch() bool {
 	return v >= OpenSearch1
 }
 
-// TemplateVersion returns the ES template version to use (6, 7, or 8).
-// OpenSearch uses ES 7.x templates; ES 9+ uses ES 8.x templates.
-func (v BackendVersion) TemplateVersion() uint {
-	if v.IsOpenSearch() {
-		return 7
-	}
-	switch v {
-	case ElasticV6:
-		return 6
-	case ElasticV7:
-		return 7
-	default:
-		return 8
-	}
-}
-
 // UsesV8API returns true if the backend requires the v8 index template API.
 func (v BackendVersion) UsesV8API() bool {
 	return v == ElasticV8 || v == ElasticV9
-}
-
-// SupportsTypedIndices returns true if index requests require a _type parameter.
-// Only ES 6.x requires this; ES 7+ and all OpenSearch versions ignore it.
-func (v BackendVersion) SupportsTypedIndices() bool {
-	return v == ElasticV6
-}
-
-// SupportsILM returns true if the backend supports Index Lifecycle Management.
-// ILM requires ES 7+ or OpenSearch (which uses ISM, the equivalent feature).
-func (v BackendVersion) SupportsILM() bool {
-	return v != ElasticV6
 }
 
 // PingResult holds the version fields Jaeger reads from an Elasticsearch or
@@ -153,8 +122,6 @@ func DetectBackendVersion(tagLine string, majorVersion int) BackendVersion {
 		}
 	}
 	switch majorVersion {
-	case 6:
-		return ElasticV6
 	case 7:
 		return ElasticV7
 	case 9:

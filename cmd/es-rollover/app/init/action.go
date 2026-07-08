@@ -5,15 +5,11 @@ package init
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/jaegertracing/jaeger/cmd/es-rollover/app"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 )
 
 // Action holds the configuration and clients for init action
@@ -23,28 +19,12 @@ type Action struct {
 	ILMClient     esclient.IndexManagementLifecycleAPI
 }
 
-func (c Action) getMapping(version es.BackendVersion, mappingType mappings.MappingType) (string, error) {
-	c.Config.Indices.IndexPrefix = config.IndexPrefix(c.Config.Config.IndexPrefix)
-	mappingBuilder := mappings.MappingBuilder{
-		TemplateBuilder: es.TextTemplateBuilder{},
-		Indices:         c.Config.Indices,
-		UseILM:          c.Config.UseILM,
-		ILMPolicyName:   c.Config.ILMPolicyName,
-		Version:         version,
-	}
-
-	return mappingBuilder.GetMapping(mappingType)
-}
-
 // Do the init action
 func (c Action) Do() error {
 	ctx := context.TODO()
 	if c.Config.UseILM {
-		// The client answers the ILM/ISM capability question from the version it
-		// was built with, so the action never inspects the backend version.
-		if !c.ILMClient.SupportsILM() {
-			return errors.New("ILM/ISM is not supported by the Elasticsearch/OpenSearch backend")
-		}
+		// Every supported backend provides lifecycle management (ILM on
+		// Elasticsearch, ISM on OpenSearch), so no capability check is needed.
 		policyExist, err := c.ILMClient.Exists(ctx, c.Config.ILMPolicyName)
 		if err != nil {
 			return err
@@ -81,18 +61,14 @@ func createIndexIfNotExist(ctx context.Context, c esclient.IndexAPI, index strin
 }
 
 func (c Action) init(ctx context.Context, indexopt app.IndexOption) error {
-	mappingType, err := mappings.MappingTypeFromString(indexopt.Mapping)
+	mappingType, err := esclient.MappingTypeFromString(indexopt.Mapping)
 	if err != nil {
 		return err
 	}
 
-	// The client renders the mapping with its own resolved version; the action
-	// selects the mapping type but never handles a BackendVersion directly.
-	render := func(version es.BackendVersion) (string, error) {
-		return c.getMapping(version, mappingType)
-	}
-	err = c.IndicesClient.CreateTemplate(ctx, indexopt.TemplateName(), render)
-	if err != nil {
+	// The client renders the mapping body from its own resolved backend version;
+	// the action selects the mapping type but never handles a BackendVersion.
+	if err := c.IndicesClient.CreateTemplate(ctx, indexopt.TemplateName(), mappingType); err != nil {
 		return err
 	}
 

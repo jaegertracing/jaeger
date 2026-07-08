@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/cache"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -36,25 +35,26 @@ var errNoSearcher = errors.New("service/operation reads require a searcher, but 
 
 // ServiceOperationStorage stores service to operation pairs.
 type ServiceOperationStorage struct {
-	client       func() es.Client
 	searcher     esclient.Searcher
+	bulkWriter   esclient.BulkWriter
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }
 
 // NewServiceOperationStorage returns a new ServiceOperationStorage. searcher is
-// used only by the read methods (getServices/getOperations); a write-only
-// instance may pass nil.
+// used only by the read methods (getServices/getOperations) and bulkWriter only
+// by Write; a read-only instance may pass a nil bulkWriter and a write-only
+// instance a nil searcher.
 func NewServiceOperationStorage(
-	client func() es.Client,
 	searcher esclient.Searcher,
+	bulkWriter esclient.BulkWriter,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
-		client:   client,
-		searcher: searcher,
-		logger:   logger,
+		searcher:   searcher,
+		bulkWriter: bulkWriter,
+		logger:     logger,
 		serviceCache: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -64,8 +64,14 @@ func NewServiceOperationStorage(
 	}
 }
 
-// Write saves a service to operation pair.
+// Write saves a service to operation pair. It is a no-op on a read-only
+// instance (nil bulk writer, see NewServiceOperationStorage), since the same
+// type backs both the read and write paths.
 func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
+	if s.bulkWriter == nil {
+		s.logger.Error("cannot write service:operation pair: storage was constructed for read-only use")
+		return
+	}
 	// Insert serviceName:operationName document
 	service := dbmodel.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
@@ -74,7 +80,11 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 
 	cacheKey := hashCode(service)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client().Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
+		s.bulkWriter.Add(esclient.BulkItem{
+			Index: indexName,
+			ID:    cacheKey,
+			Body:  service,
+		})
 		writeCache(cacheKey, s.serviceCache)
 	}
 }
@@ -124,7 +134,7 @@ func aggregationKeys(resp *esclient.SearchResponse, name string) ([]string, erro
 	if resp.Aggregations == nil {
 		return []string{}, nil
 	}
-	agg, ok := resp.Aggregations[name]
+	agg, ok := resp.Aggregations.Terms(name)
 	if !ok {
 		return nil, errors.New("could not find aggregation of " + name)
 	}

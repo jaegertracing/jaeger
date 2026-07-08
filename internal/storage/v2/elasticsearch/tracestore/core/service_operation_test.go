@@ -6,6 +6,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -19,29 +20,16 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 func TestWriteService(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
-		indexService := &mocks.IndexService{}
-
 		indexName := "jaeger-1995-04-21"
 		serviceHash := "de3b5a8f1a79989d"
-
-		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-		indexService.On("Add")
-
-		w.client.On("Index").Return(indexService)
-
 		jsonSpan := &dbmodel.Span{
 			TraceID:       dbmodel.TraceID("1"),
 			SpanID:        dbmodel.SpanID("0"),
@@ -53,40 +41,14 @@ func TestWriteService(t *testing.T) {
 
 		w.writer.writeService(indexName, jsonSpan)
 
-		indexService.AssertNumberOfCalls(t, "Add", 1)
+		require.Len(t, *w.added, 1)
+		assert.Equal(t, indexName, (*w.added)[0].Index)
+		assert.Equal(t, serviceHash, (*w.added)[0].ID)
 		assert.Empty(t, w.logBuffer.String())
 
-		// test that cache works, will call the index service only once.
+		// test that cache works, will enqueue the document only once.
 		w.writer.writeService(indexName, jsonSpan)
-		indexService.AssertNumberOfCalls(t, "Add", 1)
-	})
-}
-
-func TestWriteServiceError(*testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		indexService := &mocks.IndexService{}
-
-		indexName := "jaeger-1995-04-21"
-		serviceHash := "de3b5a8f1a79989d"
-
-		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
-		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
-		indexService.On("Add")
-
-		w.client.On("Index").Return(indexService)
-
-		jsonSpan := &dbmodel.Span{
-			TraceID:       dbmodel.TraceID("1"),
-			SpanID:        dbmodel.SpanID("0"),
-			OperationName: "operation",
-			Process: dbmodel.Process{
-				ServiceName: "service",
-			},
-		}
-
-		w.writer.writeService(indexName, jsonSpan)
+		assert.Len(t, *w.added, 1)
 	})
 }
 
@@ -94,10 +56,25 @@ func TestWriteServiceError(*testing.T) {
 // keyed "123", used to assert getServices/getOperations extract the bucket keys.
 func oneBucketResponse(aggName string) *esclient.SearchResponse {
 	return &esclient.SearchResponse{
-		Aggregations: map[string]esclient.AggregationResult{
+		Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			aggName: {Buckets: []esclient.AggregationBucket{{Key: "123", DocCount: 16}}},
-		},
+		}),
 	}
+}
+
+// termsAggregations builds the raw-message Aggregations a response carries from
+// typed terms results, so tests can assert bucket parsing without hand-writing the
+// wire JSON. Marshalling static test data cannot fail.
+func termsAggregations(byName map[string]esclient.AggregationResult) esclient.Aggregations {
+	aggs := esclient.Aggregations{}
+	for name, result := range byName {
+		raw, err := json.Marshal(result)
+		if err != nil {
+			panic(err)
+		}
+		aggs[name] = raw
+	}
+	return aggs
 }
 
 func TestSpanReader_GetServices(t *testing.T) {
@@ -115,7 +92,7 @@ func TestSpanReader_GetServices(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + servicesAggregation,
 		},
 		{
@@ -160,7 +137,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + operationsAggregation,
 		},
 		{
@@ -197,14 +174,22 @@ func TestSpanReader_GetOperations(t *testing.T) {
 // fail clearly (not with a nil-pointer panic) when the storage was built for
 // write-only use, i.e. with a nil searcher.
 func TestServiceOperationStorage_ReadWithoutSearcher(t *testing.T) {
-	client := &mocks.Client{}
-	s := NewServiceOperationStorage(func() es.Client { return client }, nil, zap.NewNop(), 0)
+	s := NewServiceOperationStorage(nil, nil, zap.NewNop(), 0)
 
 	_, err := s.getServices(context.Background(), []string{"idx"}, 10)
 	require.ErrorIs(t, err, errNoSearcher)
 
 	_, err = s.getOperations(context.Background(), []string{"idx"}, "svc", 10)
 	require.ErrorIs(t, err, errNoSearcher)
+}
+
+// TestServiceOperationStorage_WriteWithoutBulkWriter verifies Write on a
+// read-only instance (nil bulk writer) is a logged no-op, not a panic.
+func TestServiceOperationStorage_WriteWithoutBulkWriter(t *testing.T) {
+	s := NewServiceOperationStorage(nil, nil, zap.NewNop(), 0)
+	assert.NotPanics(t, func() {
+		s.Write("idx", &dbmodel.Span{})
+	})
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
@@ -231,25 +216,9 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 }
 
 // TestServiceOperationRequestSnapshots freezes the exact wire format of the
-// service/operation read+write path over the current olivere client. Only ES6
-// differs (no rest_total_hits_as_int on searches; _type on writes); every other
-// version emits the same request, so snapshots collapse to es6 / es7-9.os1-3.
-
-// newDataClient builds a real es.Client for the given backend version, pointed at
-// the recording server. Version is set explicitly so no ping is issued, and the
-// bulk processor only flushes on Close.
-func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
-	cfg := &config.Configuration{
-		Servers:            []string{url},
-		Version:            uint(version),
-		DisableHealthCheck: true,
-		LogLevel:           "info",
-		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
-	}
-	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
-	require.NoError(t, err)
-	return client
-}
+// service/operation read + write path over esclient (SearchClient for reads,
+// the bulk indexer for writes). Every supported version emits the same request,
+// so the snapshots collapse to a single file per operation.
 
 // dataRecorder answers each request with an empty-but-valid response for its
 // endpoint (search, msearch, or bulk), so operations complete without error
@@ -286,24 +255,17 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		rec := dataRecorder()
 		server := httptest.NewServer(rec)
 		t.Cleanup(server.Close)
-		client := newDataClient(t, server.URL, version)
-		// The test closes the client inline (below) to flush the bulk request; this
-		// cleanup is a fallback for when an earlier assertion aborts first, so the
-		// client is never closed twice.
-		clientClosed := false
-		t.Cleanup(func() {
-			if !clientClosed {
-				_ = client.Close()
-			}
-		})
-		// getServices/getOperations run over a real esclient.SearchClient pointed at
-		// the same recording server. Version is pinned so the client skips its probe
-		// and only the search requests are recorded.
+
+		// One real esclient over the recording server backs both the search path
+		// and the bulk writer. Version is pinned so the client skips its probe. The
+		// documents buffer until Close, which flushes the one bulk request we record.
 		esCfg := &config.Configuration{Servers: []string{server.URL}, Version: uint(version)}
-		searchC, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
+		esClient, err := esclient.NewClient(context.Background(), esCfg, zap.NewNop(), nil)
 		require.NoError(t, err)
-		searcher := esclient.SearchClient{Client: searchC}
-		sos := NewServiceOperationStorage(func() es.Client { return client }, searcher, zap.NewNop(), 0)
+		searcher := esclient.SearchClient{Client: esClient}
+		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+		require.NoError(t, err)
+		sos := NewServiceOperationStorage(searcher, bulkWriter, zap.NewNop(), 0)
 		ctx := context.Background()
 
 		rec.Reset()
@@ -318,8 +280,7 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 
 		rec.Reset()
 		sos.Write(writeIndex, span)
-		require.NoError(t, client.Close()) // flushes the bulk request
-		clientClosed = true
+		require.NoError(t, bulkWriter.Close()) // flushes the bulk request
 		writeService[version] = rec.Marshal(t)
 	}
 

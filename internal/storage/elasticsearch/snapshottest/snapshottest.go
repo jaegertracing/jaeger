@@ -16,7 +16,7 @@
 // for all backends and versions is stored as the bare "testdata/<subject>.json".
 // Otherwise each distinct wire format is stored as "testdata/<subject>.<variants>.json",
 // where <variants> is a dot-separated list of the version ranges that emit it,
-// e.g. "es6", "es7-9.os1-3". Each range is "<backend><lo>[-<hi>]" with <backend>
+// e.g. "es7", "es8-9.os1-3". Each range is "<backend><lo>[-<hi>]" with <backend>
 // "es" or "os" and an inclusive, consecutive major range. Backends are merged
 // into one file when they emit byte-identical output, so there is no duplication.
 // <subject> may nest with "/" to group a family.
