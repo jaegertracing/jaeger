@@ -155,23 +155,15 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	require.NoError(t, err)
 	err = runEsCleaner(0, envVars)
 	require.NoError(t, err)
-	foundIndices, err := client.IndexNames()
-	require.NoError(t, err)
 	if prefix != "" {
 		prefix += "-"
 	}
-	var actual []string
-	for _, index := range foundIndices {
-		// ignore system indices https://github.com/jaegertracing/jaeger/issues/7002
-		if strings.HasPrefix(index, prefix+"jaeger") {
-			actual = append(actual, index)
-		}
-	}
+	actual := getJaegerIndices(t, client, prefix)
 	var expected []string
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix+index)
 	}
-	assert.ElementsMatch(t, actual, expected, "indices found: %v, expected: %v", foundIndices, expected)
+	assert.ElementsMatch(t, actual, expected, "indices found: %v, expected: %v", actual, expected)
 }
 
 func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {
