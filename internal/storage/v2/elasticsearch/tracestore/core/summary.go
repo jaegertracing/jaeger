@@ -90,7 +90,7 @@ func (s *SpanReader) FindTraceSummaries(
 		return nil, fmt.Errorf("search for trace summaries failed: %w", err)
 	}
 
-	buckets, found := searchResult.Aggregations[aggName]
+	buckets, found := searchResult.Aggregations.Terms(aggName)
 	if !found {
 		return nil, fmt.Errorf("could not find aggregation %q", aggName)
 	}

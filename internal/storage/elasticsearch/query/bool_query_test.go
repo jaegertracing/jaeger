@@ -45,6 +45,23 @@ func TestBoolQueryShouldAndMustNot(t *testing.T) {
 	assert.NotContains(t, b, "must", "an unused clause is omitted")
 }
 
+// TestBoolQueryFilterRendersAsArray reproduces the metricstore bool query: several
+// filter clauses render as an array under "filter".
+func TestBoolQueryFilterRendersAsArray(t *testing.T) {
+	q := NewBoolQuery().Filter(
+		NewTermsQuery("process.serviceName", "svc"),
+		NewTermQuery("tag.error", true),
+	)
+	src, err := q.Source()
+	require.NoError(t, err)
+	b := src.(map[string]any)["bool"].(map[string]any)
+	assert.Equal(t, []any{
+		map[string]any{"terms": map[string]any{"process.serviceName": []any{"svc"}}},
+		map[string]any{"term": map[string]any{"tag.error": true}},
+	}, b["filter"])
+	assert.NotContains(t, b, "must", "an unused clause is omitted")
+}
+
 func TestBoolQueryEmptyRendersEmptyObject(t *testing.T) {
 	src, err := NewBoolQuery().Source()
 	require.NoError(t, err)
