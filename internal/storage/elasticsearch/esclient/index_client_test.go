@@ -1002,3 +1002,16 @@ func TestTestsOnlyIndicesErrorPaths(t *testing.T) {
 			"failed to delete template")
 	})
 }
+
+func TestTestsOnlyGetSettingsEmpty(t *testing.T) {
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}))
+	defer srv.Close()
+	c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+	settings, err := c.TestsOnlyGetSettings(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, settings)
+	assert.False(t, called, "an empty index list must not issue a request")
+}

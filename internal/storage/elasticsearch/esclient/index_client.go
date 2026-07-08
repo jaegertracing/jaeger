@@ -393,6 +393,12 @@ func (i IndicesClient) TestsOnlyDeleteTemplate(ctx context.Context, name string)
 // by index name. Integration-test-only — production reads index settings only
 // through GetJaegerIndices.
 func (i IndicesClient) TestsOnlyGetSettings(ctx context.Context, indices []string) (map[string]map[string]any, error) {
+	// Guard the empty case: an empty index list would produce a "/_settings"
+	// endpoint that request() then prefixes into a malformed "//_settings" path
+	// (and would otherwise mean "all indices", which no caller wants).
+	if len(indices) == 0 {
+		return map[string]map[string]any{}, nil
+	}
 	body, err := i.request(ctx, elasticRequest{
 		endpoint: strings.Join(indices, ",") + "/_settings?flat_settings=true",
 		method:   http.MethodGet,
