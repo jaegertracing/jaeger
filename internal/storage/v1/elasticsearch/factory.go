@@ -252,6 +252,10 @@ func (f *FactoryBase) Close() error {
 	if c := f.getClient(); c != nil {
 		errs = append(errs, c.Close())
 	}
+	// Release the owned esclient's pooled idle connections. The data plane
+	// (searcher, bulk indexer, admin ops) runs over this client, which the
+	// legacy client above does not close. Close is safe on a zero Client.
+	errs = append(errs, f.esClient.Close())
 	return errors.Join(errs...)
 }
 

@@ -164,6 +164,27 @@ func TestClientRequestBodyAndTimeout(t *testing.T) {
 	assert.Equal(t, "request-payload", gotBody.Load())
 }
 
+// TestClientClose covers the full close path: Client.Close forwards to
+// rawClient.close, which releases the base transport's idle connections through
+// the closeableRoundTripper that GetHTTPRoundTripper installs. It also covers the
+// zero-Client case, where there is no transport to close.
+func TestClientClose(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{server.URL},
+		Version: uint(es.ElasticV7),
+	}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	require.NoError(t, c.Close())
+
+	// A zero Client has no transport and must still close cleanly.
+	require.NoError(t, Client{}.Close())
+}
+
 // errBodyRoundTripper returns a 200 whose body errors on read.
 type errBodyRoundTripper struct{}
 
