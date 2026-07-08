@@ -43,11 +43,11 @@ type FactoryBase struct {
 	// backs the migrated data-plane paths (search in M5, bulk writes in M6). It is
 	// a seam mirroring newLegacyClientFn so tests can inject a client that doesn't
 	// probe a live cluster (esclient.NewClient issues a GET / at construction).
-	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Client, error)
+	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esclient.Client, error)
 	// newBulkIndexerFn constructs the bulk writer over the esclient. It is a seam,
 	// like the client constructors above, so tests can inject a failing indexer to
 	// exercise the construction error path.
-	newBulkIndexerFn func(client esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
+	newBulkIndexerFn func(client *esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
 
 	config *config.Configuration
 
@@ -55,7 +55,7 @@ type FactoryBase struct {
 	// esClient is the shared esclient over the transport pool that backs the
 	// migrated data-plane paths; searcher and bulkWriter compose over it, and the
 	// sampling store's index-existence check runs an IndicesClient over it too.
-	esClient esclient.Client
+	esClient *esclient.Client
 	// searcher and bulkWriter are the migrated data-plane surfaces over the
 	// esclient transport pool: service/operation reads (RFC 0006 M5), span
 	// writes (M6), and sampling reads/writes (M9). Other paths still use the

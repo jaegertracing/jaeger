@@ -122,7 +122,7 @@ type AggregationResult struct {
 // SearchClient is the data-plane search API over the shared transport, analogous
 // to IndicesClient/ILMClient on the admin plane.
 type SearchClient struct {
-	Client
+	*Client
 }
 
 var _ Searcher = SearchClient{}

@@ -376,7 +376,7 @@ var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("u
 
 // makeClient builds an esclient.Client for a single plaintext test server. A
 // non-empty user enables basic auth so requests carry an Authorization header.
-func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) Client {
+func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) *Client {
 	// Resolve the version from config so NewClient doesn't probe the test server.
 	// Defaults to ElasticV7; version-specific tests pass an explicit version.
 	v := es.ElasticV7
@@ -415,7 +415,7 @@ func TestClientDoError(t *testing.T) {
 
 // clientWithTimeout builds a Client with an explicit QueryTimeout, resolving the
 // version from config so NewClient doesn't probe (and stall on) the test server.
-func clientWithTimeout(t *testing.T, url string, timeout time.Duration) Client {
+func clientWithTimeout(t *testing.T, url string, timeout time.Duration) *Client {
 	cfg := &config.Configuration{Servers: []string{url}, Version: uint(es.ElasticV7), QueryTimeout: timeout}
 	c, err := NewClient(context.Background(), cfg, zap.NewNop(), nil)
 	require.NoError(t, err)
