@@ -194,15 +194,8 @@ func TestRolloverAction(t *testing.T) {
 			setupCallExpectations: func(indexClient *mocks.IndexAPI, _ *mocks.IndexManagementLifecycleAPI) {
 				indexClient.On("IndexExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
 				indexClient.On("AliasExists", mock.Anything, "jaeger-span-archive-000001").Return(false, nil)
-				// Invoke the render callback the client would call, exercising the
-				// action's mapping selection (getMapping) end to end.
-				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span", mock.Anything).
-					Run(func(args mock.Arguments) {
-						render := args.Get(2).(func(es.BackendVersion) (string, error))
-						mapping, err := render(es.ElasticV7)
-						require.NoError(t, err)
-						require.NotEmpty(t, mapping)
-					}).Return(nil)
+				// The action selects the mapping type; the client renders the body.
+				indexClient.On("CreateTemplate", mock.Anything, "jaeger-span", esclient.SpanMapping).Return(nil)
 				indexClient.On("CreateIndex", mock.Anything, "jaeger-span-archive-000001").Return(nil)
 				indexClient.On("GetJaegerIndices", mock.Anything, "").Return([]esclient.Index{}, nil)
 				indexClient.On("CreateAlias", mock.Anything, []esclient.Alias{

@@ -45,7 +45,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		&o.Mapping,
 		mappingFlag,
 		"",
-		"The index mapping the template will be applied to. Pass either jaeger-span or jaeger-service",
+		"The index mapping the template will be applied to: one of jaeger-span, jaeger-service, jaeger-dependencies, or jaeger-sampling",
 	)
 	command.Flags().UintVar(
 		&o.EsVersion,

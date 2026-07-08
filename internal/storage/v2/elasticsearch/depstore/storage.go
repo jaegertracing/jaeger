@@ -13,8 +13,6 @@ import (
 
 	"go.uber.org/zap"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
@@ -25,18 +23,12 @@ import (
 type CoreDependencyStore interface {
 	// WriteDependencies write dependencies to Elasticsearch
 	WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error
-	// CreateTemplates creates index templates.
-	CreateTemplates(dependenciesTemplate string) error
 	// GetDependencies returns all interservice dependencies
 	GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]dbmodel.DependencyLink, error)
 }
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	// client is retained only for CreateTemplates; index-template creation is
-	// migrated to esclient separately (RFC 0006 M4b). The read and write data-plane
-	// paths run over searcher and bulkWriter.
-	client      func() es.Client
 	searcher    esclient.Searcher
 	bulkWriter  esclient.BulkWriter
 	logger      *zap.Logger
@@ -46,7 +38,6 @@ type DependencyStore struct {
 
 // Params holds constructor parameters for NewDependencyStore
 type Params struct {
-	Client      func() es.Client
 	Searcher    esclient.Searcher
 	BulkWriter  esclient.BulkWriter
 	Logger      *zap.Logger
@@ -57,7 +48,6 @@ type Params struct {
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
-		client:      p.Client,
 		searcher:    p.Searcher,
 		bulkWriter:  p.BulkWriter,
 		logger:      p.Logger,
@@ -70,15 +60,6 @@ func NewDependencyStore(p Params) *DependencyStore {
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
 	writeIndexName := s.rotation.WriteTarget(ts)
 	s.writeDependenciesToIndex(writeIndexName, ts, dependencies)
-	return nil
-}
-
-// CreateTemplates creates index templates.
-func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
-	_, err := s.client().CreateTemplate(config.DependencyIndexName).Body(dependenciesTemplate).Do(context.Background())
-	if err != nil {
-		return err
-	}
 	return nil
 }
 

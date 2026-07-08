@@ -18,3 +18,11 @@ func TestTermQuerySource(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"term":{"serviceName":"test-service"}}`, string(b))
 }
+
+func TestTermQueryWithBoostSource(t *testing.T) {
+	src, err := NewTermQuery("traceID", "abc").Boost(2).Source()
+	require.NoError(t, err)
+	b, err := json.Marshal(src)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"term":{"traceID":{"value":"abc","boost":2}}}`, string(b))
+}
