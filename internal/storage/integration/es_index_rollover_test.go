@@ -157,7 +157,19 @@ func createILMPolicy(_ *testing.T, client *esTestClient, version es.BackendVersi
 			}
 		}`)
 	} else {
-		client.putLifecyclePolicy(policyName, `{"policy": {"phases": {"hot": {"min_age": "0ms","actions": {"rollover": {"max_age": "1d"},"set_priority": {"priority": 100}}}}}}`)
+		client.putLifecyclePolicy(policyName, `{
+			"policy": {
+				"phases": {
+					"hot": {
+						"min_age": "0ms",
+						"actions": {
+							"rollover": {"max_age": "1d"},
+							"set_priority": {"priority": 100}
+						}
+					}
+				}
+			}
+		}`)
 	}
 }
 
