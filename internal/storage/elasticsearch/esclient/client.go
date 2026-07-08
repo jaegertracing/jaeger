@@ -63,6 +63,16 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 	return client, nil
 }
 
+// Close releases the client's pooled idle connections. It is safe to call on a
+// zero Client. The transport has no background goroutines (node discovery is off),
+// so there is nothing else to stop.
+func (c Client) Close() error {
+	if c.transport != nil {
+		c.transport.close()
+	}
+	return nil
+}
+
 type elasticRequest struct {
 	endpoint string
 	body     []byte

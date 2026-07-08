@@ -20,6 +20,16 @@ import (
 // planes will share it. Payload-level clients compose over the pool.
 type rawClient struct {
 	pool *elastictransport.Client
+	// base is the RoundTripper stack the pool sends through; kept so Close can
+	// release its idle connections.
+	base http.RoundTripper
+}
+
+// close releases idle connections held by the base transport, if it supports it.
+func (r *rawClient) close() {
+	if c, ok := r.base.(interface{ CloseIdleConnections() }); ok {
+		c.CloseIdleConnections()
+	}
 }
 
 // newPool constructs the underlying connection pool. It is a package var so tests
@@ -55,7 +65,7 @@ func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transport pool: %w", err)
 	}
-	return &rawClient{pool: pool}, nil
+	return &rawClient{pool: pool, base: base}, nil
 }
 
 // perform sends req through the pool. req carries a relative path (e.g.
