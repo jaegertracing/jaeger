@@ -61,3 +61,22 @@ func TestInjectTraceContextIntoMetaNoSpanInContextLeavesMetaNil(t *testing.T) {
 	// than being force-allocated with junk.
 	assert.Empty(t, meta)
 }
+
+func TestMetaCarrierGetSetKeys(t *testing.T) {
+	carrier := &metaCarrier{}
+	carrier.Set("traceparent", "00-abc-def-01")
+	carrier.Set("tracestate", "vendor=value")
+
+	assert.Equal(t, "00-abc-def-01", carrier.Get("traceparent"))
+	assert.Equal(t, "vendor=value", carrier.Get("tracestate"))
+	assert.Empty(t, carrier.Get("missing"))
+	assert.ElementsMatch(t, []string{"traceparent", "tracestate"}, carrier.Keys())
+}
+
+func TestMetaCarrierSetOnNilMapAllocates(t *testing.T) {
+	carrier := &metaCarrier{}
+	carrier.Set("traceparent", "00-abc-def-01")
+
+	require.NotNil(t, carrier.meta)
+	assert.Equal(t, "00-abc-def-01", carrier.meta["traceparent"])
+}
