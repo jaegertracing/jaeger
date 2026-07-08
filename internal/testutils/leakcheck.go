@@ -34,22 +34,25 @@ func IgnoreGoMetricsMeterLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("github.com/rcrowley/go-metrics.(*meterArbiter).tick")
 }
 
-// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch
-// These leaks are from olivere client not from the jaeger
+// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch.
+// These are idle-connection goroutines from the net/http transport that backs
+// the ES/OpenSearch HTTP clients, not leaks in Jaeger itself.
 // See this PR for context: https://github.com/jaegertracing/jaeger/pull/6339
 func ignoreHttpTransportWriteLoopLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("net/http.(*persistConn).writeLoop")
 }
 
-// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch
-// These leaks are from olivere client not from the jaeger
+// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch.
+// These are idle-connection goroutines from the net/http transport that backs
+// the ES/OpenSearch HTTP clients, not leaks in Jaeger itself.
 // See this PR for context: https://github.com/jaegertracing/jaeger/pull/6339
 func ignoreHttpTransportPollRuntimeLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("internal/poll.runtime_pollWait")
 }
 
-// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch
-// These leaks are from olivere client not from the jaeger
+// Don't use this in any other method other than leaks for ElasticSearch and OpenSearch.
+// These are idle-connection goroutines from the net/http transport that backs
+// the ES/OpenSearch HTTP clients, not leaks in Jaeger itself.
 // See this PR for context: https://github.com/jaegertracing/jaeger/pull/6339
 func ignoreHttpTransportReadLoopLeak() goleak.Option {
 	return goleak.IgnoreTopFunction("net/http.(*persistConn).readLoop")

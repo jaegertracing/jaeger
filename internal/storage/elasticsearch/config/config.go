@@ -243,8 +243,7 @@ type TagsAsFields struct {
 }
 
 // Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
-// of finding all the nodes of your cluster. Read more about sniffing at
-// https://github.com/olivere/elastic/wiki/Sniffing.
+// of discovering all the nodes of a cluster by querying one of its members.
 type Sniffing struct {
 	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
 	Enabled bool `mapstructure:"enabled"`

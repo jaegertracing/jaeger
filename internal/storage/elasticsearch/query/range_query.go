@@ -3,9 +3,8 @@
 
 package query
 
-// Package query provides an Elasticsearch RangeQuery implementation.
-// This RangeQuery behaves the same as the Go Elasticsearch client (olivere/elastic),
-// but is rewritten to be compatible with Elasticsearch v9 and avoids deprecated parameters.
+// Package query provides an Elasticsearch RangeQuery implementation compatible
+// with Elasticsearch v9, avoiding deprecated parameters.
 //
 // Deprecated parameters like include_lower, include_upper, from, and to are excluded deliberately.
 
