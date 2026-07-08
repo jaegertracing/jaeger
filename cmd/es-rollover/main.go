@@ -48,9 +48,9 @@ func main() {
 				indicesClient := &esclient.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: initCfg.Timeout,
-				}
-				clusterClient := &esclient.ClusterClient{
-					Client: c,
+					Indices:              initCfg.Indices,
+					UseILM:               initCfg.UseILM,
+					ILMPolicyName:        initCfg.ILMPolicyName,
 				}
 				ilmClient := &esclient.ILMClient{
 					Client: c,
@@ -58,7 +58,6 @@ func main() {
 				}
 				return &initialize.Action{
 					IndicesClient: indicesClient,
-					ClusterClient: clusterClient,
 					ILMClient:     ilmClient,
 					Config:        *initCfg,
 				}

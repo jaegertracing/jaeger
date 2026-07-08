@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 // Index represents ES index.
@@ -41,6 +43,12 @@ type IndicesClient struct {
 	Client
 	MasterTimeoutSeconds   int
 	IgnoreUnavailableIndex bool
+	// Index-template rendering inputs (M4b): the client renders the template
+	// bodies itself, so the index config and lifecycle settings travel with the
+	// client instead of a per-call render callback.
+	Indices       config.Indices
+	UseILM        bool
+	ILMPolicyName string
 }
 
 // GetJaegerIndices queries all Jaeger indices including the archive and rollover.
@@ -265,16 +273,20 @@ func (i *IndicesClient) aliasAction(ctx context.Context, action string, aliases 
 	return err
 }
 
-// CreateTemplate an ES index template
-func (i IndicesClient) CreateTemplate(ctx context.Context, template, name string) error {
-	endpointFmt := "_template/%s"
-	cl := ClusterClient{Client: i.Client}
-	if v, err := cl.Version(ctx); err != nil {
+// CreateTemplate installs an index template for the given mapping type. The
+// client renders the body itself — selecting the mapping schema and wrapping it
+// in the version-appropriate envelope from its own resolved backend version — so
+// callers express pure Jaeger intent and never hold a BackendVersion.
+func (i IndicesClient) CreateTemplate(ctx context.Context, name string, mappingType MappingType) error {
+	template, err := RenderIndexTemplate(mappingType, i.Indices, i.UseILM, i.ILMPolicyName, i.version)
+	if err != nil {
 		return err
-	} else if v.UsesV8API() {
+	}
+	endpointFmt := "_template/%s"
+	if i.version.UsesV8API() {
 		endpointFmt = "_index_template/%s"
 	}
-	_, err := i.request(ctx, elasticRequest{
+	_, err = i.request(ctx, elasticRequest{
 		endpoint: fmt.Sprintf(endpointFmt, name),
 		method:   http.MethodPut,
 		body:     []byte(template),

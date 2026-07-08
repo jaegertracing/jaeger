@@ -82,10 +82,6 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	version, err := getBackendVersion(client)
 	require.NoError(t, err)
 
-	if !version.SupportsILM() {
-		t.Skipf("ILM/ISM not supported in %s", version)
-	}
-
 	envVars := []string{
 		"ES_USE_ILM=true",
 	}
@@ -222,7 +218,7 @@ func cleanES(t *testing.T, client *elastic.Client, policyName string) {
 	require.NoError(t, err)
 	if version.IsOpenSearch() {
 		deleteISMPolicy(t, policyName)
-	} else if version.SupportsILM() {
+	} else {
 		_, err = client.XPackIlmDeleteLifecycle().Policy(policyName).Do(context.Background())
 		if err != nil && !elastic.IsNotFound(err) {
 			assert.Fail(t, "Not able to clean up ILM Policy")

@@ -6,6 +6,8 @@ package esclient
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,13 +15,17 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
+	"go.uber.org/zap"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 )
 
@@ -148,10 +154,7 @@ func TestClientGetIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:   testServer.Client(),
-					Endpoint: testServer.URL,
-				},
+				Client: makeClient(t, testServer.URL, "", ""),
 			}
 
 			indices, err := c.GetJaegerIndices(context.Background(), test.prefix)
@@ -244,7 +247,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				apiTriggered = true
 				assert.Equal(t, http.MethodDelete, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				assert.Equal(t, fmt.Sprintf("%ds", masterTimeoutSeconds), req.URL.Query().Get("master_timeout"))
 				assert.Equal(t, strconv.FormatBool(ignoreUnavailableIndex), req.URL.Query().Get("ignore_unavailable"))
 				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
@@ -267,11 +270,7 @@ func TestClientDeleteIndices(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client:                 makeClient(t, testServer.URL, "user", "pass"),
 				MasterTimeoutSeconds:   masterTimeoutSeconds,
 				IgnoreUnavailableIndex: ignoreUnavailableIndex,
 			}
@@ -343,17 +342,13 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				apiTriggered = true
 				assert.Equal(t, http.MethodHead, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				assert.LessOrEqual(t, len(req.URL.Path), maxURLPathLength)
 				res.WriteHeader(test.responseCode)
 			}))
 			defer testServer.Close()
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			var exists bool
 			var err error
@@ -375,28 +370,99 @@ func testIndexOrAliasExistence(t *testing.T, existence string) {
 	}
 }
 
-func TestClientRequestError(t *testing.T) {
-	c := &IndicesClient{
-		Client: Client{
-			Endpoint: "%",
-		},
+// testBasicAuthHeader is the Authorization header value that basic auth with
+// user "user" / password "pass" produces once it flows through the auth stack.
+var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
+
+// makeClient builds an esclient.Client for a single plaintext test server. A
+// non-empty user enables basic auth so requests carry an Authorization header.
+func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) Client {
+	// Resolve the version from config so NewClient doesn't probe the test server.
+	// Defaults to ElasticV7; version-specific tests pass an explicit version.
+	v := es.ElasticV7
+	if len(version) > 0 {
+		v = version[0]
 	}
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(v)}
+	if user != "" {
+		cfg.Authentication.BasicAuthentication = configoptional.Some(config.BasicAuthentication{
+			Username: user,
+			Password: pass,
+		})
+	}
+	c, err := NewClient(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+	return c
+}
+
+func TestClientRequestError(t *testing.T) {
+	// A malformed server URL is rejected when the client is constructed.
+	_, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{"%"},
+	}, zap.NewNop(), nil)
+	require.Error(t, err)
+}
+
+func TestClientDoError(t *testing.T) {
+	c := &IndicesClient{
+		Client: makeClient(t, "http://localhost:1", "", ""),
+	}
+
 	indices, err := c.GetJaegerIndices(context.Background(), "")
 	require.Error(t, err)
 	assert.Nil(t, indices)
 }
 
-func TestClientDoError(t *testing.T) {
-	c := &IndicesClient{
-		Client: Client{
-			Client:   &http.Client{},
-			Endpoint: "localhost:1",
-		},
-	}
+// clientWithTimeout builds a Client with an explicit QueryTimeout, resolving the
+// version from config so NewClient doesn't probe (and stall on) the test server.
+func clientWithTimeout(t *testing.T, url string, timeout time.Duration) Client {
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(es.ElasticV7), QueryTimeout: timeout}
+	c, err := NewClient(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+	return c
+}
 
-	indices, err := c.GetJaegerIndices(context.Background(), "")
-	require.Error(t, err)
-	assert.Nil(t, indices)
+// TestPerformAppliesTimeoutWhenNoDeadline covers the gap the reviewer flagged:
+// esutil hands Perform a background-context request with no deadline, so without
+// this the bulk/flush write could hang forever. The client's QueryTimeout must
+// bound it.
+func TestPerformAppliesTimeoutWhenNoDeadline(t *testing.T) {
+	block := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-block // hang until the test releases it
+	}))
+	defer server.Close()
+	defer close(block) // unblock the handler so server.Close can return
+
+	c := clientWithTimeout(t, server.URL, 50*time.Millisecond)
+	req, err := http.NewRequest(http.MethodGet, "/_bulk", http.NoBody) // no deadline
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, err = c.Perform(req)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), time.Second, "Perform returned at the timeout, not when the server unblocked")
+}
+
+// TestPerformWithTimeoutReadsBody covers the success path: a deadline applied by
+// Perform must not abort the caller's later body read, and closing the body
+// releases the context.
+func TestPerformWithTimeoutReadsBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("pong"))
+	}))
+	defer server.Close()
+
+	c := clientWithTimeout(t, server.URL, time.Minute)
+	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
+	require.NoError(t, err)
+
+	res, err := c.Perform(req)
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body) // read happens after Perform returned
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	assert.Equal(t, "pong", string(body))
 }
 
 func TestClientCreateIndex(t *testing.T) {
@@ -423,18 +489,14 @@ func TestClientCreateIndex(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span"))
 				assert.Equal(t, http.MethodPut, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.CreateIndex(context.Background(), indexName)
 			if test.errContains != "" {
@@ -479,7 +541,7 @@ func TestClientCreateAliases(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
 				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				if assert.NoError(t, err) {
 					assert.Equal(t, expectedRequestBody, string(body))
@@ -490,11 +552,7 @@ func TestClientCreateAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.CreateAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -539,7 +597,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "_aliases"))
 				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
@@ -549,11 +607,7 @@ func TestClientDeleteAliases(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.DeleteAlias(context.Background(), aliases)
 			if test.errContains != "" {
@@ -563,48 +617,80 @@ func TestClientDeleteAliases(t *testing.T) {
 	}
 }
 
+// testIndices returns minimal index options sufficient to render any template
+// (non-nil replicas), with no prefix and lifecycle off.
+func testIndices() config.Indices {
+	reps := int64(1)
+	opts := config.IndexOptions{Shards: 5, Replicas: &reps}
+	return config.Indices{Spans: opts, Services: opts, Dependencies: opts, Sampling: opts}
+}
+
+// templateSnapshotIndices returns the index config the CreateTemplate wire
+// snapshots render against: a prefix, distinct per-type priorities, and shards/
+// replicas. Paired with ILM on (below), it exercises both the ILM and ISM
+// settings branches across the backend matrix. These values mirror the pre-M4b
+// mappings golden test so the snapshot bodies stay comparable to it.
+func templateSnapshotIndices() config.Indices {
+	opts := func(priority int64) config.IndexOptions {
+		reps := int64(3)
+		return config.IndexOptions{Shards: 3, Replicas: &reps, Priority: priority}
+	}
+	return config.Indices{
+		IndexPrefix:  "test-",
+		Spans:        opts(500),
+		Services:     opts(501),
+		Dependencies: opts(502),
+		Sampling:     opts(503),
+	}
+}
+
 func TestClientCreateTemplate(t *testing.T) {
-	templateName := "jaeger-template"
-	templateContent := "template content"
 	tests := []struct {
 		name         string
-		versionResp  string
+		version      es.BackendVersion
+		expectedPath string
 		responseCode int
 		response     string
 		errContains  string
 	}{
 		{
 			name:         "success/v7",
-			versionResp:  elasticsearch7,
+			version:      es.ElasticV7,
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/v8",
-			versionResp:  elasticsearch8,
+			version:      es.ElasticV8,
+			expectedPath: "_index_template/jaeger-span",
+			responseCode: http.StatusOK,
+		},
+		{
+			name:         "success/opensearch",
+			version:      es.OpenSearch2,
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "client error",
-			versionResp:  elasticsearch7,
+			version:      es.ElasticV7,
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "failed to create template: jaeger-template",
+			errContains:  "failed to create template: jaeger-span",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			var requestCount atomic.Int64
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				if req.URL.String() == "/" { // ES version check
-					res.WriteHeader(http.StatusOK)
-					res.Write([]byte(test.versionResp))
-					return
-				}
-				assert.True(t, strings.HasSuffix(req.URL.String(), "_template/jaeger-template"))
+				requestCount.Add(1)
+				assert.True(t, strings.HasSuffix(req.URL.String(), test.expectedPath))
 				assert.Equal(t, http.MethodPut, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
-				assert.Equal(t, templateContent, string(body))
+				assert.True(t, json.Valid(body), "rendered template body must be valid JSON")
 
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
@@ -612,16 +698,16 @@ func TestClientCreateTemplate(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client:  makeClient(t, testServer.URL, "user", "pass", test.version),
+				Indices: testIndices(),
 			}
-			err := c.CreateTemplate(context.Background(), templateContent, templateName)
+			err := c.CreateTemplate(context.Background(), "jaeger-span", SpanMapping)
 			if test.errContains != "" {
-				assert.ErrorContains(t, err, test.errContains)
+				require.ErrorContains(t, err, test.errContains)
+			} else {
+				require.NoError(t, err)
 			}
+			assert.EqualValues(t, 1, requestCount.Load(), "CreateTemplate must issue a single request, without a per-call version probe")
 		})
 	}
 }
@@ -654,7 +740,7 @@ func TestRollover(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				assert.True(t, strings.HasSuffix(req.URL.String(), "jaeger-span/_rollover/"))
 				assert.Equal(t, http.MethodPost, req.Method)
-				assert.Equal(t, "Basic foobar", req.Header.Get("Authorization"))
+				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
 				assert.Equal(t, expectedRequestBody, string(body))
@@ -665,11 +751,7 @@ func TestRollover(t *testing.T) {
 			defer testServer.Close()
 
 			c := &IndicesClient{
-				Client: Client{
-					Client:    testServer.Client(),
-					Endpoint:  testServer.URL,
-					BasicAuth: "foobar",
-				},
+				Client: makeClient(t, testServer.URL, "user", "pass"),
 			}
 			err := c.Rollover(context.Background(), "jaeger-span", mapConditions)
 			if test.errContains != "" {
@@ -681,8 +763,10 @@ func TestRollover(t *testing.T) {
 
 // The tests below freeze the exact wire format of each IndicesClient request as
 // snapshots. Version-invariant requests are stored as a bare <subject>.json;
-// CreateTemplate varies (es6-7 and OpenSearch share the _template endpoint,
-// es8-9 use _index_template) and is stored per distinct wire format.
+// CreateTemplate varies by mapping type and backend (es7 and OpenSearch share
+// the _template endpoint but split on ILM vs ISM settings, es8-9 use the
+// composable _index_template envelope) and is stored per distinct wire format
+// under testdata/create_template/<type>.<variants>.json.
 // okServer/indicesClient are shared with the cluster and ILM snapshot tests.
 
 // okServer records requests and always answers 200 with an empty JSON object.
@@ -699,7 +783,7 @@ func okServer(t *testing.T) (*snapshottest.Recorder, string) {
 func indicesClient(t *testing.T) (*snapshottest.Recorder, *IndicesClient) {
 	rec, url := okServer(t)
 	return rec, &IndicesClient{
-		Client:                 Client{Client: http.DefaultClient, Endpoint: url},
+		Client:                 makeClient(t, url, "", ""),
 		MasterTimeoutSeconds:   5,
 		IgnoreUnavailableIndex: true,
 	}
@@ -765,23 +849,39 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 	rec.Assert(t, "testdata/rollover")
 }
 
+func TestCreateTemplateRenderError(t *testing.T) {
+	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7), Indices: testIndices()}
+	err := c.CreateTemplate(context.Background(), "jaeger-span", MappingType(99))
+	require.ErrorContains(t, err, "unknown index template mapping type")
+}
+
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
-	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
-	content := map[es.BackendVersion]string{}
-	for _, version := range es.AllVersions {
-		rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			if r.URL.Path == "/" { // version probe to select the template endpoint
-				w.Write([]byte(versionResponse(version)))
-				return
-			}
-			w.Write([]byte("{}"))
-		})
-		server := httptest.NewServer(rec)
-		t.Cleanup(server.Close)
-		c := IndicesClient{Client: Client{Client: http.DefaultClient, Endpoint: server.URL}}
-		require.NoError(t, c.CreateTemplate(context.Background(), template, "jaeger-span"))
-		content[version] = rec.Marshal(t)
+	indices := templateSnapshotIndices()
+	subjects := []struct {
+		name    string
+		mapping MappingType
+	}{
+		{"span", SpanMapping},
+		{"service", ServiceMapping},
+		{"dependencies", DependencyMapping},
+		{"sampling", SamplingMapping},
 	}
-	snapshottest.AssertByVersion(t, "testdata/create_template", content)
+	for _, subject := range subjects {
+		t.Run(subject.name, func(t *testing.T) {
+			content := map[es.BackendVersion]string{}
+			for _, version := range es.AllVersions {
+				rec, url := okServer(t)
+				c := IndicesClient{
+					Client:        makeClient(t, url, "", "", version),
+					Indices:       indices,
+					UseILM:        true,
+					ILMPolicyName: "jaeger-test-policy",
+				}
+				name := indices.IndexPrefix.Apply(subject.mapping.indexBase())
+				require.NoError(t, c.CreateTemplate(context.Background(), name, subject.mapping))
+				content[version] = rec.Marshal(t)
+			}
+			snapshottest.AssertByVersion(t, "testdata/create_template/"+subject.name, content)
+		})
+	}
 }

@@ -351,6 +351,15 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name:   "explicit supported version accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 102},
+		},
+		{
+			name:          "explicit unsupported version rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 10},
+			expectedError: "unsupported version 10",
+		},
+		{
 			name:          "no valid input are set",
 			config:        &Configuration{},
 			expectedError: "Servers: non zero value required",
@@ -425,6 +434,107 @@ func TestValidate(t *testing.T) {
 					IndexPrefix: "prod",
 				},
 			},
+		},
+		// --- auth mutual-exclusion tests ---
+		{
+			name: "single basic auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+				},
+			},
+		},
+		{
+			name: "single bearer_token auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+				},
+			},
+		},
+		{
+			name: "single api_key auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+		},
+		{
+			name: "basic + bearer_token auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "basic + api_key auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "bearer_token + api_key auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "all three auth methods rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
 		},
 	}
 
