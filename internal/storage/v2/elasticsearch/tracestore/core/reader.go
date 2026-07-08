@@ -10,10 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -77,20 +75,7 @@ var (
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
-
-	disableLegacyIDs *featuregate.Gate
 )
-
-func init() {
-	disableLegacyIDs = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.es.disableLegacyId",
-		featuregate.StageStable, // enabled by default and cannot be disabled
-		featuregate.WithRegisterFromVersion("v2.5.0"),
-		featuregate.WithRegisterToVersion("v2.8.0"),
-		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"),
-	)
-}
 
 // Time-range design (referenced as "timeRangeDesign" in comments below):
 //
@@ -366,26 +351,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 }
 
 func buildTraceByIDQuery(traceID dbmodel.TraceID) esquery.Query {
-	return buildTraceByIDQueryWithLegacy(traceID, disableLegacyIDs.IsEnabled())
-}
-
-// buildTraceByIDQueryWithLegacy takes the gate value as a parameter so the
-// legacy-ID branch — unreachable in production while the stable
-// jaeger.es.disableLegacyId gate is enabled — stays testable.
-func buildTraceByIDQueryWithLegacy(traceID dbmodel.TraceID, disableLegacy bool) esquery.Query {
-	traceIDStr := string(traceID)
-	// An empty ID has no leading-zero variant (and indexing traceIDStr[0] would
-	// panic); a term query on "" simply matches nothing.
-	if traceIDStr == "" || traceIDStr[0] != '0' || disableLegacy {
-		return esquery.NewTermQuery(traceIDField, traceIDStr)
-	}
-	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	legacyTraceID := strings.TrimLeft(traceIDStr, "0")
-	return esquery.NewBoolQuery().Should(
-		esquery.NewTermQuery(traceIDField, traceIDStr).Boost(2),
-		esquery.NewTermQuery(traceIDField, legacyTraceID),
-	)
+	return esquery.NewTermQuery(traceIDField, string(traceID))
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
