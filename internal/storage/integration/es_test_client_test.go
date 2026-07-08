@@ -86,9 +86,13 @@ func (c *esTestClient) ping() (versionNumber, tagLine string) {
 // based on Elasticsearch 7.x for the purposes of the template-API branch).
 func (c *esTestClient) majorVersion() uint {
 	number, tagLine := c.ping()
-	major, err := strconv.Atoi(string(number[0]))
+	// Parse the whole major component (split on '.'), like ResolveBackendVersion,
+	// so multi-digit majors are read correctly and an empty version fails cleanly
+	// rather than panicking on number[0].
+	major, err := strconv.Atoi(strings.SplitN(number, ".", 2)[0])
 	require.NoError(c.t, err)
-	if strings.Contains(tagLine, "OpenSearch") && (number[0] == '1' || number[0] == '2' || number[0] == '3') {
+	// OpenSearch 1.x/2.x/3.x map onto Elasticsearch 7 for template-API selection.
+	if strings.Contains(tagLine, "OpenSearch") && major >= 1 && major <= 3 {
 		major = 7
 	}
 	return uint(major)
