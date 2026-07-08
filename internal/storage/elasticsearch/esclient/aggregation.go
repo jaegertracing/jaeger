@@ -209,8 +209,10 @@ func (f *FilterResult) UnmarshalJSON(data []byte) error {
 
 // marshalBucket renders a bucket back to its wire shape (key + doc_count merged
 // with the raw sub-aggregations). It exists so tests can construct responses from
-// typed values; production only ever decodes buckets. The raw sub-aggregations are
-// json.RawMessage values, so json.Marshal emits them verbatim.
+// typed values; production only ever decodes buckets. The sub-aggregations are
+// json.RawMessage values; json.Marshal validates each one (the encoder compacts a
+// Marshaler's output), so a malformed raw sub-aggregation surfaces as a marshal
+// error rather than being emitted verbatim.
 func marshalBucket(key any, docCount int, subAggs Aggregations) ([]byte, error) {
 	m := make(map[string]any, len(subAggs)+2)
 	for k, v := range subAggs {
