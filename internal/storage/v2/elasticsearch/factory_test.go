@@ -20,9 +20,10 @@ import (
 
 var mockEsServerResponse = []byte(`
 {
-	"Version": {
-		"Number": "6"
-	}
+	"version": {
+		"number": "7.10.2"
+	},
+	"tagline": "You Know, for Search"
 }
 `)
 
@@ -60,7 +61,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 
 func TestESStorageFactoryErr(t *testing.T) {
 	f, err := NewFactory(context.Background(), escfg.Configuration{}, telemetry.NoopSettings(), nil)
-	require.ErrorContains(t, err, "failed to create Elasticsearch client: no servers specified")
+	require.ErrorContains(t, err, "no servers specified")
 	require.Nil(t, f)
 }
 

@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -30,7 +29,6 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -38,9 +36,10 @@ import (
 
 var mockEsServerResponse = []byte(`
 {
-	"Version": {
-		"Number": "6"
-	}
+	"version": {
+		"number": "7.10.2"
+	},
+	"tagline": "You Know, for Search"
 }
 `)
 
@@ -69,45 +68,53 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 func TestFactoryBase_Purge(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupMock   func(*mocks.IndicesDeleteService)
+		status      int
 		expectedErr bool
 	}{
-		{
-			name: "successful purge",
-			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
-				mockDelete.On("Do", mock.Anything).Return(nil, nil)
-			},
-			expectedErr: false,
-		},
-		{
-			name: "purge error",
-			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
-				mockDelete.On("Do", mock.Anything).Return(nil, errors.New("delete error"))
-			},
-			expectedErr: true,
-		},
+		{name: "successful purge", status: http.StatusOK, expectedErr: false},
+		{name: "purge error", status: http.StatusInternalServerError, expectedErr: true},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mocks.Client{}
-			mockDelete := &mocks.IndicesDeleteService{}
-			mockClient.On("DeleteIndex", "*").Return(mockDelete)
+			// The handler runs on a separate goroutine, so guard the captured
+			// request fields with a mutex.
+			var (
+				mu                           sync.Mutex
+				gotMethod, gotPath, gotQuery string
+			)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					mu.Lock()
+					gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+					mu.Unlock()
+					w.WriteHeader(tt.status)
+					w.Write([]byte("{}"))
+					return
+				}
+				w.Write(mockEsServerResponse)
+			}))
+			defer server.Close()
 
-			tt.setupMock(mockDelete)
+			esClient, err := esclient.NewClient(context.Background(),
+				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+			require.NoError(t, err)
+			f := &FactoryBase{esClient: esClient, logger: zap.NewNop(), config: &escfg.Configuration{}}
 
-			var client es.Client = mockClient
-			f := &FactoryBase{client: client}
-
-			err := f.Purge(context.Background())
+			err = f.Purge(context.Background())
+			mu.Lock()
+			method, path, query := gotMethod, gotPath, gotQuery
+			mu.Unlock()
 			if tt.expectedErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				assert.Equal(t, http.MethodDelete, method)
+				assert.Equal(t, "/*", path)
+				// Cleanup tolerates missing indices, and no master_timeout=0s is
+				// sent (the cluster default is used instead).
+				assert.Contains(t, query, "ignore_unavailable=true")
+				assert.NotContains(t, query, "master_timeout")
 			}
-
-			mockClient.AssertExpectations(t)
-			mockDelete.AssertExpectations(t)
 		})
 	}
 }
@@ -196,10 +203,9 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
-// TestCreateTemplates drives the migrated data-plane path: createTemplates now
+// TestCreateTemplates drives the migrated data-plane path: createTemplates
 // installs the span and service templates through the owned esclient, so the
-// test records the PUTs against a real server rather than asserting an olivere
-// fluent-call sequence.
+// test records the PUTs against a real server.
 func TestCreateTemplates(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -342,7 +348,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		LogLevel:           "error",
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
-	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+	require.ErrorContains(t, err, "failed to create Elasticsearch data client")
 }
 
 // TestESStorageFactoryClosesOnTemplateError drives NewFactoryBase past client
@@ -371,10 +377,6 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func withLegacyClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error)) factoryOption {
-	return func(f *FactoryBase) { f.newLegacyClientFn = fn }
-}
-
 func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error)) factoryOption {
 	return func(f *FactoryBase) { f.newESClientFn = fn }
 }
@@ -383,39 +385,27 @@ func withBulkIndexerFn(fn func(*esclient.Client, esclient.BulkIndexerConfig, met
 	return func(f *FactoryBase) { f.newBulkIndexerFn = fn }
 }
 
-// TestNewFactoryBaseDataClientError injects a failing esclient constructor (the
-// legacy client succeeds) to exercise the data-client error path and verify the
-// deferred cleanup closes the already-built legacy client.
+// TestNewFactoryBaseDataClientError injects a failing esclient constructor to
+// exercise the data-client error path and its deferred cleanup.
 func TestNewFactoryBaseDataClientError(t *testing.T) {
-	legacyClient := &mocks.Client{}
-	legacyClient.On("Close").Return(nil)
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
 		metrics.NullFactory, zap.NewNop(), nil,
-		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
-			return legacyClient, nil
-		}),
 		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
 			return nil, errors.New("data client boom")
 		}),
 	)
 	require.ErrorContains(t, err, "data client")
-	legacyClient.AssertCalled(t, "Close") // deferred cleanup closed the legacy client
 }
 
 // TestNewFactoryBaseBulkIndexerError injects a failing bulk-indexer constructor
-// (both clients succeed) to exercise that error path and its deferred cleanup.
+// (the esclient succeeds) to exercise that error path and its deferred cleanup.
 func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
-	legacyClient := &mocks.Client{}
-	legacyClient.On("Close").Return(nil)
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
 		metrics.NullFactory, zap.NewNop(), nil,
-		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
-			return legacyClient, nil
-		}),
 		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
 			return &esclient.Client{}, nil
 		}),
@@ -424,12 +414,10 @@ func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
 		}),
 	)
 	require.ErrorContains(t, err, "bulk indexer")
-	legacyClient.AssertCalled(t, "Close")
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &FactoryBase{}
-	assert.Nil(t, f.getClient())
 	assert.NoError(t, f.Close()) // must not panic on nil client
 }
 
