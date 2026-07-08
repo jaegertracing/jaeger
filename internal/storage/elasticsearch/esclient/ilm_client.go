@@ -50,7 +50,7 @@ func (i ILMClient) policyEndpoint(name string) string {
 //
 // It goes through Perform rather than request() because a successful policy PUT
 // is 200 on Elasticsearch but 201 on OpenSearch (and re-creating an ISM policy
-// returns 409), none of which request()'s strict 200 check would accept.
+// returns 409); request() accepts only 200, so it would reject the 201 and 409.
 func (i ILMClient) TestsOnlyPutPolicy(ctx context.Context, name, body string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "/"+i.policyEndpoint(name), strings.NewReader(body))
 	if err != nil {
