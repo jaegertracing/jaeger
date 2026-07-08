@@ -180,7 +180,12 @@ func (b HistogramBucket) MarshalJSON() ([]byte, error) {
 }
 
 // PercentilesResult holds a percentiles aggregation's computed values, keyed by
-// percentile rank as Elasticsearch formats it (e.g. "95.0").
+// percentile rank as Elasticsearch formats it (e.g. "95.0"). A percentile value is
+// null only when the aggregation matched no documents; a JSON null decodes into a
+// float64 as a no-op (0), not an error, so the map stays present and the accessor
+// still returns true. A plain float64 (rather than *float64) is enough because the
+// only reader skips empty buckets — bucketsToPoints short-circuits doc_count==0 to
+// NaN before any percentile is read — so a present-but-null value never surfaces.
 type PercentilesResult struct {
 	Values map[string]float64 `json:"values"`
 }
