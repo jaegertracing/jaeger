@@ -164,13 +164,13 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	s.initializeES(t, true)
 	// templateExists picks the composable (_index_template) or legacy (_template)
 	// API by backend version, so this assertion is uniform across ES 7–9 / OS.
-	assert.True(t, s.client.templateExists(indexPrefix+"-jaeger-service"))
-	assert.True(t, s.client.templateExists(indexPrefix+"-jaeger-span"))
-	s.cleanESIndexTemplates(indexPrefix)
+	assert.True(t, s.client.templateExists(t, indexPrefix+"-jaeger-service"))
+	assert.True(t, s.client.templateExists(t, indexPrefix+"-jaeger-span"))
+	s.cleanESIndexTemplates(t, indexPrefix)
 }
 
-func (s *ESStorageIntegration) cleanESIndexTemplates(prefix string) {
-	s.client.cleanTemplates(prefix)
+func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) {
+	s.client.cleanTemplates(t, prefix)
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge

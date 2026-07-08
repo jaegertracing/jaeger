@@ -33,7 +33,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
 	client := createESClient(t)
-	client.deleteAllIndices()
+	client.deleteAllIndices(t)
 
 	tests := []struct {
 		envs []string
@@ -62,9 +62,9 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 		{envs: []string{"ARCHIVE=true"}},
 	}
 	for _, test := range tests {
-		client.deleteAllIndices()
+		client.deleteAllIndices(t)
 		// Create Indices with adaptive sampling disabled (set to false).
-		err := createAllIndices(client, "", false)
+		err := createAllIndices(t, client, "", false)
 		require.NoError(t, err)
 		err = runEsCleaner(1500, test.envs)
 		require.NoError(t, err)
@@ -137,9 +137,9 @@ func TestIndexCleaner(t *testing.T) {
 
 func runIndexCleanerTest(t *testing.T, client *esTestClient, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
 	// make sure ES is clean
-	client.deleteAllIndices()
-	defer client.cleanTemplates(prefix)
-	err := createAllIndices(client, prefix, adaptiveSampling)
+	client.deleteAllIndices(t)
+	defer client.cleanTemplates(t, prefix)
+	err := createAllIndices(t, client, prefix, adaptiveSampling)
 	require.NoError(t, err)
 	err = runEsCleaner(0, envVars)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func runIndexCleanerTest(t *testing.T, client *esTestClient, prefix string, expe
 	}
 	// GetJaegerIndices returns only jaeger-* indices, so system indices are
 	// already excluded (https://github.com/jaegertracing/jaeger/issues/7002).
-	found := client.jaegerIndexNames(prefix)
+	found := client.jaegerIndexNames(t, prefix)
 	var expected []string
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix+index)
@@ -156,13 +156,13 @@ func runIndexCleanerTest(t *testing.T, client *esTestClient, prefix string, expe
 	assert.ElementsMatch(t, found, expected, "indices found: %v, expected: %v", found, expected)
 }
 
-func createAllIndices(client *esTestClient, prefix string, adaptiveSampling bool) error {
+func createAllIndices(t *testing.T, client *esTestClient, prefix string, adaptiveSampling bool) error {
 	prefixWithSeparator := prefix
 	if prefix != "" {
 		prefixWithSeparator += "-"
 	}
 	// create daily indices and archive index
-	createEsIndices(client, []string{
+	createEsIndices(t, client, []string{
 		prefixWithSeparator + spanIndexName,
 		prefixWithSeparator + serviceIndexName,
 		prefixWithSeparator + dependenciesIndexName,
@@ -190,9 +190,9 @@ func createAllIndices(client *esTestClient, prefix string, adaptiveSampling bool
 	return nil
 }
 
-func createEsIndices(client *esTestClient, indices []string) {
+func createEsIndices(t *testing.T, client *esTestClient, indices []string) {
 	for _, index := range indices {
-		client.createIndex(index)
+		client.createIndex(t, index)
 	}
 }
 

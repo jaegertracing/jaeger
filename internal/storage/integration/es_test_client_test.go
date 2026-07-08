@@ -23,8 +23,13 @@ import (
 // re-implemented in the tests. The TestsOnly* methods it calls are esclient
 // operations Jaeger never performs in production (checking/deleting templates,
 // reading settings, creating lifecycle policies) but that the tests need.
+//
+// The helpers take the current *testing.T as their first argument rather than
+// capturing one at construction, so a single client can be shared across t.Run
+// subtests while assertions still attribute to (and FailNow on) the running
+// subtest. The t-first signature also visibly marks these as test-assertion
+// helpers, distinct from the ctx-first esclient API they wrap.
 type esTestClient struct {
-	t       *testing.T
 	client  esclient.Client
 	indices *esclient.IndicesClient
 	ilm     *esclient.ILMClient
@@ -39,7 +44,6 @@ func newESTestClient(t *testing.T) *esTestClient {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })
 	return &esTestClient{
-		t:       t,
 		client:  client,
 		indices: &esclient.IndicesClient{Client: client, IgnoreUnavailableIndex: true},
 		ilm:     &esclient.ILMClient{Client: client, Logger: zap.NewNop()},
@@ -52,19 +56,19 @@ func (c *esTestClient) backendVersion() es.BackendVersion {
 	return c.client.TestsOnlyBackendVersion()
 }
 
-func (c *esTestClient) createIndex(name string) {
-	require.NoError(c.t, c.indices.CreateIndex(context.Background(), name))
+func (c *esTestClient) createIndex(t *testing.T, name string) {
+	require.NoError(t, c.indices.CreateIndex(context.Background(), name))
 }
 
-func (c *esTestClient) deleteAllIndices() {
-	require.NoError(c.t, c.indices.DeleteAllIndices(context.Background()))
+func (c *esTestClient) deleteAllIndices(t *testing.T) {
+	require.NoError(t, c.indices.DeleteAllIndices(context.Background()))
 }
 
 // jaegerIndexNames returns the names of all Jaeger indices under prefix (the same
 // query es-index-cleaner uses to find what to delete).
-func (c *esTestClient) jaegerIndexNames(prefix string) []string {
+func (c *esTestClient) jaegerIndexNames(t *testing.T, prefix string) []string {
 	indices, err := c.indices.GetJaegerIndices(context.Background(), prefix)
-	require.NoError(c.t, err)
+	require.NoError(t, err)
 	names := make([]string, 0, len(indices))
 	for _, idx := range indices {
 		names = append(names, idx.Index)
@@ -72,26 +76,26 @@ func (c *esTestClient) jaegerIndexNames(prefix string) []string {
 	return names
 }
 
-func (c *esTestClient) flatSettings(indices []string) map[string]map[string]any {
+func (c *esTestClient) flatSettings(t *testing.T, indices []string) map[string]map[string]any {
 	settings, err := c.indices.TestsOnlyGetSettings(context.Background(), indices)
-	require.NoError(c.t, err)
+	require.NoError(t, err)
 	return settings
 }
 
 // putLifecyclePolicy installs an ILM (Elasticsearch) or ISM (OpenSearch) policy;
 // the esclient picks the endpoint from the resolved backend, so the caller only
 // supplies the backend-appropriate body.
-func (c *esTestClient) putLifecyclePolicy(name, body string) {
-	require.NoError(c.t, c.ilm.TestsOnlyPutPolicy(context.Background(), name, body))
+func (c *esTestClient) putLifecyclePolicy(t *testing.T, name, body string) {
+	require.NoError(t, c.ilm.TestsOnlyPutPolicy(context.Background(), name, body))
 }
 
-func (c *esTestClient) deleteLifecyclePolicy(name string) {
-	require.NoError(c.t, c.ilm.TestsOnlyDeletePolicy(context.Background(), name))
+func (c *esTestClient) deleteLifecyclePolicy(t *testing.T, name string) {
+	require.NoError(t, c.ilm.TestsOnlyDeletePolicy(context.Background(), name))
 }
 
-func (c *esTestClient) templateExists(name string) bool {
+func (c *esTestClient) templateExists(t *testing.T, name string) bool {
 	exists, err := c.indices.TestsOnlyTemplateExists(context.Background(), name)
-	require.NoError(c.t, err)
+	require.NoError(t, err)
 	return exists
 }
 
@@ -100,9 +104,9 @@ func (c *esTestClient) templateExists(name string) bool {
 // Elasticsearch 8+ the composable (_index_template) templates by name (including
 // the adaptive-sampling template, which es-rollover installs and would otherwise
 // leak across tests). The esclient picks the endpoint per template name.
-func (c *esTestClient) cleanTemplates(prefix string) {
+func (c *esTestClient) cleanTemplates(t *testing.T, prefix string) {
 	if !c.backendVersion().UsesV8API() {
-		require.NoError(c.t, c.indices.TestsOnlyDeleteTemplate(context.Background(), "*"))
+		require.NoError(t, c.indices.TestsOnlyDeleteTemplate(context.Background(), "*"))
 		return
 	}
 	sep := prefix
@@ -110,6 +114,6 @@ func (c *esTestClient) cleanTemplates(prefix string) {
 		sep += "-"
 	}
 	for _, base := range []string{escfg.SpanIndexName, escfg.ServiceIndexName, escfg.DependencyIndexName, escfg.SamplingIndexName} {
-		require.NoError(c.t, c.indices.TestsOnlyDeleteTemplate(context.Background(), sep+base))
+		require.NoError(t, c.indices.TestsOnlyDeleteTemplate(context.Background(), sep+base))
 	}
 }

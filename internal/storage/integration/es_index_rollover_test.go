@@ -29,7 +29,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	// Run the ES rollover test with adaptive sampling disabled (set to false).
 	err := runEsRollover("init", envVars, false)
 	require.EqualError(t, err, "exit status 1")
-	indices := client.jaegerIndexNames("")
+	indices := client.jaegerIndexNames(t, "")
 	assert.Empty(t, indices)
 }
 
@@ -99,7 +99,7 @@ func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.
 	cleanES(t, client, ilmPolicyName)
 	// make sure ES is cleaned after test
 	defer cleanES(t, client, ilmPolicyName)
-	defer client.cleanTemplates(prefix)
+	defer client.cleanTemplates(t, prefix)
 	createILMPolicy(t, client, version, ilmPolicyName)
 
 	if prefix != "" {
@@ -117,10 +117,10 @@ func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.
 	err := runEsRollover("init", envVars, adaptiveSampling)
 	require.NoError(t, err)
 
-	indices := client.jaegerIndexNames(prefix)
+	indices := client.jaegerIndexNames(t, prefix)
 
 	// Get settings and verify ILM policy name (ES) or ISM rollover alias (OpenSearch)
-	settings := client.flatSettings(expected)
+	settings := client.flatSettings(t, expected)
 	for name, s := range settings {
 		aliasKey := "index.lifecycle.rollover_alias"
 		if version.IsOpenSearch() {
@@ -143,9 +143,9 @@ func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.
 // createILMPolicy installs the lifecycle policy es-rollover requires. Only the
 // policy body is backend-specific (the ISM and ILM schemas differ); the esclient
 // picks the endpoint, so there is no endpoint branch here.
-func createILMPolicy(_ *testing.T, client *esTestClient, version es.BackendVersion, policyName string) {
+func createILMPolicy(t *testing.T, client *esTestClient, version es.BackendVersion, policyName string) {
 	if version.IsOpenSearch() {
-		client.putLifecyclePolicy(policyName, `{
+		client.putLifecyclePolicy(t, policyName, `{
 			"policy": {
 				"description": "Jaeger ILM integration test policy",
 				"default_state": "hot",
@@ -157,7 +157,7 @@ func createILMPolicy(_ *testing.T, client *esTestClient, version es.BackendVersi
 			}
 		}`)
 	} else {
-		client.putLifecyclePolicy(policyName, `{
+		client.putLifecyclePolicy(t, policyName, `{
 			"policy": {
 				"phases": {
 					"hot": {
@@ -173,8 +173,8 @@ func createILMPolicy(_ *testing.T, client *esTestClient, version es.BackendVersi
 	}
 }
 
-func cleanES(_ *testing.T, client *esTestClient, policyName string) {
-	client.deleteAllIndices()
-	client.deleteLifecyclePolicy(policyName)
-	client.cleanTemplates("")
+func cleanES(t *testing.T, client *esTestClient, policyName string) {
+	client.deleteAllIndices(t)
+	client.deleteLifecyclePolicy(t, policyName)
+	client.cleanTemplates(t, "")
 }
