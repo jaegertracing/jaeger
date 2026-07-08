@@ -110,10 +110,16 @@ func (i *IndicesClient) DeleteAllIndices(ctx context.Context) error {
 
 // execute delete request
 func (i *IndicesClient) indexDeleteRequest(ctx context.Context, concatIndices string) error {
+	// A zero master timeout is omitted so the cluster applies its own default
+	// rather than master_timeout=0s, which asks the master to respond within no
+	// time and can fail on a transient master delay.
+	params := fmt.Sprintf("ignore_unavailable=%t", i.IgnoreUnavailableIndex)
+	if i.MasterTimeoutSeconds > 0 {
+		params = fmt.Sprintf("master_timeout=%ds&%s", i.MasterTimeoutSeconds, params)
+	}
 	_, err := i.request(ctx, elasticRequest{
-		endpoint: fmt.Sprintf("%s?master_timeout=%ds&ignore_unavailable=%t", concatIndices,
-			i.MasterTimeoutSeconds, i.IgnoreUnavailableIndex),
-		method: http.MethodDelete,
+		endpoint: concatIndices + "?" + params,
+		method:   http.MethodDelete,
 	})
 	if err != nil {
 		var responseError ResponseError

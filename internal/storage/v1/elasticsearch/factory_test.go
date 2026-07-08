@@ -76,10 +76,10 @@ func TestFactoryBase_Purge(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var gotMethod, gotPath string
+			var gotMethod, gotPath, gotQuery string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodDelete {
-					gotMethod, gotPath = r.Method, r.URL.Path
+					gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
 					w.WriteHeader(tt.status)
 					w.Write([]byte("{}"))
 					return
@@ -100,6 +100,10 @@ func TestFactoryBase_Purge(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, http.MethodDelete, gotMethod)
 				assert.Equal(t, "/*", gotPath)
+				// Cleanup tolerates missing indices, and no master_timeout=0s is
+				// sent (the cluster default is used instead).
+				assert.Contains(t, gotQuery, "ignore_unavailable=true")
+				assert.NotContains(t, gotQuery, "master_timeout")
 			}
 		})
 	}

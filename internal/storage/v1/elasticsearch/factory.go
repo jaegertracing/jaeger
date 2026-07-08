@@ -213,10 +213,13 @@ func (f *FactoryBase) indicesClient() *esclient.IndicesClient {
 		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
 	}
 	return &esclient.IndicesClient{
-		Client:        f.esClient,
-		Indices:       f.config.Indices,
-		UseILM:        ilmPolicyName != "",
-		ILMPolicyName: ilmPolicyName,
+		Client:  f.esClient,
+		Indices: f.config.Indices,
+		// Purge deletes "*" for cleanup, so tolerate missing indices rather than
+		// failing when there is nothing to delete.
+		IgnoreUnavailableIndex: true,
+		UseILM:                 ilmPolicyName != "",
+		ILMPolicyName:          ilmPolicyName,
 	}
 }
 
