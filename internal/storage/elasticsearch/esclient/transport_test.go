@@ -75,6 +75,18 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 	assert.True(t, sawHeader.Load(), "the base RoundTripper stack was not applied to pooled requests")
 }
 
+// TestNewRawClientNoServers covers the empty-servers guard, which reproduces the
+// error the retired olivere client raised so callers (the storage factory) still
+// fail construction with the same message on a missing Servers list.
+func TestNewRawClientNoServers(t *testing.T) {
+	for name, servers := range map[string][]string{"nil": nil, "empty": {}} {
+		t.Run(name, func(t *testing.T) {
+			_, err := newRawClient(servers, http.DefaultTransport)
+			require.EqualError(t, err, "no servers specified")
+		})
+	}
+}
+
 func TestNewRawClientInvalidURL(t *testing.T) {
 	tests := map[string]string{
 		"unparseable":    "http://host:notaport",
