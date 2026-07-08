@@ -105,7 +105,7 @@ func TestGenerateMappings(t *testing.T) {
 			options: Options{
 				Mapping: "",
 			},
-			expectErr: "invalid mapping type ''",
+			expectErr: `invalid mapping type ""`,
 		},
 	}
 
