@@ -221,7 +221,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
 	require.Empty(t, sessionReq.McpServers,
-		"the gateway must not advertise any MCP servers in NewSession — built-in MCP tools are reached by the sidecar directly, and contextual tools ride the ACP extension method instead")
+		"the gateway does not announce the session-scoped MCP endpoint yet — that is a follow-up PR")
 	require.Empty(t, sessionReq.Meta,
 		"Meta must be omitted when the AG-UI request carries no tools")
 
