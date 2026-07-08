@@ -6,6 +6,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -20,6 +21,9 @@ import (
 // version-dependent operations (template endpoint, ILM vs ISM) are resolved at
 // construction time instead of re-detecting per call.
 func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
+	// govalidator's url validation rejects 0.0.0.0, replace it with 127.0.0.1 for tests
+	endpoint = strings.Replace(endpoint, "://0.0.0.0:", "://127.0.0.1:", 1)
+
 	esCfg := &config.Configuration{
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.Timeout) * time.Second,
@@ -44,7 +48,7 @@ func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.
 		})
 	}
 	if err := esCfg.Validate(); err != nil {
-		return esclient.Client{}, err
+		return nil, err
 	}
 	// NewClient resolves the backend version at construction.
 	return esclient.NewClient(ctx, esCfg, logger, nil)
