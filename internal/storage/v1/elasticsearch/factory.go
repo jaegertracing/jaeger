@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
@@ -65,8 +64,6 @@ type FactoryBase struct {
 	searcher   esclient.Searcher
 	bulkWriter *esclient.BulkIndexer
 
-	templateBuilder es.TemplateBuilder
-
 	tags []string
 }
 
@@ -103,7 +100,6 @@ func NewFactoryBase(
 	}()
 	f.metricsFactory = metricsFactory
 	f.logger = logger
-	f.templateBuilder = es.TextTemplateBuilder{}
 	f.config.LogDeprecationWarnings(logger)
 	tags, err := f.config.TagKeysAsFields()
 	if err != nil {
@@ -166,7 +162,6 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
-		Client:            f.getClient,
 		Searcher:          f.searcher,
 		MaxDocCount:       f.config.MaxDocCount,
 		MaxSpanAge:        maxSpanAge,
@@ -198,7 +193,6 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 // GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
-		Client:      f.getClient,
 		Searcher:    f.searcher,
 		BulkWriter:  f.bulkWriter,
 		Logger:      f.logger,
@@ -220,13 +214,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	store := essamplestore.NewSamplingStore(params)
 
 	if f.config.CreateIndexTemplates {
-		mappingBuilder := f.mappingBuilderFromConfig(f.config)
-		samplingMapping, err := mappingBuilder.GetSamplingMappings()
-		if err != nil {
-			return nil, err
-		}
 		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
-		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
+		if err := f.indicesClient().CreateTemplate(context.Background(), templateName, esclient.SamplingMapping); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -234,18 +223,21 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	return store, nil
 }
 
-func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
-	spanRC := cfg.ResolvedSpanRotation()
+// indicesClient builds the esclient admin client used to install index
+// templates, carrying the resolved index and ILM config the renderer needs.
+// The client renders each template body from its own resolved backend version,
+// so the factory no longer reads GetVersion here.
+func (f *FactoryBase) indicesClient() *esclient.IndicesClient {
+	spanRC := f.config.ResolvedSpanRotation()
 	var ilmPolicyName string
 	if spanRC.AutoRollover.HasValue() {
 		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
 	}
-	return mappings.MappingBuilder{
-		TemplateBuilder: f.templateBuilder,
-		Indices:         cfg.Indices,
-		Version:         f.client.GetVersion(),
-		UseILM:          ilmPolicyName != "",
-		ILMPolicyName:   ilmPolicyName,
+	return &esclient.IndicesClient{
+		Client:        f.esClient,
+		Indices:       f.config.Indices,
+		UseILM:        ilmPolicyName != "",
+		ILMPolicyName: ilmPolicyName,
 	}
 }
 
@@ -310,22 +302,17 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if f.config.CreateIndexTemplates {
-		mappingBuilder := f.mappingBuilderFromConfig(f.config)
-		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-		if err != nil {
-			return err
-		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
-		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
-		}
-		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
-		}
+	if !f.config.CreateIndexTemplates {
+		return nil
+	}
+	ic := f.indicesClient()
+	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
+	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
+	if err := ic.CreateTemplate(ctx, jaegerSpanIdx, esclient.SpanMapping); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
+	}
+	if err := ic.CreateTemplate(ctx, jaegerServiceIdx, esclient.ServiceMapping); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
 	return nil
 }

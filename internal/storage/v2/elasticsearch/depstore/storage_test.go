@@ -25,7 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -76,37 +75,6 @@ func TestWriteDependencies(t *testing.T) {
 	body := added[0].Body.(*dbmodel.TimeDependencies)
 	assert.Equal(t, fixedTime, body.Timestamp)
 	assert.Equal(t, dependencies, body.Dependencies)
-}
-
-func TestCreateTemplates(t *testing.T) {
-	tests := []struct {
-		name        string
-		doErr       error
-		expectedErr string
-	}{
-		{name: "success"},
-		{name: "error", doErr: errors.New("template failure"), expectedErr: "template failure"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			client := &mocks.Client{}
-			templateService := &mocks.TemplateCreateService{}
-			client.On("CreateTemplate", config.DependencyIndexName).Return(templateService)
-			templateService.On("Body", "the-template").Return(templateService)
-			templateService.On("Do", mock.Anything).Return(nil, test.doErr)
-			store := NewDependencyStore(Params{
-				Client: func() es.Client { return client },
-				Logger: zap.NewNop(),
-			})
-
-			err := store.CreateTemplates("the-template")
-			if test.expectedErr != "" {
-				require.ErrorContains(t, err, test.expectedErr)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }
 
 func TestGetDependencies(t *testing.T) {

@@ -6,6 +6,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
@@ -56,10 +56,25 @@ func TestWriteService(t *testing.T) {
 // keyed "123", used to assert getServices/getOperations extract the bucket keys.
 func oneBucketResponse(aggName string) *esclient.SearchResponse {
 	return &esclient.SearchResponse{
-		Aggregations: map[string]esclient.AggregationResult{
+		Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			aggName: {Buckets: []esclient.AggregationBucket{{Key: "123", DocCount: 16}}},
-		},
+		}),
 	}
+}
+
+// termsAggregations builds the raw-message Aggregations a response carries from
+// typed terms results, so tests can assert bucket parsing without hand-writing the
+// wire JSON. Marshalling static test data cannot fail.
+func termsAggregations(byName map[string]esclient.AggregationResult) esclient.Aggregations {
+	aggs := esclient.Aggregations{}
+	for name, result := range byName {
+		raw, err := json.Marshal(result)
+		if err != nil {
+			panic(err)
+		}
+		aggs[name] = raw
+	}
+	return aggs
 }
 
 func TestSpanReader_GetServices(t *testing.T) {
@@ -77,7 +92,7 @@ func TestSpanReader_GetServices(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + servicesAggregation,
 		},
 		{
@@ -122,7 +137,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + operationsAggregation,
 		},
 		{
@@ -204,22 +219,6 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 // service/operation read + write path over esclient (SearchClient for reads,
 // the bulk indexer for writes). Every supported version emits the same request,
 // so the snapshots collapse to a single file per operation.
-
-// newDataClient builds a real es.Client for the given backend version, pointed at
-// the recording server. Version is set explicitly so no ping is issued, and the
-// bulk processor only flushes on Close.
-func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
-	cfg := &config.Configuration{
-		Servers:            []string{url},
-		Version:            uint(version),
-		DisableHealthCheck: true,
-		LogLevel:           "info",
-		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
-	}
-	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
-	require.NoError(t, err)
-	return client
-}
 
 // dataRecorder answers each request with an empty-but-valid response for its
 // endpoint (search, msearch, or bulk), so operations complete without error
