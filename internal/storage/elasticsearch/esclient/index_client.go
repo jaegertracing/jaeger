@@ -101,12 +101,26 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 	return indices, nil
 }
 
+// DeleteAllIndices deletes every index (the "*" pattern) in one request, sending
+// a clean DELETE /* rather than the comma-joined list DeleteIndices builds. It is
+// the index-wipe primitive the storage factory's Purge is migrating onto; the
+// integration tests use it today.
+func (i *IndicesClient) DeleteAllIndices(ctx context.Context) error {
+	return i.indexDeleteRequest(ctx, "*")
+}
+
 // execute delete request
 func (i *IndicesClient) indexDeleteRequest(ctx context.Context, concatIndices string) error {
+	// A zero master timeout is omitted so the cluster applies its own default
+	// rather than master_timeout=0s, which asks the master to respond within no
+	// time and can fail on a transient master delay.
+	params := fmt.Sprintf("ignore_unavailable=%t", i.IgnoreUnavailableIndex)
+	if i.MasterTimeoutSeconds > 0 {
+		params = fmt.Sprintf("master_timeout=%ds&%s", i.MasterTimeoutSeconds, params)
+	}
 	_, err := i.request(ctx, elasticRequest{
-		endpoint: fmt.Sprintf("%s?master_timeout=%ds&ignore_unavailable=%t", concatIndices,
-			i.MasterTimeoutSeconds, i.IgnoreUnavailableIndex),
-		method: http.MethodDelete,
+		endpoint: concatIndices + "?" + params,
+		method:   http.MethodDelete,
 	})
 	if err != nil {
 		var responseError ResponseError
@@ -282,12 +296,8 @@ func (i IndicesClient) CreateTemplate(ctx context.Context, name string, mappingT
 	if err != nil {
 		return err
 	}
-	endpointFmt := "_template/%s"
-	if i.version.UsesV8API() {
-		endpointFmt = "_index_template/%s"
-	}
 	_, err = i.request(ctx, elasticRequest{
-		endpoint: fmt.Sprintf(endpointFmt, name),
+		endpoint: i.templateEndpoint(name),
 		method:   http.MethodPut,
 		body:     []byte(template),
 	})
@@ -330,4 +340,75 @@ func (i IndicesClient) Rollover(ctx context.Context, rolloverTarget string, cond
 		return fmt.Errorf("failed to create rollover: %w", err)
 	}
 	return nil
+}
+
+// templateEndpoint returns the index-template API path for name: the composable
+// (_index_template) endpoint on backends that use the v8 API, the legacy
+// (_template) endpoint otherwise. CreateTemplate and the TestsOnly template
+// helpers all route through here so the endpoint choice lives in one place.
+func (i IndicesClient) templateEndpoint(name string) string {
+	if i.version.UsesV8API() {
+		return "_index_template/" + name
+	}
+	return "_template/" + name
+}
+
+// TestsOnlyTemplateExists reports whether the index template for name exists,
+// using the same endpoint CreateTemplate installs it under. Integration-test-only
+// — production never checks a template's existence.
+func (i IndicesClient) TestsOnlyTemplateExists(ctx context.Context, name string) (bool, error) {
+	_, err := i.request(ctx, elasticRequest{
+		endpoint: i.templateEndpoint(name),
+		method:   http.MethodHead,
+	})
+	if err != nil {
+		var responseError ResponseError
+		if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check if template exists: %w", err)
+	}
+	return true, nil
+}
+
+// TestsOnlyDeleteTemplate deletes the index template for name (the same endpoint
+// CreateTemplate installs it under), tolerating a missing template. Integration-
+// test-only — production never deletes templates.
+func (i IndicesClient) TestsOnlyDeleteTemplate(ctx context.Context, name string) error {
+	_, err := i.request(ctx, elasticRequest{
+		endpoint: i.templateEndpoint(name),
+		method:   http.MethodDelete,
+	})
+	if err != nil {
+		var responseError ResponseError
+		if errors.As(err, &responseError) && responseError.StatusCode == http.StatusNotFound {
+			return nil
+		}
+		return fmt.Errorf("failed to delete template %q: %w", name, err)
+	}
+	return nil
+}
+
+// TestsOnlyGetSettings returns the flattened settings of each named index, keyed
+// by index name. Integration-test-only — production reads index settings only
+// through GetJaegerIndices.
+func (i IndicesClient) TestsOnlyGetSettings(ctx context.Context, indices []string) (map[string]map[string]any, error) {
+	body, err := i.request(ctx, elasticRequest{
+		endpoint: strings.Join(indices, ",") + "/_settings?flat_settings=true",
+		method:   http.MethodGet,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index settings: %w", err)
+	}
+	var raw map[string]struct {
+		Settings map[string]any `json:"settings"`
+	}
+	if err := json.Unmarshal(body, &raw); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal index settings: %w", err)
+	}
+	out := make(map[string]map[string]any, len(raw))
+	for name, entry := range raw {
+		out[name] = entry.Settings
+	}
+	return out, nil
 }

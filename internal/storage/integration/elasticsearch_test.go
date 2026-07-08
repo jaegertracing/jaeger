@@ -8,13 +8,9 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v9"
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
@@ -49,8 +45,7 @@ const (
 type ESStorageIntegration struct {
 	StorageIntegration
 
-	client   *elastic.Client
-	v8Client *elasticsearch8.Client
+	client *esTestClient
 
 	ArchiveTraceReader tracestore.Reader
 	ArchiveTraceWriter tracestore.Writer
@@ -59,41 +54,8 @@ type ESStorageIntegration struct {
 	archiveFactory *esv2.Factory
 }
 
-func (s *ESStorageIntegration) getVersion() (uint, error) {
-	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
-	if err != nil {
-		return 0, err
-	}
-	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-	if err != nil {
-		return 0, err
-	}
-	// OpenSearch is based on ES 7.x
-	if strings.Contains(pingResult.TagLine, "OpenSearch") {
-		if pingResult.Version.Number[0] == '1' || pingResult.Version.Number[0] == '2' || pingResult.Version.Number[0] == '3' {
-			esVersion = 7
-		}
-	}
-	return uint(esVersion), nil
-}
-
-func (s *ESStorageIntegration) initializeES(t *testing.T, c *http.Client, allTagsAsFields bool) {
-	rawClient, err := elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false),
-		elastic.SetHttpClient(c),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		rawClient.Stop()
-	})
-	s.client = rawClient
-	s.v8Client, err = elasticsearch8.NewClient(elasticsearch8.Config{
-		Addresses:            []string{queryURL},
-		DiscoverNodesOnStart: false,
-		Transport:            c.Transport,
-	})
-	require.NoError(t, err)
+func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
+	s.client = newESTestClient(t)
 
 	s.initSpanstore(t, allTagsAsFields)
 
@@ -172,7 +134,7 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
 			Capabilities: capabilities.Elasticsearch(),
 		},
 	}
-	s.initializeES(t, c, allTagsAsFields)
+	s.initializeES(t, allTagsAsFields)
 	s.RunAll(t)
 	t.Run("ArchiveTrace", s.testArchiveTrace)
 }
@@ -199,47 +161,16 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{}
-	s.initializeES(t, c, true)
-	esVersion, err := s.getVersion()
-	require.NoError(t, err)
-	// TODO abstract this into pkg/es/client.IndexManagementLifecycleAPI
-	if esVersion == 6 || esVersion == 7 {
-		serviceTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-service").Do(context.Background())
-		require.NoError(t, err)
-		assert.True(t, serviceTemplateExists)
-		spanTemplateExists, err := s.client.IndexTemplateExists(indexPrefix + "-jaeger-span").Do(context.Background())
-		require.NoError(t, err)
-		assert.True(t, spanTemplateExists)
-	} else {
-		serviceTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-service")
-		require.NoError(t, err)
-		assert.Equal(t, 200, serviceTemplateExistsResponse.StatusCode)
-		spanTemplateExistsResponse, err := s.v8Client.API.Indices.ExistsIndexTemplate(indexPrefix + "-jaeger-span")
-		require.NoError(t, err)
-		assert.Equal(t, 200, spanTemplateExistsResponse.StatusCode)
-	}
+	s.initializeES(t, true)
+	// templateExists picks the composable (_index_template) or legacy (_template)
+	// API by backend version, so this assertion is uniform across ES 7–9 / OS.
+	assert.True(t, s.client.templateExists(t, indexPrefix+"-jaeger-service"))
+	assert.True(t, s.client.templateExists(t, indexPrefix+"-jaeger-span"))
 	s.cleanESIndexTemplates(t, indexPrefix)
 }
 
-func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) error {
-	version, err := s.getVersion()
-	require.NoError(t, err)
-	if version > 7 {
-		prefixWithSeparator := prefix
-		if prefix != "" {
-			prefixWithSeparator += "-"
-		}
-		_, err := s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + escfg.SpanIndexName})
-		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + escfg.ServiceIndexName})
-		require.NoError(t, err)
-		_, err = s.v8Client.Indices.DeleteIndexTemplate([]string{prefixWithSeparator + escfg.DependencyIndexName})
-		require.NoError(t, err)
-	} else {
-		_, err := s.client.IndexDeleteTemplate("*").Do(context.Background())
-		require.NoError(t, err)
-	}
-	return nil
+func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) {
+	s.client.cleanTemplates(t, prefix)
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge
