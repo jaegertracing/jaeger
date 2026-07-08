@@ -76,10 +76,17 @@ func TestFactoryBase_Purge(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var gotMethod, gotPath, gotQuery string
+			// The handler runs on a separate goroutine, so guard the captured
+			// request fields with a mutex.
+			var (
+				mu                           sync.Mutex
+				gotMethod, gotPath, gotQuery string
+			)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodDelete {
+					mu.Lock()
 					gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+					mu.Unlock()
 					w.WriteHeader(tt.status)
 					w.Write([]byte("{}"))
 					return
@@ -94,16 +101,19 @@ func TestFactoryBase_Purge(t *testing.T) {
 			f := &FactoryBase{esClient: esClient, logger: zap.NewNop(), config: &escfg.Configuration{}}
 
 			err = f.Purge(context.Background())
+			mu.Lock()
+			method, path, query := gotMethod, gotPath, gotQuery
+			mu.Unlock()
 			if tt.expectedErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				assert.Equal(t, http.MethodDelete, gotMethod)
-				assert.Equal(t, "/*", gotPath)
+				assert.Equal(t, http.MethodDelete, method)
+				assert.Equal(t, "/*", path)
 				// Cleanup tolerates missing indices, and no master_timeout=0s is
 				// sent (the cluster default is used instead).
-				assert.Contains(t, gotQuery, "ignore_unavailable=true")
-				assert.NotContains(t, gotQuery, "master_timeout")
+				assert.Contains(t, query, "ignore_unavailable=true")
+				assert.NotContains(t, query, "master_timeout")
 			}
 		})
 	}
