@@ -82,13 +82,6 @@ func (c *esTestClient) flatSettings(t *testing.T, indices []string) map[string]m
 	return settings
 }
 
-// putLifecyclePolicy installs an ILM (Elasticsearch) or ISM (OpenSearch) policy;
-// the esclient picks the endpoint from the resolved backend, so the caller only
-// supplies the backend-appropriate body.
-func (c *esTestClient) putLifecyclePolicy(t *testing.T, name, body string) {
-	require.NoError(t, c.ilm.TestsOnlyPutPolicy(context.Background(), name, body))
-}
-
 func (c *esTestClient) deleteLifecyclePolicy(t *testing.T, name string) {
 	require.NoError(t, c.ilm.TestsOnlyDeletePolicy(context.Background(), name))
 }
