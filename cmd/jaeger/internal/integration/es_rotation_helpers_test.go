@@ -38,11 +38,15 @@ func runRotationSmokeTest(t *testing.T, configFile string, storage string, setup
 }
 
 // setupManualRolloverIndices uses the jaeger-es-rollover tool to create the
-// initial indices and aliases for the manual_rollover strategy.
+// initial indices and aliases for the manual_rollover strategy. The esAdmin the
+// cleanup needs is built here, at setup, and captured in the closure — building it
+// inside t.Cleanup would let a transient cluster error during teardown fail the
+// test rather than just skip best-effort cleanup.
 func setupManualRolloverIndices(t *testing.T, indexPrefix string) {
 	initManualRolloverIndices(t, indexPrefix)
+	admin := newESAdmin(t)
 	t.Cleanup(func() {
-		deleteIndicesByPrefix(t, indexPrefix+"-")
+		admin.deleteJaegerIndices(t, indexPrefix+"-")
 	})
 }
 
@@ -52,12 +56,14 @@ func initManualRolloverIndices(t *testing.T, indexPrefix string) {
 
 // setupAutoRolloverIndices creates an ILM/ISM policy and then uses the
 // jaeger-es-rollover tool to create initial indices and aliases for the
-// auto_rollover strategy.
+// auto_rollover strategy. See setupManualRolloverIndices for why the cleanup
+// esAdmin is built here rather than inside t.Cleanup.
 func setupAutoRolloverIndices(t *testing.T, indexPrefix, policyName string) {
 	initAutoRolloverIndices(t, indexPrefix, policyName)
+	admin := newESAdmin(t)
 	t.Cleanup(func() {
-		deleteIndicesByPrefix(t, indexPrefix+"-")
-		deleteLifecyclePolicy(t, policyName)
+		admin.deleteJaegerIndices(t, indexPrefix+"-")
+		admin.deletePolicy(t, policyName)
 	})
 }
 
@@ -79,12 +85,4 @@ func runEsRollover(t *testing.T, action string, flags ...string) {
 	out, err := cmd.CombinedOutput()
 	t.Logf("jaeger-es-rollover %s output:\n%s", action, string(out))
 	require.NoError(t, err, "jaeger-es-rollover %s failed", action)
-}
-
-func deleteLifecyclePolicy(t *testing.T, policyName string) {
-	newESAdmin(t).deletePolicy(t, policyName)
-}
-
-func deleteIndicesByPrefix(t *testing.T, prefix string) {
-	newESAdmin(t).deleteJaegerIndices(t, prefix)
 }
