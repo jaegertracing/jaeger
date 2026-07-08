@@ -21,10 +21,8 @@ type Options struct {
 }
 
 // BackendVersion returns the BackendVersion corresponding to the EsVersion flag.
-// TODO: This unsafe cast only works for Elasticsearch versions (6, 7, 8, 9).
-// OpenSearch cannot be specified because its enum values (101, 102, 103) are
-// internal. Add an --opensearch-version flag and use it to return the correct
-// OpenSearch BackendVersion variant.
+// Supported values are documented on the es-version flag. OpenSearch uses the
+// exported BackendVersion values 101, 102, and 103.
 func (o *Options) BackendVersion() es.BackendVersion {
 	return es.BackendVersion(o.EsVersion)
 }
@@ -51,7 +49,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		&o.EsVersion,
 		esVersionFlag,
 		7,
-		"The major Elasticsearch version",
+		"The Elasticsearch or OpenSearch version. Use 6, 7, 8, or 9 for Elasticsearch; 101, 102, or 103 for OpenSearch 1.x, 2.x, or 3.x.",
 	)
 	command.Flags().Int64Var(
 		&o.Shards,

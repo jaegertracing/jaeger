@@ -49,3 +49,14 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "true", o.UseILM)
 	assert.Equal(t, "jaeger-test-policy", o.ILMPolicyName)
 }
+
+func TestEsVersionFlagHelpMentionsOpenSearch(t *testing.T) {
+	o := Options{}
+	c := cobra.Command{}
+	o.AddFlags(&c)
+
+	flag := c.Flags().Lookup(esVersionFlag)
+	require.NotNil(t, flag)
+	assert.Contains(t, flag.Usage, "101, 102, or 103")
+	assert.Contains(t, flag.Usage, "OpenSearch")
+}
