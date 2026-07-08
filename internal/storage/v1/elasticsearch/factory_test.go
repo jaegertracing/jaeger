@@ -375,11 +375,11 @@ func withLegacyClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logg
 	return func(f *FactoryBase) { f.newLegacyClientFn = fn }
 }
 
-func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error)) factoryOption {
+func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error)) factoryOption {
 	return func(f *FactoryBase) { f.newESClientFn = fn }
 }
 
-func withBulkIndexerFn(fn func(esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error)) factoryOption {
+func withBulkIndexerFn(fn func(*esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error)) factoryOption {
 	return func(f *FactoryBase) { f.newBulkIndexerFn = fn }
 }
 
@@ -396,8 +396,8 @@ func TestNewFactoryBaseDataClientError(t *testing.T) {
 		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
 			return legacyClient, nil
 		}),
-		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
-			return esclient.Client{}, errors.New("data client boom")
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
+			return nil, errors.New("data client boom")
 		}),
 	)
 	require.ErrorContains(t, err, "data client")
@@ -416,10 +416,10 @@ func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
 		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
 			return legacyClient, nil
 		}),
-		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
-			return esclient.Client{}, nil
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
+			return &esclient.Client{}, nil
 		}),
-		withBulkIndexerFn(func(esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error) {
+		withBulkIndexerFn(func(*esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error) {
 			return nil, errors.New("bulk boom")
 		}),
 	)

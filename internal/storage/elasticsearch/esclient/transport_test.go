@@ -181,8 +181,8 @@ func TestClientClose(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, c.Close())
 
-	// A zero Client has no transport and must still close cleanly.
-	require.NoError(t, Client{}.Close())
+	// A nil *Client (a factory that failed to construct one) must still close cleanly.
+	require.NoError(t, (*Client)(nil).Close())
 }
 
 // TestTestsOnlyBackendVersion covers the test-only accessor that exposes the

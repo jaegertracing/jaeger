@@ -30,7 +30,7 @@ import (
 // subtest. The t-first signature also visibly marks these as test-assertion
 // helpers, distinct from the ctx-first esclient API they wrap.
 type esTestClient struct {
-	client  esclient.Client
+	client  *esclient.Client
 	indices *esclient.IndicesClient
 	ilm     *esclient.ILMClient
 }

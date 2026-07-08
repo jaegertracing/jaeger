@@ -64,7 +64,7 @@ type flushStateKey struct{}
 
 // NewBulkIndexer returns a running BulkIndexer. The caller owns its lifecycle and
 // must call Close to flush buffered documents and stop the workers.
-func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics.Factory, logger *zap.Logger) (*BulkIndexer, error) {
+func NewBulkIndexer(client *Client, cfg BulkIndexerConfig, metricsFactory metrics.Factory, logger *zap.Logger) (*BulkIndexer, error) {
 	b := &BulkIndexer{
 		metrics: spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
 		logger:  logger,

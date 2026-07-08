@@ -40,7 +40,7 @@ var _ IndexAPI = (*IndicesClient)(nil)
 
 // IndicesClient is a client used to manipulate indices.
 type IndicesClient struct {
-	Client
+	*Client
 	MasterTimeoutSeconds   int
 	IgnoreUnavailableIndex bool
 	// Index-template rendering inputs (M4b): the client renders the template

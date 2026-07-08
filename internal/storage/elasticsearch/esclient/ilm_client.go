@@ -27,7 +27,7 @@ var _ IndexManagementLifecycleAPI = (*ILMClient)(nil)
 // It supports both Elasticsearch ILM and OpenSearch ISM APIs, selecting the
 // endpoint from the backend version the embedded Client was constructed with.
 type ILMClient struct {
-	Client
+	*Client
 	MasterTimeoutSeconds int
 	Logger               *zap.Logger
 }
