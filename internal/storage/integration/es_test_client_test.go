@@ -97,8 +97,9 @@ func (c *esTestClient) templateExists(name string) bool {
 
 // cleanTemplates removes the Jaeger index templates for prefix: on Elasticsearch
 // 7 / OpenSearch the legacy (_template) templates by wildcard, and on
-// Elasticsearch 8+ the composable (_index_template) span/service/dependency
-// templates by name. The esclient picks the endpoint per template name.
+// Elasticsearch 8+ the composable (_index_template) templates by name (including
+// the adaptive-sampling template, which es-rollover installs and would otherwise
+// leak across tests). The esclient picks the endpoint per template name.
 func (c *esTestClient) cleanTemplates(prefix string) {
 	if !c.backendVersion().UsesV8API() {
 		require.NoError(c.t, c.indices.TestsOnlyDeleteTemplate(context.Background(), "*"))
@@ -108,7 +109,7 @@ func (c *esTestClient) cleanTemplates(prefix string) {
 	if prefix != "" {
 		sep += "-"
 	}
-	for _, base := range []string{escfg.SpanIndexName, escfg.ServiceIndexName, escfg.DependencyIndexName} {
+	for _, base := range []string{escfg.SpanIndexName, escfg.ServiceIndexName, escfg.DependencyIndexName, escfg.SamplingIndexName} {
 		require.NoError(c.t, c.indices.TestsOnlyDeleteTemplate(context.Background(), sep+base))
 	}
 }
