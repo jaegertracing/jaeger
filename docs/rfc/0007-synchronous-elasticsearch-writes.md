@@ -297,8 +297,8 @@ exporters:
       # note: wait_for_result is incompatible with a persistent (storage:) queue
       batch:
         sizer: bytes
-        min_size: 5000000                # coalesce small messages up to ~5 MB
-        max_size: 10000000               # hard cap per bulk (413 protection)
+        min_size: 3000000                # coalesce small messages up to ~3 MB
+        max_size: 5000000                # match bulk_processing.max_bytes so the sync writer's safety-net split (§4.4) rarely triggers
         flush_timeout: 200ms             # bound added latency for low-traffic streams
 ```
 
