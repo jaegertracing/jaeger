@@ -73,6 +73,17 @@ func (c Client) Close() error {
 	return nil
 }
 
+// TestsOnlyBackendVersion returns the backend version resolved at construction.
+// It exists ONLY for integration tests that must branch on the backend flavor or
+// version — e.g. pick ISM vs ILM, or the composable vs legacy template API. It
+// saves those tests from re-probing a cluster this client already sniffed.
+// Production code must never branch on the backend: the version is resolved once
+// here and kept encapsulated (RFC 0006 M4), so there is deliberately no non-test
+// accessor.
+func (c Client) TestsOnlyBackendVersion() es.BackendVersion {
+	return c.version
+}
+
 type elasticRequest struct {
 	endpoint string
 	body     []byte

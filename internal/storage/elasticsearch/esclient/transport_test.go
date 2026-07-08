@@ -185,6 +185,18 @@ func TestClientClose(t *testing.T) {
 	require.NoError(t, Client{}.Close())
 }
 
+// TestTestsOnlyBackendVersion covers the test-only accessor that exposes the
+// version resolved at construction, so integration tests need not re-probe.
+func TestTestsOnlyBackendVersion(t *testing.T) {
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Version: uint(es.OpenSearch2),
+	}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, es.OpenSearch2, c.TestsOnlyBackendVersion())
+	assert.True(t, c.TestsOnlyBackendVersion().IsOpenSearch())
+}
+
 // errBodyRoundTripper returns a 200 whose body errors on read.
 type errBodyRoundTripper struct{}
 
