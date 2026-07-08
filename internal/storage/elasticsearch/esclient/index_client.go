@@ -102,11 +102,9 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 }
 
 // DeleteAllIndices deletes every index (the "*" pattern) in one request, sending
-// a clean DELETE /* rather than the comma-joined list DeleteIndices builds. It
-// backs the storage factory's Purge — a cross-backend factory method wired into
-// factory.go and reachable at runtime via the storagecleaner extension — so
-// unlike the TestsOnly* helpers (which are referenced only from tests) it is a
-// regular method called from compiled code.
+// a clean DELETE /* rather than the comma-joined list DeleteIndices builds. It is
+// the index-wipe primitive the storage factory's Purge is migrating onto; the
+// integration tests use it today.
 func (i *IndicesClient) DeleteAllIndices(ctx context.Context) error {
 	return i.indexDeleteRequest(ctx, "*")
 }
