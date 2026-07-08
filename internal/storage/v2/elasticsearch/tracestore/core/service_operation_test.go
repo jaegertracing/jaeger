@@ -6,6 +6,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -55,10 +56,25 @@ func TestWriteService(t *testing.T) {
 // keyed "123", used to assert getServices/getOperations extract the bucket keys.
 func oneBucketResponse(aggName string) *esclient.SearchResponse {
 	return &esclient.SearchResponse{
-		Aggregations: map[string]esclient.AggregationResult{
+		Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			aggName: {Buckets: []esclient.AggregationBucket{{Key: "123", DocCount: 16}}},
-		},
+		}),
 	}
+}
+
+// termsAggregations builds the raw-message Aggregations a response carries from
+// typed terms results, so tests can assert bucket parsing without hand-writing the
+// wire JSON. Marshalling static test data cannot fail.
+func termsAggregations(byName map[string]esclient.AggregationResult) esclient.Aggregations {
+	aggs := esclient.Aggregations{}
+	for name, result := range byName {
+		raw, err := json.Marshal(result)
+		if err != nil {
+			panic(err)
+		}
+		aggs[name] = raw
+	}
+	return aggs
 }
 
 func TestSpanReader_GetServices(t *testing.T) {
@@ -76,7 +92,7 @@ func TestSpanReader_GetServices(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + servicesAggregation,
 		},
 		{
@@ -121,7 +137,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + operationsAggregation,
 		},
 		{

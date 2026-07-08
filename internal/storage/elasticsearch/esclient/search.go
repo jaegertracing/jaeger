@@ -73,8 +73,8 @@ func (r SearchRequest) body() ([]byte, error) {
 // matched documents (hits) and aggregation buckets; other aggregation shapes are
 // added by later migration slices as their callers need them.
 type SearchResponse struct {
-	Hits         HitsResult                   `json:"hits"`
-	Aggregations map[string]AggregationResult `json:"aggregations"`
+	Hits         HitsResult   `json:"hits"`
+	Aggregations Aggregations `json:"aggregations"`
 }
 
 // HitsResult holds the documents a search matched and, when the request asked for

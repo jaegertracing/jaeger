@@ -168,9 +168,9 @@ func TestSpanReader_FindTraceSummaries_DefaultsSearchDepth(t *testing.T) {
 // that phase 1 short-circuits: phase 1 returns trace IDs (first Search), then phase 2
 // (second Search) returns the failure under test.
 func TestSpanReader_FindTraceSummaries_Phase2(t *testing.T) {
-	missingSummary := &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+	missingSummary := &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 		"other": {},
-	}}
+	})}
 	tests := []struct {
 		name   string
 		result *esclient.SearchResponse
@@ -369,9 +369,9 @@ func TestSpanReader_FindTraceSummaries_BadRootSource(t *testing.T) {
 func TestSpanReader_FindTraceSummaries_MissingBucketAggregation(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
-			Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+			Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 				"other": {},
-			}}, nil)
+			})}, nil)
 		_, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.ErrorIs(t, err, ErrUnableToFindTraceIDAggregation)
 	})
@@ -381,9 +381,9 @@ func TestSpanReader_FindTraceSummaries_NoMatchingTraces(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		// Phase 1 finds no trace IDs, so no phase-2 aggregation runs.
 		r.searcher.On("Search", mock.Anything, mock.Anything, mock.Anything).
-			Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+			Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 				traceIDAggregation: {Buckets: []esclient.AggregationBucket{}},
-			}}, nil)
+			})}, nil)
 		summaries, err := r.reader.FindTraceSummaries(context.Background(), validSummaryQuery())
 		require.NoError(t, err)
 		assert.Empty(t, summaries)

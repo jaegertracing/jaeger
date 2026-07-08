@@ -134,7 +134,7 @@ func aggregationKeys(resp *esclient.SearchResponse, name string) ([]string, erro
 	if resp.Aggregations == nil {
 		return []string{}, nil
 	}
-	agg, ok := resp.Aggregations[name]
+	agg, ok := resp.Aggregations.Terms(name)
 	if !ok {
 		return nil, errors.New("could not find aggregation of " + name)
 	}
