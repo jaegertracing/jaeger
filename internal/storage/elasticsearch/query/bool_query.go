@@ -10,6 +10,7 @@ package query
 // boost or adjust_pure_negative is emitted unless a caller needs it (none do).
 type BoolQuery struct {
 	must    []Query
+	filter  []Query
 	should  []Query
 	mustNot []Query
 }
@@ -22,6 +23,12 @@ func NewBoolQuery() *BoolQuery {
 // Must adds clauses that all must match.
 func (q *BoolQuery) Must(queries ...Query) *BoolQuery {
 	q.must = append(q.must, queries...)
+	return q
+}
+
+// Filter adds clauses that all must match, in the non-scoring filter context.
+func (q *BoolQuery) Filter(queries ...Query) *BoolQuery {
+	q.filter = append(q.filter, queries...)
 	return q
 }
 
@@ -44,6 +51,7 @@ func (q *BoolQuery) Source() (any, error) {
 		clauses []Query
 	}{
 		{"must", q.must},
+		{"filter", q.filter},
 		{"should", q.should},
 		{"must_not", q.mustNot},
 	} {

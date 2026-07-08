@@ -72,7 +72,9 @@ func TestSearchParsesAggregationBuckets(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	buckets := resp.Aggregations["distinct_services"].Buckets
+	agg, ok := resp.Aggregations.Terms("distinct_services")
+	require.True(t, ok)
+	buckets := agg.Buckets
 	require.Len(t, buckets, 2)
 	assert.Equal(t, "svc-a", buckets[0].Key)
 	assert.Equal(t, 3, buckets[0].DocCount)

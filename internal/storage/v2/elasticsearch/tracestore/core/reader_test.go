@@ -474,13 +474,13 @@ func TestSpanReaderIndexWithDate(t *testing.T) {
 }
 
 func testGet(typ string, t *testing.T) {
-	goodResp := &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+	goodResp := &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 		typ: {Buckets: []esclient.AggregationBucket{{Key: "123", DocCount: 16}}},
-	}}
+	})}
 	// Aggregations present but missing the requested bucket → "could not find".
-	missingResp := &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+	missingResp := &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 		"other": {},
-	}}
+	})}
 
 	testCases := []struct {
 		caption        string
@@ -559,11 +559,11 @@ func returnSearchFunc(typ string, r *spanReaderTest) (any, error) {
 // bucket key is returned as a trace ID, in order.
 func TestSpanReader_findTraceIDsMultipleBuckets(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		resp := &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+		resp := &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			traceIDAggregation: {Buckets: []esclient.AggregationBucket{
 				{Key: "hello"}, {Key: "world"}, {Key: "2"},
 			}},
-		}}
+		})}
 		mockSearchService(r).Return(resp, nil)
 
 		actual, err := r.reader.findTraceIDsFromQuery(context.Background(), dbmodel.TraceQueryParameters{})
@@ -577,9 +577,9 @@ func TestSpanReader_FindTraces(t *testing.T) {
 
 	withSpanReader(t, func(r *spanReaderTest) {
 		// find trace IDs
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}, {Key: "2"}, {Key: "3"}}},
-		}}, nil)
+		})}, nil)
 		// bulk read traces
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{
 			{Hits: esclient.HitsResult{Hits: hits}},
@@ -633,7 +633,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		// Aggregations present but without the traceIDs bucket → aggregation error.
 		mockSearchService(r).Return(&esclient.SearchResponse{
-			Aggregations: map[string]esclient.AggregationResult{},
+			Aggregations: termsAggregations(map[string]esclient.AggregationResult{}),
 		}, nil)
 
 		traceQuery := dbmodel.TraceQueryParameters{
@@ -654,9 +654,9 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 
 func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			traceIDAggregation: {Buckets: []esclient.AggregationBucket{}},
-		}}, nil)
+		})}, nil)
 
 		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
@@ -676,9 +676,9 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 
 func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}, {Key: "2"}}},
-		}}, nil)
+		})}, nil)
 		mockMultiSearchService(r).Return(nil, errors.New("read error"))
 
 		traceQuery := dbmodel.TraceQueryParameters{
@@ -702,9 +702,9 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 	badHits := []esclient.SearchHit{{Source: badSpan}}
 
 	withSpanReader(t, func(r *spanReaderTest) {
-		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{
+		mockSearchService(r).Return(&esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			traceIDAggregation: {Buckets: []esclient.AggregationBucket{{Key: "1"}, {Key: "2"}}},
-		}}, nil)
+		})}, nil)
 		mockMultiSearchService(r).Return([]esclient.SearchResponse{
 			{Hits: esclient.HitsResult{Hits: badHits}},
 			{Hits: esclient.HitsResult{Hits: badHits}},

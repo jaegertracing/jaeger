@@ -479,7 +479,7 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	if searchResult.Aggregations == nil {
 		return []dbmodel.TraceID{}, nil
 	}
-	bucket, found := searchResult.Aggregations[traceIDAggregation]
+	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
 	if !found {
 		return nil, ErrUnableToFindTraceIDAggregation
 	}
