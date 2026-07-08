@@ -103,6 +103,18 @@ func TestGenerateMappings(t *testing.T) {
 			expectErr: "",
 		},
 		{
+			name: "valid jaeger-span mapping for OpenSearch with ILM enabled",
+			options: Options{
+				Mapping:     config.SpanIndexName,
+				EsVersion:   103, // es.OpenSearch3
+				Shards:      5,
+				Replicas:    new(int64(1)),
+				IndexPrefix: "jaeger-index",
+				UseILM:      "true",
+			},
+			expectErr: "",
+		},
+		{
 			name: "invalid mapping type",
 			options: Options{
 				Mapping: "invalid-mapping",
@@ -133,6 +145,13 @@ func TestGenerateMappings(t *testing.T) {
 				assert.NotEmpty(t, parsed["index_patterns"], "Expected index_patterns to be present")
 				assert.NotEmpty(t, parsed["mappings"], "Expected mappings to be present")
 				assert.NotEmpty(t, parsed["settings"], "Expected settings to be present")
+
+				if tt.options.BackendVersion().IsOpenSearch() && tt.options.UseILM == "true" {
+					settings, ok := parsed["settings"].(map[string]any)
+					require.True(t, ok, "Expected settings to be an object")
+					assert.Contains(t, settings, "plugins.index_state_management.rollover_alias",
+						"Expected OpenSearch ISM settings block to be rendered when EsVersion is an OpenSearch version and UseILM is true")
+				}
 			}
 		})
 	}
