@@ -121,13 +121,18 @@ func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.
 
 	// Get settings and verify ILM policy name (ES) or ISM rollover alias (OpenSearch)
 	settings := client.flatSettings(expected)
-	for _, s := range settings {
+	for name, s := range settings {
+		aliasKey := "index.lifecycle.rollover_alias"
 		if version.IsOpenSearch() {
-			actualWriteAliases = append(actualWriteAliases, s["index.plugins.index_state_management.rollover_alias"].(string))
+			aliasKey = "index.plugins.index_state_management.rollover_alias"
 		} else {
 			assert.Equal(t, ilmPolicyName, s["index.lifecycle.name"])
-			actualWriteAliases = append(actualWriteAliases, s["index.lifecycle.rollover_alias"].(string))
 		}
+		// Checked assertion: a missing/typeless key fails the test with a clear
+		// message instead of panicking on the bare type assertion.
+		alias, ok := s[aliasKey].(string)
+		require.True(t, ok, "index %q settings missing string %q: %v", name, aliasKey, s)
+		actualWriteAliases = append(actualWriteAliases, alias)
 	}
 	// Check indices created
 	assert.ElementsMatch(t, indices, expected)
