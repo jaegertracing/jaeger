@@ -288,10 +288,19 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType
 	}
 }
 
-// buildStringAttributeCondition always OR-es in the str fallback (all 5 attribute levels)
-// regardless of what the attribute_metadata cache says: a partial batch flush can populate
-// the cache with only a subset of levels (e.g. span-only) before remaining batches arrive,
-// and the cache entry lives for 1 hour, so metadata-driven conditions alone would silently
+// buildStringAttributeCondition adds a condition for string attributes by looking up their
+// actual stored type(s) and level(s) from the attribute_metadata table.
+//
+// String attributes require special handling because the query service passes all
+// attributes as strings (via AsString()), regardless of their actual stored type.
+// We must look up the attribute_metadata to determine the actual type(s) and
+// level(s) where this attribute is stored, then convert the string back to the
+// appropriate type for querying.
+//
+// We always OR-in the str fallback (all 5 attribute levels) regardless of what the
+// attribute_metadata cache says. A partial batch flush can populate the cache with
+// only a subset of levels (e.g. span-only) before remaining batches arrive. Since
+// the cache entry lives for 1 hour, metadata-driven conditions alone would silently
 // miss traces whose tag lives at a level absent from the cache.
 func buildStringAttributeCondition(
 	q *strings.Builder,
@@ -301,6 +310,8 @@ func buildStringAttributeCondition(
 	metadata attributeMetadata,
 ) []any {
 	levelTypes, ok := metadata[key]
+
+	// if no metadata found, assume string type
 	if !ok {
 		return appendStringAttributeFallback(q, args, key, attr)
 	}
@@ -314,6 +325,7 @@ func buildStringAttributeCondition(
 			}
 			tav, err := parseStringToTypedValue(key, attr, t)
 			if err != nil {
+				// Skip types that can't parse this value
 				continue
 			}
 			if generatedCondition {
