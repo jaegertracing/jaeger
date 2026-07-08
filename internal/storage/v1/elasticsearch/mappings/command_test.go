@@ -68,6 +68,15 @@ func TestGenerateMappings(t *testing.T) {
 			expectErr: "foobar",
 		},
 		{
+			name: "render error surfaced",
+			options: Options{
+				Mapping: config.SpanIndexName,
+				UseILM:  "false",
+				// no Replicas → RenderIndexTemplate fails, and generateMappings wraps it.
+			},
+			expectErr: "failed to render mapping",
+		},
+		{
 			name: "valid jaeger-span mapping",
 			options: Options{
 				Mapping:       config.SpanIndexName,

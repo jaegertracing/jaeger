@@ -251,6 +251,68 @@ func TestCreateTemplates(t *testing.T) {
 	}
 }
 
+// TestCreateTemplatesServiceError exercises the service-template error branch:
+// the span PUT succeeds and only the service PUT fails.
+func TestCreateTemplatesServiceError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			if strings.Contains(r.URL.Path, escfg.ServiceIndexName) {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte("{}"))
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+				Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+	require.ErrorContains(t, f.createTemplates(context.Background()), escfg.ServiceIndexName)
+}
+
+// TestCreateSamplingStoreTemplateError exercises the sampling-template error
+// branch in CreateSamplingStore.
+func TestCreateSamplingStoreTemplateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Sampling: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+	_, err = f.CreateSamplingStore(1)
+	require.ErrorContains(t, err, "failed to create template")
+}
+
 func TestESStorageFactoryWithConfig(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)

@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package esclient
@@ -141,6 +141,9 @@ func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilm
 		return "", fmt.Errorf("unknown index template mapping type %d", m)
 	}
 	opts := m.options(indices)
+	if opts.Replicas == nil {
+		return "", fmt.Errorf("index options for %s have no replica count configured", m)
+	}
 	prefix := indices.IndexPrefix.Apply("")
 
 	var buf bytes.Buffer

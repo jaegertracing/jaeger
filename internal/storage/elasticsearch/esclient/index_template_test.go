@@ -1,4 +1,4 @@
-// Copyright (c) 2025 The Jaeger Authors.
+// Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
 package esclient
@@ -43,4 +43,22 @@ func TestMappingTypeFromString(t *testing.T) {
 func TestRenderIndexTemplateUnknownType(t *testing.T) {
 	_, err := RenderIndexTemplate(MappingType(99), config.Indices{}, false, "", es.ElasticV8)
 	require.ErrorContains(t, err, "unknown index template mapping type")
+}
+
+func TestRenderIndexTemplateNilReplicas(t *testing.T) {
+	// config.IndexOptions.Replicas is a pointer; a caller that builds Indices without
+	// defaults must get a clear error rather than a nil-dereference panic.
+	_, err := RenderIndexTemplate(SpanMapping, config.Indices{}, false, "", es.ElasticV8)
+	require.ErrorContains(t, err, "no replica count configured")
+}
+
+func TestRenderIndexTemplateInvalidJSON(t *testing.T) {
+	// A prefix carrying a double quote makes the rendered template invalid JSON
+	// (the prefix appears in the ILM alias name), exercising the parse-failure branch.
+	indices := config.Indices{
+		Spans:       config.IndexOptions{Replicas: new(int64)},
+		IndexPrefix: `bad"prefix-`,
+	}
+	_, err := RenderIndexTemplate(SpanMapping, indices, true, "policy", es.ElasticV8)
+	require.ErrorContains(t, err, "not valid JSON")
 }
