@@ -27,7 +27,7 @@ type esTestClient struct {
 	t       *testing.T
 	client  esclient.Client
 	indices *esclient.IndicesClient
-	ilm     esclient.ILMClient
+	ilm     *esclient.ILMClient
 }
 
 func newESTestClient(t *testing.T) *esTestClient {
@@ -42,7 +42,7 @@ func newESTestClient(t *testing.T) *esTestClient {
 		t:       t,
 		client:  client,
 		indices: &esclient.IndicesClient{Client: client, IgnoreUnavailableIndex: true},
-		ilm:     esclient.ILMClient{Client: client, Logger: zap.NewNop()},
+		ilm:     &esclient.ILMClient{Client: client, Logger: zap.NewNop()},
 	}
 }
 
