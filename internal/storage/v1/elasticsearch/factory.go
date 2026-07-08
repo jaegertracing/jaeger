@@ -34,11 +34,11 @@ type FactoryBase struct {
 	tracer         trace.TracerProvider
 
 	// newESClientFn constructs the shared esclient over the transport pool that
-	// backs every data-plane path. It is a seam so tests can inject a client that
+	// backs every data-plane path. Tests override it to inject a client that
 	// doesn't probe a live cluster (esclient.NewClient issues a GET / at construction).
 	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esclient.Client, error)
-	// newBulkIndexerFn constructs the bulk writer over the esclient. It is a seam,
-	// like the client constructors above, so tests can inject a failing indexer to
+	// newBulkIndexerFn constructs the bulk writer over the esclient. Tests override
+	// it, like the client constructor above, to inject a failing indexer and
 	// exercise the construction error path.
 	newBulkIndexerFn func(client *esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
 
@@ -60,7 +60,7 @@ type FactoryBase struct {
 
 // factoryOption overrides a factory field before construction proceeds. It lets
 // tests inject failing/fake client constructors through the newESClientFn /
-// newBulkIndexerFn seams to exercise the construction error paths.
+// newBulkIndexerFn fields to exercise the construction error paths.
 type factoryOption func(*FactoryBase)
 
 func NewFactoryBase(
