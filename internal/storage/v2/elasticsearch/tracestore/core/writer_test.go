@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"net/http/httptest"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -438,14 +437,6 @@ func TestNewSpanTags(t *testing.T) {
 			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
 		})
 	}
-}
-
-// stringMatcher can match a string argument when it contains a specific substring q
-func stringMatcher(q string) any {
-	matchFunc := func(s string) bool {
-		return strings.Contains(s, q)
-	}
-	return mock.MatchedBy(matchFunc)
 }
 
 // TestWriterRequestSnapshots freezes the wire format of the span bulk write.
