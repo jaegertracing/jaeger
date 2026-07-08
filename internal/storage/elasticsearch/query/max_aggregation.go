@@ -5,8 +5,7 @@ package query
 
 // MaxAggregation computes the maximum of either a numeric field or a Painless
 // script. It renders to {"max": {"field": field}} or {"max": {"script":
-// {"source": script}}}, matching what the storage layer previously produced via
-// olivere's MaxAggregation. It is typically nested under a TermsAggregation to
+// {"source": script}}}. It is typically nested under a TermsAggregation to
 // order buckets (e.g. latest startTime per traceID).
 type MaxAggregation struct {
 	field  string

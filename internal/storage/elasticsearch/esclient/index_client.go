@@ -101,6 +101,13 @@ func (i *IndicesClient) GetJaegerIndices(ctx context.Context, prefix string) ([]
 	return indices, nil
 }
 
+// DeleteAllIndices deletes every index (the "*" pattern) in one request. It is
+// used to wipe data, e.g. integration-test cleanup, and sends a clean DELETE /*
+// rather than the comma-joined list DeleteIndices builds.
+func (i *IndicesClient) DeleteAllIndices(ctx context.Context) error {
+	return i.indexDeleteRequest(ctx, "*")
+}
+
 // execute delete request
 func (i *IndicesClient) indexDeleteRequest(ctx context.Context, concatIndices string) error {
 	_, err := i.request(ctx, elasticRequest{

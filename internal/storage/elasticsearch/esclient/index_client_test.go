@@ -809,6 +809,12 @@ func TestDeleteIndicesRequestSnapshot(t *testing.T) {
 	rec.Assert(t, "testdata/delete_indices")
 }
 
+func TestDeleteAllIndicesRequestSnapshot(t *testing.T) {
+	rec, c := indicesClient(t)
+	require.NoError(t, c.DeleteAllIndices(context.Background()))
+	rec.Assert(t, "testdata/delete_all_indices")
+}
+
 func TestCreateAliasRequestSnapshot(t *testing.T) {
 	rec, c := indicesClient(t)
 	aliases := []Alias{

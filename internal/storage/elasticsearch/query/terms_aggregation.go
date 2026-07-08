@@ -5,8 +5,7 @@ package query
 
 // TermsAggregation buckets documents by the distinct values of a field. It
 // renders to {"terms": {"field": field, ...}} — optionally with a bucket "order"
-// and sibling "aggregations" (sub-aggregations) — matching the shape the storage
-// layer previously produced via olivere's TermsAggregation.
+// and sibling "aggregations" (sub-aggregations).
 type TermsAggregation struct {
 	field   string
 	size    int
@@ -27,7 +26,7 @@ func (a *TermsAggregation) Size(size int) *TermsAggregation {
 
 // Order sorts buckets by the named metric (e.g. a sub-aggregation) in the given
 // direction. Repeated calls append tie-breakers, and the whole set always renders
-// as an array, matching olivere.
+// as an array.
 func (a *TermsAggregation) Order(name string, direction SortDirection) *TermsAggregation {
 	a.order = append(a.order, map[string]string{name: string(direction)})
 	return a

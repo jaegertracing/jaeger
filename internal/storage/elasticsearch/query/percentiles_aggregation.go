@@ -4,8 +4,7 @@
 package query
 
 // PercentilesAggregation computes percentiles of a numeric field. It renders to
-// {"percentiles": {"field": …, "percents": [...]}}, matching what the storage
-// layer previously produced via olivere's PercentilesAggregation. It backs the
+// {"percentiles": {"field": …, "percents": [...]}}. It backs the
 // metricstore latency quantiles.
 type PercentilesAggregation struct {
 	field    string

@@ -4,8 +4,7 @@
 package query
 
 // TermsQuery matches documents where field equals any of the given values. It
-// renders to {"terms": {field: [values...]}}, matching what the storage layer
-// previously produced via olivere's TermsQuery.
+// renders to {"terms": {field: [values...]}}.
 type TermsQuery struct {
 	field  string
 	values []any

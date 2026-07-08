@@ -4,15 +4,12 @@
 package integration
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os/exec"
 	"strings"
 	"testing"
 
-	elasticsearch8 "github.com/elastic/go-elasticsearch/v9"
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,10 +32,8 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	client, err := createESClient(t, getESHttpClient(t))
-	require.NoError(t, err)
-	_, err = client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
+	client := createESClient(t)
+	client.deleteIndices("*")
 
 	tests := []struct {
 		envs []string
@@ -58,8 +53,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	client, err := createESClient(t, getESHttpClient(t))
-	require.NoError(t, err)
+	client := createESClient(t)
 	tests := []struct {
 		envs []string
 	}{
@@ -68,8 +62,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 		{envs: []string{"ARCHIVE=true"}},
 	}
 	for _, test := range tests {
-		_, err = client.DeleteIndex("*").Do(context.Background())
-		require.NoError(t, err)
+		client.deleteIndices("*")
 		// Create Indices with adaptive sampling disabled (set to false).
 		err := createAllIndices(client, "", false)
 		require.NoError(t, err)
@@ -83,11 +76,7 @@ func TestIndexCleaner(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnceForES(t)
 	})
-	hcl := getESHttpClient(t)
-	client, err := createESClient(t, hcl)
-	require.NoError(t, err)
-	v8Client, err := createESV8Client(hcl.Transport)
-	require.NoError(t, err)
+	client := createESClient(t)
 
 	tests := []struct {
 		name             string
@@ -138,25 +127,23 @@ func TestIndexCleaner(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%s_no_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, v8Client, "", test.expectedIndices, test.envVars, test.adaptiveSampling)
+			runIndexCleanerTest(t, client, "", test.expectedIndices, test.envVars, test.adaptiveSampling)
 		})
 		t.Run(fmt.Sprintf("%s_prefix, %s", test.name, test.envVars), func(t *testing.T) {
-			runIndexCleanerTest(t, client, v8Client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix), test.adaptiveSampling)
+			runIndexCleanerTest(t, client, indexPrefix, test.expectedIndices, append(test.envVars, "INDEX_PREFIX="+indexPrefix), test.adaptiveSampling)
 		})
 	}
 }
 
-func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
+func runIndexCleanerTest(t *testing.T, client *esTestClient, prefix string, expectedIndices, envVars []string, adaptiveSampling bool) {
 	// make sure ES is clean
-	_, err := client.DeleteIndex("*").Do(context.Background())
-	require.NoError(t, err)
-	defer cleanESIndexTemplates(t, client, v8Client, prefix)
-	err = createAllIndices(client, prefix, adaptiveSampling)
+	client.deleteIndices("*")
+	defer client.cleanTemplates(prefix)
+	err := createAllIndices(client, prefix, adaptiveSampling)
 	require.NoError(t, err)
 	err = runEsCleaner(0, envVars)
 	require.NoError(t, err)
-	foundIndices, err := client.IndexNames()
-	require.NoError(t, err)
+	foundIndices := client.indexNames()
 	if prefix != "" {
 		prefix += "-"
 	}
@@ -174,24 +161,21 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, v8Client *elastic
 	assert.ElementsMatch(t, actual, expected, "indices found: %v, expected: %v", foundIndices, expected)
 }
 
-func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bool) error {
+func createAllIndices(client *esTestClient, prefix string, adaptiveSampling bool) error {
 	prefixWithSeparator := prefix
 	if prefix != "" {
 		prefixWithSeparator += "-"
 	}
 	// create daily indices and archive index
-	err := createEsIndices(client, []string{
+	createEsIndices(client, []string{
 		prefixWithSeparator + spanIndexName,
 		prefixWithSeparator + serviceIndexName,
 		prefixWithSeparator + dependenciesIndexName,
 		prefixWithSeparator + samplingIndexName,
 		prefixWithSeparator + archiveIndexName,
 	})
-	if err != nil {
-		return err
-	}
 	// create rollover archive index and roll alias to the new index
-	err = runEsRollover("init", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
+	err := runEsRollover("init", []string{"ARCHIVE=true", "INDEX_PREFIX=" + prefix}, adaptiveSampling)
 	if err != nil {
 		return err
 	}
@@ -211,13 +195,10 @@ func createAllIndices(client *elastic.Client, prefix string, adaptiveSampling bo
 	return nil
 }
 
-func createEsIndices(client *elastic.Client, indices []string) error {
+func createEsIndices(client *esTestClient, indices []string) {
 	for _, index := range indices {
-		if _, err := client.CreateIndex(index).Do(context.Background()); err != nil {
-			return err
-		}
+		client.createIndex(index)
 	}
-	return nil
 }
 
 func runEsCleaner(days int, envs []string) error {
@@ -246,33 +227,8 @@ func runEsRollover(action string, envs []string, adaptiveSampling bool) error {
 	return err
 }
 
-func createESClient(t *testing.T, hcl *http.Client) (*elastic.Client, error) {
-	cl, err := elastic.NewClient(
-		elastic.SetURL(queryURL),
-		elastic.SetSniff(false),
-		elastic.SetHttpClient(hcl),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		cl.Stop()
-	})
-	return cl, nil
-}
-
-func createESV8Client(tr http.RoundTripper) (*elasticsearch8.Client, error) {
-	return elasticsearch8.NewClient(elasticsearch8.Config{
-		Addresses:            []string{queryURL},
-		DiscoverNodesOnStart: false,
-		Transport:            tr,
-	})
-}
-
-func cleanESIndexTemplates(t *testing.T, client *elastic.Client, v8Client *elasticsearch8.Client, prefix string) {
-	s := &ESStorageIntegration{
-		client:   client,
-		v8Client: v8Client,
-	}
-	s.cleanESIndexTemplates(t, prefix)
+func createESClient(t *testing.T) *esTestClient {
+	return newESTestClient(t)
 }
 
 func getESHttpClient(t *testing.T) *http.Client {

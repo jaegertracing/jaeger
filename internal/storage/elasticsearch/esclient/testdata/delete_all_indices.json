@@ -1,0 +1,12 @@
+{
+  "method": "DELETE",
+  "path": "/*",
+  "query": {
+    "ignore_unavailable": [
+      "true"
+    ],
+    "master_timeout": [
+      "5s"
+    ]
+  }
+}

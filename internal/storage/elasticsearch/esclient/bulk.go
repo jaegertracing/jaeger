@@ -69,9 +69,8 @@ func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics
 		metrics: spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
 		logger:  logger,
 	}
-	// Default to a single worker when the config doesn't set one, matching the
-	// historical olivere BulkProcessor default; esutil would otherwise fan out to
-	// NumCPU workers.
+	// Default to a single worker when the config doesn't set one; esutil would
+	// otherwise fan out to NumCPU workers.
 	workers := cfg.Workers
 	if workers <= 0 {
 		workers = 1

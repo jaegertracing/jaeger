@@ -4,8 +4,7 @@
 package query
 
 // MatchQuery matches an analyzed field against value. It renders to the expanded
-// form {"match": {field: {"query": value}}}, matching what the storage layer
-// previously produced via olivere's MatchQuery.
+// form {"match": {field: {"query": value}}}.
 type MatchQuery struct {
 	field string
 	value any

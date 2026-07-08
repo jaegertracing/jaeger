@@ -4,8 +4,7 @@
 package query
 
 // RegexpQuery matches a field against a regular expression. It renders to
-// {"regexp": {field: {"value": pattern}}}, matching what the storage layer
-// previously produced via olivere's RegexpQuery.
+// {"regexp": {field: {"value": pattern}}}.
 type RegexpQuery struct {
 	field string
 	value string

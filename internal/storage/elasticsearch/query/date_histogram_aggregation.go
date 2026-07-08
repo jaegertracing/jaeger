@@ -6,8 +6,7 @@ package query
 // DateHistogramAggregation buckets documents into fixed-width time intervals. It
 // renders to {"date_histogram": {"field": …, "fixed_interval": …, "min_doc_count":
 // …, "extended_bounds": {"min": …, "max": …}}} with an optional sibling
-// "aggregations", matching what the storage layer previously produced via
-// olivere's DateHistogramAggregation. It backs the metricstore time series.
+// "aggregations". It backs the metricstore time series.
 type DateHistogramAggregation struct {
 	field            string
 	fixedInterval    string

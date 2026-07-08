@@ -5,8 +5,7 @@ package query
 
 // CumulativeSumAggregation is a pipeline aggregation that accumulates a metric
 // across the buckets of its parent histogram. It renders to {"cumulative_sum":
-// {"buckets_path": …}}, matching what the storage layer previously produced via
-// olivere's CumulativeSumAggregation. It backs the metricstore call rate.
+// {"buckets_path": …}}. It backs the metricstore call rate.
 type CumulativeSumAggregation struct {
 	bucketsPath string
 }

@@ -34,9 +34,9 @@ func TestOpenSearchStorage_ManualRollover(t *testing.T) {
 
 func TestOpenSearchStorage_AutoRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
-	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy", true)
 	runRotationSmokeTest(t, "../../config-opensearch-auto-rollover.yaml", "opensearch", func(t *testing.T) {
-		initAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+		initAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy", true)
 	})
 }
 

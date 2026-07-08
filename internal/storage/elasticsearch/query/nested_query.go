@@ -4,8 +4,7 @@
 package query
 
 // NestedQuery runs an inner query against a nested-field path. It renders to
-// {"nested": {"path": path, "query": <inner>}}, matching what the storage layer
-// previously produced via olivere's NestedQuery.
+// {"nested": {"path": path, "query": <inner>}}.
 type NestedQuery struct {
 	path  string
 	query Query

@@ -35,9 +35,9 @@ func TestElasticsearchStorage_ManualRollover(t *testing.T) {
 
 func TestElasticsearchStorage_AutoRollover(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
-	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+	setupAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy", false)
 	runRotationSmokeTest(t, "../../config-elasticsearch-auto-rollover.yaml", "elasticsearch", func(t *testing.T) {
-		initAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy")
+		initAutoRolloverIndices(t, "jaeger-ar", "jaeger-test-ilm-policy", false)
 	})
 }
 
