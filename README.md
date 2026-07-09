@@ -94,9 +94,9 @@ Starting with the release of Go 1.21, support for Go versions will be updated as
 
 Note: All importable code has been moved to internal packages, so there is no need to maintain backward compatibility with older compilers (previously version `N-1` was used).
 
-## Storage Backend Version Compatibility Guarantees
+## Storage Backend Version Support Policy
 
-Jaeger supports storage backend versions only while they are reasonable for the project to test, maintain, and recommend for production use.
+This policy covers storage backend versions only while they are reasonable for the project to test, maintain, and recommend for production use. Policy coverage is distinct from versions that may remain technically compatible with Jaeger.
 
 For backends with a published upstream lifecycle, Jaeger follows the backend project's or vendor's supported-version or end-of-life policy. Once upstream support ends, Jaeger may remove CI coverage, stop proactively fixing backend-specific issues for that version, and require users to upgrade before troubleshooting.
 
