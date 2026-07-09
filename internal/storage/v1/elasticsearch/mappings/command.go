@@ -57,7 +57,7 @@ func generateMappings(options Options) (string, error) {
 		Dependencies: indexOpts,
 		Sampling:     indexOpts,
 	}
-	rendered, err := esclient.RenderIndexTemplate(mappingType, indices, enableILM, options.ILMPolicyName, options.BackendVersion())
+	rendered, err := esclient.RenderIndexTemplate(mappingType, indices, enableILM, options.ILMPolicyName, options.Version)
 	if err != nil {
 		return "", fmt.Errorf("failed to render mapping to string: %w", err)
 	}
