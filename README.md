@@ -107,9 +107,9 @@ Backend-specific policy:
 * Elasticsearch: follow Elastic's [Product and Version End of Life Policy](https://www.elastic.co/support/eol).
 * OpenSearch: follow the OpenSearch [Release Schedule and Maintenance Policy](https://opensearch.org/releases/). In practice, this means the current major version and the previous major version while they remain maintained.
 * Cassandra: follow Apache Cassandra's maintained release lines, as published on the [Cassandra download page](https://cassandra.apache.org/_/download.html), with the Jaeger support target being the current major version and the previous major version.
-* ClickHouse: follow ClickHouse's [release and backport policy](https://clickhouse.com/docs/development/backports) and production guidance for [stable and LTS releases](https://clickhouse.com/docs/faq/operations/production). ClickHouse uses calendar-versioned monthly releases rather than traditional major-version support, so Jaeger does not apply the generic current-major-minus-one rule here.
+* ClickHouse: follow ClickHouse's [release and backport policy](https://clickhouse.com/docs/development/backports) and production guidance for [stable and LTS releases](https://clickhouse.com/docs/faq/operations/production). ClickHouse supports its three most recent stable releases, each for approximately three months, and two LTS releases simultaneously, each for at least 12 months. Jaeger follows these active support windows rather than the generic current-major-minus-one rule.
 
-Support means Jaeger maintains compatibility in code and CI for the supported version range. It does not mean Jaeger provides support for the backend product itself, vendor-specific distributions, or versions outside the upstream maintenance window.
+Support means backend versions are in scope for proactive compatibility fixes. CI coverage is not the definitive support matrix: it may test only a subset of supported versions and may retain older versions on a best-effort basis. CI coverage alone does not make a backend version supported. Jaeger does not provide support for the backend product itself, vendor-specific distributions, or versions outside the upstream maintenance window.
 
 As of July 6, 2026, this policy means:
 
@@ -120,7 +120,7 @@ As of July 6, 2026, this policy means:
 | Cassandra | Current major plus previous major, using maintained Apache release lines | `5.0.x`; maintained `4.x` lines, currently `4.1.x` and `4.0.x` | `3.x` and earlier |
 | ClickHouse | ClickHouse stable and LTS policy | Latest three stable branches, currently `26.6`, `26.5`, and `26.4`; active LTS branches, currently `26.3 LTS` and `25.8 LTS` | Older stable branches and expired LTS branches |
 
-This table is informational and should be refreshed when upstream policies or release lines change.
+This table is informational and should be refreshed when upstream policies or release lines change. Versions listed as not covered may still appear in CI on a best-effort basis; their presence in CI does not extend the support policy.
 
 ## Related Repositories
 
