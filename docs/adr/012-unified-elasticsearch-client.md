@@ -24,7 +24,7 @@ A single Jaeger-owned client, **`esclient`**, carries **all** Elasticsearch/Open
 
 ### One client over one transport
 
-`esclient.Client` is a pointer handle composed over a low-level `rawClient`, which owns an [`elastic-transport-go`](https://github.com/elastic/elastic-transport-go) connection pool (multi-node round-robin with failover; node discovery/sniffing off; library retry off). The pool sends every request through a base `http.RoundTripper` built by `GetHTTPRoundTripper`: TLS, then basic/bearer/API-key auth, SigV4 signing, a `custom_headers`/`Host` layer, and a `getBodyFix` layer that populates `req.GetBody` so signers can re-read the payload.
+`esclient.Client` is a pointer handle composed over a low-level `rawClient`, which owns an [`elastic-transport-go`](https://github.com/elastic/elastic-transport-go) connection pool (multi-node round-robin with failover; node discovery/sniffing off; library retry off). The pool sends every request through a base `http.RoundTripper` built by `GetHTTPRoundTripper`: TLS on the underlying transport, the basic/bearer/API-key auth methods, and an optional SigV4 signer — with the `custom_headers`/`Host` and `getBodyFix` layers wrapped *outside* the signer, so the signature covers the custom headers and `req.GetBody` is populated before the signer re-reads the payload.
 
 Both planes share this one stack: a search, a bulk flush, and an `es-rollover` alias swap all traverse the same pool and the same auth chain. This is what made SigV4 body signing (#8760) and `custom_headers` (#8916) work uniformly, and gave the admin CLIs the full auth stack.
 
