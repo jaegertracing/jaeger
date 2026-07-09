@@ -20,7 +20,7 @@ import (
 )
 
 // defaultSyncBulkMaxBytes bounds a single _bulk chunk when the config leaves
-// maxBytes unset. It mirrors the async indexer's 5 MB default (§2.4).
+// maxBytes unset. It mirrors the async indexer's 5 MB default.
 const defaultSyncBulkMaxBytes = 5 * 1024 * 1024
 
 // SyncBulkWriter issues synchronous, size-bounded _bulk requests over the shared
@@ -53,10 +53,14 @@ func NewSyncBulkWriter(client *Client, maxBytes int, metricsFactory metrics.Fact
 
 // Bulk writes every item in one or more synchronous _bulk requests, each bounded
 // to maxBytes, and returns an error if the transport failed or any item was
-// rejected. Chunks are sent in sequence and their errors joined, so a caller
-// (e.g. the Kafka ingester) retrying the whole batch is correct. A single item
-// larger than maxBytes is still sent in a chunk of its own — the backend, not the
-// client, decides whether it fits (a 413 then surfaces as a returned error).
+// rejected. Chunks are sent in sequence and their errors joined. On error the
+// caller re-sends the whole batch (Kafka re-delivery / exporter retry); a span
+// carries no _id, so an already-durable span is re-created as a duplicate — the
+// at-least-once duplicate tolerance Jaeger already accepts (RFC 0004 §3.4) —
+// while a document with a deterministic _id (service:operation) upserts
+// idempotently. A single item larger than maxBytes is still sent in a chunk of
+// its own — the backend, not the client, decides whether it fits (a 413 then
+// surfaces as a returned error).
 func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
 	if len(items) == 0 {
 		return nil
@@ -66,8 +70,9 @@ func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
 	for i := range items {
 		blob, err := encodeBulkItem(items[i])
 		if err != nil {
-			// Unreachable for the documents Jaeger produces (all JSON-encodable);
-			// a caller passing an unencodable Body lands here. Fail the batch.
+			// A span/service document is JSON-encodable, but a caller could pass a
+			// Body that json.Marshal rejects (an unsupported or cyclic value), so
+			// this is reachable; fail the whole batch rather than write it partially.
 			w.metrics.Attempts.Inc(int64(len(items)))
 			w.metrics.Errors.Inc(int64(len(items)))
 			return fmt.Errorf("failed to encode bulk document for index %q: %w", items[i].Index, err)
@@ -171,9 +176,9 @@ func encodeBulkItem(item BulkItem) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Append without a precomputed capacity: summing the two lengths would be
-	// flagged as a possible allocation-size overflow, and the growth cost here is
-	// negligible for the small documents Jaeger writes.
+	// Append without a precomputed capacity: summing the two lengths was flagged
+	// as a possible allocation-size overflow. Letting append size the slice avoids
+	// the arithmetic (documents vary in size — a span may carry a large payload).
 	var blob []byte
 	blob = append(blob, metaLine...)
 	blob = append(blob, '\n')
