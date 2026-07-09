@@ -1,455 +1,362 @@
-# RFC 0005: Qualified Attribute Queries
+# RFC 0005: Structured Query Filters for Trace Search
 
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-06-19
-- **Last Updated:** 2026-06-19
+- **Last Updated:** 2026-07-09
 
 ---
 
 ## Abstract
 
-The Jaeger query API accepts attribute (tag) filters as unqualified key-value pairs. The backend must search for each attribute across every possible location in the span data model: span attributes, resource attributes, scope attributes, event attributes, and link attributes. This was acceptable when Jaeger used a flat inverted index (Cassandra), but becomes increasingly expensive with columnar stores (ClickHouse) and richer data models (OpenTelemetry). This RFC explores options for allowing users to optionally qualify attribute queries by scope, while preserving backwards compatibility.
+Jaeger's trace-search API filters spans by unqualified key-value tag pairs, implicitly ANDed, matched against every attribute location in the span. This RFC defines a **structured query-filter model** for trace search that (1) lets a predicate reference a specific attribute *level* (span / resource / instrumentation / event / link) or a built-in *property* (duration, name, status, …), (2) composes predicates with **boolean operators** (`AND`/`OR`/`NOT`), and (3) keeps the existing unqualified tag filter working unchanged.
+
+The model is a **fully structured AST** (proto/JSON), *not* a free-text query language, and its reach is deliberately bounded by what Jaeger's storage backends (Elasticsearch/OpenSearch, ClickHouse, Cassandra, Badger) can implement — it covers filtering and stops short of result shaping, aggregation, and trace-tree/structural queries.
 
 ---
 
 ## 1. Motivation
 
-### 1.1 Historical Context
+### 1.1 Historical context
 
-In the OpenTracing era, a span had three tag locations: `span.tags`, `span.process.tags`, and `span.logs[].fields`. Cassandra's storage schema maintained a single inverted index of all tags regardless of origin — querying was cheap because the index was pre-built.
+In the OpenTracing era a span had three tag locations — `span.tags`, `span.process.tags`, and `span.logs[].fields` — and Cassandra maintained a single inverted index over all of them. Querying was cheap because the index was pre-built and undifferentiated: a tag match was a tag match, regardless of where the tag came from.
 
-### 1.2 The OpenTelemetry Data Model
+### 1.2 The OpenTelemetry data model
 
-OTLP spans have five distinct attribute scopes:
+OTLP spans carry attributes at five distinct levels:
 
-| Scope | OTLP Location | Semantic Meaning |
+| Level | OTLP location | Semantic meaning |
 |-------|---------------|------------------|
-| Resource | `ResourceSpans.resource.attributes` | Service/host-level metadata |
-| Scope | `ScopeSpans.scope.attributes` | Instrumentation library metadata |
+| Resource | `ResourceSpans.resource.attributes` | Service / host-level metadata |
+| Instrumentation | `ScopeSpans.scope.attributes` | Instrumentation library (`InstrumentationScope`) metadata |
 | Span | `Span.attributes` | Per-operation metadata |
 | Event | `Span.events[].attributes` | Timestamped annotations |
 | Link | `Span.links[].attributes` | Cross-trace references |
 
-### 1.3 The Performance Problem
+(OTLP's own name for the instrumentation level is the `InstrumentationScope`, carried inside `ScopeSpans`. This RFC uses **level** for the qualifier and **instrumentation** for that value, to avoid overloading the word "scope" — see §5.1.)
 
-When a user queries `http.status_code=500`, the backend must search all five scopes using OR logic. In ClickHouse, this translates to five separate `arrayExists()` calls (three top-level, two nested within arrays), each scanning typed Map columns. The attribute metadata optimization (via `attribute_metadata` materialized view) narrows both the *types* and the *scopes* checked — if `http.status_code` appears only at the span level with integer type, only the integer span column is queried. However, this optimization requires an extra round-trip and a materialized view that may lag.
+### 1.3 The performance problem
 
-In Elasticsearch, each unqualified tag expands to a `bool.should` query across 5 field locations, increasing the number of sub-queries and reducing cache effectiveness.
+When a user queries `http.status_code=500`, an unqualified backend must search all five levels with OR logic. In ClickHouse this expands to five separate `arrayExists()` calls (three top-level columns, two nested within event/link arrays), each scanning a typed Map column. In Elasticsearch each unqualified tag expands to a `bool.should` across the field locations, increasing sub-query count and reducing cache effectiveness. The cost is paid on every attribute of every search, even though the user almost always knows which level they mean.
 
-### 1.4 The Semantic Problem
+### 1.4 The semantic problem
 
-Users cannot express intent:
-- "Find spans where the *span* has `deployment.environment=staging`" vs.
-- "Find spans whose *resource* has `deployment.environment=staging`"
+The unqualified API cannot express intent. "Find spans where the *span* has `deployment.environment=staging`" and "find spans whose *resource* has `deployment.environment=staging`" are different questions — the first finds spans explicitly tagged, the second finds spans emitted by services in staging — but today they are the same query. Nor can the API express `duration > 2s`, `http.status_code >= 400`, or `A OR B`: it supports only string equality, ANDed.
 
-These are semantically different queries (the first finds spans explicitly tagged; the second finds spans from services in staging), but the current API conflates them.
+### 1.5 Two axes, not one
 
-### 1.5 Design Constraints
+Level qualification alone is too narrow: attaching a level to each attribute leaves an API that still cannot express `OR` or `duration > 2s`. A complete answer must settle two independent axes:
 
-The solution must account for four layers of the system, each with different compatibility requirements:
+- **What a predicate can reference** (the *leaf*): a level-qualified attribute, but also built-in span/trace *properties* (`duration`, `name`, `status`, …) that are not attributes at all, and an *operator* richer than equality.
+- **How predicates combine** (the *composition*): equality-only conjunction is the floor; a boolean expression is the natural ceiling; aggregation and trace-tree navigation lie beyond.
 
-| Layer | Compatibility Requirement |
-|-------|--------------------------|
-| **UI** | Existing search must keep working; new affordances are progressive enhancement |
-| **API v3 (public gRPC/HTTP)** | Existing callers must not break; new fields are additive |
-| **Internal Storage API** | Can change freely (internal, versioned with the binary) |
-| **Remote Storage API (gRPC)** | Third-party plugins must degrade gracefully if they don't support scoped queries |
+This RFC designs both axes together (§3–§5) rather than adding the level qualifier alone.
 
-A key architectural choice is that **the old unqualified path can coexist with a new qualified path** at every layer — they are not mutually exclusive.
+### 1.6 The storage-backend landscape
 
-### 1.6 Per-Backend Tag Query Summary
+Feasibility is dominated by how each backend physically stores and indexes attributes. This table is load-bearing for every decision below.
 
-Each backend has a different storage model for attributes, which affects how easily scoped queries can be implemented:
+| Backend | Attribute storage | Level differentiation | Consequence |
+|---------|-------------------|-----------------------|-------------|
+| **ClickHouse** | Typed Map columns per level (`str_attributes`, `resource_str_attributes`, …) + nested arrays for events/links | Full — each level is a distinct column family | Native level filtering; a level-qualified query skips irrelevant columns |
+| **Elasticsearch / OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span / resource / log are distinct; no instrumentation/event/link distinction in the v1 schema | Span/resource/event levels work; instrumentation and link need schema evolution |
+| **Cassandra** | One flat inverted index (`tag_index`) keyed by `service + key + value` | None | Cannot restrict level at query time; only the indexed levels exist at all |
+| **Badger** | Flat KV tag index (span tags + process tags + log fields) | None | Same as Cassandra |
 
-| Backend | Storage Model | Scope Differentiation | Scoped Query Feasibility |
-|---------|--------------|----------------------|--------------------------|
-| **ClickHouse** | Typed Map columns per scope (`str_attributes`, `resource_str_attributes`, etc.) + nested arrays for events/links | Full — each scope is a separate column family | Native support. Scoped query skips irrelevant columns. |
-| **Elasticsearch/OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span vs. resource vs. logs are separate fields, but no scope/event/link distinction in v1 schema | Good support for span/resource/log scoping. Event/link would need schema evolution. |
-| **Cassandra** | Flat inverted index (`tag_index` table) keyed by `service_name + tag_key + tag_value` | None — all tags indexed identically regardless of origin | Cannot restrict scope at query time. Would return superset results (same as today). Acceptable: Cassandra is a legacy backend. |
-| **Badger** | Flat KV index keyed by `service_name + key + value` | None — same as Cassandra | Same as Cassandra — returns superset results. Acceptable: Badger is intended for local/dev use. |
-
-**Key insight:** Backends that lack scope differentiation (Cassandra, Badger) can simply ignore the scope qualifier and return results from all scopes — this is semantically a superset of the correct answer, which is safe (the user gets extra results, not missing results). The API contract can document this as "scope restriction is best-effort; backends that do not support it return unfiltered results."
+**The flat backends flatten on write, and that constrains what any query can honor.** Cassandra and Badger both index exactly three of the five levels — span attributes, resource (process) attributes, and event (log-field) attributes — merged into one undifferentiated index. Instrumentation-scope attributes are collapsed into span tags (indistinguishable), and **link attributes are dropped entirely** (the v1 model has no field for them). So a "just ignore the level and return everything" fallback is a genuine superset *only for the levels that were actually indexed* (span/resource/event). For a level the backend never indexed (link, and arguably instrumentation), widening does not return a superset — it returns the wrong set. The best-effort contract in §7 is written to this reality: honor levels that are indexed, reject (not silently widen) levels that are not.
 
 ---
 
-## 2. Options
+## 2. Goals and non-goals
 
-### Option A: Status Quo with Default Scope Restriction
+### Goals
 
-Keep the current API shape but change the default search behavior from "all 5 scopes" to "span + resource only" (covers >95% of real queries). Provide an opt-in mechanism to expand to all scopes.
+- **G1 — Level-qualified attributes.** A predicate may target a single OTLP attribute level (span/resource/instrumentation/event/link) or leave it unqualified (search the default).
+- **G2 — Properties.** A predicate may target a built-in span/trace property (`duration`, `name`, `status`, `kind`, service, trace-level values) uniformly with attributes (§5).
+- **G3 — Richer operators.** Beyond equality: `ne`, `gt`, `lt`, `regex`, `exists` — extensible without a second API redesign.
+- **G4 — Boolean composition.** Predicates combine with `AND`/`OR`/`NOT` and nesting (§4 tier L2).
+- **G5 — Backward compatibility.** The existing unqualified `attributes` filter keeps working byte-for-byte; the new model is additive at every layer (public API, internal storage API, remote-storage gRPC).
+- **G6 — Structured AST.** The query is a typed proto/JSON structure, machine-first, self-documenting via schema.
+- **G7 — Cross-backend implementability with graceful degradation.** Fully supported on ClickHouse and Elasticsearch/OpenSearch; backends that cannot honor a level or operator reject that predicate rather than returning wrong results.
 
-**Current REST API** (unchanged):
-```
-GET /api/v3/traces?query.attributes={"http.status_code":"200"}
-```
+### Non-goals
 
-**Proto change:**
+- **A free-text query language.** No lexer/grammar for a TraceQL/SQL-like string surface. If such a surface is ever wanted it can compile *to* this AST; the AST is the contract.
+- **Result shaping** — projection / `SELECT` / column selection, ordering, paging (§4 tier L3).
+- **Aggregation and metrics** — `count`/`GROUP BY`/`rate()` over spans (§4 tier L4). This overlaps Jaeger's existing metrics/SPM query service and belongs there.
+- **Structural / trace-tree queries** — ancestor/descendant/sibling navigation (§4 tier L5). Implementable only post-fetch (assemble each candidate trace, evaluate relationships in memory) since no backend can prune them in storage; a distinct, larger execution model deferred to a future effort.
+- **Storage-schema changes.** The model is designed to fit existing schemas; where a backend's schema cannot express a level (ES event/link, flat-index link), that is a documented limitation, not a schema migration mandated by this RFC.
+
+---
+
+## 3. The two design axes
+
+The model factors cleanly into two orthogonal axes, addressed in the next two sections:
+
+- **Composition (§4)** — *how predicates combine.* This is the "how expressive?" question, mapped as a continuum from today's flat conjunction up to a full trace query language, with an explicit decision on where Jaeger stops.
+- **Reference (§5)** — *what a single predicate points at.* A reference model of attribute levels, properties, and operators.
+
+They are independent: the composition tier could be chosen with or without properties, and vice versa. §6 combines the two into one proto/AST.
+
+---
+
+## 4. Composition — the query-complexity continuum
+
+The central design question is *how expressive should the structured filter be?* Below is the continuum from today's API to a full trace query language, calibrated against three well-known structured query systems as prior art. Jaeger targets a structured AST, so these matter only for the *expressiveness tier* each represents — not their surface syntax.
+
+**Prior art:**
+
+- **SQL over a flat span table** — boolean `WHERE`, projection, `ORDER BY`/`LIMIT`, `GROUP BY` aggregation. No notion of the trace tree.
+- **Braintrust BTQL** — a structured, SQL-like query language (also expressible as a JSON AST): boolean filters over dotted field paths, `IN`/`LIKE`/`MATCH`, functions, `sort`/`limit`, and `dimensions`/`measures` aggregation. Document/row-oriented; no trace-tree operators.
+- **Grafana TraceQL** — trace-native: scope-qualified attributes (`span.`, `resource.`, `event.`, `link.`, `parent.`, unscoped `.`), built-in span/trace fields (`duration`, `name`, `status`, `kind`, `rootName`, `traceDuration`, …), boolean field expressions, **structural operators** over the trace tree (`>>` descendant, `<<` ancestor, `~` sibling), spanset aggregation/grouping, and a metrics extension (`rate()`, `quantile_over_time()`). It occupies the top of the continuum; its structural and metrics tiers are the frontier this RFC declines.
+
+**The expressiveness ladder** (each tier cumulative):
+
+| Tier | Capability | Prior art |
+|------|-----------|----------|
+| **L0** | Unqualified conjunction of `key=value` equalities, search-all-levels — **today** | — |
+| **L1** | Level/property predicates `{level\|property, key, op, value}`, still all-ANDed | — |
+| **L2** | Boolean expression tree: `AND`/`OR`/`NOT` + nesting over L1 leaves | SQL `WHERE`, BTQL filter |
+| **L3** | Result shaping: projection, ordering, limit/paging | SQL `SELECT/ORDER BY/LIMIT`, TraceQL `select()` |
+| **L4** | Aggregation & grouping: `count/sum/avg/quantile` by field, optionally over-time | SQL `GROUP BY`, BTQL measures, TraceQL `by()`+`rate()` |
+| **L5** | Structural / trace-tree operators: ancestor/descendant/sibling/child, `parent.` | TraceQL `>>`/`<<`/`~` |
+
+**Feasibility across backends** (🟢 good · 🟡 partial or costly · 🔴 poor or infeasible):
+
+| Criterion | L0 | L1 | L2 | L3 | L4 | L5 |
+|-----------|:-:|:-:|:-:|:-:|:-:|:-:|
+| User expressiveness | 🔴 | 🟡 | 🟢 | 🟢 | 🟢 | 🟢 |
+| Elasticsearch/OpenSearch | 🟢 | 🟢 | 🟢¹ | 🟢 | 🟢² | 🟡³ |
+| ClickHouse | 🟢 | 🟢 | 🟢 | 🟢 | 🟢 | 🟡⁴ |
+| Cassandra / Badger | 🟢 | 🟡⁵ | 🔴⁶ | 🟡 | 🔴 | 🟡³ |
+| AST / API surface (🟢 = small) | 🟢 | 🟢 | 🟢⁷ | 🟡 | 🔴 | 🔴 |
+| UI query builder (🟢 = simple) | 🟢 | 🟢 | 🟡⁸ | 🟡 | 🔴 | 🔴 |
+| Cross-backend uniformity | 🟢 | 🟡 | 🟡⁹ | 🟡 | 🔴 | 🟡 |
+
+¹ ES `bool` query (`must`/`should`/`must_not`) nests arbitrarily. ² ES aggregations exist but overlap Jaeger's metrics/SPM path. ³ structural operators are evaluated *post-fetch* — the query service assembles each candidate trace and checks ancestor/descendant/sibling in memory — so they work on any backend; but no Jaeger schema encodes the trace tree, so they cannot be pushed into storage to prune candidates, which makes them **inefficient at scale, not infeasible**. ⁴ ClickHouse could additionally push some structural checks into a self-join within a trace partition, though not with today's schema/query builder; otherwise it is post-fetch as in ³. ⁵ superset-safe only for the levels the flat index actually contains — span/resource/event; link is unrepresentable and instrumentation indistinguishable (§1.6). ⁶ a flat inverted index has no `OR`/`NOT`. ⁷ L2 is a small delta over L1 — two message types (a boolean node + a oneof); see §6. ⁸ the API need not wait for the UI: a builder can render the conjunctive subset first and add nesting later. ⁹ capable backends evaluate the full tree; flat backends evaluate the conjunctive subset and reject `OR`/`NOT` — the same posture they already take for unsupported operators.
+
+**Decision — target L2 (the full boolean tree); conjunction is the subset every backend supports.**
+
+- **L1 is not a coherent stopping point.** In SELECT/FILTER/GROUP-BY terms, L3 adds SELECT and L4 adds GROUP BY — separate clauses, principled to defer. But L1 stops *inside* the FILTER clause: it has conjunction and lacks disjunction/negation, which is no natural boundary. The complete FILTER is the boolean expression — L2.
+- **The backend-uniformity concern does not favor L1.** A flat-index backend handles the conjunctive *subset* of an L2 tree exactly as it would handle L1 — walk the ANDs, reject anything containing `OR`/`NOT`. So L1 buys the weak backends no simplicity; it only removes power from ClickHouse and ES/OS, the backends that motivate this RFC. L1 is L2 with the other node types deleted from the schema.
+- **API expressiveness is decoupled from UI expressiveness.** The API can be L2 while the UI ships only a conjunctive-subset builder and adds nested groups later.
+- **Stopping at L1 would cost two API changes** to the same surface and leave a flat predicate-list field as legacy baggage beside the legacy `attributes` map.
+
+So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is retained only as a *capability tier* — the conjunctive subset that every backend, including the flat ones, supports. **L3 is deferred** (awkward against Jaeger's whole-trace result model, and inert until L4 exists). **L4 is excluded** (belongs to the metrics/SPM subsystem; a separate RFC). **L5 is excluded** — not for infeasibility (structural predicates can be evaluated post-fetch on any backend, assembling each candidate trace) but because it is a distinct fetch-then-filter execution model that cannot prune in storage, is inefficient at scale, and is a large surface; deferred as a separate effort. The one honest internal nuance is that a pure conjunction admits a fast all-predicates-pushdown path while a tree with `OR` needs fuller evaluation — an optimization inside the capable backends, not an API concern.
+
+---
+
+## 5. Reference — levels and properties
+
+A predicate names what it filters on and compares it with an operator. It targets exactly one of two things: a _level-qualified attribute_ or a _property_.
+
+### 5.1 Attribute levels
+
+An attribute reference is a `(level, key)` pair. The level vocabulary follows the OTLP model (§1.2). We call the qualifier **level** and the instrumentation-scope value **instrumentation**, so that the field name never collides with one of its own values and never overloads OTLP's `InstrumentationScope`:
+
+| `level` | Targets | Notes |
+|---------|---------|-------|
+| *(empty)* | span **or** resource attributes | default; the levels Jaeger already indexes and searches by default (span + resource/process tags) |
+| `span` | `Span.attributes` | |
+| `resource` | `resource.attributes` | |
+| `instrumentation` | `ScopeSpans.scope.attributes` | `InstrumentationScope` attributes |
+| `event` | `Span.events[].attributes` | |
+| `link` | `Span.links[].attributes` | |
+
+The empty default means span-or-resource rather than "all five" because that is what Jaeger indexes and searches by default today: span attributes and resource (process) attributes are the tags reliably indexed for search, whereas event (span-log) attributes generally are not. So span-or-resource is at once the high-coverage common case *and* the behavior existing unqualified queries already get — making it the default preserves today's semantics rather than silently widening the search or paying to scan levels that are not indexed. A backend that does index more, or that expands to all levels (as ClickHouse can, at the §1.3 cost), simply returns a superset (§1.6). A further level such as `parent.` (the parent span's attributes) could be added later — the vocabulary is an open string set (§6).
+
+### 5.2 Properties
+
+Much of what users filter on is not an attribute at all but a built-in value of the span or trace — its duration, name, status, and so on. This RFC calls these **properties**. Modeling them as predicate targets unifies several of Jaeger's ad-hoc top-level query parameters into one vocabulary:
+
+| `property` | Meaning | Today in Jaeger's API |
+|-------------|---------|-----------------------|
+| `duration` | span duration | dedicated `duration_min`/`duration_max` fields |
+| `name` | span (operation) name | dedicated `operation_name` field |
+| `service` | service name | dedicated `service_name` field |
+| `status` | OTel status (`ok`/`error`/`unset`) | ad-hoc `error=true` tag |
+| `kind` | span kind (`server`/`client`/…) | ad-hoc `span.kind` tag |
+| `traceDuration` | whole-trace duration | not expressible |
+| `rootName` / `rootService` | root span's name / service | not expressible |
+| `spanID` / `traceID` | identifiers | ID lookup only |
+
+The value of the property model is that it is *uniform*: `duration > 2s`, `status = error`, and `span.http.method = GET` are all the same shape (a predicate with an operator), instead of three unrelated mechanisms (a dedicated duration field, a magic `error` tag, and a tag map). It also makes queries expressible that are impossible today (`traceDuration`, `rootName`). The dedicated top-level query fields (`service_name`, `operation_name`, the paired `duration_min`/`duration_max`) remain supported for backward compatibility, but the query service **normalizes them into property predicates in `filters`** (`duration_min`/`duration_max` become a pair of `duration` range predicates) so that storage backends implement one filtering model rather than a growing mix of scalar fields *plus* `attributes` *plus* `filters`. That normalization is an architectural choice with a compatibility wrinkle at the remote-storage boundary — see §7.
+
+Properties are a natural extension of the same leaf, but they are not required on day one: the initial implementation can support level-qualified attributes plus a small property set (`duration`, `name`, `service`, `status`, `kind`) and phase in the trace-level ones (§9). Like levels and operators, the property set is an open, documented string vocabulary.
+
+### 5.3 Operators and value typing
+
+The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`. `value` is carried as a string on the wire and interpreted against the target's type by the backend — numeric for `duration`/`gt`/`lt`, which matches how ClickHouse already stores typed attribute columns. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
+
+**Units of numeric values (decision point).** For a value with an implied unit — chiefly `duration` — the wire value should carry the unit *explicitly*, in Go duration syntax (`2s`, `1h30m`), matching today's `duration_min`/`duration_max` fields, rather than a bare number in an assumed unit (which is ambiguous — nanoseconds? milliseconds?). A bare-number value (e.g. a numeric attribute like `http.response.size`) is compared numerically and carries no RFC-defined unit: the caller and the stored data share whatever unit the attribute was recorded in, exactly as today. See §10 Q7.
+
+---
+
+## 6. Proposed API
+
+The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are predicates over level-qualified attributes or properties (§5). `level` and `op` are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
+
+### 6.1 Proto
+
 ```protobuf
-message TraceQueryParameters {
-  map<string, string> attributes = 3;
-  // When true, attributes are also matched against scope, event, and link attributes.
-  // Default (false) searches only span and resource attributes.
-  bool search_all_attribute_scopes = 10;
-}
-```
-
-**UI change:** Advanced toggle "Search all scopes" (default off).
-
-**Rationale as baseline:** This represents the minimal delta — same API shape, behavior change only.
-
-### Option B: Key Prefix Convention
-
-Encode scope as a prefix in the attribute key string. Unqualified keys retain existing "search all" behavior.
-
-**REST API:**
-```
-GET /api/v3/traces?query.attributes={"span.http.status_code":"200","resource.k8s.namespace.name":"prod"}
-```
-
-Unprefixed keys retain "search all" behavior:
-```
-GET /api/v3/traces?query.attributes={"http.method":"GET"}
-```
-
-**Proto change:** None — reuses existing `map<string, string> attributes`.
-
-**Parsing rule:** If the key starts with a recognized prefix (`span.`, `resource.`, `scope.`, `event.`, `link.`) followed by at least one character, strip the prefix and restrict the search. Otherwise, search all scopes.
-
-**UI change:** Documentation/tooltip explaining the prefix convention. No structural UI change required.
-
-### Option C: Structured Attribute Filters
-
-Introduce a new repeated message type that pairs key-value with an explicit scope enum. Designed from the start to accommodate future query operators.
-
-**Proto change:**
-```protobuf
-enum AttributeScope {
-  ATTRIBUTE_SCOPE_UNSPECIFIED = 0; // search all scopes
-  ATTRIBUTE_SCOPE_SPAN = 1;
-  ATTRIBUTE_SCOPE_RESOURCE = 2;
-  ATTRIBUTE_SCOPE_SCOPE = 3;
-  ATTRIBUTE_SCOPE_EVENT = 4;
-  ATTRIBUTE_SCOPE_LINK = 5;
-}
-
-enum FilterOperator {
-  FILTER_OPERATOR_EQUALS = 0;       // default: exact match
-  FILTER_OPERATOR_NOT_EQUALS = 1;
-  FILTER_OPERATOR_GREATER_THAN = 2;
-  FILTER_OPERATOR_LESS_THAN = 3;
-  FILTER_OPERATOR_REGEX = 4;
-  FILTER_OPERATOR_EXISTS = 5;       // value field ignored
-}
-
+// A single predicate: a level-qualified attribute OR a property, compared by an operator.
 message AttributeFilter {
-  string key = 1;
-  string value = 2;
-  AttributeScope scope = 3;         // default: search all scopes
-  FilterOperator op = 4;            // default: equals
+  // Target — set exactly one of {key(+level)} or {property}.
+  string key      = 1;  // attribute key; empty when `property` is set
+  string level    = 2;  // span|resource|instrumentation|event|link; empty = span-or-resource
+  string property = 3;  // duration|name|service|status|kind|…; mutually exclusive with key/level
+
+  string op    = 4;     // eq|ne|gt|lt|regex|exists; empty = eq
+  string value = 5;     // ignored when op = "exists"
+}
+
+// A boolean combination of sub-expressions.
+message BooleanOp {
+  string op = 1;                        // and|or|not
+  repeated FilterExpression operands = 2;
+}
+
+// A node in the filter tree: either a leaf predicate or a boolean combination.
+message FilterExpression {
+  oneof node {
+    AttributeFilter predicate = 1;
+    BooleanOp       bool      = 2;
+  }
 }
 
 message TraceQueryParameters {
-  // Legacy: unqualified equality search across all scopes. Retained for backwards compat.
+  // Legacy: unqualified AND-equality over the tag map. Retained unchanged.
   map<string, string> attributes = 3;
 
-  // Structured filters with optional scope and operator qualification.
-  repeated AttributeFilter attribute_filters = 10;
+  // Structured filter. The top-level list is implicitly ANDed, so the common
+  // conjunction reads as a flat array; any element may nest into a bool node.
+  repeated FilterExpression filters = 10;
 }
 ```
 
-**REST API — current (unchanged for backwards compat):**
-```
-GET /api/v3/traces?query.attributes={"http.status_code":"200"}
-```
+The top-level `repeated FilterExpression` is implicitly ANDed. This keeps the dominant conjunction case as ergonomic as a flat list while still allowing full boolean nesting inside any element. (A single-root `FilterExpression filter` is the alternative shape — more uniform but forcing an explicit `and` node for the common multi-predicate case; see §10.)
 
-**REST API — new structured parameter:**
-```
-GET /api/v3/traces?query.attributeFilters=key:http.status_code,value:200,scope:span,op:eq
-```
+### 6.2 REST/JSON encoding, and why string enumerations
 
-Multiple filters as repeated params:
-```
-GET /api/v3/traces?query.attributeFilters=key:http.status_code,value:200,scope:span
-                  &query.attributeFilters=key:k8s.namespace.name,value:prod,scope:resource
+Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defaults, so a proto *enum* would cross the wire as its full `CONSTANT_CASE` name (`"level":"ATTRIBUTE_LEVEL_SPAN"`) with no short-alias option, and proto3 enums are *open* (an unknown number is accepted, not rejected). Plain `string` fields avoid the verbosity, and the closed value set is still declared and validated in the generated OpenAPI schema via the gnostic `enum` annotation — a **closed** set (unknown values rejected, stricter than an open proto enum):
+
+```yaml
+level: { type: string, enum: [span, resource, instrumentation, event, link] }
+op:    { type: string, enum: [eq, ne, gt, lt, regex, exists] }
 ```
 
-Or as a JSON array (matching protobuf JSON encoding):
+Legend: 🟢 strong · 🟡 adequate · 🔴 weak
+
+| Criterion | Proto enums | Typed string constants¹ |
+|-----------|:-:|:-:|
+| REST/UI payload ergonomics | 🔴 `ATTRIBUTE_LEVEL_SPAN` | 🟢 `"span"` |
+| Schema-level validation | 🟡 open enum (unknown ints pass) | 🟢 closed enum (rejects unknowns) |
+| Discoverable / self-documenting | 🟢 proto + OpenAPI | 🟢 OpenAPI `enum` + codegen |
+| Operator/level extensibility | 🟢 add enum value | 🟢 add a constant |
+| Generated enum type for gRPC clients | 🟢 | 🔴 bare string |
+
+¹ `string` proto field + OpenAPI `enum` annotation.
+
+The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check. A conjunction thus reads cleanly:
+
 ```
-GET /api/v3/traces?query.attributeFilters=[{"key":"http.status_code","value":"200","scope":"ATTRIBUTE_SCOPE_SPAN"}]
+GET /api/v3/traces?query.filters=[{"predicate":{"key":"http.status_code","value":"500","level":"span"}}]
 ```
-
-**Semantics:** All filters (from both `attributes` and `attribute_filters`) are ANDed. Within `attribute_filters`, `scope=UNSPECIFIED` means search all scopes (same as the legacy `attributes` field). Only `FILTER_OPERATOR_EQUALS` and `FILTER_OPERATOR_EXISTS` need to be implemented initially; others can return "unsupported" until backends add support.
-
-**UI change:** Tag builder widget with optional scope dropdown per chip. Existing text box continues to work via the legacy `attributes` field.
-
-### Option D: Backend Metadata Optimization (Transparent)
-
-No API change. The ClickHouse backend already maintains an `attribute_metadata` materialized view that tracks which keys appear at which scopes. Extend this optimization to proactively skip scopes where a key has never been observed.
-
-**Proto change:** None.
-
-**UI change:** None.
-
-**Mechanism:** Before executing the find-traces query, look up each queried attribute key in metadata. If metadata shows `http.status_code` only exists at the span level, generate conditions only for span attributes. If metadata is missing (cold key), fall back to searching all scopes.
+```json
+{ "query": { "filters": [
+  { "predicate": { "property": "duration", "op": "gt", "value": "2s" } },
+  { "bool": { "op": "or", "operands": [
+    { "predicate": { "key": "http.status_code", "value": "500", "level": "span" } },
+    { "predicate": { "key": "http.status_code", "value": "503", "level": "span" } } ] } } ] } }
+```
 
 ---
 
-## 3. Evaluation Criteria
+## 7. Backward compatibility and degradation
 
-| # | Criterion | Description |
-|---|-----------|-------------|
-| 1 | **Query Performance** | Reduces the number of storage scopes scanned per attribute |
-| 2 | **Semantic Precision** | User can express exactly which scope(s) to search |
-| 3 | **Additive Coexistence** | New qualified path can live alongside old unqualified path without conflict |
-| 4 | **UI Compatibility** | Existing UI (single logfmt text box) keeps working unchanged |
-| 5 | **API v3 Compatibility** | Public gRPC/HTTP contract does not break existing callers |
-| 6 | **Remote Storage API Impact** | Minimal burden on third-party storage plugin authors |
-| 7 | **Implementation Effort** | Total work across internal storage backends (ClickHouse, ES, Cassandra) |
-| 8 | **API Complexity** | Surface area added to the public API |
-| 9 | **Extensibility** | Paves the way for richer operators (`!=`, `>`, regex, `exists`) |
-| 10 | **Cross-Backend Consistency** | All backends can implement the same semantics |
-| 11 | **Discoverability** | Users can discover valid attribute keys and their scopes |
-| 12 | **Migration Path** | Smooth transition without a flag day |
+**Coexistence.** The legacy `attributes` map is untouched and keeps its exact semantics (unqualified AND-equality). `filters` is a new additive field that defaults to empty; old clients are byte-for-byte unaffected, and the two may be combined (all ANDed). This holds at all layers — public api_v3, internal storage API, and the remote-storage gRPC protocol.
 
----
+**Normalizing legacy query parameters into `filters` (proposed architectural decision).** Most of today's top-level `TraceQueryParameters` fields are already properties (§5.2) — `service_name` → `service`, `operation_name` → `name`, `duration_min`/`duration_max` → a pair of `duration` range predicates — and `attributes` is a set of unqualified equality predicates. The query service should **normalize all of them into the single `filters` expression** before dispatching to a storage backend, so each backend implements exactly one filtering model (the AST) instead of the growing mix of scalar fields *plus* `attributes` *plus* `filters`. (`start_time_min`/`start_time_max` and `search_depth` stay as envelope parameters: they bound the scan window and the result count, they are not span predicates. Inclusive duration bounds imply `gte`/`lte`, which the extensible operator set can add — §5.3.)
 
-## 4. Comparison Matrix
+This is clean for the **internal `TraceReader`** API, which is versioned with the binary and can simply drop the redundant scalar fields once the query service populates `filters`. It is harder at the **Remote Storage gRPC API**: those scalar fields are part of the published `storage.v2` contract and existing third-party plugins read them.
 
-Legend: 🟢 = strong, 🟡 = adequate, 🔴 = weak
+Crucially, **a bare additive `filters` field on the existing `FindTraces`/`FindTraceIDs` RPCs is not enough** for the remote boundary: a plugin that predates `filters` silently ignores the unknown field and answers from the scalar fields alone — under-filtering with *no signal* to the query service. The clean fix is the one Jaeger already used for `FindTraceSummaries`: **add an optional, filter-aware RPC variant and detect support at runtime.** A plugin that does not implement it returns gRPC `UNIMPLEMENTED` (the generated `UnimplementedTraceReaderServer` provides this for free), so the query service routes the rich `filters` query to backends that advertise support and **down-converts** to the existing V2 call (legacy scalar fields + `attributes`, rejecting what V2 cannot express — e.g. `OR`/`NOT`) for those that don't. This turns a silent gap into an explicit capability check, moves capable backends to the single filter model with no redundant mirroring and no forced protocol-wide break, and leaves old plugins untouched. The internal `TraceReader` cleanup can proceed as soon as the in-tree backends read predicates from `filters` (Stage B), independent of this remote-API work. (Alternatives considered — mirroring the scalars alongside `filters` forever, or a whole-protocol major-version bump — are heavier and are the fallback if the optional-RPC route is rejected; §10 Q5.)
 
-| Criterion | A: Status Quo + Restrict | B: Key Prefix | C: Structured Filter | D: Metadata Opt. |
-|-----------|:---:|:---:|:---:|:---:|
-| 1. Query Performance | 🟡 | 🟢 | 🟢 | 🟡 |
-| 2. Semantic Precision | 🔴 | 🟡 | 🟢 | 🔴 |
-| 3. Additive Coexistence | 🟡 | 🟢 | 🟢 | 🟢 |
-| 4. UI Compatibility | 🟢 | 🟢 | 🟡 | 🟢 |
-| 5. API v3 Compatibility | 🟡 | 🟢 | 🟢 | 🟢 |
-| 6. Remote Storage API Impact | 🟡 | 🟡 | 🟡 | 🟢 |
-| 7. Implementation Effort | 🟢 | 🟢 | 🟡 | 🟢 |
-| 8. API Complexity | 🟢 | 🟢 | 🟡 | 🟢 |
-| 9. Extensibility | 🔴 | 🔴 | 🟢 | 🔴 |
-| 10. Cross-Backend Consistency | 🟢 | 🟢 | 🟢 | 🟡 |
-| 11. Discoverability | 🔴 | 🟡 | 🟡 | 🟡 |
-| 12. Migration Path | 🟡 | 🟢 | 🟢 | 🟢 |
+**Capability-based degradation.** A backend advertises what it can honor and *rejects* what it cannot, rather than silently returning wrong results:
+
+- **Levels** — ClickHouse honors all five. ES/OS honor span/resource/event today; instrumentation and link await schema evolution. The flat backends honor only the levels their write path indexes — span/resource/event — because instrumentation-scope attributes are merged into span tags and **link attributes are not stored at all** (§1.6). A predicate naming an unsupported level is rejected (`Unimplemented`), not widened — widening would be a superset only for indexed levels and plain wrong for link.
+- **Operators** — a backend that has not implemented `regex`/`gt`/… rejects that predicate; it never approximates.
+- **Boolean structure** — ClickHouse and ES/OS evaluate the full L2 tree. Flat backends evaluate the conjunctive subset and reject any `OR`/`NOT` node.
+- **Remote-storage plugins** — a plugin that ignores the new `filters` field still receives the legacy `attributes` and behaves exactly as today; the query service can populate `attributes` from a purely-conjunctive, unqualified `filters` for such plugins.
+
+**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured predicate — `resource.service.name:foo` → `{predicate:{key:"service.name",level:"resource"}}`, `duration>2s` → `{predicate:{property:"duration",op:"gt",value:"2s"}}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose JSON by hand.
 
 ---
 
-## 5. Detailed Analysis
+## 8. Considered alternatives
 
-### 5.1 Query Performance
+Three alternative API shapes were considered and not adopted; the structured model of §4–§6 is preferred to each:
 
-| Option | Analysis |
-|--------|----------|
-| **A** | Removes 3 scopes (scope, event, link) from the default path. Helps the common case but is a blunt instrument — users searching resource-only attributes still scan span too. When opt-in flag is set, performance is same as today. |
-| **B** | When a prefix is present, the backend skips 4 of 5 scopes. Unqualified keys still scan all. Net effect depends on user adoption of prefixes. |
-| **C** | Scope enum tells the backend exactly where to look. Same as B when qualified; same as today when `scope=UNSPECIFIED`. The operator field enables future optimizations (e.g., `EXISTS` can skip value comparison). |
-| **D** | Reduces scopes to only those observed in metadata. Effectiveness depends on metadata freshness and key cardinality. New/rare keys still scan all scopes. No user action required. |
-
-### 5.2 Semantic Precision
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Binary: "span+resource" vs. "all". Cannot target a single scope or exclude one. |
-| **B** | Supports all 5 scopes via prefix, but the convention is implicit — no schema validation. Users must know the prefix vocabulary. Ambiguity risk: an attribute key that naturally starts with `resource.` (unlikely but possible in user-defined attributes). |
-| **C** | Fully explicit with per-filter granularity. Can mix scoped and unscoped filters in a single query. The scope enum is self-documenting via proto. Operator field adds predicate precision beyond just scope. |
-| **D** | No precision at all — the system makes an opaque best-guess. Users cannot override. |
-
-### 5.3 Additive Coexistence
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Changes the *default behavior* of the existing `attributes` field. This is technically a semantic breaking change: queries that previously found results in event/link attributes would stop finding them. Mitigated by the opt-in flag, but existing clients get different behavior without changing their code. |
-| **B** | Unprefixed keys retain existing behavior. Prefixed keys are new. Both coexist in the same `attributes` map. No conflict, but the overloading of a single field introduces parsing ambiguity — a documented-but-implicit contract. |
-| **C** | Old `attributes` field untouched with identical semantics. New `attribute_filters` is a separate additive field. Clear separation — no ambiguity about which code path is active. |
-| **D** | No API change at all — purely additive at the backend. |
-
-### 5.4 UI Compatibility
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Existing UI works but produces narrower results by default. A "search all scopes" toggle is trivial to add. |
-| **B** | The existing logfmt text box works unchanged — users can optionally type `resource.service.name:foo`. No new UI components required; power users learn the syntax organically. |
-| **C** | The existing text box continues to populate the legacy `attributes` field unchanged. To access structured filters, the UI needs a new tag builder widget (scope dropdown per chip). This is a progressive enhancement, not a requirement. |
-| **D** | Completely transparent — no UI involvement. |
-
-### 5.5 API v3 Compatibility
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Existing `attributes` field changes default behavior. A client that relied on finding event attributes will silently get fewer results after upgrade. This is a semantic break even though the wire format is unchanged. |
-| **B** | Wire-compatible: same field, same type. Old clients send unprefixed keys and get existing behavior. Fully backwards compatible. |
-| **C** | New repeated field defaults to empty (no-op). Old clients don't set it and get identical behavior. Fully backwards compatible. |
-| **D** | No API change. |
-
-### 5.6 Remote Storage API Impact
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Remote plugins must implement the `search_all_attribute_scopes` flag. If they ignore it, they may return too many or too few results depending on their existing implementation. |
-| **B** | Remote plugins receive the same `map<string, string>`. They must understand the prefix convention to benefit. Plugins that ignore prefixes still work (they'll search all scopes for the prefixed key — likely returning no results for the prefixed form). Documentation + a utility function can ease adoption. |
-| **C** | Remote plugins receive a new `attribute_filters` field. Plugins that ignore it degrade gracefully — only the legacy `attributes` field is used. The Jaeger query service could optionally fall back to populating `attributes` from `attribute_filters` (stripping scope info) when talking to plugins that don't advertise support. |
-| **D** | No impact — optimization is internal to specific backends. Remote plugins are unaffected. |
-
-### 5.7 Implementation Effort
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Low: flip default, add one boolean parameter. But testing the behavior change and documenting the migration is non-trivial. |
-| **B** | Minimal: add prefix parsing in the query parser layer (one function), pass a `scope` field alongside each attribute into the storage interface. Each backend adds a branch to skip scopes. Estimate: small PR per backend. |
-| **C** | Moderate: new proto message types (in jaeger-idl), regenerate, update query parsers (HTTP + gRPC), update internal storage interface to carry the filter struct, each backend adds handling. The proto and interface changes are one-time; per-backend work is comparable to B. Operator support beyond `EQUALS` can be deferred. |
-| **D** | Low: ClickHouse already has this partially. Extend the metadata cache to also skip scopes (not just types). ES and Cassandra don't benefit (no metadata). |
-
-### 5.8 API Complexity
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Adds 1 boolean field. Minimal surface, but the behavioral implication of the boolean is non-obvious and the semantics feel accidental rather than designed. |
-| **B** | No new fields, no new types. Complexity lives in documentation of the prefix convention. Simple to explain, but "magic prefixes in a string" is an implicit schema that cannot be validated by proto tooling. |
-| **C** | Adds 1 repeated message field + 2 enums. More concepts to learn upfront, but the schema is self-documenting and tooling-friendly. The complexity is *explicit* rather than hidden in parsing conventions. |
-| **D** | Zero API complexity increase. |
-
-### 5.9 Extensibility
-
-| Option | Analysis |
-|--------|----------|
-| **A** | Dead end — only controls scope breadth. Adding operators later requires a separate mechanism. |
-| **B** | Dead end for operators. Cannot encode `http.status_code > 400` or `regex(url, ".*foo.*")` in a string key-value pair. A future RFC would need to introduce a different mechanism anyway. |
-| **C** | Designed for extension. The `FilterOperator` enum accommodates `!=`, `>`, `<`, `regex`, `exists` from day one. Adding new operators is a proto enum value — no structural API change. This is the only option that avoids a second API redesign when operators are needed. |
-| **D** | No extensibility — pure optimization of existing behavior. |
-
-### 5.10 Cross-Backend Consistency
-
-| Option | Analysis |
-|--------|----------|
-| **A** | All backends can implement the boolean. But backends with flat indexes (Cassandra) can't actually restrict scope — they'd need to post-filter, which is expensive. |
-| **B** | All backends can implement prefix parsing identically. Cassandra (flat index) ignores the scope restriction and returns superset results — acceptable for a backend that doesn't distinguish scopes. Documented as "best effort." |
-| **C** | Same as B — scope restriction is advisory for flat-index backends. Operators can similarly be "best effort" (return error for unsupported operators rather than wrong results). The proto enum makes the capability contract explicit. |
-| **D** | Only benefits backends with metadata infrastructure. Creates invisible performance divergence — same query is fast on ClickHouse, slow on ES. Not a correctness issue, but surprising. |
-
-### 5.11 Discoverability
-
-| Option | Analysis |
-|--------|----------|
-| **A** | The boolean flag is documented but doesn't help users understand the scope model. Users have no way to know which attributes live at which scopes. |
-| **B** | Users must know the prefix vocabulary. Could be aided by autocomplete in the UI text box (e.g., typing `resource.` triggers suggestions). No intrinsic schema-level discoverability. |
-| **C** | The scope enum is self-documenting in proto and OpenAPI specs. Can be combined with a `GetAttributeKeys(scope?)` API in the future. Tooling (CLI, UI) can enumerate valid scopes from the enum. |
-| **D** | No discoverability improvement — users don't even know the optimization exists. But the underlying metadata table could power a future discovery API. |
-
-### 5.12 Migration Path
-
-| Option | Analysis |
-|--------|----------|
-| **A** | **Requires migration.** Existing queries may return fewer results. Options: (1) default `search_all_attribute_scopes=true` initially, flip later; (2) announce in release notes as a behavior change. Either way, a flag day exists. |
-| **B** | No migration needed — old queries work identically. Users adopt prefixes when they learn about them. Gradual, organic adoption. |
-| **C** | No migration needed — old `attributes` field works identically. New filter mechanism is opt-in. The query parser can internally support prefix syntax (Option B) as sugar that normalizes into `AttributeFilter` messages, providing two on-ramps to the same backend path. |
-| **D** | No migration at all — transparent backend change. |
+- **A — change the default level of the existing `attributes` field** (a `search_all_attribute_scopes` boolean). *Rejected.* It silently changes the semantics of an existing field (a migration flag-day), offers only binary "span+resource vs all" precision, and extends to neither operators nor boolean composition. A dead end.
+- **B — encode the level as a key prefix** (`resource.k8s.namespace.name`). *Not a competing data model — adopted as text sugar* (§7). As an API contract it is rejected: the convention is implicit and unvalidated, collides with user keys that happen to start with a level name, and cannot express operators or booleans.
+- **D — backend metadata level-skipping** (ClickHouse consults its `attribute_metadata` view to skip levels a key was never seen at). *Orthogonal.* A ClickHouse-local performance optimization requiring no API change; out of scope here and free to proceed independently on its own track.
+- **A free-text query language** (parse a TraceQL/BTQL/SQL string). *Non-goal* (§2). Jaeger commits to a structured AST; a text surface, if ever desired, can compile to this same AST without changing the contract.
 
 ---
 
-## 6. Discussion
+## 9. Implementation roadmap
 
-### 6.1 Options Are Not Mutually Exclusive
+PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 from the start; capable backends (ClickHouse, ES/OS) evaluate the full tree, while the flat backends support only its conjunctive subset. The north star is the cross-backend API contract, where the coordination cost lives.
 
-Option D (metadata optimization) is purely internal and can be implemented regardless of which API option is chosen. It provides an immediate performance improvement with zero coordination cost.
+**Stage A — API foundation (additive, no behavior change)**
 
-Options A, B, and C are API-level changes that differ in their approach. B and C can coexist — the query parser can accept prefix syntax in the `attributes` field and normalize it into `AttributeFilter` structs internally, making B a convenient text syntax for C's structured semantics.
+- **M1 — Proto types in jaeger-idl.** Add `AttributeFilter`, `BooleanOp`, and `FilterExpression` (with `level`/`op` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute-predicate leaf (`key`/`level`) and add the `property` field in a follow-up, since it is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which currently encodes the flat L1 list and needs revising to the `FilterExpression` tree per §6.1.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
+- **M2 — Plumb the filter through the query service to the storage interface.** Extend the internal `TraceQueryParams` ([`reader.go`](../../internal/storage/v2/api/tracestore/reader.go)) to carry the expression tree alongside the legacy `Attributes` map, and translate the proto field in the api_v3 handler. With no backend routing yet, a purely-conjunctive tree is treated as unqualified search-all (today's results); non-conjunctive trees and unsupported operators are rejected at the edge. *Exit:* a conjunctive level-qualified filter reaches every backend as unqualified attributes and returns today's results; `OR`/`NOT` and unsupported operators return `Unimplemented`; plugins ignoring `filters` are unaffected.
 
-Option A is the weakest standalone choice: it has a backwards-compatibility hazard, provides no semantic precision, and doesn't extend.
+**Stage B — Backend routing (one PR per backend, parallelizable after M2)**
 
-### 6.2 The Extensibility Argument
+- **M3 — ClickHouse.** Route level-qualified predicates to their typed Map column ([`query_builder.go`](../../internal/storage/v2/clickhouse/tracestore/query_builder.go)) and lower the boolean tree into the SQL `WHERE` (`AND`/`OR`/`NOT`); an empty level keeps the span-or-resource expansion. *Exit:* level-qualified/boolean queries emit the corresponding SQL; unqualified queries byte-identical to today.
+- **M4 — Elasticsearch/OpenSearch.** Route span/resource/event levels to their fields in `buildTagQuery` ([`core/reader.go`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)) and lower the boolean tree into a `bool` query; the instrumentation and link levels are rejected pending schema evolution. *Exit:* span/resource/event level-qualification and `AND`/`OR`/`NOT` work; unqualified snapshots byte-identical.
+- **M5 — Cassandra + Badger (capability boundary).** Accept the conjunctive subset over indexed levels (span/resource/event); **reject** `OR`/`NOT`, unsupported operators, and predicates naming an unindexed level (link, instrumentation) with `Unimplemented` — never silently widen (§1.6). *Exit:* supported predicates return correct supersets; unsupported ones error cleanly; a cross-backend conformance test asserts both.
 
-Queries like `http.status_code >= 400` or `url matches ".*checkout.*"` are frequently requested. Today they are impossible — the API only supports string equality. Option C is the only shape that accommodates operators without a second API redesign. The `FilterOperator` enum is included in the proto from day one, but backends can return "unsupported" for operators they haven't implemented yet. This avoids both premature implementation *and* premature API ossification.
+**Stage C — Ergonomics and UI**
 
-### 6.3 The Prefix Ambiguity in Option B
+- **M6 — Prefix/shorthand parser** (§7) — normalize `resource.k:v`, `duration>2s`, etc. into the AST in the api_v3 HTTP parser ([`query_parser.go`](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go)). *Exit:* shorthand reaches storage as the structured predicate; unprefixed keys unchanged.
+- **M7 — UI builder** — a filter builder emitting `filters`, starting with the conjunctive subset (chips with a level/property selector) and adding nested groups later; the legacy text box keeps populating `attributes`. *Exit:* existing search unaffected; qualified predicates emit `filters`.
 
-A risk in Option B is collision with real attribute keys. OTel semantic conventions don't use `resource.`, `span.`, etc. as prefixes — but user-defined attributes could. Escape hatches (e.g., `span.span.foo` to mean "key `span.foo` at span scope") add documentation burden. Option C avoids this entirely because scope is a separate field.
-
-However, if B is treated as *syntax sugar for C* (i.e., the query parser recognizes prefixes and translates them to `AttributeFilter{scope: ..., key: ...}`), then B's ambiguity risk is contained to a convenience layer rather than baked into the API contract.
-
-### 6.4 REST API Design for Structured Filters
-
-The current v3 REST API for attributes:
-```
-GET /api/v3/traces?query.attributes={"http.status_code":"200","error":"true"}
-```
-
-For the structured `attribute_filters` field, the natural proto3 JSON-over-HTTP encoding would be:
-```
-GET /api/v3/traces?query.attributeFilters=[{"key":"http.status_code","value":"200","scope":"ATTRIBUTE_SCOPE_SPAN"}]
-```
-
-This is verbose but unambiguous, matches the gRPC-Gateway convention for repeated message fields, and is the format that generated OpenAPI clients will use. A shorter logfmt-style encoding could be supported as a convenience alias parsed by the HTTP gateway:
-```
-GET /api/v3/traces?query.filter=span.http.status_code=200&query.filter=resource.k8s.namespace.name=prod
-```
-
-This gives us the best of both worlds: a machine-friendly canonical form and a human-friendly shorthand.
-
-### 6.5 UI Considerations
-
-The Jaeger UI currently has a single "Tags" text input in logfmt format. Option B is unique in that it can be adopted *inside the existing text box* without any UI change — users simply learn to type `resource.service.name:foo`.
-
-For Option C, the UI can:
-1. Keep the existing text box populating the legacy `attributes` field (zero change).
-2. Add a new "attribute filter" builder with per-chip scope dropdown as progressive enhancement.
-3. Support prefix syntax in the text box as convenience (parser normalizes to C's format).
-
-These are not mutually exclusive — (1) ships immediately, (2) and (3) follow.
+**Out of scope (future, this model enables):**
+- Properties beyond the initial set (trace-level `traceDuration`/`rootName`/`rootService`, IDs) — §5.2.
+- Levels beyond the OTLP five (e.g. `parent.`, the parent span's attributes) — §5.1.
+- ES/OS schema evolution to index instrumentation and link attributes distinctly (§1.6) — unblocks those levels in M4.
+- Option D — ClickHouse metadata level-skipping (§8); backend-local, no coordination.
+- A `GetAttributeKeys(level?)` discovery API for UI autocomplete (§10 Q2).
+- Tiers L3–L5 (§4): result shaping, aggregation/metrics (metrics subsystem), and structural/trace-tree queries (post-fetch only — not push-down-able, so inefficient at scale).
 
 ---
 
-## 7. Recommendation
+## 10. Open questions
 
-**Phased approach combining D + C (with B as text syntax):**
-
-### Phase 1: Backend Metadata Optimization (immediate, no coordination)
-
-Implement Option D — extend the ClickHouse attribute metadata cache to also filter by scope, not just type. Skip `arrayExists()` calls for scopes where a key has never been observed. This provides an immediate performance win with zero API/UI/plugin impact.
-
-### Phase 2: Structured Filters in API (the long-term solution)
-
-Implement Option C as the canonical API shape:
-- Add `AttributeFilter`, `AttributeScope`, and `FilterOperator` to the proto (jaeger-idl).
-- Add `attribute_filters` repeated field to `TraceQueryParameters`.
-- Retain `attributes` map field with identical semantics (search all scopes, equality only).
-- Update internal storage interface to carry `[]AttributeFilter` alongside the legacy map.
-- Each backend routes scoped filters to the appropriate storage location.
-- Initially only `FILTER_OPERATOR_EQUALS` and `FILTER_OPERATOR_EXISTS` are implemented; others return an error.
-
-### Phase 3: Prefix Syntax as Convenience (minimal effort, high usability)
-
-Support Option B's prefix syntax in both the HTTP query parser and the UI text box as *sugar* that normalizes into `AttributeFilter` messages:
-- `resource.service.name:foo` → `AttributeFilter{key: "service.name", scope: RESOURCE, op: EQUALS, value: "foo"}`
-- `http.method:GET` (no prefix) → `AttributeFilter{key: "http.method", scope: UNSPECIFIED, op: EQUALS, value: "GET"}`
-
-This gives users immediate access to scope qualification via the existing text box, without requiring UI redesign.
-
-### Phase 4: UI Enhancement (progressive)
-
-Add an optional scope dropdown to each tag chip in the search form. Default is "Any" (maps to `UNSPECIFIED`). Power users get precision; casual users aren't disrupted.
+1. **Top-level shape.** `repeated FilterExpression filters` (implicit-AND list, best conjunction ergonomics) vs a single-root `FilterExpression filter` (uniform, but forces an explicit `and` for multi-predicate queries)? §6.1 recommends the former.
+2. **Attribute-key discovery.** Add a `GetAttributeKeys(level?)` API so the UI can autocomplete valid keys per level? ClickHouse's metadata view already supports it.
+3. **Conjunction semantics across spans.** Must `resource.service.name=foo AND span.http.status_code=500` match the *same* span, or may they match different spans of the same trace? (The internal `TraceReader.FindTraces` contract currently leaves this implementation-dependent.)
+4. **Property phasing.** Which properties are required in the first implementation (`duration`/`name`/`service`/`status`/`kind`) vs deferred (trace-level, IDs)?
+5. **Remote-storage capability rollout (§7).** Confirm the optional filter-aware RPC — the `FindTraceSummaries` `UNIMPLEMENTED`-detection pattern — as the way to expose `filters` over remote storage, with the query service down-converting to the V2 call for plugins that don't implement it. The heavier fallbacks (mirror the legacy scalars alongside `filters` indefinitely, or a whole-protocol major bump) apply only if that route is rejected. Either way the internal `TraceReader` cleanup is not blocked.
+6. **Prefix collision escape hatch.** Does the shorthand (§7) need an escape for user keys that literally begin with a level name, or is the structured JSON form the sufficient unambiguous alternative?
+7. **Units of numeric values (§5.3).** Confirm that `duration` (and any future unit-bearing property) carries an explicit unit via Go duration syntax (`2s`), while bare numeric values stay unit-less and are compared as-is. Do any other properties need an explicit unit or format convention (e.g. timestamps)?
 
 ---
 
-## 8. Open Questions
+## 11. References
 
-1. **Conjunction semantics across scopes:** If a user specifies `resource.service.name:foo` AND `span.http.status_code:500`, should both conditions match the *same* span, or can `service.name` match at the resource level while `http.status_code` matches at the span level of a different span in the trace? (The internal storage API explicitly leaves this implementation-dependent — see `TraceReader.FindTraces` contract.)
+**Jaeger code**
+- [Internal storage API `TraceQueryParams`](../../internal/storage/v2/api/tracestore/reader.go) — current unqualified `Attributes` field
+- [ClickHouse query builder](../../internal/storage/v2/clickhouse/tracestore/query_builder.go) — 5-level OR expansion
+- [ClickHouse attribute metadata](../../internal/storage/v2/clickhouse/tracestore/attribute_metadata.go) — type/level metadata view (Option D)
+- [Elasticsearch tag query](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go) — multi-field OR expansion
+- [api_v3 HTTP query parser](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go) — `query.attributes` parsing
+- [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206) — proto foundation (M1)
 
-2. **Attribute key listing API:** Should we add a `GetAttributeKeys(scope?)` API to enable discoverability? This would complement the structured filters and help UI autocomplete. ClickHouse's metadata table already supports this.
-
-3. **Negation and absence:** The `FilterOperator` enum includes `NOT_EQUALS` and `EXISTS` — should these be required in the initial implementation, or can they be deferred?
-
-4. **Remote Storage v2 timeline:** Is a new major version of the remote storage protocol planned? If so, `AttributeFilter` could be included in that version, simplifying the migration for plugin authors.
-
-5. **Prefix collision escape hatch:** If we support prefix syntax (Phase 3), do we need an explicit escape for attribute keys that start with `resource.`, `span.`, etc.? Or is the structured JSON form (`query.attributeFilters=[...]`) sufficient as the unambiguous alternative?
-
----
-
-## 9. References
-
-- [Internal Storage API: `TraceQueryParams`](../../internal/storage/v2/api/tracestore/reader.go) — current unqualified `Attributes pcommon.Map` field
-- [ClickHouse query builder](../../internal/storage/v2/clickhouse/tracestore/query_builder.go) — `buildStringAttributeCondition` showing 5-scope OR expansion
-- [ClickHouse attribute metadata](../../internal/storage/v2/clickhouse/tracestore/attribute_metadata.go) — existing type-level metadata cache
-- [Elasticsearch tag query](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go) — `buildTagQuery` showing multi-field OR expansion
-- [API v3 HTTP query parser](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go) — current `query.attributes` JSON parameter parsing
-- [OpenTelemetry Trace Data Model](https://opentelemetry.io/docs/specs/otel/trace/api/) — defines the 5 attribute scopes
+**External**
+- [OpenTelemetry trace data model](https://opentelemetry.io/docs/specs/otel/trace/api/) — the five attribute levels
+- [Grafana TraceQL documentation](https://grafana.com/docs/tempo/latest/traceql/) and [TraceQL overview (Giant Swarm)](https://docs.giantswarm.io/overview/observability/data-management/data-exploration/traceql/) — scopes, intrinsics, and structural/metrics tiers
+- [Braintrust BTQL](https://www.braintrust.dev/docs/reference/btql) — structured SQL-like query language (prior art)
