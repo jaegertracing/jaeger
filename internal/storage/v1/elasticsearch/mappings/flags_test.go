@@ -4,6 +4,8 @@
 package mappings
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -20,7 +22,7 @@ func TestOptionsWithDefaultFlags(t *testing.T) {
 
 	assert.Empty(t, o.Mapping)
 	// Version is resolved by PreRunE, not at flag-registration time.
-	assert.Empty(t, c.Flags().Lookup(versionFlag).DefValue)
+	assert.Empty(t, c.Flags().Lookup(backendFlag).DefValue)
 	assert.Equal(t, "7", c.Flags().Lookup(esVersionFlag).DefValue)
 	assert.EqualValues(t, 5, o.Shards)
 	assert.EqualValues(t, 1, *o.Replicas)
@@ -56,7 +58,7 @@ func TestOptionsWithFlags(t *testing.T) {
 func TestResolveBackendVersion(t *testing.T) {
 	tests := []struct {
 		name         string
-		versionToken string
+		backendToken string
 		legacy       uint
 		expected     es.BackendVersion
 		expectErr    string
@@ -68,12 +70,12 @@ func TestResolveBackendVersion(t *testing.T) {
 		},
 		{
 			name:         "token selects opensearch",
-			versionToken: "os3",
+			backendToken: "os3",
 			expected:     es.OpenSearch3,
 		},
 		{
 			name:         "token takes precedence over legacy es-version",
-			versionToken: "os2",
+			backendToken: "os2",
 			legacy:       8,
 			expected:     es.OpenSearch2,
 		},
@@ -89,13 +91,13 @@ func TestResolveBackendVersion(t *testing.T) {
 		},
 		{
 			name:         "invalid token surfaces error",
-			versionToken: "os9",
+			backendToken: "os9",
 			expectErr:    "invalid version",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveBackendVersion(tt.versionToken, tt.legacy)
+			got, err := resolveBackendVersion(tt.backendToken, tt.legacy)
 			if tt.expectErr != "" {
 				require.ErrorContains(t, err, tt.expectErr)
 				return
@@ -106,33 +108,40 @@ func TestResolveBackendVersion(t *testing.T) {
 	}
 }
 
-// TestVersionFlagResolution checks that AddFlags wires PreRunE to resolve the
-// version flags into Options.Version when the command runs.
-func TestVersionFlagResolution(t *testing.T) {
-	newCmd := func() (*Options, *cobra.Command) {
+// TestBackendFlagResolution checks that AddFlags wires PreRunE to resolve the
+// version flags into Options.Version when the command runs, and that using the
+// legacy --es-version emits a deprecation warning on stderr.
+func TestBackendFlagResolution(t *testing.T) {
+	newCmd := func() (*Options, *cobra.Command, *bytes.Buffer) {
 		o := &Options{}
 		c := &cobra.Command{RunE: func(*cobra.Command, []string) error { return nil }}
+		var stderr bytes.Buffer
+		c.SetOut(io.Discard)
+		c.SetErr(&stderr)
 		o.AddFlags(c)
-		return o, c
+		return o, c, &stderr
 	}
 
-	t.Run("token resolves and wins over legacy", func(t *testing.T) {
-		o, c := newCmd()
-		c.SetArgs([]string{"--mapping=jaeger-span", "--version=os2", "--es-version=8"})
+	t.Run("backend token resolves and wins over legacy", func(t *testing.T) {
+		o, c, stderr := newCmd()
+		c.SetArgs([]string{"--mapping=jaeger-span", "--backend=os2", "--es-version=8"})
 		require.NoError(t, c.Execute())
 		assert.Equal(t, es.OpenSearch2, o.Version)
+		// --backend is set, so the legacy value is ignored and not warned about.
+		assert.NotContains(t, stderr.String(), "deprecated")
 	})
 
-	t.Run("legacy es-version resolves when token unset", func(t *testing.T) {
-		o, c := newCmd()
+	t.Run("legacy es-version resolves and warns", func(t *testing.T) {
+		o, c, stderr := newCmd()
 		c.SetArgs([]string{"--mapping=jaeger-span", "--es-version=9"})
 		require.NoError(t, c.Execute())
 		assert.Equal(t, es.ElasticV9, o.Version)
+		assert.Contains(t, stderr.String(), "--es-version is deprecated")
 	})
 
-	t.Run("invalid token fails the command", func(t *testing.T) {
-		_, c := newCmd()
-		c.SetArgs([]string{"--mapping=jaeger-span", "--version=os9"})
+	t.Run("invalid backend token fails the command", func(t *testing.T) {
+		_, c, _ := newCmd()
+		c.SetArgs([]string{"--mapping=jaeger-span", "--backend=os9"})
 		require.ErrorContains(t, c.Execute(), "invalid version")
 	})
 }
