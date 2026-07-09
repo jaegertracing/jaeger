@@ -195,7 +195,7 @@ func TestBulkIndexerEnqueueError(t *testing.T) {
 }
 
 // TestBulkIndexerConstructorError covers NewBulkIndexer's error return by making
-// the esutil constructor seam fail (real esutil only errors on a nil Client).
+// the overridden esutil constructor fail (real esutil only errors on a nil Client).
 func TestBulkIndexerConstructorError(t *testing.T) {
 	orig := newESUtilBulkIndexer
 	defer func() { newESUtilBulkIndexer = orig }()

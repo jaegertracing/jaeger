@@ -136,7 +136,7 @@ func (c *Client) Perform(req *http.Request) (*http.Response, error) {
 	// A caller may submit a request with no deadline — esutil.BulkIndexer builds
 	// its _bulk flushes (and its shutdown Close flush) from a background context.
 	// Apply the client's QueryTimeout so those writes can't hang forever, matching
-	// the http.Client.Timeout the olivere data plane put on every request. request()
+	// the http.Client.Timeout the data plane previously put on every request. request()
 	// already sets its own deadline, so this only fills the gap when one is absent.
 	if c.timeout <= 0 {
 		return c.transport.perform(req)

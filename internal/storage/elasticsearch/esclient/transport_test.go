@@ -76,7 +76,7 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 }
 
 // TestNewRawClientNoServers covers the empty-servers guard, which reproduces the
-// error the retired olivere client raised so callers (the storage factory) still
+// error the retired legacy client raised so callers (the storage factory) still
 // fail construction with the same message on a missing Servers list.
 func TestNewRawClientNoServers(t *testing.T) {
 	for name, servers := range map[string][]string{"nil": nil, "empty": {}} {
