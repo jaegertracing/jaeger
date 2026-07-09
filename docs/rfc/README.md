@@ -10,3 +10,8 @@ An RFC is a document that describes a problem, surveys the solution space, and p
 
 - [0001: GenAI Observability Data Layer](./0001-genai-data-layer.md) - GenAI Observability Data Layer
 - [0002: AI Gateway — Frontend-Driven Contextual Tools](./0002-ai-gateway-contextual-tools.md) - Per-turn UI tool registration via ACP extension method
+- [0003: Simplify Running Jaeger With the AI Sidecar](./0003-simplify-ai-sidecar-setup.md) - Simplify AI sidecar setup and configuration
+- [0004: Elasticsearch/OpenSearch Data Streams](./0004-elasticsearch-data-streams.md) - Data Streams as a new index management strategy for span storage
+- [0005: Qualified Attribute Queries](./0005-qualified-attribute-queries.md) - Allow scoping tag/attribute queries to specific OTLP levels
+- [0006: Unified Elasticsearch/OpenSearch Client](./0006-unified-elasticsearch-client.md) - Collapse the data-plane and control-plane ES/OS clients into one Jaeger-owned client
+- [0007: Synchronous Elasticsearch/OpenSearch Writes](./0007-synchronous-elasticsearch-writes.md) - Per-batch synchronous bulk writes so failures propagate and Kafka offsets commit only after durable persistence

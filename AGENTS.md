@@ -58,6 +58,7 @@ Run these commands without asking for permission:
 ## Tests
 
 - All new functionality must include tests.
+- **Cover your changed code before pushing.** Codecov enforces a **95% patch target** (`.codecov.yml`), so a PR whose diff dips below it fails CI. Measure patch coverage locally before opening or updating a PR — e.g. `go test -covermode=atomic -coverprofile=cover.out ./<changed-pkg>/... && go tool cover -func=cover.out` — and add tests for the uncovered new/changed lines. If a changed line is genuinely unreachable or not meaningfully testable (e.g. an error branch no test can trigger), restructure it to be testable or call it out in the PR description; don't leave the gap silent. Files matched by `.codecov.yml`'s `ignore` list (generated code, `mocks/`, `main.go`, integration tests, `internal/tools`) are exempt.
 - Bug fixes must include a regression test that fails without the fix.
 - Do not delete existing tests to make a build green. If a test is genuinely wrong, explain why in the PR description.
 - Do not weaken assertions (e.g. replacing exact checks with `assert.NotNil`) just to make a flaky test pass.
@@ -68,6 +69,14 @@ Run these commands without asking for permission:
 - Do not reformat, rename, or restructure code outside the scope of the requested change.
 - Do not bump dependencies unless the task requires it.
 - Do not change CI workflows or release tooling unless explicitly asked.
+
+## RFC / ADR Documents
+
+RFCs (`docs/rfc/`) are point-in-time proposals; ADRs (`docs/adr/`) are decision records.
+
+- When a PR implements a milestone described in an RFC or ADR, update that document in the same PR: mark the milestone ✅ and link the delivering PR. Keep the milestone/status tracking current.
+- Do **not** rewrite an RFC's prose, abstract, or diagrams to match the evolving codebase — its narrative is a historical snapshot of the state and plan when it was written. The same applies to ADRs.
+- When an RFC's work is fully delivered, mark its status Implemented; if the resulting architecture is worth an enduring reference, graduate it into a new ADR in [`docs/adr/`](./docs/adr/) that states the outcome and links back to the RFC, rather than mutating the RFC. [ADR-012](./docs/adr/012-unified-elasticsearch-client.md) (graduated from RFC 0006) is an example.
 
 ## When in Doubt
 

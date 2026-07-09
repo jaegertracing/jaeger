@@ -1,0 +1,52 @@
+{
+  "method": "PUT",
+  "path": "/_template/test-jaeger-service",
+  "body": {
+    "aliases": {
+      "test-jaeger-service-read": {}
+    },
+    "index_patterns": "*test-jaeger-service-*",
+    "mappings": {
+      "dynamic_templates": [
+        {
+          "span_tags_map": {
+            "mapping": {
+              "ignore_above": 256,
+              "type": "keyword"
+            },
+            "path_match": "tag.*"
+          }
+        },
+        {
+          "process_tags_map": {
+            "mapping": {
+              "ignore_above": 256,
+              "type": "keyword"
+            },
+            "path_match": "process.tag.*"
+          }
+        }
+      ],
+      "properties": {
+        "operationName": {
+          "ignore_above": 256,
+          "type": "keyword"
+        },
+        "serviceName": {
+          "ignore_above": 256,
+          "type": "keyword"
+        }
+      }
+    },
+    "settings": {
+      "index.mapping.nested_fields.limit": 50,
+      "index.number_of_replicas": 3,
+      "index.number_of_shards": 3,
+      "index.requests.cache.enable": true,
+      "lifecycle": {
+        "name": "jaeger-test-policy",
+        "rollover_alias": "test-jaeger-service-write"
+      }
+    }
+  }
+}

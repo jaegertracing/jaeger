@@ -7,6 +7,41 @@ on:
   schedule:
     - cron: '0 13 * * *'  # Daily at 8:00 AM US Eastern Time (ET)
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Snapshot image tag to deploy for both images. Defaults to the workflow SHA.'
+        required: false
+      jaeger_image_tag:
+        description: 'Jaeger snapshot image tag override. Defaults to image_tag or the workflow SHA.'
+        required: false
+      hotrod_image_tag:
+        description: 'HotROD snapshot image tag override. Defaults to image_tag or the workflow SHA.'
+        required: false
+      deploy_mode:
+        description: 'Deployment mode. Defaults to upgrade; use clean only to reinstall the demo.'
+        required: false
+        default: upgrade
+        type: choice
+        options:
+          - upgrade
+          - clean
+      demo_stack:
+        description: 'Demo stack to deploy. Defaults to the original OCI demo.'
+        required: false
+        default: oci
+        type: choice
+        options:
+          - oci
+          - otel
+          - all
+      otel_deploy_scope:
+        description: 'OTel demo deploy scope. Use all to refresh OpenSearch and the OTel app.'
+        required: false
+        default: jaeger
+        type: choice
+        options:
+          - jaeger
+          - all
 
 permissions: read-all
 
@@ -20,6 +55,16 @@ jobs:
       OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
       OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+      JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY: jaegertracing/jaeger-snapshot
+      JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY: jaegertracing/example-hotrod-snapshot
+      JAEGER_DEMO_IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+      JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha }}
+      JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha }}
+      JAEGER_DEMO_IMAGE_PULL_POLICY: Always
+      JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
+      JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
+      JAEGER_OTEL_DEMO_DEPLOY_SCOPE: ${{ github.event.inputs.otel_deploy_scope || 'jaeger' }}
+      RUN_PUBLIC_SMOKE_TESTS: "true"
 
     steps:
     - name: Configure kubectl with OKE
@@ -32,17 +77,30 @@ jobs:
       uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
 
     - name: Checkout jaeger repository
-      uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Deploy using appropriate script
       run: |
-        if [ "${{ github.event_name }}" = "schedule" ]; then
-          echo "🕒 Scheduled run - using deploy-all.sh (upgrade mode)"
-          bash ./examples/oci/deploy-all.sh
-        else
-          echo "🔄 Manual run - using deploy-all.sh with clean mode (uninstall/install)"
-          bash ./examples/oci/deploy-all.sh clean
-        fi
+        echo "🔄 Deploying demo stack ${JAEGER_DEMO_STACK} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
+        echo "🔄 Deploying Jaeger snapshot image tag ${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+        echo "🔄 Deploying HotROD snapshot image tag ${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
+
+        case "${JAEGER_DEMO_STACK}" in
+          oci)
+            bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
+            ;;
+          otel)
+            bash ./examples/otel-demo/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+            ;;
+          all)
+            bash ./examples/oci/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}"
+            bash ./examples/otel-demo/deploy-all.sh "${JAEGER_DEMO_DEPLOY_MODE}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+            ;;
+          *)
+            echo "Unsupported demo stack: ${JAEGER_DEMO_STACK}"
+            exit 1
+            ;;
+        esac
 
     - name: Send detailed Slack notification on failure
       if: failure()
@@ -63,4 +121,3 @@ jobs:
 
           <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|🔗 View Failed Run>
         SLACK_FOOTER: 'Jaeger CI/CD Pipeline'
-

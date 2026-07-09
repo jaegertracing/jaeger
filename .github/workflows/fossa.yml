@@ -20,7 +20,7 @@ jobs:
         with:
           egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - uses: ./.github/actions/setup-go
         with:
@@ -41,7 +41,7 @@ jobs:
           rm -rf scripts/build/docker/debug
 
       - name: Run FOSSA scan and upload report
-        uses: fossa-contrib/fossa-action@3d2ef181b1820d6dcd1972f86a767d18167fa19b # v3.0.1
+        uses: fossa-contrib/fossa-action@d28f0c947e7406706981a62a91ecc009bcc39fd7 # v4.0.0
         with:
           # FOSSA Push-Only API Token
           fossa-api-key: 304657e2357ba57b416b94e6b119131b

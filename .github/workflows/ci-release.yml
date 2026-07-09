@@ -29,6 +29,8 @@ jobs:
       packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
 
     steps:
     - name: Clean up some disk space
@@ -44,7 +46,7 @@ jobs:
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
 
@@ -100,7 +102,20 @@ jobs:
         bash scripts/build/package-deploy.sh \
           -p ${{ steps.params.outputs.platforms }} \
           ${{ steps.params.outputs.gpg_key_override }}
-
+    - name: Generate subject for provenance
+      id: hash
+      run: |
+        set -euo pipefail
+        # Compute sha256 of all release artifacts and base64 encode it
+        cd deploy/
+        shopt -s nullglob
+        artifacts=( *.tar.gz *.zip )
+        if (( ${#artifacts[@]} == 0 )); then
+          echo "No release artifacts found in deploy/ to hash" >&2
+          exit 1
+        fi
+        base64_hashes=$(sha256sum "${artifacts[@]}" | LC_ALL=C sort -k2 | base64 -w0)
+        echo "hashes=${base64_hashes}" >> "$GITHUB_OUTPUT"
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
       uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
@@ -167,3 +182,15 @@ jobs:
         overwrite: ${{ inputs.overwrite }}
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-provenance:
+    needs: [publish-release]
+    if: github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@bdc1356e7db3e3eb2a2977f6b92cc410dc025a1b
+    with:
+      base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
+      upload-assets: true

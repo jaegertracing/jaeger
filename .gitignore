@@ -19,6 +19,7 @@ cover.html
 vendor/
 
 # Jaeger binaries
+/jaeger
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
 cmd/agent/agent
@@ -28,6 +29,7 @@ cmd/anonymizer/anonymizer-*
 cmd/jaeger/jaeger
 cmd/jaeger/jaeger-*
 cmd/jaeger/internal/integration/results
+cmd/jaeger/_build/
 cmd/remote-storage/remote-storage
 cmd/remote-storage/remote-storage-*
 cmd/es-index-cleaner/es-index-cleaner-*

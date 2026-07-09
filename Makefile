@@ -33,6 +33,7 @@ ALL_SRC = $(shell find . -name '*.go' \
 				   -not -path './internal/tools/*' \
 				   -not -path './scripts/build/docker/debug/*' \
 				   -not -path '*/mocks/*' \
+				   -not -path './cmd/jaeger/_build/*' \
 				   -type f | \
 				sort)
 

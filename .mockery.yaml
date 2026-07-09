@@ -27,10 +27,7 @@ packages:
       Iterator: {}
       Query: {}
       Session: {}
-  github.com/jaegertracing/jaeger/internal/storage/elasticsearch:
-    config:
-      all: true
-  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client:
+  github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient:
     config:
       all: true
   github.com/jaegertracing/jaeger/internal/storage/v1:

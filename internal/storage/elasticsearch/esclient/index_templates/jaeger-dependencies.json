@@ -1,0 +1,24 @@
+{
+  {{- if .UseILM }}
+    "aliases": {
+      "{{ .IndexPrefix }}jaeger-dependencies-read": {}
+    },
+    {{- end }}
+    "settings": {
+      "index.number_of_shards": {{ .Shards }},
+      "index.number_of_replicas": {{ .Replicas }},
+      "index.mapping.nested_fields.limit": 50,
+      "index.requests.cache.enable": true
+      {{- if .UseILM }},
+      {{- if .IsOpenSearch }}
+      "plugins.index_state_management.rollover_alias": "{{ .IndexPrefix }}jaeger-dependencies-write"
+      {{- else }}
+      "lifecycle": {
+        "name": "{{ .ILMPolicyName }}",
+        "rollover_alias": "{{ .IndexPrefix }}jaeger-dependencies-write"
+      }
+      {{- end }}
+      {{- end }}
+    },
+    "mappings": {}
+}
