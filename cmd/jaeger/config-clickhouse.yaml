@@ -39,6 +39,7 @@ extensions:
     backends:
       some-storage:
         clickhouse:
+          attribute_metadata_cache_ttl: 5s
           addresses:
             - localhost:9000
           database: jaeger

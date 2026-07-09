@@ -297,11 +297,8 @@ func parseStringToTypedValue(key string, attr pcommon.Value, t pcommon.ValueType
 // level(s) where this attribute is stored, then convert the string back to the
 // appropriate type for querying.
 //
-// We always OR-in the str fallback (all 5 attribute levels) regardless of what the
-// attribute_metadata cache says. A partial batch flush can populate the cache with
-// only a subset of levels (e.g. span-only) before remaining batches arrive. Since
-// the cache entry lives for 1 hour, metadata-driven conditions alone would silently
-// miss traces whose tag lives at a level absent from the cache.
+// If metadata exists but the value cannot be parsed as any of the metadata types,
+// we fall back to treating it as a string attribute.
 func buildStringAttributeCondition(
 	q *strings.Builder,
 	args []any,
@@ -319,20 +316,18 @@ func buildStringAttributeCondition(
 	generatedCondition := false
 	appendLevel := func(types []pcommon.ValueType, prefix string, fn arrayExistsFn) {
 		for _, t := range types {
-			if t == pcommon.ValueTypeStr {
-				// str is always covered by appendStringAttributeFallback below
-				continue
-			}
 			tav, err := parseStringToTypedValue(key, attr, t)
 			if err != nil {
 				// Skip types that can't parse this value
 				continue
 			}
+
 			if generatedCondition {
 				appendNewlineAndIndent(q, 2)
 				q.WriteString("OR")
 			}
 			generatedCondition = true
+
 			fn(q, 2, prefix, tav.valueType)
 			args = append(args, tav.key, tav.value)
 		}
@@ -344,11 +339,12 @@ func buildStringAttributeCondition(
 	appendLevel(levelTypes.event, "events", appendNestedArrayExists)
 	appendLevel(levelTypes.link, "links", appendNestedArrayExists)
 
-	if generatedCondition {
-		appendNewlineAndIndent(q, 2)
-		q.WriteString("OR")
+	// If no conditions were generated (all types failed to parse),
+	// fall back to treating it as a string attribute
+	if !generatedCondition {
+		return appendStringAttributeFallback(q, args, key, attr)
 	}
-	return appendStringAttributeFallback(q, args, key, attr)
+	return args
 }
 
 func buildSelectAttributeMetadataQuery(attributes pcommon.Map) (string, []any) {

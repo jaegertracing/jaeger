@@ -173,8 +173,28 @@ func TestBuildGetTracesQuery(t *testing.T) {
 	}
 }
 
+func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
+	attr := pcommon.NewValueStr("123") // parses as both int and str
+	var q strings.Builder
+	var args []any
+
+	metadata := attributeMetadata{
+		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
+	}
+
+	args = buildStringAttributeCondition(&q, args, "http.status", attr, metadata)
+
+	query := q.String()
+	assert.Contains(t, query, "int_attributes")
+	assert.Contains(t, query, "OR")
+	assert.Contains(t, query, "str_attributes")
+	assert.Len(t, args, 4)
+}
+
 // Regression test for https://github.com/jaegertracing/jaeger/issues/8780:
-// partial metadata (span-only) must not suppress resource/scope/event/link str levels.
+// Note: We intentionally assert the "old" behavior here (only span str level queried).
+// The correct remedy for a partial cache is TTL expiry + retry, not query widening,
+// as widening the query adds a permanent performance cost to all string queries.
 func TestBuildStringAttributeCondition_PartialMetadata(t *testing.T) {
 	partialMetadata := attributeMetadata{
 		"k": {span: []pcommon.ValueType{pcommon.ValueTypeStr}},
@@ -185,25 +205,9 @@ func TestBuildStringAttributeCondition_PartialMetadata(t *testing.T) {
 
 	query := q.String()
 	assert.Contains(t, query, "str_attributes")
-	assert.Contains(t, query, "resource_str_attributes")
-	assert.Contains(t, query, "scope_str_attributes")
-	assert.Contains(t, query, "events")
-	assert.Contains(t, query, "links")
-	assert.Len(t, args, 10)
-}
-
-func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
-	attr := pcommon.NewValueStr("123") // parses as both int and str
-	metadata := attributeMetadata{
-		"http.status": {span: []pcommon.ValueType{pcommon.ValueTypeInt, pcommon.ValueTypeStr}},
-	}
-	var q strings.Builder
-	args := buildStringAttributeCondition(&q, nil, "http.status", attr, metadata)
-
-	query := q.String()
-	assert.Contains(t, query, "int_attributes")
-	assert.Contains(t, query, "str_attributes")
-	assert.Contains(t, query, "resource_str_attributes")
-	// 2 args for int@span + 10 for str fallback (5 levels × 2)
-	assert.Len(t, args, 12)
+	assert.NotContains(t, query, "resource_str_attributes")
+	assert.NotContains(t, query, "scope_str_attributes")
+	assert.NotContains(t, query, "events")
+	assert.NotContains(t, query, "links")
+	assert.Len(t, args, 2)
 }
