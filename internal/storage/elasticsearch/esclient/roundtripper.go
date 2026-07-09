@@ -62,8 +62,10 @@ func (t *getBodyFixRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 		}
 		// Mutate in place on purpose: GetBody must be populated on the very
 		// request that flows to the authenticator and the retrying pool, not on a
-		// clone. The bodies this fixes wrap in-memory byte buffers, so the
-		// original needs no Close.
+		// clone. Every request body this transport carries is an in-memory buffer
+		// (esclient's byte payloads and esutil's bulk reader) that holds no OS
+		// resource, so replacing the original without closing it leaks nothing —
+		// this does not hold if a future caller sends a file- or socket-backed body.
 		req.Body = io.NopCloser(bytes.NewReader(body))
 		req.GetBody = func() (io.ReadCloser, error) {
 			return io.NopCloser(bytes.NewReader(body)), nil
