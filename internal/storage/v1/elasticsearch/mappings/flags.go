@@ -4,6 +4,8 @@
 package mappings
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
@@ -21,12 +23,18 @@ type Options struct {
 }
 
 // resolveBackendVersion selects the backend version from the generator's two
-// version flags: the distribution-aware --version token ("es8", "os3") wins when
-// set, otherwise the legacy numeric --es-version flag (an Elasticsearch major
-// version; OpenSearch is only reachable through --version) is used.
+// version flags. The distribution-aware --version token ("es8", "os3") wins when
+// set; otherwise the legacy numeric --es-version is used. The legacy flag still
+// accepts OpenSearch codes (101-103) for backward compatibility — --version is
+// just the readable spelling — so the number is validated against the supported
+// set rather than cast blindly (an unsupported value like 999 would otherwise be
+// misread as OpenSearch, since IsOpenSearch is >= 101).
 func resolveBackendVersion(versionToken string, legacyEsVersion uint) (es.BackendVersion, error) {
 	if versionToken != "" {
 		return es.ParseBackendVersion(versionToken)
+	}
+	if !es.IsSupportedVersion(legacyEsVersion) {
+		return 0, fmt.Errorf("unsupported --es-version %d: expected 7, 8, 9 (Elasticsearch) or 101, 102, 103 (OpenSearch); prefer --version", legacyEsVersion)
 	}
 	return es.BackendVersion(legacyEsVersion), nil
 }
@@ -64,7 +72,7 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		&legacyEsVersion,
 		esVersionFlag,
 		7,
-		"The major Elasticsearch version (legacy; prefer --version, which can also select OpenSearch)",
+		"The backend version as a numeric code: 7, 8, 9 (Elasticsearch) or 101, 102, 103 (OpenSearch). Legacy; prefer the more readable --version.",
 	)
 	command.Flags().Int64Var(
 		&o.Shards,

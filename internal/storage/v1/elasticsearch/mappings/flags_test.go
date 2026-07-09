@@ -78,6 +78,16 @@ func TestResolveBackendVersion(t *testing.T) {
 			expected:     es.OpenSearch2,
 		},
 		{
+			name:     "legacy es-version still accepts opensearch codes",
+			legacy:   uint(es.OpenSearch3),
+			expected: es.OpenSearch3,
+		},
+		{
+			name:      "unsupported legacy es-version surfaces error",
+			legacy:    999,
+			expectErr: "unsupported --es-version 999",
+		},
+		{
 			name:         "invalid token surfaces error",
 			versionToken: "os9",
 			expectErr:    "invalid version",
