@@ -174,10 +174,10 @@ func encodeBulkItem(item BulkItem) ([]byte, error) {
 	if item.ID != "" {
 		meta[action]["_id"] = item.ID
 	}
-	metaLine, err := json.Marshal(meta)
-	if err != nil {
-		return nil, err // unreachable: meta is a map of strings
-	}
+	// meta is a map of strings, which json.Marshal can never fail to encode, so
+	// its error is ignored (there is no way to exercise the branch). item.Body
+	// below is the caller-supplied document and can legitimately fail to encode.
+	metaLine, _ := json.Marshal(meta)
 	source, err := json.Marshal(item.Body)
 	if err != nil {
 		return nil, err
