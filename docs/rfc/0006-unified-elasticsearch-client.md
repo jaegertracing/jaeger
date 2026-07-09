@@ -1,9 +1,9 @@
 # RFC 0006: Unified Elasticsearch/OpenSearch Client
 
-- **Status:** Draft
+- **Status:** Implemented — graduated into [ADR-012](../adr/012-unified-elasticsearch-client.md)
 - **Author:** Yuri Shkuro
 - **Created:** 2026-07-03
-- **Last Updated:** 2026-07-03
+- **Last Updated:** 2026-07-08
 - **Issue:** [#7612](https://github.com/jaegertracing/jaeger/issues/7612)
 - **Related:** [#4708 Data Streams](https://github.com/jaegertracing/jaeger/issues/4708) · [RFC 0004](./0004-elasticsearch-data-streams.md) · [#2192](https://github.com/jaegertracing/jaeger/issues/2192) · [#8916](https://github.com/jaegertracing/jaeger/issues/8916) · [#8760](https://github.com/jaegertracing/jaeger/issues/8760)
 
