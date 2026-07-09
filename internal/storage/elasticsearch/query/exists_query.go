@@ -5,7 +5,7 @@ package query
 
 // ExistsQuery matches documents that have any value for a field. It renders to
 // {"exists": {"field": field}}, matching what the storage layer previously
-// produced via olivere's ExistsQuery.
+// produced.
 type ExistsQuery struct {
 	field string
 }

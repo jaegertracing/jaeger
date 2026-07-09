@@ -21,6 +21,46 @@ func TestIsSupportedVersion(t *testing.T) {
 	}
 }
 
+func TestParseBackendVersion(t *testing.T) {
+	valid := []struct {
+		input    string
+		expected BackendVersion
+	}{
+		{"es7", ElasticV7},
+		{"es8", ElasticV8},
+		{"es9", ElasticV9},
+		{"os1", OpenSearch1},
+		{"os2", OpenSearch2},
+		{"os3", OpenSearch3},
+		{"ES8", ElasticV8}, // case-insensitive
+		{"Os3", OpenSearch3},
+	}
+	for _, tt := range valid {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := ParseBackendVersion(tt.input)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+
+	invalid := []string{
+		"",      // empty
+		"es",    // no number
+		"es6",   // unsupported ES major
+		"os9",   // unsupported OpenSearch major
+		"7",     // missing distribution prefix
+		"xx7",   // unknown distribution
+		"esfoo", // non-numeric suffix
+		"os103", // internal numeric encoding not accepted directly
+	}
+	for _, input := range invalid {
+		t.Run("invalid/"+input, func(t *testing.T) {
+			_, err := ParseBackendVersion(input)
+			require.ErrorContains(t, err, "invalid version")
+		})
+	}
+}
+
 func TestBackendVersion_String(t *testing.T) {
 	tests := []struct {
 		version  BackendVersion

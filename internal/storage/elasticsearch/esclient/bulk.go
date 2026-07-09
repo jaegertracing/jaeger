@@ -45,9 +45,9 @@ type BulkIndexer struct {
 
 var _ BulkWriter = (*BulkIndexer)(nil)
 
-// newESUtilBulkIndexer is a seam over esutil.NewBulkIndexer so tests can exercise
-// the constructor error path (which real esutil only returns for a nil Client,
-// and we always pass a non-nil one).
+// newESUtilBulkIndexer wraps esutil.NewBulkIndexer in an overridable package var
+// so tests can exercise the constructor error path (which real esutil only
+// returns for a nil Client, and we always pass a non-nil one).
 var newESUtilBulkIndexer = esutil.NewBulkIndexer
 
 // flushState tracks one in-flight flush. esutil's OnFlushEnd callback carries no
@@ -64,13 +64,13 @@ type flushStateKey struct{}
 
 // NewBulkIndexer returns a running BulkIndexer. The caller owns its lifecycle and
 // must call Close to flush buffered documents and stop the workers.
-func NewBulkIndexer(client Client, cfg BulkIndexerConfig, metricsFactory metrics.Factory, logger *zap.Logger) (*BulkIndexer, error) {
+func NewBulkIndexer(client *Client, cfg BulkIndexerConfig, metricsFactory metrics.Factory, logger *zap.Logger) (*BulkIndexer, error) {
 	b := &BulkIndexer{
 		metrics: spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
 		logger:  logger,
 	}
 	// Default to a single worker when the config doesn't set one, matching the
-	// historical olivere BulkProcessor default; esutil would otherwise fan out to
+	// historical BulkProcessor default; esutil would otherwise fan out to
 	// NumCPU workers.
 	workers := cfg.Workers
 	if workers <= 0 {

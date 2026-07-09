@@ -15,7 +15,6 @@ import (
 
 	"go.uber.org/zap"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -85,7 +84,6 @@ func (s *SpanReader) FindTraceSummaries(
 			// summary computation instead of failing the request.
 			return nil, fmt.Errorf("native trace summaries require Painless scripting enabled on the cluster: %w", errors.ErrUnsupported)
 		}
-		err = es.DetailedError(err)
 		s.logger.Info("es search for trace summaries failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search for trace summaries failed: %w", err)
 	}

@@ -122,7 +122,7 @@ type AggregationResult struct {
 // SearchClient is the data-plane search API over the shared transport, analogous
 // to IndicesClient/ILMClient on the admin plane.
 type SearchClient struct {
-	Client
+	*Client
 }
 
 var _ Searcher = SearchClient{}
@@ -166,7 +166,7 @@ type MultiSearchRequest struct {
 // request, in order. Each sub-request contributes an NDJSON header line (its
 // indices and ignore_unavailable) followed by its search body. A single index
 // renders as a string and several as an array, matching what the storage layer
-// previously produced via olivere's MultiSearch.
+// previously produced.
 func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest) ([]SearchResponse, error) {
 	var buf bytes.Buffer
 	for _, r := range reqs {
@@ -202,7 +202,7 @@ func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest
 	}
 	// A per-sub-response error (an item carrying an "error"/non-2xx "status" while
 	// the overall _msearch is HTTP 200) is not surfaced here: such an item decodes
-	// to empty hits, which the caller skips — matching the olivere MultiSearch path
+	// to empty hits, which the caller skips — matching the previous MultiSearch path
 	// this replaced. Turning those into a hard error is a behavior change left to a
 	// follow-up, not this wire-preserving migration.
 	var resp struct {
