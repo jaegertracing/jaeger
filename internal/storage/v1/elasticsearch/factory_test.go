@@ -487,7 +487,11 @@ func runPasswordFromFileTest(t *testing.T) {
 	// After ReloadInterval expires the transport re-reads the file; keep writing
 	// spans until the new auth header is observed.
 	assert.Eventually(t, func() bool {
-		require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{{Process: dbmodel.Process{ServiceName: "foo"}}}))
+		// Eventually runs this condition on a separate goroutine, so a write
+		// error is surfaced by returning false (retry) rather than require.
+		if err := writer.WriteSpans(context.Background(), []dbmodel.Span{{Process: dbmodel.Process{ServiceName: "foo"}}}); err != nil {
+			return false
+		}
 		_, ok := authReceived.Load(upwd2)
 		return ok
 	}, 5*time.Second, 100*time.Millisecond, "expecting ES client to use second password after cache reload")
