@@ -16,10 +16,14 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/metrics"
+	esstorage "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -171,6 +175,56 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) {
 	s.client.cleanTemplates(t, prefix)
+}
+
+// TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk
+// primitive against a live backend: it durably writes documents in one blocking
+// _bulk round-trip, reads them back to prove durability, and forces a real
+// item-level rejection to prove the error propagates (unlike the async indexer,
+// whose failures never reach the caller). This runs in the existing ES/OS matrix
+// job, so the primitive is validated against real ES 7–9 / OS 1–3 the milestone
+// it lands, not only via httptest mocks.
+func TestElasticsearchStorage_SyncBulkWriter(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+	s := &ESStorageIntegration{}
+	s.initializeES(t, true)
+	s.testSyncBulkWriter(t)
+}
+
+func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
+	ctx := context.Background()
+	index := indexPrefix + "-syncbulk"
+	writer := esclient.NewSyncBulkWriter(s.client.client, 0, metrics.NullFactory, zap.NewNop())
+	searcher := esclient.SearchClient{Client: s.client.client}
+	t.Cleanup(func() { s.client.deleteAllIndices(t) })
+
+	// One blocking _bulk indexes both documents; a nil return means durable.
+	require.NoError(t, writer.Bulk(ctx, []esclient.BulkItem{
+		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
+		{Index: index, ID: "sb-2", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "two"}},
+	}))
+
+	// Durability round-trip: both documents are retrievable (poll for the ~1s
+	// refresh to make them searchable — durability, not search visibility, is what
+	// the write guaranteed).
+	require.Eventually(t, func() bool {
+		resp, err := searcher.Search(ctx, []string{index}, esclient.SearchRequest{Size: 10})
+		return err == nil && len(resp.Hits.Hits) == 2
+	}, 10*time.Second, 100*time.Millisecond, "both documents should be durably readable")
+
+	// Item-level error propagation: re-creating an existing _id with op_type=create
+	// makes the backend reject the item (409 version conflict), and the sync writer
+	// surfaces it as a real error — the whole point of RFC 0007.
+	err := writer.Bulk(ctx, []esclient.BulkItem{
+		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "rejected")
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge
