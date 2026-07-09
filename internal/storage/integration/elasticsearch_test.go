@@ -199,6 +199,11 @@ func TestElasticsearchStorage_SyncBulkWriter(t *testing.T) {
 func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	ctx := context.Background()
 	index := indexPrefix + "-syncbulk"
+	// TODO(RFC 0007 M4): this drives the low-level SyncBulkWriter directly, unlike
+	// the other integration tests that go through tracestore.Writer (which in the
+	// e2e configuration may be a remote writer). Once synchronous mode is wired
+	// into the ES trace writer, prefer exercising it through WriteTraces so the
+	// whole write path — remote included — is covered.
 	writer := esclient.NewSyncBulkWriter(s.client.client, 0, metrics.NullFactory, zap.NewNop())
 	searcher := esclient.SearchClient{Client: s.client.client}
 	t.Cleanup(func() { s.client.deleteAllIndices(t) })
