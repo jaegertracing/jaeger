@@ -12,7 +12,7 @@ import (
 // Options represent configurable parameters for jaeger-esmapping-generator
 type Options struct {
 	Mapping       string
-	EsVersion     uint
+	Version       es.BackendVersion
 	Shards        int64
 	Replicas      *int64
 	IndexPrefix   string
@@ -20,17 +20,20 @@ type Options struct {
 	ILMPolicyName string
 }
 
-// BackendVersion returns the BackendVersion corresponding to the EsVersion flag.
-// TODO: This unsafe cast only works for Elasticsearch versions (6, 7, 8, 9).
-// OpenSearch cannot be specified because its enum values (101, 102, 103) are
-// internal. Add an --opensearch-version flag and use it to return the correct
-// OpenSearch BackendVersion variant.
-func (o *Options) BackendVersion() es.BackendVersion {
-	return es.BackendVersion(o.EsVersion)
+// resolveBackendVersion selects the backend version from the generator's two
+// version flags: the distribution-aware --version token ("es8", "os3") wins when
+// set, otherwise the legacy numeric --es-version flag (an Elasticsearch major
+// version; OpenSearch is only reachable through --version) is used.
+func resolveBackendVersion(versionToken string, legacyEsVersion uint) (es.BackendVersion, error) {
+	if versionToken != "" {
+		return es.ParseBackendVersion(versionToken)
+	}
+	return es.BackendVersion(legacyEsVersion), nil
 }
 
 const (
 	mappingFlag       = "mapping"
+	versionFlag       = "version"
 	esVersionFlag     = "es-version"
 	shardsFlag        = "shards"
 	replicasFlag      = "replicas"
@@ -47,11 +50,21 @@ func (o *Options) AddFlags(command *cobra.Command) {
 		"",
 		"The index mapping the template will be applied to: one of jaeger-span, jaeger-service, jaeger-dependencies, or jaeger-sampling",
 	)
+	// The two version flags are transient parsing inputs rather than Options
+	// fields: the PreRunE hook below resolves them into the single typed Version.
+	var versionToken string
+	var legacyEsVersion uint
+	command.Flags().StringVar(
+		&versionToken,
+		versionFlag,
+		"",
+		"The backend distribution and major version to render for: one of es7, es8, es9, os1, os2, os3 (es=Elasticsearch, os=OpenSearch). Takes precedence over --es-version.",
+	)
 	command.Flags().UintVar(
-		&o.EsVersion,
+		&legacyEsVersion,
 		esVersionFlag,
 		7,
-		"The major Elasticsearch version",
+		"The major Elasticsearch version (legacy; prefer --version, which can also select OpenSearch)",
 	)
 	command.Flags().Int64Var(
 		&o.Shards,
@@ -88,4 +101,15 @@ func (o *Options) AddFlags(command *cobra.Command) {
 
 	// mark mapping flag as mandatory
 	command.MarkFlagRequired(mappingFlag)
+
+	// Resolve the transient version flags into the typed Version field before the
+	// command runs, surfacing an invalid --version as a command error.
+	command.PreRunE = func(_ *cobra.Command, _ []string) error {
+		version, err := resolveBackendVersion(versionToken, legacyEsVersion)
+		if err != nil {
+			return err
+		}
+		o.Version = version
+		return nil
+	}
 }
