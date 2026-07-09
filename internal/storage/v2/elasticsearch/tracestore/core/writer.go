@@ -5,12 +5,14 @@
 package core
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
@@ -41,8 +43,13 @@ type SpanWriter struct {
 
 // Writer is a DB-Level abstraction which directly deals with database level operations
 type Writer interface {
-	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
+	// WriteSpans writes a batch of spans and their corresponding service:operation
+	// pairs to Elasticsearch/OpenSearch. It is the batch entry point the v2
+	// TraceWriter drives once per WriteTraces call. The async implementation
+	// enqueues each document into the shared bulk indexer and returns nil (an
+	// enqueue cannot fail synchronously); a synchronous implementation issues one
+	// blocking _bulk per batch and returns the real write error (RFC 0007).
+	WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 	// Close closes Writer
 	Close() error
 }
@@ -88,8 +95,22 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	}
 }
 
-// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+// WriteSpans enqueues a batch of spans and their service:operation pairs into the
+// bulk indexer. Because the indexer is asynchronous (fire-and-forget), the enqueue
+// cannot fail synchronously, so this always returns nil; per-item failures surface
+// in the indexer's OnFailure callback. RFC 0007 adds a synchronous peer that issues
+// one blocking _bulk per batch and returns the real error.
+func (s *SpanWriter) WriteSpans(_ context.Context, spans []dbmodel.Span) error {
+	for i := range spans {
+		span := &spans[i]
+		s.writeSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
+	}
+	return nil
+}
+
+// writeSpan writes a single span and its corresponding service:operation into the
+// bulk indexer.
+func (s *SpanWriter) writeSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
 	if s.spanRotation.RequiresDocumentTimestamp() {
