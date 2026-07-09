@@ -30,7 +30,7 @@ const (
 func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	client := createESClient(t)
 	client.deleteAllIndices(t)
@@ -51,7 +51,7 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	client := createESClient(t)
 	tests := []struct {
@@ -74,7 +74,7 @@ func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 func TestIndexCleaner(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	client := createESClient(t)
 
