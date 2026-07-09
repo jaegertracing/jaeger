@@ -141,14 +141,14 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
 
 func TestElasticsearchStorage(t *testing.T) {
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	runElasticsearchTest(t, false)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	runElasticsearchTest(t, true)
 }
@@ -156,7 +156,7 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))

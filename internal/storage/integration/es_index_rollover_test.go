@@ -20,7 +20,7 @@ const (
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	client := createESClient(t)
 	// make sure ES is clean
@@ -36,7 +36,7 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 func TestIndexRollover_Idempotency(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	client := createESClient(t)
 	// Make sure that es is clean before the test!
@@ -52,7 +52,7 @@ func TestIndexRollover_Idempotency(t *testing.T) {
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
 	t.Run("DefaultPolicyName", func(t *testing.T) {
