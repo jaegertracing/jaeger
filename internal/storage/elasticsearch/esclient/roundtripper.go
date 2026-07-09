@@ -167,5 +167,19 @@ func GetHTTPRoundTripper(ctx context.Context, c *config.Configuration, logger *z
 		roundTripper = &customHeadersRoundTripper{base: roundTripper, headers: c.CustomHeaders}
 	}
 
-	return roundTripper, nil
+	// Expose the base transport's CloseIdleConnections through the wrapper chain so
+	// the client can release pooled connections on Close (see Client.Close).
+	return closeableRoundTripper{RoundTripper: roundTripper, transport: transport}, nil
+}
+
+// closeableRoundTripper carries the innermost *http.Transport alongside the
+// wrapped RoundTripper so idle connections can be closed regardless of how many
+// auth/header layers wrap it.
+type closeableRoundTripper struct {
+	http.RoundTripper
+	transport *http.Transport
+}
+
+func (c closeableRoundTripper) CloseIdleConnections() {
+	c.transport.CloseIdleConnections()
 }

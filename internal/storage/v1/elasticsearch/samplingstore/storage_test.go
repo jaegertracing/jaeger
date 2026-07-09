@@ -391,7 +391,7 @@ func TestSamplingStoreRequestSnapshots(t *testing.T) {
 // captureBulkWrite gives the store a fresh bulk indexer, runs write, then closes
 // the indexer to flush the single bulk request the recorder captures. A new
 // indexer per write keeps each write's request in its own snapshot.
-func captureBulkWrite(t *testing.T, client esclient.Client, rec *snapshottest.Recorder, store *SamplingStore, write func()) string {
+func captureBulkWrite(t *testing.T, client *esclient.Client, rec *snapshottest.Recorder, store *SamplingStore, write func()) string {
 	bulkWriter, err := esclient.NewBulkIndexer(client, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	store.bulkWriter = bulkWriter

@@ -75,6 +75,18 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 	assert.True(t, sawHeader.Load(), "the base RoundTripper stack was not applied to pooled requests")
 }
 
+// TestNewRawClientNoServers covers the empty-servers guard, which reproduces the
+// error the retired olivere client raised so callers (the storage factory) still
+// fail construction with the same message on a missing Servers list.
+func TestNewRawClientNoServers(t *testing.T) {
+	for name, servers := range map[string][]string{"nil": nil, "empty": {}} {
+		t.Run(name, func(t *testing.T) {
+			_, err := newRawClient(servers, http.DefaultTransport)
+			require.EqualError(t, err, "no servers specified")
+		})
+	}
+}
+
 func TestNewRawClientInvalidURL(t *testing.T) {
 	tests := map[string]string{
 		"unparseable":    "http://host:notaport",
@@ -162,6 +174,39 @@ func TestClientRequestBodyAndTimeout(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "request-payload", gotBody.Load())
+}
+
+// TestClientClose covers the full close path: Client.Close forwards to
+// rawClient.close, which releases the base transport's idle connections through
+// the closeableRoundTripper that GetHTTPRoundTripper installs. It also covers the
+// zero-Client case, where there is no transport to close.
+func TestClientClose(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{server.URL},
+		Version: uint(es.ElasticV7),
+	}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	require.NoError(t, c.Close())
+
+	// A nil *Client (a factory that failed to construct one) must still close cleanly.
+	require.NoError(t, (*Client)(nil).Close())
+}
+
+// TestTestsOnlyBackendVersion covers the test-only accessor that exposes the
+// version resolved at construction, so integration tests need not re-probe.
+func TestTestsOnlyBackendVersion(t *testing.T) {
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers: []string{"http://localhost:9200"},
+		Version: uint(es.OpenSearch2),
+	}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	assert.Equal(t, es.OpenSearch2, c.TestsOnlyBackendVersion())
+	assert.True(t, c.TestsOnlyBackendVersion().IsOpenSearch())
 }
 
 // errBodyRoundTripper returns a 200 whose body errors on read.

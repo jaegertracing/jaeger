@@ -18,7 +18,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
@@ -239,7 +238,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQue
 
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
-		return nil, es.DetailedError(err)
+		return nil, err
 	}
 	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
@@ -310,7 +309,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		traceIDs = nil
 		responses, err := s.searcher.MultiSearch(ctx, searchRequests)
 		if err != nil {
-			err = es.DetailedError(err)
 			logErrorToSpan(childSpan, err)
 			return nil, err
 		}
@@ -320,14 +318,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 
 		for _, result := range responses {
-			// Hits is a value (esclient.HitsResult), not olivere's *SearchHits pointer,
-			// so there's no nil to guard — only the inner slice can be empty.
+			// Hits is a value (esclient.HitsResult), not a pointer, so there's no nil
+			// to guard — only the inner slice can be empty.
 			if len(result.Hits.Hits) == 0 {
 				continue
 			}
 			spans, err := s.collectSpans(result.Hits.Hits)
 			if err != nil {
-				err = es.DetailedError(err)
 				logErrorToSpan(childSpan, err)
 				return nil, err
 			}
@@ -438,7 +435,6 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 		},
 	})
 	if err != nil {
-		err = es.DetailedError(err)
 		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
