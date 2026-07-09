@@ -472,7 +472,7 @@ func runPasswordFromFileTest(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 
 	writer := core.NewSpanWriter(f.GetSpanWriterParams())
-	writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{{Process: dbmodel.Process{ServiceName: "foo"}}}))
 
 	assert.Eventually(t, func() bool {
 		_, ok := authReceived.Load(upwd1)
@@ -487,7 +487,7 @@ func runPasswordFromFileTest(t *testing.T) {
 	// After ReloadInterval expires the transport re-reads the file; keep writing
 	// spans until the new auth header is observed.
 	assert.Eventually(t, func() bool {
-		writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+		require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{{Process: dbmodel.Process{ServiceName: "foo"}}}))
 		_, ok := authReceived.Load(upwd2)
 		return ok
 	}, 5*time.Second, 100*time.Millisecond, "expecting ES client to use second password after cache reload")

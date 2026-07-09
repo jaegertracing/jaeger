@@ -155,7 +155,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				serviceIndexName := "jaeger-service-1995-04-21"
 				serviceHash := "de3b5a8f1a79989d"
 
-				w.writer.WriteSpan(date, span)
+				w.writer.writeSpan(date, span)
 
 				require.Len(t, *w.added, 2)
 				service, spanItem := (*w.added)[0], (*w.added)[1]
@@ -174,6 +174,51 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			})
 		})
 	}
+}
+
+// TestSpanWriter_WriteSpans covers the batch entry point: every span (and its
+// service:operation pair) is enqueued, the per-span start time drives the index
+// target, and the async enqueue reports no error.
+func TestSpanWriter_WriteSpans(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
+		require.NoError(t, err)
+		startTime := model.TimeAsEpochMicroseconds(date)
+		spans := []dbmodel.Span{
+			{
+				TraceID:       "trace-1",
+				SpanID:        "span-1",
+				OperationName: "op-1",
+				Process:       dbmodel.Process{ServiceName: "service-a"},
+				StartTime:     startTime,
+			},
+			{
+				TraceID:       "trace-2",
+				SpanID:        "span-2",
+				OperationName: "op-2",
+				Process:       dbmodel.Process{ServiceName: "service-b"},
+				StartTime:     startTime,
+			},
+		}
+
+		require.NoError(t, w.writer.WriteSpans(context.Background(), spans))
+
+		// Two spans, each with a distinct service:operation, produce two service
+		// documents and two span documents.
+		require.Len(t, *w.added, 4)
+		for _, item := range *w.added {
+			assert.Contains(t, item.Index, "1995-04-21")
+		}
+	})
+}
+
+// TestSpanWriter_WriteSpansEmpty pins that an empty batch is a no-op that still
+// reports success.
+func TestSpanWriter_WriteSpansEmpty(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		require.NoError(t, w.writer.WriteSpans(context.Background(), nil))
+		assert.Empty(t, *w.added)
+	})
 }
 
 func TestSpanIndexName(t *testing.T) {
@@ -263,7 +308,7 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	})
 
 	span := &dbmodel.Span{TraceID: "abc", SpanID: "def"}
-	writer.WriteSpan(date, span)
+	writer.writeSpan(date, span)
 
 	// The data stream write path stamps @timestamp as epoch nanoseconds.
 	assert.Equal(t, strconv.FormatInt(date.UnixNano(), 10), span.Timestamp)
