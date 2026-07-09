@@ -6,6 +6,7 @@ package esclient
 import (
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,8 +24,20 @@ func newSyncWriter(t *testing.T, url string, maxBytes int, mf metrics.Factory, l
 	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), maxBytes, mf, logger)
 }
 
+// okBulkN answers with a successful _bulk response carrying exactly n item
+// results, matching an n-document request (the sync writer requires the counts
+// to agree).
+func okBulkN(n int) func(http.ResponseWriter) {
+	items := make([]string, n)
+	for i := range items {
+		items[i] = `{"index":{"status":201}}`
+	}
+	body := `{"errors":false,"items":[` + strings.Join(items, ",") + `]}`
+	return func(w http.ResponseWriter) { w.Write([]byte(body)) }
+}
+
 func TestSyncBulkWriter_WritesNDJSON(t *testing.T) {
-	rec, url := bulkServer(t, okBulk)
+	rec, url := bulkServer(t, okBulkN(2))
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
 
 	err := w.Bulk(context.Background(), []BulkItem{
@@ -110,6 +123,19 @@ func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "bulk request failed")
 	// A whole-request failure durably indexes nothing: every item counts as error.
 	mf.AssertCounterMetrics(t, metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1})
+}
+
+func TestSyncBulkWriter_ItemCountMismatch(t *testing.T) {
+	// A 200 whose item results don't match the request count (e.g. a proxy
+	// truncated the body) can't be accounted per-item, so the whole chunk fails.
+	_, url := bulkServer(t, okBulkN(1))
+	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+	err := w.Bulk(context.Background(), []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "malformed bulk response: 1 item results for 2 documents")
 }
 
 func TestSyncBulkWriter_UnparsableResponse(t *testing.T) {

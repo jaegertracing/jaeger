@@ -135,6 +135,13 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	if err := json.Unmarshal(raw, &resp); err != nil {
 		return 0, fmt.Errorf("failed to parse bulk response: %w", err)
 	}
+	// A well-formed _bulk response reports exactly one result per document, in
+	// request order. If a proxy or partial response returns fewer (or more), the
+	// per-item accounting below can't be trusted, so fail the whole chunk (0
+	// durable) rather than silently miscount — the caller retries the batch.
+	if len(resp.Items) != count {
+		return 0, fmt.Errorf("malformed bulk response: %d item results for %d documents", len(resp.Items), count)
+	}
 	if !resp.Errors {
 		return count, nil
 	}
@@ -164,7 +171,10 @@ func encodeBulkItem(item BulkItem) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	blob := make([]byte, 0, len(metaLine)+len(source)+2)
+	// Append without a precomputed capacity: summing the two lengths would be
+	// flagged as a possible allocation-size overflow, and the growth cost here is
+	// negligible for the small documents Jaeger writes.
+	var blob []byte
 	blob = append(blob, metaLine...)
 	blob = append(blob, '\n')
 	blob = append(blob, source...)
