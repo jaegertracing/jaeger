@@ -22,7 +22,7 @@ import (
 func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
 	// govalidator's url validation rejects 0.0.0.0, replace it with 127.0.0.1 for tests
 	endpoint = strings.Replace(endpoint, "://0.0.0.0:", "://127.0.0.1:", 1)
-	
+
 	esCfg := &escfg.Configuration{
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
