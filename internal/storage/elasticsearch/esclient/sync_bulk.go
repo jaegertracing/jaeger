@@ -120,13 +120,14 @@ func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
 // sendChunk POSTs one NDJSON _bulk body and reports how many of its count items
 // were durably indexed. A transport failure or non-2xx response yields (0, err);
 // a 200 whose body flags per-item errors yields (count-failures, err).
-func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) (n int, err error) {
+func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) (int, error) {
 	start := time.Now()
+	success := false
 	defer func() {
-		if err != nil {
-			w.metrics.LatencyErr.Record(time.Since(start))
-		} else {
+		if success {
 			w.metrics.LatencyOk.Record(time.Since(start))
+		} else {
+			w.metrics.LatencyErr.Record(time.Since(start))
 		}
 	}()
 
@@ -152,6 +153,7 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 		return 0, fmt.Errorf("malformed bulk response: %d item results for %d documents", len(resp.Items), count)
 	}
 	if !resp.Errors {
+		success = true
 		return count, nil
 	}
 	reasons := resp.failureReasons()
