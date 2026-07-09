@@ -91,12 +91,16 @@ func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, bod
 // template that composes them.
 func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate, error) {
 	base := indices.IndexPrefix.DataStreamName(spanDataStreamBase)
+	mappings, err := renderSpanDataStreamMappings()
+	if err != nil {
+		return nil, err
+	}
 	settings, err := renderSpanDataStreamSettings(indices)
 	if err != nil {
 		return nil, err
 	}
 	return []dataStreamTemplate{
-		{componentTemplateAPI, base + componentMappingsSuffix, renderSpanDataStreamMappings()},
+		{componentTemplateAPI, base + componentMappingsSuffix, mappings},
 		{componentTemplateAPI, base + componentSettingsSuffix, settings},
 		{composableTemplateAPI, base, renderSpanDataStreamIndexTemplate(base)},
 	}, nil
@@ -107,24 +111,42 @@ func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate
 // mappings are lifted from the span index template (jaeger-span.json) so the data
 // stream stays a single source of truth with the rotation path instead of
 // duplicating the schema; a drift test guards that they match.
-//
-// jaeger-span.json is an embedded, build-time template whose referenced fields all
-// exist on innerParams and whose mappings are static JSON, so rendering and
-// re-parsing it here cannot fail — it is the same render the span template's own
-// snapshot tests exercise — and any breakage surfaces there, not at runtime.
-func renderSpanDataStreamMappings() string {
+func renderSpanDataStreamMappings() (string, error) {
 	var buf bytes.Buffer
-	_ = indexTemplates.ExecuteTemplate(&buf, SpanMapping.file(), innerParams{})
-	var body struct {
+	if err := indexTemplates.ExecuteTemplate(&buf, SpanMapping.file(), innerParams{}); err != nil {
+		return "", fmt.Errorf("failed to render span mappings: %w", err)
+	}
+	return spanMappingsComponent(buf.Bytes())
+}
+
+// spanMappingsComponent extracts the "mappings" object from a rendered span index
+// template. It takes the rendered template as bytes so its parse failure is
+// directly unit-testable rather than unreachable.
+func spanMappingsComponent(renderedSpanTemplate []byte) (string, error) {
+	var parsed struct {
 		Mappings map[string]any `json:"mappings"`
 	}
-	_ = json.Unmarshal(buf.Bytes(), &body)
-	// Data streams require a @timestamp field; date_nanos preserves the OTLP
-	// nanosecond precision Jaeger writes (RFC 0004 §3.3).
-	properties := body.Mappings["properties"].(map[string]any)
+	if err := json.Unmarshal(renderedSpanTemplate, &parsed); err != nil {
+		return "", fmt.Errorf("failed to parse span mappings: %w", err)
+	}
+	return mappingsComponentBody(parsed.Mappings)
+}
+
+// mappingsComponentBody wraps a mappings object as a component-template body,
+// adding the "@timestamp" field data streams require (date_nanos preserves the
+// OTLP nanosecond precision Jaeger writes, see RFC 0004 §3.3).
+func mappingsComponentBody(mappings map[string]any) (string, error) {
+	properties, ok := mappings["properties"].(map[string]any)
+	if !ok {
+		return "", errors.New("span index template mappings have no properties object")
+	}
 	properties["@timestamp"] = map[string]any{"type": "date_nanos"}
-	out, _ := json.Marshal(map[string]any{"template": map[string]any{"mappings": body.Mappings}})
-	return string(out)
+
+	out, err := json.Marshal(map[string]any{"template": map[string]any{"mappings": mappings}})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal span data stream mappings: %w", err)
+	}
+	return string(out), nil
 }
 
 // renderSpanDataStreamSettings renders the "@settings" component template body:

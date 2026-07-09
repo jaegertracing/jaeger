@@ -18,17 +18,41 @@ import (
 )
 
 func TestRenderSpanDataStreamMappings(t *testing.T) {
+	body, err := renderSpanDataStreamMappings()
+	require.NoError(t, err)
+
 	var got struct {
 		Template struct {
 			Mappings map[string]any `json:"mappings"`
 		} `json:"template"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(renderSpanDataStreamMappings()), &got))
+	require.NoError(t, json.Unmarshal([]byte(body), &got))
 
 	properties := got.Template.Mappings["properties"].(map[string]any)
 	assert.Equal(t, map[string]any{"type": "date_nanos"}, properties["@timestamp"],
 		"data streams require an @timestamp field mapped as date_nanos")
 	assert.Contains(t, properties, "traceID", "the span field mappings must be carried over")
+}
+
+func TestSpanMappingsComponentErrors(t *testing.T) {
+	t.Run("invalid json", func(t *testing.T) {
+		_, err := spanMappingsComponent([]byte("not-json"))
+		require.ErrorContains(t, err, "failed to parse span mappings")
+	})
+
+	t.Run("mappings without properties", func(t *testing.T) {
+		_, err := spanMappingsComponent([]byte(`{"mappings":{}}`))
+		require.ErrorContains(t, err, "no properties object")
+	})
+
+	t.Run("mappings that cannot be marshaled", func(t *testing.T) {
+		// A channel has no JSON representation, so the component body fails to
+		// marshal rather than silently emitting a truncated template.
+		_, err := mappingsComponentBody(map[string]any{
+			"properties": map[string]any{"bad": make(chan int)},
+		})
+		require.ErrorContains(t, err, "failed to marshal span data stream mappings")
+	})
 }
 
 // TestSpanDataStreamMappingsMatchRotationTemplate is the drift guard: the
@@ -37,12 +61,15 @@ func TestRenderSpanDataStreamMappings(t *testing.T) {
 // derives from. It fails if a future edit changes jaeger-span.json's mappings
 // without the data stream tracking it.
 func TestSpanDataStreamMappingsMatchRotationTemplate(t *testing.T) {
+	body, err := renderSpanDataStreamMappings()
+	require.NoError(t, err)
+
 	var component struct {
 		Template struct {
 			Mappings map[string]any `json:"mappings"`
 		} `json:"template"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(renderSpanDataStreamMappings()), &component))
+	require.NoError(t, json.Unmarshal([]byte(body), &component))
 	dsMappings := component.Template.Mappings
 
 	// @timestamp is the only field the data stream adds on top of the rotation
