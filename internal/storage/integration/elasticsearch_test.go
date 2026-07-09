@@ -217,14 +217,22 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 		return err == nil && len(resp.Hits.Hits) == 2
 	}, 10*time.Second, 100*time.Millisecond, "both documents should be durably readable")
 
-	// Item-level error propagation: re-creating an existing _id with op_type=create
-	// makes the backend reject the item (409 version conflict), and the sync writer
-	// surfaces it as a real error — the whole point of RFC 0007.
+	// Item-level error propagation with a partial batch: one new document (sb-3)
+	// succeeds while re-creating an existing _id (sb-1) is rejected with a 409
+	// version conflict. The sync writer surfaces the rejection as a real error —
+	// the whole point of RFC 0007 — even though the sibling item was written.
 	err := writer.Bulk(ctx, []esclient.BulkItem{
+		{Index: index, ID: "sb-3", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "three"}},
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "rejected")
+	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected")
+
+	// The non-conflicting item was still durably written (now three documents).
+	require.Eventually(t, func() bool {
+		resp, err := searcher.Search(ctx, []string{index}, esclient.SearchRequest{Size: 10})
+		return err == nil && len(resp.Hits.Hits) == 3
+	}, 10*time.Second, 100*time.Millisecond, "the non-conflicting document should be durably written")
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge
