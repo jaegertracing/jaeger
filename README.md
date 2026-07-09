@@ -116,7 +116,7 @@ As of July 6, 2026, this policy means:
 | Backend | Jaeger policy basis | Versions covered by policy | Versions not covered |
 | --- | --- | --- | --- |
 | Elasticsearch | Elastic EOL policy | `9.x`; `8.x` until Elastic's published 8.x support window ends | `7.17.x` and earlier |
-| OpenSearch | OpenSearch maintenance policy | `3.x`; `2.19.x` previous-major maintenance line | `1.x` and earlier |
+| OpenSearch | OpenSearch maintenance policy | `3.x`; `2.x`, with `2.19.x` as the currently maintained 2.x line | `1.x` and earlier |
 | Cassandra | Current major plus previous major, using maintained Apache release lines | `5.0.x`; maintained `4.x` lines, currently `4.1.x` and `4.0.x` | `3.x` and earlier |
 | ClickHouse | ClickHouse stable and LTS policy | Latest three stable branches, currently `26.6`, `26.5`, and `26.4`; active LTS branches, currently `26.3 LTS` and `25.8 LTS` | Older stable branches and expired LTS branches |
 
