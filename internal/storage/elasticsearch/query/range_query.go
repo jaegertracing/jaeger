@@ -3,10 +3,12 @@
 
 package query
 
-// Package query provides an Elasticsearch RangeQuery implementation compatible
-// with Elasticsearch v9, avoiding deprecated parameters.
+// Package query builds the Elasticsearch/OpenSearch query and aggregation JSON
+// that the storage layer sends — the request-body AST, each node rendering its
+// own wire form via Source().
 //
-// Deprecated parameters like include_lower, include_upper, from, and to are excluded deliberately.
+// The RangeQuery below is written for Elasticsearch v9 and deliberately omits the
+// deprecated include_lower, include_upper, from, and to parameters.
 
 type RangeQuery struct {
 	name      string
