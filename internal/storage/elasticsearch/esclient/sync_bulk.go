@@ -38,7 +38,11 @@ type SyncBulkWriter struct {
 }
 
 // NewSyncBulkWriter returns a SyncBulkWriter that sends each _bulk chunk over the
-// given Client, capping a chunk at maxBytes (defaulting when non-positive).
+// given Client. maxBytes caps a chunk client-side (defaulting when non-positive)
+// and should stay well under the backend's own request limit: ES/OS reject a
+// body larger than http.max_content_length (default 100 MB) with 413. The cap
+// bounds only the assembled chunk; a single document exceeding maxBytes cannot be
+// split, so it is sent alone and may still hit that server limit (§4.4).
 func NewSyncBulkWriter(client *Client, maxBytes int, metricsFactory metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
 	if maxBytes <= 0 {
 		maxBytes = defaultSyncBulkMaxBytes
