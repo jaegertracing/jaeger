@@ -35,8 +35,7 @@ fi
 
 run_curl() {
   if [[ -n "${DOCKERHUB_CURL:-}" ]]; then
-    # shellcheck disable=SC2086
-    $DOCKERHUB_CURL "$@"
+    "$DOCKERHUB_CURL" "$@"
   else
     curl -sS --connect-timeout 5 --max-time 15 --retry 3 --retry-delay 2 "$@"
   fi
@@ -47,7 +46,7 @@ dockerhub_tag_status() {
   local tag=$2
   local status
 
-  status=$(run_curl -o /tmp/docker-tag.json -w "%{http_code}" \
+  status=$(run_curl -o /dev/null -w "%{http_code}" \
     "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}/" || echo "000")
   echo "$status"
 }
@@ -56,15 +55,19 @@ newest_published_sha() {
   local repo=$1
   local status
   local tag
+  local tags_file
 
-  status=$(run_curl -o /tmp/docker-tags-page.json -w "%{http_code}" \
+  tags_file=$(mktemp "${TMPDIR:-/tmp}/docker-tags-page.XXXXXX")
+  status=$(run_curl -o "$tags_file" -w "%{http_code}" \
     "https://hub.docker.com/v2/repositories/${repo}/tags/?page_size=100&ordering=-last_updated" || echo "000")
   if [[ "$status" != "200" ]]; then
+    rm -f "$tags_file"
     echo "Docker Hub tag list for ${repo} returned HTTP ${status}" >&2
     return 1
   fi
 
-  tag=$(jq -r '[.results[].name | select(test("^[0-9a-f]{40}$"))][0] // empty' /tmp/docker-tags-page.json)
+  tag=$(jq -r '[.results[].name | select(test("^[0-9a-f]{40}$"))][0] // empty' "$tags_file")
+  rm -f "$tags_file"
   if [[ -z "$tag" ]]; then
     echo "No published snapshot SHA tags found for ${repo}" >&2
     return 1
