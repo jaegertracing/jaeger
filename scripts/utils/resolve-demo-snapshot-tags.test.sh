@@ -15,6 +15,8 @@ OLDER="cccccccccccccccccccccccccccccccccccccccc"
 
 oneTimeSetUp() {
   TMPDIR_TEST=$(mktemp -d)
+  EMPTY_BIN="$TMPDIR_TEST/empty-bin"
+  mkdir -p "$EMPTY_BIN"
   MOCK_CURL="$TMPDIR_TEST/mock-curl.sh"
   cat > "$MOCK_CURL" <<EOF
 #!/usr/bin/env bash
@@ -86,6 +88,13 @@ testRequiresMainSha() {
   rc=$?
   assertEquals "exit 1 without MAIN_SHA" 1 $rc
   assertContains "$err" "MAIN_SHA or GITHUB_SHA must be set"
+}
+
+testRequiresJq() {
+  err=$(env -i PATH="$EMPTY_BIN" MAIN_SHA="$MAIN_SHA" /bin/bash "$SCRIPT" 2>&1)
+  rc=$?
+  assertEquals "exit 1 without jq" 1 $rc
+  assertContains "$err" "jq is required but not installed"
 }
 
 testUsesPreferredTagWhenPublished() {

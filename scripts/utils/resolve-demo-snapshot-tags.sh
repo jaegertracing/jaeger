@@ -11,6 +11,9 @@
 # Manual workflow_dispatch runs use the requested tag (default MAIN_SHA) and
 # fail if that tag is missing.
 #
+# Jaeger and HotROD tags are resolved independently; each image is
+# published to its own repository and may fall back to a different SHA.
+#
 # Exports (and appends to GITHUB_ENV when set):
 #   JAEGER_DEMO_JAEGER_IMAGE_TAG
 #   JAEGER_DEMO_HOTROD_IMAGE_TAG
@@ -58,16 +61,16 @@ newest_published_sha() {
   local tags_file
 
   tags_file=$(mktemp "${TMPDIR:-/tmp}/docker-tags-page.XXXXXX")
+  trap 'rm -f "${tags_file:-}"' RETURN
+
   status=$(run_curl -o "$tags_file" -w "%{http_code}" \
     "https://hub.docker.com/v2/repositories/${repo}/tags/?page_size=100&ordering=-last_updated" || echo "000")
   if [[ "$status" != "200" ]]; then
-    rm -f "$tags_file"
     echo "Docker Hub tag list for ${repo} returned HTTP ${status}" >&2
     return 1
   fi
 
   tag=$(jq -r '[.results[].name | select(test("^[0-9a-f]{40}$"))][0] // empty' "$tags_file")
-  rm -f "$tags_file"
   if [[ -z "$tag" ]]; then
     echo "No published snapshot SHA tags found for ${repo}" >&2
     return 1
