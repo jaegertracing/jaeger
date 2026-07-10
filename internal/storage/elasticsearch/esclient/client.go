@@ -43,24 +43,45 @@ type Client struct {
 // explicit c.Version, otherwise it probes the cluster once. Every returned
 // Client therefore carries a resolved version, so version-dependent operations
 // never re-probe and business logic never handles a BackendVersion.
-func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (Client, error) {
+func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*Client, error) {
 	base, err := GetHTTPRoundTripper(ctx, c, logger, httpAuth)
 	if err != nil {
-		return Client{}, err
+		return nil, err
 	}
 	transport, err := newRawClient(c.Servers, base)
 	if err != nil {
-		return Client{}, err
+		return nil, err
 	}
-	client := Client{transport: transport, timeout: c.QueryTimeout}
+	client := &Client{transport: transport, timeout: c.QueryTimeout}
 	// Honor an explicit c.Version, otherwise probe the cluster once via the
 	// low-level ping. Both planes share es.ResolveBackendVersion.
 	version, err := es.ResolveBackendVersion(ctx, c.Version, client.ping)
 	if err != nil {
-		return Client{}, fmt.Errorf("failed to resolve backend version: %w", err)
+		return nil, fmt.Errorf("failed to resolve backend version: %w", err)
 	}
 	client.version = version
 	return client, nil
+}
+
+// Close releases the client's pooled idle connections. It is safe to call on a nil
+// *Client (a factory that failed to construct one). The transport has no background
+// goroutines (node discovery is off), so there is nothing else to stop.
+func (c *Client) Close() error {
+	if c != nil && c.transport != nil {
+		c.transport.close()
+	}
+	return nil
+}
+
+// TestsOnlyBackendVersion returns the backend version resolved at construction.
+// It exists ONLY for integration tests that must branch on the backend flavor or
+// version — e.g. pick ISM vs ILM, or the composable vs legacy template API. It
+// saves those tests from re-probing a cluster this client already sniffed.
+// Production code must never branch on the backend: the version is resolved once
+// here and kept encapsulated (RFC 0006 M4), so there is deliberately no non-test
+// accessor.
+func (c *Client) TestsOnlyBackendVersion() es.BackendVersion {
+	return c.version
 }
 
 type elasticRequest struct {
@@ -111,11 +132,11 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 // transport instead of a product-checked go-elasticsearch client. Unlike request,
 // Perform neither builds the request nor interprets the status code — the caller
 // owns those (esutil writes and parses the _bulk protocol itself).
-func (c Client) Perform(req *http.Request) (*http.Response, error) {
+func (c *Client) Perform(req *http.Request) (*http.Response, error) {
 	// A caller may submit a request with no deadline — esutil.BulkIndexer builds
 	// its _bulk flushes (and its shutdown Close flush) from a background context.
 	// Apply the client's QueryTimeout so those writes can't hang forever, matching
-	// the http.Client.Timeout the olivere data plane put on every request. request()
+	// the http.Client.Timeout the data plane previously put on every request. request()
 	// already sets its own deadline, so this only fills the gap when one is absent.
 	if c.timeout <= 0 {
 		return c.transport.perform(req)

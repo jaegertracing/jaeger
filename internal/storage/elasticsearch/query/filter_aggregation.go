@@ -6,7 +6,7 @@ package query
 // FilterAggregation narrows documents to those matching a query, then applies its
 // sub-aggregations (or just counts them). It renders to {"filter": <query>} with
 // an optional sibling "aggregations", matching what the storage layer previously
-// produced via olivere's FilterAggregation.
+// produced.
 type FilterAggregation struct {
 	filter  Query
 	subAggs map[string]Aggregation

@@ -1008,56 +1008,34 @@ func TestSpanReader_ArchiveTraces(t *testing.T) {
 
 func TestBuildTraceByIDQuery(t *testing.T) {
 	tests := []struct {
-		name          string
-		traceID       string
-		disableLegacy bool
-		expected      any
+		name     string
+		traceID  string
+		expected any
 	}{
 		{
-			name:          "leading zero, legacy disabled",
-			traceID:       "0000000000000001",
-			disableLegacy: true,
-			expected:      map[string]any{"term": map[string]any{"traceID": "0000000000000001"}},
+			name:     "leading zero",
+			traceID:  "0000000000000001",
+			expected: map[string]any{"term": map[string]any{"traceID": "0000000000000001"}},
 		},
 		{
-			name:          "long id, legacy disabled",
-			traceID:       "00000000000000010000000000000001",
-			disableLegacy: true,
-			expected:      map[string]any{"term": map[string]any{"traceID": "00000000000000010000000000000001"}},
+			name:     "long id",
+			traceID:  "00000000000000010000000000000001",
+			expected: map[string]any{"term": map[string]any{"traceID": "00000000000000010000000000000001"}},
 		},
 		{
-			name:          "no leading zero",
-			traceID:       "ffffffffffffffffffffffffffffffff",
-			disableLegacy: true,
-			expected:      map[string]any{"term": map[string]any{"traceID": "ffffffffffffffffffffffffffffffff"}},
+			name:     "no leading zero",
+			traceID:  "ffffffffffffffffffffffffffffffff",
+			expected: map[string]any{"term": map[string]any{"traceID": "ffffffffffffffffffffffffffffffff"}},
 		},
 		{
-			name:          "leading zero non-hex, legacy disabled",
-			traceID:       "0short-traceid",
-			disableLegacy: true,
-			expected:      map[string]any{"term": map[string]any{"traceID": "0short-traceid"}},
-		},
-		{
-			// Legacy branch: a 0-prefixed id also matches its leading-zeros-trimmed form.
-			name:          "leading zero, legacy enabled",
-			traceID:       "0000000000000001",
-			disableLegacy: false,
-			expected: map[string]any{"bool": map[string]any{"should": []any{
-				map[string]any{"term": map[string]any{"traceID": map[string]any{"value": "0000000000000001", "boost": float64(2)}}},
-				map[string]any{"term": map[string]any{"traceID": "1"}},
-			}}},
-		},
-		{
-			// An empty ID must not panic (traceIDStr[0]); it yields a match-nothing term.
-			name:          "empty id, legacy enabled",
-			traceID:       "",
-			disableLegacy: false,
-			expected:      map[string]any{"term": map[string]any{"traceID": ""}},
+			name:     "empty id",
+			traceID:  "",
+			expected: map[string]any{"term": map[string]any{"traceID": ""}},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			q := buildTraceByIDQueryWithLegacy(dbmodel.TraceID(test.traceID), test.disableLegacy)
+			q := buildTraceByIDQuery(dbmodel.TraceID(test.traceID))
 			actual, err := q.Source()
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, actual)

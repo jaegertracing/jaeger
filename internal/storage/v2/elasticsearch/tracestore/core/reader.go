@@ -10,17 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
@@ -77,20 +74,7 @@ var (
 	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 
 	_ Reader = (*SpanReader)(nil) // check API conformance
-
-	disableLegacyIDs *featuregate.Gate
 )
-
-func init() {
-	disableLegacyIDs = featuregate.GlobalRegistry().MustRegister(
-		"jaeger.es.disableLegacyId",
-		featuregate.StageStable, // enabled by default and cannot be disabled
-		featuregate.WithRegisterFromVersion("v2.5.0"),
-		featuregate.WithRegisterToVersion("v2.8.0"),
-		featuregate.WithRegisterDescription("Legacy trace ids are the ids that used to be rendered with leading 0s omitted. Setting this gate to false will force the reader to search for the spans with trace ids having leading zeroes"),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/1578"),
-	)
-}
 
 // Time-range design (referenced as "timeRangeDesign" in comments below):
 //
@@ -254,7 +238,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery dbmodel.TraceQue
 
 	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
-		return nil, es.DetailedError(err)
+		return nil, err
 	}
 	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
@@ -325,7 +309,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		traceIDs = nil
 		responses, err := s.searcher.MultiSearch(ctx, searchRequests)
 		if err != nil {
-			err = es.DetailedError(err)
 			logErrorToSpan(childSpan, err)
 			return nil, err
 		}
@@ -335,14 +318,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 
 		for _, result := range responses {
-			// Hits is a value (esclient.HitsResult), not olivere's *SearchHits pointer,
-			// so there's no nil to guard — only the inner slice can be empty.
+			// Hits is a value (esclient.HitsResult), not a pointer, so there's no nil
+			// to guard — only the inner slice can be empty.
 			if len(result.Hits.Hits) == 0 {
 				continue
 			}
 			spans, err := s.collectSpans(result.Hits.Hits)
 			if err != nil {
-				err = es.DetailedError(err)
 				logErrorToSpan(childSpan, err)
 				return nil, err
 			}
@@ -366,26 +348,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 }
 
 func buildTraceByIDQuery(traceID dbmodel.TraceID) esquery.Query {
-	return buildTraceByIDQueryWithLegacy(traceID, disableLegacyIDs.IsEnabled())
-}
-
-// buildTraceByIDQueryWithLegacy takes the gate value as a parameter so the
-// legacy-ID branch — unreachable in production while the stable
-// jaeger.es.disableLegacyId gate is enabled — stays testable.
-func buildTraceByIDQueryWithLegacy(traceID dbmodel.TraceID, disableLegacy bool) esquery.Query {
-	traceIDStr := string(traceID)
-	// An empty ID has no leading-zero variant (and indexing traceIDStr[0] would
-	// panic); a term query on "" simply matches nothing.
-	if traceIDStr == "" || traceIDStr[0] != '0' || disableLegacy {
-		return esquery.NewTermQuery(traceIDField, traceIDStr)
-	}
-	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
-	legacyTraceID := strings.TrimLeft(traceIDStr, "0")
-	return esquery.NewBoolQuery().Should(
-		esquery.NewTermQuery(traceIDField, traceIDStr).Boost(2),
-		esquery.NewTermQuery(traceIDField, legacyTraceID),
-	)
+	return esquery.NewTermQuery(traceIDField, string(traceID))
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
@@ -472,7 +435,6 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 		},
 	})
 	if err != nil {
-		err = es.DetailedError(err)
 		s.logger.Info("es search services failed", zap.Any("traceQuery", traceQuery), zap.Error(err))
 		return nil, fmt.Errorf("search services failed: %w", err)
 	}
