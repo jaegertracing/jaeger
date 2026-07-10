@@ -127,20 +127,25 @@ jobs:
           local deploy_tag=$3
           local latest_digest
           local main_digest
+          local main_status
 
           latest_digest=$(dockerhub_digest "$repo" latest) || {
             echo "::warning::Could not resolve Docker Hub digest for ${repo}:latest; skipping drift check for ${label}."
             return
           }
 
-          if main_digest=$(dockerhub_digest "$repo" "$MAIN_SHA"); then
+          main_status=$(dockerhub_tag_status "$repo" "$MAIN_SHA")
+          if [[ "$main_status" == "200" ]]; then
+            main_digest=$(jq -r '.digest // empty' /tmp/docker-tag.json)
             if [[ "$deploy_tag" == "latest" && "$latest_digest" != "$main_digest" ]]; then
               echo "::warning::Deploying ${repo}:${deploy_tag} (${latest_digest}) but main (${MAIN_SHA}) points to a different ${label} snapshot (${main_digest}). Demo may be behind main."
             elif [[ "$deploy_tag" == "$MAIN_SHA" && "$main_digest" != "$latest_digest" ]]; then
               echo "::warning::Deploying ${repo}:${deploy_tag} (${main_digest}) but :latest points to a different ${label} snapshot (${latest_digest})."
             fi
-          elif [[ "$deploy_tag" == "latest" ]]; then
+          elif [[ "$deploy_tag" == "latest" && "$main_status" == "404" ]]; then
             echo "::warning::Deploying ${repo}:latest because main (${MAIN_SHA}) has no published ${label} snapshot image."
+          elif [[ "$deploy_tag" == "latest" ]]; then
+            echo "::warning::Could not compare main (${MAIN_SHA}) snapshot for ${label}; Docker Hub API returned HTTP ${main_status}. Skipping drift check."
           fi
         }
 
