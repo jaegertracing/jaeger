@@ -206,7 +206,9 @@ FROM
 
 const SelectSpansByTraceID = SelectSpansQuery + " WHERE s.trace_id = ?"
 
-// SearchTraceIDsBase is the inner SQL fragment for finding distinct trace IDs.
+// SearchTraceIDsBase is the inner SQL fragment for finding trace IDs.
+// Deduplication and ordering are applied in the query builder via
+// GROUP BY s.trace_id ORDER BY max(s.start_time) DESC.
 //
 // The query begins with a no-op predicate (`WHERE 1=1`) so that additional
 // filters can be appended unconditionally using `AND` without needing to check
