@@ -84,13 +84,21 @@ jobs:
       run: |
         MAIN_SHA="${{ github.sha }}"
 
+        dockerhub_tag_status() {
+          local repo=$1
+          local tag=$2
+
+          curl -sS --connect-timeout 5 --max-time 15 --retry 3 --retry-delay 2 \
+            -o /tmp/docker-tag.json -w "%{http_code}" \
+            "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}/" || echo "000"
+        }
+
         dockerhub_digest() {
           local repo=$1
           local tag=$2
           local status
 
-          status=$(curl -fsS --connect-timeout 5 --max-time 15 -o /tmp/docker-tag.json -w "%{http_code}" \
-            "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}/" || true)
+          status=$(dockerhub_tag_status "$repo" "$tag")
           if [[ "$status" != "200" ]]; then
             return 1
           fi
@@ -101,9 +109,14 @@ jobs:
           local repo=$1
           local tag=$2
           local label=$3
+          local http_code
 
-          if ! dockerhub_digest "$repo" "$tag" >/dev/null; then
-            echo "::error::Snapshot image not found on Docker Hub: ${repo}:${tag} (${label})"
+          http_code=$(dockerhub_tag_status "$repo" "$tag")
+          if [[ "$http_code" == "404" ]]; then
+            echo "::error::Snapshot image tag not found on Docker Hub: ${repo}:${tag} (${label})"
+            exit 1
+          elif [[ "$http_code" != "200" ]]; then
+            echo "::error::Failed to verify Docker Hub tag for ${repo}:${tag} (${label}); Docker Hub API returned HTTP ${http_code}."
             exit 1
           fi
         }
