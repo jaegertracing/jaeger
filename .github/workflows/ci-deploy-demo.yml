@@ -57,9 +57,10 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY: jaegertracing/jaeger-snapshot
       JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY: jaegertracing/example-hotrod-snapshot
-      JAEGER_DEMO_IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
-      JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha }}
-      JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha }}
+      # Scheduled runs deploy :latest (last published snapshot), not github.sha.
+      JAEGER_DEMO_IMAGE_TAG: ${{ github.event_name == 'schedule' && 'latest' || (github.event.inputs.image_tag || github.sha) }}
+      JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event_name == 'schedule' && 'latest' || (github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha) }}
+      JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event_name == 'schedule' && 'latest' || (github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha) }}
       JAEGER_DEMO_IMAGE_PULL_POLICY: Always
       JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
       JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
@@ -81,6 +82,61 @@ jobs:
 
     - name: Deploy using appropriate script
       run: |
+        MAIN_SHA="${{ github.sha }}"
+
+        dockerhub_digest() {
+          local repo=$1
+          local tag=$2
+          local status
+
+          status=$(curl -fsS --connect-timeout 5 --max-time 15 -o /tmp/docker-tag.json -w "%{http_code}" \
+            "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}/" || true)
+          if [[ "$status" != "200" ]]; then
+            return 1
+          fi
+          jq -r '.digest // empty' /tmp/docker-tag.json
+        }
+
+        verify_deploy_tag() {
+          local repo=$1
+          local tag=$2
+          local label=$3
+
+          if ! dockerhub_digest "$repo" "$tag" >/dev/null; then
+            echo "::error::Snapshot image not found on Docker Hub: ${repo}:${tag} (${label})"
+            exit 1
+          fi
+        }
+
+        warn_snapshot_drift() {
+          local repo=$1
+          local label=$2
+          local deploy_tag=$3
+          local latest_digest
+          local main_digest
+
+          latest_digest=$(dockerhub_digest "$repo" latest) || {
+            echo "::error::Could not resolve Docker Hub digest for ${repo}:latest"
+            exit 1
+          }
+
+          if main_digest=$(dockerhub_digest "$repo" "$MAIN_SHA"); then
+            if [[ "$deploy_tag" == "latest" && "$latest_digest" != "$main_digest" ]]; then
+              echo "::warning::Deploying ${repo}:${deploy_tag} (${latest_digest}) but main (${MAIN_SHA}) points to a different ${label} snapshot (${main_digest}). Demo may be behind main."
+            elif [[ "$deploy_tag" == "$MAIN_SHA" && "$main_digest" != "$latest_digest" ]]; then
+              echo "::warning::Deploying ${repo}:${deploy_tag} (${main_digest}) but :latest points to a different ${label} snapshot (${latest_digest})."
+            fi
+          elif [[ "$deploy_tag" == "latest" ]]; then
+            echo "::warning::Deploying ${repo}:latest because main (${MAIN_SHA}) has no published ${label} snapshot image."
+          fi
+        }
+
+        echo "Deploy: main=${MAIN_SHA}, Jaeger tag=${JAEGER_DEMO_JAEGER_IMAGE_TAG}, HotROD tag=${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
+        verify_deploy_tag "${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}" "Jaeger"
+        verify_deploy_tag "${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY}" "${JAEGER_DEMO_HOTROD_IMAGE_TAG}" "HotROD"
+        warn_snapshot_drift "${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY}" "Jaeger" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
+        warn_snapshot_drift "${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY}" "HotROD" "${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
+
         echo "🔄 Deploying demo stack ${JAEGER_DEMO_STACK} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
         echo "🔄 Deploying Jaeger snapshot image tag ${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
         echo "🔄 Deploying HotROD snapshot image tag ${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
