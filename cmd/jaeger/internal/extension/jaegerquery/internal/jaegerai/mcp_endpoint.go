@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
@@ -35,9 +34,18 @@ const (
 )
 
 // sessionIDContextKey carries the URL session id from ServeHTTP into the
-// getServer callback, which runs inside the wrapped streamable handler after
-// the path prefix has been stripped.
+// UI-dispatch middleware. ServeHTTP stamps it on the request context before
+// delegating to the streamable handler; the go-sdk propagates the initialize
+// request's context values onto the resulting ServerSession, so every later
+// tools/list and tools/call for that session can recover the id here.
 type sessionIDContextKey struct{}
+
+// sessionIDFromContext returns the URL session id stamped by ServeHTTP, or ""
+// when absent (e.g. a request that never went through ServeHTTP).
+func sessionIDFromContext(ctx context.Context) string {
+	id, _ := ctx.Value(sessionIDContextKey{}).(string)
+	return id
+}
 
 // mcpSessionHandler serves the session-scoped MCP endpoint. It advertises the
 // built-in telemetry tools plus the UI tools the frontend declared for that
@@ -46,30 +54,30 @@ type sessionIDContextKey struct{}
 // (present in sessionStreams).
 type mcpSessionHandler struct {
 	// streamable is the MCP streamable-HTTP handler (from mcptools.WrapHTTP)
-	// whose getServer builds a fresh server per session: the telemetry tools
-	// plus that session's UI tools.
+	// serving a single shared telemetry server. Per-session UI tools are layered
+	// on by the uiDispatchMiddleware registered on that server, keyed by the
+	// session id carried in the request context.
 	streamable http.Handler
 	streams    *sessionStreams
 	basePath   string
 	logger     *zap.Logger
 }
 
-// newMCPSessionHandler builds the session-scoped handler. The getServer closure
-// captures the telemetry dependencies and, per request, layers the looked-up
-// session's UI tools on top of a fresh telemetry server.
+// newMCPSessionHandler builds the session-scoped handler around a single shared
+// MCP server. The telemetry tools are a fixed capability, so they are registered
+// once; the per-session UI tools are layered on via uiDispatchMiddleware, which
+// reads the session id from the request context and, for that session,
+// advertises its UI tools in tools/list and dispatches their tools/call to the
+// browser stream. This avoids standing up a fresh server per session.
 func newMCPSessionHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, streams *sessionStreams, basePath string, logger *zap.Logger) *mcpSessionHandler {
-	h := &mcpSessionHandler{streams: streams, basePath: basePath, logger: logger}
-	h.streamable = mcptools.WrapHTTP(func(r *http.Request) *mcp.Server {
-		sessionID, _ := r.Context().Value(sessionIDContextKey{}).(string)
-		srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
-		// sess is normally non-nil (ServeHTTP validates before delegating); a
-		// nil here (session ended mid-request) degrades to telemetry-only.
-		if sess := streams.get(sessionID); sess != nil {
-			addUITools(srv, sess, logger)
-		}
-		return srv
-	}, tenancyMgr, telset)
-	return h
+	srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
+	srv.AddReceivingMiddleware(uiDispatchMiddleware(streams, logger))
+	return &mcpSessionHandler{
+		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
+		streams:    streams,
+		basePath:   basePath,
+		logger:     logger,
+	}
 }
 
 func (h *mcpSessionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -82,9 +90,10 @@ func (h *mcpSessionHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Strip "<basePath>/api/ai/mcp/<sessionID>" so the wrapped MCP handler sees
-	// its own root, and carry the id forward in the context for getServer. The
-	// no-slash form strips to "", which we normalize to "/". Our routes carry no
-	// percent-encoding past the UUID, so Path is canonical and RawPath cleared.
+	// its own root, and carry the id forward in the context for the UI-dispatch
+	// middleware. The no-slash form strips to "", which we normalize to "/". Our
+	// routes carry no percent-encoding past the UUID, so Path is canonical and
+	// RawPath cleared.
 	prefix := h.basePath + "/api/ai/mcp/" + sessionID
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	if rest == "" {

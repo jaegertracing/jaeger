@@ -63,23 +63,17 @@ func (s *sessionStreams) set(sessionID string, stream *streamingClient, uiTools 
 // unknown or expired id is a "not an active session" case, which the endpoint
 // maps to 404.
 func (s *sessionStreams) get(sessionID string) *session {
-	if sessionID == "" {
-		return nil
-	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.sessions[sessionID]
+	return s.sessions[sessionID] // nil for "" or an unknown id
 }
 
 // delete removes sessionID. Idempotent: it runs from the chat handler's defer,
 // so it must not panic if set never ran (e.g. session/new failed).
 func (s *sessionStreams) delete(sessionID string) {
-	if sessionID == "" {
-		return
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.sessions, sessionID)
+	delete(s.sessions, sessionID) // no-op for "" or an unknown id
 }
 
 // count returns the number of active sessions. Used by tests to observe the

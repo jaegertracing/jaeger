@@ -99,6 +99,47 @@ func TestMCPSessionHandlerDispatchesUIToolToStream(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "show_chart")
 }
 
+// TestMCPSessionHandlerIsolatesSessions is the key guarantee of the single
+// shared server: two sessions declaring different UI tools each see only their
+// own (plus the shared telemetry tools), and a UI-tool call reaches only the
+// calling session's stream. If the middleware ever resolved the wrong session
+// from the request context, this would cross the wires.
+func TestMCPSessionHandlerIsolatesSessions(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	streams := newSessionStreams()
+	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
+	streams.set("sess-a", newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
+	streams.set("sess-b", newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
+
+	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	mux := http.NewServeMux()
+	mux.Handle(routeMCPSession, h)
+	mux.Handle(routeMCPSessionNoSlash, h)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	sessionA := connectSessionMCP(t, ts, "/api/ai/mcp/sess-a/")
+	sessionB := connectSessionMCP(t, ts, "/api/ai/mcp/sess-b/")
+
+	listA, err := sessionA.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	listB, err := sessionB.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	namesA, namesB := toolNames(listA.Tools), toolNames(listB.Tools)
+
+	assert.Contains(t, namesA, "chart_a")
+	assert.NotContains(t, namesA, "chart_b", "session A must not see session B's UI tools")
+	assert.Contains(t, namesB, "chart_b")
+	assert.NotContains(t, namesB, "chart_a", "session B must not see session A's UI tools")
+	assert.Contains(t, namesA, "get_services", "both sessions still see the shared telemetry tools")
+	assert.Contains(t, namesB, "get_services")
+
+	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: "chart_a"})
+	require.NoError(t, err)
+	assert.Contains(t, recA.Body.String(), "chart_a", "the dispatch reaches the calling session's stream")
+	assert.NotContains(t, recB.Body.String(), "chart_a", "the other session's stream is untouched")
+}
+
 func TestMCPSessionHandlerRejectsUnknownSession(t *testing.T) {
 	ts, _ := sessionMCPServer(t, nil)
 	for _, p := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
