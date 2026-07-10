@@ -11,6 +11,7 @@ PREFERRED="1111111111111111111111111111111111111111"
 NEWEST="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 MAIN_SHA="2222222222222222222222222222222222222222"
 PUBLISHED="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+OLDER="cccccccccccccccccccccccccccccccccccccccc"
 
 oneTimeSetUp() {
   TMPDIR_TEST=$(mktemp -d)
@@ -56,7 +57,7 @@ case "\$url" in
     emit "200" '{"digest":"sha256:newest"}'
     ;;
   */tags/?page_size=*)
-    emit "200" '{"results":[{"name":"latest"},{"name":"${NEWEST}"}]}'
+    emit "200" '{"results":[{"name":"latest"},{"name":"'${NEWEST}'"},{"name":"'${OLDER}'"}]}'
     ;;
   *)
     emit "500" '{}'

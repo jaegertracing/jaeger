@@ -64,7 +64,7 @@ newest_published_sha() {
     return 1
   fi
 
-  tag=$(jq -r '.results[].name | select(test("^[0-9a-f]{40}$"))' /tmp/docker-tags-page.json | head -1)
+  tag=$(jq -r '[.results[].name | select(test("^[0-9a-f]{40}$"))][0] // empty' /tmp/docker-tags-page.json)
   if [[ -z "$tag" ]]; then
     echo "No published snapshot SHA tags found for ${repo}" >&2
     return 1
