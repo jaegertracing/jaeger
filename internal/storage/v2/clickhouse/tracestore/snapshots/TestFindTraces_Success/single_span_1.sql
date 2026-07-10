@@ -76,14 +76,17 @@ WHERE s.trace_id IN (
 		    min(t.start) AS start,
 		    max(t.end) AS end
 		FROM (
-			SELECT DISTINCT
+			SELECT
 			    s.trace_id
 			FROM spans s
 			WHERE 1=1
+			GROUP BY s.trace_id
+			ORDER BY max(s.start_time) DESC, s.trace_id
 			LIMIT ?
 		) l
 		LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
 		GROUP BY l.trace_id
+		ORDER BY end DESC, l.trace_id
 	)
 )
 ORDER BY s.trace_id
