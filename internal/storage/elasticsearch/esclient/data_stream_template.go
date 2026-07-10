@@ -46,6 +46,15 @@ type dataStreamTemplate struct {
 	body string
 }
 
+// spanIndexTemplateBody is the decoded form of the version-neutral span index
+// template (index_templates/jaeger-span.json) that the rotation path also renders.
+// Settings are held as raw JSON so the data stream reuses the span index's own bytes
+// rather than restating them; mappings are decoded because a data stream adds a field.
+type spanIndexTemplateBody struct {
+	Settings json.RawMessage `json:"settings"`
+	Mappings map[string]any  `json:"mappings"`
+}
+
 // CreateDataStreamTemplates installs the three objects that back the span data
 // stream (RFC 0004 §3.2): the "@mappings" and "@settings" component templates and
 // the composable index template that composes them with "data_stream": {}. The
@@ -86,97 +95,100 @@ func (i IndicesClient) putComposableTemplate(ctx context.Context, api, name, bod
 	return nil
 }
 
-// renderSpanDataStreamTemplates renders the three span data-stream objects in the
-// order they must be created: the two component templates first, then the index
-// template that composes them.
+// renderSpanDataStreamTemplates renders the three span data-stream objects from the
+// span index template.
 func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate, error) {
-	base := indices.IndexPrefix.DataStreamName(spanDataStreamBase)
-	mappings, err := renderSpanDataStreamMappings()
+	body, err := renderSpanIndexTemplateBody(indices)
 	if err != nil {
 		return nil, err
 	}
-	settings, err := renderSpanDataStreamSettings(indices)
+	return spanDataStreamTemplates(indices.IndexPrefix.DataStreamName(spanDataStreamBase), body)
+}
+
+// spanDataStreamTemplates builds the three objects in the order they must be
+// created. It takes an already-rendered body rather than the config so its failure
+// paths — a body whose mappings or settings cannot become a component — are directly
+// unit-testable rather than unreachable behind the embedded template.
+func spanDataStreamTemplates(base string, body spanIndexTemplateBody) ([]dataStreamTemplate, error) {
+	mappings, err := renderMappingsComponent(body.Mappings)
+	if err != nil {
+		return nil, err
+	}
+	settings, err := renderSettingsComponent(body.Settings)
+	if err != nil {
+		return nil, err
+	}
+	indexTemplate, err := renderSpanDataStreamIndexTemplate(base)
 	if err != nil {
 		return nil, err
 	}
 	return []dataStreamTemplate{
 		{componentTemplateAPI, base + componentMappingsSuffix, mappings},
 		{componentTemplateAPI, base + componentSettingsSuffix, settings},
-		{composableTemplateAPI, base, renderSpanDataStreamIndexTemplate(base)},
+		{composableTemplateAPI, base, indexTemplate},
 	}, nil
 }
 
-// renderSpanDataStreamMappings renders the "@mappings" component template body:
-// the span field mappings plus the data-stream "@timestamp" field. The field
-// mappings are lifted from the span index template (jaeger-span.json) so the data
-// stream stays a single source of truth with the rotation path instead of
-// duplicating the schema; a drift test guards that they match.
-func renderSpanDataStreamMappings() (string, error) {
+// renderSpanIndexTemplateBody renders index_templates/jaeger-span.json with
+// lifecycle off. The read alias and the ILM/ISM settings are the only fields that
+// consume IndexPrefix, and both carry rotation-path names a data stream must not
+// inherit; the data stream's own lifecycle policy is attached in a later slice.
+func renderSpanIndexTemplateBody(indices config.Indices) (spanIndexTemplateBody, error) {
+	opts := indices.Spans
+	if opts.Replicas == nil {
+		return spanIndexTemplateBody{}, errors.New("span index options have no replica count configured")
+	}
 	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, SpanMapping.file(), innerParams{}); err != nil {
-		return "", fmt.Errorf("failed to render span mappings: %w", err)
+	if err := indexTemplates.ExecuteTemplate(&buf, SpanMapping.file(), innerParams{
+		Shards:   opts.Shards,
+		Replicas: *opts.Replicas,
+	}); err != nil {
+		return spanIndexTemplateBody{}, fmt.Errorf("failed to render span index template: %w", err)
 	}
-	return spanMappingsComponent(buf.Bytes())
+	return parseSpanIndexTemplateBody(buf.Bytes())
 }
 
-// spanMappingsComponent extracts the "mappings" object from a rendered span index
-// template. It takes the rendered template as bytes so its parse failure is
-// directly unit-testable rather than unreachable.
-func spanMappingsComponent(renderedSpanTemplate []byte) (string, error) {
-	var parsed struct {
-		Mappings map[string]any `json:"mappings"`
+// parseSpanIndexTemplateBody decodes a rendered span index template. It takes bytes
+// so its failure paths are directly unit-testable rather than unreachable behind the
+// embedded template.
+func parseSpanIndexTemplateBody(rendered []byte) (spanIndexTemplateBody, error) {
+	var body spanIndexTemplateBody
+	if err := json.Unmarshal(rendered, &body); err != nil {
+		return spanIndexTemplateBody{}, fmt.Errorf("failed to parse span index template: %w", err)
 	}
-	if err := json.Unmarshal(renderedSpanTemplate, &parsed); err != nil {
-		return "", fmt.Errorf("failed to parse span mappings: %w", err)
+	if len(body.Settings) == 0 {
+		return spanIndexTemplateBody{}, errors.New("span index template has no settings object")
 	}
-	return mappingsComponentBody(parsed.Mappings)
+	return body, nil
 }
 
-// mappingsComponentBody wraps a mappings object as a component-template body,
-// adding the "@timestamp" field data streams require (date_nanos preserves the
-// OTLP nanosecond precision Jaeger writes, see RFC 0004 §3.3).
-func mappingsComponentBody(mappings map[string]any) (string, error) {
+// renderMappingsComponent renders the "@mappings" component body: the span field
+// mappings plus the "@timestamp" field every data stream must map (date_nanos
+// preserves the nanosecond precision Jaeger writes, RFC 0004 §3.3).
+func renderMappingsComponent(mappings map[string]any) (string, error) {
 	properties, ok := mappings["properties"].(map[string]any)
 	if !ok {
 		return "", errors.New("span index template mappings have no properties object")
 	}
 	properties["@timestamp"] = map[string]any{"type": "date_nanos"}
-
-	out, err := json.Marshal(map[string]any{"template": map[string]any{"mappings": mappings}})
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal span data stream mappings: %w", err)
-	}
-	return string(out), nil
+	return marshalTemplateBody("span data stream mappings",
+		map[string]any{"template": map[string]any{"mappings": mappings}})
 }
 
-// renderSpanDataStreamSettings renders the "@settings" component template body:
-// the span shard/replica counts and the fixed index settings, matching the span
-// index template. The lifecycle-policy reference is intentionally left out — it is
-// added with the default ISM/ILM policy in a later slice.
-func renderSpanDataStreamSettings(indices config.Indices) (string, error) {
-	opts := indices.Spans
-	if opts.Replicas == nil {
-		return "", errors.New("span index options have no replica count configured")
-	}
-	out, _ := json.Marshal(map[string]any{
-		"template": map[string]any{
-			"settings": map[string]any{
-				"index.number_of_shards":            opts.Shards,
-				"index.number_of_replicas":          *opts.Replicas,
-				"index.mapping.nested_fields.limit": 50,
-				"index.requests.cache.enable":       true,
-			},
-		},
-	})
-	return string(out), nil
+// renderSettingsComponent renders the "@settings" component body from the span index
+// template's own settings, carried through as raw JSON. Deriving them rather than
+// restating them is what keeps the shard and replica counts and the fixed index
+// settings from diverging between the rotation and data-stream write paths.
+func renderSettingsComponent(settings json.RawMessage) (string, error) {
+	return marshalTemplateBody("span data stream settings",
+		map[string]any{"template": map[string]any{"settings": settings}})
 }
 
 // renderSpanDataStreamIndexTemplate renders the composable index template that
 // declares the span data stream (RFC 0004 §3.2). It composes Jaeger's "@mappings"
-// and "@settings" components with the user-controlled "@custom" one, which is
-// marked ignore_missing so the template is valid before the user creates it.
-func renderSpanDataStreamIndexTemplate(base string) string {
-	// This body is fixed-shape (only strings and ints), so marshaling cannot fail.
+// and "@settings" components with the user-controlled "@custom" one, which is marked
+// ignore_missing so the template is valid before the user creates it.
+func renderSpanDataStreamIndexTemplate(base string) (string, error) {
 	type composableTemplate struct {
 		IndexPatterns                   []string `json:"index_patterns"`
 		DataStream                      struct{} `json:"data_stream"`
@@ -184,7 +196,7 @@ func renderSpanDataStreamIndexTemplate(base string) string {
 		Priority                        int      `json:"priority"`
 		IgnoreMissingComponentTemplates []string `json:"ignore_missing_component_templates"`
 	}
-	out, _ := json.Marshal(composableTemplate{
+	return marshalTemplateBody("span data stream index template", composableTemplate{
 		IndexPatterns: []string{base},
 		ComposedOf: []string{
 			base + componentMappingsSuffix,
@@ -194,5 +206,15 @@ func renderSpanDataStreamIndexTemplate(base string) string {
 		Priority:                        dataStreamTemplatePriority,
 		IgnoreMissingComponentTemplates: []string{base + componentCustomSuffix},
 	})
-	return string(out)
+}
+
+// marshalTemplateBody serializes a template body. Every PUT body is built here, so a
+// payload that cannot serialize fails the call rather than leaving json.Marshal's
+// empty result behind and PUTting an empty template.
+func marshalTemplateBody(what string, body any) (string, error) {
+	out, err := json.Marshal(body)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal %s: %w", what, err)
+	}
+	return string(out), nil
 }
