@@ -57,15 +57,16 @@ jobs:
       OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
       JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY: jaegertracing/jaeger-snapshot
       JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY: jaegertracing/example-hotrod-snapshot
-      # Scheduled runs deploy :latest (last published snapshot), not github.sha.
-      JAEGER_DEMO_IMAGE_TAG: ${{ github.event_name == 'schedule' && 'latest' || (github.event.inputs.image_tag || github.sha) }}
-      JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event_name == 'schedule' && 'latest' || (github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha) }}
-      JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event_name == 'schedule' && 'latest' || (github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha) }}
+      JAEGER_DEMO_IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+      JAEGER_DEMO_JAEGER_IMAGE_TAG: ${{ github.event.inputs.jaeger_image_tag || github.event.inputs.image_tag || github.sha }}
+      JAEGER_DEMO_HOTROD_IMAGE_TAG: ${{ github.event.inputs.hotrod_image_tag || github.event.inputs.image_tag || github.sha }}
       JAEGER_DEMO_IMAGE_PULL_POLICY: Always
       JAEGER_DEMO_DEPLOY_MODE: ${{ github.event.inputs.deploy_mode || 'upgrade' }}
       JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
       JAEGER_OTEL_DEMO_DEPLOY_SCOPE: ${{ github.event.inputs.otel_deploy_scope || 'jaeger' }}
       RUN_PUBLIC_SMOKE_TESTS: "true"
+      MAIN_SHA: ${{ github.sha }}
+      GITHUB_EVENT_NAME: ${{ github.event_name }}
 
     steps:
     - name: Configure kubectl with OKE
@@ -80,81 +81,11 @@ jobs:
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
+    - name: Resolve and verify snapshot image tags
+      run: bash scripts/utils/resolve-demo-snapshot-tags.sh
+
     - name: Deploy using appropriate script
       run: |
-        MAIN_SHA="${{ github.sha }}"
-
-        dockerhub_tag_status() {
-          local repo=$1
-          local tag=$2
-
-          curl -sS --connect-timeout 5 --max-time 15 --retry 3 --retry-delay 2 \
-            -o /tmp/docker-tag.json -w "%{http_code}" \
-            "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}/" || echo "000"
-        }
-
-        dockerhub_digest() {
-          local repo=$1
-          local tag=$2
-          local status
-
-          status=$(dockerhub_tag_status "$repo" "$tag")
-          if [[ "$status" != "200" ]]; then
-            return 1
-          fi
-          jq -r '.digest // empty' /tmp/docker-tag.json
-        }
-
-        verify_deploy_tag() {
-          local repo=$1
-          local tag=$2
-          local label=$3
-          local http_code
-
-          http_code=$(dockerhub_tag_status "$repo" "$tag")
-          if [[ "$http_code" == "404" ]]; then
-            echo "::error::Snapshot image tag not found on Docker Hub: ${repo}:${tag} (${label})"
-            exit 1
-          elif [[ "$http_code" != "200" ]]; then
-            echo "::error::Failed to verify Docker Hub tag for ${repo}:${tag} (${label}); Docker Hub API returned HTTP ${http_code}."
-            exit 1
-          fi
-        }
-
-        warn_snapshot_drift() {
-          local repo=$1
-          local label=$2
-          local deploy_tag=$3
-          local latest_digest
-          local main_digest
-          local main_status
-
-          latest_digest=$(dockerhub_digest "$repo" latest) || {
-            echo "::warning::Could not resolve Docker Hub digest for ${repo}:latest; skipping drift check for ${label}."
-            return
-          }
-
-          main_status=$(dockerhub_tag_status "$repo" "$MAIN_SHA")
-          if [[ "$main_status" == "200" ]]; then
-            main_digest=$(jq -r '.digest // empty' /tmp/docker-tag.json)
-            if [[ "$deploy_tag" == "latest" && "$latest_digest" != "$main_digest" ]]; then
-              echo "::warning::Deploying ${repo}:${deploy_tag} (${latest_digest}) but main (${MAIN_SHA}) points to a different ${label} snapshot (${main_digest}). Demo may be behind main."
-            elif [[ "$deploy_tag" == "$MAIN_SHA" && "$main_digest" != "$latest_digest" ]]; then
-              echo "::warning::Deploying ${repo}:${deploy_tag} (${main_digest}) but :latest points to a different ${label} snapshot (${latest_digest})."
-            fi
-          elif [[ "$deploy_tag" == "latest" && "$main_status" == "404" ]]; then
-            echo "::warning::Deploying ${repo}:latest because main (${MAIN_SHA}) has no published ${label} snapshot image."
-          elif [[ "$deploy_tag" == "latest" ]]; then
-            echo "::warning::Could not compare main (${MAIN_SHA}) snapshot for ${label}; Docker Hub API returned HTTP ${main_status}. Skipping drift check."
-          fi
-        }
-
-        echo "Deploy: main=${MAIN_SHA}, Jaeger tag=${JAEGER_DEMO_JAEGER_IMAGE_TAG}, HotROD tag=${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
-        verify_deploy_tag "${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY}" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}" "Jaeger"
-        verify_deploy_tag "${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY}" "${JAEGER_DEMO_HOTROD_IMAGE_TAG}" "HotROD"
-        warn_snapshot_drift "${JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY}" "Jaeger" "${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
-        warn_snapshot_drift "${JAEGER_DEMO_HOTROD_IMAGE_REPOSITORY}" "HotROD" "${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
-
         echo "🔄 Deploying demo stack ${JAEGER_DEMO_STACK} in ${JAEGER_DEMO_DEPLOY_MODE} mode"
         echo "🔄 Deploying Jaeger snapshot image tag ${JAEGER_DEMO_JAEGER_IMAGE_TAG}"
         echo "🔄 Deploying HotROD snapshot image tag ${JAEGER_DEMO_HOTROD_IMAGE_TAG}"
