@@ -116,8 +116,8 @@ jobs:
           local main_digest
 
           latest_digest=$(dockerhub_digest "$repo" latest) || {
-            echo "::error::Could not resolve Docker Hub digest for ${repo}:latest"
-            exit 1
+            echo "::warning::Could not resolve Docker Hub digest for ${repo}:latest; skipping drift check for ${label}."
+            return
           }
 
           if main_digest=$(dockerhub_digest "$repo" "$MAIN_SHA"); then
