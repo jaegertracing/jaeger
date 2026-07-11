@@ -8,8 +8,8 @@
 # Scheduled runs prefer MAIN_SHA when published; otherwise they deploy the
 # newest published commit SHA tag (never the mutable :latest tag).
 #
-# Manual workflow_dispatch runs use the requested tag (default MAIN_SHA) and
-# fail if that tag is missing.
+# Manual workflow_dispatch runs use the requested tag (default MAIN_SHA), resolve
+# latest to a concrete SHA tag, and fail if the requested tag is missing.
 #
 # Jaeger and HotROD tags are resolved independently; each image is
 # published to its own repository and may fall back to a different SHA.
@@ -72,7 +72,9 @@ newest_published_sha() {
     return 1
   fi
 
-  if ! tag=$(jq -r '[.results[].name | select(test("^[0-9a-f]{40}$"))][0] // empty' "$tags_file"); then
+  # Sort by last_updated in jq rather than trusting the API's ordering param,
+  # whose direction for this endpoint is undocumented and has flipped before.
+  if ! tag=$(jq -r '[.results[] | select(.name | test("^[0-9a-f]{40}$"))] | sort_by(.last_updated) | last | .name // empty' "$tags_file"); then
     rm -f "$tags_file"
     return 1
   fi
@@ -112,6 +114,12 @@ resolve_snapshot_tag() {
   if [[ -z "$preferred" ]]; then
     echo "Preferred tag is empty for ${label}" >&2
     return 1
+  fi
+
+  if [[ "$preferred" == "latest" ]]; then
+    resolved=$(newest_published_sha "$repo") || return 1
+    echo "$resolved"
+    return 0
   fi
 
   status=$(dockerhub_tag_status "$repo" "$preferred")

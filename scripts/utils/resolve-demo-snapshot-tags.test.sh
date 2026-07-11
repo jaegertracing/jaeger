@@ -59,7 +59,7 @@ case "\$url" in
     emit "200" '{"digest":"sha256:newest"}'
     ;;
   */tags/?page_size=*ordering=last_updated*)
-    emit "200" '{"results":[{"name":"latest"},{"name":"'${NEWEST}'"},{"name":"'${OLDER}'"}]}'
+    emit "200" '{"results":[{"name":"latest","last_updated":"2026-07-11T00:00:00Z"},{"name":"'${OLDER}'","last_updated":"2023-01-01T00:00:00Z"},{"name":"'${NEWEST}'","last_updated":"2026-07-10T00:00:00Z"}]}'
     ;;
   */tags/?page_size=*)
     emit "500" '{"error":"unexpected ordering"}'
@@ -122,6 +122,17 @@ testScheduledFallsBackToNewestPublishedSha() {
   assertContains "$out" "Jaeger tag=$NEWEST"
   assertContains "$out" "HotROD tag=$NEWEST"
   assertContains "$out" "Main HEAD ${MAIN_SHA} has no published Jaeger snapshot"
+}
+
+testLatestInputResolvesToNewestPublishedSha() {
+  out=$(run_script \
+    GITHUB_EVENT_NAME=workflow_dispatch \
+    JAEGER_DEMO_JAEGER_IMAGE_TAG=latest \
+    JAEGER_DEMO_HOTROD_IMAGE_TAG=latest 2>&1)
+  rc=$?
+  assertEquals "exit 0" 0 $rc
+  assertContains "$out" "Jaeger tag=$NEWEST"
+  assertContains "$out" "HotROD tag=$NEWEST"
 }
 
 testManualDispatchFailsWhenTagMissing() {
