@@ -794,7 +794,10 @@ func TestGetDependencies(t *testing.T) {
 		EndTime:   span1StartTime.Add(5 * time.Second),
 	})
 	require.NoError(t, err)
-	assert.Len(t, boundaryDeps, 2)
+	assert.ElementsMatch(t, []model.DependencyLink{
+		{Parent: "service-y", Child: "service-x", CallCount: 2},
+		{Parent: "service-z", Child: "service-y", CallCount: 1},
+	}, boundaryDeps)
 
 	// A query whose window falls strictly inside the trace's span, so the trace is excluded.
 	emptyDeps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{

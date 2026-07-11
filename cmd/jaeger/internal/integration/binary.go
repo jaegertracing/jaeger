@@ -36,6 +36,11 @@ func (b *Binary) Start(t *testing.T) {
 		os.ModePerm,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := outFile.Close(); err != nil {
+			t.Logf("Failed to close output log file: %v", err)
+		}
+	})
 	t.Logf("Writing the %s output logs into %s", b.Name, outFile.Name())
 
 	errFile, err := os.OpenFile(
@@ -44,6 +49,11 @@ func (b *Binary) Start(t *testing.T) {
 		os.ModePerm,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := errFile.Close(); err != nil {
+			t.Logf("Failed to close error log file: %v", err)
+		}
+	})
 	t.Logf("Writing the %s error logs into %s", b.Name, errFile.Name())
 
 	b.Stdout = outFile
@@ -58,12 +68,6 @@ func (b *Binary) Start(t *testing.T) {
 		// t.Failed() may not return true when the test times out with a panic.
 		if t.Failed() || os.Getenv("GITHUB_ACTIONS") == "true" {
 			b.dumpLogs(t, outFile, errFile)
-		}
-		if err := outFile.Close(); err != nil {
-			t.Logf("Failed to close output log file: %v", err)
-		}
-		if err := errFile.Close(); err != nil {
-			t.Logf("Failed to close error log file: %v", err)
 		}
 	})
 	client := testingHttpClient(t)
