@@ -72,8 +72,10 @@ newest_published_sha() {
     return 1
   fi
 
-  # Sort by last_updated in jq rather than trusting the API's ordering param,
-  # whose direction for this endpoint is undocumented and has flipped before.
+  # Both snapshot repos have far more than one page of SHA tags, so we rely on
+  # ordering=last_updated to surface the newest tags on the first (only) page we
+  # fetch, then sort that page by last_updated as a guard against out-of-order
+  # results and take the newest. This does not scan beyond the first page.
   if ! tag=$(jq -r '[.results[] | select(.name | test("^[0-9a-f]{40}$"))] | sort_by(.last_updated) | last | .name // empty' "$tags_file"); then
     rm -f "$tags_file"
     return 1
