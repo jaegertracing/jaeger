@@ -5,10 +5,12 @@ package esclient
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -136,6 +138,62 @@ func TestSyncBulkWriter_ItemCountMismatch(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "malformed bulk response: 1 item results for 2 documents")
+}
+
+func TestSyncBulkWriter_CapsReportedFailures(t *testing.T) {
+	const n = maxReportedFailures + 5
+	items := make([]string, n)
+	sent := make([]BulkItem, n)
+	for i := range items {
+		items[i] = fmt.Sprintf(`{"create":{"_index":"idx-%d","status":400,"error":{"type":"x","reason":"y"}}}`, i)
+		sent[i] = BulkItem{Index: "idx", Body: map[string]any{"a": i}}
+	}
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` + strings.Join(items, ",") + `]}`))
+	})
+	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+
+	err := w.Bulk(context.Background(), sent)
+	require.Error(t, err)
+	// The true counts are always reported...
+	assert.Contains(t, err.Error(), fmt.Sprintf("%d of %d bulk items rejected", n, n))
+	// ...but only maxReportedFailures reasons are rendered, plus an "and N more".
+	assert.Contains(t, err.Error(), fmt.Sprintf("…and %d more", n-maxReportedFailures))
+	assert.Contains(t, err.Error(), "idx-0")
+	assert.NotContains(t, err.Error(), fmt.Sprintf("idx-%d", maxReportedFailures), "reasons past the cap are omitted")
+}
+
+func TestSyncBulkWriter_TruncatesErrorPayload(t *testing.T) {
+	huge := strings.Repeat("A", 5000)
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[{"create":{"_index":"idx","status":400,"error":{"reason":"` + huge + `"}}}]}`))
+	})
+	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+
+	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "…")
+	assert.NotContains(t, err.Error(), huge, "the raw error payload must not appear in full")
+	assert.Less(t, len(err.Error()), 600, "the rendered error must be bounded")
+}
+
+func TestSyncBulkWriter_ErrorsFlagWithoutFailingItem(t *testing.T) {
+	// A malformed response with errors:true but every item succeeded reports no
+	// actual rejection, so the chunk is treated as durable.
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[{"index":{"_index":"idx","status":200}}]}`))
+	})
+	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}}))
+}
+
+func TestTruncateUTF8(t *testing.T) {
+	assert.Equal(t, "abc", truncateUTF8("abc", 10), "no truncation when within limit")
+	assert.Equal(t, "ab…", truncateUTF8("abcdef", 2), "ASCII cut at the byte limit")
+	// "x€y" is x(1) + €(E2 82 AC, 3) + y(1). Cutting at byte 2 lands mid-€, so it
+	// backs up to the rune start (byte 1) rather than emit invalid UTF-8.
+	assert.Equal(t, "x…", truncateUTF8("x€y", 2), "back up to a rune boundary")
+	assert.True(t, utf8.ValidString(truncateUTF8("€€€", 2)), "never emits invalid UTF-8")
 }
 
 func TestSyncBulkWriter_UnparsableResponse(t *testing.T) {

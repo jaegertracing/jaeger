@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"go.uber.org/zap"
 
@@ -22,6 +23,17 @@ import (
 // defaultSyncBulkMaxBytes bounds a single _bulk chunk when the config leaves
 // maxBytes unset. It mirrors the async indexer's 5 MB default.
 const defaultSyncBulkMaxBytes = 5 * 1024 * 1024
+
+const (
+	// maxReportedFailures caps how many rejected items' reasons are rendered into
+	// the returned error. A whole-batch rejection (e.g. the backend is down) can
+	// fail every item, so without a cap the error string would be enormous; the
+	// true rejected/total counts are always reported regardless.
+	maxReportedFailures = 20
+	// maxErrorPayloadBytes bounds each rendered per-item error object, which the
+	// backend can return arbitrarily large.
+	maxErrorPayloadBytes = 256
+)
 
 // SyncBulkWriter issues synchronous, size-bounded _bulk requests over the shared
 // transport. Unlike the async BulkIndexer — which enqueues into esutil and reports
@@ -159,11 +171,20 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 		success = true
 		return count, nil
 	}
-	reasons := resp.failureReasons()
+	failed, sample := resp.failures()
+	if failed == 0 {
+		// errors:true but no item reported a failing status — nothing was actually
+		// rejected, so the chunk is durable.
+		success = true
+		return count, nil
+	}
 	w.logger.Error("synchronous bulk write had rejected items",
-		zap.Int("rejected", len(reasons)), zap.Int("total", count))
-	return count - len(reasons), fmt.Errorf("%d of %d bulk items rejected: %s",
-		len(reasons), count, strings.Join(reasons, "; "))
+		zap.Int("rejected", failed), zap.Int("total", count))
+	msg := strings.Join(sample, "; ")
+	if failed > len(sample) {
+		msg += fmt.Sprintf("; …and %d more", failed-len(sample))
+	}
+	return count - failed, fmt.Errorf("%d of %d bulk items rejected: %s", failed, count, msg)
 }
 
 // encodeBulkItem renders one document as its two NDJSON lines: the action line
@@ -209,21 +230,38 @@ type bulkItemState struct {
 	Error  json.RawMessage `json:"error"`
 }
 
-// failureReasons returns a human-readable reason for every rejected item (HTTP
-// status ≥ 400 or a present error object), for inclusion in the returned error.
-func (r bulkResponse) failureReasons() []string {
-	var reasons []string
+// failures returns the number of rejected items (HTTP status ≥ 400 or a present
+// error object) and a bounded, human-readable sample of their reasons — at most
+// maxReportedFailures entries, each error payload truncated to maxErrorPayloadBytes
+// — so the returned error stays small even when an entire large batch is rejected.
+func (r bulkResponse) failures() (count int, sample []string) {
 	for _, item := range r.Items {
 		for _, state := range item { // one action entry per item
 			if state.Status < http.StatusBadRequest && len(state.Error) == 0 {
 				continue
 			}
+			count++
+			if len(sample) >= maxReportedFailures {
+				continue
+			}
 			reason := fmt.Sprintf("index=%s status=%d", state.Index, state.Status)
 			if len(state.Error) > 0 {
-				reason += " error=" + string(state.Error)
+				reason += " error=" + truncateUTF8(string(state.Error), maxErrorPayloadBytes)
 			}
-			reasons = append(reasons, reason)
+			sample = append(sample, reason)
 		}
 	}
-	return reasons
+	return count, sample
+}
+
+// truncateUTF8 shortens s to at most maxBytes, backing up to a rune boundary so
+// it never emits invalid UTF-8, and appends an ellipsis when it cuts.
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+		maxBytes--
+	}
+	return s[:maxBytes] + "…"
 }
