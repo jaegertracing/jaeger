@@ -78,6 +78,7 @@ oneTimeTearDown() {
 
 run_script() {
   env \
+    GITHUB_ENV= \
     DOCKERHUB_CURL="$MOCK_CURL" \
     MAIN_SHA="$MAIN_SHA" \
     JAEGER_DEMO_JAEGER_IMAGE_REPOSITORY="$REPO" \
