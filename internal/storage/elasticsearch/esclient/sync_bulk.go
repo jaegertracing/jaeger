@@ -168,14 +168,12 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	if len(resp.Items) != count {
 		return 0, fmt.Errorf("malformed bulk response: %d item results for %d documents", len(resp.Items), count)
 	}
-	if !resp.Errors {
-		success = true
-		return count, nil
-	}
+	// Derive failures from the per-item statuses, not the top-level `errors` flag:
+	// a malformed or proxied response could report errors:false while an item still
+	// carries a failing status, and silently succeeding there would advance the
+	// Kafka offset over lost data — exactly what this synchronous writer prevents.
 	failed, sample := resp.failures()
 	if failed == 0 {
-		// errors:true but no item reported a failing status — nothing was actually
-		// rejected, so the chunk is durable.
 		success = true
 		return count, nil
 	}
@@ -218,11 +216,12 @@ func encodeBulkItem(item BulkItem) ([]byte, error) {
 	return blob, nil
 }
 
-// bulkResponse is the subset of the _bulk response we act on: the top-level
-// errors flag and each item's action-keyed result (status + optional error).
+// bulkResponse is the subset of the _bulk response we act on: each item's
+// action-keyed result (status + optional error). The top-level `errors` flag is
+// intentionally not parsed — failures are derived from the per-item statuses, so
+// a malformed response that omits or negates the flag cannot hide a rejection.
 type bulkResponse struct {
-	Errors bool                       `json:"errors"`
-	Items  []map[string]bulkItemState `json:"items"`
+	Items []map[string]bulkItemState `json:"items"`
 }
 
 type bulkItemState struct {

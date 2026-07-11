@@ -178,6 +178,19 @@ func TestSyncBulkWriter_TruncatesErrorPayload(t *testing.T) {
 	assert.Less(t, len(err.Error()), 600, "the rendered error must be bounded")
 }
 
+func TestSyncBulkWriter_ItemFailureDespiteErrorsFalse(t *testing.T) {
+	// A malformed response with errors:false but a failing item must still be
+	// surfaced — failures are derived from per-item status, not the top-level flag,
+	// so a rejection can never be silently committed.
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":false,"items":[{"create":{"_index":"idx","status":400,"error":{"reason":"bad"}}}]}`))
+	})
+	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
+}
+
 func TestSyncBulkWriter_ErrorsFlagWithoutFailingItem(t *testing.T) {
 	// A malformed response with errors:true but every item succeeded reports no
 	// actual rejection, so the chunk is treated as durable.
