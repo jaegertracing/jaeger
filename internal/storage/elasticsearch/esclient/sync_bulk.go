@@ -85,30 +85,16 @@ func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
 		return nil
 	}
 
-	blobs := make([][]byte, len(items))
-	for i := range items {
-		blob, err := encodeBulkItem(items[i])
-		if err != nil {
-			// A span/service document is JSON-encodable, but a caller could pass a
-			// Body that json.Marshal rejects (an unsupported or cyclic value), so
-			// this is reachable; fail the whole batch rather than write it partially.
-			w.metrics.Attempts.Inc(int64(len(items)))
-			w.metrics.Errors.Inc(int64(len(items)))
-			return fmt.Errorf("failed to encode bulk document for index %q: %w", items[i].Index, err)
-		}
-		blobs[i] = blob
-	}
-
 	var (
 		errs      []error
 		chunk     []byte
 		chunkLen  int
 		succeeded int
 	)
-	// flush is only ever called with a non-empty chunk: the empty batch returned
-	// above, the in-loop flush is guarded by chunkLen > 0, and the final flush
-	// runs after at least one item was appended.
 	flush := func() {
+		if chunkLen == 0 {
+			return
+		}
 		ok, err := w.sendChunk(ctx, chunk, chunkLen)
 		succeeded += ok
 		if err != nil {
@@ -116,7 +102,22 @@ func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
 		}
 		chunk, chunkLen = nil, 0
 	}
-	for _, blob := range blobs {
+	// Encode each document as we pack it, rather than pre-encoding the whole batch
+	// into a slice — that would hold the entire NDJSON payload in memory on top of
+	// the active chunk (a full extra copy), risking OOM for large retried batches.
+	// Only the current chunk (bounded by maxBytes) plus one transient document are
+	// live at a time.
+	for i := range items {
+		blob, err := encodeBulkItem(items[i])
+		if err != nil {
+			// A span/service document is JSON-encodable, but a caller could pass a
+			// Body json.Marshal rejects (an unsupported or cyclic value). Drop the
+			// pending chunk and fail; any chunks already flushed above are durable
+			// (unavoidable once split — tolerated under at-least-once).
+			errs = append(errs, fmt.Errorf("failed to encode bulk document for index %q: %w", items[i].Index, err))
+			chunk, chunkLen = nil, 0
+			break
+		}
 		// Keep one item per chunk minimum: only split once the chunk is non-empty.
 		if chunkLen > 0 && len(chunk)+len(blob) > w.maxBytes {
 			flush()
@@ -226,6 +227,7 @@ type bulkResponse struct {
 
 type bulkItemState struct {
 	Index  string          `json:"_index"`
+	ID     string          `json:"_id"`
 	Status int             `json:"status"`
 	Error  json.RawMessage `json:"error"`
 }
@@ -245,6 +247,9 @@ func (r bulkResponse) failures() (count int, sample []string) {
 				continue
 			}
 			reason := fmt.Sprintf("index=%s status=%d", state.Index, state.Status)
+			if state.ID != "" {
+				reason += " id=" + state.ID
+			}
 			if len(state.Error) > 0 {
 				reason += " error=" + truncateUTF8(string(state.Error), maxErrorPayloadBytes)
 			}

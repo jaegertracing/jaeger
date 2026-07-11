@@ -232,6 +232,7 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected")
+	assert.Contains(t, err.Error(), "id=sb-1", "the rejected item's _id aids debugging")
 
 	// The non-conflicting item was still durably written (now three documents).
 	require.Eventually(t, func() bool {

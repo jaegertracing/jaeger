@@ -91,7 +91,7 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, url := bulkServer(t, func(w http.ResponseWriter) {
 		w.Write([]byte(`{"took":2,"errors":true,"items":[` +
 			`{"index":{"_index":"idx","status":201}},` +
-			`{"create":{"_index":"idx","status":409,"error":{"type":"version_conflict_engine_exception","reason":"boom"}}}` +
+			`{"create":{"_index":"idx","_id":"dup-1","status":409,"error":{"type":"version_conflict_engine_exception","reason":"boom"}}}` +
 			`]}`))
 	})
 	core, logs := observer.New(zap.ErrorLevel)
@@ -103,6 +103,7 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected")
+	assert.Contains(t, err.Error(), "id=dup-1")
 	assert.Contains(t, err.Error(), "version_conflict_engine_exception")
 	assert.Positive(t, logs.FilterMessageSnippet("rejected items").Len())
 	mf.AssertCounterMetrics(
