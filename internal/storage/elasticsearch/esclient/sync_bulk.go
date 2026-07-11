@@ -28,8 +28,11 @@ const defaultSyncBulkMaxBytes = 5 * 1024 * 1024
 // failures only through callbacks — Bulk blocks until the backend has durably
 // acknowledged the batch and returns a real error on a transport failure or any
 // item-level rejection. It is the write primitive RFC 0007's synchronous mode
-// needs; it is a peer of BulkIndexer over the same Client, not a method on it
-// (esutil offers no blocking round-trip).
+// needs; it is a peer of BulkIndexer over the same Client, not a method on it.
+// (esutil's BulkIndexer does have a blocking Flush, but it reports per-item
+// outcomes only through OnSuccess/OnFailure callbacks over a shared, worker-pooled
+// buffer — Flush itself returns only transport-level errors — so it yields no clean
+// synchronous per-batch verdict; one direct _bulk round-trip does.)
 type SyncBulkWriter struct {
 	client   *Client
 	maxBytes int
