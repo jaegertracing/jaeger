@@ -188,13 +188,13 @@ func TestSyncBulkWriter_ErrorsFlagWithoutFailingItem(t *testing.T) {
 	require.NoError(t, w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}}))
 }
 
-func TestTruncateUTF8(t *testing.T) {
-	assert.Equal(t, "abc", truncateUTF8("abc", 10), "no truncation when within limit")
-	assert.Equal(t, "ab…", truncateUTF8("abcdef", 2), "ASCII cut at the byte limit")
+func TestTruncateBytes(t *testing.T) {
+	assert.Equal(t, "abc", truncateBytes([]byte("abc"), 10), "no truncation when within limit")
+	assert.Equal(t, "ab…", truncateBytes([]byte("abcdef"), 2), "ASCII cut at the byte limit")
 	// "x€y" is x(1) + €(E2 82 AC, 3) + y(1). Cutting at byte 2 lands mid-€, so it
 	// backs up to the rune start (byte 1) rather than emit invalid UTF-8.
-	assert.Equal(t, "x…", truncateUTF8("x€y", 2), "back up to a rune boundary")
-	assert.True(t, utf8.ValidString(truncateUTF8("€€€", 2)), "never emits invalid UTF-8")
+	assert.Equal(t, "x…", truncateBytes([]byte("x€y"), 2), "back up to a rune boundary")
+	assert.True(t, utf8.ValidString(truncateBytes([]byte("€€€"), 2)), "never emits invalid UTF-8")
 }
 
 func TestSyncBulkWriter_UnparsableResponse(t *testing.T) {

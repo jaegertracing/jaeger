@@ -251,7 +251,7 @@ func (r bulkResponse) failures() (count int, sample []string) {
 				reason += " id=" + state.ID
 			}
 			if len(state.Error) > 0 {
-				reason += " error=" + truncateUTF8(string(state.Error), maxErrorPayloadBytes)
+				reason += " error=" + truncateBytes(state.Error, maxErrorPayloadBytes)
 			}
 			sample = append(sample, reason)
 		}
@@ -259,14 +259,16 @@ func (r bulkResponse) failures() (count int, sample []string) {
 	return count, sample
 }
 
-// truncateUTF8 shortens s to at most maxBytes, backing up to a rune boundary so
-// it never emits invalid UTF-8, and appends an ellipsis when it cuts.
-func truncateUTF8(s string, maxBytes int) string {
-	if len(s) <= maxBytes {
-		return s
+// truncateBytes returns b as a string of at most maxBytes bytes, backing up to a
+// UTF-8 rune boundary so it never emits invalid UTF-8, and appending an ellipsis
+// when it cuts. It slices before converting to string, so a large payload is
+// never copied in full — the transient allocation is bounded to maxBytes.
+func truncateBytes(b []byte, maxBytes int) string {
+	if len(b) <= maxBytes {
+		return string(b)
 	}
-	for maxBytes > 0 && !utf8.RuneStart(s[maxBytes]) {
+	for maxBytes > 0 && !utf8.RuneStart(b[maxBytes]) {
 		maxBytes--
 	}
-	return s[:maxBytes] + "…"
+	return string(b[:maxBytes]) + "…"
 }
