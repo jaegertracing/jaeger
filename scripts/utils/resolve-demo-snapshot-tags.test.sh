@@ -58,8 +58,11 @@ case "\$url" in
   */tags/${NEWEST}/)
     emit "200" '{"digest":"sha256:newest"}'
     ;;
-  */tags/?page_size=*)
+  */tags/?page_size=*ordering=last_updated*)
     emit "200" '{"results":[{"name":"latest"},{"name":"'${NEWEST}'"},{"name":"'${OLDER}'"}]}'
+    ;;
+  */tags/?page_size=*)
+    emit "500" '{"error":"unexpected ordering"}'
     ;;
   *)
     emit "500" '{}'

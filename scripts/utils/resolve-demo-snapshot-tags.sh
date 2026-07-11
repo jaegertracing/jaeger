@@ -63,7 +63,7 @@ newest_published_sha() {
   tags_file=$(mktemp "${TMPDIR:-/tmp}/docker-tags-page.XXXXXX")
 
   status=$(run_curl -o "$tags_file" -w "%{http_code}" \
-    "https://hub.docker.com/v2/repositories/${repo}/tags/?page_size=100&ordering=-last_updated" || echo "000")
+    "https://hub.docker.com/v2/repositories/${repo}/tags/?page_size=100&ordering=last_updated" || echo "000")
   if [[ "$status" != "200" ]]; then
     rm -f "$tags_file"
     echo "Docker Hub tag list for ${repo} returned HTTP ${status}" >&2
