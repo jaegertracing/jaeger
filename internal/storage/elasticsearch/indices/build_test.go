@@ -135,6 +135,41 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024"},
 		},
 		{
+			// Regression test: previously dateLayout defaulted to "2006-01-02"
+			// (daily) regardless of RolloverFrequency, so setting only
+			// rollover_frequency: "month" produced daily-suffixed write indices
+			// read back with a ~28-day step, silently skipping most indices in
+			// a queried range. See PR discussion / Copilot review comment.
+			name: "monthly rollover frequency with omitted date layout defaults to monthly layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "month",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03",
+			wantRead:  []string{"jaeger-span-2024-03"},
+		},
+		{
+			name: "yearly rollover frequency with omitted date layout defaults to yearly layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "year",
+				}),
+			},
+			wantWrite: "jaeger-span-2024",
+			wantRead:  []string{"jaeger-span-2024"},
+		},
+		{
+			name: "hourly rollover frequency with omitted date layout defaults to hourly layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "hour",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03-15-00",
+			wantRead:  []string{"jaeger-span-2024-03-15-00"},
+		},
+		{
 			name: "data stream derives its name from the index prefix",
 			rc: config.RotationConfig{
 				DataStream: configoptional.Some(config.DataStreamRotation{}),
@@ -190,6 +225,39 @@ func TestBuildRotation_PeriodicRolloverFrequencyDuration(t *testing.T) {
 			assert.Equal(t, -config.RolloverFrequencyDuration(frequency), pr.rolloverFrequency)
 		})
 	}
+}
+
+// TestBuildRotation_MonthlyFrequencyWithoutDateLayoutDoesNotSkipIndices is a
+// regression test for a correctness bug found in review: when only
+// RolloverFrequency was set (no explicit DateLayout), BuildRotation used to
+// hardcode a daily DateLayout regardless of frequency. That meant real
+// indices were written daily, but ReadTargets stepped backwards using the
+// much coarser "month" duration (~28 days), silently skipping most of the
+// actual daily indices within a queried time range instead of an error.
+func TestBuildRotation_MonthlyFrequencyWithoutDateLayoutDoesNotSkipIndices(t *testing.T) {
+	logger := zap.NewNop()
+	rc := config.RotationConfig{
+		Periodic: configoptional.Some(config.PeriodicRotation{
+			// DateLayout intentionally omitted.
+			RolloverFrequency: "month",
+		}),
+	}
+	r := BuildRotation("", config.SpanIndexName, rc, nil, logger)
+
+	// DateLayout must default to monthly ("2006-01"), matching the frequency,
+	// not the old hardcoded daily default.
+	assert.Equal(t, "jaeger-span-2024-03", r.WriteTarget(time.Date(2024, time.March, 15, 0, 0, 0, 0, time.UTC)))
+
+	// A range spanning 3 calendar months should return exactly those 3
+	// monthly indices — not a set that skips months because the step size
+	// didn't match the write granularity.
+	start := time.Date(2024, time.January, 10, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, time.March, 20, 0, 0, 0, 0, time.UTC)
+	assert.Equal(t, []string{
+		"jaeger-span-2024-03",
+		"jaeger-span-2024-02",
+		"jaeger-span-2024-01",
+	}, r.ReadTargets(start, end))
 }
 
 func TestIndexToDataStreamName(t *testing.T) {
