@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
@@ -112,6 +113,28 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
+			name: "monthly rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006-01",
+					RolloverFrequency: "month",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03",
+			wantRead:  []string{"jaeger-span-2024-03"},
+		},
+		{
+			name: "yearly rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006",
+					RolloverFrequency: "year",
+				}),
+			},
+			wantWrite: "jaeger-span-2024",
+			wantRead:  []string{"jaeger-span-2024"},
+		},
+		{
 			name: "data stream derives its name from the index prefix",
 			rc: config.RotationConfig{
 				DataStream: configoptional.Some(config.DataStreamRotation{}),
@@ -135,6 +158,36 @@ func TestBuildRotation(t *testing.T) {
 			r := BuildRotation(tt.indexPrefix, config.SpanIndexName, tt.rc, tt.remoteClusters, logger)
 			assert.Equal(t, tt.wantWrite, r.WriteTarget(ts))
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
+		})
+	}
+}
+
+// TestBuildRotation_PeriodicRolloverFrequencyDuration is a regression test ensuring
+// BuildRotation's periodic case uses the shared config.RolloverFrequencyDuration for
+// every named frequency, including "month" and "year". A previous version of this
+// file had its own private rolloverFrequencyDuration helper that only understood
+// "hour" (defaulting everything else, including "month"/"year", to 24h), so the
+// runtime path silently ignored those frequencies even though config.RolloverFrequencyDuration
+// supported them. zap.NewNop() has debug logging disabled, so NewLoggingRotation
+// returns the *PeriodicRotation unwrapped, letting us assert on its internal
+// rolloverFrequency field directly (this file is in package indices, not indices_test).
+func TestBuildRotation_PeriodicRolloverFrequencyDuration(t *testing.T) {
+	logger := zap.NewNop()
+
+	frequencies := []string{"hour", "day", "month", "year", "unrecognized-defaults-to-day"}
+	for _, frequency := range frequencies {
+		t.Run(frequency, func(t *testing.T) {
+			rc := config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006-01-02",
+					RolloverFrequency: frequency,
+				}),
+			}
+			r := BuildRotation("", config.SpanIndexName, rc, nil, logger)
+
+			pr, ok := r.(*PeriodicRotation)
+			require.True(t, ok, "expected BuildRotation to return a *PeriodicRotation when Periodic is set")
+			assert.Equal(t, -config.RolloverFrequencyDuration(frequency), pr.rolloverFrequency)
 		})
 	}
 }
