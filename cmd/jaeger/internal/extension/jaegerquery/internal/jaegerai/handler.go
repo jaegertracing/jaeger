@@ -16,7 +16,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
@@ -85,13 +84,7 @@ func NewHandler(p HandlerParams) *Handler {
 		maxRequestBodySize: p.MaxRequestBodySize,
 	}
 	if p.EnableMCP {
-		mcpHandler := mcptools.NewHandler(p.Telset, p.QueryService, p.TenancyMgr, mcptools.DefaultConfig())
-		h.mcpHandler = &mcpSessionHandler{
-			telemetryHandler: mcpHandler,
-			streams:          h.streams,
-			basePath:         basePath,
-			logger:           p.Logger,
-		}
+		h.mcpHandler = newMCPSessionHandler(p.Telset, p.QueryService, p.TenancyMgr, h.streams, basePath, p.Logger)
 	}
 	return h
 }
@@ -199,14 +192,15 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's stream under a freshly-minted session id so the
-	// session-scoped MCP endpoint (/api/ai/mcp/<id>/) can confirm the id
-	// belongs to an active turn. The id is minted here rather than reusing the
+	// Register this turn's stream and UI tools under a freshly-minted session id
+	// so the session-scoped MCP endpoint (/api/ai/mcp/<id>/) can confirm the id
+	// belongs to an active turn, advertise the turn's UI tools, and dispatch
+	// their calls onto the stream. The id is minted here rather than reusing the
 	// ACP session id because the endpoint URL must be constructible before
 	// session/new returns; announcing that URL to the sidecar is a follow-up.
 	if h.streams != nil {
 		mcpSessionID := uuid.NewString()
-		h.streams.set(mcpSessionID, clientImpl)
+		h.streams.set(mcpSessionID, clientImpl, rawTools)
 		defer h.streams.delete(mcpSessionID)
 	}
 

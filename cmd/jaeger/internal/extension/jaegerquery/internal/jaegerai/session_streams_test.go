@@ -5,6 +5,7 @@ package jaegerai
 
 import (
 	"context"
+	"encoding/json"
 	"net/http/httptest"
 	"strconv"
 	"sync"
@@ -24,8 +25,12 @@ func TestSessionStreamsSetGetDelete(t *testing.T) {
 
 	assert.Nil(t, s.get("missing"), "unknown id returns nil")
 
-	s.set("sess-1", client)
-	assert.Same(t, client, s.get("sess-1"), "get returns the registered client")
+	tools := []json.RawMessage{json.RawMessage(`{"name":"t"}`)}
+	s.set("sess-1", client, tools)
+	got := s.get("sess-1")
+	require.NotNil(t, got, "get returns the registered session")
+	assert.Same(t, client, got.stream, "session carries the registered stream")
+	assert.Equal(t, tools, got.uiTools, "session carries the registered UI tools")
 
 	s.delete("sess-1")
 	assert.Nil(t, s.get("sess-1"), "get returns nil after delete")
@@ -34,8 +39,8 @@ func TestSessionStreamsSetGetDelete(t *testing.T) {
 func TestSessionStreamsIgnoresEmptyOrNil(t *testing.T) {
 	s := newSessionStreams()
 
-	s.set("", testStreamingClient()) // empty id: no-op
-	s.set("sess", nil)               // nil client: no-op
+	s.set("", testStreamingClient(), nil) // empty id: no-op
+	s.set("sess", nil, nil)               // nil client: no-op
 	assert.Nil(t, s.get(""))
 	assert.Nil(t, s.get("sess"))
 
@@ -51,7 +56,7 @@ func TestSessionStreamsConcurrent(t *testing.T) {
 	for i := range n {
 		id := strconv.Itoa(i) // precompute per iteration so each goroutine uses a distinct id
 		wg.Go(func() {
-			s.set(id, testStreamingClient())
+			s.set(id, testStreamingClient(), nil)
 			s.get(id)
 			s.delete(id)
 		})
