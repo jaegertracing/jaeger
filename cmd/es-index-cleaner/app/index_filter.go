@@ -41,7 +41,23 @@ func (i *IndexFilter) filterByPattern(indices []client.Index) []client.Index {
 	case i.Rollover:
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{6}", i.IndexPrefix))
 	default:
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
+		// Matches yearly (YYYY), monthly (YYYY-SEP-MM), or daily (YYYY-SEP-MM-SEP-DD)
+		// index suffixes, since periodic rotation now supports "year" and "month"
+		// rollover_frequency in addition to "day" (and "hour", which is covered too
+		// since the day segment is a prefix of the hour-suffixed name and this
+		// pattern isn't end-anchored).
+		//
+		// The three alternatives are listed explicitly (rather than nesting them as
+		// optional groups) and each is followed by \b. Go's regexp package (RE2)
+		// has no lookahead, so a naive `\d{4}(SEP\d{2}(SEP\d{2})?)?` would let a bare
+		// \d{4} satisfy the whole pattern, which would also match the first four
+		// digits of unrelated sequential rollover-alias index names like
+		// "jaeger-span-000001". The \b boundary after each alternative requires the
+		// date portion to end at a non-digit (or end of string), ruling that out.
+		reg, _ = regexp.Compile(fmt.Sprintf(
+			"^%sjaeger-(span|service|dependencies|sampling)-(\\d{4}%s\\d{2}%s\\d{2}|\\d{4}%s\\d{2}|\\d{4})\\b",
+			i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator, i.IndexDateSeparator,
+		))
 	}
 
 	var filtered []client.Index

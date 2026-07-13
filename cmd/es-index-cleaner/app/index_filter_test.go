@@ -12,6 +12,76 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 )
 
+// TestIndexFilter_MonthlyAndYearlyIndices is a regression test ensuring the
+// default (periodic, non-rollover, non-archive) filter pattern matches
+// monthly ("jaeger-span-2024-03") and yearly ("jaeger-span-2024") index
+// suffixes, not just the original daily "YYYY-MM-DD" pattern. It also checks
+// that the broadened pattern doesn't start falsely matching unrelated
+// sequential rollover-alias index names like "jaeger-span-000001", which a
+// naive "make the trailing segments optional" fix would have allowed (see
+// PR review discussion).
+func TestIndexFilter_MonthlyAndYearlyIndices(t *testing.T) {
+	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
+	indices := []client.Index{
+		{
+			// Yearly index, created before the cutoff: should be deleted.
+			Index:        "jaeger-span-2023",
+			CreationTime: time.Date(2023, time.December, 31, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			// Yearly index, created after the cutoff: should be kept.
+			Index:        "jaeger-span-2024",
+			CreationTime: time.Date(2024, time.June, 15, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			// Monthly index, created before the cutoff: should be deleted.
+			Index:        "jaeger-service-2024-04",
+			CreationTime: time.Date(2024, time.April, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			// Monthly index, created after the cutoff: should be kept.
+			Index:        "jaeger-service-2024-06",
+			CreationTime: time.Date(2024, time.June, 10, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			// Sequential rollover-alias style index (e.g. from a Rollover=true
+			// config) must NOT be matched by the default (periodic) filter, even
+			// though it starts with 4 digits.
+			Index:        "jaeger-span-000001",
+			CreationTime: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC),
+			Aliases: map[string]bool{
+				"jaeger-span-read": true,
+			},
+		},
+	}
+
+	filter := &IndexFilter{
+		IndexPrefix:          "",
+		IndexDateSeparator:   "-",
+		Archive:              false,
+		Rollover:             false,
+		DeleteBeforeThisDate: beforeDate,
+	}
+
+	filtered := filter.Filter(indices)
+	assert.Equal(t, []client.Index{
+		{
+			Index:        "jaeger-span-2023",
+			CreationTime: time.Date(2023, time.December, 31, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        "jaeger-service-2024-04",
+			CreationTime: time.Date(2024, time.April, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+	}, filtered)
+}
+
 func TestIndexFilter(t *testing.T) {
 	runIndexFilterTest(t, "")
 }
