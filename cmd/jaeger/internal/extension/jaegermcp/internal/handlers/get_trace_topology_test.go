@@ -586,7 +586,8 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
 	mock := newMockYieldingTraces(testTrace)
 
-	// Set limit to 3 — should collect at most 3 spans before building topology
+	// Set limit to 3 — the full trace is walked (for the count and correct
+	// roots-first ordering) but only the first 3 spans are emitted.
 	handler := &getTraceTopologyHandler{
 		queryService:             mock,
 		maxSpanDetailsPerRequest: 3,

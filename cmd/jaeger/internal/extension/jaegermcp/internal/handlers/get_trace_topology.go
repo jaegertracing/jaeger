@@ -247,6 +247,9 @@ func (h *getTraceTopologyHandler) dfs(
 	// Recursively process children if above the depth limit
 	if truncated == 0 {
 		for _, child := range childrenOf[span.spanID] {
+			if maxSpans > 0 && len(*result) >= maxSpans {
+				break
+			}
 			h.dfs(child, path+"/"+child.spanID, depth+1, maxDepth, maxSpans, childrenOf, result)
 		}
 	}
