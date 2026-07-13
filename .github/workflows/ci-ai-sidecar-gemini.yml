@@ -39,6 +39,6 @@ jobs:
         working-directory: scripts/ai-sidecar/gemini
         run: uv run pyright ./
 
-      - name: Run Gemini sidecar workflow test
+      - name: Run Gemini sidecar tests
         working-directory: scripts/ai-sidecar/gemini
-        run: uv run pytest -q test_sidecar_workflow.py
+        run: uv run pytest -q

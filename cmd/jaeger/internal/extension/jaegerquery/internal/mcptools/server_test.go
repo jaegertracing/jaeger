@@ -85,6 +85,18 @@ func TestNewHandler_CallTool(t *testing.T) {
 	assert.Contains(t, text.Text, "svc-b")
 }
 
+// TestNewServerDegradesWithoutMetrics covers the branch where the metrics
+// middleware fails to build: the server is still returned (metrics degraded)
+// rather than the construction failing.
+func TestNewServerDegradesWithoutMetrics(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	telset := telemetry.NoopSettings()
+	telset.MeterProvider = &failingMeterProvider{failCounter: true}
+
+	srv := NewServer(telset, svc, DefaultConfig())
+	require.NotNil(t, srv)
+}
+
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
 // bare server (in-memory transport, no HTTP stack). Registration only, so the
 // QueryService is backed by empty mocks that are never invoked.

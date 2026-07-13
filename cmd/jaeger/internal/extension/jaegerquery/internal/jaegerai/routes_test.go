@@ -102,7 +102,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	require.NotNil(t, h.mcpHandler, "MCP handler must be built when EnableMCP is true")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	h.streams.set("sess-1", testStreamingClient()) // active turn
+	h.streams.set("sess-1", testStreamingClient(), nil) // active turn
 
 	t.Run("active session is served", func(t *testing.T) {
 		rr := httptest.NewRecorder()
@@ -127,7 +127,7 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	h.streams.set("sess-1", testStreamingClient())
+	h.streams.set("sess-1", testStreamingClient(), nil)
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/sess-1/mcp", http.NoBody))

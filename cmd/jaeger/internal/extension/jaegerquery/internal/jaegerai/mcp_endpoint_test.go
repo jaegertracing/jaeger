@@ -4,72 +4,150 @@
 package jaegerai
 
 import (
+	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
+	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
+	"github.com/jaegertracing/jaeger/internal/telemetry"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-// newTestMCPMux mounts an mcpSessionHandler on a mux (both the slash and
-// no-slash session patterns, as RegisterRoutes does), backed by a stub
-// telemetry handler that records the (post-strip) path it saw.
-func newTestMCPMux(t *testing.T, basePath string, streams *sessionStreams) (*http.ServeMux, *string) {
+func rawUITool(t *testing.T, name string) json.RawMessage {
 	t.Helper()
-	var seenPath string
-	stub := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seenPath = r.URL.Path
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("telemetry"))
+	b, err := json.Marshal(map[string]any{
+		"name":        name,
+		"description": name + " description",
+		"parameters":  map[string]any{"type": "object"},
 	})
-	h := &mcpSessionHandler{telemetryHandler: stub, streams: streams, basePath: basePath, logger: zap.NewNop()}
-	mux := http.NewServeMux()
-	mux.Handle(basePath+routeMCPSession, h)
-	mux.Handle(basePath+routeMCPSessionNoSlash, h)
-	return mux, &seenPath
+	require.NoError(t, err)
+	return b
 }
 
-func TestMCPSessionHandlerServesActiveSession(t *testing.T) {
-	// The session prefix must be stripped so the telemetry handler sees its own
-	// root, for the trailing-slash, subpath, and no-slash forms alike.
-	cases := []struct {
-		reqSuffix    string
-		wantSeenPath string
-	}{
-		{"/api/ai/mcp/sess-1/mcp", "/mcp"},
-		{"/api/ai/mcp/sess-1/", "/"},
-		{"/api/ai/mcp/sess-1", "/"}, // no trailing slash normalizes to root
-	}
-	for _, basePath := range []string{"", "/jaeger"} {
-		for _, tc := range cases {
-			t.Run(basePath+tc.reqSuffix, func(t *testing.T) {
-				streams := newSessionStreams()
-				streams.set("sess-1", testStreamingClient())
-				mux, seenPath := newTestMCPMux(t, basePath, streams)
+// sessionMCPServer mounts a real session-scoped handler with one active session
+// ("sess-1") holding the given UI tools, and returns the test HTTP server plus
+// the recorder backing that session's SSE stream (to observe UI-tool dispatch).
+func sessionMCPServer(t *testing.T, uiTools []json.RawMessage) (*httptest.Server, *httptest.ResponseRecorder) {
+	t.Helper()
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	streams := newSessionStreams()
+	rec := httptest.NewRecorder()
+	streams.set("sess-1", newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
-				rr := httptest.NewRecorder()
-				mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, basePath+tc.reqSuffix, http.NoBody))
+	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	mux := http.NewServeMux()
+	mux.Handle(routeMCPSession, h)
+	mux.Handle(routeMCPSessionNoSlash, h)
 
-				require.Equal(t, http.StatusOK, rr.Code)
-				assert.Equal(t, "telemetry", rr.Body.String())
-				assert.Equal(t, tc.wantSeenPath, *seenPath)
-			})
-		}
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+	return ts, rec
+}
+
+func connectSessionMCP(t *testing.T, ts *httptest.Server, path string) *mcp.ClientSession {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0.0.0"}, nil)
+	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
+		Endpoint:   ts.URL + path,
+		HTTPClient: ts.Client(),
+	}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { session.Close() })
+	return session
+}
+
+func TestMCPSessionHandlerServesTelemetryPlusUITools(t *testing.T) {
+	ts, _ := sessionMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	session := connectSessionMCP(t, ts, "/api/ai/mcp/sess-1/")
+
+	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+
+	got := make([]string, 0, len(listed.Tools))
+	for _, tool := range listed.Tools {
+		got = append(got, tool.Name)
 	}
+	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
+	assert.Contains(t, got, "show_chart", "the session's UI tools must be advertised")
+}
+
+func TestMCPSessionHandlerDispatchesUIToolToStream(t *testing.T) {
+	ts, rec := sessionMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	session := connectSessionMCP(t, ts, "/api/ai/mcp/sess-1/")
+
+	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "show_chart",
+		Arguments: map[string]any{"series": "latency"},
+	})
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+
+	// The UI-tool call was dispatched to the browser over the session's SSE
+	// stream — the recorder should carry the TOOL_CALL_* frames for it.
+	assert.Contains(t, rec.Body.String(), "show_chart")
+}
+
+// TestMCPSessionHandlerIsolatesSessions is the key guarantee of the single
+// shared server: two sessions declaring different UI tools each see only their
+// own (plus the shared telemetry tools), and a UI-tool call reaches only the
+// calling session's stream. If the middleware ever resolved the wrong session
+// from the request context, this would cross the wires.
+func TestMCPSessionHandlerIsolatesSessions(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	streams := newSessionStreams()
+	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
+	streams.set("sess-a", newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
+	streams.set("sess-b", newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
+
+	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	mux := http.NewServeMux()
+	mux.Handle(routeMCPSession, h)
+	mux.Handle(routeMCPSessionNoSlash, h)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	sessionA := connectSessionMCP(t, ts, "/api/ai/mcp/sess-a/")
+	sessionB := connectSessionMCP(t, ts, "/api/ai/mcp/sess-b/")
+
+	listA, err := sessionA.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	listB, err := sessionB.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	namesA, namesB := toolNames(listA.Tools), toolNames(listB.Tools)
+
+	assert.Contains(t, namesA, "chart_a")
+	assert.NotContains(t, namesA, "chart_b", "session A must not see session B's UI tools")
+	assert.Contains(t, namesB, "chart_b")
+	assert.NotContains(t, namesB, "chart_a", "session B must not see session A's UI tools")
+	assert.Contains(t, namesA, "get_services", "both sessions still see the shared telemetry tools")
+	assert.Contains(t, namesB, "get_services")
+
+	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: "chart_a"})
+	require.NoError(t, err)
+	assert.Contains(t, recA.Body.String(), "chart_a", "the dispatch reaches the calling session's stream")
+	assert.NotContains(t, recB.Body.String(), "chart_a", "the other session's stream is untouched")
 }
 
 func TestMCPSessionHandlerRejectsUnknownSession(t *testing.T) {
-	streams := newSessionStreams() // empty: no active sessions
-	mux, seenPath := newTestMCPMux(t, "", streams)
-
-	for _, reqPath := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
-		t.Run(reqPath, func(t *testing.T) {
-			rr := httptest.NewRecorder()
-			mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, reqPath, http.NoBody))
-			require.Equal(t, http.StatusNotFound, rr.Code)
-			assert.Empty(t, *seenPath, "telemetry handler must not be reached for an unknown session")
+	ts, _ := sessionMCPServer(t, nil)
+	for _, p := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
+		t.Run(p, func(t *testing.T) {
+			resp, err := ts.Client().Get(ts.URL + p)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 		})
 	}
 }
