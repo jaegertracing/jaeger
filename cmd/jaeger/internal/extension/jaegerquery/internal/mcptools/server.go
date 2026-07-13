@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Package mcptools provides the Jaeger telemetry MCP tools as a reusable
-// library. The tools wrap a *querysvc.QueryService; RegisterTools mounts them
-// on an *mcp.Server, and NewHandler builds an http.Handler serving them over
-// streamable HTTP — so any component holding a QueryService can expose the
-// Jaeger telemetry tools over MCP without re-implementing the handlers.
+// library. The tools wrap a *querysvc.QueryService. NewServer returns an
+// *mcp.Server with the tools registered; WrapHTTP serves a given *mcp.Server as
+// an http.Handler over streamable HTTP; and NewHandler composes the two for the
+// common session-free case — so any component holding a QueryService can expose
+// the Jaeger telemetry tools over MCP (optionally layering its own tools or
+// receiving middleware on the server first) without re-implementing the
+// handlers.
 package mcptools
 
 import (
@@ -33,62 +36,74 @@ var serverInstructions string
 //go:embed all:skills
 var skillsEmbedFS embed.FS
 
-// NewHandler builds an http.Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed directly by the given QueryService. It carries
-// the same tracing/metrics middleware and tenancy extraction the standalone
-// jaeger_mcp extension used, but binds no listener of its own — the caller
-// mounts it on an existing mux (e.g. jaeger-query at /api/ai/mcp/).
+// NewServer builds an *mcp.Server with the Jaeger telemetry tools and the
+// tracing/metrics middleware registered. It takes *querysvc.QueryService
+// directly (rather than fetching it from the component host), which keeps it
+// dependency-free of the jaegerquery extension package and avoids the import
+// cycle a host-based lookup would create now that the tools live under
+// jaegerquery/internal.
 //
-// Taking *querysvc.QueryService directly (rather than fetching it from the
-// component host) is what keeps this dependency-free of the jaegerquery
-// extension package, avoiding the import cycle a host-based lookup would create
-// now that the tools live under jaegerquery/internal.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
-	s := struct { // alias to minimize code diff during move
-		config    Config
-		telset    telemetry.Settings
-		mcpServer *mcp.Server
-	}{
-		config: cfg,
-		telset: telset,
-	}
-	s.mcpServer = mcp.NewServer(
+// Callers that only need the session-free telemetry endpoint should use
+// NewHandler. Callers that need to layer additional behaviour on top (e.g. a
+// session-scoped endpoint that advertises per-session UI tools via receiving
+// middleware) build a server here, add their middleware, and serve it with
+// WrapHTTP.
+func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
+	server := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    s.config.ServerName,
-			Version: s.config.ServerVersion,
+			Name:    cfg.ServerName,
+			Version: cfg.ServerVersion,
 		},
 		&mcp.ServerOptions{
 			Instructions: serverInstructions,
 		},
 	)
-	registerTools(s.mcpServer, queryAPI, cfg)
+	registerTools(server, queryAPI, cfg)
 
 	mw := []mcp.Middleware{
-		createTracingMiddleware(s.telset.TracerProvider),
+		createTracingMiddleware(telset.TracerProvider),
 	}
-	metricsMiddleware, err := createMetricsMiddleware(s.telset.MeterProvider)
+	metricsMiddleware, err := createMetricsMiddleware(telset.MeterProvider)
 	if err != nil {
-		s.telset.Logger.Warn("failed to create MCP metrics middleware, continuing without metrics", zap.Error(err))
+		telset.Logger.Warn("failed to create MCP metrics middleware, continuing without metrics", zap.Error(err))
 	} else {
 		mw = append(mw, metricsMiddleware)
 	}
-	s.mcpServer.AddReceivingMiddleware(mw...)
+	server.AddReceivingMiddleware(mw...)
+	return server
+}
 
+// WrapHTTP serves an *mcp.Server as an http.Handler over streamable HTTP, with
+// tenancy extraction and OTel HTTP instrumentation. It is the transport shell
+// shared by the session-free endpoint and the session-scoped endpoint (which
+// layers per-session UI tools onto the server via receiving middleware before
+// wrapping it). The same server instance is reused for every session — with
+// Stateless: false the SDK builds one ServerSession per MCP session and reuses
+// it for that session's requests. It binds no listener of its own — the caller
+// mounts the returned handler on an existing mux.
+func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.Settings) http.Handler {
 	mcpHandler := mcp.NewStreamableHTTPHandler(
-		func(_ *http.Request) *mcp.Server { return s.mcpServer },
+		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
 			JSONResponse:   false, // Use SSE for streamed events
 			Stateless:      false, // Session state management
 			SessionTimeout: mcpSessionTimeout,
 		},
 	)
-
 	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
 	return otelhttp.NewHandler(
 		tenantHandler,
 		"jaeger_mcp",
-		otelhttp.WithTracerProvider(s.telset.TracerProvider),
+		otelhttp.WithTracerProvider(telset.TracerProvider),
 	)
+}
+
+// NewHandler builds an http.Handler that serves the Jaeger telemetry MCP tools
+// over streamable HTTP, backed by the given QueryService — the session-free
+// endpoint (e.g. jaeger-query at /api/ai/mcp/). It is a thin composition of
+// NewServer and WrapHTTP around a single shared server.
+func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
+	return WrapHTTP(NewServer(telset, queryAPI, cfg), tenancyMgr, telset)
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
