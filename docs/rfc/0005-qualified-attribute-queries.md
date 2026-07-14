@@ -186,15 +186,42 @@ Properties are a natural extension of the same leaf, but they are not required o
 
 ### 5.3 Operators and value typing
 
-The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`. `value` is carried as a string on the wire and interpreted against the target's type by the backend — numeric for `duration`/`gt`/`lt`, which matches how ClickHouse already stores typed attribute columns. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
+The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`. `value` is a string on the wire; the predicate also carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it. Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
 
 **Units of numeric values (decision point).** For a value with an implied unit — chiefly `duration` — the wire value should carry the unit *explicitly*, in Go duration syntax (`2s`, `1h30m`), matching today's `duration_min`/`duration_max` fields, rather than a bare number in an assumed unit (which is ambiguous — nanoseconds? milliseconds?). A bare-number value (e.g. a numeric attribute like `http.response.size`) is compared numerically and carries no RFC-defined unit: the caller and the stored data share whatever unit the attribute was recorded in, exactly as today. See §10 Q7.
+
+### 5.4 Typed values — an exploration
+
+Carrying the value's type in the query (§5.3) targets the *other half* of what ClickHouse's `attribute_metadata` view resolves per query today — not just the level (§1.6) but the **type** — so a backend could skip that lookup. Attractive, but relocating the type decision to the query has consequences that decide whether it can be *mandatory*, *optional*, or is not worth it at all.
+
+**(1) A wrong type silently under-matches.** A hand-composed query (a script, a `curl`) that declares `type=int` for a value stored as a string routes to the wrong typed storage and returns *nothing* — a silent false negative, not an error. Today's metadata-driven resolution cannot be wrong this way: it queries wherever the key actually lives. So a caller-supplied type must be a hint the backend may fall back from, never an authority — and `eq` in particular can compare the string form on most backends regardless of the declared type.
+
+**(2) Most Jaeger backends cannot expose type metadata.** The autocomplete that makes a typed query pleasant is fed by a tag-values API that returns each value *with its type*. Only ClickHouse has the equivalent (`attribute_metadata`). ES/OS have no cheap keys/values/types enumeration (it is an expensive aggregation, and tag types are not readily available); Cassandra and Badger have none at all (a flat string index with no enumeration API). So typed authoring assistance is a ClickHouse-mostly luxury; elsewhere the caller falls back to untyped/string.
+
+**(3) A key legitimately has more than one type.** ClickHouse's metadata deliberately records that the same key can appear with *different* types across services — `http.status_code` as an int from one service, a string from another. Today's storage-side resolution searches *all* observed types and matches both. A single `type` in the query cannot express "any type" — declaring one silently drops the others. This is decisive: **an unspecified type must mean "match any type" (today's behavior); a specified type is a narrowing the caller opts into.**
+
+**(4) What each backend would need, and whether it can.** For type-in-query to pay off, a backend needs (i) typed predicate evaluation and (ii), for authoring help, a typed discovery API. (🟢 native · 🟡 partial / costly · 🔴 not feasible)
+
+| Capability | ClickHouse | Elasticsearch/OpenSearch | Cassandra / Badger |
+|------------|:---:|:---:|:---:|
+| (i) typed predicate evaluation | 🟢 typed columns | 🟡 `eq` is a string term; numeric `gt`/`lt` needs the tag value indexed numerically (a schema question) | 🔴 string `eq` only; no numeric range |
+| (ii) typed discovery API | 🟢 `attribute_metadata` | 🟡 expensive aggregation; type not exposed | 🔴 no enumeration at all |
+
+The relocation is fully realizable only on ClickHouse; ES/OS partially (and only after a schema decision for numeric tags); the flat backends not at all — but they never supported numeric range anyway and store everything as strings, so `type` is simply moot for them.
+
+**(5) Rollout before autocomplete exists.** The high-value typed cases need no discovery: **properties** carry an intrinsic type (`duration`, `status`, `kind`), so `duration > 2s` works from day one; and scoped **string-`eq`** attributes are the default (today's behavior). Only typed predicates over *arbitrary user attributes* (numeric range on `http.request.size`) need the caller to know the type or a discovery API — those light up later, ClickHouse first. Structured queries therefore roll out immediately for properties + string attributes, with typed attribute predicates and the discovery API following.
+
+**(6) Verdict — worth it, but only as an optional hint.** Mandating typed values would break multi-type correctness (3), be undeliverable for discovery on most backends (2), and turn caller mistakes into silent wrong answers (1). Making `type` **optional** — default "any type" (= today's resolution), present = a typed fast path — captures the upside (skip the type-lookup and enable numeric operators where the type is known: ClickHouse, and all properties) at no correctness or compatibility cost and with no new *mandatory* backend capability. Three consequences follow:
+
+- ClickHouse's `attribute_metadata` view (Option D, §8) is **not eliminated** — it becomes the *fallback* that resolves untyped predicates, and the source a discovery API would expose. Relocation makes the lookup *avoidable* when the type is supplied, not obsolete.
+- The discovery API (§10 Q2) is the load-bearing piece for good typed UX, and it is realistically **ClickHouse-first**; other backends default to untyped.
+- The flat backends ignore `type` (they store strings) and reject numeric operators (§7) — unchanged by any of this.
 
 ---
 
 ## 6. Proposed API
 
-The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are predicates over level-qualified attributes or properties (§5). `level` and `op` are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
+The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are predicates over level-qualified attributes or properties (§5). `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
 
 ### 6.1 Proto
 
@@ -208,6 +235,7 @@ message AttributeFilter {
 
   string op    = 4;     // eq|ne|gt|lt|regex|exists; empty = eq
   string value = 5;     // ignored when op = "exists"
+  string type  = 6;     // optional hint: string(default)|int|double|bool; empty = any type (§5.4)
 }
 
 // A boolean combination of sub-expressions.
@@ -243,6 +271,7 @@ Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defa
 ```yaml
 level: { type: string, enum: [span, resource, instrumentation, event, link] }
 op:    { type: string, enum: [eq, ne, gt, lt, regex, exists] }
+type:  { type: string, enum: [string, int, double, bool] }   # optional; empty = any type
 ```
 
 Legend: 🟢 strong · 🟡 adequate · 🔴 weak
@@ -266,8 +295,8 @@ GET /api/v3/traces?query.filters=[{"predicate":{"key":"http.status_code","value"
 { "query": { "filters": [
   { "predicate": { "property": "duration", "op": "gt", "value": "2s" } },
   { "bool": { "op": "or", "operands": [
-    { "predicate": { "key": "http.status_code", "value": "500", "level": "span" } },
-    { "predicate": { "key": "http.status_code", "value": "503", "level": "span" } } ] } } ] } }
+    { "predicate": { "key": "http.status_code", "value": "500", "level": "span", "type": "int" } },
+    { "predicate": { "key": "http.status_code", "value": "503", "level": "span", "type": "int" } } ] } } ] } }
 ```
 
 ---
@@ -329,7 +358,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 - Levels beyond the OTLP five (e.g. `parent.`, the parent span's attributes) — §5.1.
 - ES/OS schema evolution to index instrumentation and link attributes distinctly (§1.6) — unblocks those levels in M4.
 - Option D — ClickHouse metadata level-skipping (§8); backend-local, no coordination.
-- A `GetAttributeKeys(level?)` discovery API for UI autocomplete (§10 Q2).
+- A discovery API returning keys, their type(s), and sample values per level — the piece that feeds typed predicates and autocomplete (§5.4, §10 Q2); ClickHouse-first.
 - Tiers L3–L5 (§4): result shaping, aggregation/metrics (metrics subsystem), and structural/trace-tree queries (post-fetch only — not push-down-able, so inefficient at scale).
 
 ---
@@ -337,7 +366,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 ## 10. Open questions
 
 1. **Top-level shape.** `repeated FilterExpression filters` (implicit-AND list, best conjunction ergonomics) vs a single-root `FilterExpression filter` (uniform, but forces an explicit `and` for multi-predicate queries)? §6.1 recommends the former.
-2. **Attribute-key discovery.** Add a `GetAttributeKeys(level?)` API so the UI can autocomplete valid keys per level? ClickHouse's metadata view already supports it.
+2. **Attribute discovery (keys, types, values).** Add a discovery API so the UI can autocomplete valid keys per level *and their type(s)* — a key may have several (§5.4) — plus sample values, so the builder emits correctly-typed predicates. This is the load-bearing piece for typed UX (§5.4). ClickHouse's `attribute_metadata` supports it directly; ES/OS only partially and the flat backends not at all — so typed authoring assistance is ClickHouse-first, and other backends default to untyped.
 3. **Conjunction semantics across spans.** Must `resource.service.name=foo AND span.http.status_code=500` match the *same* span, or may they match different spans of the same trace? (The internal `TraceReader.FindTraces` contract currently leaves this implementation-dependent.)
 4. **Property phasing.** Which properties are required in the first implementation (`duration`/`name`/`service`/`status`/`kind`) vs deferred (trace-level, IDs)?
 5. **Remote-storage capability rollout (§7).** Confirm the optional filter-aware RPC — the `FindTraceSummaries` `UNIMPLEMENTED`-detection pattern — as the way to expose `filters` over remote storage, with the query service down-converting to the V2 call for plugins that don't implement it. The heavier fallbacks (mirror the legacy scalars alongside `filters` indefinitely, or a whole-protocol major bump) apply only if that route is rejected. Either way the internal `TraceReader` cleanup is not blocked.
