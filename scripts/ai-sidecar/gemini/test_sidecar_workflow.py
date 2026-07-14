@@ -361,6 +361,6 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     # arbitrarily large tool payloads.
     span = _find_span(span_exporter, "sidecar.execute_tool")
     result_attr = span.attributes["gen_ai.tool.call.result"]
-    assert len(result_attr) <= MAX_SPAN_ATTR_CHARS + len("... [truncated, 99999999 chars total]")
+    assert len(result_attr) <= MAX_SPAN_ATTR_CHARS
     assert result_attr.endswith("chars total]")
 

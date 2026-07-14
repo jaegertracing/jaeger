@@ -116,7 +116,9 @@ MAX_SPAN_ATTR_CHARS = 65536
 def _truncate_for_span(text: str, max_chars: int = MAX_SPAN_ATTR_CHARS) -> str:
     if len(text) <= max_chars:
         return text
-    return f"{text[:max_chars]}... [truncated, {len(text)} chars total]"
+    suffix = f"... [truncated, {len(text)} chars total]"
+    keep = max(0, max_chars - len(suffix))
+    return f"{text[:keep]}{suffix}"
 
 
 def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None:
