@@ -29,10 +29,11 @@ type Tenant struct {
 	traces     []traceAndId            // ring buffer to store traces
 	mostRecent int                     // position in traces[] of the most recently added trace
 
-	// services and operations reference-count how many retained spans contribute
-	// each service and operation. Entries are removed once their count reaches
-	// zero so that GetServices and GetOperations never report metadata whose
-	// traces have already been evicted from the ring buffer.
+	// services and operations reference-count how many retained resource spans
+	// and spans contribute each service and operation, respectively. Entries are
+	// removed once their count reaches zero so that GetServices and GetOperations
+	// never report metadata whose traces have already been evicted from the ring
+	// buffer.
 	services   map[string]int
 	operations map[string]map[tracestore.Operation]int
 }
@@ -126,11 +127,10 @@ func (t *Tenant) storeTraces(tracesById map[pcommon.TraceID]ptrace.ResourceSpans
 
 // releaseServiceMetadata decrements the reference count of every service and
 // operation contributed by an evicted trace, deleting an entry once its count
-// reaches zero. Because storeTraces increments the same counts for each span it
-// stores, this keeps GetServices and GetOperations proportional to the number
-// of spans in the evicted trace rather than rebuilding the metadata from every
-// retained trace, and it correctly retains a service or operation that is still
-// referenced by another trace in the ring buffer.
+// reaches zero. storeTraces increments service counts for resource spans and
+// operation counts for spans, and this function decrements them at the same
+// granularity. This correctly retains metadata that another trace in the ring
+// buffer still references.
 func (t *Tenant) releaseServiceMetadata(trace ptrace.Traces) {
 	for _, resourceSpan := range trace.ResourceSpans().All() {
 		serviceName := getServiceNameFromResource(resourceSpan.Resource())
