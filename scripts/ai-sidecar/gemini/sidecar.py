@@ -281,7 +281,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_NAME: tool_name,
             GEN_AI_TOOL_CALL_ID: tool_call_id,
             GEN_AI_CONVERSATION_ID: session_id,
-            GEN_AI_TOOL_CALL_ARGUMENTS: _to_tool_text(args),
+            GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
         }) as span:
             try:
                 _validate_function_call(tool_name, args, tool_call_id)
