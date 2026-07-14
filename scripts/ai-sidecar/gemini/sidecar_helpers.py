@@ -117,7 +117,9 @@ def _truncate_for_span(text: str, max_chars: int = MAX_SPAN_ATTR_CHARS) -> str:
     if len(text) <= max_chars:
         return text
     suffix = f"... [truncated, {len(text)} chars total]"
-    keep = max(0, max_chars - len(suffix))
+    if max_chars <= len(suffix):
+        return suffix[:max_chars]
+    keep = max_chars - len(suffix)
     return f"{text[:keep]}{suffix}"
 
 
