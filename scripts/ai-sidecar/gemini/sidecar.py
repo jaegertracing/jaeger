@@ -11,7 +11,9 @@ from google.genai import types
 from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_CONVERSATION_ID,
     GEN_AI_REQUEST_MODEL,
+    GEN_AI_TOOL_CALL_ARGUMENTS,
     GEN_AI_TOOL_CALL_ID,
+    GEN_AI_TOOL_CALL_RESULT,
     GEN_AI_TOOL_NAME,
 )
 from opentelemetry.trace import Status, StatusCode
@@ -22,6 +24,7 @@ from sidecar_helpers import (
     _build_gemini_contextual_tool,
     _extract_contextual_tools,
     _to_tool_text,
+    _truncate_for_span,
     _validate_function_call,
 )
 from tracing import extract_trace_context, tracer
@@ -229,6 +232,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_NAME: tool_name,
             GEN_AI_TOOL_CALL_ID: tool_call_id,
             GEN_AI_CONVERSATION_ID: session_id,
+            GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
         }) as span:
             try:
                 _validate_function_call(tool_name, args, tool_call_id)
@@ -251,6 +255,10 @@ class JaegerSidecarAgent(Agent):
                     EXT_METHOD_JAEGER_TOOL_CALL,
                     {"sessionId": session_id, "name": tool_name, "args": args},
                 )
+                # response is the gateway's synthetic ack, not the tool's actual
+                # output (see docstring: fire-and-forget, real result never
+                # comes back here) — so gen_ai.tool.call.result is deliberately
+                # not set for this path to avoid mislabeling the ack as a result.
 
                 # Status=completed alone fires TOOL_CALL_END (no RESULT)
                 # because raw_output is intentionally absent — see the
@@ -273,6 +281,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_NAME: tool_name,
             GEN_AI_TOOL_CALL_ID: tool_call_id,
             GEN_AI_CONVERSATION_ID: session_id,
+            GEN_AI_TOOL_CALL_ARGUMENTS: _to_tool_text(args),
         }) as span:
             try:
                 _validate_function_call(tool_name, args, tool_call_id)
@@ -289,6 +298,7 @@ class JaegerSidecarAgent(Agent):
 
                 tool_output = await self._mcp.call_tool(tool_name, args)
                 output_text = _to_tool_text(tool_output)
+                span.set_attribute(GEN_AI_TOOL_CALL_RESULT, _truncate_for_span(output_text))
 
                 await conn.session_update(
                     session_id,

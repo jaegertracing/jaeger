@@ -11,12 +11,16 @@ from functools import partial
 
 import pytest
 import websockets
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from acp import Agent, PROTOCOL_VERSION
 from acp.schema import AgentCapabilities, Implementation, ListSessionsResponse, LoadSessionResponse, NewSessionResponse, PromptResponse
 from acp.helpers import text_block, update_agent_message
 
 import sidecar
+from sidecar_config import SidecarConfig
 
 END_OF_TURN_MARKER = "__END_OF_TURN__"
 DEFAULT_PROMPT = "hello"
@@ -242,4 +246,121 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
 
 def test_complete_acp_workflow_with_fake_agent() -> None:
     asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
+
+
+class FakeConn:
+    """Minimal stand-in for the ACP Client the runtime passes to on_connect,
+    covering only the surface JaegerSidecarAgent._execute_tool /
+    _execute_contextual_tool actually call."""
+
+    def __init__(self, ext_method_response: dict[str, Any] | None = None) -> None:
+        self.session_updates: list[Any] = []
+        self._ext_method_response = ext_method_response or {"acknowledged": True}
+
+    async def session_update(self, session_id: str, update: Any, **kwargs: Any) -> None:
+        self.session_updates.append(update)
+
+    async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        return self._ext_method_response
+
+
+def _fake_call_tool(tool_output: Any) -> Any:
+    async def call_tool(name: str, args: dict[str, Any]) -> Any:
+        return tool_output
+
+    return call_tool
+
+
+def _new_jaeger_sidecar_agent() -> sidecar.JaegerSidecarAgent:
+    config = SidecarConfig(
+        gemini_api_key="test-key",
+        mcp_url="http://127.0.0.1:0/mcp",
+        mcp_discovery_timeout_sec=1.0,
+        otlp_endpoint="127.0.0.1:0",
+        otlp_insecure=True,
+    )
+    return sidecar.JaegerSidecarAgent(config)  # pyright: ignore[reportAbstractUsage]
+
+
+def _find_span(exporter: InMemorySpanExporter, name: str) -> Any:
+    matches = [span for span in exporter.get_finished_spans() if span.name == name]
+    assert matches, f"no finished span named {name!r}"
+    return matches[0]
+
+
+@pytest.fixture
+def span_exporter(monkeypatch: pytest.MonkeyPatch) -> InMemorySpanExporter:
+    exporter = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    test_tracer = provider.get_tracer("test")
+    monkeypatch.setattr(sidecar, "tracer", lambda: test_tracer)
+    return exporter
+
+
+def test_execute_tool_records_arguments_and_result(
+    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    agent = _new_jaeger_sidecar_agent()
+    agent.on_connect(FakeConn())  # pyright: ignore[reportArgumentType]
+    monkeypatch.setattr(
+        agent._mcp, "call_tool", _fake_call_tool({"services": ["frontend", "backend"]})
+    )
+
+    args = {"service": "frontend", "limit": 20}
+    result = asyncio.run(agent._execute_tool("sess-1", "search_traces", args, "call-1"))
+
+    assert result == {"services": ["frontend", "backend"]}
+    span = _find_span(span_exporter, "sidecar.execute_tool")
+    assert json.loads(span.attributes["gen_ai.tool.call.arguments"]) == args
+    assert json.loads(span.attributes["gen_ai.tool.call.result"]) == {
+        "services": ["frontend", "backend"]
+    }
+
+
+def test_execute_contextual_tool_records_arguments_but_not_synthetic_ack(
+    span_exporter: InMemorySpanExporter,
+) -> None:
+    agent = _new_jaeger_sidecar_agent()
+    ext_response = {"acknowledged": True, "requestId": "abc"}
+    agent.on_connect(FakeConn(ext_method_response=ext_response))  # pyright: ignore[reportArgumentType]
+
+    args = {"query": "error rate"}
+    result = asyncio.run(
+        agent._execute_contextual_tool("sess-1", "frontend_widget_tool", args, "call-2")
+    )
+
+    assert result == ext_response
+    span = _find_span(span_exporter, "sidecar.execute_contextual_tool")
+    assert json.loads(span.attributes["gen_ai.tool.call.arguments"]) == args
+    # The gateway's ack is not the tool's real output (fire-and-forget; see
+    # _execute_contextual_tool's docstring), so it must not be mislabeled as
+    # gen_ai.tool.call.result.
+    assert "gen_ai.tool.call.result" not in span.attributes
+
+
+def test_execute_tool_truncates_oversized_result_on_span_only(
+    span_exporter: InMemorySpanExporter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sidecar_helpers import MAX_SPAN_ATTR_CHARS
+
+    agent = _new_jaeger_sidecar_agent()
+    conn = FakeConn()
+    agent.on_connect(conn)  # pyright: ignore[reportArgumentType]
+    huge_output = {"text": "x" * (MAX_SPAN_ATTR_CHARS * 2)}
+    monkeypatch.setattr(agent._mcp, "call_tool", _fake_call_tool(huge_output))
+
+    result = asyncio.run(agent._execute_tool("sess-1", "search_traces", {}, "call-3"))
+
+    # The full, untruncated payload still reaches the AG-UI wire.
+    assert result == huge_output
+    completed_update = conn.session_updates[-1]
+    assert completed_update.raw_output == {"content": huge_output}
+
+    # Only the span attribute is capped, to protect OTLP export from
+    # arbitrarily large tool payloads.
+    span = _find_span(span_exporter, "sidecar.execute_tool")
+    result_attr = span.attributes["gen_ai.tool.call.result"]
+    assert len(result_attr) <= MAX_SPAN_ATTR_CHARS + len("... [truncated, 99999999 chars total]")
+    assert result_attr.endswith("chars total]")
 
