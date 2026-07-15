@@ -49,7 +49,7 @@ func TestParseUITool(t *testing.T) {
 }
 
 func TestUIToolDescriptorsSkipsMalformed(t *testing.T) {
-	sess := &session{uiTools: []json.RawMessage{
+	sess := &turnState{uiTools: []json.RawMessage{
 		json.RawMessage(`not json`),                     // unmarshal error → skipped
 		mustJSON(t, map[string]any{"description": "x"}), // empty name → skipped
 		mustJSON(t, map[string]any{"name": "show_chart", "description": "d", "parameters": map[string]any{"type": "object"}}),
@@ -62,7 +62,7 @@ func TestUIToolDescriptorsSkipsMalformed(t *testing.T) {
 }
 
 func TestUIToolDescriptorsDeduplicatesNames(t *testing.T) {
-	sess := &session{uiTools: []json.RawMessage{
+	sess := &turnState{uiTools: []json.RawMessage{
 		rawUITool(t, "show_chart"),
 		rawUITool(t, "show_chart"), // a frontend that declares the same tool twice
 		rawUITool(t, "highlight"),
@@ -74,11 +74,11 @@ func TestUIToolDescriptorsDeduplicatesNames(t *testing.T) {
 func TestAppendUITools(t *testing.T) {
 	// No UI tools → telemetry list returned unchanged.
 	telemetry := []*mcp.Tool{{Name: "get_services"}, {Name: "search_traces"}}
-	assert.Equal(t, telemetry, appendUITools(telemetry, &session{}, zap.NewNop()))
+	assert.Equal(t, telemetry, appendUITools(telemetry, &turnState{}, zap.NewNop()))
 
 	// A UI tool shadows a same-named telemetry tool (single entry, UI wins); the
 	// unrelated telemetry tool is kept and the new UI tool is appended.
-	sess := &session{uiTools: []json.RawMessage{
+	sess := &turnState{uiTools: []json.RawMessage{
 		rawUITool(t, "search_traces"), // shadows the telemetry tool of the same name
 		rawUITool(t, "show_chart"),
 	}}
@@ -88,28 +88,28 @@ func TestAppendUITools(t *testing.T) {
 }
 
 func TestSessionDeclaredUITool(t *testing.T) {
-	sess := &session{uiTools: []json.RawMessage{
+	sess := &turnState{uiTools: []json.RawMessage{
 		rawUITool(t, "show_chart"),
 		json.RawMessage(`not json`), // malformed entry never matches
 	}}
-	assert.True(t, sessionDeclaredUITool(sess, "show_chart"))
-	assert.False(t, sessionDeclaredUITool(sess, "get_services"))
-	assert.False(t, sessionDeclaredUITool(sess, ""))
+	assert.True(t, turnDeclaredUITool(sess, "show_chart"))
+	assert.False(t, turnDeclaredUITool(sess, "get_services"))
+	assert.False(t, turnDeclaredUITool(sess, ""))
 }
 
 func TestDispatchUIToolCall(t *testing.T) {
 	// Nil stream (session ended mid-request) → error result, no panic.
-	res := dispatchUIToolCall(nil, "show_chart", nil)
+	res := emitUIToolCall(nil, "show_chart", nil)
 	assert.True(t, res.IsError, "a closed stream is reported as a tool error")
 
 	// Invalid JSON arguments → error result.
-	res = dispatchUIToolCall(testStreamingClient(), "show_chart", json.RawMessage(`{not json`))
+	res = emitUIToolCall(testStreamingClient(), "show_chart", json.RawMessage(`{not json`))
 	assert.True(t, res.IsError, "invalid JSON arguments must return an error result")
 
 	// Success → non-error ack and the TOOL_CALL_* frames land on the stream.
 	rec := httptest.NewRecorder()
 	stream := newStreamingClient(context.Background(), rec, "t", "r")
-	res = dispatchUIToolCall(stream, "show_chart", json.RawMessage(`{"series":"latency"}`))
+	res = emitUIToolCall(stream, "show_chart", json.RawMessage(`{"series":"latency"}`))
 	require.False(t, res.IsError)
 	assert.Contains(t, rec.Body.String(), "show_chart", "the tool-call lifecycle is emitted to the browser stream")
 }
@@ -123,11 +123,11 @@ func TestNewUIToolCallID(t *testing.T) {
 
 func TestUIDispatchMiddleware(t *testing.T) {
 	rec := httptest.NewRecorder()
-	streams := newSessionStreams()
-	streams.set("sess-1", newStreamingClient(context.Background(), rec, "t", "r"),
+	turns := newTurnRegistry()
+	turns.set("sess-1", newStreamingClient(context.Background(), rec, "t", "r"),
 		[]json.RawMessage{rawUITool(t, "show_chart")})
-	mw := uiDispatchMiddleware(streams, zap.NewNop())
-	ctx := context.WithValue(context.Background(), sessionIDContextKey{}, "sess-1")
+	mw := uiToolsMiddleware(turns, zap.NewNop())
+	ctx := context.WithValue(context.Background(), mcpRouteIDContextKey{}, "sess-1")
 
 	telemetryList := func(context.Context, string, mcp.Request) (mcp.Result, error) {
 		return &mcp.ListToolsResult{Tools: []*mcp.Tool{{Name: "get_services"}}}, nil

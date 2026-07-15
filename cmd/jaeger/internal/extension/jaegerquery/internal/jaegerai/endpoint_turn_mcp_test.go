@@ -34,17 +34,17 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 	return b
 }
 
-// sessionMCPServer mounts a real session-scoped handler with one active session
+// sessionMCPServer mounts a real turn-scoped handler with one active session
 // ("sess-1") holding the given UI tools, and returns the test HTTP server plus
 // the recorder backing that session's SSE stream (to observe UI-tool dispatch).
 func sessionMCPServer(t *testing.T, uiTools []json.RawMessage) (*httptest.Server, *httptest.ResponseRecorder) {
 	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	streams := newSessionStreams()
+	turns := newTurnRegistry()
 	rec := httptest.NewRecorder()
-	streams.set("sess-1", newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
+	turns.set("sess-1", newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
-	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	h := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", zap.NewNop())
 	mux := http.NewServeMux()
 	mux.Handle(routeMCPSession, h)
 	mux.Handle(routeMCPSessionNoSlash, h)
@@ -68,7 +68,7 @@ func connectSessionMCP(t *testing.T, ts *httptest.Server, path string) *mcp.Clie
 	return session
 }
 
-func TestMCPSessionHandlerServesTelemetryPlusUITools(t *testing.T) {
+func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	ts, _ := sessionMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
 	session := connectSessionMCP(t, ts, "/api/ai/mcp/sess-1/")
 
@@ -83,7 +83,7 @@ func TestMCPSessionHandlerServesTelemetryPlusUITools(t *testing.T) {
 	assert.Contains(t, got, "show_chart", "the session's UI tools must be advertised")
 }
 
-func TestMCPSessionHandlerDispatchesUIToolToStream(t *testing.T) {
+func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 	ts, rec := sessionMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
 	session := connectSessionMCP(t, ts, "/api/ai/mcp/sess-1/")
 
@@ -99,19 +99,19 @@ func TestMCPSessionHandlerDispatchesUIToolToStream(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "show_chart")
 }
 
-// TestMCPSessionHandlerIsolatesSessions is the key guarantee of the single
+// TestTurnScopedEndpointIsolatesSessions is the key guarantee of the single
 // shared server: two sessions declaring different UI tools each see only their
 // own (plus the shared telemetry tools), and a UI-tool call reaches only the
 // calling session's stream. If the middleware ever resolved the wrong session
 // from the request context, this would cross the wires.
-func TestMCPSessionHandlerIsolatesSessions(t *testing.T) {
+func TestTurnScopedEndpointIsolatesSessions(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	streams := newSessionStreams()
+	turns := newTurnRegistry()
 	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
-	streams.set("sess-a", newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
-	streams.set("sess-b", newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
+	turns.set("sess-a", newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
+	turns.set("sess-b", newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
-	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	h := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", zap.NewNop())
 	mux := http.NewServeMux()
 	mux.Handle(routeMCPSession, h)
 	mux.Handle(routeMCPSessionNoSlash, h)
@@ -140,7 +140,7 @@ func TestMCPSessionHandlerIsolatesSessions(t *testing.T) {
 	assert.NotContains(t, recB.Body.String(), "chart_a", "the other session's stream is untouched")
 }
 
-func TestMCPSessionHandlerRejectsUnknownSession(t *testing.T) {
+func TestTurnScopedEndpointRejectsUnknownSession(t *testing.T) {
 	ts, _ := sessionMCPServer(t, nil)
 	for _, p := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
 		t.Run(p, func(t *testing.T) {

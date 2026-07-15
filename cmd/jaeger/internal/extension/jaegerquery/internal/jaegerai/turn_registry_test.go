@@ -19,8 +19,8 @@ func testStreamingClient() *streamingClient {
 	return newStreamingClient(context.Background(), httptest.NewRecorder(), "thread", "run")
 }
 
-func TestSessionStreamsSetGetDelete(t *testing.T) {
-	s := newSessionStreams()
+func TestTurnRegistrySetGetDelete(t *testing.T) {
+	s := newTurnRegistry()
 	client := testStreamingClient()
 
 	assert.Nil(t, s.get("missing"), "unknown id returns nil")
@@ -36,8 +36,8 @@ func TestSessionStreamsSetGetDelete(t *testing.T) {
 	assert.Nil(t, s.get("sess-1"), "get returns nil after delete")
 }
 
-func TestSessionStreamsIgnoresEmptyOrNil(t *testing.T) {
-	s := newSessionStreams()
+func TestTurnRegistryIgnoresEmptyOrNil(t *testing.T) {
+	s := newTurnRegistry()
 
 	s.set("", testStreamingClient(), nil) // empty id: no-op
 	s.set("sess", nil, nil)               // nil client: no-op
@@ -49,8 +49,8 @@ func TestSessionStreamsIgnoresEmptyOrNil(t *testing.T) {
 	require.NotPanics(t, func() { s.delete("") })
 }
 
-func TestSessionStreamsConcurrent(t *testing.T) {
-	s := newSessionStreams()
+func TestTurnRegistryConcurrent(t *testing.T) {
+	s := newTurnRegistry()
 	const n = 50
 	var wg sync.WaitGroup
 	for i := range n {

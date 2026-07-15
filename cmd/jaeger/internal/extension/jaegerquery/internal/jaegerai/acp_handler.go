@@ -62,7 +62,7 @@ type extToolCallResponse struct {
 	IsError bool `json:"isError,omitempty"`
 }
 
-// newDispatcher returns an acp.MethodHandler that routes inbound
+// newACPHandler returns an acp.MethodHandler that routes inbound
 // JSON-RPC from the sidecar:
 //   - session/update → streamingClient.SessionUpdate (translates ACP
 //     updates into typed AG-UI events — TEXT_MESSAGE_* for assistant
@@ -85,7 +85,7 @@ type extToolCallResponse struct {
 // for our extension method. Client errors flow back through the nil-safe
 // toRequestError so the dispatcher itself stays branchless on the
 // non-malformed-params path.
-func newDispatcher(client *streamingClient, store *ContextualToolsStore, logger *zap.Logger) acp.MethodHandler {
+func newACPHandler(client *streamingClient, store *ContextualToolsStore, logger *zap.Logger) acp.MethodHandler {
 	return func(ctx context.Context, method string, params json.RawMessage) (any, *acp.RequestError) {
 		switch method {
 		case acp.ClientMethodSessionUpdate:

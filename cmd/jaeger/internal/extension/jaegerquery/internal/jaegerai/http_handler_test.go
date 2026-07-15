@@ -22,7 +22,7 @@ import (
 func TestNewHandlerInitialisesStore(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
 	require.NotNil(t, h.store, "NewHandler must allocate a ContextualToolsStore")
-	require.NotNil(t, h.streams, "NewHandler must allocate a sessionStreams")
+	require.NotNil(t, h.turns, "NewHandler must allocate a turnRegistry")
 	assert.Equal(t, "ws://example", h.agentURL)
 	assert.Equal(t, "/jaeger", h.basePath)
 	assert.Equal(t, int64(1<<20), h.maxRequestBodySize)
@@ -102,7 +102,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	require.NotNil(t, h.mcpHandler, "MCP handler must be built when EnableMCP is true")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	h.streams.set("sess-1", testStreamingClient(), nil) // active turn
+	h.turns.set("sess-1", testStreamingClient(), nil) // active turn
 
 	t.Run("active session is served", func(t *testing.T) {
 		rr := httptest.NewRecorder()
@@ -127,9 +127,9 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	h.streams.set("sess-1", testStreamingClient(), nil)
+	h.turns.set("sess-1", testStreamingClient(), nil)
 
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/sess-1/mcp", http.NoBody))
-	assert.Equal(t, http.StatusNotFound, rr.Code, "session-scoped MCP endpoint must not be mounted when disabled")
+	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
 }

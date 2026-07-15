@@ -16,108 +16,39 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
-
-// Handler is the entry point for the jaeger-query AI gateway. It owns the
-// per-turn contextual tools store, the session-stream registry, and the chat
-// handler, and registers them on the caller-provided mux (see RegisterRoutes in
-// routes.go).
-//
-// Callers construct a Handler once (in jaegerquery's Start path), then call
-// RegisterRoutes when wiring the HTTP mux. This mirrors the APIHandler /
-// HTTPGateway pattern used by sibling jaeger-query subsystems and keeps all
-// AI dependencies inside the jaegerai package.
-type Handler struct {
-	logger *zap.Logger
-	// store and streams are two per-session registries that are separate only
-	// during this transition, because they're keyed differently: store by the
-	// ACP session id (read by the ext-method tool-call dispatch), streams by the
-	// gateway-minted UUID in the session-scoped MCP URL — and there is no bridge
-	// between the two ids. Once UI tools are served over the MCP endpoint and the
-	// ext-method path is retired, they collapse into one session container keyed
-	// by the UUID.
-	store              *ContextualToolsStore
-	streams            *sessionStreams
-	agentURL           string
-	basePath           string
-	maxRequestBodySize int64
-	// mcpHandler serves the session-scoped MCP endpoint. Non-nil only when the
-	// operator enabled MCP (HandlerParams.EnableMCP); otherwise the endpoint is
-	// not mounted and the gateway advertises AI chat only.
-	mcpHandler http.Handler
-}
-
-// HandlerParams carries the dependencies for the AI gateway Handler. Grouping
-// them in a struct keeps the constructor readable as the gateway gains MCP
-// wiring (query service, tenancy, telemetry) on top of the chat parameters.
-type HandlerParams struct {
-	Logger             *zap.Logger
-	AgentURL           string
-	BasePath           string
-	MaxRequestBodySize int64
-	// EnableMCP mounts the session-scoped telemetry MCP endpoint. When false,
-	// only the chat endpoint is registered.
-	EnableMCP    bool
-	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
-	Telset       telemetry.Settings
-}
-
-// NewHandler constructs a jaegerai.Handler with a freshly-allocated
-// ContextualToolsStore and sessionStreams. basePath is normalized once so the
-// registered mux patterns use a single canonical prefix. When p.EnableMCP is
-// set, the session-scoped MCP handler is built from the supplied query service,
-// tenancy manager, and telemetry settings.
-func NewHandler(p HandlerParams) *Handler {
-	basePath := normalizeBasePath(p.BasePath)
-	h := &Handler{
-		logger:             p.Logger,
-		store:              NewContextualToolsStore(),
-		streams:            newSessionStreams(),
-		agentURL:           p.AgentURL,
-		basePath:           basePath,
-		maxRequestBodySize: p.MaxRequestBodySize,
-	}
-	if p.EnableMCP {
-		h.mcpHandler = newMCPSessionHandler(p.Telset, p.QueryService, p.TenancyMgr, h.streams, basePath, p.Logger)
-	}
-	return h
-}
 
 // ChatRequest is the AG-UI payload accepted by the chat endpoint. It is the
 // AG-UI RunAgentInput shape — messages, tools, context, thread/run ids — so
 // the gateway can be addressed by stock AG-UI clients without translation.
 type ChatRequest = aguitypes.RunAgentInput
 
-// ChatHandler manages the AI gateway requests. Incoming AG-UI RunAgentInput
+// chatEndpoint manages the AI gateway requests. Incoming AG-UI RunAgentInput
 // payloads are translated into ACP prompts against a sidecar agent, and the
 // resulting ACP notifications are streamed back to the caller as AG-UI SSE
 // events.
-type ChatHandler struct {
+type chatEndpoint struct {
 	Logger   *zap.Logger
 	ctxTools *ContextualToolsStore
-	// streams registers this turn's SSE streaming client under a session id so
-	// the session-scoped MCP endpoint can confirm the id belongs to an active
+	// turns registers this turn's SSE streaming client under a session id so
+	// the turn-scoped MCP endpoint can confirm the id belongs to an active
 	// turn. May be nil in tests that do not exercise session registration.
-	streams            *sessionStreams
+	turns              *turnRegistry
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
 }
 
-// NewChatHandler wires the chat endpoint against a sidecar WebSocket URL.
+// newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
 // ctxTools may be nil in tests that do not exercise contextual tooling.
 // basePath is the jaeger-query base path; it is normalized once and kept
 // on the handler for consistency with other route handlers in this
 // package (APIHandler, static_handler) even though ServeHTTP does not
 // currently read it.
-func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *ChatHandler {
-	return &ChatHandler{
+func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
+	return &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,
 		sidecarWSURL:       sidecarWSURL,
@@ -126,7 +57,7 @@ func NewChatHandler(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarW
 	}
 }
 
-func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is supported", http.StatusMethodNotAllowed)
 		return
@@ -193,15 +124,15 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
 
 	// Register this turn's stream and UI tools under a freshly-minted session id
-	// so the session-scoped MCP endpoint (/api/ai/mcp/<id>/) can confirm the id
+	// so the turn-scoped MCP endpoint (/api/ai/mcp/<id>/) can confirm the id
 	// belongs to an active turn, advertise the turn's UI tools, and dispatch
 	// their calls onto the stream. The id is minted here rather than reusing the
 	// ACP session id because the endpoint URL must be constructible before
 	// session/new returns; announcing that URL to the sidecar is a follow-up.
-	if h.streams != nil {
-		mcpSessionID := uuid.NewString()
-		h.streams.set(mcpSessionID, clientImpl, rawTools)
-		defer h.streams.delete(mcpSessionID)
+	if h.turns != nil {
+		mcpRouteID := uuid.NewString()
+		h.turns.set(mcpRouteID, clientImpl, rawTools)
+		defer h.turns.delete(mcpRouteID)
 	}
 
 	// Build the ACP connection ourselves so the inbound dispatcher can
@@ -209,7 +140,7 @@ func (h *ChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// extension method (ExtMethodJaegerToolCall) — the SDK's
 	// NewClientSideConnection has a hardcoded dispatcher that returns
 	// MethodNotFound for any extension method we add.
-	acpConn := acp.NewConnection(newDispatcher(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
+	acpConn := acp.NewConnection(newACPHandler(clientImpl, h.ctxTools, h.Logger), adapter, adapter)
 
 	init, err := acp.SendRequest[acp.InitializeResponse](acpConn, acpCtx, acp.AgentMethodInitialize, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
