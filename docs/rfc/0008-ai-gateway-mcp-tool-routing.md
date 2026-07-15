@@ -17,9 +17,11 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M1 | Merge `jaeger_mcp` into the query extension: retire the standalone extension; its tools become the `mcptools` library taking `QueryService` directly (removes the inter-extension runtime coupling; one MCP implementation behind both endpoints) | ✅ Done — [#8894][pr-8894] |
 | M2 | Session-scoped MCP endpoint `/api/ai/mcp/<id>/` + session-stream registry ([#8910][pr-8910]), then serving telemetry **+** per-session UI tools over it ([#8973][pr-8973]) — dormant until a URL is announced | ✅ Done |
 | M3 | Tool-call observability: GenAI span attributes + gateway↔sidecar trace propagation | ✅ Done — [#8942][pr-8942] |
-| M4 | Announce the session-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ⏳ In review — [#9009][pr-9009] |
+| M4 | Announce the session-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`, defaulting to `localhost` — §3.3) | ⏳ In review — [#9009][pr-9009] |
 | M5 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its own MCP client and the ext-method path | ⏳ Pending |
 | M6 | Terminology cleanup — remove the `session`/`stream` naming overlap | ⏳ Proposed — see §4 |
+| M7 | Consolidate the session-free and session-scoped mounts onto **one** `mcp.Server` (two instances today; the session-scoped middleware already degrades to telemetry-only when no turn is active, so one serves both) | ⏳ Proposed — cleanup |
+| M8 | Probe `ai.mcp_base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
 | — | Claude Code sidecar (parallel track; consumes the same URL) | ⏳ In progress — [#8631][pr-8631] |
 
 Spike (not for merge): POC [#8854][pr-8854] validated both transports end-to-end.
@@ -68,11 +70,16 @@ Browser ──[AG-UI / HTTP+SSE]──► Gateway (jaeger-query :16686) ──[A
 - UI (contextual) tools: the browser declares them per turn in its chat request (`RunAgentInput.tools`); the gateway advertises that snapshot to the sidecar by attaching it to `NewSessionRequest.Meta` (namespaced `jaegertracing.io/contextual-tools`, names prefixed `ui_`); the sidecar registers them with the LLM as callable tools. When the LLM calls one, the sidecar dispatches it back to the gateway via the ACP ext-method `_meta/jaegertracing.io/tools/call`; the gateway acknowledges fire-and-forget and, in parallel, emits `TOOL_CALL_*` events on the browser's SSE stream, from which the browser performs the actual side effect ([#8423][pr-8423]).
 - Telemetry tools: served by the standalone `jaeger_mcp` OTel extension on `:16687`; each sidecar dials it directly.
 
-### 2.2 RFC 0002 rejected the gateway-hosted MCP server — that rejection is now scoped, not wrong
+### 2.2 RFC 0002 rejected a gateway-hosted MCP server for UI tools; the broader telemetry problem revives it
 
-[RFC 0002 §5.2][rfc-0002] rejected a per-turn gateway-hosted MCP server ("extra protocol layer for no architectural win; the ACP WebSocket already exists") and [§5.4][rfc-0002] chose the ACP ext-method. That reasoning was **correct for the problem RFC 0002 was solving** — UI-tool dispatch, at a time when telemetry tools already had their own working MCP path. Reusing the WebSocket for the one extra concern (UI tools) genuinely was simpler than standing up an MCP server.
+[RFC 0002 §5.2][rfc-0002] rejected a per-turn gateway-hosted MCP server and [§5.4][rfc-0002] chose the ACP ext-method. Two considerations drove that choice: (1) **minimize the number of distinct data flows** — reuse the single open ACP WebSocket instead of adding another connection; and (2) an **assumption that ACP was built for exactly this** — that the agent could send tool calls back over that same ACP connection (what MCP-over-ACP would provide).
 
-What changed is the **problem**, not the logic. Once the goal became "put the gateway in the path of *every* tool call (chiefly telemetry) and stop every sidecar duplicating an MCP client," the trade-off inverts: a gateway-hosted MCP server is no longer an extra layer for one narrow feature — it is the single layer that subsumes both dispatch paths. The subtlety that reconciles this with RFC 0002's objection: the fix is not to stop the agent from dialing an MCP server — MCP is simply how agents consume tools — but to change **what** it dials. An agent dialing `jaeger_mcp` (or any external server) directly leaves the gateway blind to those calls; that is the violation. An agent dialing **the gateway's own** MCP endpoint keeps the gateway on the path of every call; that is IoC satisfied. In both cases the agent speaks plain MCP — what changes is the destination, and therefore whether the gateway can see, trace, and gate the traffic.
+Both premises have since shifted:
+
+- **(2) was wrong.** ACP provides no usable same-connection tool-call path today: MCP-over-ACP is an UNSTABLE, unfinished draft (§2.3). The assumption that made reusing the WebSocket the clean choice does not hold.
+- **(1) gets worse, not better.** Routing tool calls through a gateway-hosted MCP server over HTTP *adds* a distinct data flow — a second connection back into the process, even on `localhost` — the opposite of minimizing flows. (The *configuration* cost is largely avoided by defaulting `ai.mcp_base_url` to `localhost` (§3.3), which works for a co-located sidecar; only other topologies need an override. But the extra connection itself remains.)
+
+So the gateway-hosted server is not a strict win on RFC 0002's own criteria — it is a deliberate trade-off, justified by a **larger problem RFC 0002 was not solving**: telemetry tool calls bypass the gateway entirely (§1), and the goal is to put the gateway on the path of *every* tool call. The reconciling point with RFC 0002's objection is that the issue was never *whether* the agent dials an MCP server — MCP is simply how agents consume tools — but *which* server: dialing `jaeger_mcp` (or any external server) directly leaves the gateway blind (the violation), whereas dialing the gateway's **own** MCP endpoint keeps it on the path of every call, able to see, trace, and gate the traffic. Accepting the extra flow and the URL config is the price of that visibility — and MCP-over-ACP, if it stabilizes, would later recover consideration (1) by folding the flow back onto the WebSocket (§6).
 
 Action: RFC 0002 gets a pointer banner to this RFC noting that its Alternative B is revived under a broader problem statement. Its historical analysis is preserved, not rewritten.
 
@@ -117,19 +124,21 @@ The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handlin
 Two mounts on the query port:
 
 ```
-/api/ai/mcp/              → session-free   — telemetry tools only; stateless; for Cursor / IDE MCP clients
+/api/ai/mcp/              → session-free   — telemetry tools only; stateless; for external MCP clients (Cursor, IDEs)
 /api/ai/mcp/<mcpRouteID>/ → session-scoped — telemetry + this turn's UI tools; for the sidecar mid-chat
 ```
 
-The session-scoped path carries the per-turn id (see §4 for the name) so the gateway can look up the turn's UI-tool snapshot and SSE stream. The session-free path replaced the standalone `jaeger_mcp:16687` for non-AI clients when the extension was merged into the query extension (§3.5). Making the id optional is what lets one implementation serve both audiences.
-
-> Implementation note: the two mounts are today backed by two *separate* `mcp.Server` instances (one per call site). The intended design is a **single** server behind both mounts — the session-scoped middleware already degrades to telemetry-only when no turn is active, so one instance suffices. Collapsing the two is an implementation cleanup, not a design choice.
+The session-scoped path carries the per-turn id (see §4 for the name) so the gateway can look up the turn's UI-tool snapshot and SSE stream. The session-free path replaced the standalone `jaeger_mcp:16687` for **external MCP clients** — Cursor, IDEs, and other AI tools that are *not* Jaeger's own chat sidecar — when the extension was merged into the query extension (§3.5). Making the id optional is what lets one implementation serve both audiences.
 
 ### 3.3 Transport (HTTP; MCP-over-ACP deferred)
 
 The session-scoped endpoint is served over **HTTP** (standard streamable-HTTP MCP), and that is the **permanent** transport: it works with any MCP-speaking agent and there is no plan to replace it. A second transport, MCP-over-ACP, was evaluated and **deferred as a future enhancement** (§6).
 
-**HTTP**, at `/api/ai/mcp/<mcpRouteID>/`. The gateway announces the URL in `NewSessionRequest.mcpServers`, but only when the agent advertised `mcpCapabilities.http` in its `InitializeResponse` (announcing a transport the agent cannot consume would make it fail the session) ([#9009][pr-9009]). The operator configures the externally-reachable base URL (`ai.mcp_base_url`); it is deliberately not inferred, because the query server cannot know the address a sidecar can actually reach it on, and announcing an unreachable URL fails the turn mid-flight. **Decision:** the gateway should probe that base URL's reachability at startup — analogous to the existing ACP agent health probe — so a misconfiguration surfaces before a chat turn fails rather than during one.
+**HTTP**, at `/api/ai/mcp/<mcpRouteID>/`. The gateway announces the URL in `NewSessionRequest.mcpServers`, but only when the agent advertised `mcpCapabilities.http` in its `InitializeResponse` (announcing a transport the agent cannot consume would make it fail the session) ([#9009][pr-9009]).
+
+**Decision — default the base URL to localhost.** `ai.mcp_base_url` defaults to the gateway's own address on `localhost` (scheme + query port from its HTTP config, e.g. `http://localhost:16686`). That works whenever the sidecar is co-located with the gateway — the common deployment, a sidecar in the same pod dialing `localhost` — so the endpoint is announced out of the box, with no configuration. Operators override `ai.mcp_base_url` only when the sidecar reaches the gateway at a *different* address (behind a proxy, in another network namespace, or with TLS terminated elsewhere); the query server can infer the localhost address but not that one. (This revises [#9009][pr-9009], which currently defaults the value empty and announces nothing.)
+
+**Reachability probe (M8).** The gateway should probe the base URL — the localhost default or an override — before relying on it, analogous to the existing ACP agent health probe, so a wrong address surfaces at startup rather than mid-turn.
 
 **Why not MCP-over-ACP now.** It would keep all tool traffic on the single ACP WebSocket, needing no second connection and no reachable-URL config. But it is an UNSTABLE, unfinished draft RFD that may never be finalized; its `mcp/message` bridge is unimplemented in the SDK; and none of our sidecars' SDKs support it (§2.3 — Python for the shipped Gemini sidecar, `claude-agent-acp`/Node.js for the in-progress Claude Code sidecar [#8631][pr-8631]). HTTP works today and is stable, so MCP-over-ACP is recorded as a future enhancement (§6), not planned work.
 
@@ -163,9 +172,9 @@ The telemetry tools no longer live in a standalone `jaeger_mcp` extension; they 
 
 - Serving UI tools as MCP tools requires an MCP server **inside the gateway** — one with access to the per-turn UI state — and the gateway lives in the query extension. So an in-gateway MCP server must exist regardless of `jaeger_mcp`.
 - The standalone `jaeger_mcp` extension ([ADR-002](../adr/002-mcp-server.md)) had a runtime dependency on the query extension: it fetched `QueryService` via `GetExtension(host)` at startup. The separate-extension boundary bought nothing except that coupling.
-- Once an in-gateway MCP server is needed anyway, a separate extension is redundant. Merging `jaeger_mcp`'s tool handlers into the query extension (they already took `*querysvc.QueryService` as a parameter) removes the inter-extension coupling — `mcptools.NewServer` now takes `QueryService` directly — and lets one MCP implementation (the `mcptools` library) back both the session-free and session-scoped endpoints, advertised to an agent with or without a session id (today via two server instances — §3.2).
+- Once an in-gateway MCP server is needed anyway, a separate extension is redundant. Merging `jaeger_mcp`'s tool handlers into the query extension (they already took `*querysvc.QueryService` as a parameter) removes the inter-extension coupling — `mcptools.NewServer` now takes `QueryService` directly — and lets one MCP implementation (the `mcptools` library) back both the session-free and session-scoped endpoints, advertised to an agent with or without a session id (today via two server instances; collapsing them to one is a cleanup milestone, M7).
 
-The standalone extension and its `:16687` listener are retired; the session-free `/api/ai/mcp/` mount on the query port (`:16686`) replaces them for non-AI MCP clients (Cursor, IDEs).
+The standalone extension and its `:16687` listener are retired; the session-free `/api/ai/mcp/` mount on the query port (`:16686`) replaces them for external MCP clients (Cursor, IDEs, and other AI tools that are not Jaeger's own chat sidecar).
 
 ### 3.6 External MCP servers: pass-through, not proxy
 
