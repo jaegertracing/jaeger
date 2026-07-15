@@ -16,7 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-// routeMCPSession and routeMCPSessionNoSlash are the turn-scoped MCP
+// routeTurnMCP and routeTurnMCPNoSlash are the turn-scoped MCP
 // patterns. Both are strictly more specific than the shared
 // "/api/ai/mcp/" pattern jaeger-query mounts, so all three coexist on one mux:
 //
@@ -29,8 +29,8 @@ import (
 // would fall through to the shared subtree pattern instead of reaching
 // the turn-scoped handler.
 const (
-	routeMCPSession        = "/api/ai/mcp/{mcpRouteID}/"
-	routeMCPSessionNoSlash = "/api/ai/mcp/{mcpRouteID}"
+	routeTurnMCP        = "/api/ai/mcp/{mcpRouteID}/"
+	routeTurnMCPNoSlash = "/api/ai/mcp/{mcpRouteID}"
 )
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
@@ -78,6 +78,14 @@ func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QuerySe
 		basePath:   basePath,
 		logger:     logger,
 	}
+}
+
+// registerRoutes mounts the endpoint on both the slash and no-slash forms of its
+// URL. Keeping this here means the route patterns stay owned by this file rather
+// than leaking into the gateway HTTP handler.
+func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
+	router.Handle(h.basePath+routeTurnMCP, h)
+	router.Handle(h.basePath+routeTurnMCPNoSlash, h)
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -26,21 +26,13 @@ const routeChat = "/api/ai/chat"
 // HTTPGateway pattern used by sibling jaeger-query subsystems and keeps all AI
 // dependencies inside the jaegerai package.
 type Handler struct {
-	logger *zap.Logger
-	// store and turns are two per-turn registries that are separate only during
-	// this transition, because they're keyed differently: store by the ACP session
-	// id (read by the ext-method UI-tool path, retired in a later milestone), turns
-	// by the gateway-minted route id in the turn-scoped MCP URL. Once the ext-method
-	// path is retired they collapse into one.
-	store              *ContextualToolsStore
-	turns              *turnRegistry
-	agentURL           string
-	basePath           string
-	maxRequestBodySize int64
-	// mcpHandler serves the turn-scoped MCP endpoint. Non-nil only when the operator
-	// enabled MCP (HandlerParams.EnableMCP); otherwise the endpoint is not mounted
-	// and the gateway advertises AI chat only.
-	mcpHandler http.Handler
+	basePath string
+	// chat is the chat endpoint (/api/ai/chat), always present.
+	chat *chatEndpoint
+	// mcp is the turn-scoped MCP endpoint. Non-nil only when the operator enabled
+	// MCP (HandlerParams.EnableMCP); otherwise the endpoint is not mounted and the
+	// gateway advertises AI chat only.
+	mcp *turnScopedEndpoint
 }
 
 // HandlerParams carries the dependencies for the AI gateway Handler. Grouping them
@@ -59,23 +51,21 @@ type HandlerParams struct {
 	Telset       telemetry.Settings
 }
 
-// NewHandler constructs a jaegerai.Handler with a freshly-allocated
-// ContextualToolsStore and turnRegistry. basePath is normalized once so the
-// registered mux patterns use a single canonical prefix. When p.EnableMCP is set,
-// the turn-scoped MCP endpoint is built from the supplied query service, tenancy
-// manager, and telemetry settings.
+// NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
+// basePath is normalized once so the registered mux patterns use a single
+// canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
+// so a chat turn and its MCP callbacks resolve to the same turn. When p.EnableMCP
+// is set, the turn-scoped MCP endpoint is built from the supplied query service,
+// tenancy manager, and telemetry settings.
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
+	turns := newTurnRegistry()
 	h := &Handler{
-		logger:             p.Logger,
-		store:              NewContextualToolsStore(),
-		turns:              newTurnRegistry(),
-		agentURL:           p.AgentURL,
-		basePath:           basePath,
-		maxRequestBodySize: p.MaxRequestBodySize,
+		basePath: basePath,
+		chat:     newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize),
 	}
 	if p.EnableMCP {
-		h.mcpHandler = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, h.turns, basePath, p.Logger)
+		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
 	}
 	return h
 }
@@ -99,12 +89,8 @@ func normalizeBasePath(basePath string) string {
 //     wildcard is more specific than the shared "/api/ai/mcp/" pattern jaeger-query
 //     mounts, so all coexist.
 func (h *Handler) RegisterRoutes(router *http.ServeMux) {
-	chat := newChatEndpoint(h.logger, h.store, h.agentURL, h.basePath, h.maxRequestBodySize)
-	chat.turns = h.turns
-	router.HandleFunc(h.basePath+routeChat, chat.ServeHTTP)
-
-	if h.mcpHandler != nil {
-		router.Handle(h.basePath+routeMCPSession, h.mcpHandler)
-		router.Handle(h.basePath+routeMCPSessionNoSlash, h.mcpHandler)
+	router.HandleFunc(h.basePath+routeChat, h.chat.ServeHTTP)
+	if h.mcp != nil {
+		h.mcp.registerRoutes(router)
 	}
 }

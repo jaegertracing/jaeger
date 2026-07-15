@@ -6,6 +6,8 @@ package jaegerai
 import (
 	"encoding/json"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 // turnState holds the per-turn state the turn-scoped MCP endpoint needs: the live
@@ -46,16 +48,23 @@ func newTurnRegistry() *turnRegistry {
 	}
 }
 
-// set records the stream and UI tools for mcpRouteID. No-op on empty id or nil
-// stream. Route ids are never reused across turns, so an overwrite indicates
-// a caller bug rather than a normal interleaving.
-func (s *turnRegistry) set(mcpRouteID string, stream *streamingClient, uiTools []json.RawMessage) {
-	if mcpRouteID == "" || stream == nil {
-		return
-	}
+// register records a new turn — the browser's SSE stream and the UI tools it
+// declared — under a freshly minted route id, and returns that id plus a closer
+// that removes the turn. The registry mints the id (nothing outside chooses how a
+// turn is keyed); the closer is meant to be deferred by the chat handler and is
+// idempotent. The chat handler ignores the id today — the turn-scoped endpoint
+// resolves it from the request path — but the id is what the turn's MCP URL is
+// built from once that URL is announced to the sidecar.
+func (s *turnRegistry) register(stream *streamingClient, uiTools []json.RawMessage) (mcpRouteID string, closer func()) {
+	id := uuid.NewString()
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.turns[mcpRouteID] = &turnState{stream: stream, uiTools: uiTools}
+	s.turns[id] = &turnState{stream: stream, uiTools: uiTools}
+	s.mu.Unlock()
+	return id, func() {
+		s.mu.Lock()
+		delete(s.turns, id)
+		s.mu.Unlock()
+	}
 }
 
 // get returns the turn state for mcpRouteID, or nil when no turn is active for it.
@@ -66,14 +75,6 @@ func (s *turnRegistry) get(mcpRouteID string) *turnState {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.turns[mcpRouteID] // nil for "" or an unknown id
-}
-
-// delete removes mcpRouteID. Idempotent: it runs from the chat handler's defer,
-// so it must not panic if set never ran (e.g. session/new failed).
-func (s *turnRegistry) delete(mcpRouteID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.turns, mcpRouteID) // no-op for "" or an unknown id
 }
 
 // count returns the number of active turns. Used by tests to observe the

@@ -19,14 +19,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-func TestNewHandlerInitialisesStore(t *testing.T) {
+func TestNewHandlerBuildsEndpoints(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
-	require.NotNil(t, h.store, "NewHandler must allocate a ContextualToolsStore")
-	require.NotNil(t, h.turns, "NewHandler must allocate a turnRegistry")
-	assert.Equal(t, "ws://example", h.agentURL)
+	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
-	assert.Equal(t, int64(1<<20), h.maxRequestBodySize)
-	assert.Nil(t, h.mcpHandler, "MCP handler must be nil when EnableMCP is false")
+	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when EnableMCP is false")
 }
 
 func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
@@ -99,24 +96,24 @@ func mcpEnabledHandler(t *testing.T, basePath string) *Handler {
 
 func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	h := mcpEnabledHandler(t, "")
-	require.NotNil(t, h.mcpHandler, "MCP handler must be built when EnableMCP is true")
+	require.NotNil(t, h.mcp, "MCP endpoint must be built when EnableMCP is true")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	h.turns.set("sess-1", testStreamingClient(), nil) // active turn
+	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil) // active turn
 
-	t.Run("active session is served", func(t *testing.T) {
+	t.Run("active turn is served", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/sess-1/mcp", http.NoBody))
-		assert.NotEqual(t, http.StatusNotFound, rr.Code, "registered session must reach the MCP handler")
+		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID+"/mcp", http.NoBody))
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "registered turn must reach the MCP handler")
 	})
 
-	t.Run("active session is served without a trailing slash", func(t *testing.T) {
+	t.Run("active turn is served without a trailing slash", func(t *testing.T) {
 		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/sess-1", http.NoBody))
+		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID, http.NoBody))
 		assert.NotEqual(t, http.StatusNotFound, rr.Code, "no-slash form must also reach the MCP handler")
 	})
 
-	t.Run("unknown session is rejected", func(t *testing.T) {
+	t.Run("unknown route id is rejected", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/ghost/mcp", http.NoBody))
 		assert.Equal(t, http.StatusNotFound, rr.Code)
@@ -127,9 +124,10 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	h.turns.set("sess-1", testStreamingClient(), nil)
 
+	// With MCP disabled the route is never mounted, so any turn URL is a 404
+	// regardless of whether a turn is active.
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/sess-1/mcp", http.NoBody))
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any-id/mcp", http.NoBody))
 	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
 }

@@ -12,7 +12,6 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/google/uuid"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -32,9 +31,9 @@ type ChatRequest = aguitypes.RunAgentInput
 type chatEndpoint struct {
 	Logger   *zap.Logger
 	ctxTools *ContextualToolsStore
-	// turns registers this turn's SSE streaming client under a session id so
-	// the turn-scoped MCP endpoint can confirm the id belongs to an active
-	// turn. May be nil in tests that do not exercise session registration.
+	// turns registers each turn's SSE streaming client and UI tools so the
+	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
+	// the constructor).
 	turns              *turnRegistry
 	sidecarWSURL       string
 	basePath           string
@@ -42,15 +41,15 @@ type chatEndpoint struct {
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
-// ctxTools may be nil in tests that do not exercise contextual tooling.
-// basePath is the jaeger-query base path; it is normalized once and kept
-// on the handler for consistency with other route handlers in this
-// package (APIHandler, static_handler) even though ServeHTTP does not
-// currently read it.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
+// ctxTools may be nil in tests that do not exercise contextual tooling. basePath
+// is the jaeger-query base path; it is normalized once and kept on the endpoint
+// for consistency with sibling handlers even though ServeHTTP does not currently
+// read it.
+func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,
+		turns:              turns,
 		sidecarWSURL:       sidecarWSURL,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
@@ -123,17 +122,12 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	clientImpl := newStreamingClient(ctx, w, req.ThreadID, req.RunID)
 
-	// Register this turn's stream and UI tools under a freshly-minted session id
-	// so the turn-scoped MCP endpoint (/api/ai/mcp/<id>/) can confirm the id
-	// belongs to an active turn, advertise the turn's UI tools, and dispatch
-	// their calls onto the stream. The id is minted here rather than reusing the
-	// ACP session id because the endpoint URL must be constructible before
-	// session/new returns; announcing that URL to the sidecar is a follow-up.
-	if h.turns != nil {
-		mcpRouteID := uuid.NewString()
-		h.turns.set(mcpRouteID, clientImpl, rawTools)
-		defer h.turns.delete(mcpRouteID)
-	}
+	// Register this turn's stream and UI tools so the turn-scoped MCP endpoint can
+	// confirm the turn is active, advertise its UI tools, and dispatch their calls
+	// onto the stream. The registry mints the route id and hands back a closer, so
+	// the chat endpoint never has to know how a turn is keyed.
+	_, closeTurn := h.turns.register(clientImpl, rawTools)
+	defer closeTurn()
 
 	// Build the ACP connection ourselves so the inbound dispatcher can
 	// route both standard ACP methods (session/update etc.) and our
