@@ -139,6 +139,12 @@ class JaegerSidecarAgent(Agent):
 
         contextual = _extract_contextual_tools(kwargs)
         if contextual:
+            # The only cleanup path for contextual tools is currently the
+            # prompt() finally block. If a session is abandoned after
+            # new_session() but before prompt() runs, the entry remains in
+            # _contextual_tools until process restart. This is a narrow, known
+            # tradeoff that avoids depending on unstable ACP session/close
+            # routing.
             self._contextual_tools[session_id] = contextual
             logger.info(
                 "Registered %d contextual tool(s) for session %s: %s",

@@ -240,6 +240,20 @@ async def run_workflow_test(prompt: str, cwd: str) -> None:
     assert any(END_OF_TURN_MARKER in json.dumps(message) for message in received_messages)
     assert any("echo: " in json.dumps(message) for message in received_messages)
 
+
+def test_sidecar_initialize_advertises_no_session_close() -> None:
+    config = sidecar.SidecarConfig(
+        gemini_api_key="test",
+        mcp_url="http://localhost",
+        mcp_discovery_timeout_sec=1.0,
+        otlp_endpoint="http://localhost:4318",
+        otlp_insecure=True,
+    )
+    agent = sidecar.JaegerSidecarAgent(config)
+    response = asyncio.run(agent.initialize(protocol_version=PROTOCOL_VERSION))
+    assert response.agent_capabilities == AgentCapabilities()
+
+
 def test_complete_acp_workflow_with_fake_agent() -> None:
     asyncio.run(run_workflow_test(DEFAULT_PROMPT, DEFAULT_CWD))
 
