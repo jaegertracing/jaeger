@@ -78,7 +78,7 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 | File → type | Role | Problem | Proposed |
 |---|---|---|---|
 | `session_streams.go` → `sessionStreams`, `session` | per-turn registry + per-turn state | "session" **+** "stream" glued onto one map | `turn_registry.go` → `turnRegistry`, `turnState` |
-| `mcp_endpoint.go` → `mcpSessionHandler` | the turn-scoped MCP endpoint | "session" | `turnScopedMCPHandler` |
+| `mcp_endpoint.go` → `mcpSessionHandler` | HTTP front for the turn-scoped MCP URL: gates on the turn registry, strips the path prefix, injects the turn id, and serves the MCP handler with that turn's UI tools layered on | "session"; and "…Handler" over-claims — there is one MCP handler (in `mcptools`), and this is the turn-scoped HTTP front *for* it | `turn_endpoint.go` → `turnScopedEndpoint` |
 | `contextual_tools.go` → `ContextualToolsStore` | ext-method UI-tool store (legacy path) | "contextual" is a second name for "UI"; on the ext-method path being retired | deleted with the ext-method (M6); use UI-tools vocabulary until then |
 | `handler.go` → `Handler`, `ChatHandler` | the **HTTP handlers** (`/api/ai/chat`, endpoint mounts) | generic "handler" doesn't say which protocol | `http_handler.go` |
 | `dispatcher.go` → `newDispatcher` | the inbound **ACP handler** — the handler `acp.NewConnection` calls; routes `session/update`, `session/request_permission`, and the ext-method | "dispatcher" over-elevates a plain handler: routing inbound methods by name is what a handler *does* | `acp_handler.go` → `acpHandler` |
