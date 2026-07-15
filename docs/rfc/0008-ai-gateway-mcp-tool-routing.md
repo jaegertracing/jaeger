@@ -60,7 +60,7 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 - **"UI tools"** — the frontend-declared, browser-executed tools. One name — *not* also "contextual tools."
 - The two MCP mounts are the **shared endpoint** (no turn id, telemetry only) and the **turn-scoped endpoint** (per turn, telemetry + that turn's UI tools) — never "session-free / session-scoped."
 - **Handlers are named by their protocol layer** — the **HTTP handler**, the **ACP handler**, the **MCP middleware** — not by generic verbs like "dispatcher."
-- **Per-route implementations are *endpoints*** (`endpoint_chat`, `endpoint_mcp`), mounted by the gateway HTTP handler — not themselves named "handler."
+- **Per-route implementations are *endpoints*** (`endpoint_chat`, `endpoint_turn_mcp`), mounted by the gateway HTTP handler — not themselves named "handler."
 - External AG-UI identifiers (`threadId`, `runId`) are unchanged — they belong to that protocol.
 
 **Concepts and identifiers:**
@@ -82,9 +82,9 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 | `contextual_tools.go` → `ContextualToolsStore` | ext-method UI-tool store (legacy path) | "contextual" is a second name for "UI"; on the ext-method path being retired | deleted with the ext-method (M6); use UI-tools vocabulary until then |
 | `handler.go` → `Handler` (+ `RegisterRoutes`) | the gateway **HTTP handler**: owns config/lifecycle and mounts the endpoints — `RegisterRoutes` folds in here | generic "handler"; and `routes.go` is a 5-line method that belongs with its receiver | `http_handler.go` (absorbs `routes.go`) |
 | `handler.go` → `ChatHandler` | the **chat endpoint** (`/api/ai/chat`) | it is an endpoint, not a "handler" | `endpoint_chat.go` → `chatEndpoint` |
-| `mcp_endpoint.go` → `mcpSessionHandler` | the **MCP endpoint** (`/api/ai/mcp/<id>/`): gates on the turn registry, strips the prefix, injects the turn id, serves the MCP handler with that turn's UI tools layered on | "session"; and it is an endpoint, not the MCP handler (there is one, in `mcptools`) | `endpoint_mcp.go` → `turnScopedEndpoint` |
+| `mcp_endpoint.go` → `mcpSessionHandler` | the **turn-scoped MCP endpoint** (`/api/ai/mcp/<id>/`): gates on the turn registry, strips the prefix, injects the turn id, serves the MCP handler with that turn's UI tools layered on | "session"; and it is not *all* of MCP — the shared MCP endpoint is wired separately (via `mcptools` in the query server) | `endpoint_turn_mcp.go` → `turnScopedEndpoint` |
 | `dispatcher.go` → `newDispatcher` | the inbound **ACP handler** — the handler `acp.NewConnection` calls; routes `session/update`, `session/request_permission`, and the ext-method | "dispatcher" over-elevates a plain handler: routing inbound methods by name is what a handler *does* | `acp_handler.go` → `acpHandler` |
-| `mcp_ui_tools.go` → `uiDispatchMiddleware` | the **MCP middleware** that layers a turn's UI tools onto the server | consistent with "UI tools"; the one place "dispatch" earns its keep | unchanged |
+| `mcp_ui_tools.go` → `uiDispatchMiddleware` | the **MCP middleware** that layers a turn's UI tools onto the server (`tools/list` append; `tools/call` for a UI tool → browser) | "dispatch" is the same generic-verb problem as "dispatcher" — it is just what middleware does | `uiToolsMiddleware` (and the internal `dispatch*` helpers likewise) |
 | `streaming_client.go` → `streamingClient` | the SSE writer to the browser | "stream" reserved for SSE, so consistent | unchanged |
 | `routes.go` | 5-line `RegisterRoutes` on `Handler` | a whole file for one method | **deleted** — folded into `http_handler.go` |
 | `translation.go`, `trace_propagation.go`, `ws_adapter.go` | AG-UI↔ACP translation; trace propagation; WebSocket adapter | fine | unchanged |
@@ -162,7 +162,7 @@ The gateway hosts an MCP server and implements the MCP methods itself (it is **n
 | `tools/list` | Returns telemetry tools **+** the calling turn's UI tools (UI wins on name collision). |
 | `tools/call` | Routes by name. A UI tool: emit its `TOOL_CALL_*` events on the browser's SSE stream (the browser executes the side effect) and immediately return a synthetic "dispatched" result to the caller — the gateway does not wait for the browser (fire-and-forget; §4.4 explains why). Any other name: execute the telemetry tool and return its real result. |
 
-The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handling — today the `uiDispatchMiddleware` layered on the MCP server — which the gateway fully observes (M3 gives it tracing). Sidecars stop carrying an MCP client and UI-tool machinery; they become thin ACP adapters that point their MCP client at the gateway URL.
+The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handling — the UI-tools middleware layered on the MCP server — which the gateway fully observes (M3 gives it tracing). Sidecars stop carrying an MCP client and UI-tool machinery; they become thin ACP adapters that point their MCP client at the gateway URL.
 
 ### 4.2 Shared vs. turn-scoped endpoints
 
