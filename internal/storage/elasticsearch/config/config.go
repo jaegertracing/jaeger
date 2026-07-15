@@ -69,12 +69,36 @@ type Indices struct {
 
 type IndexPrefix string
 
-// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
+// GetDateLayout returns the effective DateLayout value. If not explicitly
+// configured, it defaults based on GetRolloverFrequency() rather than always
+// defaulting to daily — otherwise a legacy config setting only
+// RolloverFrequency to "month" or "year" (without DateLayout) would resolve
+// to a hardcoded daily layout here, before ever reaching the frequency-aware
+// defaulting in BuildRotation, silently producing daily-suffixed indices
+// read back with a much coarser step and skipping most of them.
 func (o *IndexOptions) GetDateLayout() string {
 	if p := o.DateLayout.Get(); p != nil {
 		return *p
 	}
-	return "2006-01-02"
+	return DefaultDateLayout(o.GetRolloverFrequency())
+}
+
+// DefaultDateLayout returns the date-suffix layout that matches the
+// granularity of the given rollover frequency. This is the single source of
+// truth used both here (for the legacy CLI-flag config resolution path) and
+// in indices.BuildRotation (for the direct YAML rotation.periodic config
+// path), so the two paths can't drift out of sync with each other again.
+func DefaultDateLayout(frequency string) string {
+	switch frequency {
+	case "hour":
+		return "2006-01-02-15"
+	case "month":
+		return "2006-01"
+	case "year":
+		return "2006"
+	default:
+		return "2006-01-02"
+	}
 }
 
 // GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".

@@ -50,7 +50,7 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 		p := rc.Periodic.Get()
 		dateLayout := p.DateLayout
 		if dateLayout == "" {
-			dateLayout = defaultDateLayout(p.RolloverFrequency)
+			dateLayout = config.DefaultDateLayout(p.RolloverFrequency)
 		}
 		r = NewPeriodicRotation(prefix, dateLayout, config.RolloverFrequencyDuration(p.RolloverFrequency))
 	default:
@@ -60,25 +60,6 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 		r = NewRemoteClusterRotation(r, remoteClusters)
 	}
 	return NewLoggingRotation(r, logger)
-}
-
-// defaultDateLayout returns the date-suffix layout that matches the granularity
-// of the given rollover frequency, used when the user configures a
-// RolloverFrequency without an explicit DateLayout. Without this, a frequency
-// like "month" or "year" would still write daily-suffixed indices (the old
-// hardcoded default) while reading with a much coarser step, silently skipping
-// most of the actual indices in a queried time range.
-func defaultDateLayout(frequency string) string {
-	switch frequency {
-	case "hour":
-		return "2006-01-02-15"
-	case "month":
-		return "2006-01"
-	case "year":
-		return "2006"
-	default:
-		return "2006-01-02"
-	}
 }
 
 // indexToDataStreamName maps a legacy dash-notation index base name to its

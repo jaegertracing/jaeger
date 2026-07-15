@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 )
@@ -80,6 +81,81 @@ func TestIndexFilter_MonthlyAndYearlyIndices(t *testing.T) {
 			Aliases:      map[string]bool{},
 		},
 	}, filtered)
+}
+
+func TestIndexFilter_HourlyIndicesWithNonDashSeparators(t *testing.T) {
+	// Regression test: reviewer found that \b (used in an earlier version of
+	// this pattern) fails to find a boundary between a date segment and an
+	// underscore, since Go's regexp treats both digits and underscore as \w
+	// characters, so "jaeger-span-2024_03_15_12" and (with an empty separator)
+	// "jaeger-span-2024031512" were silently excluded from matching at all.
+	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name      string
+		separator string
+		indexName string
+	}{
+		{name: "underscore separator, hourly index", separator: "_", indexName: "jaeger-span-2024_03_15_12"},
+		{name: "empty separator, hourly index", separator: "", indexName: "jaeger-span-2024031512"},
+		{name: "underscore separator, daily index", separator: "_", indexName: "jaeger-span-2024_03_15"},
+		{name: "empty separator, daily index", separator: "", indexName: "jaeger-span-20240315"},
+		{name: "empty separator, yearly index", separator: "", indexName: "jaeger-span-2024"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := &IndexFilter{
+				IndexPrefix:          "",
+				IndexDateSeparator:   tc.separator,
+				Archive:              false,
+				Rollover:             false,
+				DeleteBeforeThisDate: beforeDate,
+			}
+			indices := []client.Index{
+				{
+					Index:        tc.indexName,
+					CreationTime: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC),
+					Aliases:      map[string]bool{},
+				},
+			}
+			filtered := filter.Filter(indices)
+			require.Len(t, filtered, 1, "expected %q to match the default periodic pattern and be selected for deletion", tc.indexName)
+			assert.Equal(t, tc.indexName, filtered[0].Index)
+		})
+	}
+}
+
+// TestIndexFilter_EmptySeparatorMonthAmbiguity documents a known, irreducible
+// limitation: with an empty IndexDateSeparator, a monthly index's 6 raw
+// digits (e.g. "202403") are indistinguishable by pattern alone from a
+// 6-digit rollover-alias sequential ID (e.g. "000001", matched by the
+// Rollover case). This isn't something the regex can resolve without more
+// information than the index name provides. It's a pre-existing property of
+// choosing an empty separator, not a regression from this change — recorded
+// here so it's an intentional, documented trade-off rather than a surprise.
+func TestIndexFilter_EmptySeparatorMonthAmbiguity(t *testing.T) {
+	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
+	filter := &IndexFilter{
+		IndexPrefix:          "",
+		IndexDateSeparator:   "",
+		Archive:              false,
+		Rollover:             false,
+		DeleteBeforeThisDate: beforeDate,
+	}
+	indices := []client.Index{
+		{
+			Index:        "jaeger-span-202404",
+			CreationTime: time.Date(2024, time.April, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        "jaeger-span-000001",
+			CreationTime: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+	}
+	filtered := filter.Filter(indices)
+	assert.Len(t, filtered, 2, "documented limitation: both the monthly index and the 6-digit rollover-alias-style index match when IndexDateSeparator is empty")
 }
 
 func TestIndexFilter(t *testing.T) {
