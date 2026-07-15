@@ -60,6 +60,7 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 - **"UI tools"** — the frontend-declared, browser-executed tools. One name — *not* also "contextual tools."
 - The two MCP mounts are the **shared endpoint** (no turn id, telemetry only) and the **turn-scoped endpoint** (per turn, telemetry + that turn's UI tools) — never "session-free / session-scoped."
 - **Handlers are named by their protocol layer** — the **HTTP handler**, the **ACP handler**, the **MCP middleware** — not by generic verbs like "dispatcher."
+- **Per-route implementations are *endpoints*** (`endpoint_chat`, `endpoint_mcp`), mounted by the gateway HTTP handler — not themselves named "handler."
 - External AG-UI identifiers (`threadId`, `runId`) are unchanged — they belong to that protocol.
 
 **Concepts and identifiers:**
@@ -78,13 +79,15 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 | File → type | Role | Problem | Proposed |
 |---|---|---|---|
 | `session_streams.go` → `sessionStreams`, `session` | per-turn registry + per-turn state | "session" **+** "stream" glued onto one map | `turn_registry.go` → `turnRegistry`, `turnState` |
-| `mcp_endpoint.go` → `mcpSessionHandler` | HTTP front for the turn-scoped MCP URL: gates on the turn registry, strips the path prefix, injects the turn id, and serves the MCP handler with that turn's UI tools layered on | "session"; and "…Handler" over-claims — there is one MCP handler (in `mcptools`), and this is the turn-scoped HTTP front *for* it | `turn_endpoint.go` → `turnScopedEndpoint` |
 | `contextual_tools.go` → `ContextualToolsStore` | ext-method UI-tool store (legacy path) | "contextual" is a second name for "UI"; on the ext-method path being retired | deleted with the ext-method (M6); use UI-tools vocabulary until then |
-| `handler.go` → `Handler`, `ChatHandler` | the **HTTP handlers** (`/api/ai/chat`, endpoint mounts) | generic "handler" doesn't say which protocol | `http_handler.go` |
+| `handler.go` → `Handler` (+ `RegisterRoutes`) | the gateway **HTTP handler**: owns config/lifecycle and mounts the endpoints — `RegisterRoutes` folds in here | generic "handler"; and `routes.go` is a 5-line method that belongs with its receiver | `http_handler.go` (absorbs `routes.go`) |
+| `handler.go` → `ChatHandler` | the **chat endpoint** (`/api/ai/chat`) | it is an endpoint, not a "handler" | `endpoint_chat.go` → `chatEndpoint` |
+| `mcp_endpoint.go` → `mcpSessionHandler` | the **MCP endpoint** (`/api/ai/mcp/<id>/`): gates on the turn registry, strips the prefix, injects the turn id, serves the MCP handler with that turn's UI tools layered on | "session"; and it is an endpoint, not the MCP handler (there is one, in `mcptools`) | `endpoint_mcp.go` → `turnScopedEndpoint` |
 | `dispatcher.go` → `newDispatcher` | the inbound **ACP handler** — the handler `acp.NewConnection` calls; routes `session/update`, `session/request_permission`, and the ext-method | "dispatcher" over-elevates a plain handler: routing inbound methods by name is what a handler *does* | `acp_handler.go` → `acpHandler` |
 | `mcp_ui_tools.go` → `uiDispatchMiddleware` | the **MCP middleware** that layers a turn's UI tools onto the server | consistent with "UI tools"; the one place "dispatch" earns its keep | unchanged |
 | `streaming_client.go` → `streamingClient` | the SSE writer to the browser | "stream" reserved for SSE, so consistent | unchanged |
-| `routes.go`, `translation.go`, `trace_propagation.go`, `ws_adapter.go` | route registration; AG-UI↔ACP translation; trace propagation; WebSocket adapter | fine | unchanged |
+| `routes.go` | 5-line `RegisterRoutes` on `Handler` | a whole file for one method | **deleted** — folded into `http_handler.go` |
+| `translation.go`, `trace_propagation.go`, `ws_adapter.go` | AG-UI↔ACP translation; trace propagation; WebSocket adapter | fine | unchanged |
 
 Rationale for `mcpRouteID` over the tempting alternatives: `turnID`/`runID` collide with `runId` (which already *is* the turn id from the client's side — there are three per-turn ids with identical lifecycles, distinguished only by provenance and ordering); `streamID`/`streamKey` pile onto the already-saturated "stream" cluster; anything with "session" collides with the two real protocol sessions. `mcpRouteID` names the id by its job — routing the MCP callback for a turn — on an axis nothing else uses. `callbackID` or `rendezvousID` are acceptable synonyms if `route` reads oddly. **The principle is decided** (session = protocol only; turn = gateway bookkeeping; stream = SSE only; one name for UI tools; shared/turn-scoped endpoints) and the names above are adopted, pending wider review of this RFC. Doing it now is cheap: `mcpSessionID` and the `{sessionID}` path segment have existed since [#8910][pr-8910], but the endpoint is dormant — its URL is not announced to any sidecar until [#9009][pr-9009] (still open), and no sidecar consumes these names yet — so nothing external is bound to them. It gets expensive once the URL is announced and a sidecar contract forms (M6).
 
