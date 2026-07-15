@@ -154,7 +154,7 @@ The transports considered (🟢 good / 🟡 partial / 🔴 poor):
 | Standard MCP `tools/call` (no custom method) | 🔴 Jaeger-custom `_meta/…/tools/call` | 🟢 | 🟢 |
 | Stable wire contract | 🟡 Jaeger-defined: stable, but bespoke | 🟢 standard, stable | 🔴 UNSTABLE draft |
 
-HTTP is the only option that is standard, stable, **and** speakable by today's sidecars; the ext-method is retired (§3.4) and MCP-over-ACP deferred (§6). (Fire-and-forget UI dispatch is not a row here: it is a property of the browser leg, not the transport — §3.4.)
+HTTP is the only option that is standard, stable, **and** speakable by today's sidecars; the ext-method is retired (§3.4) and MCP-over-ACP deferred (§6).
 
 ### 3.4 UI-tool dispatch is fire-and-forget today (an implementation limit), and the ext-method is retired
 
