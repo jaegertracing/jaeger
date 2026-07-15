@@ -47,8 +47,7 @@ var omitParentSpanIDReferenceGate = featuregate.GlobalRegistry().MustRegister(
 	),
 )
 
-// ToDBModel translates internal trace data into the DB Spans.
-// Returns slice of translated DB Spans and error if translation failed.
+// ToDBModel translates internal trace data into a slice of DB Spans.
 func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
