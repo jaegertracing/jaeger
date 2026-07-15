@@ -1,7 +1,7 @@
 # RFC 0008: AI Gateway — Unified MCP Tool Routing
 
 - **Status:** Draft
-- **Authors:** Nabil Salah, Yuri Shkuro
+- **Authors:** [Nabil Salah](https://github.com/Nabil-Salah), [Yuri Shkuro](https://github.com/yurishkuro)
 - **Created:** 2026-07-15
 - **Last Updated:** 2026-07-15
 
