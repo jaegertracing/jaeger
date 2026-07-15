@@ -15,3 +15,4 @@ An RFC is a document that describes a problem, surveys the solution space, and p
 - [0005: Qualified Attribute Queries](./0005-qualified-attribute-queries.md) - Allow scoping tag/attribute queries to specific OTLP levels
 - [0006: Unified Elasticsearch/OpenSearch Client](./0006-unified-elasticsearch-client.md) - Collapse the data-plane and control-plane ES/OS clients into one Jaeger-owned client
 - [0007: Synchronous Elasticsearch/OpenSearch Writes](./0007-synchronous-elasticsearch-writes.md) - Per-batch synchronous bulk writes so failures propagate and Kafka offsets commit only after durable persistence
+- [0008: AI Gateway — Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md) - Consolidate telemetry and UI tool dispatch through one gateway-hosted MCP server; supersedes the tool-routing decision in RFC 0002
