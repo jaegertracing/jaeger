@@ -79,7 +79,7 @@ The single biggest readability problem in the package is overloaded vocabulary: 
 | `session_streams.go` → `sessionStreams`, `session` | per-turn registry + per-turn state | "session" **+** "stream" glued onto one map | `turn_registry.go` → `turnRegistry`, `turnState` |
 | `mcp_endpoint.go` → `mcpSessionHandler` | the turn-scoped MCP endpoint | "session" | `turnScopedMCPHandler` |
 | `contextual_tools.go` → `ContextualToolsStore` | ext-method UI-tool store (legacy path) | "contextual" is a second name for "UI"; on the ext-method path being retired | deleted with the ext-method (M6); use UI-tools vocabulary until then |
-| `dispatcher.go` → the inbound ACP router | routes inbound ACP JSON-RPC | "dispatch" also names `uiDispatchMiddleware` | optional: name it the ACP router (`acpRouter`) |
+| `dispatcher.go` → the inbound ACP dispatcher | routes inbound ACP JSON-RPC (`session/update`, `session/request_permission`, the ext-method) to their handlers | none real — it genuinely *is* a dispatcher (one inbound point → many handlers); it only *reads* like a clash with `uiDispatchMiddleware`, which dispatches at a different layer (MCP `tools/call`) | keep the name; disambiguate by layer where both appear — the **ACP** dispatcher vs the **MCP UI-tool** dispatch |
 | `mcp_ui_tools.go` → `uiDispatchMiddleware` | layers a turn's UI tools onto the MCP server | consistent with "UI tools" | unchanged |
 | `streaming_client.go` → `streamingClient` | the SSE writer to the browser | "stream" reserved for SSE, so consistent | unchanged |
 | `handler.go`, `routes.go`, `translation.go`, `trace_propagation.go`, `ws_adapter.go` | HTTP handlers; route registration; AG-UI↔ACP translation; trace propagation; WebSocket adapter | fine | unchanged |
