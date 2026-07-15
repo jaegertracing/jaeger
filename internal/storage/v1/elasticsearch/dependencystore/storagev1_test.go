@@ -35,15 +35,6 @@ func TestV1WriteDependencies(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestV1CreateTemplates(t *testing.T) {
-	coreDependencyStore := &mocks.CoreDependencyStore{}
-	depStore := StoreV1{depStore: coreDependencyStore}
-	templateName := "testing-template"
-	coreDependencyStore.On("CreateTemplates", templateName).Return(nil)
-	err := depStore.CreateTemplates(templateName)
-	require.NoError(t, err)
-}
-
 func TestV1GetDependencies(t *testing.T) {
 	tests := []struct {
 		name                  string

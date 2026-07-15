@@ -20,8 +20,13 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -38,6 +43,10 @@ type mockACPAgent struct {
 	// tests that exercise the capability-gated session/close path opt in
 	// by setting SessionCapabilities.Close.
 	agentCapabilities acp.AgentCapabilities
+
+	// agentInfo is returned as InitializeResponse.AgentInfo when set. Left
+	// nil by default to match sidecars that don't advertise identity.
+	agentInfo *acp.Implementation
 
 	promptStopReason acp.StopReason
 
@@ -69,6 +78,7 @@ func (a *mockACPAgent) Initialize(_ context.Context, params acp.InitializeReques
 	return acp.InitializeResponse{
 		ProtocolVersion:   params.ProtocolVersion,
 		AgentCapabilities: a.agentCapabilities,
+		AgentInfo:         a.agentInfo,
 		AuthMethods:       []acp.AuthMethod{},
 	}, nil
 }
@@ -221,7 +231,7 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 
 	require.Equal(t, "/", sessionReq.Cwd, "session/new cwd mismatch")
 	require.Empty(t, sessionReq.McpServers,
-		"the gateway must not advertise any MCP servers in NewSession — built-in MCP tools are reached by the sidecar directly, and contextual tools ride the ACP extension method instead")
+		"the gateway does not announce the session-scoped MCP endpoint yet — that is a follow-up PR")
 	require.Empty(t, sessionReq.Meta,
 		"Meta must be omitted when the AG-UI request carries no tools")
 
@@ -233,6 +243,167 @@ func TestChatHandlerSendsACPProtocolRequests(t *testing.T) {
 	require.Equal(t, "text/event-stream", rr.Header().Get("Content-Type"), "content type mismatch")
 	require.Equal(t, "no-cache", rr.Header().Get("Cache-Control"), "cache-control mismatch")
 	require.Empty(t, rr.Header().Get("Connection"), "Connection is a hop-by-hop header managed by net/http")
+}
+
+// spanRecorder wraps an in-memory tracer provider so tests can start a span
+// standing in for the otelhttp-created request span, run the handler, then
+// inspect what got recorded on it.
+type spanRecorder struct {
+	provider *tracesdk.TracerProvider
+	exporter *tracetest.InMemoryExporter
+	span     trace.Span
+}
+
+// exportedSpans ends the recorder's span, flushes the provider, and returns
+// the exported spans.
+func (s *spanRecorder) exportedSpans(t *testing.T) []tracetest.SpanStub {
+	t.Helper()
+	s.span.End()
+	require.NoError(t, s.provider.ForceFlush(context.Background()))
+	return s.exporter.GetSpans()
+}
+
+// newSpanRecordingRequest builds a request whose context carries a real,
+// recording span (as otelhttp middleware would provide in production), so
+// ServeHTTP's SpanFromContext(ctx) enriches an actual span instead of a
+// no-op one.
+func newSpanRecordingRequest(t *testing.T, method, target string, body []byte) (*http.Request, *httptest.ResponseRecorder, *spanRecorder) {
+	t.Helper()
+	exporter := tracetest.NewInMemoryExporter()
+	provider := tracesdk.NewTracerProvider(
+		tracesdk.WithSyncer(exporter),
+		tracesdk.WithSampler(tracesdk.AlwaysSample()),
+	)
+	t.Cleanup(func() {
+		require.NoError(t, provider.Shutdown(context.Background()))
+	})
+
+	spanCtx, span := provider.Tracer("test").Start(context.Background(), "http.server")
+	req := httptest.NewRequest(method, target, bytes.NewReader(body)).WithContext(spanCtx)
+	return req, httptest.NewRecorder(), &spanRecorder{provider: provider, exporter: exporter, span: span}
+}
+
+func assertHasStringAttribute(t *testing.T, attrs []attribute.KeyValue, key, value string) {
+	t.Helper()
+	for _, attr := range attrs {
+		if string(attr.Key) == key && attr.Value.AsString() == value {
+			return
+		}
+	}
+	t.Fatalf("attribute %s=%s not found in %+v", key, value, attrs)
+}
+
+func assertLacksAttribute(t *testing.T, attrs []attribute.KeyValue, key string) {
+	t.Helper()
+	for _, attr := range attrs {
+		require.NotEqual(t, key, string(attr.Key), "attribute %s should not be set: %+v", key, attrs)
+	}
+}
+
+func TestChatHandlerSetsGenAISpanAttributesWithAgentInfo(t *testing.T) {
+	agent := &mockACPAgent{
+		agentInfo: &acp.Implementation{Name: "gemini-sidecar", Version: "1.2.3"},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20)
+
+	reqBody, err := json.Marshal(newAGUIRequest("trace for service checkout"))
+	require.NoError(t, err, "failed to marshal request")
+
+	req, rr, recorder := newSpanRecordingRequest(t, http.MethodPost, "/api/ai/chat", reqBody)
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+
+	spans := recorder.exportedSpans(t)
+	require.Len(t, spans, 1, "handler must enrich the existing span, not create a new one")
+	attrs := spans[0].Attributes
+
+	assertHasStringAttribute(t, attrs, string(otelsemconv.GenAIOperationNameInvokeAgent.Key), "invoke_agent")
+	assertHasStringAttribute(t, attrs, string(otelsemconv.GenAIAgentName("").Key), "gemini-sidecar")
+	assertHasStringAttribute(t, attrs, string(otelsemconv.GenAIAgentVersion("").Key), "1.2.3")
+	assertHasStringAttribute(t, attrs, string(otelsemconv.GenAIConversationID("").Key), "sess-test")
+}
+
+func TestChatHandlerSetsGenAISpanAttributesWithoutAgentInfo(t *testing.T) {
+	agent := &mockACPAgent{} // legacy sidecar: no AgentInfo advertised
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20)
+
+	reqBody, err := json.Marshal(newAGUIRequest("trace for service checkout"))
+	require.NoError(t, err, "failed to marshal request")
+
+	req, rr, recorder := newSpanRecordingRequest(t, http.MethodPost, "/api/ai/chat", reqBody)
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+
+	spans := recorder.exportedSpans(t)
+	require.Len(t, spans, 1)
+	attrs := spans[0].Attributes
+
+	assertHasStringAttribute(t, attrs, string(otelsemconv.GenAIOperationNameInvokeAgent.Key), "invoke_agent")
+	assertHasStringAttribute(t, attrs, string(otelsemconv.GenAIConversationID("").Key), "sess-test")
+	assertLacksAttribute(t, attrs, string(otelsemconv.GenAIAgentName("").Key))
+	assertLacksAttribute(t, attrs, string(otelsemconv.GenAIAgentVersion("").Key))
+}
+
+func TestChatHandlerInjectsTraceContextIntoPromptMeta(t *testing.T) {
+	agent := &mockACPAgent{}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "/jaeger", 1<<20)
+
+	reqBody, err := json.Marshal(newAGUIRequest("trace for service checkout"))
+	require.NoError(t, err, "failed to marshal request")
+
+	req, rr, recorder := newSpanRecordingRequest(t, http.MethodPost, "/api/ai/chat", reqBody)
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "unexpected status code, body=%q", rr.Body.String())
+
+	spans := recorder.exportedSpans(t)
+	require.Len(t, spans, 1)
+	requestSpan := spans[0]
+
+	_, _, promptReq := agent.snapshot()
+	require.NotNil(t, promptReq, "expected prompt request to be captured")
+	require.NotNil(t, promptReq.Meta, "expected Prompt _meta to carry the injected trace context")
+
+	traceparent, ok := promptReq.Meta["traceparent"].(string)
+	require.True(t, ok, "expected traceparent in Prompt _meta, got %+v", promptReq.Meta)
+	assert.Contains(t, traceparent, requestSpan.SpanContext.TraceID().String(),
+		"injected traceparent should carry the same trace id as the request span, so the sidecar can join the same trace")
+}
+
+func TestChatHandlerRegistersSessionStreamForTurn(t *testing.T) {
+	streams := newSessionStreams()
+	var duringTurn int
+	agent := &mockACPAgent{
+		// Observe the registry mid-turn: by the time Prompt runs, the chat
+		// handler has registered this turn's stream.
+		promptHook: func(context.Context, *acp.AgentSideConnection, acp.PromptRequest) {
+			duringTurn = streams.count()
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := NewChatHandler(zap.NewNop(), nil, wsURL, "", 1<<20)
+	handler.streams = streams
+
+	reqBody, err := json.Marshal(newAGUIRequest("where is the latency"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, "body=%q", rr.Body.String())
+	assert.Equal(t, 1, duringTurn, "the turn's stream must be registered while the turn is in flight")
+	assert.Equal(t, 0, streams.count(), "the stream must be removed at end of turn")
 }
 
 func TestChatHandlerAppendsContextEntriesToPromptBlocks(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 )
 
 func TestBadgerStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "badger")
+	integration.SkipUnlessEnv(t, integration.StorageBadger)
 
 	s := &E2EStorageIntegration{
 		ConfigFile:       "../../config-badger.yaml",

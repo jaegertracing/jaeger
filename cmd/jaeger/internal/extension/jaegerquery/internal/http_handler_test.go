@@ -194,6 +194,22 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Empty(t, response.Errors)
 }
 
+func TestGetTraceBase64Success(t *testing.T) {
+	// base64 "AAAAAAAAAP///////////w==" decodes to traceID {High: 0xFF, Low: 0xFFFFFFFFFFFFFFFF}
+	expectedTraceID := v1adapter.FromV1TraceID(model.NewTraceID(0xFF, 0xFFFFFFFFFFFFFFFF))
+
+	ts := initializeTestServer(t)
+	ts.traceReader.On("GetTraces", mock.Anything, mock.MatchedBy(func(params []tracestore.GetTraceParams) bool {
+		return len(params) == 1 && params[0].TraceID == expectedTraceID
+	})).Return(tracesIter(makeMockPTrace())).Once()
+
+	// "/" in base64 is percent-encoded as %2F in the URL path
+	var response structuredResponse
+	err := getJSON(ts.server.URL+`/api/traces/AAAAAAAAAP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2Fw==`, &response)
+	require.NoError(t, err)
+	assert.Empty(t, response.Errors)
+}
+
 func extractTraces(t *testing.T, response *structuredResponse) []ui.Trace {
 	var traces []ui.Trace
 	b, err := json.Marshal(response.Data)
@@ -1003,26 +1019,13 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(disabledReader))
 	defer ts.server.Close()
 
-	for _, tc := range []struct {
-		name             string
-		urlPath          string
-		wantErrorMessage string
-	}{
-		{
-			name:             "metrics query disabled error returned when fetching latency metrics",
-			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
-			wantErrorMessage: "metrics querying is currently disabled",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Test
-			var response any
-			err := getJSON(ts.server.URL+tc.urlPath, &response)
-
-			// Verify
-			assert.ErrorContains(t, err, tc.wantErrorMessage)
-		})
-	}
+	const urlPath = "/api/metrics/latencies?service=emailservice&quantile=0.95"
+	var response any
+	err = getJSON(ts.server.URL+urlPath, &response)
+	var httpErr *HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	require.Equal(t, http.StatusNotImplemented, httpErr.StatusCode)
+	require.Contains(t, httpErr.Body, "currently disabled")
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET
