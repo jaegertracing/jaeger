@@ -11,6 +11,7 @@ REPO_ROOT="$UTILS_DIR/../.."
 TEST_FILES=(
     "$UTILS_DIR/compute-tags.test.sh"
     "$UTILS_DIR/retry.test.sh"
+    "$UTILS_DIR/resolve-demo-snapshot-tags.test.sh"
     "$REPO_ROOT/internal/storage/v1/cassandra/schema/create.test.sh"
 )
 
