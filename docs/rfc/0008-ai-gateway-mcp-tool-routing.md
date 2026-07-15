@@ -17,9 +17,9 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M1 | Merge `jaeger_mcp` into the query extension: retire the standalone extension; its tools become the `mcptools` library taking `QueryService` directly (removes the inter-extension runtime coupling; one MCP implementation behind both endpoints) | ✅ Done — [#8894][pr-8894] |
 | M2 | Turn-scoped MCP endpoint `/api/ai/mcp/<id>/` + turn registry ([#8910][pr-8910]), then serving telemetry **+** per-turn UI tools over it ([#8973][pr-8973]) — dormant until a URL is announced | ✅ Done |
 | M3 | Tool-call observability: GenAI span attributes + gateway↔sidecar trace propagation | ✅ Done — [#8942][pr-8942] |
-| M4 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`, defaulting to `localhost` — §4.3) | ⏳ In review — [#9009][pr-9009] |
-| M5 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ⏳ **Next — lands before any further tool-routing PRs** |
-| M6 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its own MCP client and the ext-method path | ⏳ Pending |
+| M4 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ⏳ **Next — lands before any further tool-routing PRs** |
+| M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ⏳ In review — [#9009][pr-9009] |
+| M6 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its bespoke `jaeger_mcp` bridge and the ext-method path | ⏳ Pending |
 | M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server` (two instances today; the turn-scoped middleware already degrades to telemetry-only when no turn is active, so one serves both) | ⏳ Proposed — cleanup |
 | M8 | Probe `ai.mcp_base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
 | — | Claude Code sidecar (parallel track; consumes the same URL) | ⏳ In progress — [#8631][pr-8631] |
@@ -50,7 +50,7 @@ Note the scope difference from [RFC 0002](./0002-ai-gateway-contextual-tools.md)
 
 ## 2. Terminology (decided)
 
-The single biggest readability problem in the package is overloaded vocabulary: "session" names four different things, "stream" three, the frontend tools have two names ("contextual" and "UI"), and the two endpoints are labelled with the very word we want to reserve. This section fixes the vocabulary, and it comes before the design because everything below uses it. **Applying it is the next milestone (M5), to land before any further tool-routing PRs bake the current names into the sidecar-facing contract.**
+The single biggest readability problem in the package is overloaded vocabulary: "session" names four different things, "stream" three, the frontend tools have two names ("contextual" and "UI"), and the two endpoints are labelled with the very word we want to reserve. This section fixes the vocabulary, and it comes before the design because everything below uses it. **Applying it is the next milestone (M4), to land before any further tool-routing PRs bake the current names into the sidecar-facing contract.**
 
 **Governing principle:**
 
@@ -162,7 +162,7 @@ The gateway hosts an MCP server and implements the MCP methods itself (it is **n
 | `tools/list` | Returns telemetry tools **+** the calling turn's UI tools (UI wins on name collision). |
 | `tools/call` | Routes by name. A UI tool: emit its `TOOL_CALL_*` events on the browser's SSE stream (the browser executes the side effect) and immediately return a synthetic "dispatched" result to the caller — the gateway does not wait for the browser (fire-and-forget; §4.4 explains why). Any other name: execute the telemetry tool and return its real result. |
 
-The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handling — the UI-tools middleware layered on the MCP server — which the gateway fully observes (M3 gives it tracing). Sidecars stop carrying an MCP client and UI-tool machinery; they become thin ACP adapters that point their MCP client at the gateway URL.
+The UI-vs-telemetry decision is made once, in the gateway's `tools/call` handling — the UI-tools middleware layered on the MCP server — which the gateway fully observes (M3 gives it tracing). Sidecars stop re-implementing tool plumbing — the tool-translation bridge to `jaeger_mcp` and the separate UI-tool path — and simply point their MCP client at the single gateway URL.
 
 ### 4.2 Shared vs. turn-scoped endpoints
 
@@ -230,9 +230,9 @@ The gateway serves Jaeger's own telemetry in-process (§4.5); it does **not** pr
 See the **Implementation status** table at the top. In narrative:
 
 - **Done:** `jaeger_mcp` is merged into the query extension (M1, [#8894][pr-8894]); the turn-scoped endpoint serves telemetry + UI tools (M2, [#8973][pr-8973]); tool calls are traceable (M3, [#8942][pr-8942]). The endpoint stayed dormant until announced.
-- **In review:** announce the endpoint to the sidecar over HTTP (M4, [#9009][pr-9009]) — the PR that wakes the dormant endpoint.
-- **Next — before any further tool-routing PRs:** the terminology cleanup (M5, §2), so the renamed ids/endpoints are in place before a sidecar contract forms. #9009 (M4) should adopt the final names before it merges.
-- **Then:** migrate the Gemini sidecar onto the URL and remove its MCP client + the ext-method (M6) — the sidecar-simplification payoff and the ext-method retirement.
+- **Next — before any further tool-routing PRs:** the terminology cleanup (M4, §2), so the renamed ids/endpoints are in place before a sidecar contract forms.
+- **In review (should adopt the M4 names before it merges):** announce the endpoint to the sidecar over HTTP (M5, [#9009][pr-9009]) — the PR that wakes the dormant endpoint.
+- **Then:** migrate the Gemini sidecar onto the URL and drop its bespoke `jaeger_mcp` bridge + the ext-method (M6) — the sidecar-simplification payoff and the ext-method retirement.
 - **Cleanups:** consolidate the two MCP server instances (M7); add the reachability probe (M8).
 - **Out of scope:** MCP-over-ACP, query-type UI tools, and gateway-as-proxy — see §6.
 

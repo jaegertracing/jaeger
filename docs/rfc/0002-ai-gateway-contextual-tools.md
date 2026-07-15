@@ -1,13 +1,13 @@
 # RFC 0002: AI Gateway — Frontend-Driven Contextual Tools
 
-- **Status:** Draft (tool-routing decision superseded by [RFC 0008](./0008-ai-gateway-mcp-tool-routing.md))
+- **Status:** Draft
 - **Author:** Nabil Salah
 - **Created:** 2026-04-23
 - **Last Updated:** 2026-04-23
 
 ---
 
-> **Superseded note (2026-07-15):** The tool-routing choice in §5 — selecting the ACP extension method (Alternative D) and rejecting a gateway-hosted MCP server (Alternative B) — is superseded by [RFC 0008: Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md). That analysis was correct for the problem this RFC solved (UI-tool dispatch), but the broader goal of routing *all* tool calls — chiefly telemetry — through the gateway for inversion-of-control revives Alternative B under a different problem statement. See RFC 0008 §2.2. This document is retained unchanged as a historical snapshot.
+> **Superseded note (2026-07-15):** The tool-routing choice in §5 — selecting the ACP extension method (Alternative D) and rejecting a gateway-hosted MCP server (Alternative B) — is superseded by [RFC 0008: Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md). That analysis was correct for the problem this RFC solved (UI-tool dispatch), but the broader goal of routing *all* tool calls — chiefly telemetry — through the gateway for inversion-of-control revives Alternative B under a different problem statement. See RFC 0008 §3.2. This document is retained unchanged as a historical snapshot.
 
 ## Abstract
 
