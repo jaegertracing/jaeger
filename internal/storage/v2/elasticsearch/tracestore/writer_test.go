@@ -40,7 +40,9 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 func TestTraceWriter_WriteTraces_OmitParentSpanIDReference(t *testing.T) {
 	setOmitParentSpanIDReferenceGate(t, true)
 
-	coreWriter := &mocks.Writer{}
+	// Use NewWriter(t) so the WriteSpans expectation is asserted on cleanup, proving
+	// WriteTraces actually forwards the omit-computed spans to the core writer.
+	coreWriter := mocks.NewWriter(t)
 	td := ptrace.NewTraces()
 	resourceSpans := td.ResourceSpans().AppendEmpty()
 	resourceSpans.Resource().Attributes().PutStr("service.name", "testing-service")
