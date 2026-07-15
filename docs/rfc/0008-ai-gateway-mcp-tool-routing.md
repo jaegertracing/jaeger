@@ -154,9 +154,7 @@ The transports considered (🟢 good / 🟡 partial / 🔴 poor):
 | Standard MCP `tools/call` (no custom method) | 🔴 Jaeger-custom `_meta/…/tools/call` | 🟢 | 🟢 |
 | Stable wire contract | 🟡 Jaeger-defined: stable, but bespoke | 🟢 standard, stable | 🔴 UNSTABLE draft |
 
-HTTP is the only option that is standard, stable, **and** speakable by today's sidecars; the ext-method is retired (§3.4) and MCP-over-ACP deferred (§6).
-
-Fire-and-forget is deliberately absent from this table: it is a property of the current browser↔gateway wiring (a one-way SSE stream plus a gateway-synthesized ack — §3.4), not of the agent→gateway transport. On every transport the gateway acks a UI-tool call and returns a real result for a telemetry call, and from the agent's side the call is synchronous either way. The ext-method's `{acknowledged: true}` is a normal request/response — the gateway acks because it has no browser result to return, not because the transport cannot carry one.
+HTTP is the only option that is standard, stable, **and** speakable by today's sidecars; the ext-method is retired (§3.4) and MCP-over-ACP deferred (§6). (Fire-and-forget UI dispatch is not a row here: it is a property of the browser leg, not the transport — §3.4.)
 
 ### 3.4 UI-tool dispatch is fire-and-forget today (an implementation limit), and the ext-method is retired
 
@@ -164,7 +162,7 @@ Today the gateway dispatches a UI tool by emitting its `TOOL_CALL_*` events on t
 
 This is a property of the current **implementation**, not of UI tools and not of AG-UI. The browser↔gateway leg is a single `POST /api/ai/chat` whose response is a one-way SSE stream (server→browser); there is no channel for the browser to return a value mid-turn, and RFC 0002 §6.6 deliberately chose to synthesize the ack rather than build one (a `POST /api/ai/tool-result` endpoint plus per-call rendezvous state). AG-UI itself supports frontend tool calls that return structured results (plus HITL interrupts and shared-state sync), so query-type UI tools such as `get_current_viewport` or `read_selection` are not categorically impossible — they are unsupported only until a browser→gateway result channel exists. That is **out of scope for this RFC** (§6): nothing in the gateway↔sidecar protocol prevents it, but it needs UI-side integration and belongs in its own RFC.
 
-The agent→gateway transport is orthogonal to all of this: switching from the ACP ext-method to MCP `tools/call` does not touch the browser leg. **The MCP `tools/call` route replaces the custom ext-method — they do not coexist:** when the Gemini sidecar migrates (M5), the ext-method path (`dispatcher.go` + `ContextualToolsStore`) is removed.
+The agent→gateway transport is orthogonal to all of this. On every transport the gateway acks a UI-tool call and returns a real result for a telemetry call, so from the agent's side the call is synchronous either way — the ext-method's `{acknowledged: true}` is a normal request/response that acks only because there is no browser result to return, not because the transport cannot carry one. Switching from the ACP ext-method to MCP `tools/call` therefore does not touch the browser leg. **The MCP `tools/call` route replaces the custom ext-method — they do not coexist:** when the Gemini sidecar migrates (M5), the ext-method path (`dispatcher.go` + `ContextualToolsStore`) is removed.
 
 ### 3.5 `jaeger_mcp` is merged into the query extension
 
