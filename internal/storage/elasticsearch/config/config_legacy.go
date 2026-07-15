@@ -12,10 +12,12 @@ import (
 // RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
 // to reject deprecated rotation-related flags (use_aliases, use_ilm,
 // span_read_alias, span_write_alias, service_read_alias, service_write_alias).
-// Once promoted to Stable, users must migrate to the new rotation config.
+// It is enabled by default (Beta): setting any of these flags is a validation error
+// unless the gate is explicitly disabled. Once promoted to Stable, the gate can no
+// longer be disabled and users must migrate to the new rotation config.
 var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
 	"es.config.rejectLegacyRotationFlags",
-	featuregate.StageAlpha,
+	featuregate.StageBeta,
 	featuregate.WithRegisterFromVersion("v2.9.0"),
 	featuregate.WithRegisterDescription(
 		"When enabled, the use of deprecated ES rotation flags "+
