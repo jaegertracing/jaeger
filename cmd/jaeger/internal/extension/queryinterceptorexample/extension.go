@@ -12,8 +12,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	// Imported through the public module-root path, exactly as a third-party
+	// OCB extension would — no Jaeger-internal packages are referenced.
+	"github.com/jaegertracing/jaeger/components/extension/queryinterceptor"
 )
 
 const redactedPlaceholder = "REDACTED"
@@ -41,7 +42,7 @@ func (*interceptor) Shutdown(context.Context) error { return nil }
 
 // OnQuery rejects a query that filters on any denied attribute — the pre-query
 // admission hook.
-func (i *interceptor) OnQuery(_ context.Context, query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+func (i *interceptor) OnQuery(_ context.Context, query queryinterceptor.TraceQueryParams) (queryinterceptor.TraceQueryParams, error) {
 	for _, key := range i.cfg.DenyQueryAttributes {
 		if _, ok := query.Attributes.Get(key); ok {
 			i.logger.Debug("rejecting query that filters on a forbidden attribute", zap.String("attribute", key))

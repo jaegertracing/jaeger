@@ -16,12 +16,11 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/components/extension/queryinterceptor"
 )
 
-func queryWithAttr(key, val string) tracestore.TraceQueryParams {
-	q := tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
+func queryWithAttr(key, val string) queryinterceptor.TraceQueryParams {
+	q := queryinterceptor.TraceQueryParams{Attributes: pcommon.NewMap()}
 	q.Attributes.PutStr(key, val)
 	return q
 }

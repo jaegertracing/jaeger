@@ -301,7 +301,7 @@ func TestReader_GetTraces_ContinuesAfterError(t *testing.T) {
 
 // The early-stop tests exercise the "consumer stopped iterating" branches: when
 // the range loop breaks, yield returns false and the decorator must return.
-func TestReader_EarlyStop(t *testing.T) {
+func TestReader_EarlyStop(*testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v"), ids: []tracestore.FoundTraceID{{}}}
 	r := NewReader(next, fakeInterceptor{})
 

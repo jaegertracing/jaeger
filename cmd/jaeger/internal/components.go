@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/queryinterceptorexample"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
@@ -41,6 +40,7 @@ import (
 	"github.com/jaegertracing/jaeger/components/extension/expvar"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/components/extension/queryinterceptorexample"
 	"github.com/jaegertracing/jaeger/components/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/components/extension/remotestorage"
 	"github.com/jaegertracing/jaeger/components/processor/adaptivesampling"

@@ -20,10 +20,12 @@
 // The business logic (authorization, redaction rules, …) lives entirely in the
 // extension; jaeger-query only defines the contract and the invocation points.
 //
-// NOTE (prototype): this contract lives under cmd/jaeger/internal so it is only
-// importable within the Jaeger module. A production version would live in an
-// importable (non-internal) package so third-party extensions can implement it,
-// exactly as the OTel Collector publishes extensionauth.
+// This package is the implementation. The contract is re-exported for external
+// consumers (custom OCB builds, third-party extensions) at the module-root path
+// github.com/jaegertracing/jaeger/components/extension/queryinterceptor, which
+// aliases Interceptor and the TraceQueryParams type so implementers never need
+// to import a Jaeger-internal package — the same way the Collector publishes
+// extensionauth for authenticators.
 package queryinterceptor
 
 import (
