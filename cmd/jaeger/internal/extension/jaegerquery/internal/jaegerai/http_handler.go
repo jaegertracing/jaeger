@@ -4,6 +4,8 @@
 package jaegerai
 
 import (
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -45,7 +47,12 @@ type HandlerParams struct {
 	MaxRequestBodySize int64
 	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
 	// chat endpoint is registered.
-	EnableMCP    bool
+	EnableMCP bool
+	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
+	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
+	// endpoint. Empty announces nothing — see announceMCPServers. Ignored when
+	// EnableMCP is false.
+	MCPBaseURL   string
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Telset       telemetry.Settings
@@ -60,12 +67,17 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	h := &Handler{
-		basePath: basePath,
-		chat:     newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize),
-	}
+	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
+	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
 		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+		// Hand the chat endpoint the shared server and its reachable URL so each
+		// turn announces this endpoint to the sidecar (see chatEndpoint.announceMCP).
+		chat.mcpServer = h.mcp.server
+		// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a
+		// value like "http://host:16686//" is legal, and leaving either slash on
+		// would announce "…//api/ai/mcp/<id>/" — a path the mux never matches.
+		chat.mcpBaseURL = strings.TrimRight(p.MCPBaseURL, "/")
 	}
 	return h
 }
@@ -93,4 +105,30 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 	if h.mcp != nil {
 		h.mcp.registerRoutes(router)
 	}
+}
+
+var _ io.Closer = (*Handler)(nil)
+
+// Close tears down any MCP sessions still bound to the shared server so they do
+// not outlive the gateway. The go-sdk reaps a session only when it goes idle
+// (see StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
+// disconnected would otherwise linger after Shutdown. Called by the jaeger-query
+// server's Close path (Server.Close → httpServer.Close → closeAll → here).
+//
+// ServerSession.Close is the only teardown the SDK exposes — there is no
+// server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
+// closing each one mid-iteration, which deregisters it, is safe.
+//
+// A nil Handler is what jaeger-query holds when the AI gateway is disabled, and a
+// Handler with no MCP server is what it holds when only chat is enabled — both
+// close to nothing, so callers need no guard.
+func (h *Handler) Close() error {
+	if h == nil || h.mcp == nil {
+		return nil
+	}
+	var errs []error
+	for session := range h.mcp.server.Sessions() {
+		errs = append(errs, session.Close())
+	}
+	return errors.Join(errs...)
 }

@@ -6,6 +6,7 @@ package app
 
 import (
 	"errors"
+	"net/url"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -54,6 +55,22 @@ type AIConfig struct {
 	// retired standalone jaeger_mcp extension (which served :16687); point
 	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
 	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
+	// MCPBaseURL is the externally-reachable scheme+authority a sidecar should
+	// use to dial the turn-scoped MCP endpoint, e.g.
+	// "https://jaeger.example.com:16686". The gateway announces
+	// "<MCPBaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to the sidecar in the
+	// session/new request.
+	//
+	// It must be configured rather than inferred: the query server cannot know
+	// the address a sidecar can actually reach it on (it may sit behind a proxy,
+	// in a different network namespace, or terminate TLS elsewhere), and
+	// announcing an unreachable URL is worse than announcing none — the agent
+	// would dial it and fail mid-turn.
+	//
+	// Empty (the default) makes no HTTP announcement; since HTTP is the only
+	// transport today, the turn then runs without the turn-scoped tools. Ignored
+	// unless both AgentURL and EnableMCP are set.
+	MCPBaseURL string `mapstructure:"mcp_base_url" valid:"optional"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 	// HealthCheckInterval controls how often the AI health checker contacts
@@ -101,6 +118,16 @@ func (c *AIConfig) Validate() error {
 	}
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
+	}
+	if c.MCPBaseURL != "" {
+		// Reject anything we cannot turn into a dialable absolute URL. A relative
+		// or scheme-less value would be announced verbatim and fail at the
+		// sidecar, which is exactly the mid-turn failure this field exists to
+		// avoid — so fail fast at config load instead.
+		u, err := url.Parse(c.MCPBaseURL)
+		if err != nil || !u.IsAbs() || u.Host == "" {
+			return errors.New("ai.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
+		}
 	}
 	return nil
 }

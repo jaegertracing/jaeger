@@ -12,6 +12,7 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -34,17 +35,36 @@ type chatEndpoint struct {
 	// turns registers each turn's SSE streaming client and UI tools so the
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
-	turns              *turnRegistry
+	turns *turnRegistry
+	// mcpServer is the shared MCP server behind the turn-scoped endpoint. Non-nil
+	// exactly when the operator enabled MCP, so it doubles as the gate: nil means
+	// no endpoint is mounted, so the turn announces no MCP server.
+	mcpServer *mcp.Server
+	// mcpBaseURL is the scheme+authority announced for the endpoint. Empty means
+	// nothing is announced.
+	mcpBaseURL         string
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
+}
+
+// announceMCP builds this turn's NewSessionRequest.mcpServers. It returns an empty
+// list when MCP is disabled — no endpoint is mounted, so there is nothing to point
+// the sidecar at.
+func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
+	if h.mcpServer == nil {
+		return []acp.McpServer{}
+	}
+	return announceMCPServers(caps, h.mcpBaseURL, h.basePath, mcpRouteID)
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
 // ctxTools may be nil in tests that do not exercise contextual tooling. basePath
 // is the jaeger-query base path; it is normalized once and kept on the endpoint
 // for consistency with sibling handlers even though ServeHTTP does not currently
-// read it.
+// read it. The MCP announce fields (mcpServer, mcpBaseURL) default to their zero
+// values — the announcement stays off until NewHandler enables it — so tests that
+// do not exercise MCP need no extra wiring.
 func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
@@ -124,9 +144,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Register this turn's stream and UI tools so the turn-scoped MCP endpoint can
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto the stream. The registry mints the route id and hands back a closer, so
-	// the chat endpoint never has to know how a turn is keyed.
-	_, closeTurn := h.turns.register(clientImpl, rawTools)
+	// onto the stream. The registry mints the route id, which we announce to the
+	// sidecar below as the turn's MCP URL, and hands back a closer.
+	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawTools)
 	defer closeTurn()
 
 	// Build the ACP connection ourselves so the inbound dispatcher can
@@ -171,8 +191,10 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// "/" is a placeholder: the gateway advertises no fs capability in
 		// Initialize, so Cwd is never resolved against a real filesystem.
 		// ACP requires the field to be non-empty, hence this constant.
-		Cwd:        "/",
-		McpServers: []acp.McpServer{},
+		Cwd: "/",
+		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
+		// transports it advertised support for in Initialize.
+		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
 	}
 	if len(prefixedTools) > 0 {
 		newSessionReq.Meta = map[string]any{

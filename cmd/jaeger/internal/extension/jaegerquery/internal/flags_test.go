@@ -75,6 +75,39 @@ func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 	}
 }
 
+func TestAIConfigValidateAcceptsAbsentOrAbsoluteMCPBaseURL(t *testing.T) {
+	// Empty is the default: no HTTP announcement (see AIConfig.MCPBaseURL).
+	cfg := validAIConfig()
+	require.NoError(t, cfg.Validate())
+
+	for _, u := range []string{
+		"http://127.0.0.1:16686",
+		"https://jaeger.example.com:16686",
+		"https://jaeger.example.com",
+	} {
+		cfg := validAIConfig()
+		cfg.MCPBaseURL = u
+		require.NoError(t, cfg.Validate(), "absolute URL %q must be accepted", u)
+	}
+}
+
+func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
+	// A scheme-less or relative value would be announced verbatim and fail at the
+	// sidecar mid-turn — exactly what this field exists to prevent — so it must
+	// fail at config load instead.
+	const want = "ai.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686"
+	for _, u := range []string{
+		"jaeger.example.com:16686", // no scheme
+		"/api/ai/mcp",              // path only
+		"http://",                  // no host
+		"://nonsense",              // unparseable
+	} {
+		cfg := validAIConfig()
+		cfg.MCPBaseURL = u
+		require.EqualError(t, cfg.Validate(), want, "relative/invalid URL %q must be rejected", u)
+	}
+}
+
 func TestAIConfigValidateAcceptsZeroHealthCheckIntervalAsDisable(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.HealthCheckInterval = 0

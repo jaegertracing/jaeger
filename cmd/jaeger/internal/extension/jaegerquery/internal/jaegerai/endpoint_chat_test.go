@@ -18,6 +18,7 @@ import (
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/coder/acp-go-sdk"
 	"github.com/gorilla/websocket"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -404,6 +405,67 @@ func TestChatEndpointRegistersTurnInRegistry(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, 1, duringTurn, "the turn's stream must be registered while the turn is in flight")
 	assert.Equal(t, 0, turns.count(), "the stream must be removed at end of turn")
+}
+
+// TestChatEndpointAnnouncesMCPEndpoint is the end-to-end wiring check: the turn's
+// route id is registered in the turn registry and announced to the sidecar as a
+// reachable URL, so the agent can finally dial the endpoint that #8973 made serve
+// telemetry + UI tools.
+func TestChatEndpointAnnouncesMCPEndpoint(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "/jaeger", 1<<20)
+	handler.mcpServer = mcp.NewServer(&mcp.Implementation{Name: "t", Version: "0"}, nil)
+	handler.mcpBaseURL = "https://jaeger.example.com:16686"
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	require.Len(t, sessionReq.McpServers, 1, "the endpoint must be announced")
+	require.NotNil(t, sessionReq.McpServers[0].Http)
+
+	url := sessionReq.McpServers[0].Http.Url
+	assert.True(t, strings.HasPrefix(url, "https://jaeger.example.com:16686/jaeger/api/ai/mcp/"),
+		"announced URL must point at this turn's turn-scoped endpoint, got %q", url)
+	assert.True(t, strings.HasSuffix(url, "/"))
+	assert.Zero(t, handler.turns.count(), "the turn's registry entry is removed once the turn ends")
+}
+
+// TestChatEndpointAnnouncesNothingWhenMCPDisabled covers AI chat without MCP: no
+// endpoint is mounted, so the sidecar must be pointed at nothing.
+func TestChatEndpointAnnouncesNothingWhenMCPDisabled(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "", 1<<20) // no mcpServer
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	assert.Empty(t, sessionReq.McpServers, "no MCP server may be announced when MCP is off")
 }
 
 func TestChatEndpointAppendsContextEntriesToPromptBlocks(t *testing.T) {
