@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/queryinterceptorexample"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
@@ -83,6 +84,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		jaegerstorage.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
+		queryinterceptorexample.NewFactory(),
 		// only for e2e testing
 		storagecleaner.NewFactory(),
 		remotestorage.NewFactory(),

@@ -15,6 +15,7 @@ import (
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/aihealth"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -70,6 +71,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
+
+	// Resolve any configured query-interceptor extensions from the host and
+	// wrap the trace reader with them. This is the Option-D extension point:
+	// jaeger-query invokes a caller-supplied plugin (an OTel extension) around
+	// every trace query — gating the query and sanitizing the results —
+	// without exposing the storage Reader itself. With no interceptors
+	// configured, NewReader returns traceReader unchanged.
+	interceptors, err := queryinterceptor.Resolve(host, s.config.QueryInterceptors)
+	if err != nil {
+		return fmt.Errorf("cannot resolve query interceptors: %w", err)
+	}
+	traceReader = queryinterceptor.NewReader(traceReader, interceptors...)
 
 	df, ok := tf.(depstore.Factory)
 	if !ok {

@@ -1,0 +1,50 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Prototype config for the Option-D query-interceptor extension point.
+#
+# The example extension `query_interceptor_example` is an ordinary OTel
+# extension that implements queryinterceptor.Interceptor. jaeger_query
+# references it by ID in `query_interceptors`, and applies it around every
+# trace query: OnQuery (pre) rejects a search that filters on a forbidden
+# attribute, OnResult (post) redacts configured attributes from the results.
+#
+# Run:  go run ./cmd/jaeger --config ./cmd/jaeger/config-query-interceptor.yaml
+service:
+  extensions: [jaeger_storage, jaeger_query, query_interceptor_example]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger_storage_exporter]
+
+extensions:
+  # The interceptor extension must be listed in `extensions` (so the collector
+  # instantiates it) and referenced from jaeger_query.query_interceptors below.
+  query_interceptor_example:
+    # OnQuery rejects any trace search that filters on these attributes.
+    deny_query_attributes: [prompt]
+    # OnResult replaces these span attribute values with "REDACTED".
+    redact_attributes: [prompt, llm.response]
+
+  jaeger_query:
+    storage:
+      traces: some_store
+    # Ordered list of interceptor extension IDs. Each must implement
+    # queryinterceptor.Interceptor and be defined in `extensions` above.
+    query_interceptors: [query_interceptor_example]
+
+  jaeger_storage:
+    backends:
+      some_store:
+        memory:
+          max_traces: 100000
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_store

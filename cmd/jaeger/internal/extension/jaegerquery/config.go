@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/asaskevich/govalidator"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
@@ -21,6 +22,12 @@ type Config struct {
 	queryapp.QueryOptions `mapstructure:",squash"`
 	// Storage holds configuration related to the various data stores that are to be queried.
 	Storage Storage `mapstructure:"storage"`
+	// QueryInterceptors lists extension IDs that implement
+	// queryinterceptor.Interceptor. jaeger-query resolves them from the
+	// collector host and applies them, in order, around every trace query:
+	// OnQuery before the search executes, OnResult on the returned traces.
+	// Empty by default, in which case the read path is unchanged.
+	QueryInterceptors []component.ID `mapstructure:"query_interceptors"`
 }
 
 type Storage struct {
