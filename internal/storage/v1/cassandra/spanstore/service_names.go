@@ -51,7 +51,8 @@ func NewServiceNamesStorage(
 			&cache.Options{
 				TTL:             writeCacheTTL,
 				InitialCapacity: 1000,
-			}),
+			},
+		),
 	}
 }
 

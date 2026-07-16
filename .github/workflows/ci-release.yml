@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: Publish release
 
 on:
@@ -20,11 +23,14 @@ on:
 jobs:
   publish-release:
     permissions:
+      # Required to upload release artifacts with GITHUB_TOKEN.
       contents: write
-      deployments: write
+      # Required to pull images from GHCR during release image builds.
       packages: read  # This allows the runner to pull from GHCR
     if: github.repository == 'jaegertracing/jaeger'
     runs-on: jaeger-linux-amd64-32core-1200GB_SSD
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
 
     steps:
     - name: Clean up some disk space
@@ -36,11 +42,11 @@ jobs:
         sudo rm -rf /usr/local/lib/android || true
         df -h /
 
-    - uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+    - uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2.19.1
       with:
         egress-policy: audit # TODO: change to 'egress-policy: block' after couple of runs
 
-    - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         submodules: true
 
@@ -96,7 +102,20 @@ jobs:
         bash scripts/build/package-deploy.sh \
           -p ${{ steps.params.outputs.platforms }} \
           ${{ steps.params.outputs.gpg_key_override }}
-
+    - name: Generate subject for provenance
+      id: hash
+      run: |
+        set -euo pipefail
+        # Compute sha256 of all release artifacts and base64 encode it
+        cd deploy/
+        shopt -s nullglob
+        artifacts=( *.tar.gz *.zip )
+        if (( ${#artifacts[@]} == 0 )); then
+          echo "No release artifacts found in deploy/ to hash" >&2
+          exit 1
+        fi
+        base64_hashes=$(sha256sum "${artifacts[@]}" | LC_ALL=C sort -k2 | base64 -w0)
+        echo "hashes=${base64_hashes}" >> "$GITHUB_OUTPUT"
     - name: Upload binaries
       if: ${{ inputs.dry_run != true }}
       uses: svenstaro/upload-release-action@5e35e583720436a2cc5f9682b6f55657101c1ea1 # 2.11.1
@@ -119,7 +138,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+    - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
     - name: Build and upload all container images
       # -B skips building the binaries since we already did that above
@@ -163,3 +182,15 @@ jobs:
         overwrite: ${{ inputs.overwrite }}
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
+
+  generate-provenance:
+    needs: [publish-release]
+    if: github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@bdc1356e7db3e3eb2a2977f6b92cc410dc025a1b
+    with:
+      base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
+      upload-assets: true

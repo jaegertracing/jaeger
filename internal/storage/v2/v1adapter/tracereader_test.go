@@ -251,7 +251,8 @@ func TestTraceReader_GetOperationsDelegatesResponse(t *testing.T) {
 				tracestore.OperationQueryParams{
 					ServiceName: "service-a",
 					SpanKind:    "server",
-				})
+				},
+			)
 			require.ErrorIs(t, err, test.err)
 			require.Equal(t, test.expectedOperations, operations)
 		})

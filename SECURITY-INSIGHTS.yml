@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 header:
   schema-version: 1.0.0
   last-updated: '2026-01-16'

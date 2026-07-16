@@ -26,7 +26,8 @@ type Client struct {
 
 // NewClient creates a new driver.Client
 func NewClient(tracerProvider trace.TracerProvider, logger log.Factory, hostPort string) *Client {
-	conn, err := grpc.NewClient(hostPort,
+	conn, err := grpc.NewClient(
+		hostPort,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler(
 			otelgrpc.WithTracerProvider(tracerProvider),

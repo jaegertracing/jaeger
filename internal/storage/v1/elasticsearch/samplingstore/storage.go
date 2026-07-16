@@ -10,75 +10,81 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore/dbmodel"
 )
 
-const (
-	samplingIndexBaseName = "jaeger-sampling"
-	throughputType        = "throughput-sampling"
-	probabilitiesType     = "probabilities-sampling"
-)
+// IndexExistenceChecker reports whether an index exists. It is the narrow
+// admin-plane capability the sampling store needs to find the latest sampling
+// index; the factory satisfies it with an esclient.IndicesClient.
+type IndexExistenceChecker interface {
+	IndexExists(ctx context.Context, index string) (bool, error)
+}
 
 type SamplingStore struct {
-	client                 func() es.Client
-	logger                 *zap.Logger
-	samplingIndexPrefix    string
-	indexDateLayout        string
-	maxDocCount            int
-	indexRolloverFrequency time.Duration
-	lookback               time.Duration
+	searcher    esclient.Searcher
+	bulkWriter  esclient.BulkWriter
+	indexClient IndexExistenceChecker
+	logger      *zap.Logger
+	maxDocCount int
+	lookback    time.Duration
+	rotation    indices.Rotation
+	// now holds the function returning the current time — time.Now by default, but
+	// tests replace it with one returning a fixed time to freeze the timestamps
+	// written by InsertThroughput and InsertProbabilitiesAndQPS.
+	now func() time.Time
 }
 
 type Params struct {
-	Client                 func() es.Client
-	Logger                 *zap.Logger
-	IndexPrefix            config.IndexPrefix
-	IndexDateLayout        string
-	IndexRolloverFrequency time.Duration
-	Lookback               time.Duration
-	MaxDocCount            int
+	Searcher    esclient.Searcher
+	BulkWriter  esclient.BulkWriter
+	IndexClient IndexExistenceChecker
+	Logger      *zap.Logger
+	Lookback    time.Duration
+	MaxDocCount int
+	Rotation    indices.Rotation
 }
 
 func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
-		client:                 p.Client,
-		logger:                 p.Logger,
-		samplingIndexPrefix:    p.PrefixedIndexName() + config.IndexPrefixSeparator,
-		indexDateLayout:        p.IndexDateLayout,
-		maxDocCount:            p.MaxDocCount,
-		indexRolloverFrequency: p.IndexRolloverFrequency,
-		lookback:               p.Lookback,
+		searcher:    p.Searcher,
+		bulkWriter:  p.BulkWriter,
+		indexClient: p.IndexClient,
+		logger:      p.Logger,
+		maxDocCount: p.MaxDocCount,
+		lookback:    p.Lookback,
+		rotation:    p.Rotation,
+		now:         time.Now,
 	}
 }
 
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
-	ts := time.Now()
-	indexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	ts := s.now()
+	indexName := s.rotation.WriteTarget(ts)
 	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
-		s.client().Index().Index(indexName).Type(throughputType).
-			BodyJson(&dbmodel.TimeThroughput{
+		s.bulkWriter.Add(esclient.BulkItem{
+			Index: indexName,
+			Body: &dbmodel.TimeThroughput{
 				Timestamp:  ts,
 				Throughput: eachThroughput,
-			}).Add()
+			},
+		})
 	}
 	return nil
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
 	ctx := context.Background()
-	indices := getReadIndices(s.samplingIndexPrefix, s.indexDateLayout, start, end, s.indexRolloverFrequency)
-	searchResult, err := s.client().Search(indices...).
-		Size(s.maxDocCount).
-		Query(buildTSQuery(start, end)).
-		IgnoreUnavailable(true).
-		Do(ctx)
+	readIndices := s.rotation.ReadTargets(start, end)
+	searchResult, err := s.searcher.Search(ctx, readIndices, esclient.SearchRequest{
+		Size:  s.maxDocCount,
+		Query: buildTSQuery(start, end),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for throughputs: %w", err)
 	}
@@ -99,8 +105,8 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 	probabilities model.ServiceOperationProbabilities,
 	qps model.ServiceOperationQPS,
 ) error {
-	ts := time.Now()
-	writeIndexName := indexWithDate(s.samplingIndexPrefix, s.indexDateLayout, ts)
+	ts := s.now()
+	writeIndexName := s.rotation.WriteTarget(ts)
 	val := dbmodel.ProbabilitiesAndQPS{
 		Hostname:      hostname,
 		Probabilities: probabilities,
@@ -112,15 +118,13 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ctx := context.Background()
-	clientFn := s.client()
-	indices, err := getLatestIndices(s.samplingIndexPrefix, s.indexDateLayout, clientFn, s.indexRolloverFrequency, s.lookback)
+	index, err := s.getLatestIndex(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get latest indices: %w", err)
+		return nil, fmt.Errorf("failed to get latest index: %w", err)
 	}
-	searchResult, err := clientFn.Search(indices...).
-		Size(s.maxDocCount).
-		IgnoreUnavailable(true).
-		Do(ctx)
+	searchResult, err := s.searcher.Search(ctx, []string{index}, esclient.SearchRequest{
+		Size: s.maxDocCount,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to search for Latest Probabilities: %w", err)
 	}
@@ -145,55 +149,30 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 }
 
 func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	s.client().Index().Index(indexName).Type(probabilitiesType).
-		BodyJson(&dbmodel.TimeProbabilitiesAndQPS{
+	s.bulkWriter.Add(esclient.BulkItem{
+		Index: indexName,
+		Body: &dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
-		}).Add()
+		},
+	})
 }
 
-func getLatestIndices(indexPrefix, indexDateLayout string, clientFn es.Client, rollover time.Duration, maxDuration time.Duration) ([]string, error) {
-	ctx := context.Background()
-	now := time.Now().UTC()
-	earliest := now.Add(-maxDuration)
-	earliestIndex := indexWithDate(indexPrefix, indexDateLayout, earliest)
-	for {
-		currentIndex := indexWithDate(indexPrefix, indexDateLayout, now)
-		exists, err := clientFn.IndexExists(currentIndex).Do(ctx)
+func (s *SamplingStore) getLatestIndex(ctx context.Context) (string, error) {
+	now := s.now().UTC()
+	candidates := s.rotation.ReadTargets(now.Add(-s.lookback), now)
+	for _, idx := range candidates {
+		exists, err := s.indexClient.IndexExists(ctx, idx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to check index existence: %w", err)
+			return "", fmt.Errorf("failed to check index existence: %w", err)
 		}
 		if exists {
-			return []string{currentIndex}, nil
+			return idx, nil
 		}
-		if currentIndex == earliestIndex {
-			return nil, errors.New("falied to find latest index")
-		}
-		now = now.Add(rollover) // rollover is negative
 	}
+	return "", errors.New("failed to find latest index")
 }
 
-func getReadIndices(indexName, indexDateLayout string, startTime time.Time, endTime time.Time, rollover time.Duration) []string {
-	var indices []string
-	firstIndex := indexWithDate(indexName, indexDateLayout, startTime)
-	currentIndex := indexWithDate(indexName, indexDateLayout, endTime)
-	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		endTime = endTime.Add(rollover) // rollover is negative
-		currentIndex = indexWithDate(indexName, indexDateLayout, endTime)
-	}
-	indices = append(indices, firstIndex)
-	return indices
-}
-
-func (p *Params) PrefixedIndexName() string {
-	return p.IndexPrefix.Apply(samplingIndexBaseName)
-}
-
-func buildTSQuery(start, end time.Time) elastic.Query {
-	return esquery.NewRangeQuery("timestamp").Gte(start).Lte(end)
-}
-
-func indexWithDate(indexNamePrefix, indexDateLayout string, date time.Time) string {
-	return indexNamePrefix + date.UTC().Format(indexDateLayout)
+func buildTSQuery(start, end time.Time) query.Query {
+	return query.NewRangeQuery("timestamp").Gte(start).Lte(end)
 }

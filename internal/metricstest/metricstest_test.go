@@ -32,7 +32,8 @@ func TestAssertTimerMetrics(t *testing.T) {
 	// With 5 values [10, 20, 30, 40, 50]:
 	// P50 = sorted[int(4 * 0.50)] = sorted[2] = 30
 	// P99 = sorted[int(4 * 0.99)] = sorted[3] = 40
-	f.AssertTimerMetrics(t,
+	f.AssertTimerMetrics(
+		t,
 		ExpectedTimerMetric{Name: "request_duration", Tags: tags, Percentile: "P50", Value: 30},
 		ExpectedTimerMetric{Name: "request_duration", Tags: tags, Percentile: "P99", Value: 40},
 	)

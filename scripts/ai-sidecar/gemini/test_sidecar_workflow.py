@@ -72,7 +72,13 @@ class FakeAgent(Agent):
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="test"),
         )
 
-    async def new_session(self, cwd: str, mcp_servers: Any = None, **kwargs: Any) -> NewSessionResponse:
+    async def new_session(
+        self,
+        cwd: str,
+        additional_directories: list[str] | None = None,
+        mcp_servers: Any = None,
+        **kwargs: Any,
+    ) -> NewSessionResponse:
         session_id = f"sess-test-{self._next_session_id}"
         self._next_session_id += 1
         return NewSessionResponse(session_id=session_id)
@@ -81,12 +87,19 @@ class FakeAgent(Agent):
         self,
         cwd: str,
         session_id: str,
+        additional_directories: list[str] | None = None,
         mcp_servers: Any = None,
         **kwargs: Any,
     ) -> LoadSessionResponse | None:
         return LoadSessionResponse()
 
-    async def list_sessions(self, cursor: str | None = None, cwd: str | None = None, **kwargs: Any) -> ListSessionsResponse:
+    async def list_sessions(
+        self,
+        additional_directories: list[str] | None = None,
+        cursor: str | None = None,
+        cwd: str | None = None,
+        **kwargs: Any,
+    ) -> ListSessionsResponse:
         return ListSessionsResponse(sessions=[])
 
     async def prompt(self, prompt: list[Any], session_id: str, message_id: str | None = None, **kwargs: Any) -> PromptResponse:

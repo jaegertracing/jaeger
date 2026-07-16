@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # official schema for otel demo is at https://raw.githubusercontent.com/open-telemetry/opentelemetry-helm-charts/main/charts/opentelemetry-demo/values.yaml
 
 # Keep bundled infra disabled (we deploy Jaeger/OpenSearch separately)
@@ -10,27 +13,47 @@ grafana:
 opensearch:
   enabled: false
 
-# Preserve default.env (to keep OTEL_SERVICE_NAME and OTEL_COLLECTOR_NAME) and override only what we need
+# Preserve default.env (to keep OTEL_SERVICE_NAME and OTEL_COLLECTOR_NAME) and add only shared attributes.
 default:
   envOverrides:
     # Narrower service namespace + explicit environment tag
     - name: OTEL_RESOURCE_ATTRIBUTES
       value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
-    # Send OTLP over HTTP by default and disable metrics/logs exporters (traces only)
-    - name: OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://otel-collector:4318
-    - name: OTEL_EXPORTER_OTLP_PROTOCOL
-      value: http/protobuf
-    - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
-      value: http/protobuf
+    # The in-cluster collector is traces-only. Disable SDK logs/metrics export noise.
     - name: OTEL_LOGS_EXPORTER
       value: none
     - name: OTEL_METRICS_EXPORTER
       value: none
-    - name: OTEL_TRACES_EXPORTER
-      value: otlp
 
 components:
+  ad:
+    useDefault:
+      env: false
+    env:
+      - name: OTEL_SERVICE_NAME
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: "metadata.labels['app.kubernetes.io/component']"
+      - name: OTEL_COLLECTOR_NAME
+        value: otel-collector
+      - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+        value: cumulative
+      - name: OTEL_LOGS_EXPORTER
+        value: none
+      - name: OTEL_METRICS_EXPORTER
+        value: none
+      - name: AD_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: OTEL_RESOURCE_ATTRIBUTES
+        value: service.name=$(OTEL_SERVICE_NAME),service.namespace=otel-demo,deployment.environment=oke-dev
+
   accounting:
     initContainers:
       - name: wait-for-kafka
@@ -78,49 +101,105 @@ components:
       repository: docker.io/valkey/valkey
       tag: "8.1.3-alpine"
 
+  postgresql:
+    imageOverride:
+      repository: docker.io/library/postgres
+      tag: "17.6"
+    resources:
+      limits:
+        memory: 256Mi
+
+  product-catalog:
+    env:
+      - name: PRODUCT_CATALOG_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: GOMEMLIMIT
+        value: 48MiB
+      - name: DB_CONNECTION_STRING
+        value: postgres://otelu:otelp@postgresql/otel?sslmode=disable
+      - name: OTEL_SEMCONV_STABILITY_OPT_IN
+        value: database
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      limits:
+        memory: 64Mi
+
 # Override Collector config to export traces to Jaeger only and drop demo metrics/logs
 opentelemetry-collector:
   image:
     repository: docker.io/otel/opentelemetry-collector-contrib
-  config:
+  presets:
+    hostMetrics:
+      enabled: false
+    kubeletMetrics:
+      enabled: false
+    clusterMetrics:
+      enabled: false
+    annotationDiscovery:
+      metrics:
+        enabled: false
+  ports:
+    otlp:
+      hostPort: null
+    otlp-http:
+      hostPort: null
+    jaeger-compact:
+      hostPort: null
+    jaeger-grpc:
+      hostPort: null
+    jaeger-thrift:
+      hostPort: null
+    zipkin:
+      hostPort: null
+  alternateConfig:
     receivers:
       otlp:
         protocols:
-          grpc: {}
+          grpc:
+            endpoint: ${env:MY_POD_IP}:4317
           http:
+            endpoint: ${env:MY_POD_IP}:4318
             cors:
               allowed_origins:
                 - http://*
                 - https://*
-      httpcheck/frontend-proxy: null
-      redis: null
+    extensions:
+      health_check:
+        endpoint: ${env:MY_POD_IP}:13133
     processors:
-      memory_limiter: {}
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
       k8sattributes: {}
       resource:
         attributes:
           - key: service.instance.id
             from_attribute: k8s.pod.uid
             action: insert
-      transform: null
       batch: {}
-    connectors:
-      spanmetrics: null
     exporters:
       otlp/jaeger:
         endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
         tls:
           insecure: true
-      opensearch: null
-      otlphttp/prometheus: null
-      debug: null
-      otlp: null
     service:
-      telemetry: null
+      extensions: [health_check]
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: ${env:MY_POD_IP}
+                    port: 8888
       pipelines:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, k8sattributes, resource, batch]
           exporters: [otlp/jaeger]
-        metrics: null
-        logs: null

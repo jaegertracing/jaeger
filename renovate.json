@@ -13,9 +13,11 @@
     "gomodTidy",
     "gomodUpdateImportPaths"
   ],
+  "minimumReleaseAge": "7 days",
   "vulnerabilityAlerts": {
     "enabled": true,
-    "labels": ["security", "changelog:dependencies"]
+    "labels": ["security", "changelog:dependencies"],
+    "minimumReleaseAge": "0 days"
   },
   "suppressNotifications": [
     "prEditedNotification"
@@ -30,6 +32,19 @@
     ]
   },
   "packageRules": [
+    {
+      "description": "CI Python deps are hash-pinned in .github/requirements/*requirements.txt for OpenSSF Scorecard. Renovate bumps the version but NOT the --hash line, so the bump PR will fail --require-hashes until the hash is regenerated (see the comment in the requirements file). Label these so they are easy to spot and complete.",
+      "matchManagers": [
+        "pip_requirements"
+      ],
+      "matchFileNames": [
+        ".github/requirements/**"
+      ],
+      "labels": [
+        "changelog:ci",
+        "changelog:dependencies"
+      ]
+    },
     {
       "matchFileNames": [
         "docker-compose/**/docker-compose.y*ml"

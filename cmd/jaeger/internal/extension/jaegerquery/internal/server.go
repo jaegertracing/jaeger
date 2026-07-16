@@ -10,6 +10,8 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -19,6 +21,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp/xconfighttp"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
@@ -28,8 +31,10 @@ import (
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/auth/bearertoken"
+	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/recoveryhandler"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -48,13 +53,15 @@ type Server struct {
 	telset       telemetry.Settings
 }
 
-// NewServer creates and initializes Server
+// NewServer creates and initializes Server.
+// aiHealthCheck may be nil; the chat surface stays hidden when it is.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
 	caps querysvc.StorageCapabilities,
+	aiHealthCheck func() bool,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -77,7 +84,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, aiHealthCheck, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -123,13 +130,19 @@ func createGRPCServer(
 		bearertoken.NewStreamServerInterceptor(),
 	}
 
-	//nolint:contextcheck // The context is handled by the interceptors
 	if tm.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewGuardingUnaryInterceptor(tm))
-		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm))
+		streamInterceptors = append(streamInterceptors, tenancy.NewGuardingStreamInterceptor(tm)) //nolint:contextcheck // The context is handled by the interceptors.
 	}
 
-	grpcOpts = append(grpcOpts,
+	//nolint:contextcheck // The context is handled by the interceptors
+	if len(options.HeaderForwarding) > 0 {
+		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryServerInterceptor(options.HeaderForwarding))
+		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamServerInterceptor(options.HeaderForwarding))
+	}
+
+	grpcOpts = append(
+		grpcOpts,
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),
 		configgrpc.WithGrpcServerOption(grpc.ChainStreamInterceptor(streamInterceptors...)),
 	)
@@ -145,7 +158,8 @@ func createGRPCServer(
 			TracerProvider: telset.TracerProvider,
 			MeterProvider:  telset.MeterProvider,
 		},
-		grpcOpts...)
+		grpcOpts...,
+	)
 }
 
 type httpServer struct {
@@ -160,9 +174,10 @@ func initRouter(
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	caps querysvc.StorageCapabilities,
+	aiHealthCheck func() bool,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, io.Closer) {
+) (http.Handler, io.Closer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -172,7 +187,8 @@ func initRouter(
 
 	apiHandler := NewAPIHandler(
 		querySvc,
-		apiHandlerOptions...)
+		apiHandlerOptions...,
+	)
 	r := http.NewServeMux()
 
 	(&apiv3.HTTPGateway{
@@ -193,12 +209,37 @@ func initRouter(
 
 	// AI Gateway Endpoints
 	if queryOpts.AI.HasValue() {
-		if aiCfg := queryOpts.AI.Get(); aiCfg != nil && aiCfg.AgentURL != "" {
+		if aiCfg := queryOpts.AI.Get(); aiCfg != nil {
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				jaegerai.NewHandler(telset.Logger, aiCfg.AgentURL, queryOpts.BasePath, aiCfg.MaxRequestBodySize).RegisterRoutes(r)
+				if aiCfg.AgentURL != "" {
+					// When AI chat is enabled, jaegerai owns the chat endpoint and,
+					// if MCP is also enabled, the session-scoped MCP endpoint
+					// (/api/ai/mcp/<id>/).
+					jaegerai.NewHandler(jaegerai.HandlerParams{
+						Logger:             telset.Logger,
+						AgentURL:           aiCfg.AgentURL,
+						BasePath:           queryOpts.BasePath,
+						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
+						EnableMCP:          aiCfg.EnableMCP,
+						QueryService:       querySvc,
+						TenancyMgr:         tenancyMgr,
+						Telset:             telset,
+					}).RegisterRoutes(r)
+				}
+				if aiCfg.EnableMCP {
+					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
+					// the wildcard session-scoped pattern above.
+					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+				}
 			}
+		}
+	}
+
+	if queryOpts.OTLPProxy.HasValue() {
+		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
+			return nil, nil, err
 		}
 	}
 
@@ -206,17 +247,72 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps)
+	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
+	if len(queryOpts.HeaderForwarding) > 0 {
+		handler = headerforwarding.HTTPServerMiddleware(queryOpts.HeaderForwarding, handler)
+	}
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
-	return handler, staticHandlerCloser
+	return handler, staticHandlerCloser, nil
+}
+
+func otlpProxyPathPrefix(basePath string) string {
+	prefix := "/api/otlp"
+	if basePath != "" && basePath != "/" {
+		prefix = basePath + prefix
+	}
+	return prefix
+}
+
+func otelFilterFunc(basePath string) func(*http.Request) bool {
+	prefixes := []string{
+		path.Join("/", basePath, "static"),
+		otlpProxyPathPrefix(basePath),
+	}
+	return func(r *http.Request) bool {
+		for _, p := range prefixes {
+			if strings.HasPrefix(r.URL.Path, p) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
+	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
+	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
+	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
+}
+
+// per-route wrap is the only instrumentation layer.
+func registerOTLPProxy(r *http.ServeMux, queryOpts *QueryOptions, telset telemetry.Settings) error {
+	cfg := queryOpts.OTLPProxy.Get()
+	target, err := url.Parse(cfg.Target)
+	if err != nil {
+		return fmt.Errorf("invalid OTLP proxy target %q: %w", cfg.Target, err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	prefix := otlpProxyPathPrefix(queryOpts.BasePath)
+	instrumented := otelhttp.NewHandler(
+		http.StripPrefix(prefix, proxy),
+		"otlp.proxy",
+		otelhttp.WithTracerProvider(nooptrace.NewTracerProvider()),
+		otelhttp.WithMeterProvider(telset.MeterProvider),
+	)
+	r.Handle(prefix+"/v1/", instrumented)
+	telset.Logger.Info("OTLP proxy registered",
+		zap.String("path_prefix", prefix+"/v1/"),
+		zap.String("target", cfg.Target))
+	return nil
 }
 
 func createHTTPServer(
@@ -225,10 +321,14 @@ func createHTTPServer(
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
 	caps querysvc.StorageCapabilities,
+	aiHealthCheck func() bool,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, tm, telset)
+	handler, staticHandlerCloser, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	if err != nil {
+		return nil, err
+	}
 	handler = recoveryhandler.NewRecoveryHandler(telset.Logger, true)(handler)
 	var extensions map[component.ID]component.Component
 	if telset.Host != nil {
@@ -244,10 +344,7 @@ func createHTTPServer(
 		},
 		handler,
 		xconfighttp.WithOtelHTTPOptions(
-			otelhttp.WithFilter(func(r *http.Request) bool {
-				ignorePath := path.Join("/", queryOpts.BasePath, "static")
-				return !strings.HasPrefix(r.URL.Path, ignorePath)
-			}),
+			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
 				// Use just the route pattern without the HTTP method prefix or basePath
 				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
@@ -280,7 +377,8 @@ func createHTTPServer(
 
 func (hS httpServer) Close() error {
 	var errs []error
-	errs = append(errs,
+	errs = append(
+		errs,
 		hS.Server.Close(),
 		hS.staticHandlerCloser.Close(),
 	)

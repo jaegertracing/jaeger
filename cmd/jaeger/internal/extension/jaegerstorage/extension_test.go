@@ -69,8 +69,8 @@ func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Se
 
 func getVersionResponse(t *testing.T) []byte {
 	versionResponse, e := json.Marshal(map[string]any{
-		"Version": map[string]any{
-			"Number": "7",
+		"version": map[string]any{
+			"number": "7",
 		},
 	})
 	require.NoError(t, e)
@@ -169,8 +169,8 @@ func TestGetSamplingStoreFactory(t *testing.T) {
 			expectedError: "storage 'foo' does not support sampling store",
 			setupFunc: func(t *testing.T) component.Component {
 				versionResponse, err := json.Marshal(map[string]any{
-					"Version": map[string]any{
-						"Number": "7",
+					"version": map[string]any{
+						"number": "7",
 					},
 				})
 				require.NoError(t, err)
@@ -561,7 +561,8 @@ func noopTelemetrySettings() component.TelemetrySettings {
 func makeStorageExtension(t *testing.T, config storageconfig.Config) component.Component {
 	extensionFactory := NewFactory()
 	ctx := t.Context()
-	ext, err := extensionFactory.Create(ctx,
+	ext, err := extensionFactory.Create(
+		ctx,
 		extension.Settings{
 			ID:                ID,
 			TelemetrySettings: noopTelemetrySettings(),

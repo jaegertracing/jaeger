@@ -167,7 +167,8 @@ func TestStorageExtensionStartError(t *testing.T) {
 			&mockStorageExt{
 				name:    "storage",
 				factory: &PurgerFactory{},
-			}),
+			},
+		),
 		reportFunc: func(status *componentstatus.Event) {
 			startStatus.Store(status)
 		},

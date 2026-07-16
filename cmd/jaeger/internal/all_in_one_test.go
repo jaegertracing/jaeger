@@ -65,7 +65,8 @@ func TestAllInOne(t *testing.T) {
 }
 
 func healthCheck(t *testing.T) {
-	require.Eventuallyf(t,
+	require.Eventuallyf(
+		t,
 		func() bool {
 			resp, err := http.Get(queryAddr + "/")
 			if err == nil {
@@ -84,7 +85,8 @@ func healthCheckV2(t *testing.T) {
 	if os.Getenv("HEALTHCHECK_V2") == "false" {
 		t.Skip("Skipping health check for V1 Binary")
 	}
-	require.Eventuallyf(t,
+	require.Eventuallyf(
+		t,
 		func() bool {
 			resp, err := http.Get(healthAddr)
 			if err == nil {

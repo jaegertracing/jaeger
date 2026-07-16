@@ -34,14 +34,18 @@ def _validate_function_call(tool_name: str, args: Any, tool_call_id: str) -> Non
         )
 
 
-def _extract_contextual_tools(field_meta: Any) -> list[dict[str, Any]]:
+def _extract_contextual_tools(meta: Any) -> list[dict[str, Any]]:
     """Pull AG-UI tools out of NewSessionRequest._meta. Returns an empty
     list if the meta is absent, the namespaced key is missing, or the
     payload is malformed — the gateway populates this only when the
-    frontend actually attached tools to the chat request."""
-    if not isinstance(field_meta, dict):
+    frontend actually attached tools to the chat request.
+
+    The Python ACP router spreads ``_meta`` into the handler's ``**kwargs``
+    by inner key, so callers pass the handler ``kwargs`` dict directly
+    rather than a separate ``field_meta`` argument."""
+    if not isinstance(meta, dict):
         return []
-    payload = field_meta.get(CONTEXTUAL_TOOLS_META_KEY)
+    payload = meta.get(CONTEXTUAL_TOOLS_META_KEY)
     if not isinstance(payload, dict):
         return []
     tools = payload.get("tools")

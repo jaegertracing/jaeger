@@ -75,7 +75,7 @@ func newDurationUnitsParser(units time.Duration) durationParser {
 		if err != nil {
 			return 0, err
 		}
-		return time.Duration(i) * (units), nil
+		return time.Duration(i) * units, nil
 	}
 }
 

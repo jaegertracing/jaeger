@@ -133,7 +133,8 @@ func TestGetTraces_StopIteration(t *testing.T) {
 	reader.On("GetTrace", mock.Anything, traceID1).Return(spans, nil)
 	tracereader := &TraceReader{reader: &reader}
 	var count int
-	for range tracereader.GetTraces(context.Background(),
+	for range tracereader.GetTraces(
+		context.Background(),
 		tracestore.GetTraceParams{TraceID: pcommon.TraceID(traceID1)},
 		tracestore.GetTraceParams{TraceID: pcommon.TraceID(traceID2)},
 	) {

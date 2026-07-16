@@ -42,7 +42,8 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 					Return(emptyIter()).Once()
 				var response structuredResponse
 				err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
-				require.EqualError(t, err,
+				require.EqualError(
+					t, err,
 					`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
 				)
 			}, querysvc.QueryServiceOptions{

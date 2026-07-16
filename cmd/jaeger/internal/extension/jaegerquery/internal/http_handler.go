@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
@@ -429,7 +430,7 @@ func (*APIHandler) filterDependenciesByService(
 // Parses trace ID from URL like /traces/{trace-id}
 func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
 	traceIDVar := r.PathValue(traceIDParam)
-	traceID, err := model.TraceIDFromString(traceIDVar)
+	traceID, err := apiv3.TraceIDFromString(traceIDVar)
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return traceID, false
 	}

@@ -5,8 +5,6 @@
 package cmd
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -34,7 +32,6 @@ var RootCmd = &cobra.Command{
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
 		logger.Fatal("We bowled a googly", zap.Error(err))
-		os.Exit(-1)
 	}
 }
 
@@ -50,7 +47,8 @@ func onInitialize() {
 		zap.AddCallerSkip(1),
 	}
 	if !verbose {
-		zapOptions = append(zapOptions,
+		zapOptions = append(
+			zapOptions,
 			zap.IncreaseLevel(zap.LevelEnablerFunc(func(l zapcore.Level) bool { return l != zapcore.DebugLevel })),
 		)
 	}

@@ -69,6 +69,7 @@ func TestDriver_PrepareBatch_Match(t *testing.T) {
 	}
 	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)")
 	require.NoError(t, err)
+	defer got.Close()
 	assert.Equal(t, batch, got)
 	assert.Equal(t, []string{"INSERT INTO spans VALUES (?)"}, d.RecordedQueries)
 }
@@ -80,7 +81,7 @@ func TestDriver_PrepareBatch_MatchError(t *testing.T) {
 			"INSERT INTO spans": {Batch: nil, Err: wantErr},
 		},
 	}
-	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)")
+	got, err := d.PrepareBatch(context.Background(), "INSERT INTO spans VALUES (?)") //nolint:clickhouselint // got is nil on error
 	require.ErrorIs(t, err, wantErr)
 	assert.Nil(t, got)
 }
@@ -91,7 +92,7 @@ func TestDriver_PrepareBatch_NoMatch(t *testing.T) {
 			"INSERT INTO spans": {Batch: &Batch{}},
 		},
 	}
-	got, err := d.PrepareBatch(context.Background(), "INSERT INTO other VALUES (?)")
+	got, err := d.PrepareBatch(context.Background(), "INSERT INTO other VALUES (?)") //nolint:clickhouselint // got is nil when no match
 	require.NoError(t, err)
 	assert.Nil(t, got)
 }
@@ -154,7 +155,7 @@ func TestRows_Err(t *testing.T) {
 func TestRows_ScanStruct(t *testing.T) {
 	r := &Rows[string]{
 		Data:   []string{"hello"},
-		ScanFn: func(dest any, src string) error { *(dest.(*string)) = src; return nil },
+		ScanFn: func(dest any, src string) error { *dest.(*string) = src; return nil },
 	}
 	r.Next()
 	var out string

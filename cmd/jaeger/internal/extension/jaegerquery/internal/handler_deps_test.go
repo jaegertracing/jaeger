@@ -294,7 +294,8 @@ func TestGetDependenciesSuccess(t *testing.T) {
 	ts := initializeTestServer(t)
 	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	ts.dependencyReader.On("GetDependencies",
+	ts.dependencyReader.On(
+		"GetDependencies",
 		mock.Anything, // context
 		depstore.QueryParameters{
 			StartTime: endTs.Add(-defaultDependencyLookbackDuration),
@@ -316,7 +317,8 @@ func TestGetDependenciesSuccess(t *testing.T) {
 func TestGetDependenciesCassandraFailure(t *testing.T) {
 	ts := initializeTestServer(t)
 	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
-	ts.dependencyReader.On("GetDependencies",
+	ts.dependencyReader.On(
+		"GetDependencies",
 		mock.Anything, // context
 		depstore.QueryParameters{
 			StartTime: endTs.Add(-defaultDependencyLookbackDuration),

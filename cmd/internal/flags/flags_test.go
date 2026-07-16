@@ -17,7 +17,8 @@ func TestParseJaegerTags(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, tags)
 
-	jaegerTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
+	jaegerTags := fmt.Sprintf(
+		"%s,%s,%s,%s,%s,%s",
 		"key=value",
 		"envVar1=${envKey1:defaultVal1}",
 		"envVar2=${envKey2:defaultVal2}",

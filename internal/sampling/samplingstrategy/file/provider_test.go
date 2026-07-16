@@ -35,7 +35,8 @@ var regenerateSnapshots = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 // strategiesJSON returns the strategy with
 // a given probability.
 func strategiesJSON(probability float32) string {
-	strategy := fmt.Sprintf(`
+	strategy := fmt.Sprintf(
+		`
 		{
 			"default_strategy": {
 				"type": "probabilistic",

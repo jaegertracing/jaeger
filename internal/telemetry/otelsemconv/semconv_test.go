@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
-	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 )
 
 func TestServiceNameAttribute(t *testing.T) {
@@ -246,5 +246,56 @@ func TestGenAIOperationNameExecuteTool(t *testing.T) {
 	}
 	if GenAIOperationNameExecuteTool.Value.AsString() != "execute_tool" {
 		t.Fatalf("expected value execute_tool, got %s", GenAIOperationNameExecuteTool.Value.AsString())
+	}
+}
+
+func TestGenAIOperationNameInvokeAgent(t *testing.T) {
+	if string(GenAIOperationNameInvokeAgent.Key) != string(semconv.GenAIOperationNameKey) {
+		t.Fatalf("expected key %s, got %s", semconv.GenAIOperationNameKey, GenAIOperationNameInvokeAgent.Key)
+	}
+	if GenAIOperationNameInvokeAgent.Value.AsString() != "invoke_agent" {
+		t.Fatalf("expected value invoke_agent, got %s", GenAIOperationNameInvokeAgent.Value.AsString())
+	}
+}
+
+func TestGenAIAgentAndConversationAttributes(t *testing.T) {
+	tests := []struct {
+		name    string
+		attr    attribute.KeyValue
+		wantKey string
+		wantVal string
+	}{
+		{
+			name:    "agent name",
+			attr:    GenAIAgentName("jaeger-gemini-sidecar"),
+			wantKey: string(semconv.GenAIAgentNameKey),
+			wantVal: "jaeger-gemini-sidecar",
+		},
+		{
+			name:    "agent version",
+			attr:    GenAIAgentVersion("0.1.0"),
+			wantKey: string(semconv.GenAIAgentVersionKey),
+			wantVal: "0.1.0",
+		},
+		{
+			name:    "conversation id",
+			attr:    GenAIConversationID("sess-1"),
+			wantKey: string(semconv.GenAIConversationIDKey),
+			wantVal: "sess-1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if string(tt.attr.Key) != tt.wantKey {
+				t.Fatalf("expected key %s, got %s", tt.wantKey, tt.attr.Key)
+			}
+			if tt.attr.Value.Type() != attribute.STRING {
+				t.Fatalf("expected type STRING, got %v", tt.attr.Value.Type())
+			}
+			if tt.attr.Value.AsString() != tt.wantVal {
+				t.Fatalf("expected value %q, got %q", tt.wantVal, tt.attr.Value.AsString())
+			}
+		})
 	}
 }

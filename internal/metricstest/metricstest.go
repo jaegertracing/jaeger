@@ -31,7 +31,8 @@ func (f *Factory) AssertTimerMetrics(t *testing.T, expectedMetrics ...ExpectedTi
 	for _, expected := range expectedMetrics {
 		key := GetKey(expected.Name, expected.Tags, "|", "=")
 		fullKey := key + "." + expected.Percentile
-		assert.EqualValues(t,
+		assert.EqualValues(
+			t,
 			expected.Value,
 			gauges[fullKey],
 			"expected timer metric name=%s percentile=%s tags: %+v; got: %+v",
@@ -55,7 +56,8 @@ func (f *Factory) AssertGaugeMetrics(t *testing.T, expectedMetrics ...ExpectedMe
 func assertMetrics(t *testing.T, actualMetrics map[string]int64, expectedMetrics ...ExpectedMetric) {
 	for _, expected := range expectedMetrics {
 		key := GetKey(expected.Name, expected.Tags, "|", "=")
-		assert.EqualValues(t,
+		assert.EqualValues(
+			t,
 			expected.Value,
 			actualMetrics[key],
 			"expected metric name=%s tags: %+v; got: %+v", expected.Name, expected.Tags, actualMetrics,

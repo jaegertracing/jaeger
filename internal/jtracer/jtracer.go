@@ -89,7 +89,8 @@ func initHelper(
 			propagation.NewCompositeTextMapPropagator(
 				propagation.TraceContext{},
 				propagation.Baggage{},
-			))
+			),
+		)
 	})
 
 	otel.SetTracerProvider(tracerProvider)

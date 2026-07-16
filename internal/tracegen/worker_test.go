@@ -4,6 +4,7 @@
 package tracegen
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -26,26 +27,29 @@ func Test_SimulateTraces(t *testing.T) {
 		},
 		{
 			name:  "with pause",
-			pause: time.Second,
+			pause: time.Millisecond,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			logger, buf := testutils.NewLogger()
 			tp := sdktrace.NewTracerProvider()
 			tracers := []trace.Tracer{tp.Tracer("stdout")}
 			wg := sync.WaitGroup{}
 			wg.Add(1)
 			var running uint32 = 1
+			workerID := 7
+			numTraces := 7
 			worker := &worker{
 				logger:  logger,
 				tracers: tracers,
 				wg:      &wg,
-				id:      7,
+				id:      workerID,
 				running: &running,
 				Config: Config{
-					Traces:     7,
+					Traces:     numTraces,
 					Duration:   time.Second,
 					Pause:      tt.pause,
 					Service:    "stdout",
@@ -54,7 +58,7 @@ func Test_SimulateTraces(t *testing.T) {
 					ChildSpans: 1,
 				},
 			}
-			expectedOutput := `{"level":"info","msg":"Worker 7 generated 7 traces"}` + "\n"
+			expectedOutput := fmt.Sprintf(`{"level":"info","msg":"Worker %d generated %d traces"}`, workerID, numTraces) + "\n"
 			worker.simulateTraces()
 			assert.Equal(t, expectedOutput, buf.String())
 		})

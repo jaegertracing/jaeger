@@ -60,7 +60,8 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 				if len(tag) != 2 {
 					return fmt.Errorf(
 						"Field [%s]: Tag [%s] is not of the form key=value in 'tags' string [%s]",
-						field.Name, tagPair, tagString)
+						field.Name, tagPair, tagString,
+					)
 				}
 				tags[tag[0]] = tag[1]
 			}
@@ -74,7 +75,8 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 					if err != nil {
 						return fmt.Errorf(
 							"Field [%s]: Bucket [%s] could not be parsed as duration in 'buckets' string [%s]",
-							field.Name, bucket, bucketString)
+							field.Name, bucket, bucketString,
+						)
 					}
 					timerBuckets = append(timerBuckets, d)
 				}
@@ -85,14 +87,16 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 					if err != nil {
 						return fmt.Errorf(
 							"Field [%s]: Bucket [%s] could not be converted to float64 in 'buckets' string [%s]",
-							field.Name, bucket, bucketString)
+							field.Name, bucket, bucketString,
+						)
 					}
 					histogramBuckets = append(histogramBuckets, b)
 				}
 			default:
 				return fmt.Errorf(
 					"Field [%s]: Buckets should only be defined for Timer and Histogram metric types",
-					field.Name)
+					field.Name,
+				)
 			}
 		}
 		help := field.Tag.Get("help")
@@ -127,7 +131,8 @@ func Init(m any, factory Factory, globalTags map[string]string) error {
 		default:
 			return fmt.Errorf(
 				"Field %s is not a pointer to timer, gauge, or counter",
-				field.Name)
+				field.Name,
+			)
 		}
 		v.Field(i).Set(reflect.ValueOf(obj))
 	}

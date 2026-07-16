@@ -51,7 +51,8 @@ func main() {
 		"HTTP endpoint to use to retrieve sampling strategies, "+
 			"e.g. http://localhost:14268/api/sampling. "+
 			"When not specified a standard SDK sampler will be used "+
-			"(see OTEL_TRACES_SAMPLER env var in OTEL docs)")
+			"(see OTEL_TRACES_SAMPLER env var in OTEL docs)",
+	)
 	flag.Parse()
 
 	logger.Info(version.Get().String())

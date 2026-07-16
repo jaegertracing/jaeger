@@ -34,7 +34,8 @@ var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.StageAlpha,
 	featuregate.WithRegisterFromVersion("v2.18.0"),
 	featuregate.WithRegisterDescription(
-		"Enables ClickHouse as a storage backend."),
+		"Enables ClickHouse as a storage backend.",
+	),
 )
 
 var (
@@ -157,6 +158,13 @@ The schema is subject to breaking changes in future releases.
 	if basicAuth != nil {
 		opts.Auth.Username = basicAuth.Username
 		opts.Auth.Password = string(basicAuth.Password)
+	}
+	if tlsCfg := f.config.TLS.Get(); tlsCfg != nil {
+		loaded, tlsErr := tlsCfg.LoadTLSConfig(ctx)
+		if tlsErr != nil {
+			return nil, fmt.Errorf("failed to load TLS configuration: %w", tlsErr)
+		}
+		opts.TLS = loaded
 	}
 	conn, err := clickhouse.Open(opts)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configtls"
 
+	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/grpc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
@@ -50,6 +51,7 @@ func (s *GRPCStorageIntegrationTestSuite) initialize(t *testing.T) {
 
 	// TODO DependencyWriter is not implemented in grpc store
 
+	s.Capabilities = capabilities.GRPC()
 	s.CleanUp = s.cleanUp
 }
 
@@ -64,7 +66,7 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
-	SkipUnlessEnv(t, "grpc")
+	SkipUnlessEnv(t, StorageGRPC)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

@@ -30,7 +30,8 @@ func TestNewHelperProviderError(t *testing.T) {
 		"svc",
 		func(_ context.Context, _ /* svc */ string) (*sdktrace.TracerProvider, func(), error) {
 			return nil, nil, fakeErr
-		})
+		},
+	)
 	require.Error(t, err)
 	require.EqualError(t, err, fakeErr.Error())
 }

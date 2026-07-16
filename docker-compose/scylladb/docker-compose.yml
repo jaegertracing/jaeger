@@ -1,3 +1,6 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 # docker compose file to test Scylla with Jaeger.
 
 # Disclaimer: This defaults to using 'latest' image tag for Jaeger images,

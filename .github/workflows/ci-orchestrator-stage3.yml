@@ -1,11 +1,21 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
 name: "CI Orchestrator: Stage 3 (Docker, E2E, Binaries, Static Analysis)"
 
 on:
   workflow_call:
 
+permissions:
+  contents: read
+
 jobs:
   build-binaries:
     uses: ./.github/workflows/ci-build-binaries.yml
+    secrets: inherit
+
+  ocb-build:
+    uses: ./.github/workflows/ci-ocb-build.yml
     secrets: inherit
 
   docker-build:
@@ -13,6 +23,9 @@ jobs:
     secrets: inherit
 
   docker-all-in-one:
+    permissions:
+      contents: read
+      packages: read
     uses: ./.github/workflows/ci-docker-all-in-one.yml
     secrets: inherit
 
@@ -25,6 +38,10 @@ jobs:
     secrets: inherit
 
   codeql:
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     uses: ./.github/workflows/codeql.yml
     secrets: inherit
 

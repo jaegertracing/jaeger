@@ -95,12 +95,27 @@ func TestWithConfiguration(t *testing.T) {
 			ServerURL:   "http://localhost:9090",
 			LatencyUnit: "milliseconds",
 		}
-		// NewFactoryWithConfig should validate and reject invalid latency unit
-		// However, the validation is currently not implemented in Configuration.Validate()
-		// So this test now just creates the factory successfully
+		// NewFactoryWithConfig validates the config and rejects an invalid
+		// latency unit instead of letting it panic later when the metric name
+		// is built.
+		_, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
+		require.EqualError(t, err, `latency_unit must be "ms" or "s", not "milliseconds"`)
+	})
+	t.Run("empty latency unit with normalize_duration is normalized to the default", func(t *testing.T) {
+		cfg := promcfg.Configuration{
+			ServerURL:         "http://localhost:9090",
+			NormalizeDuration: true,
+			LatencyUnit:       "", // empty: must be normalized to the default, not panic later
+		}
 		f, err := NewFactoryWithConfig(cfg, telemetry.NoopSettings(), nil)
 		require.NoError(t, err)
-		assert.Equal(t, "milliseconds", f.options.LatencyUnit)
+		assert.Equal(t, "ms", f.options.LatencyUnit)
+		// Building the reader must not panic now that the unit is normalized.
+		require.NotPanics(t, func() {
+			reader, err := f.CreateMetricsReader()
+			require.NoError(t, err)
+			assert.NotNil(t, reader)
+		})
 	})
 }
 

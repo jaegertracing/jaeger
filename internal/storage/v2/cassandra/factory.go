@@ -72,7 +72,8 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 		f.v1Factory.Options.SpanStoreWriteCacheTTL,
 		f.metricsFactory,
 		f.logger,
-		options...)
+		options...,
+	)
 	if err != nil {
 		return nil, err
 	}

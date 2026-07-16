@@ -35,7 +35,8 @@ func (tp *traceProcessor) start(_ context.Context, host component.Host) error {
 	if err != nil {
 		return fmt.Errorf(
 			"cannot load adaptive sampling components from `%s` extension: %w",
-			remotesampling.ComponentType, err)
+			remotesampling.ComponentType, err,
+		)
 	}
 
 	agg, err := adaptive.NewAggregator(

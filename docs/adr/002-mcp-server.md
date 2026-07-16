@@ -100,11 +100,11 @@ tools:
     output: List of trace summaries (trace_id, service_count, span_count, duration, has_errors)
 
   - name: get_trace_topology
-    description: Get the structural tree of a trace showing parent-child relationships, timing, and error locations. Does NOT return attributes or logs.
+    description: Get the structural overview of a trace as a flat, depth-first span list. Each span includes a 'path' field encoding ancestry as slash-delimited span IDs. Does NOT return attributes or logs.
     input_schema:
       trace_id: string (required)
-      depth: integer (optional, default: 3) - Maximum depth of the tree. 0 for full tree.
-    output: Tree structure with span metadata (id, service, span_name, duration, error flag, children[])
+      depth: integer (optional, default: 0) - Maximum depth of the tree. 0 for full tree.
+    output: Flat list of spans with path, service, span_name, start_time, duration_us, status
 
   - name: get_critical_path
     description: Identify the sequence of spans forming the critical latency path (the blocking execution path).
@@ -183,7 +183,7 @@ Find traces matching criteria. Returns lightweight metadata only (no attributes/
       "root_service": "frontend",
       "root_span_name": "/api/checkout",
       "start_time": "2024-01-15T10:30:00Z",
-      "duration_ms": 2450,
+      "duration_us": 2450000,
       "span_count": 47,
       "service_count": 8,
       "has_errors": true
@@ -196,7 +196,7 @@ Find traces matching criteria. Returns lightweight metadata only (no attributes/
 
 #### get_trace_topology
 
-Returns the structural skeleton of a trace—parent-child relationships, timing, and error locations—**without** loading attributes or events. This keeps the response small for LLM context.
+Returns the structural skeleton of a trace as a flat, depth-first ordered list of spans. The `path` field on each span encodes parent-child relationships as a slash-delimited sequence of span IDs from the root to that span. Does **not** include attributes or events, keeping the response small for LLM context.
 
 **Input:**
 ```json
@@ -209,44 +209,40 @@ Returns the structural skeleton of a trace—parent-child relationships, timing,
 ```json
 {
   "trace_id": "1a2b3c4d5e6f7890",
-  "root": {
-    "span_id": "span_A",
-    "service": "frontend",
-    "span_name": "/api/checkout",
-    "start_time": "2024-01-15T10:30:00Z",
-    "duration_ms": 2450,
-    "status": "OK",
-    "children": [
-      {
-        "span_id": "span_B",
-        "service": "cart-service",
-        "span_name": "getCart",
-        "start_time": "2024-01-15T10:30:00.050Z",
-        "duration_ms": 120,
-        "status": "OK",
-        "children": []
-      },
-      {
-        "span_id": "span_C",
-        "service": "payment-service",
-        "span_name": "processPayment",
-        "start_time": "2024-01-15T10:30:00.200Z",
-        "duration_ms": 2200,
-        "status": "ERROR",
-        "children": [
-          {
-            "span_id": "span_D",
-            "service": "payment-gateway",
-            "span_name": "chargeCard",
-            "start_time": "2024-01-15T10:30:00.250Z",
-            "duration_ms": 2100,
-            "status": "ERROR",
-            "children": []
-          }
-        ]
-      }
-    ]
-  }
+  "spans": [
+    {
+      "path": "span_A",
+      "service": "frontend",
+      "span_name": "/api/checkout",
+      "start_time": "2024-01-15T10:30:00Z",
+      "duration_us": 2450000,
+      "status": "OK"
+    },
+    {
+      "path": "span_A/span_B",
+      "service": "cart-service",
+      "span_name": "getCart",
+      "start_time": "2024-01-15T10:30:00.050Z",
+      "duration_us": 120000,
+      "status": "OK"
+    },
+    {
+      "path": "span_A/span_C",
+      "service": "payment-service",
+      "span_name": "processPayment",
+      "start_time": "2024-01-15T10:30:00.200Z",
+      "duration_us": 2200000,
+      "status": "ERROR"
+    },
+    {
+      "path": "span_A/span_C/span_D",
+      "service": "payment-gateway",
+      "span_name": "chargeCard",
+      "start_time": "2024-01-15T10:30:00.250Z",
+      "duration_us": 2100000,
+      "status": "ERROR"
+    }
+  ]
 }
 ```
 
@@ -267,40 +263,40 @@ Returns the sequence of spans that form the critical latency path—the "blockin
 ```json
 {
   "trace_id": "1a2b3c4d5e6f7890",
-  "total_duration_ms": 2450,
-  "critical_path_duration_ms": 2400,
-  "path": [
+  "total_duration_us": 2450000,
+  "critical_path_duration_us": 2450000,
+  "segments": [
     {
       "span_id": "span_A",
       "service": "frontend",
       "span_name": "/api/checkout",
-      "self_time_ms": 50,
-      "section_start_ms": 0,
-      "section_end_ms": 50
+      "self_time_us": 50000,
+      "start_offset_us": 0,
+      "end_offset_us": 50000
     },
     {
       "span_id": "span_C",
       "service": "payment-service",
       "span_name": "processPayment",
-      "self_time_ms": 100,
-      "section_start_ms": 50,
-      "section_end_ms": 150
+      "self_time_us": 100000,
+      "start_offset_us": 50000,
+      "end_offset_us": 150000
     },
     {
       "span_id": "span_D",
       "service": "payment-gateway",
       "span_name": "chargeCard",
-      "self_time_ms": 2100,
-      "section_start_ms": 150,
-      "section_end_ms": 2250
+      "self_time_us": 2100000,
+      "start_offset_us": 150000,
+      "end_offset_us": 2250000
     },
     {
       "span_id": "span_A",
       "service": "frontend",
       "span_name": "/api/checkout",
-      "self_time_ms": 200,
-      "section_start_ms": 2250,
-      "section_end_ms": 2450
+      "self_time_us": 200000,
+      "start_offset_us": 2250000,
+      "end_offset_us": 2450000
     }
   ]
 }
@@ -335,7 +331,7 @@ Fetch full OTLP span data for specific spans. Use this only after identifying su
       "service": "payment-service",
       "span_name": "processPayment",
       "start_time": "2024-01-15T10:30:00.200Z",
-      "duration_ms": 2200,
+      "duration_us": 2200000,
       "status": {
         "code": "ERROR",
         "message": "Upstream service timeout"
@@ -367,7 +363,7 @@ Fetch full OTLP span data for specific spans. Use this only after identifying su
       "service": "payment-gateway",
       "span_name": "chargeCard",
       "start_time": "2024-01-15T10:30:00.250Z",
-      "duration_ms": 2100,
+      "duration_us": 2100000,
       "status": {
         "code": "ERROR",
         "message": "Connection timeout to payment processor"

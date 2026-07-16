@@ -39,7 +39,8 @@ func createDefaultConfig() component.Config {
 func createTracesExporter(ctx context.Context, set exporter.Settings, config component.Config) (exporter.Traces, error) {
 	cfg := config.(*Config)
 	ex := newExporter(cfg, set.TelemetrySettings)
-	return exporterhelper.NewTraces(ctx, set, cfg,
+	return exporterhelper.NewTraces(
+		ctx, set, cfg,
 		ex.pushTraces,
 		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 		// Disable Timeout

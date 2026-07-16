@@ -371,7 +371,8 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *tracestore
 			traceQuery.OperationName,
 			minDurationMicros,
 			maxDurationMicros,
-			traceQuery.SearchDepth*limitMultiple)
+			traceQuery.SearchDepth*limitMultiple,
+		)
 		t, err := s.executeQuery(childSpan, query, s.metrics.queryDurationIndex)
 		childSpan.End()
 		if err != nil {

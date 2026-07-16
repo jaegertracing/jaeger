@@ -66,25 +66,55 @@ func convertScope(sr *SpanRow, spanForWarnings ptrace.Span) pcommon.Instrumentat
 	return scope
 }
 
+// decodeTraceID decodes a hex string into a pcommon.TraceID, validating that
+// it contains exactly 16 bytes so the conversion cannot panic on corrupted rows.
+func decodeTraceID(s string) (pcommon.TraceID, error) {
+	var id pcommon.TraceID
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return id, err
+	}
+	if len(b) != len(id) {
+		return id, fmt.Errorf("invalid length %d of decoded trace ID %q, expected %d bytes", len(b), s, len(id))
+	}
+	copy(id[:], b)
+	return id, nil
+}
+
+// decodeSpanID decodes a hex string into a pcommon.SpanID, validating that
+// it contains exactly 8 bytes so the conversion cannot panic on corrupted rows.
+func decodeSpanID(s string) (pcommon.SpanID, error) {
+	var id pcommon.SpanID
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return id, err
+	}
+	if len(b) != len(id) {
+		return id, fmt.Errorf("invalid length %d of decoded span ID %q, expected %d bytes", len(b), s, len(id))
+	}
+	copy(id[:], b)
+	return id, nil
+}
+
 func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 	span := ptrace.NewSpan()
 	span.SetStartTimestamp(pcommon.NewTimestampFromTime(sr.StartTime))
-	traceId, err := hex.DecodeString(sr.TraceID)
+	traceId, err := decodeTraceID(sr.TraceID)
 	if err != nil {
 		return span, fmt.Errorf("failed to decode trace ID: %w", err)
 	}
-	span.SetTraceID(pcommon.TraceID(traceId))
-	spanId, err := hex.DecodeString(sr.ID)
+	span.SetTraceID(traceId)
+	spanId, err := decodeSpanID(sr.ID)
 	if err != nil {
 		return span, fmt.Errorf("failed to decode span ID: %w", err)
 	}
-	span.SetSpanID(pcommon.SpanID(spanId))
-	parentSpanId, err := hex.DecodeString(sr.ParentSpanID)
-	if err != nil {
-		return span, fmt.Errorf("failed to decode parent span ID: %w", err)
-	}
-	if len(parentSpanId) != 0 {
-		span.SetParentSpanID(pcommon.SpanID(parentSpanId))
+	span.SetSpanID(spanId)
+	if sr.ParentSpanID != "" {
+		parentSpanId, err := decodeSpanID(sr.ParentSpanID)
+		if err != nil {
+			return span, fmt.Errorf("failed to decode parent span ID: %w", err)
+		}
+		span.SetParentSpanID(parentSpanId)
 	}
 	span.TraceState().FromRaw(sr.TraceState)
 	span.SetName(sr.Name)
@@ -108,18 +138,18 @@ func convertSpan(sr *SpanRow) (ptrace.Span, error) {
 
 	for i, l := range sr.LinkTraceIDs {
 		link := span.Links().AppendEmpty()
-		traceID, err := hex.DecodeString(l)
+		traceID, err := decodeTraceID(l)
 		if err != nil {
 			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link trace ID: %v", err))
 			continue
 		}
-		link.SetTraceID(pcommon.TraceID(traceID))
-		spanID, err := hex.DecodeString(sr.LinkSpanIDs[i])
+		link.SetTraceID(traceID)
+		spanID, err := decodeSpanID(sr.LinkSpanIDs[i])
 		if err != nil {
 			jptrace.AddWarnings(span, fmt.Sprintf("failed to decode link span ID: %v", err))
 			continue
 		}
-		link.SetSpanID(pcommon.SpanID(spanID))
+		link.SetSpanID(spanID)
 		link.TraceState().FromRaw(sr.LinkTraceStates[i])
 
 		putAttributes2D(link.Attributes(), &sr.LinkAttributes, i, span)
@@ -202,7 +232,8 @@ func putAttributes(
 			if err != nil {
 				jptrace.AddWarnings(
 					spanForWarnings,
-					fmt.Sprintf("failed to unmarshal map attribute %q: %s",
+					fmt.Sprintf(
+						"failed to unmarshal map attribute %q: %s",
 						storedAttrs.ComplexKeys[i],
 						err.Error(),
 					),

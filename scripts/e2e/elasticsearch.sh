@@ -28,6 +28,9 @@ check_arg() {
 # start the elasticsearch/opensearch container
 setup_db() {
   local compose_file=$1
+  echo "::group::⬇️ docker compose pull"
+  bash scripts/utils/retry.sh docker compose -f "${compose_file}" pull
+  echo "::endgroup::"
   docker compose -f "${compose_file}" up -d
 }
 
@@ -45,12 +48,13 @@ wait_for_storage() {
   )
   local max_attempts=60
   local attempt=0
-  echo "Waiting for ${distro} to be available at ${url}..."
+  echo "::group::Waiting for ${distro} to be available at ${url}"
   until [[ "$(curl "${params[@]}" "${url}")" == "200" ]] || (( attempt >= max_attempts )); do
     attempt=$(( attempt + 1 ))
     echo "Attempt: ${attempt} ${distro} is not yet available at ${url}..."
     sleep 10
   done
+  echo "::endgroup::"
 
   # if after all the attempts the storage is not accessible, terminate it and exit
   if [[ "$(curl "${params[@]}" "${url}")" != "200" ]]; then
@@ -113,9 +117,12 @@ build_local_img(){
     make build-es-index-cleaner GOOS=linux
     make build-es-rollover GOOS=linux
     make create-baseimg PLATFORMS="linux/$(go env GOARCH)"
-    #build es-index-cleaner and es-rollover images
+    echo "::group::🚧 Build jaeger-es-index-cleaner image"
     GITHUB_SHA=local-test BRANCH=local-test bash scripts/build/build-upload-a-docker-image.sh -l -b -c jaeger-es-index-cleaner -d cmd/es-index-cleaner -t release -p "linux/$(go env GOARCH)"
+    echo "::endgroup::"
+    echo "::group::🚧 Build jaeger-es-rollover image"
     GITHUB_SHA=local-test BRANCH=local-test bash scripts/build/build-upload-a-docker-image.sh -l -b -c jaeger-es-rollover -d cmd/es-rollover -t release -p "linux/$(go env GOARCH)"
+    echo "::endgroup::"
 }
 
 main() {
@@ -131,9 +138,11 @@ main() {
   if [[ "${storage_test}" == "e2e" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   elif [[ "${storage_test}" == "direct" ]]; then
+    echo "::group::⬇️ Pre-pull test docker images"
+    docker pull localhost:5000/jaegertracing/jaeger-es-index-cleaner:local-test
+    docker pull localhost:5000/jaegertracing/jaeger-es-rollover:local-test
+    echo "::endgroup::"
     STORAGE=${distro} make storage-integration-test
-    make index-cleaner-integration-test
-    make index-rollover-integration-test
   else
     echo "ERROR: Invalid argument value storage_test=${storage_test}, expecting direct or e2e"
     exit 1

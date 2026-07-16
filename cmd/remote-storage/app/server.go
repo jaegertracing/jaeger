@@ -100,7 +100,8 @@ func createGRPCServer(
 	if telset.Host != nil {
 		extensions = telset.Host.GetExtensions()
 	}
-	server, err := cfg.ToServer(ctx,
+	server, err := cfg.ToServer(
+		ctx,
 		extensions,
 		telset.ToOtelComponent(),
 		configgrpc.WithGrpcServerOption(grpc.ChainUnaryInterceptor(unaryInterceptors...)),

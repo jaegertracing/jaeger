@@ -190,7 +190,8 @@ func TestGetThroughput(t *testing.T) {
 				if testCase.expectedError == "" {
 					require.NoError(t, err)
 					assert.Len(t, throughput, 2)
-					assert.Equal(t,
+					assert.Equal(
+						t,
 						model.Throughput{
 							Service:       "svc,withcomma",
 							Operation:     "op,withcomma",
@@ -199,7 +200,8 @@ func TestGetThroughput(t *testing.T) {
 						},
 						*throughput[0],
 					)
-					assert.Equal(t,
+					assert.Equal(
+						t,
 						model.Throughput{
 							Service:       "svc",
 							Operation:     "op",
@@ -307,7 +309,8 @@ func TestStringToThroughput(t *testing.T) {
 	throughput := s.stringToThroughput(testStr)
 
 	assert.Len(t, throughput, 2)
-	assert.Equal(t,
+	assert.Equal(
+		t,
 		model.Throughput{
 			Service:       "svc1",
 			Operation:     "op,1",
@@ -316,7 +319,8 @@ func TestStringToThroughput(t *testing.T) {
 		},
 		*throughput[0],
 	)
-	assert.Equal(t,
+	assert.Equal(
+		t,
 		model.Throughput{
 			Service:       "svc2",
 			Operation:     "op2",

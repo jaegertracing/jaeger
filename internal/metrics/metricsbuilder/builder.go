@@ -38,11 +38,13 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		metricsBackend,
 		defaultMetricsBackend,
-		"Defines which metrics backend to use for metrics reporting: prometheus or none")
+		"Defines which metrics backend to use for metrics reporting: prometheus or none",
+	)
 	flags.String(
 		metricsHTTPRoute,
 		defaultMetricsRoute,
-		"Defines the route of HTTP endpoint for metrics backends that support scraping")
+		"Defines the route of HTTP endpoint for metrics backends that support scraping",
+	)
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.

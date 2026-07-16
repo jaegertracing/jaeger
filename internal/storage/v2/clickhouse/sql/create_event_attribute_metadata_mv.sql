@@ -9,12 +9,11 @@ SELECT
     tp.2 AS type,
     'event' AS level
 FROM spans
-ARRAY JOIN events AS e
 ARRAY JOIN arrayConcat(
-    arrayMap(k -> (k, 'bool'),   e.bool_attributes.key),
-    arrayMap(k -> (k, 'double'), e.double_attributes.key),
-    arrayMap(k -> (k, 'int'),    e.int_attributes.key),
-    arrayMap(k -> (k, 'str'),    e.str_attributes.key),
+    arrayMap(k -> (k, 'bool'),   arrayFlatten(events.bool_attributes.key)),
+    arrayMap(k -> (k, 'double'), arrayFlatten(events.double_attributes.key)),
+    arrayMap(k -> (k, 'int'),    arrayFlatten(events.int_attributes.key)),
+    arrayMap(k -> (k, 'str'),    arrayFlatten(events.str_attributes.key)),
     arrayMap(k -> (
         multiIf(startsWith(k, '@bytes@'), substring(k, 8),
                 startsWith(k, '@map@'),   substring(k, 6),
@@ -22,6 +21,6 @@ ARRAY JOIN arrayConcat(
         multiIf(startsWith(k, '@bytes@'), 'bytes',
                 startsWith(k, '@map@'),   'map',
                 startsWith(k, '@slice@'), 'slice', '')
-    ), e.complex_attributes.key)
+    ), arrayFlatten(events.complex_attributes.key))
 ) AS tp
 GROUP BY attribute_key, type, level;
