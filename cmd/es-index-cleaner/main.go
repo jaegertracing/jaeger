@@ -27,7 +27,7 @@ var relativeIndexCleaner *featuregate.Gate
 func init() {
 	relativeIndexCleaner = featuregate.GlobalRegistry().MustRegister(
 		"es.index.relativeTimeIndexDeletion",
-		featuregate.StageAlpha,
+		featuregate.StageBeta,
 		featuregate.WithRegisterFromVersion("v2.5.0"),
 		featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
