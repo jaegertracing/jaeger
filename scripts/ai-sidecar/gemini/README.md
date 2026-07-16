@@ -14,11 +14,12 @@ The sidecar:
 
 - Python 3.14+
 - [`uv`](https://docs.astral.sh/uv/) installed
-- A Gemini API key
+- A Gemini API key — only for the default Gemini-backed mode; `--demo-mode` runs
+  without one
 
-## Required Environment Variable
+## Gemini API Key
 
-Set your Gemini API key before starting the server:
+Set your Gemini API key before starting the server in the default mode:
 
 ```bash
 export GEMINI_API_KEY="your_api_key_here"
@@ -28,7 +29,8 @@ Without this key, the sidecar cannot create the Gemini client.
 
 For proposal demos and local smoke tests, run the sidecar in deterministic demo
 mode instead. This uses the same WebSocket/ACP server path, but skips Gemini and
-MCP so the proof of concept can run without external services:
+MCP so the proof of concept can run without external services — no
+`GEMINI_API_KEY` or reachable MCP endpoint required:
 
 ```bash
 uv run python main.py --demo-mode

@@ -19,7 +19,6 @@ from acp.helpers import text_block, update_agent_message
 import sidecar
 from sidecar_config import SidecarConfig
 
-END_OF_TURN_MARKER = "__END_OF_TURN__"
 DEFAULT_PROMPT = "hello"
 DEFAULT_CWD = str(Path.cwd())
 
@@ -108,7 +107,6 @@ class FakeAgent(Agent):
 
         assert self._conn is not None
         await self._conn.session_update(session_id, update_agent_message(text_block(f"echo: {user_text}")))
-        await self._conn.session_update(session_id, update_agent_message(text_block(END_OF_TURN_MARKER)))
         return PromptResponse(stop_reason="end_turn")
 
 
@@ -116,7 +114,6 @@ async def recv_loop(
     websocket: Any,
     pending: PendingRequests,
     messages: list[dict[str, Any]],
-    stop_event: asyncio.Event,
 ) -> None:
     try:
         while True:
@@ -132,11 +129,8 @@ async def recv_loop(
             request_id = payload.get("id")
             if request_id is not None:
                 pending.resolve(str(request_id), payload)
-
-            if END_OF_TURN_MARKER in text:
-                stop_event.set()
     except websockets.exceptions.ConnectionClosed:
-        stop_event.set()
+        pass
 
 
 async def send_request(
@@ -183,7 +177,6 @@ async def run_workflow_test(
 ) -> str:
     pending = PendingRequests()
     received_messages: list[dict[str, Any]] = []
-    stop_event = asyncio.Event()
     session_id = ""
 
     async with websockets.serve(
@@ -195,7 +188,7 @@ async def run_workflow_test(
         uri = f"ws://127.0.0.1:{port}"
 
         async with websockets.connect(uri) as websocket:
-            receiver_task = asyncio.create_task(recv_loop(websocket, pending, received_messages, stop_event))
+            receiver_task = asyncio.create_task(recv_loop(websocket, pending, received_messages))
             try:
                 init_response = await send_request(
                     websocket,
@@ -301,3 +294,18 @@ def test_demo_mode_skips_gemini_and_mcp_config_validation() -> None:
 
     config.validate()
 
+
+def test_demo_mode_still_validates_otlp_endpoint() -> None:
+    # main.py initializes tracing in demo mode too, so an empty endpoint must
+    # fail validation rather than break later at exporter construction.
+    config = SidecarConfig(
+        gemini_api_key="",
+        mcp_url="",
+        mcp_discovery_timeout_sec=15.0,
+        otlp_endpoint="",
+        otlp_insecure=True,
+        demo_mode=True,
+    )
+
+    with pytest.raises(RuntimeError, match="OTEL_EXPORTER_OTLP_ENDPOINT"):
+        config.validate()
