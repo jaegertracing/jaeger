@@ -144,9 +144,9 @@ func redactResult(key string) func([]ptrace.Traces) ([]ptrace.Traces, error) {
 	}
 }
 
-func TestNewReader_NoInterceptorsReturnsNextUnchanged(t *testing.T) {
+func TestNewReaderDecorator_NoInterceptorsReturnsNextUnchanged(t *testing.T) {
 	next := &fakeReader{}
-	assert.Same(t, next, NewReader(next), "expected identity when no interceptors")
+	assert.Same(t, next, NewReaderDecorator(next), "expected identity when no interceptors")
 }
 
 func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
@@ -158,7 +158,7 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 		},
 		onResult: redactResult("secret"),
 	}
-	r := NewReader(next, ic)
+	r := NewReaderDecorator(next, ic)
 
 	out, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{ServiceName: "original"}))
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
-	r := NewReader(next, fakeInterceptor{
+	r := NewReaderDecorator(next, fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
 	})
 
@@ -182,7 +182,7 @@ func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 func TestReader_FindTraces_ResultErrorAborts(t *testing.T) {
 	sentinel := errors.New("sanitize failed")
 	next := &fakeReader{batch: tracesWith("k", "v")}
-	r := NewReader(next, fakeInterceptor{
+	r := NewReaderDecorator(next, fakeInterceptor{
 		onResult: func([]ptrace.Traces) ([]ptrace.Traces, error) { return nil, sentinel },
 	})
 
@@ -193,7 +193,7 @@ func TestReader_FindTraces_ResultErrorAborts(t *testing.T) {
 func TestReader_FindTraces_StorageErrorPropagates(t *testing.T) {
 	sentinel := errors.New("storage down")
 	next := &fakeReader{err: sentinel}
-	r := NewReader(next, fakeInterceptor{})
+	r := NewReaderDecorator(next, fakeInterceptor{})
 
 	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
 	require.ErrorIs(t, err, sentinel)
@@ -201,7 +201,7 @@ func TestReader_FindTraces_StorageErrorPropagates(t *testing.T) {
 
 func TestReader_GetTraces_AppliesResultHook(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("secret", "value")}
-	r := NewReader(next, fakeInterceptor{onResult: redactResult("secret")})
+	r := NewReaderDecorator(next, fakeInterceptor{onResult: redactResult("secret")})
 
 	out, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
 	require.NoError(t, err)
@@ -211,7 +211,7 @@ func TestReader_GetTraces_AppliesResultHook(t *testing.T) {
 
 func TestReader_GetTraces_StorageErrorPropagates(t *testing.T) {
 	sentinel := errors.New("storage down")
-	r := NewReader(&fakeReader{err: sentinel}, fakeInterceptor{})
+	r := NewReaderDecorator(&fakeReader{err: sentinel}, fakeInterceptor{})
 	_, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
 	require.ErrorIs(t, err, sentinel)
 }
@@ -219,7 +219,7 @@ func TestReader_GetTraces_StorageErrorPropagates(t *testing.T) {
 func TestReader_GetTraces_ResultErrorAborts(t *testing.T) {
 	sentinel := errors.New("sanitize failed")
 	next := &fakeReader{batch: tracesWith("k", "v")}
-	r := NewReader(next, fakeInterceptor{
+	r := NewReaderDecorator(next, fakeInterceptor{
 		onResult: func([]ptrace.Traces) ([]ptrace.Traces, error) { return nil, sentinel },
 	})
 	_, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
@@ -229,7 +229,7 @@ func TestReader_GetTraces_ResultErrorAborts(t *testing.T) {
 func TestReader_GetTraces_ContinuesAfterError(t *testing.T) {
 	sentinel := errors.New("transient")
 	next := &fakeReader{leadingErr: sentinel, batch: tracesWith("secret", "value")}
-	r := NewReader(next, fakeInterceptor{onResult: redactResult("secret")})
+	r := NewReaderDecorator(next, fakeInterceptor{onResult: redactResult("secret")})
 
 	var errs, batches int
 	for batch, err := range r.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
@@ -247,7 +247,7 @@ func TestReader_GetTraces_ContinuesAfterError(t *testing.T) {
 
 func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
 	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
-	r := NewReader(next, fakeInterceptor{
+	r := NewReaderDecorator(next, fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) {
 			q.ServiceName = "gated"
 			return q, nil
@@ -266,7 +266,7 @@ func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
 func TestReader_FindTraceIDs_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
-	r := NewReader(next, fakeInterceptor{
+	r := NewReaderDecorator(next, fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
 	})
 	var err error
@@ -278,7 +278,7 @@ func TestReader_FindTraceIDs_QueryRejectionSkipsStorage(t *testing.T) {
 
 func TestReader_FindTraceIDs_StorageErrorPropagates(t *testing.T) {
 	sentinel := errors.New("storage down")
-	r := NewReader(&fakeReader{idsErr: sentinel}, fakeInterceptor{})
+	r := NewReaderDecorator(&fakeReader{idsErr: sentinel}, fakeInterceptor{})
 	var err error
 	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
 		err = e
@@ -290,7 +290,7 @@ func TestReader_FindTraceIDs_StorageErrorPropagates(t *testing.T) {
 // the range loop breaks, yield returns false and the decorator must return.
 func TestReader_EarlyStop(*testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v"), ids: []tracestore.FoundTraceID{{}}}
-	r := NewReader(next, fakeInterceptor{})
+	r := NewReaderDecorator(next, fakeInterceptor{})
 
 	for range r.FindTraces(context.Background(), tracestore.TraceQueryParams{}) {
 		break
@@ -305,7 +305,7 @@ func TestReader_EarlyStop(*testing.T) {
 
 func TestReader_PassThroughMethods(t *testing.T) {
 	next := &fakeReader{services: []string{"svc"}}
-	r := NewReader(next, fakeInterceptor{})
+	r := NewReaderDecorator(next, fakeInterceptor{})
 
 	svcs, err := r.GetServices(context.Background())
 	require.NoError(t, err)
@@ -327,7 +327,7 @@ func TestReader_ChainAppliesInOrder(t *testing.T) {
 		order = append(order, "second")
 		return q, nil
 	}}
-	r := NewReader(next, first, second)
+	r := NewReaderDecorator(next, first, second)
 
 	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
 	require.NoError(t, err)

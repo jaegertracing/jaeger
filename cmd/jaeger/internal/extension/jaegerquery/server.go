@@ -77,12 +77,12 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	// jaeger-query invokes a caller-supplied plugin (an OTel extension) around
 	// every trace query — gating the query and sanitizing the results —
 	// without exposing the storage Reader itself. With no interceptors
-	// configured, NewReader returns traceReader unchanged.
+	// configured, NewReaderDecorator returns traceReader unchanged.
 	interceptors, err := queryinterceptor.Resolve(host, s.config.QueryInterceptors)
 	if err != nil {
 		return fmt.Errorf("cannot resolve query interceptors: %w", err)
 	}
-	traceReader = queryinterceptor.NewReader(traceReader, interceptors...)
+	traceReader = queryinterceptor.NewReaderDecorator(traceReader, interceptors...)
 
 	df, ok := tf.(depstore.Factory)
 	if !ok {

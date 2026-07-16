@@ -13,7 +13,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// NewReader decorates next so the given interceptors are applied around every
+// NewReaderDecorator decorates next so the given interceptors are applied around every
 // trace query: OnQuery on the query parameters of FindTraces and FindTraceIDs,
 // and OnResult on every batch of traces yielded by FindTraces and GetTraces.
 // Interceptors run in the order given. With no interceptors, next is returned
@@ -22,7 +22,7 @@ import (
 // The interceptors see the public queryinterceptor.Query; this decorator
 // converts to and from the internal tracestore.TraceQueryParams at the boundary,
 // so the internal query type never crosses the contract.
-func NewReader(next tracestore.Reader, interceptors ...pub.Interceptor) tracestore.Reader {
+func NewReaderDecorator(next tracestore.Reader, interceptors ...pub.Interceptor) tracestore.Reader {
 	if len(interceptors) == 0 {
 		return next
 	}
