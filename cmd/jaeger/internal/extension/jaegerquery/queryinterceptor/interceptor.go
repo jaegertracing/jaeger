@@ -22,10 +22,11 @@
 //
 // This package is the implementation. The contract is re-exported for external
 // consumers (custom OCB builds, third-party extensions) at the module-root path
-// github.com/jaegertracing/jaeger/components/extension/queryinterceptor, which
-// aliases Interceptor and the TraceQueryParams type so implementers never need
-// to import a Jaeger-internal package — the same way the Collector publishes
-// extensionauth for authenticators.
+// github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor
+// — nested under the jaeger_query extension it belongs to — which aliases
+// Interceptor and the TraceQueryParams type so implementers never need to import
+// a Jaeger-internal package, the same way the Collector publishes extensionauth
+// for authenticators.
 package queryinterceptor
 
 import (

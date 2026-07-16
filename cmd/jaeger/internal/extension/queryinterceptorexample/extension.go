@@ -3,6 +3,10 @@
 
 package queryinterceptorexample
 
+// The queryinterceptor contract is imported through the public module-root path,
+// exactly as a third-party OCB extension would — no Jaeger-internal packages are
+// referenced by this extension.
+
 import (
 	"context"
 	"fmt"
@@ -12,9 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	// Imported through the public module-root path, exactly as a third-party
-	// OCB extension would — no Jaeger-internal packages are referenced.
-	"github.com/jaegertracing/jaeger/components/extension/queryinterceptor"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 )
 
 const redactedPlaceholder = "REDACTED"

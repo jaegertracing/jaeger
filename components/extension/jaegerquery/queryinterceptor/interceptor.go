@@ -7,7 +7,7 @@
 // results (OnResult); jaeger_query invokes it via its query_interceptors config.
 package queryinterceptor
 
-import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/queryinterceptor"
+import impl "github.com/jaegertracing/jaeger/cmd/jaeger/components/extension/jaegerquery/queryinterceptor"
 
 // Interceptor is the contract a query-interceptor extension implements.
 type Interceptor = impl.Interceptor

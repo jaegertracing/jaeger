@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/components/extension/queryinterceptor"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 )
 
 func queryWithAttr(key, val string) queryinterceptor.TraceQueryParams {
