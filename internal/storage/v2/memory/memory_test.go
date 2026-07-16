@@ -683,6 +683,34 @@ func TestWriteTraces_WriteTraceWithTwoResourceSpans(t *testing.T) {
 	assert.Equal(t, td, tenant.traces[traceIndex].trace)
 }
 
+func TestWriteTraces_IgnoresEmptyTraceID(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	writeSpan := func(traceId pcommon.TraceID) {
+		td := ptrace.NewTraces()
+		td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty().SetTraceID(traceId)
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+	writeSpan(fromString(t, "00000000000000010000000000000000"))
+	writeSpan(fromString(t, "00000000000000020000000000000000"))
+	// an all-zero trace ID must be dropped: stored, it would collide with the
+	// ring buffer's empty-slot sentinel and hide the two traces above
+	writeSpan(pcommon.NewTraceIDEmpty())
+	writeSpan(fromString(t, "00000000000000030000000000000000"))
+
+	tenant := store.getTenant(tenancy.GetTenant(context.Background()))
+	assert.NotContains(t, tenant.ids, pcommon.NewTraceIDEmpty())
+	iterLength := 0
+	for traces, err := range store.FindTraces(context.Background(), tracestore.TraceQueryParams{SearchDepth: 10, Attributes: pcommon.NewMap()}) {
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+		iterLength++
+	}
+	assert.Equal(t, 3, iterLength)
+}
+
 func TestNewStore_TracesLimit(t *testing.T) {
 	maxTraces := 8
 	store, err := NewStore(Configuration{
