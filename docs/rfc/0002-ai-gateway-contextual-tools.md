@@ -7,6 +7,8 @@
 
 ---
 
+> **Superseded note (2026-07-15):** The tool-routing choice in §5 — selecting the ACP extension method (Alternative D) and rejecting a gateway-hosted MCP server (Alternative B) — is superseded by [RFC 0008: Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md). That analysis was correct for the problem this RFC solved (UI-tool dispatch), but the broader goal of routing *all* tool calls — chiefly telemetry — through the gateway for inversion-of-control revives Alternative B under a different problem statement. See RFC 0008 §3.2. This document is retained unchanged as a historical snapshot.
+
 ## Abstract
 
 This RFC proposes a layered design for letting the Jaeger UI attach a set of **contextual (UI-driven) tools** to a chat turn against the AI gateway, have the LLM invoke them through the existing Agent Client Protocol (ACP) sidecar, and receive the results back. It avoids new server processes and avoids polluting the shared Jaeger MCP server with conversation-scoped state by riding a single ACP **extension method** between the sidecar and the gateway, with a per-turn store inside the gateway as the correlation point.
