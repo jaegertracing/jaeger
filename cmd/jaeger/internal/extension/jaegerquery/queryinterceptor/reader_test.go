@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	pub "github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -75,13 +76,14 @@ func (*fakeReader) GetOperations(context.Context, tracestore.OperationQueryParam
 	return []tracestore.Operation{{Name: "op"}}, nil
 }
 
-// fakeInterceptor lets each test supply the hook behavior it needs.
+// fakeInterceptor lets each test supply the hook behavior it needs. It receives
+// the public Query, exactly as a real interceptor would.
 type fakeInterceptor struct {
-	onQuery  func(tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error)
+	onQuery  func(pub.Query) (pub.Query, error)
 	onResult func([]ptrace.Traces) ([]ptrace.Traces, error)
 }
 
-func (f fakeInterceptor) OnQuery(_ context.Context, q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+func (f fakeInterceptor) OnQuery(_ context.Context, q pub.Query) (pub.Query, error) {
 	if f.onQuery != nil {
 		return f.onQuery(q)
 	}
@@ -150,7 +152,7 @@ func TestNewReader_NoInterceptorsReturnsNextUnchanged(t *testing.T) {
 func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("secret", "value")}
 	ic := fakeInterceptor{
-		onQuery: func(q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+		onQuery: func(q pub.Query) (pub.Query, error) {
 			q.ServiceName = "gated"
 			return q, nil
 		},
@@ -169,9 +171,7 @@ func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
 	r := NewReader(next, fakeInterceptor{
-		onQuery: func(q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
-			return q, sentinel
-		},
+		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
 	})
 
 	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
@@ -209,37 +209,6 @@ func TestReader_GetTraces_AppliesResultHook(t *testing.T) {
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, out[0], "secret"))
 }
 
-func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
-	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
-	r := NewReader(next, fakeInterceptor{
-		onQuery: func(q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
-			q.ServiceName = "gated"
-			return q, nil
-		},
-	})
-
-	var got [][]tracestore.FoundTraceID
-	for ids, err := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
-		require.NoError(t, err)
-		got = append(got, ids)
-	}
-	assert.Equal(t, "gated", next.gotQuery.ServiceName)
-	assert.Len(t, got, 1)
-}
-
-func TestReader_PassThroughMethods(t *testing.T) {
-	next := &fakeReader{services: []string{"svc"}}
-	r := NewReader(next, fakeInterceptor{})
-
-	svcs, err := r.GetServices(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, []string{"svc"}, svcs)
-
-	ops, err := r.GetOperations(context.Background(), tracestore.OperationQueryParams{})
-	require.NoError(t, err)
-	assert.Equal(t, []tracestore.Operation{{Name: "op"}}, ops)
-}
-
 func TestReader_GetTraces_StorageErrorPropagates(t *testing.T) {
 	sentinel := errors.New("storage down")
 	r := NewReader(&fakeReader{err: sentinel}, fakeInterceptor{})
@@ -254,29 +223,6 @@ func TestReader_GetTraces_ResultErrorAborts(t *testing.T) {
 		onResult: func([]ptrace.Traces) ([]ptrace.Traces, error) { return nil, sentinel },
 	})
 	_, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
-	require.ErrorIs(t, err, sentinel)
-}
-
-func TestReader_FindTraceIDs_QueryRejectionSkipsStorage(t *testing.T) {
-	sentinel := errors.New("denied")
-	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
-	r := NewReader(next, fakeInterceptor{
-		onQuery: func(q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) { return q, sentinel },
-	})
-	var err error
-	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
-		err = e
-	}
-	require.ErrorIs(t, err, sentinel)
-}
-
-func TestReader_FindTraceIDs_StorageErrorPropagates(t *testing.T) {
-	sentinel := errors.New("storage down")
-	r := NewReader(&fakeReader{idsErr: sentinel}, fakeInterceptor{})
-	var err error
-	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
-		err = e
-	}
 	require.ErrorIs(t, err, sentinel)
 }
 
@@ -299,6 +245,47 @@ func TestReader_GetTraces_ContinuesAfterError(t *testing.T) {
 	assert.Equal(t, 1, batches)
 }
 
+func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
+	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
+	r := NewReader(next, fakeInterceptor{
+		onQuery: func(q pub.Query) (pub.Query, error) {
+			q.ServiceName = "gated"
+			return q, nil
+		},
+	})
+
+	var got [][]tracestore.FoundTraceID
+	for ids, err := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, ids)
+	}
+	assert.Equal(t, "gated", next.gotQuery.ServiceName)
+	assert.Len(t, got, 1)
+}
+
+func TestReader_FindTraceIDs_QueryRejectionSkipsStorage(t *testing.T) {
+	sentinel := errors.New("denied")
+	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
+	r := NewReader(next, fakeInterceptor{
+		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
+	})
+	var err error
+	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+		err = e
+	}
+	require.ErrorIs(t, err, sentinel)
+}
+
+func TestReader_FindTraceIDs_StorageErrorPropagates(t *testing.T) {
+	sentinel := errors.New("storage down")
+	r := NewReader(&fakeReader{idsErr: sentinel}, fakeInterceptor{})
+	var err error
+	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+		err = e
+	}
+	require.ErrorIs(t, err, sentinel)
+}
+
 // The early-stop tests exercise the "consumer stopped iterating" branches: when
 // the range loop breaks, yield returns false and the decorator must return.
 func TestReader_EarlyStop(*testing.T) {
@@ -316,14 +303,27 @@ func TestReader_EarlyStop(*testing.T) {
 	}
 }
 
+func TestReader_PassThroughMethods(t *testing.T) {
+	next := &fakeReader{services: []string{"svc"}}
+	r := NewReader(next, fakeInterceptor{})
+
+	svcs, err := r.GetServices(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"svc"}, svcs)
+
+	ops, err := r.GetOperations(context.Background(), tracestore.OperationQueryParams{})
+	require.NoError(t, err)
+	assert.Equal(t, []tracestore.Operation{{Name: "op"}}, ops)
+}
+
 func TestReader_ChainAppliesInOrder(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("v", "0")}
 	var order []string
-	first := fakeInterceptor{onQuery: func(q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+	first := fakeInterceptor{onQuery: func(q pub.Query) (pub.Query, error) {
 		order = append(order, "first")
 		return q, nil
 	}}
-	second := fakeInterceptor{onQuery: func(q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+	second := fakeInterceptor{onQuery: func(q pub.Query) (pub.Query, error) {
 		order = append(order, "second")
 		return q, nil
 	}}

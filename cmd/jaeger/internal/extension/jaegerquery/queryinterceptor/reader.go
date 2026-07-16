@@ -9,20 +9,20 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	pub "github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-// NewReader decorates next so that the given interceptors are applied around
-// every trace query: OnQuery on the query parameters of FindTraces and
-// FindTraceIDs, and OnResult on every batch of traces yielded by FindTraces and
-// GetTraces. Interceptors run in the order given. When no interceptors are
-// supplied, next is returned unchanged so there is zero overhead on the
-// default (no-interceptor) path.
+// NewReader decorates next so the given interceptors are applied around every
+// trace query: OnQuery on the query parameters of FindTraces and FindTraceIDs,
+// and OnResult on every batch of traces yielded by FindTraces and GetTraces.
+// Interceptors run in the order given. With no interceptors, next is returned
+// unchanged so the default read path has zero overhead.
 //
-// This decorator is the whole of the change on the query-service side: the
-// QueryService keeps calling a tracestore.Reader and is unaware that the reader
-// now consults the interceptors.
-func NewReader(next tracestore.Reader, interceptors ...Interceptor) tracestore.Reader {
+// The interceptors see the public queryinterceptor.Query; this decorator
+// converts to and from the internal tracestore.TraceQueryParams at the boundary,
+// so the internal query type never crosses the contract.
+func NewReader(next tracestore.Reader, interceptors ...pub.Interceptor) tracestore.Reader {
 	if len(interceptors) == 0 {
 		return next
 	}
@@ -31,18 +31,45 @@ func NewReader(next tracestore.Reader, interceptors ...Interceptor) tracestore.R
 
 type reader struct {
 	next         tracestore.Reader
-	interceptors []Interceptor
+	interceptors []pub.Interceptor
+}
+
+func toPublicQuery(q tracestore.TraceQueryParams) pub.Query {
+	return pub.Query{
+		ServiceName:   q.ServiceName,
+		OperationName: q.OperationName,
+		Attributes:    q.Attributes,
+		StartTimeMin:  q.StartTimeMin,
+		StartTimeMax:  q.StartTimeMax,
+		DurationMin:   q.DurationMin,
+		DurationMax:   q.DurationMax,
+		SearchDepth:   q.SearchDepth,
+	}
+}
+
+func fromPublicQuery(q pub.Query) tracestore.TraceQueryParams {
+	return tracestore.TraceQueryParams{
+		ServiceName:   q.ServiceName,
+		OperationName: q.OperationName,
+		Attributes:    q.Attributes,
+		StartTimeMin:  q.StartTimeMin,
+		StartTimeMax:  q.StartTimeMax,
+		DurationMin:   q.DurationMin,
+		DurationMax:   q.DurationMax,
+		SearchDepth:   q.SearchDepth,
+	}
 }
 
 func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+	pq := toPublicQuery(query)
 	var err error
 	for _, interceptor := range r.interceptors {
-		query, err = interceptor.OnQuery(ctx, query)
+		pq, err = interceptor.OnQuery(ctx, pq)
 		if err != nil {
 			return query, err
 		}
 	}
-	return query, nil
+	return fromPublicQuery(pq), nil
 }
 
 func (r *reader) onResult(ctx context.Context, traces []ptrace.Traces) ([]ptrace.Traces, error) {

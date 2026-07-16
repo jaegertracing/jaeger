@@ -3,10 +3,6 @@
 
 package queryinterceptorexample
 
-// The queryinterceptor contract is imported through the public module-root path,
-// exactly as a third-party OCB extension would — no Jaeger-internal packages are
-// referenced by this extension.
-
 import (
 	"context"
 	"fmt"
@@ -23,7 +19,7 @@ const redactedPlaceholder = "REDACTED"
 
 // interceptor is both an OTel extension (component.Component) and a
 // queryinterceptor.Interceptor — the two interfaces a query-interceptor plugin
-// must satisfy.
+// must satisfy. It references only public Jaeger packages.
 type interceptor struct {
 	cfg    *Config
 	logger *zap.Logger
@@ -44,7 +40,7 @@ func (*interceptor) Shutdown(context.Context) error { return nil }
 
 // OnQuery rejects a query that filters on any denied attribute — the pre-query
 // admission hook.
-func (i *interceptor) OnQuery(_ context.Context, query queryinterceptor.TraceQueryParams) (queryinterceptor.TraceQueryParams, error) {
+func (i *interceptor) OnQuery(_ context.Context, query queryinterceptor.Query) (queryinterceptor.Query, error) {
 	for _, key := range i.cfg.DenyQueryAttributes {
 		if _, ok := query.Attributes.Get(key); ok {
 			i.logger.Debug("rejecting query that filters on a forbidden attribute", zap.String("attribute", key))

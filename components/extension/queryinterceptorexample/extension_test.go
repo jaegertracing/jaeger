@@ -19,8 +19,8 @@ import (
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 )
 
-func queryWithAttr(key, val string) queryinterceptor.TraceQueryParams {
-	q := queryinterceptor.TraceQueryParams{Attributes: pcommon.NewMap()}
+func queryWithAttr(key, val string) queryinterceptor.Query {
+	q := queryinterceptor.Query{Attributes: pcommon.NewMap()}
 	q.Attributes.PutStr(key, val)
 	return q
 }
@@ -80,7 +80,6 @@ func TestFactory_CreatesInterceptorExtension(t *testing.T) {
 	}, f.CreateDefaultConfig())
 	require.NoError(t, err)
 
-	// The extension must be usable both as an OTel component and as an interceptor.
 	require.NoError(t, ext.Start(context.Background(), componenttest.NewNopHost()))
 	require.NoError(t, ext.Shutdown(context.Background()))
 	_, ok := ext.(queryinterceptor.Interceptor)

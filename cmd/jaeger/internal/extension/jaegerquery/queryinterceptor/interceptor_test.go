@@ -13,16 +13,16 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	pub "github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 )
 
-// stubInterceptor is both a component.Component (an OTel extension) and an
+// stubInterceptor is both a component.Component (an OTel extension) and a public
 // Interceptor — the shape a real plugin must have.
 type stubInterceptor struct{}
 
 func (stubInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubInterceptor) OnQuery(_ context.Context, q tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+func (stubInterceptor) OnQuery(_ context.Context, q pub.Query) (pub.Query, error) {
 	return q, nil
 }
 
