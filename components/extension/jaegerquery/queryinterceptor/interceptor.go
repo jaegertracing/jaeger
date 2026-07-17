@@ -55,6 +55,18 @@ type Query struct {
 // sanitizes results on jaeger-query's read path. An implementation is an
 // ordinary component.Component (an OTel extension) that also satisfies this
 // interface, referenced from jaeger_query's query_interceptors config.
+//
+// Both methods receive the inbound request's context, which is how an
+// implementation learns *who* is asking so it can decide per caller. jaeger-query
+// runs the request through the Collector's confighttp/configgrpc server, so when
+// that server is configured with include_metadata: true the incoming request
+// headers are exposed as OTel client metadata:
+//
+//	role := client.FromContext(ctx).Metadata.Get("x-caller-identity")
+//
+// (client is go.opentelemetry.io/collector/client). An access-control
+// implementation reads the caller's identity/token this way and resolves it
+// against its policy system. The example extension does exactly this.
 type Interceptor interface {
 	// OnQuery runs before a trace search executes. Returning an error rejects
 	// the query (the caller sees the error); returning a modified Query
