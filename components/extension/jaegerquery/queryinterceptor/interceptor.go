@@ -5,6 +5,16 @@
 // OpenTelemetry extension participate in jaeger-query's read path — without
 // exposing jaeger-query's storage Reader or its internal query representation.
 //
+// Motivation: sensitive traces — GenAI model prompts and completions, tool-call
+// payloads, PII — must be shown or withheld per user. An interceptor lets a
+// deployment enforce that policy at query time, integrating with an in-house
+// access-control system that cannot live in open-source Jaeger. OnQuery can
+// reject or scope a search so it cannot match on data the caller may not read
+// (e.g. a full-text search over prompt content); OnResult can drop whole traces
+// or mask sub-attributes on the way out (e.g. redacting PII fields for callers
+// without clearance). See the runnable example extension at
+// github.com/jaegertracing/jaeger/components/extension/queryinterceptorexample.
+//
 // It is the query-side analogue of the Collector's authenticator extensions:
 // jaeger-query resolves the configured interceptor extensions from the host by
 // component ID and invokes them around every trace query. OnQuery runs before
