@@ -51,10 +51,6 @@ extensions:
     import: github.com/jaegertracing/jaeger/components/extension/expvar
   - gomod: github.com/jaegertracing/jaeger v0.0.0
     import: github.com/jaegertracing/jaeger/components/extension/remotestorage
-  # Prototype: demonstration query-interceptor extension (Option D). Shows a
-  # custom OCB build wiring a queryinterceptor.Interceptor into jaeger_query.
-  - gomod: github.com/jaegertracing/jaeger v0.0.0
-    import: github.com/jaegertracing/jaeger/components/extension/queryinterceptorexample
 
 receivers:
   - gomod: github.com/jaegertracing/jaeger v0.0.0

@@ -5,7 +5,7 @@ package queryinterceptorexample
 
 // Config configures the example query-interceptor extension. The two fields
 // exercise the two hooks of queryinterceptor.Interceptor; a real extension would
-// consult a policy system (e.g. Gandalf) instead of static lists.
+// consult a policy/authorization system instead of static lists.
 type Config struct {
 	// DenyQueryAttributes lists attribute keys that a query is not allowed to
 	// filter on. If a trace query references any of them, OnQuery rejects it —

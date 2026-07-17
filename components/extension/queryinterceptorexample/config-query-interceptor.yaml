@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Prototype config for the Option-D query-interceptor extension point.
+# Example config for the query-interceptor extension point.
 #
 # The example extension `query_interceptor_example` is an ordinary OTel
 # extension that implements queryinterceptor.Interceptor. jaeger_query
@@ -9,7 +9,11 @@
 # trace query: OnQuery (pre) rejects a search that filters on a forbidden
 # attribute, OnResult (post) redacts configured attributes from the results.
 #
-# Run:  go run ./cmd/jaeger --config ./components/extension/queryinterceptorexample/config-query-interceptor.yaml
+# query_interceptor_example is a demonstration extension and is NOT part of the
+# stock Jaeger distribution, so running this config requires a build that
+# includes it — e.g. a custom OCB build adding
+# components/extension/queryinterceptorexample. The integration test in this
+# package exercises this file end to end.
 service:
   extensions: [jaeger_storage, jaeger_query, query_interceptor_example]
   pipelines:

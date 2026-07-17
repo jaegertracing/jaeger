@@ -40,7 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/components/extension/expvar"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerstorage"
-	"github.com/jaegertracing/jaeger/components/extension/queryinterceptorexample"
 	"github.com/jaegertracing/jaeger/components/extension/remotesampling"
 	"github.com/jaegertracing/jaeger/components/extension/remotestorage"
 	"github.com/jaegertracing/jaeger/components/processor/adaptivesampling"
@@ -84,7 +83,6 @@ func (b builders) build() (otelcol.Factories, error) {
 		jaegerstorage.NewFactory(),
 		remotesampling.NewFactory(),
 		expvar.NewFactory(),
-		queryinterceptorexample.NewFactory(),
 		// only for e2e testing
 		storagecleaner.NewFactory(),
 		remotestorage.NewFactory(),
