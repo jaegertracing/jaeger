@@ -21,6 +21,7 @@ from acp.schema import AgentCapabilities, Implementation, ListSessionsResponse, 
 from acp.helpers import text_block, update_agent_message
 
 import llm
+import main
 import sidecar
 from mcp.types import CallToolResult, TextContent, Tool
 from mcp_bridge import _to_ollama_tool, _tool_result_output
@@ -434,14 +435,17 @@ def test_tool_result_prefers_structured_content_then_text() -> None:
 
 
 def _config(**overrides: Any) -> SidecarConfig:
+    # Built from main.py's defaults rather than literals, so the config the
+    # tests validate is the one an operator actually gets, and a changed
+    # default can't leave a stale endpoint behind here.
     settings: dict[str, Any] = {
-        "ollama_url": "http://localhost:11434",
-        "model": "qwen3:8b",
-        "ollama_timeout_sec": 300.0,
-        "mcp_url": "http://127.0.0.1:16687/mcp",
-        "mcp_discovery_timeout_sec": 15.0,
-        "otlp_endpoint": "http://localhost:4317",
-        "otlp_insecure": True,
+        "ollama_url": main.DEFAULT_OLLAMA_URL,
+        "model": main.DEFAULT_MODEL,
+        "ollama_timeout_sec": main.DEFAULT_OLLAMA_TIMEOUT_SEC,
+        "mcp_url": main.DEFAULT_MCP_URL,
+        "mcp_discovery_timeout_sec": main.DEFAULT_MCP_DISCOVERY_TIMEOUT_SEC,
+        "otlp_endpoint": main.DEFAULT_OTLP_ENDPOINT,
+        "otlp_insecure": main.DEFAULT_OTLP_INSECURE,
     }
     settings.update(overrides)
     return SidecarConfig(**settings)
