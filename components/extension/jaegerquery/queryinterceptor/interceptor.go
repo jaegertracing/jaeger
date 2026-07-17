@@ -31,11 +31,19 @@ package queryinterceptor
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
+
+// ErrRejected marks an OnQuery error as a client-side rejection. jaeger-query
+// surfaces an error that wraps ErrRejected as a 4xx (Bad Request) to the caller
+// instead of a 500. Wrap it with %w, for example:
+//
+//	return q, fmt.Errorf("%w: filtering on %q is not permitted", queryinterceptor.ErrRejected, key)
+var ErrRejected = errors.New("query rejected by interceptor")
 
 // Query is the public view of a trace-search query passed to Interceptor.OnQuery.
 type Query struct {
