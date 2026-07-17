@@ -11,17 +11,8 @@ class SidecarConfig:
     mcp_discovery_timeout_sec: float
     otlp_endpoint: str
     otlp_insecure: bool
-    demo_mode: bool = False
 
     def validate(self) -> None:
-        # Tracing is initialized on every run, demo mode included, so the OTLP
-        # settings are validated before the Gemini/MCP-specific checks below.
-        if not self.otlp_endpoint:
-            raise RuntimeError(
-                "OTEL_EXPORTER_OTLP_ENDPOINT must be provided via --otlp-endpoint or environment variable"
-            )
-        if self.demo_mode:
-            return
         if not self.gemini_api_key:
             raise RuntimeError(
                 "GEMINI_API_KEY must be provided via --gemini-api-key or environment variable"
@@ -30,3 +21,7 @@ class SidecarConfig:
             raise RuntimeError("JAEGER_MCP_URL must be provided via --mcp-url or environment variable")
         if self.mcp_discovery_timeout_sec <= 0:
             raise RuntimeError("MCP discovery timeout must be > 0 seconds")
+        if not self.otlp_endpoint:
+            raise RuntimeError(
+                "OTEL_EXPORTER_OTLP_ENDPOINT must be provided via --otlp-endpoint or environment variable"
+            )
