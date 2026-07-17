@@ -27,6 +27,10 @@ type Config struct {
 	// collector host and applies them, in order, around every trace query:
 	// OnQuery before the search executes, OnResult on the returned traces.
 	// Empty by default, in which case the read path is unchanged.
+	//
+	// These IDs are also reported from Dependencies(), so the collector starts
+	// each listed extension before jaeger-query — guaranteeing it is initialized
+	// by the time its hooks are invoked.
 	QueryInterceptors []component.ID `mapstructure:"query_interceptors"`
 }
 

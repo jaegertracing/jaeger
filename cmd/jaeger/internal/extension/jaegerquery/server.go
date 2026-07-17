@@ -49,10 +49,16 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 	}
 }
 
-// Dependencies implements extensioncapabilities.Dependent
-// to ensure this always starts after jaegerstorage extension.
-func (*server) Dependencies() []component.ID {
-	return []component.ID{jaegerstorage.ID}
+// Dependencies implements extensioncapabilities.Dependent so the collector
+// starts this extension after the ones it consumes: the jaegerstorage extension
+// (for the trace reader) and every configured query-interceptor extension. The
+// latter guarantees each interceptor's own Start has run before jaeger-query
+// begins serving queries, so it is ready when OnQuery/OnResult are invoked.
+func (s *server) Dependencies() []component.ID {
+	deps := make([]component.ID, 0, 1+len(s.config.QueryInterceptors))
+	deps = append(deps, jaegerstorage.ID)
+	deps = append(deps, s.config.QueryInterceptors...)
+	return deps
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {

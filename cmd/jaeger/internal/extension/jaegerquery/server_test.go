@@ -133,15 +133,21 @@ var (
 )
 
 func TestServerDependencies(t *testing.T) {
-	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
 		Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 	}
 
-	server := newServer(createDefaultConfig().(*Config), telemetrySettings)
-	dependencies := server.Dependencies()
+	t.Run("storage only by default", func(t *testing.T) {
+		server := newServer(createDefaultConfig().(*Config), telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID}, server.Dependencies())
+	})
 
-	assert.Equal(t, expectedDependencies, dependencies)
+	t.Run("includes configured query interceptors", func(t *testing.T) {
+		cfg := createDefaultConfig().(*Config)
+		cfg.QueryInterceptors = []component.ID{testInterceptorID}
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID, testInterceptorID}, server.Dependencies())
+	})
 }
 
 func TestServerStart(t *testing.T) {
