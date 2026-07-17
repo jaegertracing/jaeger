@@ -18,19 +18,16 @@ type reader struct {
 	interceptors []pub.Interceptor
 }
 
-// NewReaderDecorator decorates next so the given interceptors are applied around every
-// trace query: OnQuery on the query parameters of FindTraces and FindTraceIDs,
-// and OnResult on every batch of traces yielded by FindTraces and GetTraces.
-// Interceptors run in the order given. With no interceptors, next is returned
-// unchanged so the default read path has zero overhead.
+// NewReaderDecorator decorates next so the given interceptors are applied around
+// every trace query: OnQuery on the query parameters of FindTraces and
+// FindTraceIDs, and OnResult on every batch of traces yielded by FindTraces and
+// GetTraces. Interceptors run in the order given. Callers wrap only when there
+// is at least one interceptor, so this always returns a decorator.
 //
 // The interceptors see the public queryinterceptor.Query; this decorator
 // converts to and from the internal tracestore.TraceQueryParams at the boundary,
 // so the internal query type never crosses the contract.
 func NewReaderDecorator(next tracestore.Reader, interceptors ...pub.Interceptor) tracestore.Reader {
-	if len(interceptors) == 0 {
-		return next
-	}
 	return &reader{next: next, interceptors: interceptors}
 }
 

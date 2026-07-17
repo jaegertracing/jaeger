@@ -144,11 +144,6 @@ func redactResult(key string) func([]ptrace.Traces) ([]ptrace.Traces, error) {
 	}
 }
 
-func TestNewReaderDecorator_NoInterceptorsReturnsNextUnchanged(t *testing.T) {
-	next := &fakeReader{}
-	assert.Same(t, next, NewReaderDecorator(next), "expected identity when no interceptors")
-}
-
 func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("secret", "value")}
 	ic := fakeInterceptor{
