@@ -3,15 +3,24 @@
 
 package queryinterceptorexample
 
-// Config configures the example query-interceptor extension. The two fields
-// exercise the two hooks of queryinterceptor.Interceptor; a real extension would
-// consult a policy/authorization system instead of static lists.
+// Config configures the example query-interceptor extension. It decides per
+// caller: the caller's role is read from a request header (propagated into the
+// context as OTel client metadata), and privileged callers bypass the
+// restrictions. A real extension would resolve the caller against a policy /
+// authorization system rather than matching a static role list.
 type Config struct {
-	// DenyQueryAttributes lists attribute keys that a query is not allowed to
-	// filter on. If a trace query references any of them, OnQuery rejects it —
-	// demonstrating query-time admission (the pre-query hook).
+	// IdentityHeader is the request header carrying the caller's role/identity.
+	// It must be exposed to the context via jaeger_query's http.include_metadata.
+	IdentityHeader string `mapstructure:"identity_header"`
+	// PrivilegedRoles are IdentityHeader values that bypass all restrictions
+	// (they see unredacted results and may filter on any attribute).
+	PrivilegedRoles []string `mapstructure:"privileged_roles"`
+	// DenyQueryAttributes lists attribute keys a non-privileged caller may not
+	// filter on. If such a query references any of them, OnQuery rejects it —
+	// demonstrating per-caller query-time admission (the pre-query hook).
 	DenyQueryAttributes []string `mapstructure:"deny_query_attributes"`
 	// RedactAttributes lists span attribute keys whose values OnResult replaces
-	// with a placeholder — demonstrating return-path masking (the post hook).
+	// with a placeholder for non-privileged callers — demonstrating per-caller
+	// return-path masking (the post hook).
 	RedactAttributes []string `mapstructure:"redact_attributes"`
 }

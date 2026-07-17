@@ -47,6 +47,8 @@ func TestExampleConfigValidates(t *testing.T) {
 	// The example extension parsed its policy straight from the file.
 	extCfg, ok := cfg.Extensions[component.MustNewID("query_interceptor_example")].(*queryinterceptorexample.Config)
 	require.True(t, ok, "query_interceptor_example extension is not configured in the file")
+	assert.Equal(t, "x-jaeger-caller-role", extCfg.IdentityHeader)
+	assert.Equal(t, []string{"admin"}, extCfg.PrivilegedRoles)
 	assert.Equal(t, []string{"prompt"}, extCfg.DenyQueryAttributes)
 	assert.Equal(t, []string{"prompt", "llm.response"}, extCfg.RedactAttributes)
 }

@@ -29,9 +29,15 @@ extensions:
   # The interceptor extension must be listed in `extensions` (so the collector
   # instantiates it) and referenced from jaeger_query.query_interceptors below.
   query_interceptor_example:
-    # OnQuery rejects any trace search that filters on these attributes.
+    # The caller's role is read from this request header (exposed to the
+    # interceptor's context via jaeger_query.http.include_metadata below).
+    identity_header: x-jaeger-caller-role
+    # Callers with one of these roles bypass the restrictions below.
+    privileged_roles: [admin]
+    # A non-privileged caller may not filter a search on these attributes.
     deny_query_attributes: [prompt]
-    # OnResult replaces these span attribute values with "REDACTED".
+    # For a non-privileged caller, these span attribute values are replaced with
+    # "REDACTED" in the results.
     redact_attributes: [prompt, llm.response]
 
   jaeger_query:
@@ -44,6 +50,9 @@ extensions:
     # this same file run on free ports (e.g. from a test) without editing it.
     http:
       endpoint: "${env:JAEGER_QUERY_HTTP_ENDPOINT:-0.0.0.0:16686}"
+      # Expose request headers (e.g. the caller identity) to the interceptor
+      # through the request context.
+      include_metadata: true
     grpc:
       endpoint: "${env:JAEGER_QUERY_GRPC_ENDPOINT:-0.0.0.0:16685}"
 

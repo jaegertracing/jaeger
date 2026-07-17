@@ -29,9 +29,14 @@ const traceID = "00000000000000000000000000abc123"
 // config-query-interceptor.yaml with no overrides — free ports are injected
 // through the same env vars the file already exposes (`${env:...:-default}`),
 // so the file itself is what runs. It pushes one span via OTLP and drives the
-// jaeger-query API to prove both hooks the config wires up actually fire:
-//   - OnResult (return-path) redacts the configured attributes in a fetched trace;
-//   - OnQuery (pre-query) rejects a search filtering on a forbidden attribute.
+// jaeger-query API as two callers to prove both hooks fire per caller identity:
+//   - OnResult (return-path) redacts the configured attributes for a
+//     non-privileged caller but leaves them intact for a privileged one;
+//   - OnQuery (pre-query) rejects a search filtering on a forbidden attribute
+//     for a non-privileged caller but admits it for a privileged one.
+//
+// The caller identity travels in a request header and reaches the interceptor
+// through the request context — the propagation an access-control extension needs.
 func TestExampleConfigEndToEnd(t *testing.T) {
 	// jaeger_query's query service creates a jtracer that OTLP-exports to
 	// localhost:4317 by default; disable sampling so it produces nothing to
@@ -78,35 +83,54 @@ func TestExampleConfigEndToEnd(t *testing.T) {
 		20*time.Second, 50*time.Millisecond, "collector did not reach running state")
 
 	pushSpan(t, otlpHTTP)
-
-	// OnResult: the fetched trace has prompt/llm.response redacted, keep intact.
 	queryBase := fmt.Sprintf("http://127.0.0.1:%d", queryHTTP)
-	var tags map[string]string
+
+	// The interceptor decides per caller: the caller's role travels in the
+	// X-Jaeger-Caller-Role header and reaches the interceptor through the request
+	// context (jaeger_query's http.include_metadata exposes it as OTel client
+	// metadata). The config privileges role "admin"; any other caller is
+	// restricted. This is the crux of the Option-D PoC: a real extension would
+	// resolve the caller against an access-control system instead of a static role.
+
+	// OnResult, privileged caller: sees the sensitive attributes unredacted.
+	// This first fetch also serves as the readiness wait for the pushed trace.
+	var adminTags map[string]string
 	require.Eventually(t, func() bool {
-		code, body := httpGet(t, queryBase+"/api/traces/"+traceID)
+		code, body := httpGet(t, queryBase+"/api/traces/"+traceID, "admin")
 		if code != http.StatusOK || !strings.Contains(body, `"spans"`) {
 			return false
 		}
-		tags = spanTags(t, body)
-		_, ok := tags["prompt"]
+		adminTags = spanTags(t, body)
+		_, ok := adminTags["prompt"]
 		return ok
 	}, 10*time.Second, 100*time.Millisecond, "trace not queryable")
+	assert.Equal(t, "my password is hunter2", adminTags["prompt"], "privileged caller sees prompt unredacted")
+	assert.Equal(t, "the capital is Paris", adminTags["llm.response"], "privileged caller sees response unredacted")
 
-	assert.Equal(t, "REDACTED", tags["prompt"], "OnResult should redact prompt")
-	assert.Equal(t, "REDACTED", tags["llm.response"], "OnResult should redact llm.response")
-	assert.Equal(t, "visible", tags["keep"], "non-configured attribute must be untouched")
+	// OnResult, non-privileged caller: same trace, sensitive attributes redacted.
+	_, viewerBody := httpGet(t, queryBase+"/api/traces/"+traceID, "viewer")
+	viewerTags := spanTags(t, viewerBody)
+	assert.Equal(t, "REDACTED", viewerTags["prompt"], "non-privileged caller: prompt redacted")
+	assert.Equal(t, "REDACTED", viewerTags["llm.response"], "non-privileged caller: llm.response redacted")
+	assert.Equal(t, "visible", viewerTags["keep"], "non-configured attribute must be untouched")
 
-	// OnQuery: a search filtering on the forbidden `prompt` attribute is rejected.
+	// OnQuery, per caller: a search filtering on the forbidden `prompt` attribute
+	// is admitted for the privileged caller but rejected for everyone else.
 	nowUS := time.Now().UnixMicro()
 	tagFilter := url.QueryEscape(`{"prompt":"hunter2"}`)
-	code, body := httpGet(t, fmt.Sprintf("%s/api/traces?service=checkout&start=%d&end=%d&tags=%s",
-		queryBase, nowUS-3600_000_000, nowUS, tagFilter))
-	// The interceptor's OnQuery error currently surfaces as a 500 (the query
-	// path maps all reader errors to Internal Server Error); returning a 4xx
-	// uniformly across the v1/api_v3 HTTP and gRPC paths is a separate change.
-	assert.Equal(t, http.StatusInternalServerError, code, "OnQuery rejection surfaces as an error")
-	assert.Contains(t, body, "filtering on attribute")
-	assert.Contains(t, body, "is not permitted")
+	searchURL := fmt.Sprintf("%s/api/traces?service=checkout&start=%d&end=%d&tags=%s",
+		queryBase, nowUS-3600_000_000, nowUS, tagFilter)
+
+	adminCode, _ := httpGet(t, searchURL, "admin")
+	assert.Equal(t, http.StatusOK, adminCode, "privileged caller may filter on prompt")
+
+	// The rejection currently surfaces as a 500 (the query path maps all reader
+	// errors to Internal Server Error); returning a 4xx uniformly across the
+	// v1/api_v3 HTTP and gRPC paths is a separate change.
+	viewerCode, viewerSearch := httpGet(t, searchURL, "viewer")
+	assert.Equal(t, http.StatusInternalServerError, viewerCode, "non-privileged caller's query is rejected")
+	assert.Contains(t, viewerSearch, "filtering on attribute")
+	assert.Contains(t, viewerSearch, "is not permitted")
 }
 
 func freePort(t *testing.T) int {
@@ -142,9 +166,16 @@ func pushSpan(t *testing.T, otlpHTTPPort int) {
 	require.Equal(t, http.StatusOK, code, "OTLP push should succeed")
 }
 
-func httpGet(t *testing.T, rawURL string) (int, string) {
+// httpGet issues a GET as the given caller role, sent in the identity header
+// the example interceptor is configured to read. An empty role sends no header.
+func httpGet(t *testing.T, rawURL, role string) (int, string) {
 	t.Helper()
-	resp, err := http.Get(rawURL)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, rawURL, http.NoBody)
+	require.NoError(t, err)
+	if role != "" {
+		req.Header.Set("X-Jaeger-Caller-Role", role)
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return 0, err.Error()
 	}
