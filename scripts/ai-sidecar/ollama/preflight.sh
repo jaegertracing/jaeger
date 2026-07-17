@@ -34,7 +34,7 @@ EOF
 	exit 1
 fi
 
-if ! curl -fsS "${OLLAMA_URL}/api/tags" | grep -q "\"${MODEL}\""; then
+if ! curl -fsS "${OLLAMA_URL}/api/tags" | grep -qF "\"${MODEL}\""; then
 	cat >&2 <<EOF
 [ai-sidecar/ollama] Ollama is running at ${OLLAMA_URL}, but the model '${MODEL}' is not pulled.
 
