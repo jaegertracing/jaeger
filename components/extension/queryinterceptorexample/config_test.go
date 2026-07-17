@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
@@ -34,7 +35,7 @@ func TestExampleConfigValidates(t *testing.T) {
 	provider, err := otelcol.NewConfigProvider(otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs:              []string{"file:config-query-interceptor.yaml"},
-			ProviderFactories: []confmap.ProviderFactory{fileprovider.NewFactory()},
+			ProviderFactories: []confmap.ProviderFactory{fileprovider.NewFactory(), envprovider.NewFactory()},
 		},
 	})
 	require.NoError(t, err)

@@ -16,6 +16,10 @@ service:
     traces:
       receivers: [otlp]
       exporters: [jaeger_storage_exporter]
+  telemetry:
+    metrics:
+      # This demo doesn't need the collector's own metrics endpoint.
+      level: none
 
 extensions:
   # The interceptor extension must be listed in `extensions` (so the collector
@@ -32,6 +36,12 @@ extensions:
     # Ordered list of interceptor extension IDs. Each must implement
     # queryinterceptor.Interceptor and be defined in `extensions` above.
     query_interceptors: [query_interceptor_example]
+    # Bind addresses default to the standard query ports; the env overrides let
+    # this same file run on free ports (e.g. from a test) without editing it.
+    http:
+      endpoint: "${env:JAEGER_QUERY_HTTP_ENDPOINT:-0.0.0.0:16686}"
+    grpc:
+      endpoint: "${env:JAEGER_QUERY_GRPC_ENDPOINT:-0.0.0.0:16685}"
 
   jaeger_storage:
     backends:
@@ -43,7 +53,9 @@ receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: "${env:OTLP_GRPC_ENDPOINT:-localhost:4317}"
       http:
+        endpoint: "${env:OTLP_HTTP_ENDPOINT:-localhost:4318}"
 
 exporters:
   jaeger_storage_exporter:
