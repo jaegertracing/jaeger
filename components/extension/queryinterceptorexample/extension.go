@@ -44,8 +44,7 @@ func (i *interceptor) OnQuery(_ context.Context, query queryinterceptor.Query) (
 	for _, key := range i.cfg.DenyQueryAttributes {
 		if _, ok := query.Attributes.Get(key); ok {
 			i.logger.Debug("rejecting query that filters on a forbidden attribute", zap.String("attribute", key))
-			// Wrap ErrRejected so jaeger-query returns a 4xx rather than a 500.
-			return query, fmt.Errorf("%w: filtering on attribute %q is not permitted", queryinterceptor.ErrRejected, key)
+			return query, fmt.Errorf("query interceptor: filtering on attribute %q is not permitted", key)
 		}
 	}
 	return query, nil

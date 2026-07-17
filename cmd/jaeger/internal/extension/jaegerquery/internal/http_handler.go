@@ -26,7 +26,6 @@ import (
 	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
-	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -544,9 +543,6 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	}
 	if errors.Is(err, disabled.ErrDisabled) {
 		statusCode = http.StatusNotImplemented
-	}
-	if errors.Is(err, queryinterceptor.ErrRejected) {
-		statusCode = http.StatusBadRequest
 	}
 	if statusCode == http.StatusInternalServerError {
 		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
