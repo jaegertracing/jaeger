@@ -187,6 +187,42 @@ func TestAnonymizer_AnonymizeSpan_AllFalse(t *testing.T) {
 	assert.Empty(t, span2.Process.Tags)
 }
 
+func TestAnonymizer_AnonymizeSpan_HashLogs(t *testing.T) {
+	anonymizer := &Anonymizer{
+		mapping: mapping{
+			Services:   make(map[string]string),
+			Operations: make(map[string]string),
+		},
+		options: Options{
+			HashLogs: true,
+		},
+	}
+	span := &model.Span{
+		TraceID:       traceID,
+		SpanID:        model.NewSpanID(1),
+		Process:       &model.Process{ServiceName: "serviceName"},
+		OperationName: "operationName",
+		Logs: []model.Log{
+			{
+				Timestamp: time.Unix(300, 0),
+				Fields: []model.KeyValue{
+					model.String("logKey", "logValue"),
+				},
+			},
+		},
+	}
+
+	_ = anonymizer.AnonymizeSpan(span)
+
+	require.Len(t, span.Logs, 1)
+	require.Len(t, span.Logs[0].Fields, 1)
+	field := span.Logs[0].Fields[0]
+	// With HashLogs enabled, both the field key and value must be hashed so no
+	// original log data leaks through.
+	assert.Equal(t, hash("logKey"), field.Key)
+	assert.Equal(t, hash("logValue"), field.AsString())
+}
+
 func TestAnonymizer_MapString_Present(t *testing.T) {
 	v := "foobar"
 	m := map[string]string{
