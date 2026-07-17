@@ -13,6 +13,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+type reader struct {
+	next         tracestore.Reader
+	interceptors []pub.Interceptor
+}
+
 // NewReaderDecorator decorates next so the given interceptors are applied around every
 // trace query: OnQuery on the query parameters of FindTraces and FindTraceIDs,
 // and OnResult on every batch of traces yielded by FindTraces and GetTraces.
@@ -27,11 +32,6 @@ func NewReaderDecorator(next tracestore.Reader, interceptors ...pub.Interceptor)
 		return next
 	}
 	return &reader{next: next, interceptors: interceptors}
-}
-
-type reader struct {
-	next         tracestore.Reader
-	interceptors []pub.Interceptor
 }
 
 func toPublicQuery(q tracestore.TraceQueryParams) pub.Query {
