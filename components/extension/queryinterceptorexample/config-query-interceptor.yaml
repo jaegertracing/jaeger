@@ -9,7 +9,7 @@
 # trace query: OnQuery (pre) rejects a search that filters on a forbidden
 # attribute, OnResult (post) redacts configured attributes from the results.
 #
-# Run:  go run ./cmd/jaeger --config ./cmd/jaeger/config-query-interceptor.yaml
+# Run:  go run ./cmd/jaeger --config ./components/extension/queryinterceptorexample/config-query-interceptor.yaml
 service:
   extensions: [jaeger_storage, jaeger_query, query_interceptor_example]
   pipelines:
