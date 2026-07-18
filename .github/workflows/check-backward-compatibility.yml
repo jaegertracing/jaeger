@@ -6,7 +6,7 @@
 # (they build the @main Jaeger binary to write data, then verify the PR's
 # binary can read it), they don't run on every PR — only when a maintainer
 # adds a `check-backward-compatibility:<storage>` label (e.g.
-# `check-backward-compatibility:elasticsearch`).
+# `check-backward-compatibility:es/os`).
 #
 # The check-label job scans the PR's labels for that prefix and extracts the
 # `<storage>` suffix. If a matching label is present, the backward-compatibility
