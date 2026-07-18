@@ -25,12 +25,13 @@ const mcpServerName = "jaeger"
 //   - mcpCapabilities.http → MCP over streamable HTTP at
 //     "<baseURL><basePath>/api/ai/mcp/<mcpRouteID>/".
 //
-// baseURL comes from ai.mcp_base_url and has no default: the gateway cannot infer
-// an address the sidecar can actually reach it on — it may sit behind a proxy, in
-// another network namespace, or terminate TLS elsewhere — and announcing an
-// unreachable URL is worse than announcing none, because the agent dials it and
-// fails mid-turn. With ai.mcp_base_url unset, no HTTP server is announced and the
-// chat turn still works (just without tools).
+// baseURL is the resolved ai.mcp_base_url: an explicit override, or the gateway's
+// inferred localhost address when the sidecar is co-located (see
+// AIConfig.resolveMCPBaseURL). It is empty only when the sidecar is remote and no
+// override is set — the gateway then cannot infer an address the sidecar can reach
+// it on, and announcing an unreachable one is worse than announcing none (the
+// agent dials it and fails mid-turn). With an empty baseURL no HTTP server is
+// announced and the chat turn still works (just without tools).
 func announceMCPServers(caps acp.AgentCapabilities, baseURL, basePath, mcpRouteID string) []acp.McpServer {
 	if mcpRouteID == "" || baseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}

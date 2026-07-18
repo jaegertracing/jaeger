@@ -235,13 +235,17 @@ func initRouter(
 					// if MCP is also enabled, the turn-scoped MCP endpoint
 					// (/api/ai/mcp/<id>/). It holds MCP sessions past the request
 					// that opened them, so it joins the closers returned below.
+					//
+					// The announced base URL is resolved here because inferring the
+					// gateway's own localhost address needs the query HTTP endpoint
+					// and TLS setting, which live on QueryOptions, not AIConfig.
 					aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
 						Logger:             telset.Logger,
 						AgentURL:           aiCfg.AgentURL,
 						BasePath:           queryOpts.BasePath,
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 						EnableMCP:          aiCfg.EnableMCP,
-						MCPBaseURL:         aiCfg.MCPBaseURL,
+						MCPBaseURL:         aiCfg.resolveMCPBaseURL(queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
@@ -249,8 +253,8 @@ func initRouter(
 					aiGateway.RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
-					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
-					// the wildcard turn-scoped pattern above.
+					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the
+					// wildcard turn-scoped pattern above.
 					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
 				}
 			}

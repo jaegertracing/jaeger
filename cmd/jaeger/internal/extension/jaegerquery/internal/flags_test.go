@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,7 +77,8 @@ func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 }
 
 func TestAIConfigValidateAcceptsAbsentOrAbsoluteMCPBaseURL(t *testing.T) {
-	// Empty is the default: no HTTP announcement (see AIConfig.MCPBaseURL).
+	// Empty is valid — the announced URL is then resolved from AgentURL
+	// (see resolveMCPBaseURL); only an explicit override is validated here.
 	cfg := validAIConfig()
 	require.NoError(t, cfg.Validate())
 
@@ -105,6 +107,87 @@ func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
 		cfg := validAIConfig()
 		cfg.MCPBaseURL = u
 		require.EqualError(t, cfg.Validate(), want, "relative/invalid URL %q must be rejected", u)
+	}
+}
+
+func TestAIConfigResolveMCPBaseURL(t *testing.T) {
+	const httpEndpoint = ":16686"
+	tests := []struct {
+		name       string
+		mcpBaseURL string
+		agentURL   string
+		endpoint   string
+		tls        bool
+		want       string
+	}{
+		{
+			name:       "explicit override wins over inference",
+			mcpBaseURL: "https://jaeger.example.com:16686",
+			agentURL:   "ws://sidecar.example.com:16688", // remote, but override wins
+			endpoint:   httpEndpoint,
+			want:       "https://jaeger.example.com:16686",
+		},
+		{
+			name:     "co-located sidecar (localhost) infers localhost",
+			agentURL: "ws://localhost:16688",
+			endpoint: httpEndpoint,
+			want:     "http://localhost:16686",
+		},
+		{
+			name:     "co-located over TLS infers https",
+			agentURL: "ws://localhost:16688",
+			endpoint: httpEndpoint,
+			tls:      true,
+			want:     "https://localhost:16686",
+		},
+		{
+			name:     "loopback IPv4 agent url infers localhost",
+			agentURL: "ws://127.0.0.1:16688",
+			endpoint: "0.0.0.0:16686",
+			want:     "http://localhost:16686",
+		},
+		{
+			name:     "loopback IPv6 agent url infers localhost",
+			agentURL: "ws://[::1]:16688",
+			endpoint: httpEndpoint,
+			want:     "http://localhost:16686",
+		},
+		{
+			name:     "remote sidecar infers nothing",
+			agentURL: "ws://sidecar.example.com:16688",
+			endpoint: httpEndpoint,
+			want:     "",
+		},
+		{
+			name:     "empty agent url infers nothing",
+			agentURL: "",
+			endpoint: httpEndpoint,
+			want:     "",
+		},
+		{
+			name:     "unparseable agent url infers nothing",
+			agentURL: "://nonsense",
+			endpoint: httpEndpoint,
+			want:     "",
+		},
+		{
+			name:     "endpoint without a port infers nothing",
+			agentURL: "ws://localhost:16688",
+			endpoint: "localhost", // no host:port split
+			want:     "",
+		},
+		{
+			name:     "dynamic port endpoint infers nothing",
+			agentURL: "ws://localhost:16688",
+			endpoint: ":0",
+			want:     "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := AIConfig{AgentURL: tc.agentURL, MCPBaseURL: tc.mcpBaseURL}
+			assert.Equal(t, tc.want, cfg.resolveMCPBaseURL(tc.endpoint, tc.tls))
+		})
 	}
 }
 
