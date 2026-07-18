@@ -950,14 +950,6 @@ func TestResolvedRotation(t *testing.T) {
 			},
 		},
 		{
-			// Regression test: legacy rollover_frequency: "month" (or "year")
-			// without an explicit date_layout used to resolve to the hardcoded
-			// daily "2006-01-02" layout here in GetDateLayout, before ever
-			// reaching the frequency-aware defaulting in BuildRotation. That
-			// produced daily-suffixed write indices scanned back with a
-			// ~28-day step, silently skipping most of them. GetDateLayout now
-			// defaults based on GetRolloverFrequency via the same
-			// DefaultDateLayout used by BuildRotation.
 			name: "legacy rollover_frequency month without date_layout resolves to monthly layout",
 			cfg: &Configuration{
 				Indices: Indices{
@@ -1003,9 +995,6 @@ func TestResolvedRotation(t *testing.T) {
 			},
 		},
 		{
-			// Explicit date_layout must still win even if it doesn't match
-			// RolloverFrequency's granularity — GetDateLayout only applies the
-			// frequency-aware default when DateLayout is unset entirely.
 			name: "explicit date_layout takes precedence over rollover_frequency-based default",
 			cfg: &Configuration{
 				Indices: Indices{

@@ -4,6 +4,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,14 +14,9 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
 )
 
-// TestIndexFilter_MonthlyAndYearlyIndices is a regression test ensuring the
-// default (periodic, non-rollover, non-archive) filter pattern matches
-// monthly ("jaeger-span-2024-03") and yearly ("jaeger-span-2024") index
-// suffixes, not just the original daily "YYYY-MM-DD" pattern. It also checks
-// that the broadened pattern doesn't start falsely matching unrelated
-// sequential rollover-alias index names like "jaeger-span-000001", which a
-// naive "make the trailing segments optional" fix would have allowed (see
-// PR review discussion).
+// TestIndexFilter_MonthlyAndYearlyIndices checks that the default filter
+// pattern matches monthly and yearly index suffixes, and does not
+// false-match rollover-alias-style names like "jaeger-span-000001".
 func TestIndexFilter_MonthlyAndYearlyIndices(t *testing.T) {
 	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
 	indices := []client.Index{
@@ -84,11 +80,6 @@ func TestIndexFilter_MonthlyAndYearlyIndices(t *testing.T) {
 }
 
 func TestIndexFilter_HourlyIndicesWithNonDashSeparators(t *testing.T) {
-	// Regression test: reviewer found that \b (used in an earlier version of
-	// this pattern) fails to find a boundary between a date segment and an
-	// underscore, since Go's regexp treats both digits and underscore as \w
-	// characters, so "jaeger-span-2024_03_15_12" and (with an empty separator)
-	// "jaeger-span-2024031512" were silently excluded from matching at all.
 	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
 
 	testCases := []struct {
@@ -125,14 +116,10 @@ func TestIndexFilter_HourlyIndicesWithNonDashSeparators(t *testing.T) {
 	}
 }
 
-// TestIndexFilter_EmptySeparatorMonthAmbiguity documents a known, irreducible
-// limitation: with an empty IndexDateSeparator, a monthly index's 6 raw
-// digits (e.g. "202403") are indistinguishable by pattern alone from a
-// 6-digit rollover-alias sequential ID (e.g. "000001", matched by the
-// Rollover case). This isn't something the regex can resolve without more
-// information than the index name provides. It's a pre-existing property of
-// choosing an empty separator, not a regression from this change — recorded
-// here so it's an intentional, documented trade-off rather than a surprise.
+// TestIndexFilter_EmptySeparatorMonthAmbiguity documents a known limitation:
+// with an empty IndexDateSeparator, a monthly index's 6 digits (e.g.
+// "202403") are indistinguishable from a 6-digit rollover-alias ID (e.g.
+// "000001") — there's no delimiter left to tell them apart.
 func TestIndexFilter_EmptySeparatorMonthAmbiguity(t *testing.T) {
 	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
 	filter := &IndexFilter{
@@ -156,6 +143,112 @@ func TestIndexFilter_EmptySeparatorMonthAmbiguity(t *testing.T) {
 	}
 	filtered := filter.Filter(indices)
 	assert.Len(t, filtered, 2, "documented limitation: both the monthly index and the 6-digit rollover-alias-style index match when IndexDateSeparator is empty")
+}
+
+func TestIndexFilter_RegexSpecialSeparatorsAreLiteral(t *testing.T) {
+	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
+
+	testCases := []struct {
+		name      string
+		separator string
+	}{
+		{name: "dot separator", separator: "."},
+		{name: "plus separator", separator: "+"},
+		{name: "bracket separator", separator: "["},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := &IndexFilter{
+				IndexPrefix:          "",
+				IndexDateSeparator:   tc.separator,
+				Archive:              false,
+				Rollover:             false,
+				DeleteBeforeThisDate: beforeDate,
+			}
+			indexName := fmt.Sprintf("jaeger-span-2024%s03%s15", tc.separator, tc.separator)
+			indices := []client.Index{
+				{
+					Index:        indexName,
+					CreationTime: time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC),
+					Aliases:      map[string]bool{},
+				},
+			}
+			filtered := filter.Filter(indices)
+			require.Len(t, filtered, 1, "expected %q to match its own literal separator", indexName)
+		})
+	}
+}
+
+func TestIndexFilter_WrongSeparatorOrUnrelatedNamesAreNotDeleted(t *testing.T) {
+	beforeDate := time.Date(2024, time.June, 1, 0, 0, 0, 0, time.UTC)
+	filter := &IndexFilter{
+		IndexPrefix:          "",
+		IndexDateSeparator:   "-",
+		Archive:              false,
+		Rollover:             false,
+		DeleteBeforeThisDate: beforeDate,
+	}
+
+	testCases := []string{
+		"jaeger-span-2024.03.15",
+		"jaeger-span-2024_03_15",
+		"jaeger-span-2024-backup",
+		"jaeger-span-archive",
+	}
+	for _, name := range testCases {
+		t.Run(name, func(t *testing.T) {
+			indices := []client.Index{
+				{
+					Index:        name,
+					CreationTime: time.Date(2023, time.January, 1, 0, 0, 0, 0, time.UTC),
+					Aliases:      map[string]bool{},
+				},
+			}
+			filtered := filter.Filter(indices)
+			assert.Empty(t, filtered, "%q should not be selected for deletion", name)
+		})
+	}
+}
+
+func TestIndexFilter_MultiYearReadCoveringLeapYear(t *testing.T) {
+	beforeDate := time.Date(2021, time.January, 1, 0, 0, 0, 0, time.UTC)
+	filter := &IndexFilter{
+		IndexPrefix:          "",
+		IndexDateSeparator:   "-",
+		Archive:              false,
+		Rollover:             false,
+		DeleteBeforeThisDate: beforeDate,
+	}
+	indices := []client.Index{
+		{
+			Index:        "jaeger-span-2019",
+			CreationTime: time.Date(2019, time.June, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        "jaeger-span-2020",
+			CreationTime: time.Date(2020, time.February, 29, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        "jaeger-span-2021",
+			CreationTime: time.Date(2021, time.March, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+	}
+	filtered := filter.Filter(indices)
+	assert.Equal(t, []client.Index{
+		{
+			Index:        "jaeger-span-2019",
+			CreationTime: time.Date(2019, time.June, 1, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+		{
+			Index:        "jaeger-span-2020",
+			CreationTime: time.Date(2020, time.February, 29, 0, 0, 0, 0, time.UTC),
+			Aliases:      map[string]bool{},
+		},
+	}, filtered)
 }
 
 func TestIndexFilter(t *testing.T) {
