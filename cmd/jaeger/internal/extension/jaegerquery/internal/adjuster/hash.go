@@ -43,11 +43,17 @@ func (s *SpanHashDeduper) Adjust(traces ptrace.Traces) {
 		hashResourceSpan := hashTrace.ResourceSpans().AppendEmpty()
 		hashScopeSpan := hashResourceSpan.ScopeSpans().AppendEmpty()
 		hashSpan := hashScopeSpan.Spans().AppendEmpty()
-		rs.Resource().Attributes().CopyTo(hashResourceSpan.Resource().Attributes())
+		// Include the full resource identity (attributes and schema URL) so spans
+		// that differ only by resource are not treated as duplicates.
+		rs.Resource().CopyTo(hashResourceSpan.Resource())
+		hashResourceSpan.SetSchemaUrl(rs.SchemaUrl())
 		for j := 0; j < scopeSpans.Len(); j++ {
 			ss := scopeSpans.At(j)
 			spans := ss.Spans()
-			ss.Scope().Attributes().CopyTo(hashScopeSpan.Scope().Attributes())
+			// Include the full scope identity (name, version, attributes) and its
+			// schema URL for the same reason.
+			ss.Scope().CopyTo(hashScopeSpan.Scope())
+			hashScopeSpan.SetSchemaUrl(ss.SchemaUrl())
 			dedupedSpans := ptrace.NewSpanSlice()
 			for k := 0; k < spans.Len(); k++ {
 				span := spans.At(k)
