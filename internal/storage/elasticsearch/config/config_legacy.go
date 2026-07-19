@@ -7,6 +7,8 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
+
+	jaegerfeaturegate "github.com/jaegertracing/jaeger/internal/featuregate"
 )
 
 // RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
@@ -15,14 +17,22 @@ import (
 // It is enabled by default (Beta): setting any of these flags is a validation error
 // unless the gate is explicitly disabled. Once promoted to Stable, the gate can no
 // longer be disabled and users must migrate to the new rotation config.
-var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
-	"es.config.rejectLegacyRotationFlags",
-	featuregate.StageBeta,
-	featuregate.WithRegisterFromVersion("v2.9.0"),
-	featuregate.WithRegisterDescription(
-		"When enabled, the use of deprecated ES rotation flags "+
-			"(use_aliases, use_ilm, span_read_alias, etc.) "+
-			"becomes a validation error instead of a deprecation warning.",
+var RejectLegacyRotationFlags = jaegerfeaturegate.NewRenamedGate(
+	featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.config.rejectLegacyRotationFlags",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.20.0"),
+		featuregate.WithRegisterDescription(
+			"When enabled, the use of deprecated ES rotation flags "+
+				"(use_aliases, use_ilm, span_read_alias, etc.) "+
+				"becomes a validation error instead of a deprecation warning.",
+		),
+	),
+	featuregate.GlobalRegistry().MustRegister(
+		"es.config.rejectLegacyRotationFlags",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.9.0"),
+		featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.config.rejectLegacyRotationFlags."),
 	),
 )
 
