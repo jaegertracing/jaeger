@@ -297,23 +297,27 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 2}, Hits: []esclient.SearchHit{{Source: spanBytesID1}}}},
 		}
 
-		// Every sub-request must page startTime-ascending, track total hits, and carry
-		// the expected search_after cursor: the padded window start on round 1, and
-		// the last span's startTime on the follow-up.
-		initialCursor := model.TimeAsEpochMicroseconds(date.Add(-24 * time.Hour))
-		paginates := func(req esclient.MultiSearchRequest, wantCursor uint64) bool {
+		// Every sub-request must page (startTime, spanID)-ascending, track total hits,
+		// and carry the expected search_after cursor: the padded window start (with an
+		// empty spanID tie-breaker) on round 1, and the last span's (startTime, spanID)
+		// on the follow-up.
+		initialCursor := searchAfterCursor{startTime: model.TimeAsEpochMicroseconds(date.Add(-24 * time.Hour))}
+		paginates := func(req esclient.MultiSearchRequest, wantCursor searchAfterCursor) bool {
 			s := req.Search
-			return len(s.Sort) == 1 &&
+			return len(s.Sort) == 2 &&
 				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: esquery.Ascending} &&
+				s.Sort[1] == esclient.SortOrder{Field: spanIDField, Order: esquery.Ascending} &&
 				s.TrackTotalHits &&
-				len(s.SearchAfter) == 1 && s.SearchAfter[0] == any(wantCursor)
+				len(s.SearchAfter) == 2 &&
+				s.SearchAfter[0] == any(wantCursor.startTime) &&
+				s.SearchAfter[1] == any(wantCursor.spanID)
 		}
 
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
 			return len(reqs) == 2 && paginates(reqs[0], initialCursor) && paginates(reqs[1], initialCursor)
 		})).Return(firstRound, nil).Once()
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
-			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime)
+			return len(reqs) == 1 && paginates(reqs[0], searchAfterCursor{startTime: spanID1.StartTime, spanID: string(spanID1.SpanID)})
 		})).Return(secondRound, nil).Once()
 
 		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
@@ -330,6 +334,75 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, string(expectedData), string(actualData))
 		}
+	})
+}
+
+// TestSpanReader_multiRead_sharedStartTime_usesSpanIDTieBreaker is a regression
+// test for https://github.com/jaegertracing/jaeger/issues/9048: search_after
+// pagination must carry a unique tie-breaker (spanID) alongside startTime.
+// Elasticsearch's search_after resumes strictly after the cursor value, so a
+// cursor of startTime alone would (with a page boundary landing inside a run of
+// spans sharing one startTime, as ms-precision SDKs and batched writes commonly
+// produce) skip the remaining same-timestamp spans on the next page — the reader
+// would return an incomplete trace with a nil error. This test fails if the
+// follow-up request's search_after ever regresses to a bare startTime.
+func TestSpanReader_multiRead_sharedStartTime_usesSpanIDTieBreaker(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceID := dbmodel.TraceID(testingTraceId)
+		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
+		sameStartTime := model.TimeAsEpochMicroseconds(date)
+
+		newSpan := func(spanID dbmodel.SpanID) dbmodel.Span {
+			return dbmodel.Span{
+				SpanID:    spanID,
+				TraceID:   traceID,
+				StartTime: sameStartTime,
+				Tags:      []dbmodel.KeyValue{},
+				Process:   dbmodel.Process{Tags: []dbmodel.KeyValue{}},
+			}
+		}
+		spans := []dbmodel.Span{newSpan("0"), newSpan("1"), newSpan("2"), newSpan("3")}
+		hitsFor := func(idx ...int) []esclient.SearchHit {
+			hits := make([]esclient.SearchHit, len(idx))
+			for i, s := range idx {
+				b, err := json.Marshal(spans[s])
+				require.NoError(t, err)
+				hits[i] = esclient.SearchHit{Source: b}
+			}
+			return hits
+		}
+
+		// Page 1: 3 of the 4 spans sharing one startTime, total reports a 4th remains.
+		firstRound := []esclient.SearchResponse{
+			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 4}, Hits: hitsFor(0, 1, 2)}},
+		}
+		// Page 2: the remaining span, now fully fetched.
+		secondRound := []esclient.SearchResponse{
+			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 4}, Hits: hitsFor(3)}},
+		}
+
+		wantCursor := func(req esclient.MultiSearchRequest, cursor searchAfterCursor) bool {
+			s := req.Search
+			return len(s.SearchAfter) == 2 &&
+				s.SearchAfter[0] == any(cursor.startTime) &&
+				s.SearchAfter[1] == any(cursor.spanID)
+		}
+
+		initialCursor := searchAfterCursor{startTime: model.TimeAsEpochMicroseconds(date.Add(-24 * time.Hour))}
+		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
+			return len(reqs) == 1 && wantCursor(reqs[0], initialCursor)
+		})).Return(firstRound, nil).Once()
+		// The follow-up cursor must be (sameStartTime, "2") — the last span of page 1 —
+		// not a bare sameStartTime, or the 4th span (also at sameStartTime) would be
+		// skipped by Elasticsearch's search_after semantics.
+		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
+			return len(reqs) == 1 && wantCursor(reqs[0], searchAfterCursor{startTime: sameStartTime, spanID: "2"})
+		})).Return(secondRound, nil).Once()
+
+		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, date, date)
+		require.NoError(t, err)
+		require.Len(t, traces, 1)
+		require.Len(t, traces[0].Spans, 4, "all 4 same-startTime spans must be returned, none skipped")
 	})
 }
 

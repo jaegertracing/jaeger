@@ -29,6 +29,7 @@ const (
 	indexPrefixSeparator = "-"
 
 	traceIDField           = "traceID"
+	spanIDField            = "spanID"
 	durationField          = "duration"
 	startTimeField         = "startTime"
 	startTimeMillisField   = "startTimeMillis"
@@ -147,16 +148,29 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 }
 
+// searchAfterCursor is the search_after pagination cursor multiRead carries between
+// pages of the same trace. startTime alone is not a unique sort key -> spans sharing
+// a startTime (common with ms-precision SDKs or batched writes) would be skipped or
+// truncated across a page boundary. spanID is a unique keyword field within a trace
+// and acts as a tie-breaker, per ES's search_after documentation.
+type searchAfterCursor struct {
+	startTime uint64
+	spanID    string
+}
+
 // buildTraceReadRequest builds the per-trace search body multiRead pages through:
-// the trace's query, ordered by startTime ascending, with search_after for the
-// pagination cursor and track_total_hits so the loop knows when a trace is fully
+// the trace's query, ordered by (startTime, spanID) ascending, with search_after for
+// the pagination cursor and track_total_hits so the loop knows when a trace is fully
 // fetched.
-func (s *SpanReader) buildTraceReadRequest(q esquery.Query, nextTime uint64) esclient.SearchRequest {
+func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor searchAfterCursor) esclient.SearchRequest {
 	return esclient.SearchRequest{
-		Query:          q,
-		Size:           s.maxDocCount,
-		Sort:           []esclient.SortOrder{{Field: startTimeField, Order: esquery.Ascending}},
-		SearchAfter:    []any{nextTime},
+		Query: q,
+		Size:  s.maxDocCount,
+		Sort: []esclient.SortOrder{
+			{Field: startTimeField, Order: esquery.Ascending},
+			{Field: spanIDField, Order: esquery.Ascending},
+		},
+		SearchAfter:    []any{cursor.startTime, cursor.spanID},
 		TrackTotalHits: true,
 	}
 }
@@ -283,8 +297,8 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 
 	// See timeRangeDesign above for context on the padding and the alias filter.
 	idxList := s.spanRotation.ReadTargets(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
-	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-s.maxTraceDuration))
-	searchAfterTime := make(map[dbmodel.TraceID]uint64)
+	initialCursor := searchAfterCursor{startTime: model.TimeAsEpochMicroseconds(startTime.Add(-s.maxTraceDuration))}
+	searchAfterCursors := make(map[dbmodel.TraceID]searchAfterCursor)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
 	for len(traceIDs) != 0 {
@@ -296,13 +310,14 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				Must(traceQuery).
 				Must(startTimeRangeQuery)
 
-			if val, ok := searchAfterTime[traceID]; ok {
-				nextTime = val
+			cursor := initialCursor
+			if val, ok := searchAfterCursors[traceID]; ok {
+				cursor = val
 			}
 
 			searchRequests[i] = esclient.MultiSearchRequest{
 				Indices: idxList,
-				Search:  s.buildTraceReadRequest(query, nextTime),
+				Search:  s.buildTraceReadRequest(query, cursor),
 			}
 		}
 		// set traceIDs to empty
@@ -348,7 +363,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpan.TraceID] < result.Hits.Total.Value {
 				traceIDs = append(traceIDs, lastSpan.TraceID)
-				searchAfterTime[lastSpan.TraceID] = lastSpan.StartTime
+				searchAfterCursors[lastSpan.TraceID] = searchAfterCursor{startTime: lastSpan.StartTime, spanID: string(lastSpan.SpanID)}
 			}
 		}
 	}
