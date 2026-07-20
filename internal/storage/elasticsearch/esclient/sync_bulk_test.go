@@ -109,6 +109,11 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 1},
 		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1},
 	)
+	// A parsed response records latency-ok even though one item was rejected: the
+	// round-trip succeeded, so the rejection shows only in the errors counter.
+	_, gauges := mf.Snapshot()
+	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "item rejection still records latency-ok: %v", gauges)
+	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
 }
 
 func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
@@ -124,6 +129,10 @@ func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "bulk request failed")
 	// A whole-request failure durably indexes nothing: every item counts as error.
 	mf.AssertCounterMetrics(t, metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1})
+	// The request itself failed, so it records latency-err, not latency-ok.
+	_, gauges := mf.Snapshot()
+	assert.True(t, hasTimer(gauges, "bulk_index.latency-err"), "a transport failure records latency-err: %v", gauges)
+	assert.False(t, hasTimer(gauges, "bulk_index.latency-ok"), "a transport failure must not record latency-ok: %v", gauges)
 }
 
 func TestSyncBulkWriter_ItemCountMismatch(t *testing.T) {

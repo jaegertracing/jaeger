@@ -168,13 +168,18 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	if len(resp.Items) != count {
 		return 0, fmt.Errorf("malformed bulk response: %d item results for %d documents", len(resp.Items), count)
 	}
+	// The HTTP round-trip and response parsing succeeded, so record latency-ok even
+	// when some items are rejected below. This matches the async BulkIndexer, whose
+	// latency-err covers only a whole-request (transport/non-2xx) failure while
+	// per-item rejections are reflected through the errors counter alone; latency-err
+	// therefore keeps its meaning of "the request failed", not "some items failed".
+	success = true
 	// Derive failures from the per-item statuses, not the top-level `errors` flag:
 	// a malformed or proxied response could report errors:false while an item still
 	// carries a failing status, and silently succeeding there would advance the
 	// Kafka offset over lost data — exactly what this synchronous writer prevents.
 	failed, sample := resp.failures()
 	if failed == 0 {
-		success = true
 		return count, nil
 	}
 	w.logger.Error("synchronous bulk write had rejected items",
