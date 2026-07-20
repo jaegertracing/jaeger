@@ -460,7 +460,6 @@ func runPasswordFromFileTest(t *testing.T) {
 		},
 		BulkProcessing: escfg.BulkProcessing{
 			MaxBytes:      -1, // disable bulk size limit
-			MaxActions:    -1, // disable bulk action limit
 			FlushInterval: 10 * time.Millisecond,
 		},
 	}
@@ -525,8 +524,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates authenticator setup
+			MaxBytes: -1, // disable bulk
 		},
 	}
 

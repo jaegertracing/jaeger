@@ -59,7 +59,6 @@ func TestApplyDefaults(t *testing.T) {
 		BulkProcessing: BulkProcessing{
 			MaxBytes:      1000,
 			Workers:       10,
-			MaxActions:    100,
 			FlushInterval: 30,
 		},
 		Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
@@ -134,7 +133,6 @@ func TestApplyDefaults(t *testing.T) {
 				BulkProcessing: BulkProcessing{
 					MaxBytes:      1000,
 					Workers:       10,
-					MaxActions:    100,
 					FlushInterval: 30,
 				},
 				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
@@ -175,7 +173,6 @@ func TestApplyDefaults(t *testing.T) {
 				BulkProcessing: BulkProcessing{
 					MaxBytes:      1000,
 					Workers:       10,
-					MaxActions:    100,
 					FlushInterval: 30,
 				},
 				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
@@ -414,6 +411,22 @@ func TestValidate(t *testing.T) {
 				SendGetBodyAs: configoptional.Some("POST"),
 			},
 			expectedError: "'send_get_body_as' is no longer supported",
+		},
+		{
+			name: "max_actions set is rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(1000)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "max_actions set to zero is still rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(0)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
 		},
 		{
 			name: "rejection error points to the explaining PR",
