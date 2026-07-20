@@ -49,6 +49,7 @@ func TestBulkIndexerWritesNDJSON(t *testing.T) {
 	require.Len(t, reqs, 1)
 	assert.Equal(t, http.MethodPost, reqs[0].Method)
 	assert.Contains(t, reqs[0].Path, "_bulk")
+	assert.Equal(t, "application/x-ndjson", reqs[0].ContentType)
 	body := string(reqs[0].Body)
 	assert.Contains(t, body, `"_index":"jaeger-span-000001"`)
 	assert.Contains(t, body, `"_id":"abc"`)

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -133,6 +134,15 @@ func newResponseError(err error, code int, body []byte) ResponseError {
 // Perform neither builds the request nor interprets the status code — the caller
 // owns those (esutil writes and parses the _bulk protocol itself).
 func (c *Client) Perform(req *http.Request) (*http.Response, error) {
+	// BulkIndexer sends requests directly through the esapi.Transport interface
+	// and defaults their header to application/json. Normalize the bulk wire
+	// format here so all callers send the content type required by the bulk API.
+	if strings.HasSuffix(req.URL.Path, "/_bulk") {
+		if req.Header == nil {
+			req.Header = make(http.Header)
+		}
+		req.Header.Set("Content-Type", "application/x-ndjson")
+	}
 	// A caller may submit a request with no deadline — esutil.BulkIndexer builds
 	// its _bulk flushes (and its shutdown Close flush) from a background context.
 	// Apply the client's QueryTimeout so those writes can't hang forever, matching

@@ -1,6 +1,7 @@
 {
   "method": "POST",
   "path": "/_bulk",
+  "content_type": "application/x-ndjson",
   "ndjson": [
     {
       "index": {

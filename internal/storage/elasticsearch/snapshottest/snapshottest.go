@@ -59,13 +59,15 @@ import (
 var Regenerate = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 
 // CapturedRequest is a faithful record of a single HTTP request as received: the
-// method, path, parsed query, and the raw body bytes exactly as sent. Turning it
-// into a canonical, diffable snapshot happens in Marshal, not here.
+// method, path, parsed query, content type, and the raw body bytes exactly as
+// sent. Turning it into a canonical, diffable snapshot happens in Marshal, not
+// here.
 type CapturedRequest struct {
-	Method string
-	Path   string
-	Query  url.Values
-	Body   []byte
+	Method      string
+	Path        string
+	Query       url.Values
+	ContentType string
+	Body        []byte
 }
 
 // Recorder is an http.Handler that records every request it receives and
@@ -95,9 +97,10 @@ func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	captured := CapturedRequest{
-		Method: r.Method,
-		Path:   r.URL.Path,
-		Body:   body,
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		ContentType: r.Header.Get("Content-Type"),
+		Body:        body,
 	}
 	if q := r.URL.Query(); len(q) > 0 {
 		captured.Query = q
@@ -150,9 +153,10 @@ func (rec *Recorder) Assert(t testing.TB, prefix string) {
 // body, to NDJSON documents). Marshaling sorts object keys, so the output is
 // deterministic regardless of the order the client emitted fields in.
 type snapshotRequest struct {
-	Method string     `json:"method"`
-	Path   string     `json:"path"`
-	Query  url.Values `json:"query,omitempty"`
+	Method      string     `json:"method"`
+	Path        string     `json:"path"`
+	Query       url.Values `json:"query,omitempty"`
+	ContentType string     `json:"content_type,omitempty"`
 	// Body is a single JSON body, which may be any JSON value.
 	Body any `json:"body,omitempty"`
 	// NDJSON is the documents of a newline-delimited body, each a JSON object (an
@@ -185,8 +189,24 @@ func Marshal(t testing.TB, requests []CapturedRequest) string {
 func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	t.Helper()
 	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: canonicalQuery(r.Query)}
-	body := bytes.TrimRight(r.Body, "\n")
+	ndjson := isNDJSONPath(r.Path)
+	if ndjson {
+		require.NoError(t, validateNDJSON(r.ContentType, r.Body))
+		s.ContentType = r.ContentType
+	}
+	body := r.Body
+	if ndjson {
+		body = body[:len(body)-1]
+	} else {
+		body = bytes.TrimRight(body, "\n")
+	}
 	if len(body) == 0 {
+		return s
+	}
+	if ndjson {
+		docs, err := parseNDJSON(body)
+		require.NoErrorf(t, err, "request body is not valid NDJSON: %s", r.Body)
+		s.NDJSON = docs
 		return s
 	}
 	// A single JSON document parses whole; a newline-delimited body does not.
@@ -221,9 +241,6 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 	lines := bytes.Split(body, []byte("\n"))
 	docs := make([]map[string]any, 0, len(lines))
 	for _, line := range lines {
-		if len(bytes.TrimSpace(line)) == 0 {
-			continue
-		}
 		var doc map[string]any
 		if err := json.Unmarshal(line, &doc); err != nil {
 			return nil, err
@@ -231,6 +248,29 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 		docs = append(docs, doc)
 	}
 	return docs, nil
+}
+
+func isNDJSONPath(path string) bool {
+	return strings.HasSuffix(path, "/_bulk") || strings.HasSuffix(path, "/_msearch")
+}
+
+func validateNDJSON(contentType string, body []byte) error {
+	if contentType != "application/x-ndjson" {
+		return fmt.Errorf("NDJSON request must use Content-Type application/x-ndjson, got %q", contentType)
+	}
+	if !bytes.HasSuffix(body, []byte("\n")) {
+		return errors.New("NDJSON request body must end with a newline")
+	}
+	if bytes.HasSuffix(body, []byte("\n\n")) {
+		return errors.New("NDJSON request body must end with exactly one newline")
+	}
+	if len(body) == 1 {
+		return errors.New("NDJSON request body must not be empty")
+	}
+	if _, err := parseNDJSON(body[:len(body)-1]); err != nil {
+		return fmt.Errorf("request body is not valid NDJSON: %w", err)
+	}
+	return nil
 }
 
 // Assert compares content against the single snapshot "<prefix>.json", for a

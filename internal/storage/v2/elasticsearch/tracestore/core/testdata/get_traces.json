@@ -1,6 +1,7 @@
 {
   "method": "GET",
   "path": "/_msearch",
+  "content_type": "application/x-ndjson",
   "ndjson": [
     {
       "ignore_unavailable": true,

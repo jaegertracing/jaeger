@@ -61,6 +61,7 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 	sentBody := []byte(`{"index":{"_index":"jaeger-span","_id":"1"}}` + "\n" + `{"traceID":"abc"}` + "\n")
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_bulk", bytes.NewReader(sentBody))
 	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/x-ndjson")
 	resp, err := server.Client().Do(req)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
@@ -69,12 +70,32 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 	require.Len(t, requests, 1)
 	got := requests[0]
 	assert.Equal(t, "/_bulk", got.Path)
+	assert.Equal(t, "application/x-ndjson", got.ContentType)
 	// The newline-delimited body is recorded verbatim.
 	assert.Equal(t, sentBody, got.Body)
 
 	// Marshal splits it into one canonicalized document per line.
 	snapshot := Marshal(t, requests)
 	assert.Contains(t, snapshot, `"ndjson"`)
+	assert.Contains(t, snapshot, `"content_type": "application/x-ndjson"`)
+}
+
+func TestMarshalRejectsInvalidNDJSONWireFormat(t *testing.T) {
+	tests := []struct {
+		name string
+		body []byte
+		ct   string
+	}{
+		{name: "missing trailing newline", body: []byte(`{"index":{}}` + "\n" + `{"doc":1}`), ct: "application/x-ndjson"},
+		{name: "extra trailing newline", body: []byte(`{"index":{}}` + "\n" + `{"doc":1}` + "\n\n"), ct: "application/x-ndjson"},
+		{name: "blank line", body: []byte(`{"index":{}}` + "\n\n" + `{"doc":1}` + "\n"), ct: "application/x-ndjson"},
+		{name: "wrong content type", body: []byte(`{"index":{}}` + "\n" + `{"doc":1}` + "\n"), ct: "application/json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Error(t, validateNDJSON(tt.ct, tt.body))
+		})
+	}
 }
 
 func TestRecorderCapturesEmptyBody(t *testing.T) {
@@ -334,7 +355,6 @@ func TestMarshalMultipleRequests(t *testing.T) {
 }
 
 func TestParseNDJSONMalformed(t *testing.T) {
-	// The leading blank line is skipped; the malformed line surfaces the error.
 	_, err := parseNDJSON([]byte("\n{not json}"))
 	assert.Error(t, err)
 }
