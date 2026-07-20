@@ -48,15 +48,10 @@ func TestSyncBulkWriter_WritesNDJSON(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	reqs := rec.Requests()
-	require.Len(t, reqs, 1, "both items fit in one chunk")
-	assert.Equal(t, http.MethodPost, reqs[0].Method)
-	assert.Contains(t, reqs[0].Path, "_bulk")
-	body := string(reqs[0].Body)
-	// Map keys serialize in sorted order, so _id precedes _index in the action line.
-	assert.Contains(t, body, `{"index":{"_id":"abc","_index":"jaeger-span-000001"}}`)
-	assert.Contains(t, body, `"traceID":"1"`)
-	assert.Contains(t, body, `{"create":{"_index":"jaeger.spans"}}`)
+	require.Len(t, rec.Requests(), 1, "both items fit in one chunk")
+	// The committed snapshot shows the exact _bulk wire format: an action line
+	// (index/create with _index and optional _id) followed by its source line.
+	rec.Assert(t, "testdata/sync_bulk_write")
 }
 
 func TestSyncBulkWriter_DefaultsMaxBytes(t *testing.T) {
@@ -82,7 +77,10 @@ func TestSyncBulkWriter_ChunkSplitByMaxBytes(t *testing.T) {
 		{Index: "idx", Body: map[string]any{"b": 2}},
 	})
 	require.NoError(t, err)
-	assert.Len(t, rec.Requests(), 2, "each oversized item is sent in its own chunk")
+	require.Len(t, rec.Requests(), 2, "each oversized item is sent in its own chunk")
+	// The snapshot is an array of two single-document _bulk requests, making the
+	// chunk boundary the maxBytes cap forces visible.
+	rec.Assert(t, "testdata/sync_bulk_chunk_split")
 }
 
 func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
