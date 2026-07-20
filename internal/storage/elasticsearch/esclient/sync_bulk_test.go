@@ -199,6 +199,34 @@ func TestSyncBulkWriter_ErrorsFlagWithoutFailingItem(t *testing.T) {
 	require.NoError(t, w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}}))
 }
 
+func TestSyncBulkWriter_MalformedItemResultFails(t *testing.T) {
+	// A durable write must be positively acknowledged with a 2xx status. A result
+	// that carries no explicit failure but also no acknowledgement — an empty item,
+	// a missing status (parses to 0), a non-2xx-but-errorless status, or multiple
+	// action entries — must fail the chunk, or Bulk would return nil for a document
+	// the backend never confirmed storing.
+	tests := []struct {
+		name string
+		item string
+	}{
+		{"empty item", `{}`},
+		{"missing status", `{"index":{"_index":"idx"}}`},
+		{"non-2xx without error", `{"index":{"_index":"idx","status":301}}`},
+		{"multiple action entries", `{"index":{"status":201},"create":{"status":201}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, url := bulkServer(t, func(w http.ResponseWriter) {
+				w.Write([]byte(`{"items":[` + tt.item + `]}`))
+			})
+			w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+			err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
+		})
+	}
+}
+
 func TestTruncateBytes(t *testing.T) {
 	assert.Equal(t, "abc", truncateBytes([]byte("abc"), 10), "no truncation when within limit")
 	assert.Equal(t, "ab…", truncateBytes([]byte("abcdef"), 2), "ASCII cut at the byte limit")

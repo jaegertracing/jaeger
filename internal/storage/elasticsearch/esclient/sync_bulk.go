@@ -228,31 +228,63 @@ type bulkItemState struct {
 	Error  json.RawMessage `json:"error"`
 }
 
-// failures returns the number of rejected items (HTTP status ≥ 400 or a present
-// error object) and a bounded, human-readable sample of their reasons — at most
-// maxReportedFailures entries, each error payload truncated to maxErrorPayloadBytes
-// — so the returned error stays small even when an entire large batch is rejected.
+// failures returns the number of items that are not a confirmed durable write and
+// a bounded, human-readable sample of their reasons — at most maxReportedFailures
+// entries, each error payload truncated to maxErrorPayloadBytes — so the returned
+// error stays small even when an entire large batch is rejected.
+//
+// Durability is positively confirmed, not merely assumed from the absence of an
+// error: an item counts as durable only when it has exactly one action result
+// with a 2xx status and no error object. Anything else fails the chunk — a non-2xx
+// status, a present error, an empty item ({}), a missing status (which parses to
+// 0), or multiple action entries — because none of those is an acknowledgement, and
+// treating them as success would let Bulk return nil without the backend having
+// stored the document.
 func (r bulkResponse) failures() (count int, sample []string) {
 	for _, item := range r.Items {
-		for _, state := range item { // one action entry per item
-			if state.Status < http.StatusBadRequest && len(state.Error) == 0 {
-				continue
-			}
-			count++
-			if len(sample) >= maxReportedFailures {
-				continue
-			}
-			reason := fmt.Sprintf("index=%s status=%d", state.Index, state.Status)
-			if state.ID != "" {
-				reason += " id=" + state.ID
-			}
-			if len(state.Error) > 0 {
-				reason += " error=" + truncateBytes(state.Error, maxErrorPayloadBytes)
-			}
-			sample = append(sample, reason)
+		state, durable := itemResult(item)
+		if durable {
+			continue
 		}
+		count++
+		if len(sample) >= maxReportedFailures {
+			continue
+		}
+		sample = append(sample, rejectionReason(item, state))
 	}
 	return count, sample
+}
+
+// itemResult returns a bulk item's single action result and whether the item is a
+// confirmed durable write (exactly one action entry, 2xx status, no error). A
+// malformed item — zero or multiple entries — is never durable, and its returned
+// state is the zero value.
+func itemResult(item map[string]bulkItemState) (bulkItemState, bool) {
+	if len(item) != 1 {
+		return bulkItemState{}, false
+	}
+	for _, state := range item {
+		durable := state.Status >= http.StatusOK && state.Status < http.StatusMultipleChoices && len(state.Error) == 0
+		return state, durable
+	}
+	return bulkItemState{}, false
+}
+
+// rejectionReason renders one rejected item for the error sample. A malformed item
+// (not exactly one action entry) is reported as such; otherwise the reason carries
+// the index, status, optional _id, and the truncated backend error.
+func rejectionReason(item map[string]bulkItemState, state bulkItemState) string {
+	if len(item) != 1 {
+		return fmt.Sprintf("malformed item result: expected 1 action entry, got %d", len(item))
+	}
+	reason := fmt.Sprintf("index=%s status=%d", state.Index, state.Status)
+	if state.ID != "" {
+		reason += " id=" + state.ID
+	}
+	if len(state.Error) > 0 {
+		reason += " error=" + truncateBytes(state.Error, maxErrorPayloadBytes)
+	}
+	return reason
 }
 
 // truncateBytes returns b as a string of at most maxBytes bytes, backing up to a
