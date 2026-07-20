@@ -45,7 +45,7 @@ var (
 		featuregate.StageStable,
 		featuregate.WithRegisterFromVersion("v2.18.0"),
 		featuregate.WithRegisterToVersion("v2.23.0"),
-		featuregate.WithRegisterDescription("Deprecated alias for jaeger.clickhouse."),
+		featuregate.WithRegisterDescription("No-op: deprecated alias for jaeger.clickhouse, retained for backward compatibility and removed in v2.23.0."),
 		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	)
 )
