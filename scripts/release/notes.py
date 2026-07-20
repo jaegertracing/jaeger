@@ -65,8 +65,10 @@ def resolve_token(token_file):
 
     if shutil.which('gh'):
         try:
+            # Pin to github.com: this script always talks to api.github.com, so a
+            # gh default host of a GitHub Enterprise instance must not be used here.
             token = subprocess.run(
-                ['gh', 'auth', 'token'],
+                ['gh', 'auth', 'token', '--hostname', 'github.com'],
                 capture_output=True, text=True, check=True,
             ).stdout.strip()
             if token:
