@@ -16,7 +16,7 @@ func TestClickHouseStorage(t *testing.T) {
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
 		},
-		FeatureGates: []string{"storage.clickhouse"},
+		FeatureGates: []string{"jaeger.clickhouse"},
 	}
 	s.e2eInitialize(t, "clickhouse")
 	s.RunSpanStoreTests(t)
