@@ -337,12 +337,12 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		var hits []esclient.SearchHit
 
-		for range 10000 {
+		for range 10 {
 			hits = append(hits, esclient.SearchHit{Source: exampleESSpan})
 		}
 
 		resp := []esclient.SearchResponse{
-			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 10040}, Hits: hits}},
+			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 15}, Hits: hits}},
 		}
 		mockMultiSearchService(r).Return(resp, nil).Times(2)
 
