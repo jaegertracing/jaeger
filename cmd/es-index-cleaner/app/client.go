@@ -18,7 +18,7 @@ import (
 // config, threading auth (basic/bearer/API key) and TLS through the shared
 // transport stack. Auth methods are assumed mutually exclusive; InitFromViper
 // rejects ambiguous combinations.
-func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (esclient.Client, error) {
+func NewESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
 	esCfg := &escfg.Configuration{
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,

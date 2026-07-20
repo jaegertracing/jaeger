@@ -339,6 +339,11 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	// Several cases below configure legacy rotation flags to exercise alias/rotation
+	// validation, which only applies when RejectLegacyRotationFlags is disabled; the
+	// gate is Beta (enabled by default), so disable it for these cases.
+	setRejectLegacyRotationFlagsGate(t, false)
+
 	tests := []struct {
 		name          string
 		config        *Configuration
@@ -434,6 +439,107 @@ func TestValidate(t *testing.T) {
 					IndexPrefix: "prod",
 				},
 			},
+		},
+		// --- auth mutual-exclusion tests ---
+		{
+			name: "single basic auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+				},
+			},
+		},
+		{
+			name: "single bearer_token auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+				},
+			},
+		},
+		{
+			name: "single api_key auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+		},
+		{
+			name: "basic + bearer_token auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "basic + api_key auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "bearer_token + api_key auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "all three auth methods rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
 		},
 	}
 
@@ -809,11 +915,19 @@ func TestConfiguration_HasAnyLegacyRotationFlags(t *testing.T) {
 	}
 }
 
-func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), true))
+// setRejectLegacyRotationFlagsGate sets the gate for the duration of the test and
+// restores its original value on cleanup. The gate is Beta (enabled by default), so
+// tests that exercise the legacy-flag validation path must disable it explicitly.
+func setRejectLegacyRotationFlagsGate(t *testing.T, enabled bool) {
+	original := RejectLegacyRotationFlags.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), enabled))
 	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), original))
 	})
+}
+
+func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
+	setRejectLegacyRotationFlagsGate(t, true)
 
 	cfg := &Configuration{
 		Servers:             []string{"localhost:8000/dummyserver"},
@@ -825,7 +939,7 @@ func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
 }
 
 func TestValidate_LegacyFlagsAllowedWhenGateDisabled(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+	setRejectLegacyRotationFlagsGate(t, false)
 
 	cfg := &Configuration{
 		Servers:              []string{"localhost:8000/dummyserver"},

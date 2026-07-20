@@ -153,12 +153,6 @@ func TestExists_Retries(t *testing.T) {
 	assert.Equal(t, maxTries, callCount, "should retry twice before succeeding")
 }
 
-func TestILMClientSupportsILM(t *testing.T) {
-	url := "http://localhost:9200"
-	assert.False(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV6)}.SupportsILM())
-	assert.True(t, ILMClient{Client: makeClient(t, url, "", "", es.ElasticV7)}.SupportsILM())
-}
-
 // TestLifecycleExistsRequestSnapshot freezes the wire format of the ILM/ISM
 // policy-existence probe: ES uses _ilm/policy, OpenSearch uses _plugins/_ism.
 func TestLifecycleExistsRequestSnapshot(t *testing.T) {
@@ -175,4 +169,84 @@ func TestLifecycleExistsRequestSnapshot(t *testing.T) {
 		content[version] = rec.Marshal(t)
 	}
 	snapshottest.AssertByVersion(t, "testdata/ilm_exists", content)
+}
+
+func TestTestsOnlyPutPolicy(t *testing.T) {
+	tests := []struct {
+		name     string
+		version  es.BackendVersion
+		code     int
+		wantPath string
+	}{
+		{"ILM ok", es.ElasticV7, http.StatusOK, "/_ilm/policy/p"},
+		{"ISM created", es.OpenSearch2, http.StatusCreated, "/_plugins/_ism/policies/p"},
+		{"ISM conflict tolerated", es.OpenSearch2, http.StatusConflict, "/_plugins/_ism/policies/p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotMethod, gotPath string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotMethod, gotPath = r.Method, r.URL.Path
+				w.WriteHeader(tt.code)
+			}))
+			defer srv.Close()
+			c := ILMClient{Client: makeClient(t, srv.URL, "", "", tt.version), Logger: zap.NewNop()}
+			require.NoError(t, c.TestsOnlyPutPolicy(context.Background(), "p", `{"policy":{}}`))
+			assert.Equal(t, http.MethodPut, gotMethod)
+			assert.Equal(t, tt.wantPath, gotPath)
+		})
+	}
+	t.Run("error status", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		defer srv.Close()
+		c := ILMClient{Client: makeClient(t, srv.URL, "", ""), Logger: zap.NewNop()}
+		require.ErrorContains(t, c.TestsOnlyPutPolicy(context.Background(), "p", "{}"),
+			"failed to create lifecycle policy")
+	})
+}
+
+func TestTestsOnlyDeletePolicy(t *testing.T) {
+	t.Run("ISM endpoint", func(t *testing.T) {
+		var gotMethod, gotPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod, gotPath = r.Method, r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer srv.Close()
+		c := ILMClient{Client: makeClient(t, srv.URL, "", "", es.OpenSearch2), Logger: zap.NewNop()}
+		require.NoError(t, c.TestsOnlyDeletePolicy(context.Background(), "p"))
+		assert.Equal(t, http.MethodDelete, gotMethod)
+		assert.Equal(t, "/_plugins/_ism/policies/p", gotPath)
+	})
+	t.Run("missing tolerated", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(esErrResponse))
+		}))
+		defer srv.Close()
+		c := ILMClient{Client: makeClient(t, srv.URL, "", ""), Logger: zap.NewNop()}
+		require.NoError(t, c.TestsOnlyDeletePolicy(context.Background(), "p"))
+	})
+}
+
+func TestTestsOnlyDeletePolicyError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(esErrResponse))
+	}))
+	defer srv.Close()
+	c := ILMClient{Client: makeClient(t, srv.URL, "", ""), Logger: zap.NewNop()}
+	require.ErrorContains(t, c.TestsOnlyDeletePolicy(context.Background(), "p"),
+		"failed to delete lifecycle policy")
+}
+
+func TestTestsOnlyPutPolicyTransportError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	url := srv.URL
+	srv.Close() // construct against a now-dead server so Perform fails
+	c := ILMClient{Client: makeClient(t, url, "", ""), Logger: zap.NewNop()}
+	require.ErrorContains(t, c.TestsOnlyPutPolicy(context.Background(), "p", "{}"),
+		"failed to create lifecycle policy")
 }

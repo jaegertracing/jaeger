@@ -19,7 +19,6 @@ import (
 type BackendVersion uint
 
 const (
-	ElasticV6   BackendVersion = 6
 	ElasticV7   BackendVersion = 7
 	ElasticV8   BackendVersion = 8
 	ElasticV9   BackendVersion = 9
@@ -29,9 +28,9 @@ const (
 )
 
 // AllVersions lists every backend major version Jaeger supports: Elasticsearch
-// 6/7/8/9 and OpenSearch 1/2/3.
+// 7/8/9 and OpenSearch 1/2/3. Elasticsearch 6 reached EOL and is no longer
+// supported.
 var AllVersions = []BackendVersion{
-	ElasticV6,
 	ElasticV7,
 	ElasticV8,
 	ElasticV9,
@@ -47,10 +46,35 @@ func IsSupportedVersion(v uint) bool {
 	return slices.Contains(AllVersions, BackendVersion(v))
 }
 
+// ParseBackendVersion resolves a human-friendly, distribution-prefixed token
+// (case-insensitive) to a BackendVersion: "es7"/"es8"/"es9" for Elasticsearch
+// and "os1"/"os2"/"os3" for OpenSearch. It hides the internal numeric encoding
+// (OpenSearch major N is stored as 100+N) so callers can select a backend
+// without knowing it. Unknown or unsupported tokens return an error.
+func ParseBackendVersion(s string) (BackendVersion, error) {
+	lower := strings.ToLower(s)
+	if len(lower) > 2 {
+		prefix, digits := lower[:2], lower[2:]
+		if major, err := strconv.Atoi(digits); err == nil {
+			var v BackendVersion
+			switch prefix {
+			case "es":
+				v = BackendVersion(major)
+			case "os":
+				v = BackendVersion(100 + major)
+			default:
+				v = 0
+			}
+			if v != 0 && IsSupportedVersion(uint(v)) {
+				return v, nil
+			}
+		}
+	}
+	return 0, fmt.Errorf("invalid version %q: expected one of es7, es8, es9, os1, os2, os3", s)
+}
+
 func (v BackendVersion) String() string {
 	switch v {
-	case ElasticV6:
-		return "Elasticsearch 6.x"
 	case ElasticV7:
 		return "Elasticsearch 7.x"
 	case ElasticV8:
@@ -73,37 +97,9 @@ func (v BackendVersion) IsOpenSearch() bool {
 	return v >= OpenSearch1
 }
 
-// TemplateVersion returns the ES template version to use (6, 7, or 8).
-// OpenSearch uses ES 7.x templates; ES 9+ uses ES 8.x templates.
-func (v BackendVersion) TemplateVersion() uint {
-	if v.IsOpenSearch() {
-		return 7
-	}
-	switch v {
-	case ElasticV6:
-		return 6
-	case ElasticV7:
-		return 7
-	default:
-		return 8
-	}
-}
-
 // UsesV8API returns true if the backend requires the v8 index template API.
 func (v BackendVersion) UsesV8API() bool {
 	return v == ElasticV8 || v == ElasticV9
-}
-
-// SupportsTypedIndices returns true if index requests require a _type parameter.
-// Only ES 6.x requires this; ES 7+ and all OpenSearch versions ignore it.
-func (v BackendVersion) SupportsTypedIndices() bool {
-	return v == ElasticV6
-}
-
-// SupportsILM returns true if the backend supports Index Lifecycle Management.
-// ILM requires ES 7+ or OpenSearch (which uses ISM, the equivalent feature).
-func (v BackendVersion) SupportsILM() bool {
-	return v != ElasticV6
 }
 
 // PingResult holds the version fields Jaeger reads from an Elasticsearch or
@@ -153,8 +149,6 @@ func DetectBackendVersion(tagLine string, majorVersion int) BackendVersion {
 		}
 	}
 	switch majorVersion {
-	case 6:
-		return ElasticV6
 	case 7:
 		return ElasticV7
 	case 9:

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -26,7 +26,7 @@ func TestToMetricsFamily(t *testing.T) {
 	tests := []struct {
 		name     string
 		params   MetricsQueryParams
-		result   *elastic.SearchResult
+		result   *esclient.SearchResponse
 		expected *metrics.MetricFamily
 		err      string
 	}{
@@ -55,8 +55,8 @@ func TestToMetricsFamily(t *testing.T) {
 			params: MetricsQueryParams{
 				metricName: "test_metric",
 			},
-			result: &elastic.SearchResult{
-				Aggregations: make(elastic.Aggregations),
+			result: &esclient.SearchResponse{
+				Aggregations: esclient.Aggregations{},
 			},
 			err: "results_buckets aggregation not found",
 		},
@@ -80,7 +80,7 @@ func TestToDomainMetrics(t *testing.T) {
 	tests := []struct {
 		name     string
 		params   MetricsQueryParams
-		result   *elastic.SearchResult
+		result   *esclient.SearchResponse
 		expected []*metrics.Metric
 		err      string
 	}{
@@ -135,22 +135,16 @@ func TestToDomainMetrics_ErrorCases(t *testing.T) {
 	tests := []struct {
 		name   string
 		params MetricsQueryParams
-		result *elastic.SearchResult
+		result *esclient.SearchResponse
 		errMsg string
 	}{
 		{
 			name:   "missing terms aggregation when group by operation",
 			params: mockMetricsQueryParams([]string{"service1"}, true),
-			result: &elastic.SearchResult{
-				Aggregations: make(elastic.Aggregations), // Empty aggregations
+			result: &esclient.SearchResponse{
+				Aggregations: esclient.Aggregations{}, // Empty aggregations
 			},
 			errMsg: "results_buckets aggregation not found",
-		},
-		{
-			name:   "bucket key not string",
-			params: mockMetricsQueryParams([]string{"service1"}, true),
-			result: createTestSearchResultWithNonStringKey(),
-			errMsg: "bucket key is not a string",
 		},
 		{
 			name:   "missing date histogram in operation bucket",
@@ -194,40 +188,15 @@ func mockMetricsQueryParams(serviceNames []string, groupByOp bool) MetricsQueryP
 }
 
 func mockTranslator() Translator {
-	bucketsToPointsFunc := func(_ []*elastic.AggregationBucketHistogramItem) []*Pair {
+	bucketsToPointsFunc := func(_ []esclient.HistogramBucket) []*Pair {
 		return []*Pair{{TimeStamp: 0, Value: 1.23}}
 	}
 	return NewTranslator(bucketsToPointsFunc)
 }
 
-// createTestSearchResultWithNonStringKey creates an Elasticsearch SearchResult
-// where the bucket key for operation is an integer, causing a type error.
-func createTestSearchResultWithNonStringKey() *elastic.SearchResult {
-	rawAggregation := json.RawMessage(`{
-		"buckets": [{
-			"key": 12345,
-			"doc_count": 10,
-			"date_histogram": {
-				"buckets": [{
-					"key": 123456,
-					"doc_count": 5,
-					"results": {"value": 1.23}
-				}]
-			}
-		}]
-	}`)
-
-	aggs := make(elastic.Aggregations)
-	aggs[aggName] = rawAggregation
-
-	return &elastic.SearchResult{
-		Aggregations: aggs,
-	}
-}
-
-// createTestSearchResultMissingDateHistogram creates an Elasticsearch SearchResult
+// createTestSearchResultMissingDateHistogram creates an Elasticsearch SearchResponse
 // where an operation bucket is missing the expected date_histogram aggregation.
-func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
+func createTestSearchResultMissingDateHistogram() *esclient.SearchResponse {
 	rawAggregation := json.RawMessage(`{
 		"buckets": [{
 			"key": "op1",
@@ -235,17 +204,17 @@ func createTestSearchResultMissingDateHistogram() *elastic.SearchResult {
 		}]
 	}`)
 
-	aggs := make(elastic.Aggregations)
+	aggs := esclient.Aggregations{}
 	aggs[aggName] = rawAggregation
 
-	return &elastic.SearchResult{
+	return &esclient.SearchResponse{
 		Aggregations: aggs,
 	}
 }
 
-// createTestSearchResult creates a well-formed Elasticsearch SearchResult
+// createTestSearchResult creates a well-formed Elasticsearch SearchResponse
 // for testing successful conversions, with or without operation grouping.
-func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
+func createTestSearchResult(groupByOperation bool) *esclient.SearchResponse {
 	var rawAggregation json.RawMessage
 
 	if groupByOperation {
@@ -278,10 +247,10 @@ func createTestSearchResult(groupByOperation bool) *elastic.SearchResult {
 		}`)
 	}
 
-	aggs := make(elastic.Aggregations)
+	aggs := esclient.Aggregations{}
 	aggs[aggName] = rawAggregation
 
-	return &elastic.SearchResult{
+	return &esclient.SearchResponse{
 		Aggregations: aggs,
 	}
 }

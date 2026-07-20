@@ -5,34 +5,33 @@
 package core
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore/spanstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
 const (
-	spanType               = "span"
-	serviceType            = "service"
 	serviceCacheTTLDefault = 12 * time.Hour
 	indexCacheTTLDefault   = 48 * time.Hour
 )
 
 type serviceWriter func(string, *dbmodel.Span)
 
-// SpanWriter is a wrapper around elastic.Client
+// SpanWriter writes spans and their service:operation pairs via the bulk indexer.
 type SpanWriter struct {
-	client func() es.Client
-	logger *zap.Logger
-	// indexCache       cache.Cache
+	bulkWriter        esclient.BulkWriter
+	logger            *zap.Logger
 	writerMetrics     *spanstoremetrics.WriteMetrics
 	serviceWriter     serviceWriter
 	spanRotation      indices.Rotation
@@ -44,15 +43,21 @@ type SpanWriter struct {
 
 // Writer is a DB-Level abstraction which directly deals with database level operations
 type Writer interface {
-	// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-	WriteSpan(spanStartTime time.Time, span *dbmodel.Span)
+	// WriteSpans writes a batch of spans and their corresponding service:operation
+	// pairs to Elasticsearch/OpenSearch. It is the batch entry point the v2
+	// TraceWriter drives once per WriteTraces call. The async implementation
+	// enqueues each document into the shared bulk indexer and returns nil (an
+	// enqueue cannot fail synchronously); a synchronous implementation issues one
+	// blocking _bulk per batch and returns the real write error (RFC 0007).
+	WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 	// Close closes Writer
 	Close() error
 }
 
-// SpanWriterParams holds constructor parameters for NewSpanWriter
+// SpanWriterParams holds constructor parameters for NewSpanWriter. BulkWriter is
+// required — the writer enqueues every span and service document through it.
 type SpanWriterParams struct {
-	Client            func() es.Client
+	BulkWriter        esclient.BulkWriter
 	Logger            *zap.Logger
 	MetricsFactory    metrics.Factory
 	AllTagsAsFields   bool
@@ -76,9 +81,9 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	}
 
 	// The writer only calls Write (never the read methods), so it needs no searcher.
-	serviceOperationStorage := NewServiceOperationStorage(p.Client, nil, p.Logger, serviceCacheTTL)
+	serviceOperationStorage := NewServiceOperationStorage(nil, p.BulkWriter, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		client:            p.Client,
+		bulkWriter:        p.BulkWriter,
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		serviceWriter:     serviceOperationStorage.Write,
@@ -90,8 +95,22 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	}
 }
 
-// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
-func (s *SpanWriter) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
+// WriteSpans enqueues a batch of spans and their service:operation pairs into the
+// bulk indexer. Because the indexer is asynchronous (fire-and-forget), the enqueue
+// cannot fail synchronously, so this always returns nil; per-item failures surface
+// in the indexer's OnFailure callback. RFC 0007 adds a synchronous peer that issues
+// one blocking _bulk per batch and returns the real error.
+func (s *SpanWriter) WriteSpans(_ context.Context, spans []dbmodel.Span) error {
+	for i := range spans {
+		span := &spans[i]
+		s.writeSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
+	}
+	return nil
+}
+
+// writeSpan writes a single span and its corresponding service:operation into the
+// bulk indexer.
+func (s *SpanWriter) writeSpan(spanStartTime time.Time, span *dbmodel.Span) {
 	s.writerMetrics.Attempts.Inc(1)
 	s.convertNestedTagsToFieldTags(span)
 	if s.spanRotation.RequiresDocumentTimestamp() {
@@ -115,9 +134,10 @@ func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
 	span.Tag = fieldTags
 }
 
-// Close closes SpanWriter
-func (s *SpanWriter) Close() error {
-	return s.client().Close()
+// Close is a no-op: the writer owns no resources. The bulk indexer that backs it
+// is owned and closed by the factory (which flushes buffered writes on shutdown).
+func (*SpanWriter) Close() error {
+	return nil
 }
 
 func keyInCache(key string, c cache.Cache) bool {
@@ -133,9 +153,14 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
 }
 
 func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	s.client().Index().Index(indexName).Type(spanType).
-		OpType(s.spanRotation.WriteOpType()).
-		BodyJson(&jsonSpan).Add()
+	// A SpanWriter always has a bulkWriter (a required SpanWriterParams field), so
+	// unlike ServiceOperationStorage.Write — which also serves read-only instances
+	// with a nil writer — this is not nil-checked.
+	s.bulkWriter.Add(esclient.BulkItem{
+		Index:  indexName,
+		OpType: s.spanRotation.WriteOpType(),
+		Body:   jsonSpan,
+	})
 }
 
 func (s *SpanWriter) splitElevatedTags(keyValues []dbmodel.KeyValue) ([]dbmodel.KeyValue, map[string]any) {

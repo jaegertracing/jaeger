@@ -6,6 +6,7 @@ package elasticsearch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -15,13 +16,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/mappings"
 	essamplestore "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch/samplingstore"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	esspanstore "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
@@ -35,23 +33,35 @@ type FactoryBase struct {
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	newClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error)
-	// newSearcherFn constructs the esclient data-plane search client. It is a seam
-	// mirroring newClientFn so tests can inject a searcher that doesn't probe a
-	// live cluster (esclient.NewClient issues a GET / at construction).
-	newSearcherFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Searcher, error)
+	// newESClientFn constructs the shared esclient over the transport pool that
+	// backs every data-plane path. Tests override it to inject a client that
+	// doesn't probe a live cluster (esclient.NewClient issues a GET / at construction).
+	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esclient.Client, error)
+	// newBulkIndexerFn constructs the bulk writer over the esclient. Tests override
+	// it, like the client constructor above, to inject a failing indexer and
+	// exercise the construction error path.
+	newBulkIndexerFn func(client *esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
 
 	config *config.Configuration
 
-	client es.Client
-	// searcher is the esclient data-plane search client (RFC 0006 M5), used by
-	// the migrated service/operation read path over the shared transport pool.
-	searcher esclient.Searcher
-
-	templateBuilder es.TemplateBuilder
+	// esClient is the shared esclient over the transport pool that backs every
+	// data-plane path; searcher and bulkWriter compose over it, and the admin
+	// operations (templates, purge) run an IndicesClient over it too.
+	esClient *esclient.Client
+	// searcher and bulkWriter are the data-plane surfaces over the esclient
+	// transport pool: service/operation reads, span writes, sampling reads/writes,
+	// dependency and metric reads. The factory owns the bulk indexer's lifecycle
+	// and closes it in Close.
+	searcher   esclient.Searcher
+	bulkWriter *esclient.BulkIndexer
 
 	tags []string
 }
+
+// factoryOption overrides a factory field before construction proceeds. It lets
+// tests inject failing/fake client constructors through the newESClientFn /
+// newBulkIndexerFn fields to exercise the construction error paths.
+type factoryOption func(*FactoryBase)
 
 func NewFactoryBase(
 	ctx context.Context,
@@ -59,19 +69,27 @@ func NewFactoryBase(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	httpAuth extensionauth.HTTPClient,
+	opts ...factoryOption,
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
-		config:      &cfg,
-		newClientFn: clientbuilder.NewClient,
-		newSearcherFn: func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Searcher, error) {
-			client, err := esclient.NewClient(ctx, c, logger, httpAuth)
-			return esclient.SearchClient{Client: client}, err
-		},
-		tracer: otel.GetTracerProvider(),
+		config:           &cfg,
+		newESClientFn:    esclient.NewClient,
+		newBulkIndexerFn: esclient.NewBulkIndexer,
+		tracer:           otel.GetTracerProvider(),
 	}
+	for _, opt := range opts {
+		opt(f)
+	}
+	// If construction fails partway, close whatever was already created (the
+	// esclient and the bulk indexer's workers). Close is nil-safe.
+	success := false
+	defer func() { //nolint:contextcheck // Close releases resources and takes no context
+		if !success {
+			_ = f.Close()
+		}
+	}()
 	f.metricsFactory = metricsFactory
 	f.logger = logger
-	f.templateBuilder = es.TextTemplateBuilder{}
 	f.config.LogDeprecationWarnings(logger)
 	tags, err := f.config.TagKeysAsFields()
 	if err != nil {
@@ -79,30 +97,34 @@ func NewFactoryBase(
 	}
 	f.tags = tags
 
-	client, err := f.newClientFn(ctx, f.config, logger, metricsFactory, httpAuth)
+	// One esclient over the transport pool backs every path — the searcher, the
+	// bulk indexer, and the admin IndicesClient (templates, purge) — with a single
+	// version probe.
+	esClient, err := f.newESClientFn(ctx, f.config, logger, httpAuth)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
+		return nil, fmt.Errorf("failed to create Elasticsearch data client: %w", err)
 	}
-	f.client = client
-
-	// The migrated service/operation read path (RFC 0006 M5) runs over the
-	// esclient transport pool; other paths still use the olivere client above.
-	searcher, err := f.newSearcherFn(ctx, f.config, logger, httpAuth)
+	f.esClient = esClient
+	f.searcher = esclient.SearchClient{Client: esClient}
+	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
+	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
+	bulkWriter, err := f.newBulkIndexerFn(esClient, esclient.BulkIndexerConfig{
+		FlushBytes:    f.config.BulkProcessing.MaxBytes,
+		FlushInterval: f.config.BulkProcessing.FlushInterval,
+		Workers:       f.config.BulkProcessing.Workers,
+	}, metricsFactory, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch search client: %w", err)
+		return nil, fmt.Errorf("failed to create Elasticsearch bulk indexer: %w", err)
 	}
-	f.searcher = searcher
+	f.bulkWriter = bulkWriter
 
 	err = f.createTemplates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
+	success = true
 	return f, nil
-}
-
-func (f *FactoryBase) getClient() es.Client {
-	return f.client
 }
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
@@ -119,7 +141,6 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
-		Client:            f.getClient,
 		Searcher:          f.searcher,
 		MaxDocCount:       f.config.MaxDocCount,
 		MaxSpanAge:        maxSpanAge,
@@ -136,7 +157,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		Client:            f.getClient,
+		BulkWriter:        f.bulkWriter,
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
 		TagDotReplacement: f.config.Tags.DotReplacement,
@@ -151,7 +172,8 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 // GetDependencyStoreParams returns the esdepstorev2.Params which can be used to initialize the v1 and v2 dependency stores.
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
-		Client:      f.getClient,
+		Searcher:    f.searcher,
+		BulkWriter:  f.bulkWriter,
 		Logger:      f.logger,
 		MaxDocCount: f.config.MaxDocCount,
 		Rotation:    f.buildDependencyRotation(),
@@ -160,7 +182,9 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
-		Client:      f.getClient,
+		Searcher:    f.searcher,
+		BulkWriter:  f.bulkWriter,
+		IndexClient: &esclient.IndicesClient{Client: f.esClient},
 		Logger:      f.logger,
 		Lookback:    f.config.AdaptiveSamplingLookback,
 		MaxDocCount: f.config.MaxDocCount,
@@ -169,13 +193,8 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	store := essamplestore.NewSamplingStore(params)
 
 	if f.config.CreateIndexTemplates {
-		mappingBuilder := f.mappingBuilderFromConfig(f.config)
-		samplingMapping, err := mappingBuilder.GetSamplingMappings()
-		if err != nil {
-			return nil, err
-		}
 		templateName := f.config.Indices.IndexPrefix.Apply(config.SamplingIndexName)
-		if _, err := f.getClient().CreateTemplate(templateName).Body(samplingMapping).Do(context.Background()); err != nil {
+		if err := f.indicesClient().CreateTemplate(context.Background(), templateName, esclient.SamplingMapping); err != nil {
 			return nil, fmt.Errorf("failed to create template: %w", err)
 		}
 	}
@@ -183,33 +202,44 @@ func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.S
 	return store, nil
 }
 
-func (f *FactoryBase) mappingBuilderFromConfig(cfg *config.Configuration) mappings.MappingBuilder {
-	spanRC := cfg.ResolvedSpanRotation()
+// indicesClient builds the esclient admin client used to install index
+// templates, carrying the resolved index and ILM config the renderer needs.
+// The client renders each template body from its own resolved backend version,
+// so the factory no longer reads GetVersion here.
+func (f *FactoryBase) indicesClient() *esclient.IndicesClient {
+	spanRC := f.config.ResolvedSpanRotation()
 	var ilmPolicyName string
 	if spanRC.AutoRollover.HasValue() {
 		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
 	}
-	return mappings.MappingBuilder{
-		TemplateBuilder: f.templateBuilder,
-		Indices:         cfg.Indices,
-		Version:         f.client.GetVersion(),
-		UseILM:          ilmPolicyName != "",
-		ILMPolicyName:   ilmPolicyName,
+	return &esclient.IndicesClient{
+		Client:  f.esClient,
+		Indices: f.config.Indices,
+		// Purge deletes "*" for cleanup, so tolerate missing indices rather than
+		// failing when there is nothing to delete.
+		IgnoreUnavailableIndex: true,
+		UseILM:                 ilmPolicyName != "",
+		ILMPolicyName:          ilmPolicyName,
 	}
 }
 
-// Close closes the resources held by the factory
+// Close closes the resources held by the factory. The bulk indexer is closed
+// here (flushing buffered writes and stopping its workers) even when no writer
+// was created, e.g. a query-only service.
 func (f *FactoryBase) Close() error {
-	if c := f.getClient(); c != nil {
-		return c.Close()
+	var errs []error
+	if f.bulkWriter != nil {
+		errs = append(errs, f.bulkWriter.Close())
 	}
-	return nil
+	// Release the owned esclient's pooled idle connections. The data plane
+	// (searcher, bulk indexer, admin ops) runs over this client. Close is safe on
+	// a nil Client.
+	errs = append(errs, f.esClient.Close())
+	return errors.Join(errs...)
 }
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
-	esClient := f.getClient()
-	_, err := esClient.DeleteIndex("*").Do(ctx)
-	return err
+	return f.indicesClient().DeleteAllIndices(ctx)
 }
 
 // TODO: Support RemoteClusters for sampling via a feature flag.
@@ -253,22 +283,17 @@ func (f *FactoryBase) buildRotations() (spanRotation, serviceRotation indices.Ro
 }
 
 func (f *FactoryBase) createTemplates(ctx context.Context) error {
-	if f.config.CreateIndexTemplates {
-		mappingBuilder := f.mappingBuilderFromConfig(f.config)
-		spanMapping, serviceMapping, err := mappingBuilder.GetSpanServiceMappings()
-		if err != nil {
-			return err
-		}
-		jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
-		jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
-		_, err = f.getClient().CreateTemplate(jaegerSpanIdx).Body(spanMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
-		}
-		_, err = f.getClient().CreateTemplate(jaegerServiceIdx).Body(serviceMapping).Do(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
-		}
+	if !f.config.CreateIndexTemplates {
+		return nil
+	}
+	ic := f.indicesClient()
+	jaegerSpanIdx := f.config.Indices.IndexPrefix.Apply(config.SpanIndexName)
+	jaegerServiceIdx := f.config.Indices.IndexPrefix.Apply(config.ServiceIndexName)
+	if err := ic.CreateTemplate(ctx, jaegerSpanIdx, esclient.SpanMapping); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerSpanIdx, err)
+	}
+	if err := ic.CreateTemplate(ctx, jaegerServiceIdx, esclient.ServiceMapping); err != nil {
+		return fmt.Errorf("failed to create template %q: %w", jaegerServiceIdx, err)
 	}
 	return nil
 }

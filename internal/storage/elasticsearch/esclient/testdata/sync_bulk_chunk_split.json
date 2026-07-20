@@ -1,0 +1,30 @@
+[
+  {
+    "method": "POST",
+    "path": "/_bulk",
+    "ndjson": [
+      {
+        "index": {
+          "_index": "idx"
+        }
+      },
+      {
+        "a": 1
+      }
+    ]
+  },
+  {
+    "method": "POST",
+    "path": "/_bulk",
+    "ndjson": [
+      {
+        "index": {
+          "_index": "idx"
+        }
+      },
+      {
+        "b": 2
+      }
+    ]
+  }
+]

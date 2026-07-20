@@ -88,7 +88,7 @@ func TestExecuteAction(t *testing.T) {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(_ esclient.Client, _ Config) Action {
+			}, func(_ *esclient.Client, _ Config) Action {
 				return &dummyAction{
 					TestFn: func() error {
 						executedAction = true
@@ -121,7 +121,7 @@ func TestExecuteAction_ConfigError(t *testing.T) {
 		Args:   args,
 		Viper:  v,
 		Logger: logger,
-	}, func(_ esclient.Client, _ Config) Action {
+	}, func(_ *esclient.Client, _ Config) Action {
 		return &dummyAction{
 			TestFn: func() error {
 				return nil
@@ -221,7 +221,7 @@ func TestExecuteAction_ClientError(t *testing.T) {
 		Args:   []string{"not-a-valid-url"}, // no scheme -> esclient.NewClient rejects it
 		Viper:  v,
 		Logger: zap.NewNop(),
-	}, func(esclient.Client, Config) Action {
+	}, func(*esclient.Client, Config) Action {
 		t.Fatal("action must not be created when the client fails")
 		return nil
 	})

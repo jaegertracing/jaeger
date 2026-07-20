@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -375,7 +376,7 @@ var testBasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte("u
 
 // makeClient builds an esclient.Client for a single plaintext test server. A
 // non-empty user enables basic auth so requests carry an Authorization header.
-func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) Client {
+func makeClient(t *testing.T, url, user, pass string, version ...es.BackendVersion) *Client {
 	// Resolve the version from config so NewClient doesn't probe the test server.
 	// Defaults to ElasticV7; version-specific tests pass an explicit version.
 	v := es.ElasticV7
@@ -410,6 +411,58 @@ func TestClientDoError(t *testing.T) {
 	indices, err := c.GetJaegerIndices(context.Background(), "")
 	require.Error(t, err)
 	assert.Nil(t, indices)
+}
+
+// clientWithTimeout builds a Client with an explicit QueryTimeout, resolving the
+// version from config so NewClient doesn't probe (and stall on) the test server.
+func clientWithTimeout(t *testing.T, url string, timeout time.Duration) *Client {
+	cfg := &config.Configuration{Servers: []string{url}, Version: uint(es.ElasticV7), QueryTimeout: timeout}
+	c, err := NewClient(context.Background(), cfg, zap.NewNop(), nil)
+	require.NoError(t, err)
+	return c
+}
+
+// TestPerformAppliesTimeoutWhenNoDeadline covers the gap the reviewer flagged:
+// esutil hands Perform a background-context request with no deadline, so without
+// this the bulk/flush write could hang forever. The client's QueryTimeout must
+// bound it.
+func TestPerformAppliesTimeoutWhenNoDeadline(t *testing.T) {
+	block := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		<-block // hang until the test releases it
+	}))
+	defer server.Close()
+	defer close(block) // unblock the handler so server.Close can return
+
+	c := clientWithTimeout(t, server.URL, 50*time.Millisecond)
+	req, err := http.NewRequest(http.MethodGet, "/_bulk", http.NoBody) // no deadline
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, err = c.Perform(req)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, time.Since(start), time.Second, "Perform returned at the timeout, not when the server unblocked")
+}
+
+// TestPerformWithTimeoutReadsBody covers the success path: a deadline applied by
+// Perform must not abort the caller's later body read, and closing the body
+// releases the context.
+func TestPerformWithTimeoutReadsBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte("pong"))
+	}))
+	defer server.Close()
+
+	c := clientWithTimeout(t, server.URL, time.Minute)
+	req, err := http.NewRequest(http.MethodGet, "/", http.NoBody)
+	require.NoError(t, err)
+
+	res, err := c.Perform(req)
+	require.NoError(t, err)
+	body, err := io.ReadAll(res.Body) // read happens after Perform returned
+	require.NoError(t, err)
+	require.NoError(t, res.Body.Close())
+	assert.Equal(t, "pong", string(body))
 }
 
 func TestClientCreateIndex(t *testing.T) {
@@ -564,9 +617,34 @@ func TestClientDeleteAliases(t *testing.T) {
 	}
 }
 
+// testIndices returns minimal index options sufficient to render any template
+// (non-nil replicas), with no prefix and lifecycle off.
+func testIndices() config.Indices {
+	reps := int64(1)
+	opts := config.IndexOptions{Shards: 5, Replicas: &reps}
+	return config.Indices{Spans: opts, Services: opts, Dependencies: opts, Sampling: opts}
+}
+
+// templateSnapshotIndices returns the index config the CreateTemplate wire
+// snapshots render against: a prefix, distinct per-type priorities, and shards/
+// replicas. Paired with ILM on (below), it exercises both the ILM and ISM
+// settings branches across the backend matrix. These values mirror the pre-M4b
+// mappings golden test so the snapshot bodies stay comparable to it.
+func templateSnapshotIndices() config.Indices {
+	opts := func(priority int64) config.IndexOptions {
+		reps := int64(3)
+		return config.IndexOptions{Shards: 3, Replicas: &reps, Priority: priority}
+	}
+	return config.Indices{
+		IndexPrefix:  "test-",
+		Spans:        opts(500),
+		Services:     opts(501),
+		Dependencies: opts(502),
+		Sampling:     opts(503),
+	}
+}
+
 func TestClientCreateTemplate(t *testing.T) {
-	templateName := "jaeger-template"
-	templateContent := "template content"
 	tests := []struct {
 		name         string
 		version      es.BackendVersion
@@ -578,28 +656,28 @@ func TestClientCreateTemplate(t *testing.T) {
 		{
 			name:         "success/v7",
 			version:      es.ElasticV7,
-			expectedPath: "_template/jaeger-template",
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/v8",
 			version:      es.ElasticV8,
-			expectedPath: "_index_template/jaeger-template",
+			expectedPath: "_index_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "success/opensearch",
 			version:      es.OpenSearch2,
-			expectedPath: "_template/jaeger-template",
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusOK,
 		},
 		{
 			name:         "client error",
 			version:      es.ElasticV7,
-			expectedPath: "_template/jaeger-template",
+			expectedPath: "_template/jaeger-span",
 			responseCode: http.StatusBadRequest,
 			response:     esErrResponse,
-			errContains:  "failed to create template: jaeger-template",
+			errContains:  "failed to create template: jaeger-span",
 		},
 	}
 	for _, test := range tests {
@@ -612,20 +690,18 @@ func TestClientCreateTemplate(t *testing.T) {
 				assert.Equal(t, testBasicAuthHeader, req.Header.Get("Authorization"))
 				body, err := io.ReadAll(req.Body)
 				assert.NoError(t, err)
-				assert.Equal(t, templateContent, string(body))
+				assert.True(t, json.Valid(body), "rendered template body must be valid JSON")
 
 				res.WriteHeader(test.responseCode)
 				res.Write([]byte(test.response))
 			}))
 			defer testServer.Close()
 
-			client := makeClient(t, testServer.URL, "user", "pass", test.version)
 			c := &IndicesClient{
-				Client: client,
+				Client:  makeClient(t, testServer.URL, "user", "pass", test.version),
+				Indices: testIndices(),
 			}
-			err := c.CreateTemplate(context.Background(), templateName, func(es.BackendVersion) (string, error) {
-				return templateContent, nil
-			})
+			err := c.CreateTemplate(context.Background(), "jaeger-span", SpanMapping)
 			if test.errContains != "" {
 				require.ErrorContains(t, err, test.errContains)
 			} else {
@@ -687,8 +763,10 @@ func TestRollover(t *testing.T) {
 
 // The tests below freeze the exact wire format of each IndicesClient request as
 // snapshots. Version-invariant requests are stored as a bare <subject>.json;
-// CreateTemplate varies (es6-7 and OpenSearch share the _template endpoint,
-// es8-9 use _index_template) and is stored per distinct wire format.
+// CreateTemplate varies by mapping type and backend (es7 and OpenSearch share
+// the _template endpoint but split on ILM vs ISM settings, es8-9 use the
+// composable _index_template envelope) and is stored per distinct wire format
+// under testdata/create_template/<type>.<variants>.json.
 // okServer/indicesClient are shared with the cluster and ILM snapshot tests.
 
 // okServer records requests and always answers 200 with an empty JSON object.
@@ -772,24 +850,168 @@ func TestRolloverRequestSnapshot(t *testing.T) {
 }
 
 func TestCreateTemplateRenderError(t *testing.T) {
-	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7)}
-	err := c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
-		return "", assert.AnError
-	})
-	require.ErrorIs(t, err, assert.AnError)
+	c := IndicesClient{Client: makeClient(t, "http://localhost:9200", "", "", es.ElasticV7), Indices: testIndices()}
+	err := c.CreateTemplate(context.Background(), "jaeger-span", MappingType(99))
+	require.ErrorContains(t, err, "unknown index template mapping type")
 }
 
 func TestCreateTemplateRequestSnapshot(t *testing.T) {
-	const template = `{"index_patterns":["jaeger-span-*"],"mappings":{}}`
-	content := map[es.BackendVersion]string{}
-	for _, version := range es.AllVersions {
-		rec, url := okServer(t)
-		client := makeClient(t, url, "", "", version)
-		c := IndicesClient{Client: client}
-		require.NoError(t, c.CreateTemplate(context.Background(), "jaeger-span", func(es.BackendVersion) (string, error) {
-			return template, nil
-		}))
-		content[version] = rec.Marshal(t)
+	indices := templateSnapshotIndices()
+	subjects := []struct {
+		name    string
+		mapping MappingType
+	}{
+		{"span", SpanMapping},
+		{"service", ServiceMapping},
+		{"dependencies", DependencyMapping},
+		{"sampling", SamplingMapping},
 	}
-	snapshottest.AssertByVersion(t, "testdata/create_template", content)
+	for _, subject := range subjects {
+		t.Run(subject.name, func(t *testing.T) {
+			content := map[es.BackendVersion]string{}
+			for _, version := range es.AllVersions {
+				rec, url := okServer(t)
+				c := IndicesClient{
+					Client:        makeClient(t, url, "", "", version),
+					Indices:       indices,
+					UseILM:        true,
+					ILMPolicyName: "jaeger-test-policy",
+				}
+				name := indices.IndexPrefix.Apply(subject.mapping.indexBase())
+				require.NoError(t, c.CreateTemplate(context.Background(), name, subject.mapping))
+				content[version] = rec.Marshal(t)
+			}
+			snapshottest.AssertByVersion(t, "testdata/create_template/"+subject.name, content)
+		})
+	}
+}
+
+func TestDeleteAllIndices(t *testing.T) {
+	var gotMethod, gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+	}))
+	defer srv.Close()
+	c := &IndicesClient{Client: makeClient(t, srv.URL, "", ""), IgnoreUnavailableIndex: true}
+	require.NoError(t, c.DeleteAllIndices(context.Background()))
+	assert.Equal(t, http.MethodDelete, gotMethod)
+	assert.Equal(t, "/*", gotPath)
+	// A zero master timeout is omitted; ignore_unavailable is carried through.
+	assert.Equal(t, "ignore_unavailable=true", gotQuery)
+}
+
+func TestTestsOnlyGetSettings(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotQuery = r.URL.Path, r.URL.RawQuery
+		w.Write([]byte(`{"i1":{"settings":{"index.number_of_shards":"1"}}}`))
+	}))
+	defer srv.Close()
+	c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+	settings, err := c.TestsOnlyGetSettings(context.Background(), []string{"i1", "i2"})
+	require.NoError(t, err)
+	assert.Equal(t, "/i1,i2/_settings", gotPath)
+	assert.Equal(t, "flat_settings=true", gotQuery)
+	assert.Equal(t, "1", settings["i1"]["index.number_of_shards"])
+}
+
+func TestTestsOnlyTemplateExists(t *testing.T) {
+	versions := map[string]struct {
+		version  es.BackendVersion
+		wantPath string
+	}{
+		"legacy (ES7)":     {es.ElasticV7, "/_template/jaeger-span"},
+		"composable (ES8)": {es.ElasticV8, "/_index_template/jaeger-span"},
+	}
+	for name, tt := range versions {
+		t.Run(name, func(t *testing.T) {
+			var gotMethod, gotPath string
+			srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				gotMethod, gotPath = r.Method, r.URL.Path
+			}))
+			defer srv.Close()
+			c := &IndicesClient{Client: makeClient(t, srv.URL, "", "", tt.version)}
+			exists, err := c.TestsOnlyTemplateExists(context.Background(), "jaeger-span")
+			require.NoError(t, err)
+			assert.True(t, exists)
+			assert.Equal(t, http.MethodHead, gotMethod)
+			assert.Equal(t, tt.wantPath, gotPath)
+		})
+	}
+	t.Run("absent", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+		c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+		exists, err := c.TestsOnlyTemplateExists(context.Background(), "absent")
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+}
+
+func TestTestsOnlyDeleteTemplate(t *testing.T) {
+	for _, code := range []int{http.StatusOK, http.StatusNotFound} {
+		var gotMethod string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod = r.Method
+			w.WriteHeader(code)
+		}))
+		c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+		require.NoError(t, c.TestsOnlyDeleteTemplate(context.Background(), "jaeger-span"))
+		assert.Equal(t, http.MethodDelete, gotMethod)
+		srv.Close()
+	}
+}
+
+func TestTestsOnlyIndicesErrorPaths(t *testing.T) {
+	errServer := func() *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(esErrResponse))
+		}))
+	}
+	t.Run("get settings request error", func(t *testing.T) {
+		srv := errServer()
+		defer srv.Close()
+		c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+		_, err := c.TestsOnlyGetSettings(context.Background(), []string{"i"})
+		require.ErrorContains(t, err, "failed to get index settings")
+	})
+	t.Run("get settings bad json", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Write([]byte("not-json"))
+		}))
+		defer srv.Close()
+		c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+		_, err := c.TestsOnlyGetSettings(context.Background(), []string{"i"})
+		require.ErrorContains(t, err, "failed to unmarshal index settings")
+	})
+	t.Run("template exists error", func(t *testing.T) {
+		srv := errServer()
+		defer srv.Close()
+		c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+		_, err := c.TestsOnlyTemplateExists(context.Background(), "x")
+		require.ErrorContains(t, err, "failed to check if template exists")
+	})
+	t.Run("delete template error", func(t *testing.T) {
+		srv := errServer()
+		defer srv.Close()
+		c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+		require.ErrorContains(t, c.TestsOnlyDeleteTemplate(context.Background(), "x"),
+			"failed to delete template")
+	})
+}
+
+func TestTestsOnlyGetSettingsEmpty(t *testing.T) {
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}))
+	defer srv.Close()
+	c := &IndicesClient{Client: makeClient(t, srv.URL, "", "")}
+	settings, err := c.TestsOnlyGetSettings(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, settings)
+	assert.False(t, called, "an empty index list must not issue a request")
 }

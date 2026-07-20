@@ -27,6 +27,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
+// unwrapCloseable peels off the closeableRoundTripper that GetHTTPRoundTripper
+// always returns, exposing the inner auth/header/transport chain the tests
+// inspect. Calls that only exercise RoundTrip don't need it (the wrapper embeds
+// the RoundTripper), but type-assertions on the concrete inner do.
+func unwrapCloseable(t *testing.T, rt http.RoundTripper) http.RoundTripper {
+	t.Helper()
+	crt, ok := rt.(closeableRoundTripper)
+	require.True(t, ok, "GetHTTPRoundTripper should return a closeableRoundTripper")
+	return crt.RoundTripper
+}
+
 // bearerAuth creates bearer token authentication component
 func bearerAuth(filePath string, allowFromContext bool) configoptional.Optional[config.TokenAuthentication] {
 	return configoptional.Some(config.TokenAuthentication{
@@ -168,7 +179,7 @@ func TestGetHTTPRoundTripper(t *testing.T) {
 				assert.Nil(t, rt)
 			} else {
 				require.NoError(t, err)
-				tt.validate(t, rt)
+				tt.validate(t, unwrapCloseable(t, rt))
 			}
 		})
 	}
@@ -244,7 +255,7 @@ func TestGetHTTPRoundTripperWithHTTPAuthSuccess(t *testing.T) {
 	require.NotNil(t, rt)
 	// getBodyFixRoundTripper must be outermost so that it populates
 	// req.GetBody before the authenticator hashes the payload.
-	bodyFixRT, ok := rt.(*getBodyFixRoundTripper)
+	bodyFixRT, ok := unwrapCloseable(t, rt).(*getBodyFixRoundTripper)
 	require.True(t, ok, "outermost round tripper should be getBodyFixRoundTripper")
 	wrappedRT, ok := bodyFixRT.base.(*mockWrappedRoundTripper)
 	require.True(t, ok, "authenticator wrapper should be inside getBodyFixRoundTripper")
@@ -291,7 +302,7 @@ func (rt *getBodyRecordingRoundTripper) RoundTrip(req *http.Request) (*http.Resp
 
 // TestGetHTTPRoundTripper_AuthSeesGetBody verifies that an HTTP
 // authenticator sees a populated req.GetBody at signing time for requests
-// where the client set req.Body without GetBody (as olivere/elastic does).
+// where the client set req.Body without GetBody.
 // If getBodyFixRoundTripper is wrapped inside the authenticator instead of
 // outside, the authenticator hashes an empty payload and AWS-managed
 // OpenSearch rejects every body-bearing request with HTTP 403.
@@ -307,7 +318,7 @@ func TestGetHTTPRoundTripper_AuthSeesGetBody(t *testing.T) {
 	rt, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), recordingAuth)
 	require.NoError(t, err)
 
-	// Mimic olivere/elastic: Body set directly, GetBody left nil.
+	// Mimic a client that sets Body directly with GetBody left nil.
 	req, err := http.NewRequest(http.MethodPut, "http://localhost:9200/_index_template/test", http.NoBody)
 	require.NoError(t, err)
 	req.Body = io.NopCloser(bytes.NewReader([]byte(`{"index_patterns":["jaeger-*"]}`)))
@@ -541,7 +552,7 @@ func TestGetHTTPRoundTripper_AllAuthMethods(t *testing.T) {
 	}
 	rt, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), nil)
 	require.NoError(t, err)
-	authRT, ok := rt.(*auth.RoundTripper)
+	authRT, ok := unwrapCloseable(t, rt).(*auth.RoundTripper)
 	require.True(t, ok)
 	assert.Len(t, authRT.Auths, 3)
 }

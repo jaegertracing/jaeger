@@ -24,9 +24,9 @@ type ClickHouseStorageIntegration struct {
 }
 
 func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set("storage.clickhouse", true))
+	require.NoError(t, featuregate.GlobalRegistry().Set("jaeger.clickhouse", true))
 	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set("storage.clickhouse", false))
+		require.NoError(t, featuregate.GlobalRegistry().Set("jaeger.clickhouse", false))
 	})
 
 	cfg := ch.Configuration{
