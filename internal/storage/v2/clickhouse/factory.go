@@ -17,6 +17,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/collector/featuregate"
 
+	jaegerfeaturegate "github.com/jaegertracing/jaeger/internal/featuregate"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
@@ -29,12 +30,20 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
-	"storage.clickhouse",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.18.0"),
-	featuregate.WithRegisterDescription(
-		"Enables ClickHouse as a storage backend.",
+var clickhouseStorageGate = jaegerfeaturegate.NewRenamedGate(
+	featuregate.GlobalRegistry().MustRegister(
+		"jaeger.clickhouse",
+		featuregate.StageAlpha,
+		featuregate.WithRegisterFromVersion("v2.21.0"),
+		featuregate.WithRegisterDescription("Enables ClickHouse as a storage backend."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	),
+	featuregate.GlobalRegistry().MustRegister(
+		"storage.clickhouse",
+		featuregate.StageAlpha,
+		featuregate.WithRegisterFromVersion("v2.18.0"),
+		featuregate.WithRegisterDescription("Deprecated alias for jaeger.clickhouse."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),
 )
 
@@ -116,7 +125,7 @@ func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Setting
 		return nil, errors.New(
 			"ClickHouse storage is experimental and must be explicitly enabled. " +
 				"The schema is subject to breaking changes. " +
-				"Enable it with --feature-gates=storage.clickhouse",
+				"Enable it with --feature-gates=jaeger.clickhouse",
 		)
 	}
 	fmt.Fprint(os.Stderr, `
