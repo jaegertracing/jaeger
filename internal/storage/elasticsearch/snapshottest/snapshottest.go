@@ -68,22 +68,43 @@ type CapturedRequest struct {
 	Query       url.Values
 	Body        []byte
 	ContentType string
+	IsNdJSON    bool
 }
 
 // Recorder is an http.Handler that records every request it receives and
 // delegates the response to a user-supplied function.
 type Recorder struct {
-	respond func(http.ResponseWriter, *http.Request)
+	respond  func(http.ResponseWriter, *http.Request)
+	isNdJSON func(path string) bool
 
 	mu       sync.Mutex
 	requests []CapturedRequest
 }
 
+type RecorderOption func(*Recorder)
+
+func NdJSONPath(suffixes ...string) RecorderOption {
+	return func(rec *Recorder) {
+		rec.isNdJSON = func(path string) bool {
+			for _, suffix := range suffixes {
+				if strings.HasSuffix(path, suffix) {
+					return true
+				}
+			}
+			return false
+		}
+	}
+}
+
 // NewRecorder returns a Recorder that serves responses via respond. The respond
 // function is where the test returns whatever canned payload the client needs to
 // parse (version JSON, an empty search result, a bulk response, etc.).
-func NewRecorder(respond func(http.ResponseWriter, *http.Request)) *Recorder {
-	return &Recorder{respond: respond}
+func NewRecorder(respond func(http.ResponseWriter, *http.Request), opts ...RecorderOption) *Recorder {
+	rec := &Recorder{respond: respond}
+	for _, opt := range opts {
+		opt(rec)
+	}
+	return rec
 }
 
 func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +122,7 @@ func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Path:        r.URL.Path,
 		Body:        body,
 		ContentType: r.Header.Get("Content-Type"),
+		IsNdJSON:    rec.isNdJSON != nil && rec.isNdJSON(r.URL.Path),
 	}
 	if q := r.URL.Query(); len(q) > 0 {
 		captured.Query = q
@@ -193,7 +215,7 @@ func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	require.NoError(t, err)
 	body := r.Body
 
-	if strings.HasSuffix(r.Path, "_bulk") || strings.HasSuffix(r.Path, "_msearch") {
+	if r.IsNdJSON {
 		require.Equal(t, "application/x-ndjson", mediaType, "invalid content type for path: %s", r.Path)
 		trailingNewlines := len(body) - len(bytes.TrimRight(body, "\n"))
 		require.Equal(t, 1, trailingNewlines, "body for %s must end with exactly one trailing newline", r.Path)

@@ -25,7 +25,7 @@ import (
 func TestRecorderCapturesJSONBody(t *testing.T) {
 	rec := NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})
+	}, NdJSONPath("_bulk", "_msearch"))
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
@@ -54,7 +54,7 @@ func TestRecorderCapturesJSONBody(t *testing.T) {
 func TestRecorderCapturesNDJSON(t *testing.T) {
 	rec := NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})
+	}, NdJSONPath("_bulk", "_msearch"))
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
@@ -83,7 +83,7 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 func TestRecorderCapturesEmptyBody(t *testing.T) {
 	rec := NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})
+	}, NdJSONPath("_bulk", "_msearch"))
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
@@ -294,7 +294,7 @@ func (errReader) Read([]byte) (int, error) { return 0, errors.New("boom") }
 func TestRecorderBodyReadError(t *testing.T) {
 	rec := NewRecorder(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("respond must not run when the body cannot be read")
-	})
+	}, NdJSONPath("_bulk", "_msearch"))
 	w := httptest.NewRecorder()
 	rec.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/_bulk", errReader{}))
 
@@ -305,7 +305,7 @@ func TestRecorderBodyReadError(t *testing.T) {
 func TestRecorderMarshalAndAssert(t *testing.T) {
 	rec := NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})
+	}, NdJSONPath("_bulk", "_msearch"))
 	server := httptest.NewServer(rec)
 	defer server.Close()
 

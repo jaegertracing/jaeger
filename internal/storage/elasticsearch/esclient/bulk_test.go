@@ -28,7 +28,7 @@ import (
 // bulkServer records requests and answers each with the response chosen by
 // respond. It returns the Recorder (for captured requests) and the URL.
 func bulkServer(t *testing.T, respond func(w http.ResponseWriter)) (*snapshottest.Recorder, string) {
-	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) { respond(w) })
+	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) { respond(w) }, snapshottest.NdJSONPath("_bulk", "_msearch"))
 	server := httptest.NewServer(rec)
 	t.Cleanup(server.Close)
 	return rec, server.URL
