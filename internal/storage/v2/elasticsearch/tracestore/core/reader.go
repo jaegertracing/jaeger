@@ -318,6 +318,14 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 		}
 
 		for _, result := range responses {
+			// A failed _msearch item carries an error payload and no hits; skipping it
+			// like an empty result would silently drop the trace (or truncate it, when
+			// a later search_after page fails and the trace is never re-queued).
+			if itemErr := result.Err(); itemErr != nil {
+				err := fmt.Errorf("multi-search item failed: %w", itemErr)
+				logErrorToSpan(childSpan, err)
+				return nil, err
+			}
 			// Hits is a value (esclient.HitsResult), not a pointer, so there's no nil
 			// to guard — only the inner slice can be empty.
 			if len(result.Hits.Hits) == 0 {
