@@ -513,7 +513,7 @@ func (c *Configuration) Validate() error {
 			"deprecated ES rotation flags (%s) "+
 				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
 				"(see https://github.com/jaegertracing/jaeger/pull/8823); "+
-				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
+				"to temporarily disable this check, use --feature-gates=-jaeger.es.config.rejectLegacyRotationFlags",
 			legacyRotationFlagsList,
 		)
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if err := featuregate.GlobalRegistry().Set("storage.clickhouse", true); err != nil {
+	if err := featuregate.GlobalRegistry().Set("jaeger.clickhouse", true); err != nil {
 		panic(err)
 	}
 	testutils.VerifyGoLeaks(m)
