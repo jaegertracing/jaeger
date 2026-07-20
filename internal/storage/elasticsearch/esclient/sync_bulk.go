@@ -108,6 +108,14 @@ func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
 	// Only the current chunk (bounded by maxBytes) plus one transient document are
 	// live at a time.
 	for i := range items {
+		if err := ctx.Err(); err != nil {
+			// The caller's deadline or cancellation fired. Stop encoding and drop the
+			// pending chunk rather than issue more round-trips that can only fail, and
+			// return the single context error instead of a pile of transport failures.
+			errs = append(errs, err)
+			chunk, chunkLen = nil, 0
+			break
+		}
 		blob, err := encodeBulkItem(items[i])
 		if err != nil {
 			// A span/service document is JSON-encodable, but a caller could pass a
@@ -268,11 +276,12 @@ func itemResult(item map[string]bulkItemState) (bulkItemState, bool) {
 	if len(item) != 1 {
 		return bulkItemState{}, false
 	}
-	for _, state := range item {
-		durable := state.Status >= http.StatusOK && state.Status < http.StatusMultipleChoices && len(state.Error) == 0
-		return state, durable
+	var state bulkItemState
+	for _, s := range item { // exactly one entry
+		state = s
 	}
-	return bulkItemState{}, false
+	durable := state.Status >= http.StatusOK && state.Status < http.StatusMultipleChoices && len(state.Error) == 0
+	return state, durable
 }
 
 // rejectionReason renders one rejected item for the error sample. A malformed item

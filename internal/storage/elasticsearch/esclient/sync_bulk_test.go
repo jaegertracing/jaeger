@@ -208,6 +208,23 @@ func TestSyncBulkWriter_ErrorsFlagWithoutFailingItem(t *testing.T) {
 	require.NoError(t, w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}}))
 }
 
+func TestSyncBulkWriter_ContextCancelledAborts(t *testing.T) {
+	rec, url := bulkServer(t, okBulk)
+	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := w.Bulk(ctx, []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	// Aborting before any round-trip yields the bare context error, not a chunk's
+	// wrapped transport failure, and issues no request.
+	assert.NotContains(t, err.Error(), "bulk request failed")
+	assert.Empty(t, rec.Requests(), "no chunk is sent once the context is cancelled")
+}
+
 func TestSyncBulkWriter_MalformedItemResultFails(t *testing.T) {
 	// A durable write must be positively acknowledged with a 2xx status. A result
 	// that carries no explicit failure but also no acknowledgement — an empty item,
