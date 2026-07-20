@@ -255,8 +255,13 @@ type Sniffing struct {
 type BulkProcessing struct {
 	// MaxBytes, contains the number of bytes which specifies when to flush.
 	MaxBytes int `mapstructure:"max_bytes"`
-	// MaxActions contain the number of added actions which specifies when to flush.
-	MaxActions int `mapstructure:"max_actions"`
+	// MaxActions used to contain the number of added actions which specifies when to flush.
+	//
+	// Deprecated: the bulk indexer flushes only on a byte threshold (max_bytes) or a
+	// flush interval (flush_interval); it has no action-count trigger, so this setting
+	// never had any effect. It is now rejected by config validation and will be removed
+	// in a future release.
+	MaxActions configoptional.Optional[int] `mapstructure:"max_actions"`
 	// FlushInterval is the interval at the end of which a flush occurs.
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
 	// Workers contains the number of concurrent workers allowed to be executed.
@@ -382,9 +387,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkProcessing.Workers == 0 {
 		c.BulkProcessing.Workers = source.BulkProcessing.Workers
 	}
-	if c.BulkProcessing.MaxActions == 0 {
-		c.BulkProcessing.MaxActions = source.BulkProcessing.MaxActions
-	}
 	if c.BulkProcessing.FlushInterval == 0 {
 		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
 	}
@@ -490,6 +492,15 @@ func (c *Configuration) Validate() error {
 	}
 	if authCount > 1 {
 		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
+	}
+
+	if c.BulkProcessing.MaxActions.HasValue() {
+		return errors.New(
+			"'bulk_processing.max_actions' is no longer supported: the bulk indexer flushes " +
+				"only on a byte threshold or a time interval, so an action count has no effect; " +
+				"remove the setting and use 'bulk_processing.max_bytes' and/or " +
+				"'bulk_processing.flush_interval' to control flushing",
+		)
 	}
 
 	// Validate rotation config for each index type

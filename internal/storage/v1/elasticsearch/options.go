@@ -55,7 +55,6 @@ func DefaultConfig() config.Configuration {
 		BulkProcessing: config.BulkProcessing{
 			MaxBytes:      5 * 1000 * 1000,
 			Workers:       1,
-			MaxActions:    1000,
 			FlushInterval: time.Millisecond * 200,
 		},
 		Tags: config.TagsAsFields{

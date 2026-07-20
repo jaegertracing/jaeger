@@ -74,7 +74,6 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	cfg := es.DefaultConfig()
 	cfg.CreateIndexTemplates = true
 	cfg.BulkProcessing = escfg.BulkProcessing{
-		MaxActions:    1,
 		FlushInterval: time.Nanosecond,
 	}
 	cfg.Tags.AllAsFields = allTagsAsFields
