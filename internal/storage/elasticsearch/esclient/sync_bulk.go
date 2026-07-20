@@ -197,12 +197,12 @@ func encodeBulkItem(item BulkItem) ([]byte, error) {
 	if item.ID != "" {
 		meta[action]["_id"] = item.ID
 	}
-	// meta is a map of strings, which json.Marshal can never fail to encode, so
-	// its error is ignored (there is no way to exercise the branch). item.Body
-	// below is the caller-supplied document and can legitimately fail to encode.
-	metaLine, _ := json.Marshal(meta)
+	var marshalErrors []error
+	metaLine, err := json.Marshal(meta)
+	marshalErrors = append(marshalErrors, err)
 	source, err := json.Marshal(item.Body)
-	if err != nil {
+	marshalErrors = append(marshalErrors, err)
+	if err := errors.Join(marshalErrors...); err != nil {
 		return nil, err
 	}
 	// Append without a precomputed capacity: summing the two lengths was flagged
