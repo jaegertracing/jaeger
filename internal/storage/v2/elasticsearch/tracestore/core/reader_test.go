@@ -385,6 +385,28 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 	})
 }
 
+// TestSpanReader_GetTraceMultiSearchItemError verifies that a failed _msearch
+// item (an error payload inside an overall HTTP 200) surfaces as an error
+// instead of being skipped like an empty result — which would silently report
+// an existing trace as not found, or return a truncated trace as complete when
+// a search_after continuation page fails.
+func TestSpanReader_GetTraceMultiSearchItemError(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockMultiSearchService(r).Return([]esclient.SearchResponse{
+			{
+				Error:  json.RawMessage(`{"type":"search_phase_execution_exception","reason":"all shards failed"}`),
+				Status: 503,
+			},
+		}, nil)
+
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.ErrorContains(t, err, "status 503")
+		require.Nil(t, trace)
+	})
+}
+
 func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
 		data := []byte(`{"TraceID": "123"asdf fadsg}`)
