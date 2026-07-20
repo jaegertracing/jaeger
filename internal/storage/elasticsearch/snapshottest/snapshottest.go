@@ -191,7 +191,8 @@ func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	body := r.Body
 
 	if strings.HasSuffix(r.Path, "_bulk") || strings.HasSuffix(r.Path, "_msearch") {
-		require.Equal(t, "application/x-ndjson", r.ContentType, "invalid content type for path: %s", r.Path)
+		ct := strings.TrimSpace(strings.SplitN(r.ContentType, ";", 2)[0])
+		require.Equal(t, "application/x-ndjson", ct, "invalid content type for path: %s", r.Path)
 		trailingNewlines := len(body) - len(bytes.TrimRight(body, "\n"))
 		require.Equal(t, 1, trailingNewlines, "body for %s must end with exactly one trailing newline", r.Path)
 	}
