@@ -36,15 +36,22 @@ const (
 )
 
 // SyncBulkWriter issues synchronous, size-bounded _bulk requests over the shared
-// transport. Unlike the async BulkIndexer — which enqueues into esutil and reports
-// failures only through callbacks — Bulk blocks until the backend has durably
-// acknowledged the batch and returns a real error on a transport failure or any
-// item-level rejection. It is the write primitive RFC 0007's synchronous mode
-// needs; it is a peer of BulkIndexer over the same Client, not a method on it.
-// (esutil's BulkIndexer does have a blocking Flush, but it reports per-item
-// outcomes only through OnSuccess/OnFailure callbacks over a shared, worker-pooled
-// buffer — Flush itself returns only transport-level errors — so it yields no clean
-// synchronous per-batch verdict; one direct _bulk round-trip does.)
+// transport. Bulk blocks until the backend responds and returns an error iff any
+// document in the batch was not durably stored. That single error is a per-batch
+// durability verdict, derived from inspecting each item's status in the response —
+// not a structured per-item list; the caller (WriteTraces) only needs pass/fail.
+//
+// It is a peer of the async BulkIndexer over the same Client, not a method on it,
+// because esutil's blocking Flush cannot express that verdict. Flush returns nil
+// for a normal 200 _bulk response even when individual items were rejected — a
+// mapping rejection or version conflict is transport-level success — and delivers
+// each item's real outcome only to the OnSuccess/OnFailure callbacks passed on Add.
+// Its return value reports transport health, not per-item durability, so it is not
+// the same single error Bulk returns despite both being a lone error value.
+// Reconstructing the verdict from those callbacks is further complicated by esutil's
+// shared, worker-pooled buffer, which has no per-call boundary (a Flush drains every
+// concurrent caller's queued items). One direct _bulk round-trip that reads the
+// response is simpler and yields exactly the verdict the synchronous mode needs.
 type SyncBulkWriter struct {
 	client   *Client
 	maxBytes int
