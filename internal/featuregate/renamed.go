@@ -32,8 +32,10 @@ func NewRenamedGate(current, legacy *collectorfeaturegate.Gate) *RenamedGate {
 		panic("only Alpha and Beta feature gates can be renamed")
 	}
 	return &RenamedGate{
-		current:  current,
-		legacy:   legacy,
+		current: current,
+		legacy:  legacy,
+		// Feature gates can be evaluated during configuration validation,
+		// before an application logger is available.
 		warnings: os.Stderr,
 	}
 }

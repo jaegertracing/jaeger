@@ -27,12 +27,14 @@ var RejectLegacyRotationFlags = jaegerfeaturegate.NewRenamedGate(
 				"(use_aliases, use_ilm, span_read_alias, etc.) "+
 				"becomes a validation error instead of a deprecation warning.",
 		),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),
 	featuregate.GlobalRegistry().MustRegister(
 		"es.config.rejectLegacyRotationFlags",
 		featuregate.StageBeta,
 		featuregate.WithRegisterFromVersion("v2.9.0"),
 		featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.config.rejectLegacyRotationFlags."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),
 )
 

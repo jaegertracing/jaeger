@@ -36,6 +36,7 @@ var clickhouseStorageGate = jaegerfeaturegate.NewRenamedGate(
 		featuregate.StageAlpha,
 		featuregate.WithRegisterFromVersion("v2.20.0"),
 		featuregate.WithRegisterDescription("Enables ClickHouse as a storage backend."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),
 	featuregate.GlobalRegistry().MustRegister(
 		"storage.clickhouse",
