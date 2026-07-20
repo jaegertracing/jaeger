@@ -88,7 +88,7 @@ def resolve_token(token_file):
     return None
 
 
-def github_api_request(url, token, verbose, additional_headers=None):
+def github_api_request(url, token, additional_headers=None):
     """Make a GitHub API request with error handling.
 
     Args:
@@ -105,8 +105,6 @@ def github_api_request(url, token, verbose, additional_headers=None):
         if additional_headers:
             for header, value in additional_headers.items():
                 req.add_header(header, value)
-        if verbose:
-            eprint(req.full_url)
         return json.loads(urlopen(req).read())
     except HTTPError as e:
         if e.code == 401:
@@ -116,10 +114,10 @@ def github_api_request(url, token, verbose, additional_headers=None):
 
 def num_commits_since_prev_tag(token, base_url, branch, verbose):
     tags_url = f"{base_url}/tags"
-    tags = github_api_request(tags_url, token, verbose)
+    tags = github_api_request(tags_url, token)
     prev_release_tag = tags[0]['name']
     compare_url = f"{base_url}/compare/{branch}...{prev_release_tag}"
-    compare_results = github_api_request(compare_url, token, verbose)
+    compare_results = github_api_request(compare_url, token)
     num_commits = compare_results['behind_by']
 
     if verbose:
@@ -165,7 +163,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     # Load commits
     data = urllib.parse.urlencode({'per_page': num_commits})
-    commits = github_api_request(commits_url + '?' + data, token, verbose)
+    commits = github_api_request(commits_url + '?' + data, token)
 
     if verbose:
         eprint('Retrieved', len(commits), 'commits')
@@ -192,7 +190,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
         msg_lines = commit['commit']['message'].split('\n')
         msg = msg_lines[0].capitalize()
-        pulls = github_api_request(f"{commits_url}/{sha}/pulls", token, verbose, {'accept': accept_header})
+        pulls = github_api_request(f"{commits_url}/{sha}/pulls", token, {'accept': accept_header})
         if len(pulls) > 1:
             print(f"WARNING: More than one pull request for commit {sha}")
 
@@ -211,7 +209,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         msg = msg.replace(f'(#{pull_id})', '').strip()
 
         # Check if the pull request has changelog label
-        pull_labels = get_pull_request_labels(token, repo, pull_id, verbose)
+        pull_labels = get_pull_request_labels(token, repo, pull_id)
         changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
 
         # Handle multiple changelog labels
@@ -267,9 +265,9 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
             eprint(f"(Skipped dependabot commits: {skipped_dependabot})")
 
 
-def get_pull_request_labels(token, repo, pull_number, verbose):
+def get_pull_request_labels(token, repo, pull_number):
     labels_url = f"https://api.github.com/repos/jaegertracing/{repo}/issues/{pull_number}/labels"
-    labels = github_api_request(labels_url, token, verbose)
+    labels = github_api_request(labels_url, token)
     return [label['name'] for label in labels]
 
 

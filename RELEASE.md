@@ -37,7 +37,7 @@ Follow the checklist in the created tracking issue. The high level steps are:
 1. Create a PR "Prepare release vX.Y.Z" against main or maintenance branch ([example](https://github.com/jaegertracing/jaeger/pull/6826)).
   * **Automated**:
     ```bash
-    make prepare-release VERSION=X.Y.Z
+    make prepare-release VERSION=X.Y.Z ISSUE=__RELEASE_ISSUE__
     ```
     * Updates CHANGELOG.md (generates content via `make changelog`)
     * Upgrades jaeger-ui submodule to the corresponding version
