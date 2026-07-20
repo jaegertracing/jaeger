@@ -21,7 +21,7 @@ var RejectLegacyRotationFlags = jaegerfeaturegate.NewRenamedGate(
 	featuregate.GlobalRegistry().MustRegister(
 		"jaeger.es.config.rejectLegacyRotationFlags",
 		featuregate.StageBeta,
-		featuregate.WithRegisterFromVersion("v2.20.0"),
+		featuregate.WithRegisterFromVersion("v2.21.0"),
 		featuregate.WithRegisterDescription(
 			"When enabled, the use of deprecated ES rotation flags "+
 				"(use_aliases, use_ilm, span_read_alias, etc.) "+

@@ -30,7 +30,7 @@ func init() {
 		featuregate.GlobalRegistry().MustRegister(
 			"jaeger.es.index.relativeTimeIndexDeletion",
 			featuregate.StageBeta,
-			featuregate.WithRegisterFromVersion("v2.20.0"),
+			featuregate.WithRegisterFromVersion("v2.21.0"),
 			featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
 			featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
 		),
