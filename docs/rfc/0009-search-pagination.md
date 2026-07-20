@@ -1,4 +1,4 @@
-# RFC 0008: Search Result Pagination
+# RFC 0009: Search Result Pagination
 
 - **Status:** Draft
 - **Author:** om7057
