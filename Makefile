@@ -242,11 +242,11 @@ draft-release:
 .PHONY: prepare-release
 prepare-release:
 	@if [ -z "$(VERSION)" ]; then \
-		echo "Usage: make prepare-release VERSION=x.x.x"; \
-		echo "Example: make prepare-release VERSION=2.14.0"; \
+		echo "Usage: make prepare-release VERSION=x.x.x [ISSUE=nnnn]"; \
+		echo "Example: make prepare-release VERSION=2.14.0 ISSUE=1234"; \
 		exit 1; \
 	fi
-	bash ./scripts/release/prepare.sh $(VERSION)
+	bash ./scripts/release/prepare.sh $(VERSION) $(ISSUE)
 
 .PHONY: test-ci
 test-ci: build-examples cover

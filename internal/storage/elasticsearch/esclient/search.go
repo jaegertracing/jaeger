@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -73,8 +74,26 @@ func (r SearchRequest) body() ([]byte, error) {
 // matched documents (hits) and aggregation buckets; other aggregation shapes are
 // added by later migration slices as their callers need them.
 type SearchResponse struct {
+	// Error and Status report a failed _msearch item; see Err. A failed item
+	// carries an error object and a non-2xx status instead of hits, inside an
+	// overall HTTP 200 _msearch response.
+	Error  json.RawMessage `json:"error,omitempty"`
+	Status int             `json:"status,omitempty"`
+
 	Hits         HitsResult   `json:"hits"`
 	Aggregations Aggregations `json:"aggregations"`
+}
+
+// Err returns the response's server-reported failure, or nil if it succeeded.
+// Only a MultiSearch item can fail this way: _msearch reports a failed item as
+// {"error": ..., "status": N} with no hits inside an overall HTTP 200, so
+// without this check a failed item is indistinguishable from empty hits. (A
+// failed single Search surfaces as a transport-level error instead.)
+func (r *SearchResponse) Err() error {
+	if len(r.Error) == 0 || bytes.Equal(r.Error, []byte("null")) {
+		return nil
+	}
+	return fmt.Errorf("search failed with status %d: %s", r.Status, r.Error)
 }
 
 // HitsResult holds the documents a search matched and, when the request asked for
@@ -201,10 +220,9 @@ func (s SearchClient) MultiSearch(ctx context.Context, reqs []MultiSearchRequest
 		return nil, err
 	}
 	// A per-sub-response error (an item carrying an "error"/non-2xx "status" while
-	// the overall _msearch is HTTP 200) is not surfaced here: such an item decodes
-	// to empty hits, which the caller skips — matching the previous MultiSearch path
-	// this replaced. Turning those into a hard error is a behavior change left to a
-	// follow-up, not this wire-preserving migration.
+	// the overall _msearch is HTTP 200) is decoded into the item's Error/Status
+	// fields; callers must check Err() per item, because a failed item carries no
+	// hits and would otherwise be indistinguishable from an empty result.
 	var resp struct {
 		Responses []SearchResponse `json:"responses"`
 	}
