@@ -211,16 +211,15 @@ func Marshal(t testing.TB, requests []CapturedRequest) string {
 func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	t.Helper()
 	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: canonicalQuery(r.Query), ContentType: r.ContentType}
-	mediaType, _, err := mime.ParseMediaType(r.ContentType)
-	require.NoError(t, err)
 	body := r.Body
 
 	if r.IsNdJSON {
+		mediaType, _, err := mime.ParseMediaType(r.ContentType)
+		require.NoErrorf(t, err, "invalid content type for path: %s", r.Path)
 		require.Equal(t, "application/x-ndjson", mediaType, "invalid content type for path: %s", r.Path)
 		trailingNewlines := len(body) - len(bytes.TrimRight(body, "\n"))
 		require.Equal(t, 1, trailingNewlines, "body for %s must end with exactly one trailing newline", r.Path)
 	}
-
 	body = bytes.TrimRight(body, "\n")
 	if len(body) == 0 {
 		return s
