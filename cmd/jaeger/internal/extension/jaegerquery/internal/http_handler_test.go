@@ -44,6 +44,7 @@ import (
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/jaegertracing/jaeger/internal/testutils"
 	ui "github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
@@ -281,6 +282,30 @@ func TestLogOnServerError(t *testing.T) {
 	assert.Equal(t, "HTTP handler, Internal Server Error", log.Message)
 	require.Len(t, log.Context, 1)
 	assert.Equal(t, e, log.Context[0].Interface)
+}
+
+func TestHandleErrorWritesJSONContentType(t *testing.T) {
+	h := NewAPIHandler(nil)
+	w := httptest.NewRecorder()
+	w.Header().Set("Content-Length", "1")
+
+	h.handleError(w, errors.New("test error"), http.StatusBadRequest)
+
+	assert.Empty(t, w.Header().Get("Content-Length"))
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"data":null,"errors":[{"code":400,"msg":"test error"}],"total":0,"limit":0,"offset":0}`, w.Body.String())
+}
+
+func TestHandleErrorLogsWriteFailure(t *testing.T) {
+	logger, log := testutils.NewLogger()
+	h := NewAPIHandler(nil, HandlerOptions.Logger(logger))
+
+	h.handleError(&httpResponseErrWriter{}, errors.New("test error"), http.StatusBadRequest)
+
+	assert.Contains(t, log.String(), "Failed to write HTTP error response")
+	assert.Contains(t, log.String(), "failed to write")
 }
 
 // httpResponseErrWriter implements the http.ResponseWriter interface that returns an error on Write.

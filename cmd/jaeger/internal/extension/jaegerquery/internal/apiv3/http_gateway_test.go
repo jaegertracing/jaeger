@@ -83,7 +83,11 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.False(t, gw.tryHandleError(nil, nil, 0), "returns false if no error")
 
 	w := httptest.NewRecorder()
+	w.Header().Set("Content-Length", "1")
 	assert.True(t, gw.tryHandleError(w, spanstore.ErrTraceNotFound, 0), "returns true if error")
+	assert.Empty(t, w.Header().Get("Content-Length"))
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 	assert.Equal(t, http.StatusNotFound, w.Code, "sets status code to 404")
 
 	logger, log := testutils.NewLogger()
@@ -93,6 +97,28 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	assert.True(t, gw.tryHandleError(w, errors.New(e), http.StatusInternalServerError))
 	assert.Contains(t, log.String(), e, "logs error if status code is 500")
 	assert.Contains(t, string(w.Body.String()), e, "writes error message to body")
+}
+
+func TestHTTPGatewayLogsErrorResponseWriteFailure(t *testing.T) {
+	logger, log := testutils.NewLogger()
+	gw := &HTTPGateway{Logger: logger}
+
+	gw.writeError(&httpResponseErrWriter{}, http.StatusBadRequest, map[string]string{"error": "test error"})
+
+	assert.Contains(t, log.String(), "Failed to write HTTP error response")
+	assert.Contains(t, log.String(), "failed to write")
+}
+
+type httpResponseErrWriter struct{}
+
+func (*httpResponseErrWriter) Header() http.Header {
+	return make(http.Header)
+}
+
+func (*httpResponseErrWriter) WriteHeader(int) {}
+
+func (*httpResponseErrWriter) Write([]byte) (int, error) {
+	return 0, errors.New("failed to write")
 }
 
 func TestHTTPGatewayGetTrace(t *testing.T) {
@@ -219,6 +245,7 @@ func TestHTTPGatewayGetTraceEmptyResponse(t *testing.T) {
 	w := httptest.NewRecorder()
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
 	assert.Contains(t, w.Body.String(), "No traces found")
 }
 
