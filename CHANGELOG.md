@@ -30,7 +30,7 @@ v2.20.0 (2026-07-19)
 
 * Feat(es): promote es.* rotation and index-cleaner feature gates to beta ([@ysh-bot](https://github.com/ysh-bot) in [#9018](https://github.com/jaegertracing/jaeger/pull/9018))
 * Feat(es): remove support for elasticsearch v6 ([@yurishkuro](https://github.com/yurishkuro) in [#8948](https://github.com/jaegertracing/jaeger/pull/8948))
-* Feat(mcp): merge jaegermcp extention into jaegerquery extension ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8894](https://github.com/jaegertracing/jaeger/pull/8894))
+* Feat(mcp): merge jaegermcp extension into jaegerquery extension ([@Nabil-Salah](https://github.com/Nabil-Salah) in [#8894](https://github.com/jaegertracing/jaeger/pull/8894))
 * Feat(es): add configurable max_trace_duration and improve time-range design ([@yurishkuro](https://github.com/yurishkuro) in [#8840](https://github.com/jaegertracing/jaeger/pull/8840))
 
 #### ✨ New Features
