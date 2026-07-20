@@ -46,8 +46,8 @@ def print_token_error():
     eprint("  2. Has 'repo' permissions (required to access repository data)")
     eprint(f"\nTo generate a new token, visit: {generate_token_url}")
     eprint("Make sure to select the 'repo' scope when creating the token.")
-    eprint("\nProvide the token via the GITHUB_TOKEN environment variable, or by")
-    eprint("logging in with `gh auth login`, or place it in your --token-file")
+    eprint("\nProvide the token via the GITHUB_TOKEN or GH_TOKEN environment variable,")
+    eprint("or by logging in with `gh auth login`, or place it in your --token-file")
     eprint("and protect it: chmod 0600 <file>")
     sys.exit(1)
 
