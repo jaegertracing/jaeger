@@ -205,9 +205,6 @@ func encodeBulkItem(item BulkItem) ([]byte, error) {
 	if err := errors.Join(marshalErrors...); err != nil {
 		return nil, err
 	}
-	// Append without a precomputed capacity: summing the two lengths was flagged
-	// as a possible allocation-size overflow. Letting append size the slice avoids
-	// the arithmetic (documents vary in size — a span may carry a large payload).
 	var blob []byte
 	blob = append(blob, metaLine...)
 	blob = append(blob, '\n')
