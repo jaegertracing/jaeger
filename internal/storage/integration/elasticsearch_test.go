@@ -206,7 +206,15 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	// whole write path — remote included — is covered.
 	writer := esclient.NewSyncBulkWriter(s.client.client, 0, metrics.NullFactory, zap.NewNop())
 	searcher := esclient.SearchClient{Client: s.client.client}
-	t.Cleanup(func() { s.client.deleteAllIndices(t) })
+	// Scoped teardown: remove only the one-off index this test created. The suite's
+	// esCleanUp / factory.Purge are both DeleteAllIndices ("*"), not a prefix-scoped
+	// cleanup, so they are no narrower; this test writes a bespoke index with the raw
+	// client (outside the factory's managed span/service indices), so it owns and
+	// deletes exactly that index rather than wiping the whole cluster. Isolation from
+	// other tests comes from their own setup wipe, not this teardown.
+	t.Cleanup(func() {
+		require.NoError(t, s.client.indices.DeleteIndices(context.Background(), []esclient.Index{{Index: index}}))
+	})
 
 	// One blocking _bulk indexes both documents; a nil return means durable.
 	require.NoError(t, writer.Bulk(ctx, []esclient.BulkItem{
