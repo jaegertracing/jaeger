@@ -73,7 +73,9 @@ def resolve_token(token_file):
             ).stdout.strip()
             if token:
                 return token
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, OSError):
+            # gh not logged in (CalledProcessError) or the binary can't be spawned
+            # despite being on PATH (OSError); fall through to the token file.
             pass
 
     token_file = expanduser(token_file)
