@@ -60,6 +60,7 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 
 	sentBody := []byte(`{"index":{"_index":"jaeger-span","_id":"1"}}` + "\n" + `{"traceID":"abc"}` + "\n")
 	req, err := http.NewRequest(http.MethodPost, server.URL+"/_bulk", bytes.NewReader(sentBody))
+	req.Header.Set("Content-Type", "application/x-ndjson")
 	require.NoError(t, err)
 	resp, err := server.Client().Do(req)
 	require.NoError(t, err)
@@ -68,6 +69,7 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 	requests := rec.Requests()
 	require.Len(t, requests, 1)
 	got := requests[0]
+	assert.Equal(t, "application/x-ndjson", got.ContentType)
 	assert.Equal(t, "/_bulk", got.Path)
 	// The newline-delimited body is recorded verbatim.
 	assert.Equal(t, sentBody, got.Body)
@@ -75,6 +77,7 @@ func TestRecorderCapturesNDJSON(t *testing.T) {
 	// Marshal splits it into one canonicalized document per line.
 	snapshot := Marshal(t, requests)
 	assert.Contains(t, snapshot, `"ndjson"`)
+	assert.Contains(t, snapshot, `"contentType": "application/x-ndjson"`)
 }
 
 func TestRecorderCapturesEmptyBody(t *testing.T) {
@@ -401,6 +404,49 @@ func TestAssertNoOrphansReports(t *testing.T) {
 	assertNoOrphans(tb, dir, "get_services", map[string]bool{})
 	require.Len(t, tb.errors, 1)
 	assert.Contains(t, tb.errors[0], "orphan snapshot")
+}
+
+func TestToSnapshotRejectsInvalidNDJSONWireFormat(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		contentType string
+		body        []byte
+		wantErr     string
+	}{
+		{
+			name:        "missing trailing newline at the end",
+			path:        "/_bulk",
+			contentType: "application/x-ndjson",
+			body:        []byte(`{"index":{"_id":"1"}}`),
+			wantErr:     "must end with exactly one trailing newline",
+		},
+		{
+			name:        "adding needless trailing newline",
+			path:        "/_msearch",
+			contentType: "application/x-ndjson",
+			body:        []byte("{\"query\":{\"match_all\":{}}}\n\n"),
+			wantErr:     "must end with exactly one trailing newline",
+		},
+		{
+			name:        "invalid content type for specific path",
+			path:        "/_bulk",
+			contentType: "application/json",
+			body:        []byte(`{"index":{"_id":"1"}}` + "\n"),
+			wantErr:     "invalid content type for path",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tb := &recordingTB{TB: t}
+			assert.Panics(t, func() {
+				toSnapshot(tb, CapturedRequest{Path: tt.path, Body: tt.body, ContentType: tt.contentType})
+			})
+			require.Len(t, tb.errors, 1)
+			assert.Contains(t, tb.errors[0], tt.wantErr)
+		})
+	}
 }
 
 func withRegenerate(t *testing.T, value bool, fn func()) {

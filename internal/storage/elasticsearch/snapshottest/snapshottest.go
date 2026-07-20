@@ -62,10 +62,11 @@ var Regenerate = os.Getenv("REGENERATE_SNAPSHOTS") == "true"
 // method, path, parsed query, and the raw body bytes exactly as sent. Turning it
 // into a canonical, diffable snapshot happens in Marshal, not here.
 type CapturedRequest struct {
-	Method string
-	Path   string
-	Query  url.Values
-	Body   []byte
+	Method      string
+	Path        string
+	Query       url.Values
+	Body        []byte
+	ContentType string
 }
 
 // Recorder is an http.Handler that records every request it receives and
@@ -95,9 +96,10 @@ func (rec *Recorder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	captured := CapturedRequest{
-		Method: r.Method,
-		Path:   r.URL.Path,
-		Body:   body,
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		Body:        body,
+		ContentType: r.Header.Get("Content-Type"),
 	}
 	if q := r.URL.Query(); len(q) > 0 {
 		captured.Query = q
@@ -157,7 +159,8 @@ type snapshotRequest struct {
 	Body any `json:"body,omitempty"`
 	// NDJSON is the documents of a newline-delimited body, each a JSON object (an
 	// action/metadata or document/query line).
-	NDJSON []map[string]any `json:"ndjson,omitempty"`
+	NDJSON      []map[string]any `json:"ndjson,omitempty"`
+	ContentType string           `json:"contentType,omitempty"`
 }
 
 // Marshal renders captured requests as canonical, indented JSON. A single request
@@ -184,8 +187,16 @@ func Marshal(t testing.TB, requests []CapturedRequest) string {
 
 func toSnapshot(t testing.TB, r CapturedRequest) snapshotRequest {
 	t.Helper()
-	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: canonicalQuery(r.Query)}
-	body := bytes.TrimRight(r.Body, "\n")
+	s := snapshotRequest{Method: r.Method, Path: r.Path, Query: canonicalQuery(r.Query), ContentType: r.ContentType}
+	body := r.Body
+
+	if strings.HasSuffix(r.Path, "_bulk") || strings.HasSuffix(r.Path, "_msearch") {
+		require.Equal(t, "application/x-ndjson", r.ContentType, "invalid content type for path: %s", r.Path)
+		trailingNewlines := len(body) - len(bytes.TrimRight(body, "\n"))
+		require.Equal(t, 1, trailingNewlines, "body for %s must end with exactly one trailing newline", r.Path)
+	}
+
+	body = bytes.TrimRight(body, "\n")
 	if len(body) == 0 {
 		return s
 	}
@@ -222,7 +233,7 @@ func parseNDJSON(body []byte) ([]map[string]any, error) {
 	docs := make([]map[string]any, 0, len(lines))
 	for _, line := range lines {
 		if len(bytes.TrimSpace(line)) == 0 {
-			continue
+			require.Failf(nil, "snapshottest", "NDJSON body has empty line")
 		}
 		var doc map[string]any
 		if err := json.Unmarshal(line, &doc); err != nil {
