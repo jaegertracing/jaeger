@@ -408,9 +408,6 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	sr, ok := s.TraceReader.(tracestore.SummaryReader)
-	require.True(t, ok, "TraceReader must implement tracestore.SummaryReader; add FindTraceSummaries to Capabilities.SkipList to opt out")
-
 	trace := s.loadParseAndWriteExampleTrace(t)
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
@@ -447,7 +444,7 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 
 	var summaries []tracestore.TraceSummary
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		batches, err := jiter.CollectWithErrors(sr.FindTraceSummaries(context.Background(), query))
+		batches, err := jiter.CollectWithErrors(s.TraceReader.FindTraceSummaries(context.Background(), query))
 		if err != nil {
 			t.Log(err)
 			return false

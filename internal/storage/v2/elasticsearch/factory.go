@@ -30,8 +30,8 @@ const tagError = "error"
 // on the search-results page) natively in Elasticsearch/OpenSearch via a single
 // aggregation query, instead of loading full traces and aggregating them in the
 // query service. Enabled by default; when disabled, CreateTraceReader returns a
-// reader that does not implement tracestore.SummaryReader, so the query service
-// transparently falls back to the full-trace path.
+// bare reader whose FindTraceSummaries yields errors.ErrUnsupported, so the query
+// service transparently falls back to the full-trace path.
 var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.nativeTraceSummaries",
 	featuregate.StageBeta,

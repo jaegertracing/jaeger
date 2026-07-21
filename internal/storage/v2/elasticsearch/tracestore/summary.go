@@ -13,16 +13,13 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-var (
-	_ tracestore.Reader        = (*ReaderWithSummaries)(nil)
-	_ tracestore.SummaryReader = (*ReaderWithSummaries)(nil)
-)
+var _ tracestore.Reader = (*ReaderWithSummaries)(nil)
 
 // ReaderWithSummaries augments TraceReader with native trace-summary support.
 // The factory wraps a TraceReader in this type only when native summaries are
-// enabled; when the feature is gated off it returns the bare TraceReader, which
-// does not implement tracestore.SummaryReader, so the query service falls back to
-// loading full traces and aggregating client-side.
+// enabled; when the feature is gated off it returns the bare TraceReader, whose
+// FindTraceSummaries yields errors.ErrUnsupported, so the query service falls back
+// to loading full traces and aggregating client-side.
 type ReaderWithSummaries struct {
 	TraceReader
 }
@@ -34,15 +31,15 @@ func NewReaderWithSummaries(p core.SpanReaderParams) *ReaderWithSummaries {
 	return &ReaderWithSummaries{TraceReader: *NewTraceReader(p)}
 }
 
-// FindTraceSummaries implements tracestore.SummaryReader by delegating to the
-// core reader's native aggregation. When the backend cannot compute summaries
+// FindTraceSummaries overrides TraceReader's unsupported default by delegating to
+// the core reader's native aggregation. When the backend cannot compute summaries
 // (e.g. Painless scripting is disabled) the core yields errors.ErrUnsupported,
 // and the query service falls back to client-side aggregation.
 func (t *ReaderWithSummaries) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
-		// SummaryReader contract).
+		// FindTraceSummaries contract).
 		dbSummaries, err := t.spanReader.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)

@@ -5,12 +5,14 @@ package elasticsearch
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -130,12 +132,12 @@ func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
 	defer server.Close()
 
 	tests := []struct {
-		name           string
-		gateEnabled    bool
-		wantSummaryRdr bool
+		name            string
+		gateEnabled     bool
+		wantUnsupported bool
 	}{
-		{name: "enabled exposes SummaryReader", gateEnabled: true, wantSummaryRdr: true},
-		{name: "disabled falls back to query service", gateEnabled: false, wantSummaryRdr: false},
+		{name: "enabled attempts native summaries", gateEnabled: true, wantUnsupported: false},
+		{name: "disabled yields ErrUnsupported for client-side fallback", gateEnabled: false, wantUnsupported: true},
 	}
 
 	for _, tt := range tests {
@@ -154,10 +156,20 @@ func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
 			reader, err := factory.CreateTraceReader()
 			require.NoError(t, err)
 
-			// The metrics decorator forwards SummaryReader only when the gate enabled
-			// the native wrapper; the query service discovers it via this same assertion.
-			_, ok := reader.(tracestore.SummaryReader)
-			require.Equal(t, tt.wantSummaryRdr, ok)
+			// Every reader implements FindTraceSummaries. With the gate disabled the bare
+			// reader yields errors.ErrUnsupported so the query service falls back to
+			// client-side aggregation; with the gate enabled it attempts native aggregation
+			// instead (which errors here only because the mock server is not a real ES).
+			var firstErr error
+			for _, e := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}) {
+				firstErr = e
+				break
+			}
+			if tt.wantUnsupported {
+				require.ErrorIs(t, firstErr, errors.ErrUnsupported)
+			} else {
+				require.NotErrorIs(t, firstErr, errors.ErrUnsupported)
+			}
 		})
 	}
 }

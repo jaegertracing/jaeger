@@ -175,46 +175,18 @@ func emptyIter[T any](td []T, err error) iter.Seq2[[]T, error] {
 	}
 }
 
-func TestNewReaderDecorator_WithSummaryReader(t *testing.T) {
+func TestReadMetricsDecorator_FindTraceSummaries(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	type readerWithSummary struct {
-		mocks.Reader
-		mocks.SummaryReader
-	}
-	inner := &readerWithSummary{}
-	d := NewReaderDecorator(inner, mf)
-	_, ok := d.(tracestore.SummaryReader)
-	assert.True(t, ok, "expected returned decorator to implement tracestore.SummaryReader")
-}
-
-func TestNewReaderDecorator_WithoutSummaryReader(t *testing.T) {
-	mf := metricstest.NewFactory(0)
 	inner := &mocks.Reader{}
-	d := NewReaderDecorator(inner, mf)
-	_, ok := d.(tracestore.SummaryReader)
-	assert.False(t, ok, "expected returned decorator to not implement tracestore.SummaryReader")
-}
-
-type readerWithSummary struct {
-	mocks.Reader
-	mocks.SummaryReader
-}
-
-func TestReadMetricsDecoratorWithSummary_FindTraceSummaries(t *testing.T) {
-	mf := metricstest.NewFactory(0)
-
-	inner := &readerWithSummary{}
 	summaries := []tracestore.TraceSummary{{RootServiceName: "svc-a"}, {RootServiceName: "svc-b"}}
-	inner.SummaryReader.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
 		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
 
 	d := NewReaderDecorator(inner, mf)
-	sr, ok := d.(tracestore.SummaryReader)
-	require.True(t, ok)
 
 	var got []tracestore.TraceSummary
-	for batch, err := range sr.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+	for batch, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
 		require.NoError(t, err)
 		got = append(got, batch...)
 	}
@@ -225,18 +197,15 @@ func TestReadMetricsDecoratorWithSummary_FindTraceSummaries(t *testing.T) {
 	assert.Equal(t, int64(int64(len(summaries))), counters["responses|operation=find_trace_summaries"])
 }
 
-func TestReadMetricsDecoratorWithSummary_FindTraceSummaries_Error(t *testing.T) {
+func TestReadMetricsDecorator_FindTraceSummaries_Error(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	inner := &readerWithSummary{}
-	inner.SummaryReader.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+	inner := &mocks.Reader{}
+	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
 		Return(emptyIter[tracestore.TraceSummary](nil, assert.AnError))
 
 	d := NewReaderDecorator(inner, mf)
-	sr, ok := d.(tracestore.SummaryReader)
-	require.True(t, ok)
-
-	for range sr.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+	for range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
 		t.Log("FindTraceSummaries error iteration")
 	}
 
@@ -244,10 +213,10 @@ func TestReadMetricsDecoratorWithSummary_FindTraceSummaries_Error(t *testing.T) 
 	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=err"])
 }
 
-func TestReadMetricsDecoratorWithSummary_FindTraceSummaries_EarlyExit(t *testing.T) {
+func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
-	inner := &readerWithSummary{}
+	inner := &mocks.Reader{}
 	// Three summaries: break after the second so the third is never yielded,
 	// exercising the !yield early-exit path inside FindTraceSummaries.
 	summaries := []tracestore.TraceSummary{
@@ -255,15 +224,12 @@ func TestReadMetricsDecoratorWithSummary_FindTraceSummaries_EarlyExit(t *testing
 		{RootServiceName: "svc-b"},
 		{RootServiceName: "svc-c"},
 	}
-	inner.SummaryReader.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
+	inner.On("FindTraceSummaries", context.Background(), tracestore.TraceQueryParams{}).
 		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
 
 	d := NewReaderDecorator(inner, mf)
-	sr, ok := d.(tracestore.SummaryReader)
-	require.True(t, ok)
-
 	count := 0
-	for range sr.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+	for range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
 		if count != 0 {
 			break
 		}

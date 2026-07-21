@@ -18,6 +18,10 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
+	// The bare TraceReader does not compute summaries natively; native support is
+	// layered on by ReaderWithSummaries, which overrides FindTraceSummaries.
+	tracestore.UnsupportedTraceSummaries
+
 	spanReader core.Reader
 }
 
