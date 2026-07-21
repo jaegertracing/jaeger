@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/jptrace/sanitizer"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -201,7 +202,7 @@ func (h *Handler) Export(ctx context.Context, request ptraceotlp.ExportRequest) 
 	ptraceotlp.ExportResponse,
 	error,
 ) {
-	err := h.traceWriter.WriteTraces(ctx, request.Traces())
+	err := h.traceWriter.WriteTraces(ctx, sanitizer.Sanitize(request.Traces()))
 	if err != nil {
 		return ptraceotlp.NewExportResponse(), err
 	}
