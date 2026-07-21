@@ -25,6 +25,10 @@ import (
 
 const traceID = "00000000000000000000000000abc123"
 
+// testHTTPClient bounds every request so a stalled endpoint returns control to the
+// require.Eventually polling loops (and the direct assertions) instead of hanging.
+var testHTTPClient = &http.Client{Timeout: 5 * time.Second}
+
 // TestExampleConfigEndToEnd boots a collector in-process from the shipped
 // config-query-interceptor.yaml with no overrides — free ports are injected
 // through the same env vars the file already exposes (`${env:...:-default}`),
@@ -155,7 +159,7 @@ func pushSpan(t *testing.T, otlpHTTPPort int) {
 	endpoint := fmt.Sprintf("http://127.0.0.1:%d/v1/traces", otlpHTTPPort)
 	var code int
 	require.Eventually(t, func() bool {
-		resp, err := http.Post(endpoint, "application/json", strings.NewReader(payload))
+		resp, err := testHTTPClient.Post(endpoint, "application/json", strings.NewReader(payload))
 		if err != nil {
 			return false
 		}
@@ -175,7 +179,7 @@ func httpGet(t *testing.T, rawURL, role string) (int, string) {
 	if role != "" {
 		req.Header.Set("X-Jaeger-Caller-Role", role)
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := testHTTPClient.Do(req)
 	if err != nil {
 		return 0, err.Error()
 	}
