@@ -303,8 +303,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 	// See timeRangeDesign above for context on the padding and the alias filter.
 	idxList := s.spanRotation.ReadTargets(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
 	// The initial cursor is the padded window start with an empty spanID tie-breaker.
-	// The padding places it strictly before any span in range, so the first page
-	// covers the whole trace regardless of the tie-breaker.
+	// The range filter's lower bound is inclusive, so a span may sit exactly at this
+	// startTime; the empty spanID sorts before every real (non-empty) span ID, so
+	// search_after keeps such a span rather than skipping it, and the first page
+	// covers the whole trace.
 	initialCursor := traceReadCursor{startTime: model.TimeAsEpochMicroseconds(startTime.Add(-s.maxTraceDuration))}
 	searchAfter := make(map[dbmodel.TraceID]traceReadCursor)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
