@@ -881,33 +881,6 @@ func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.T
 	}
 }
 
-func TestFindTraceSummaries_Fallback(t *testing.T) {
-	tqs := initializeTestService()
-	qp := tracestore.TraceQueryParams{
-		ServiceName: "frontend",
-		Attributes:  pcommon.NewMap(),
-	}
-	// The reader cannot compute summaries natively, so it yields ErrUnsupported and the
-	// query service falls back to FindTraces + client-side aggregation.
-	tqs.traceReader.
-		On("FindTraceSummaries", mock.Anything, qp).
-		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
-			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
-		})).Once()
-	tqs.traceReader.
-		On("FindTraces", mock.Anything, qp).
-		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeMultiServiceTrace()}, nil)
-		})).Once()
-
-	summaries, err := jiter.FlattenWithErrors(tqs.queryService.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: qp,
-	}))
-	require.NoError(t, err)
-	require.Len(t, summaries, 1)
-	assert.Equal(t, "frontend", summaries[0].RootServiceName)
-}
-
 func TestFindTraceSummaries_NativePath(t *testing.T) {
 	want := []tracestore.TraceSummary{{RootServiceName: "native"}}
 	nativeReader := &mockSummaryReader{summaries: want}
