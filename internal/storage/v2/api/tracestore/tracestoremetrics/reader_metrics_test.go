@@ -217,8 +217,9 @@ func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 	mf := metricstest.NewFactory(0)
 
 	inner := &mocks.Reader{}
-	// Three summaries: break after the second so the third is never yielded,
-	// exercising the !yield early-exit path inside FindTraceSummaries.
+	// emptyIter yields each summary as its own batch. The consumer stops after the
+	// second batch, exercising the !yield early-exit path inside FindTraceSummaries:
+	// the third summary must never be delivered.
 	summaries := []tracestore.TraceSummary{
 		{RootServiceName: "svc-a"},
 		{RootServiceName: "svc-b"},
@@ -228,11 +229,23 @@ func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 		Return(emptyIter[tracestore.TraceSummary](summaries, nil))
 
 	d := NewReaderDecorator(inner, mf)
-	count := 0
-	for range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
-		if count != 0 {
+	var got []tracestore.TraceSummary
+	for batch, err := range d.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		require.NoError(t, err)
+		got = append(got, batch...)
+		if len(got) == 2 {
 			break
 		}
-		count++
 	}
+
+	// The consumer received exactly the first two summaries; the third was never yielded.
+	require.Len(t, got, 2)
+	assert.Equal(t, "svc-a", got[0].RootServiceName)
+	assert.Equal(t, "svc-b", got[1].RootServiceName)
+
+	// The deferred metrics emit still runs on early exit, counting the batches
+	// delivered before the break as a successful operation.
+	counters, _ := mf.Snapshot()
+	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
+	assert.Equal(t, int64(2), counters["responses|operation=find_trace_summaries"])
 }
