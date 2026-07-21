@@ -119,9 +119,17 @@ func buildFindTracesQuery(traceIDsQuery string) string {
 	return base + "\nWHERE s.trace_id IN (\n" + inner + "\n)\nORDER BY s.trace_id"
 }
 
+// buildFindTraceSummariesQuery embeds the limited trace-ID subquery into the
+// native summary aggregation. Only the already-selected traces are scanned, and
+// only summary columns (not span payloads) are returned.
+func buildFindTraceSummariesQuery(traceIDsQuery string) string {
+	return fmt.Sprintf(sql.SelectTraceSummaries, indentBlock(indentBlock(strings.TrimSpace(traceIDsQuery))))
+}
+
 func (r *Reader) buildFindTraceIDsQuery(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
+	requireDeterministicTruncation bool,
 ) (string, []any, error) {
 	limit := query.SearchDepth
 	if limit == 0 {
@@ -171,6 +179,12 @@ func (r *Reader) buildFindTraceIDsQuery(
 		return "", nil, err
 	}
 
+	// Order before LIMIT so the truncated set is deterministic. FindTraceSummaries
+	// embeds this subquery twice (ClickHouse re-executes CTEs), and divergent sets
+	// would drop orphan-count rows in the join.
+	if requireDeterministicTruncation {
+		inner.WriteString("\nORDER BY s.trace_id")
+	}
 	inner.WriteString("\nLIMIT ?")
 	args = append(args, limit)
 
