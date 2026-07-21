@@ -144,7 +144,7 @@ func (h *Handler) FindTraceSummaries(
 			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
 			// client falls back to loading full traces and aggregating client-side.
 			if errors.Is(err, errors.ErrUnsupported) {
-				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented")
+				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
 			}
 			return err
 		}
