@@ -88,7 +88,11 @@ type loadedConfig struct {
 func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCapabilities, aiHealthCheck func() bool, logger *zap.Logger) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
-		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
+		var err error
+		assetsFS, err = assetsFileSystem(qOpts.UIConfig.AssetsPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
