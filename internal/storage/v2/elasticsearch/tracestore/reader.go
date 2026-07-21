@@ -18,17 +18,19 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
-	// The bare TraceReader does not compute summaries natively; native support is
-	// layered on by ReaderWithSummaries, which overrides FindTraceSummaries.
-	tracestore.UnsupportedTraceSummaries
-
 	spanReader core.Reader
+	// nativeSummaries controls whether FindTraceSummaries computes summaries via a
+	// storage-side aggregation or yields errors.ErrUnsupported for client-side fallback.
+	nativeSummaries bool
 }
 
-// NewTraceReader returns an instance of TraceReader
-func NewTraceReader(p core.SpanReaderParams) *TraceReader {
+// NewTraceReader returns an instance of TraceReader. When nativeSummaries is true,
+// FindTraceSummaries computes summaries via a storage-side aggregation; otherwise it
+// yields errors.ErrUnsupported so the query service falls back to client-side aggregation.
+func NewTraceReader(p core.SpanReaderParams, nativeSummaries bool) *TraceReader {
 	return &TraceReader{
-		spanReader: core.NewSpanReader(p),
+		spanReader:      core.NewSpanReader(p),
+		nativeSummaries: nativeSummaries,
 	}
 }
 

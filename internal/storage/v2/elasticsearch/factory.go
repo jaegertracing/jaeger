@@ -29,9 +29,9 @@ const tagError = "error"
 // nativeTraceSummariesGate enables computing trace summaries (the metadata shown
 // on the search-results page) natively in Elasticsearch/OpenSearch via a single
 // aggregation query, instead of loading full traces and aggregating them in the
-// query service. Enabled by default; when disabled, CreateTraceReader returns a
-// bare reader whose FindTraceSummaries yields errors.ErrUnsupported, so the query
-// service transparently falls back to the full-trace path.
+// query service. Enabled by default; when disabled, the reader's FindTraceSummaries
+// yields errors.ErrUnsupported, so the query service transparently falls back to the
+// full-trace path.
 var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.es.nativeTraceSummaries",
 	featuregate.StageBeta,
@@ -73,12 +73,7 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
-	var reader tracestore.Reader
-	if nativeTraceSummariesGate.IsEnabled() {
-		reader = v2tracestore.NewReaderWithSummaries(params)
-	} else {
-		reader = v2tracestore.NewTraceReader(params)
-	}
+	reader := v2tracestore.NewTraceReader(params, nativeTraceSummariesGate.IsEnabled())
 	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil
 }
 

@@ -60,7 +60,7 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 			{ServiceName: "svcB", SpanCount: 1},
 		},
 	}}
-	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}, nativeSummaries: true}
 
 	got, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.NoError(t, err)
@@ -86,7 +86,7 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceSummaries_AggregatorError(t *testing.T) {
-	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.New("boom")}}}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.New("boom")}, nativeSummaries: true}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.Error(t, err)
 }
@@ -95,14 +95,22 @@ func TestTraceReader_FindTraceSummaries_PropagatesUnsupported(t *testing.T) {
 	// When the core reader reports the backend cannot compute summaries (e.g.
 	// scripting disabled), the wrapper propagates errors.ErrUnsupported so the
 	// query service falls back to client-side aggregation.
-	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}}}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}, nativeSummaries: true}
+	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+}
+
+func TestTraceReader_FindTraceSummaries_Disabled(t *testing.T) {
+	// With native summaries disabled the reader does not touch the backend; it yields
+	// errors.ErrUnsupported so the query service falls back to client-side aggregation.
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}}, nativeSummaries: false}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
 func TestTraceReader_FindTraceSummaries_BadTraceID(t *testing.T) {
 	dbSummaries := []dbmodel.TraceSummary{{TraceID: "not-hex"}}
-	reader := ReaderWithSummaries{TraceReader: TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}, nativeSummaries: true}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.Error(t, err)
 }

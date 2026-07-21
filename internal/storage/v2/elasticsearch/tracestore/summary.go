@@ -9,33 +9,18 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-var _ tracestore.Reader = (*ReaderWithSummaries)(nil)
-
-// ReaderWithSummaries augments TraceReader with native trace-summary support.
-// The factory wraps a TraceReader in this type only when native summaries are
-// enabled; when the feature is gated off it returns the bare TraceReader, whose
-// FindTraceSummaries yields errors.ErrUnsupported, so the query service falls back
-// to loading full traces and aggregating client-side.
-type ReaderWithSummaries struct {
-	TraceReader
-}
-
-// NewReaderWithSummaries builds a reader that exposes native trace summaries. It
-// owns the TraceReader construction so callers don't need to know summaries are
-// layered on top of it.
-func NewReaderWithSummaries(p core.SpanReaderParams) *ReaderWithSummaries {
-	return &ReaderWithSummaries{TraceReader: *NewTraceReader(p)}
-}
-
-// FindTraceSummaries overrides TraceReader's unsupported default by delegating to
-// the core reader's native aggregation. When the backend cannot compute summaries
-// (e.g. Painless scripting is disabled) the core yields errors.ErrUnsupported,
-// and the query service falls back to client-side aggregation.
-func (t *ReaderWithSummaries) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+// FindTraceSummaries computes trace summaries via a storage-side aggregation when the
+// reader was built with native summaries enabled. When native summaries are disabled,
+// or when the backend cannot compute them (e.g. Painless scripting is disabled, which
+// the core reader surfaces as errors.ErrUnsupported), it yields errors.ErrUnsupported
+// so the query service falls back to loading full traces and aggregating client-side.
+func (t *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	if !t.nativeSummaries {
+		return tracestore.UnsupportedTraceSummaries{}.FindTraceSummaries(ctx, query)
+	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
