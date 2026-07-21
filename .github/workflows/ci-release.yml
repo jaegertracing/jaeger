@@ -183,14 +183,20 @@ jobs:
         tag: ${{ env.BRANCH }}
         repo_token: ${{ secrets.GITHUB_TOKEN }}
 
-  generate-provenance:
-    needs: [publish-release]
-    if: github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true
-    permissions:
-      actions: read
-      id-token: write
-      contents: write
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@bdc1356e7db3e3eb2a2977f6b92cc410dc025a1b
-    with:
-      base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
-      upload-assets: true
+  # Temporarily disabled: the SLSA generator reference below points to a
+  # commit SHA that does not exist in slsa-framework/slsa-github-generator,
+  # which makes GitHub reject the whole workflow at startup (no jobs run).
+  # The generator must be referenced by a semver tag (e.g. @v2.1.0), not a
+  # SHA. Re-enable once the reference is pinned to a valid released version.
+  # Tracking: https://github.com/jaegertracing/jaeger/issues/9046
+  # generate-provenance:
+  #   needs: [publish-release]
+  #   if: github.repository == 'jaegertracing/jaeger' && inputs.dry_run != true
+  #   permissions:
+  #     actions: read
+  #     id-token: write
+  #     contents: write
+  #   uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@bdc1356e7db3e3eb2a2977f6b92cc410dc025a1b
+  #   with:
+  #     base64-subjects: "${{ needs.publish-release.outputs.hashes }}"
+  #     upload-assets: true

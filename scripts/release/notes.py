@@ -7,7 +7,11 @@
 # and output them in the release notes format:
 # * {title} ({author} in {pull_request})
 #
-# Requires personal GitHub token with default permissions:
+# It authenticates to the GitHub API with a token resolved, in order, from:
+#   1. the GITHUB_TOKEN or GH_TOKEN environment variable,
+#   2. the GitHub CLI (`gh auth token`), if gh is installed and logged in,
+#   3. the --token-file (default: ~/.github_token).
+# A personal token with default (repo read) permissions is sufficient:
 #   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
 #
 # Usage: ./release-notes.py --help
@@ -15,7 +19,10 @@
 
 import argparse
 import json
+import os
 import os.path
+import shutil
+import subprocess
 import urllib.parse
 from os.path import expanduser
 import sys
@@ -39,11 +46,49 @@ def print_token_error():
     eprint("  2. Has 'repo' permissions (required to access repository data)")
     eprint(f"\nTo generate a new token, visit: {generate_token_url}")
     eprint("Make sure to select the 'repo' scope when creating the token.")
-    eprint("\nPlace the token in your --token-file and protect it: chmod 0600 <file>")
+    eprint("\nProvide the token via the GITHUB_TOKEN or GH_TOKEN environment variable,")
+    eprint("or by logging in with `gh auth login`, or place it in your --token-file")
+    eprint("and protect it: chmod 0600 <file>")
     sys.exit(1)
 
 
-def github_api_request(url, token, verbose, additional_headers=None):
+def resolve_token(token_file):
+    """Resolve a GitHub token from the environment, gh CLI, or a token file.
+
+    Precedence: GITHUB_TOKEN / GH_TOKEN env var, then `gh auth token`, then the
+    token file. Returns the token string, or None if none of the sources yield one.
+    """
+    for var in ('GITHUB_TOKEN', 'GH_TOKEN'):
+        token = os.environ.get(var, '').strip()
+        if token:
+            return token
+
+    if shutil.which('gh'):
+        try:
+            # Pin to github.com: this script always talks to api.github.com, so a
+            # gh default host of a GitHub Enterprise instance must not be used here.
+            token = subprocess.run(
+                ['gh', 'auth', 'token', '--hostname', 'github.com'],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+            if token:
+                return token
+        except (subprocess.CalledProcessError, OSError):
+            # gh not logged in (CalledProcessError) or the binary can't be spawned
+            # despite being on PATH (OSError); fall through to the token file.
+            pass
+
+    token_file = expanduser(token_file)
+    if os.path.exists(token_file):
+        with open(token_file, 'r') as file:
+            token = file.read().replace('\n', '').strip()
+            if token:
+                return token
+
+    return None
+
+
+def github_api_request(url, token, additional_headers=None):
     """Make a GitHub API request with error handling.
 
     Args:
@@ -60,8 +105,6 @@ def github_api_request(url, token, verbose, additional_headers=None):
         if additional_headers:
             for header, value in additional_headers.items():
                 req.add_header(header, value)
-        if verbose:
-            eprint(req.full_url)
         return json.loads(urlopen(req).read())
     except HTTPError as e:
         if e.code == 401:
@@ -71,10 +114,10 @@ def github_api_request(url, token, verbose, additional_headers=None):
 
 def num_commits_since_prev_tag(token, base_url, branch, verbose):
     tags_url = f"{base_url}/tags"
-    tags = github_api_request(tags_url, token, verbose)
+    tags = github_api_request(tags_url, token)
     prev_release_tag = tags[0]['name']
     compare_url = f"{base_url}/compare/{branch}...{prev_release_tag}"
-    compare_results = github_api_request(compare_url, token, verbose)
+    compare_results = github_api_request(compare_url, token)
     num_commits = compare_results['behind_by']
 
     if verbose:
@@ -120,7 +163,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
     # Load commits
     data = urllib.parse.urlencode({'per_page': num_commits})
-    commits = github_api_request(commits_url + '?' + data, token, verbose)
+    commits = github_api_request(commits_url + '?' + data, token)
 
     if verbose:
         eprint('Retrieved', len(commits), 'commits')
@@ -147,7 +190,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
 
         msg_lines = commit['commit']['message'].split('\n')
         msg = msg_lines[0].capitalize()
-        pulls = github_api_request(f"{commits_url}/{sha}/pulls", token, verbose, {'accept': accept_header})
+        pulls = github_api_request(f"{commits_url}/{sha}/pulls", token, {'accept': accept_header})
         if len(pulls) > 1:
             print(f"WARNING: More than one pull request for commit {sha}")
 
@@ -166,7 +209,7 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
         msg = msg.replace(f'(#{pull_id})', '').strip()
 
         # Check if the pull request has changelog label
-        pull_labels = get_pull_request_labels(token, repo, pull_id, verbose)
+        pull_labels = get_pull_request_labels(token, repo, pull_id)
         changelog_labels = [label for label in pull_labels if label.startswith('changelog:')]
 
         # Handle multiple changelog labels
@@ -222,9 +265,9 @@ def main(token, repo, branch, num_commits, exclude_dependabot, verbose):
             eprint(f"(Skipped dependabot commits: {skipped_dependabot})")
 
 
-def get_pull_request_labels(token, repo, pull_number, verbose):
+def get_pull_request_labels(token, repo, pull_number):
     labels_url = f"https://api.github.com/repos/jaegertracing/{repo}/issues/{pull_number}/labels"
-    labels = github_api_request(labels_url, token, verbose)
+    labels = github_api_request(labels_url, token)
     return [label['name'] for label in labels]
 
 
@@ -232,7 +275,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='List changes based on git log for release notes.')
 
     parser.add_argument('--token-file', type=str, default="~/.github_token",
-                        help='The file containing your personal github token to access the github API. ' +
+                        help='Fallback file containing your personal github token, used only when ' +
+                             'GITHUB_TOKEN/GH_TOKEN is unset and `gh auth token` yields nothing. ' +
                              '(default: ~/.github_token)')
     parser.add_argument('--repo', type=str, default='jaeger',
                         help='The repository name to fetch commit logs from. (default: jaeger)')
@@ -247,17 +291,11 @@ if __name__ == "__main__":
                         help='Whether output debug logs. (default: false)')
 
     args = parser.parse_args()
-    token_file = expanduser(args.token_file)
 
-    if not os.path.exists(token_file):
-        eprint(f"No such token-file: {token_file}.")
-        print_token_error()
-
-    with open(token_file, 'r') as file:
-        token = file.read().replace('\n', '')
-
+    token = resolve_token(args.token_file)
     if not token:
-        eprint(f"{token_file} is missing your personal github token.")
+        eprint("Could not find a GitHub token in GITHUB_TOKEN/GH_TOKEN, "
+               f"`gh auth token`, or {args.token_file}.")
         print_token_error()
 
     main(token, args.repo, args.branch, args.num_commits, args.exclude_dependabot, args.verbose)
