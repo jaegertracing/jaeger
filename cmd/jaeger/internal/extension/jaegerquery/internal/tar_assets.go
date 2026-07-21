@@ -210,6 +210,13 @@ func (f *tarGzipFile) Read(data []byte) (int, error) {
 	return f.reader.Read(data)
 }
 
+func (f *tarGzipFile) Seek(offset int64, whence int) (int64, error) {
+	if f.entry.IsDir() {
+		return 0, &fs.PathError{Op: "seek", Path: f.entry.name, Err: syscall.EISDIR}
+	}
+	return f.reader.Seek(offset, whence)
+}
+
 func (f *tarGzipFile) Stat() (fs.FileInfo, error) { return f.entry, nil }
 
 func (f *tarGzipFile) ReadDir(count int) ([]fs.DirEntry, error) {

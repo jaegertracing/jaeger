@@ -60,6 +60,13 @@ func TestStaticAssetsFromTarGzip(t *testing.T) {
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		assert.Contains(t, recorder.Body.String(), testCase.expected)
 	}
+
+	rangeRequest := httptest.NewRequest(http.MethodGet, "/static/asset.txt", http.NoBody)
+	rangeRequest.Header.Set("Range", "bytes=0-6")
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, rangeRequest)
+	assert.Equal(t, http.StatusPartialContent, recorder.Code)
+	assert.Equal(t, "archive", recorder.Body.String())
 }
 
 func TestReadTarGzipFS(t *testing.T) {
@@ -96,6 +103,12 @@ func TestReadTarGzipFS(t *testing.T) {
 
 	file, err := archiveFS.Open("index.html")
 	require.NoError(t, err)
+	position, err := file.(io.Seeker).Seek(2, io.SeekStart)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), position)
+	contents, err = io.ReadAll(file)
+	require.NoError(t, err)
+	assert.Equal(t, "dex", string(contents))
 	_, err = file.(fs.ReadDirFile).ReadDir(1)
 	require.Error(t, err)
 	assert.NoError(t, file.Close())
