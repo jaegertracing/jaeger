@@ -92,12 +92,12 @@ func readTarGzipFS(reader io.Reader) (fs.FS, error) {
 			return nil, fmt.Errorf("cannot read tar stream: %w", err)
 		}
 
-		name := strings.TrimSuffix(path.Clean(header.Name), "/")
-		if !fs.ValidPath(name) {
-			return nil, fmt.Errorf("invalid archive path %q", header.Name)
-		}
-		if name == "." && header.Typeflag == tar.TypeDir {
+		name := strings.TrimSuffix(strings.TrimPrefix(header.Name, "./"), "/")
+		if name == "" && header.Typeflag == tar.TypeDir {
 			continue
+		}
+		if !fs.ValidPath(name) || path.Clean(name) != name {
+			return nil, fmt.Errorf("invalid archive path %q", header.Name)
 		}
 		if _, ok := entries[name]; ok {
 			return nil, fmt.Errorf("duplicate archive path %q", header.Name)

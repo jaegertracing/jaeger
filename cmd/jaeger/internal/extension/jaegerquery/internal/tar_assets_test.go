@@ -135,6 +135,13 @@ func TestReadTarGzipFSErrors(t *testing.T) {
 			expected: "invalid archive path",
 		},
 		{
+			name: "path traversal within archive root",
+			archive: tarGzipBytes(t, []tarTestEntry{
+				{name: "static/../index.html", contents: "index", typeflag: tar.TypeReg},
+			}),
+			expected: "invalid archive path",
+		},
+		{
 			name: "duplicate path",
 			archive: tarGzipBytes(t, []tarTestEntry{
 				{name: "index.html", contents: "one", typeflag: tar.TypeReg},
