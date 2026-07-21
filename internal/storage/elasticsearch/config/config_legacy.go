@@ -7,20 +7,34 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
+
+	jaegerfeaturegate "github.com/jaegertracing/jaeger/internal/featuregate"
 )
 
 // RejectLegacyRotationFlags is a feature gate that, when enabled, causes validation
 // to reject deprecated rotation-related flags (use_aliases, use_ilm,
 // span_read_alias, span_write_alias, service_read_alias, service_write_alias).
-// Once promoted to Stable, users must migrate to the new rotation config.
-var RejectLegacyRotationFlags = featuregate.GlobalRegistry().MustRegister(
-	"es.config.rejectLegacyRotationFlags",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.9.0"),
-	featuregate.WithRegisterDescription(
-		"When enabled, the use of deprecated ES rotation flags "+
-			"(use_aliases, use_ilm, span_read_alias, etc.) "+
-			"becomes a validation error instead of a deprecation warning.",
+// It is enabled by default (Beta): setting any of these flags is a validation error
+// unless the gate is explicitly disabled. Once promoted to Stable, the gate can no
+// longer be disabled and users must migrate to the new rotation config.
+var RejectLegacyRotationFlags = jaegerfeaturegate.NewRenamedGate(
+	featuregate.GlobalRegistry().MustRegister(
+		"jaeger.es.config.rejectLegacyRotationFlags",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.21.0"),
+		featuregate.WithRegisterDescription(
+			"When enabled, the use of deprecated ES rotation flags "+
+				"(use_aliases, use_ilm, span_read_alias, etc.) "+
+				"becomes a validation error instead of a deprecation warning.",
+		),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	),
+	featuregate.GlobalRegistry().MustRegister(
+		"es.config.rejectLegacyRotationFlags",
+		featuregate.StageBeta,
+		featuregate.WithRegisterFromVersion("v2.9.0"),
+		featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.config.rejectLegacyRotationFlags."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
 	),
 )
 

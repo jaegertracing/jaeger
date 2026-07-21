@@ -48,7 +48,7 @@ case "$DEPLOY_SCOPE" in
 esac
 
 if [[ "$MODE" == "upgrade" ]]; then
-  HELM_JAEGER_CMD="upgrade --install --wait"
+  HELM_JAEGER_CMD="upgrade --install --wait --atomic"
 else
   # For clean mode, use install after cleanup
   HELM_JAEGER_CMD="install --wait"

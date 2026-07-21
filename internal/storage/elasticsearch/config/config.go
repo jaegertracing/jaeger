@@ -18,6 +18,8 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
+
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 )
 
 const (
@@ -241,8 +243,7 @@ type TagsAsFields struct {
 }
 
 // Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
-// of finding all the nodes of your cluster. Read more about sniffing at
-// https://github.com/olivere/elastic/wiki/Sniffing.
+// of discovering all the nodes of a cluster by querying one of its members.
 type Sniffing struct {
 	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
 	Enabled bool `mapstructure:"enabled"`
@@ -470,6 +471,27 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
+	// A non-zero Version is an explicit backend override; reject unsupported
+	// values so they don't silently become an Unknown version. 0 means auto-detect.
+	if c.Version != 0 && !es.IsSupportedVersion(c.Version) {
+		return fmt.Errorf("unsupported version %d: set 0 to auto-detect, or use 7/8/9 (Elasticsearch) or 101/102/103 (OpenSearch 1/2/3)", c.Version)
+	}
+
+	// Ensure at most one auth method is configured (they all set the Authorization header).
+	var authCount int
+	if c.Authentication.BasicAuthentication.HasValue() {
+		authCount++
+	}
+	if c.Authentication.BearerTokenAuth.HasValue() {
+		authCount++
+	}
+	if c.Authentication.APIKeyAuth.HasValue() {
+		authCount++
+	}
+	if authCount > 1 {
+		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
+	}
+
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
@@ -480,7 +502,7 @@ func (c *Configuration) Validate() error {
 			"deprecated ES rotation flags (%s) "+
 				"are no longer supported; migrate to 'indices.<type>.rotation' config "+
 				"(see https://github.com/jaegertracing/jaeger/pull/8823); "+
-				"to temporarily disable this check, use --feature-gates=-es.config.rejectLegacyRotationFlags",
+				"to temporarily disable this check, use --feature-gates=-jaeger.es.config.rejectLegacyRotationFlags",
 			legacyRotationFlagsList,
 		)
 	}

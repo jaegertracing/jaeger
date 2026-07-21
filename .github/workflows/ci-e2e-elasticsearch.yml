@@ -1,7 +1,7 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 
-# Integration tests for Elasticsearch storage backend, covering major versions 6.x through 9.x.
+# Integration tests for Elasticsearch storage backend, covering major versions 7.x through 9.x.
 # direct: classic tests at the storage API layer, directly instantiating the storage implementation.
 # e2e: multi-process E2E tests via the trace ingestion and query APIs.
 
@@ -21,9 +21,6 @@ jobs:
       fail-fast: false
       matrix:
         version:
-        - major: 6.x
-          distribution: elasticsearch
-          storage_test: direct
         - major: 7.x
           distribution: elasticsearch
           storage_test: direct

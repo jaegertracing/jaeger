@@ -5,11 +5,9 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -21,18 +19,28 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/es-index-cleaner/app"
 	"github.com/jaegertracing/jaeger/internal/config"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	jaegerfeaturegate "github.com/jaegertracing/jaeger/internal/featuregate"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
-var relativeIndexCleaner *featuregate.Gate
+var relativeIndexCleaner *jaegerfeaturegate.RenamedGate
 
 func init() {
-	relativeIndexCleaner = featuregate.GlobalRegistry().MustRegister(
-		"es.index.relativeTimeIndexDeletion",
-		featuregate.StageAlpha,
-		featuregate.WithRegisterFromVersion("v2.5.0"),
-		featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
-		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
+	relativeIndexCleaner = jaegerfeaturegate.NewRenamedGate(
+		featuregate.GlobalRegistry().MustRegister(
+			"jaeger.es.index.relativeTimeIndexDeletion",
+			featuregate.StageBeta,
+			featuregate.WithRegisterFromVersion("v2.21.0"),
+			featuregate.WithRegisterDescription("Controls whether the indices will be deleted relative to the current time or tomorrow midnight."),
+			featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/6236"),
+		),
+		featuregate.GlobalRegistry().MustRegister(
+			"es.index.relativeTimeIndexDeletion",
+			featuregate.StageBeta,
+			featuregate.WithRegisterFromVersion("v2.5.0"),
+			featuregate.WithRegisterDescription("Deprecated alias for jaeger.es.index.relativeTimeIndexDeletion."),
+			featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+		),
 	)
 }
 
@@ -59,24 +67,12 @@ func main() {
 			}
 
 			ctx := context.Background()
-			tlscfg, err := cfg.TLSConfig.LoadTLSConfig(ctx)
+			esClient, err := app.NewESClient(ctx, args[1], cfg, logger)
 			if err != nil {
-				return fmt.Errorf("error loading tls config : %w", err)
+				return fmt.Errorf("error creating Elasticsearch client: %w", err)
 			}
-
-			c := &http.Client{
-				Timeout: time.Duration(cfg.MasterNodeTimeoutSeconds) * time.Second,
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					TLSClientConfig: tlscfg,
-				},
-			}
-			i := client.IndicesClient{
-				Client: client.Client{
-					Endpoint:  args[1],
-					Client:    c,
-					BasicAuth: basicAuth(cfg.Username, cfg.Password),
-				},
+			i := esclient.IndicesClient{
+				Client:                 esClient,
 				MasterTimeoutSeconds:   cfg.MasterNodeTimeoutSeconds,
 				IgnoreUnavailableIndex: true,
 			}
@@ -118,11 +114,4 @@ func main() {
 	if err := command.Execute(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func basicAuth(username, password string) string {
-	if username == "" || password == "" {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 }
