@@ -5,6 +5,8 @@ package tracestore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"time"
 
@@ -44,15 +46,15 @@ type TraceSummary struct {
 	Services []ServiceSummary
 }
 
-// SummaryReader is an optional extension to tracestore.Reader that allows
-// storage backends to compute trace summaries natively. Backends that do not
-// implement this interface fall back to FindTraces + client-side aggregation.
-//
-// The iterator streams result batches. Implementations that do not support the
-// operation should yield errors.ErrUnsupported (wrapped with %w) as the first
-// error; the caller will fall back to FindTraces + client-side aggregation.
-// Each yielded batch may contain one or more summaries; implementations may
-// yield incrementally rather than buffering all results first.
-type SummaryReader interface {
-	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+// UnsupportedTraceSummaries provides a Reader.FindTraceSummaries implementation
+// for backends that cannot compute trace summaries natively. It yields
+// errors.ErrUnsupported as its first (and only) error, which signals the caller
+// to fall back to FindTraces + client-side aggregation. Embed it in a Reader to
+// opt into that behavior without writing the method by hand.
+type UnsupportedTraceSummaries struct{}
+
+func (UnsupportedTraceSummaries) FindTraceSummaries(context.Context, TraceQueryParams) iter.Seq2[[]TraceSummary, error] {
+	return func(yield func([]TraceSummary, error) bool) {
+		yield(nil, fmt.Errorf("this storage backend does not compute trace summaries natively: %w", errors.ErrUnsupported))
+	}
 }

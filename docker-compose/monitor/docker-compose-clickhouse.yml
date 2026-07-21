@@ -27,7 +27,7 @@ services:
     volumes:
       - "./jaeger-ui.json:/etc/jaeger/jaeger-ui.json"
       - "../../cmd/jaeger/config-spm-clickhouse.yaml:/etc/jaeger/config.yml"
-    command: ["--config", "/etc/jaeger/config.yml", "--feature-gates=jaeger.clickhouse"]
+    command: ["--config", "/etc/jaeger/config.yml"]
     ports:
       - "16686:16686"
       - "8888:8888"
