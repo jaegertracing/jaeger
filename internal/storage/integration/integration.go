@@ -445,30 +445,27 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 		SearchDepth:  10,
 	}
 
-	var summaries []tracestore.TraceSummary
+	// Wait until the summary for our trace is available with the full span count.
+	// The predicate retries until all spans are indexed; partial results appear
+	// when the storage backend uses multiple shards that refresh independently.
+	var summary tracestore.TraceSummary
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		batches, err := jiter.CollectWithErrors(sr.FindTraceSummaries(context.Background(), query))
 		if err != nil {
 			t.Log(err)
 			return false
 		}
-		summaries = nil
 		for _, b := range batches {
-			summaries = append(summaries, b...)
+			for j := range b {
+				if b[j].TraceID == expectedTraceID && b[j].SpanCount == trace.SpanCount() {
+					summary = b[j]
+					return true
+				}
+			}
 		}
-		return len(summaries) > 0
+		return false
 	})
-	require.True(t, found, "timed out waiting for FindTraceSummaries to return results")
-
-	// Find the summary for our trace.
-	var summary *tracestore.TraceSummary
-	for i := range summaries {
-		if summaries[i].TraceID == expectedTraceID {
-			summary = &summaries[i]
-			break
-		}
-	}
-	require.NotNil(t, summary, "expected trace ID %s not found in summaries", expectedTraceID)
+	require.True(t, found, "timed out waiting for FindTraceSummaries to return the expected trace with %d spans", trace.SpanCount())
 	assert.Equal(t, trace.SpanCount(), summary.SpanCount)
 	assert.False(t, summary.MinStartTime.IsZero(), "MinStartTime should not be zero")
 	assert.False(t, summary.MaxEndTime.IsZero(), "MaxEndTime should not be zero")
