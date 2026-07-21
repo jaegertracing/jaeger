@@ -18,17 +18,36 @@ type reader struct {
 	interceptors []pub.Interceptor
 }
 
+// summaryReader is the decorator variant returned when the wrapped reader also
+// implements tracestore.SummaryReader. It preserves that optional capability so
+// jaeger-query keeps using the native FindTraceSummaries fast path instead of
+// falling back to loading full traces.
+type summaryReader struct {
+	*reader
+	nextSummary tracestore.SummaryReader
+}
+
 // NewReaderDecorator decorates next so the given interceptors are applied around
-// every trace query: OnQuery on the query parameters of FindTraces and
-// FindTraceIDs, and OnResult on every batch of traces yielded by FindTraces and
-// GetTraces. Interceptors run in the order given. Callers wrap only when there
-// is at least one interceptor, so this always returns a decorator.
+// every trace query: OnQuery on the query parameters of FindTraces,
+// FindTraceIDs, and FindTraceSummaries, and OnResult on every batch of traces
+// yielded by FindTraces and GetTraces. Interceptors run in the order given.
+// Callers wrap only when there is at least one interceptor, so this always
+// returns a decorator.
 //
 // The interceptors see the public queryinterceptor.Query; this decorator
 // converts to and from the internal tracestore.TraceQueryParams at the boundary,
 // so the internal query type never crosses the contract.
+//
+// The decorator mirrors the wrapped reader's optional interfaces: it exposes
+// tracestore.SummaryReader only when next does. A wrapper that unconditionally
+// implemented FindTraceSummaries would advertise a capability a non-summary
+// backend lacks and force jaeger-query off its native summary path.
 func NewReaderDecorator(next tracestore.Reader, interceptors ...pub.Interceptor) tracestore.Reader {
-	return &reader{next: next, interceptors: interceptors}
+	r := &reader{next: next, interceptors: interceptors}
+	if sr, ok := next.(tracestore.SummaryReader); ok {
+		return &summaryReader{reader: r, nextSummary: sr}
+	}
+	return r
 }
 
 func toPublicQuery(q tracestore.TraceQueryParams) pub.Query {
@@ -152,4 +171,25 @@ func (r *reader) GetServices(ctx context.Context) ([]string, error) {
 
 func (r *reader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
 	return r.next.GetOperations(ctx, query)
+}
+
+// FindTraceSummaries forwards to the wrapped reader's native summary path,
+// applying OnQuery gating to the search. OnResult is not applied here: summaries
+// carry only per-trace metadata (not spans), and the Interceptor contract has no
+// summary hook — so an interceptor gates/constrains the summary search via
+// OnQuery, but cannot drop or redact individual summaries. A dedicated summary
+// hook is left as a contract extension.
+func (r *summaryReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		gated, err := r.onQuery(ctx, query)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		for summaries, err := range r.nextSummary.FindTraceSummaries(ctx, gated) {
+			if !yield(summaries, err) {
+				return
+			}
+		}
+	}
 }

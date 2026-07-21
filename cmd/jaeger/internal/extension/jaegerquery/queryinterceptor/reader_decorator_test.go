@@ -328,3 +328,89 @@ func TestReader_ChainAppliesInOrder(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"first", "second"}, order)
 }
+
+// fakeSummaryReader is a tracestore.Reader that also implements the optional
+// tracestore.SummaryReader, so it exercises the native summary path.
+type fakeSummaryReader struct {
+	*fakeReader
+	summaryCalled   bool
+	gotSummaryQuery tracestore.TraceQueryParams
+	summaries       []tracestore.TraceSummary
+	summaryErr      error
+}
+
+func (f *fakeSummaryReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	f.summaryCalled = true
+	f.gotSummaryQuery = q
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		if f.summaryErr != nil {
+			yield(nil, f.summaryErr)
+			return
+		}
+		yield(f.summaries, nil)
+	}
+}
+
+// The decorator must mirror the wrapped reader's optional SummaryReader
+// capability: expose it only when next implements it. Otherwise jaeger-query
+// either loses the native summary fast path (false negative) or is told a
+// non-summary backend supports summaries (false positive).
+func TestReaderDecorator_PreservesSummaryCapability(t *testing.T) {
+	plain := NewReaderDecorator(&fakeReader{}, fakeInterceptor{})
+	_, ok := plain.(tracestore.SummaryReader)
+	assert.False(t, ok, "wrapping a non-summary reader must not advertise SummaryReader")
+
+	decorated := NewReaderDecorator(&fakeSummaryReader{fakeReader: &fakeReader{}}, fakeInterceptor{})
+	_, ok = decorated.(tracestore.SummaryReader)
+	assert.True(t, ok, "wrapping a summary reader must preserve SummaryReader")
+}
+
+func TestSummaryReader_FindTraceSummaries_AppliesQueryHook(t *testing.T) {
+	next := &fakeSummaryReader{
+		fakeReader: &fakeReader{},
+		summaries:  []tracestore.TraceSummary{{RootServiceName: "svc"}},
+	}
+	r := NewReaderDecorator(next, fakeInterceptor{
+		onQuery: func(q pub.Query) (pub.Query, error) {
+			q.ServiceName = "gated"
+			return q, nil
+		},
+	}).(tracestore.SummaryReader)
+
+	var got [][]tracestore.TraceSummary
+	for s, err := range r.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{ServiceName: "original"}) {
+		require.NoError(t, err)
+		got = append(got, s)
+	}
+	assert.Equal(t, "gated", next.gotSummaryQuery.ServiceName, "pre-query hook must reach storage")
+	require.Len(t, got, 1)
+	require.Len(t, got[0], 1)
+	assert.Equal(t, "svc", got[0][0].RootServiceName)
+}
+
+func TestSummaryReader_FindTraceSummaries_QueryRejectionSkipsStorage(t *testing.T) {
+	sentinel := errors.New("denied")
+	next := &fakeSummaryReader{fakeReader: &fakeReader{}, summaries: []tracestore.TraceSummary{{}}}
+	r := NewReaderDecorator(next, fakeInterceptor{
+		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
+	}).(tracestore.SummaryReader)
+
+	var err error
+	for _, e := range r.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		err = e
+	}
+	require.ErrorIs(t, err, sentinel)
+	assert.False(t, next.summaryCalled, "storage must not be queried when the query is rejected")
+}
+
+func TestSummaryReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
+	sentinel := errors.New("storage down")
+	next := &fakeSummaryReader{fakeReader: &fakeReader{}, summaryErr: sentinel}
+	r := NewReaderDecorator(next, fakeInterceptor{}).(tracestore.SummaryReader)
+
+	var err error
+	for _, e := range r.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+		err = e
+	}
+	require.ErrorIs(t, err, sentinel)
+}
