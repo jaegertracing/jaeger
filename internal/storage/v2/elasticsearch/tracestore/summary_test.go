@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -60,7 +61,7 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 			{ServiceName: "svcB", SpanCount: 1},
 		},
 	}}
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}, nativeSummaries: true}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}
 
 	got, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.NoError(t, err)
@@ -86,7 +87,7 @@ func TestTraceReader_FindTraceSummaries(t *testing.T) {
 }
 
 func TestTraceReader_FindTraceSummaries_AggregatorError(t *testing.T) {
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.New("boom")}, nativeSummaries: true}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.New("boom")}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.Error(t, err)
 }
@@ -95,22 +96,29 @@ func TestTraceReader_FindTraceSummaries_PropagatesUnsupported(t *testing.T) {
 	// When the core reader reports the backend cannot compute summaries (e.g.
 	// scripting disabled), the wrapper propagates errors.ErrUnsupported so the
 	// query service falls back to client-side aggregation.
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}, nativeSummaries: true}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, err: errors.ErrUnsupported}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
 func TestTraceReader_FindTraceSummaries_Disabled(t *testing.T) {
-	// With native summaries disabled the reader does not touch the backend; it yields
-	// errors.ErrUnsupported so the query service falls back to client-side aggregation.
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}}, nativeSummaries: false}
+	// With the native-summaries gate disabled the reader does not touch the backend;
+	// it yields errors.ErrUnsupported so the query service falls back to client-side
+	// aggregation.
+	original := nativeTraceSummariesGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), false))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), original))
+	})
+
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
 func TestTraceReader_FindTraceSummaries_BadTraceID(t *testing.T) {
 	dbSummaries := []dbmodel.TraceSummary{{TraceID: "not-hex"}}
-	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}, nativeSummaries: true}
+	reader := TraceReader{spanReader: stubSummaryReader{Reader: &mocks.Reader{}, summaries: dbSummaries}}
 	_, err := collectSummaries(reader.FindTraceSummaries(context.Background(), emptyQuery()))
 	require.Error(t, err)
 }

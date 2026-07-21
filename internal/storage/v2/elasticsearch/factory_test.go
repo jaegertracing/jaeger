@@ -5,18 +5,14 @@ package elasticsearch
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
@@ -125,53 +121,22 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	}
 }
 
-func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
+func TestCreateTraceReader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
 
-	tests := []struct {
-		name            string
-		gateEnabled     bool
-		wantUnsupported bool
-	}{
-		{name: "enabled attempts native summaries", gateEnabled: true, wantUnsupported: false},
-		{name: "disabled yields ErrUnsupported for client-side fallback", gateEnabled: false, wantUnsupported: true},
-	}
+	cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := nativeTraceSummariesGate.IsEnabled()
-			require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), tt.gateEnabled))
-			defer func() {
-				require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), original))
-			}()
-
-			cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
-			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
-			require.NoError(t, err)
-			defer factory.Close()
-
-			reader, err := factory.CreateTraceReader()
-			require.NoError(t, err)
-
-			// Every reader implements FindTraceSummaries. With the gate disabled the bare
-			// reader yields errors.ErrUnsupported so the query service falls back to
-			// client-side aggregation; with the gate enabled it attempts native aggregation
-			// instead (which errors here only because the mock server is not a real ES).
-			var firstErr error
-			for _, e := range reader.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}) {
-				firstErr = e
-				break
-			}
-			if tt.wantUnsupported {
-				require.ErrorIs(t, firstErr, errors.ErrUnsupported)
-			} else {
-				require.NotErrorIs(t, firstErr, errors.ErrUnsupported)
-			}
-		})
-	}
+	// Gate-driven behavior of FindTraceSummaries is covered by the tracestore package
+	// unit tests; here we only assert the factory wires up a usable reader.
+	reader, err := factory.CreateTraceReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
 }
 
 func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {

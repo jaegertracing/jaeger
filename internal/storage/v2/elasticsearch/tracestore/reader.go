@@ -19,28 +19,22 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 // TraceReader is a wrapper around core.Reader which returns the output parallel to OTLP Models
 type TraceReader struct {
 	spanReader core.Reader
-	// nativeSummaries controls whether FindTraceSummaries computes summaries via a
-	// storage-side aggregation or yields errors.ErrUnsupported for client-side fallback.
-	nativeSummaries bool
 }
 
-// NewTraceReader returns an instance of TraceReader. When nativeSummaries is true,
-// FindTraceSummaries computes summaries via a storage-side aggregation; otherwise it
-// yields errors.ErrUnsupported so the query service falls back to client-side aggregation.
-func NewTraceReader(p core.SpanReaderParams, nativeSummaries bool) *TraceReader {
+// NewTraceReader returns an instance of TraceReader.
+func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	return &TraceReader{
-		spanReader:      core.NewSpanReader(p),
-		nativeSummaries: nativeSummaries,
+		spanReader: core.NewSpanReader(p),
 	}
 }
 
-func (t *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
 		for _, id := range params {
 			dbTraceIds = append(dbTraceIds, dbmodel.TraceID(id.TraceID.String()))
 		}
-		dbTraces, err := t.spanReader.GetTraces(ctx, dbTraceIds)
+		dbTraces, err := r.spanReader.GetTraces(ctx, dbTraceIds)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -58,12 +52,12 @@ func (t *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTra
 	}
 }
 
-func (t *TraceReader) GetServices(ctx context.Context) ([]string, error) {
-	return t.spanReader.GetServices(ctx)
+func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
+	return r.spanReader.GetServices(ctx)
 }
 
-func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
-	dbOperations, err := t.spanReader.GetOperations(ctx, dbmodel.OperationQueryParameters{
+func (r *TraceReader) GetOperations(ctx context.Context, query tracestore.OperationQueryParams) ([]tracestore.Operation, error) {
+	dbOperations, err := r.spanReader.GetOperations(ctx, dbmodel.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
 	})
@@ -80,9 +74,9 @@ func (t *TraceReader) GetOperations(ctx context.Context, query tracestore.Operat
 	return operations, nil
 }
 
-func (t *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+func (r *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		traces, err := t.spanReader.FindTraces(ctx, toDBTraceQueryParams(query))
+		traces, err := r.spanReader.FindTraces(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)
 			return
@@ -100,9 +94,9 @@ func (t *TraceReader) FindTraces(ctx context.Context, query tracestore.TraceQuer
 	}
 }
 
-func (t *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		traceIds, err := t.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
+		traceIds, err := r.spanReader.FindTraceIDs(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)
 			return

@@ -248,7 +248,7 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 func Test_NewTraceReader(t *testing.T) {
 	reader := NewTraceReader(core.SpanReaderParams{
 		Logger: zap.NewNop(),
-	}, false)
+	})
 	assert.IsType(t, &core.SpanReader{}, reader.spanReader)
 }
 
