@@ -38,7 +38,7 @@ func Resolve(host component.Host, ids []component.ID) ([]pub.Interceptor, error)
 		comp, ok := extensions[id]
 		if !ok {
 			return nil, fmt.Errorf(
-				"cannot find query interceptor extension %q (make sure it is defined and listed earlier in the config)",
+				"cannot find query interceptor extension %q (make sure it is defined under extensions: and enabled in service.extensions)",
 				id,
 			)
 		}
