@@ -163,21 +163,25 @@ type traceReadCursor struct {
 }
 
 // buildTraceReadRequest builds the per-trace search body multiRead pages through:
-// the trace's query, ordered by (startTime, spanID) ascending, with search_after
-// carrying that same pair as the pagination cursor and track_total_hits so the
-// loop knows when a trace is fully fetched. See traceReadCursor for why the
-// spanID tie-breaker is required.
-func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor traceReadCursor) esclient.SearchRequest {
-	return esclient.SearchRequest{
+// the trace's query, ordered by (startTime, spanID) ascending, with track_total_hits
+// so the loop knows when a trace is fully fetched. The first page passes a nil
+// cursor and omits search_after — the startTime range filter already bounds the
+// lower end; follow-up pages pass the previous page's last (startTime, spanID) to
+// resume. See traceReadCursor for why the spanID tie-breaker is required.
+func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCursor) esclient.SearchRequest {
+	req := esclient.SearchRequest{
 		Query: q,
 		Size:  s.maxDocCount,
 		Sort: []esclient.SortOrder{
 			{Field: startTimeField, Order: esquery.Ascending},
 			{Field: spanIDField, Order: esquery.Ascending},
 		},
-		SearchAfter:    []any{cursor.startTime, cursor.spanID},
 		TrackTotalHits: true,
 	}
+	if cursor != nil {
+		req.SearchAfter = []any{cursor.startTime, cursor.spanID}
+	}
+	return req
 }
 
 // GetTraces takes a traceID and returns a Trace associated with that traceID
@@ -302,12 +306,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 
 	// See timeRangeDesign above for context on the padding and the alias filter.
 	idxList := s.spanRotation.ReadTargets(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
-	// The initial cursor is the padded window start with an empty spanID tie-breaker.
-	// The range filter's lower bound is inclusive, so a span may sit exactly at this
-	// startTime; the empty spanID sorts before every real (non-empty) span ID, so
-	// search_after keeps such a span rather than skipping it, and the first page
-	// covers the whole trace.
-	initialCursor := traceReadCursor{startTime: model.TimeAsEpochMicroseconds(startTime.Add(-s.maxTraceDuration))}
 	searchAfter := make(map[dbmodel.TraceID]traceReadCursor)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
@@ -320,9 +318,11 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				Must(traceQuery).
 				Must(startTimeRangeQuery)
 
-			cursor := initialCursor
+			// First page sends no search_after; follow-up pages resume from the
+			// previous page's last span.
+			var cursor *traceReadCursor
 			if val, ok := searchAfter[traceID]; ok {
-				cursor = val
+				cursor = &val
 			}
 
 			searchRequests[i] = esclient.MultiSearchRequest{

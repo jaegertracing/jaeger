@@ -297,23 +297,27 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 2}, Hits: []esclient.SearchHit{{Source: spanBytesID1}}}},
 		}
 
-		// Every sub-request must page (startTime, spanID)-ascending, track total hits,
-		// and carry the expected search_after cursor: the padded window start with an
-		// empty tie-breaker on round 1, and the last span's (startTime, spanID) on the
-		// follow-up.
-		initialCursor := model.TimeAsEpochMicroseconds(date.Add(-24 * time.Hour))
-		paginates := func(req esclient.MultiSearchRequest, wantTime uint64, wantSpanID string) bool {
-			s := req.Search
+		// Every sub-request must sort (startTime, spanID)-ascending and track total
+		// hits. The first page carries no search_after; the follow-up resumes from the
+		// last span's (startTime, spanID).
+		hasSort := func(s esclient.SearchRequest) bool {
 			return len(s.Sort) == 2 &&
 				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: esquery.Ascending} &&
 				s.Sort[1] == esclient.SortOrder{Field: spanIDField, Order: esquery.Ascending} &&
-				s.TrackTotalHits &&
+				s.TrackTotalHits
+		}
+		firstPage := func(req esclient.MultiSearchRequest) bool {
+			return hasSort(req.Search) && len(req.Search.SearchAfter) == 0
+		}
+		paginates := func(req esclient.MultiSearchRequest, wantTime uint64, wantSpanID string) bool {
+			s := req.Search
+			return hasSort(s) &&
 				len(s.SearchAfter) == 2 &&
 				s.SearchAfter[0] == any(wantTime) && s.SearchAfter[1] == any(wantSpanID)
 		}
 
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
-			return len(reqs) == 2 && paginates(reqs[0], initialCursor, "") && paginates(reqs[1], initialCursor, "")
+			return len(reqs) == 2 && firstPage(reqs[0]) && firstPage(reqs[1])
 		})).Return(firstRound, nil).Once()
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
 			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime, string(spanID1.SpanID))
@@ -357,12 +361,16 @@ func (f *searchAfterFake) MultiSearch(_ context.Context, reqs []esclient.MultiSe
 
 func (f *searchAfterFake) page(req esclient.SearchRequest) esclient.SearchResponse {
 	// The request declares whether spanID is a sort key; page accordingly so the
-	// fake models both the fixed and the pre-fix behavior faithfully.
+	// fake models both the fixed and the pre-fix behavior faithfully. The first
+	// page carries no search_after, so it starts from the beginning of the corpus.
 	tieBreak := len(req.Sort) > 1 && req.Sort[1].Field == spanIDField
-	afterTime, _ := req.SearchAfter[0].(uint64)
+	var afterTime uint64
 	afterSpanID := ""
-	if tieBreak && len(req.SearchAfter) > 1 {
-		afterSpanID, _ = req.SearchAfter[1].(string)
+	if len(req.SearchAfter) > 0 {
+		afterTime, _ = req.SearchAfter[0].(uint64)
+		if tieBreak && len(req.SearchAfter) > 1 {
+			afterSpanID, _ = req.SearchAfter[1].(string)
+		}
 	}
 	var hits []esclient.SearchHit
 	for i := range f.corpus {
