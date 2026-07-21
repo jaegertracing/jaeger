@@ -256,6 +256,73 @@ func TestReader_GetTraces_ContinuesAfterError(t *testing.T) {
 	assert.Equal(t, 1, batches)
 }
 
+// multiBatchReader yields a fixed sequence of trace batches, so a test can
+// assert what the decorator does with batches after the first.
+type multiBatchReader struct {
+	*fakeReader
+	batches [][]ptrace.Traces
+}
+
+func (r *multiBatchReader) FindTraces(context.Context, tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+	return r.yieldBatches
+}
+
+func (r *multiBatchReader) GetTraces(context.Context, ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
+	return r.yieldBatches
+}
+
+func (r *multiBatchReader) yieldBatches(yield func([]ptrace.Traces, error) bool) {
+	for _, b := range r.batches {
+		if !yield(b, nil) {
+			return
+		}
+	}
+}
+
+// assertResultErrorStops verifies that an OnResult failure aborts the stream:
+// even a consumer that keeps ranging after the error must never receive a later
+// batch, and OnResult must not run again. This guards the redaction/authorization
+// use case, where emitting a later batch after a failed sanitize would leak data.
+func assertResultErrorStops(t *testing.T, call func(tracestore.Reader) iter.Seq2[[]ptrace.Traces, error]) {
+	sentinel := errors.New("sanitize failed")
+	next := &multiBatchReader{
+		fakeReader: &fakeReader{},
+		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
+	}
+	onResultCalls := 0
+	r := NewReaderDecorator(next, fakeInterceptor{
+		onResult: func([]ptrace.Traces) ([]ptrace.Traces, error) {
+			onResultCalls++
+			return nil, sentinel
+		},
+	})
+
+	var errs, batches int
+	for _, err := range call(r) {
+		if err != nil {
+			require.ErrorIs(t, err, sentinel)
+			errs++
+			continue
+		}
+		batches++
+	}
+	assert.Equal(t, 1, errs, "exactly one error, then the stream aborts")
+	assert.Zero(t, batches, "no batch may be delivered after an OnResult error")
+	assert.Equal(t, 1, onResultCalls, "OnResult must not run on batches after it fails")
+}
+
+func TestReader_FindTraces_ResultErrorStopsIteration(t *testing.T) {
+	assertResultErrorStops(t, func(r tracestore.Reader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+	})
+}
+
+func TestReader_GetTraces_ResultErrorStopsIteration(t *testing.T) {
+	assertResultErrorStops(t, func(r tracestore.Reader) iter.Seq2[[]ptrace.Traces, error] {
+		return r.GetTraces(context.Background(), tracestore.GetTraceParams{})
+	})
+}
+
 func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
 	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
 	r := NewReaderDecorator(next, fakeInterceptor{

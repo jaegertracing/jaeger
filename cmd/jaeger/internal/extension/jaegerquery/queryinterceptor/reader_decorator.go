@@ -97,10 +97,11 @@ func (r *reader) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 			}
 			sanitized, serr := r.onResult(ctx, traces)
 			if serr != nil {
-				if !yield(nil, serr) {
-					return
-				}
-				continue
+				// Per the Interceptor contract, an OnResult error aborts the stream:
+				// stop rather than emit further batches, which could leak results the
+				// failed sanitize/redaction was meant to withhold.
+				yield(nil, serr)
+				return
 			}
 			if !yield(sanitized, nil) {
 				return
@@ -135,10 +136,11 @@ func (r *reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 			}
 			sanitized, serr := r.onResult(ctx, traces)
 			if serr != nil {
-				if !yield(nil, serr) {
-					return
-				}
-				continue
+				// Per the Interceptor contract, an OnResult error aborts the stream:
+				// stop rather than emit further batches, which could leak results the
+				// failed sanitize/redaction was meant to withhold.
+				yield(nil, serr)
+				return
 			}
 			if !yield(sanitized, nil) {
 				return
