@@ -8,8 +8,18 @@ This is work in progress, most of the usual settings of `jaeger-query` are not s
 
 ```yaml
 jaeger_query:
-    trace_storage: cassandra_primary
-    trace_archive: cassandra_archive
-    dependencies: memstore
-    metrics_store: prometheus_store
+    storage:
+      traces: some_store
+      traces_archive: another_store
+      metrics: prometheus_store
+    multi_tenancy:
+      enabled: false
+      # header: x-tenant
+      # tenants: [acme, globex]
 ```
+
+### Multi-tenancy
+
+Optional. When `multi_tenancy.enabled` is `true`, query HTTP and gRPC APIs require a tenant header (default `x-tenant`), validate it against an optional allow-list, and attach the tenant to the request context for storage reads.
+
+See [Multi-tenancy in Jaeger v2](../../../docs/multi-tenancy.md) for the full configuration surface, storage support matrix, and known ingest limitations.
