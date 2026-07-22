@@ -93,18 +93,24 @@ func newRawClient(ctx context.Context, base http.RoundTripper, opts rawClientOpt
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transport pool: %w", err)
 	}
+	rc := &rawClient{pool: pool, base: base}
 	if opts.discoverNodes {
 		// Node discovery (sniffing): query one seed node once at startup and add
 		// the cluster's other nodes to the pool. This is a one-shot call — no
 		// background goroutine is scheduled (that would require a discovery
 		// interval), so close() still has nothing to stop. Left off by default
 		// because a cluster that publishes addresses the client cannot reach (a
-		// common AWS/proxy setup) would break the pool.
+		// common AWS/proxy setup) would break the pool. DiscoverNodesContext
+		// tolerates a nil ctx (it falls back to context.Background()).
 		if err := pool.DiscoverNodesContext(ctx); err != nil {
+			// The discovery request opened a connection through base; release it,
+			// since we are abandoning this client instead of returning it for the
+			// caller to Close.
+			rc.close()
 			return nil, fmt.Errorf("failed to discover Elasticsearch nodes (sniffing): %w", err)
 		}
 	}
-	return &rawClient{pool: pool, base: base}, nil
+	return rc, nil
 }
 
 // perform sends req through the pool. req carries a relative path (e.g.

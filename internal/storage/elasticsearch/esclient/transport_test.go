@@ -485,6 +485,41 @@ func TestRawClientSniffingDiscoveryFailureIsFatal(t *testing.T) {
 	require.ErrorContains(t, err, "failed to discover Elasticsearch nodes (sniffing)")
 }
 
+// closeTrackingRoundTripper records whether CloseIdleConnections was called, so a
+// test can prove the base transport is released when construction is abandoned.
+type closeTrackingRoundTripper struct {
+	base   http.RoundTripper
+	closed atomic.Bool
+}
+
+func (rt *closeTrackingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return rt.base.RoundTrip(req)
+}
+
+func (rt *closeTrackingRoundTripper) CloseIdleConnections() { rt.closed.Store(true) }
+
+// TestRawClientSniffingDiscoveryFailureClosesBase pins that a failed startup
+// discovery releases the connection it opened through base, rather than leaking it
+// (the client is abandoned, so nobody calls Close on it).
+func TestRawClientSniffingDiscoveryFailureClosesBase(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/_nodes/http" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	base := &closeTrackingRoundTripper{base: http.DefaultTransport}
+	_, err := newRawClient(t.Context(), base, rawClientOptions{
+		servers:       []string{server.URL},
+		discoverNodes: true,
+	})
+	require.ErrorContains(t, err, "failed to discover Elasticsearch nodes (sniffing)")
+	assert.True(t, base.closed.Load(), "base idle connections must be released on discovery failure")
+}
+
 func TestNewRawClientPoolBuildError(t *testing.T) {
 	orig := newPool
 	t.Cleanup(func() { newPool = orig })
