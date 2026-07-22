@@ -15,6 +15,7 @@ import (
 
 	queryapp "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/jaegerai/aihealth"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -48,10 +49,16 @@ func newServer(config *Config, otel component.TelemetrySettings) *server {
 	}
 }
 
-// Dependencies implements extensioncapabilities.Dependent
-// to ensure this always starts after jaegerstorage extension.
-func (*server) Dependencies() []component.ID {
-	return []component.ID{jaegerstorage.ID}
+// Dependencies implements extensioncapabilities.Dependent so the collector
+// starts this extension after the ones it consumes: the jaegerstorage extension
+// (for the trace reader) and every configured query-interceptor extension. The
+// latter guarantees each interceptor's own Start has run before jaeger-query
+// begins serving queries, so it is ready when OnQuery/OnResult are invoked.
+func (s *server) Dependencies() []component.ID {
+	deps := make([]component.ID, 0, 1+len(s.config.QueryInterceptors))
+	deps = append(deps, jaegerstorage.ID)
+	deps = append(deps, s.config.QueryInterceptors...)
+	return deps
 }
 
 func (s *server) Start(ctx context.Context, host component.Host) error {
@@ -69,6 +76,19 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	traceReader, err := tf.CreateTraceReader()
 	if err != nil {
 		return fmt.Errorf("cannot create trace reader: %w", err)
+	}
+
+	// Resolve any configured query-interceptor extensions from the host and,
+	// if there are any, wrap the trace reader with them. This is the Option-D
+	// extension point: jaeger-query invokes a caller-supplied plugin (an OTel
+	// extension) around every trace query — gating the query and sanitizing the
+	// results — without exposing the storage Reader itself.
+	interceptors, err := queryinterceptor.Resolve(host, s.config.QueryInterceptors)
+	if err != nil {
+		return fmt.Errorf("cannot resolve query interceptors: %w", err)
+	}
+	if len(interceptors) > 0 {
+		traceReader = queryinterceptor.NewReaderDecorator(traceReader, interceptors...)
 	}
 
 	df, ok := tf.(depstore.Factory)

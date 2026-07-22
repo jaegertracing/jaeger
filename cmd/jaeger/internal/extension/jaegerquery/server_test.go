@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
@@ -28,6 +29,7 @@ import (
 	app "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
@@ -111,20 +113,47 @@ func (fakeStorageExt) Shutdown(context.Context) error {
 	return nil
 }
 
+// stubQueryInterceptor is an extension that also implements
+// queryinterceptor.Interceptor, used to exercise the server's interceptor wiring.
+type stubQueryInterceptor struct{}
+
+func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
+func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
+func (stubQueryInterceptor) OnQuery(_ context.Context, q queryinterceptor.Query) (queryinterceptor.Query, error) {
+	return q, nil
+}
+
+func (stubQueryInterceptor) OnResult(_ context.Context, t []ptrace.Traces) ([]ptrace.Traces, error) {
+	return t, nil
+}
+
+var (
+	_                 queryinterceptor.Interceptor = stubQueryInterceptor{}
+	testInterceptorID                              = component.MustNewID("query_interceptor_example")
+)
+
 func TestServerDependencies(t *testing.T) {
-	expectedDependencies := []component.ID{jaegerstorage.ID}
 	telemetrySettings := component.TelemetrySettings{
 		Logger: zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())),
 	}
 
-	server := newServer(createDefaultConfig().(*Config), telemetrySettings)
-	dependencies := server.Dependencies()
+	t.Run("storage only by default", func(t *testing.T) {
+		server := newServer(createDefaultConfig().(*Config), telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID}, server.Dependencies())
+	})
 
-	assert.Equal(t, expectedDependencies, dependencies)
+	t.Run("includes configured query interceptors", func(t *testing.T) {
+		cfg := createDefaultConfig().(*Config)
+		cfg.QueryInterceptors = []component.ID{testInterceptorID}
+		server := newServer(cfg, telemetrySettings)
+		assert.Equal(t, []component.ID{jaegerstorage.ID, testInterceptorID}, server.Dependencies())
+	})
 }
 
 func TestServerStart(t *testing.T) {
-	host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+	host := storagetest.NewStorageHost().
+		WithExtension(jaegerstorage.ID, fakeStorageExt{}).
+		WithExtension(testInterceptorID, stubQueryInterceptor{})
 	tests := []struct {
 		name        string
 		config      *Config
@@ -139,6 +168,21 @@ func TestServerStart(t *testing.T) {
 					Metrics:       "jaeger_metrics_storage",
 				},
 			},
+		},
+		{
+			name: "with query interceptor",
+			config: &Config{
+				Storage:           Storage{TracesPrimary: "jaeger_storage"},
+				QueryInterceptors: []component.ID{testInterceptorID},
+			},
+		},
+		{
+			name: "query interceptor not found",
+			config: &Config{
+				Storage:           Storage{TracesPrimary: "jaeger_storage"},
+				QueryInterceptors: []component.ID{component.MustNewID("missing_interceptor")},
+			},
+			expectedErr: "cannot resolve query interceptors",
 		},
 		{
 			name: "factory error",
