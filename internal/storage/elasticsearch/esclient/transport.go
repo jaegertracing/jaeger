@@ -4,12 +4,14 @@
 package esclient
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/elastic/elastic-transport-go/v8/elastictransport"
+	"go.uber.org/zap"
 )
 
 // rawClient is the shared low-level transport beneath the Elasticsearch/OpenSearch
@@ -36,15 +38,28 @@ func (r *rawClient) close() {
 // depending on elastic-transport's internal error conditions.
 var newPool = elastictransport.NewClient
 
+// rawClientOptions carries the connection settings newRawClient reads off the
+// Elasticsearch configuration, keeping the constructor's signature readable.
+type rawClientOptions struct {
+	servers []string
+	// compressRequestBody gzips outgoing request bodies.
+	compressRequestBody bool
+	// discoverNodes enables one-shot node discovery (sniffing) at startup.
+	discoverNodes bool
+	// logLevel selects the client log-level (debug/info/error); empty disables
+	// client logging. logger is the destination for those logs.
+	logLevel string
+	logger   *zap.Logger
+}
+
 // newRawClient builds a rawClient that round-robins requests across servers,
-// sending each through base. Node discovery (sniffing) is left disabled to avoid
-// AWS/proxy misconfiguration. compressRequestBody gzips outgoing request bodies.
-func newRawClient(servers []string, base http.RoundTripper, compressRequestBody bool) (*rawClient, error) {
-	if len(servers) == 0 {
+// sending each through base.
+func newRawClient(ctx context.Context, base http.RoundTripper, opts rawClientOptions) (*rawClient, error) {
+	if len(opts.servers) == 0 {
 		return nil, errors.New("no servers specified")
 	}
-	urls := make([]*url.URL, 0, len(servers))
-	for _, server := range servers {
+	urls := make([]*url.URL, 0, len(opts.servers))
+	for _, server := range opts.servers {
 		u, err := url.Parse(server)
 		if err != nil {
 			return nil, fmt.Errorf("invalid server URL %q: %w", server, err)
@@ -56,25 +71,38 @@ func newRawClient(servers []string, base http.RoundTripper, compressRequestBody 
 		}
 		urls = append(urls, u)
 	}
-	// Node discovery (sniffing) is left at its default of off. Retry is disabled
-	// to preserve the current admin-client behavior; the data plane can opt into
-	// the pool's read retry when it adopts rawClient in Stage B.
-	opts := []elastictransport.Option{
+	// Retry is disabled to preserve the current admin-client behavior; the data
+	// plane can opt into the pool's read retry when it adopts rawClient in Stage B.
+	transportOpts := []elastictransport.Option{
 		elastictransport.WithURLs(urls...),
 		elastictransport.WithTransport(base),
 		elastictransport.WithDisableRetry(),
 	}
-	if compressRequestBody {
+	if opts.compressRequestBody {
 		// Defaults to gzip.DefaultCompression, matching the level the olivere
 		// client used before it was retired. The pool gzips the body and sets
 		// Content-Encoding before handing the request to base, so the auth stack
 		// below (notably the SigV4 signer) signs the compressed payload that
 		// actually goes on the wire.
-		opts = append(opts, elastictransport.WithCompression())
+		transportOpts = append(transportOpts, elastictransport.WithCompression())
 	}
-	pool, err := newPool(opts...)
+	if opts.logLevel != "" && opts.logger != nil {
+		transportOpts = append(transportOpts, elastictransport.WithLogger(newZapLogger(opts.logLevel, opts.logger)))
+	}
+	pool, err := newPool(transportOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transport pool: %w", err)
+	}
+	if opts.discoverNodes {
+		// Node discovery (sniffing): query one seed node once at startup and add
+		// the cluster's other nodes to the pool. This is a one-shot call — no
+		// background goroutine is scheduled (that would require a discovery
+		// interval), so close() still has nothing to stop. Left off by default
+		// because a cluster that publishes addresses the client cannot reach (a
+		// common AWS/proxy setup) would break the pool.
+		if err := pool.DiscoverNodesContext(ctx); err != nil {
+			return nil, fmt.Errorf("failed to discover Elasticsearch nodes (sniffing): %w", err)
+		}
 	}
 	return &rawClient{pool: pool, base: base}, nil
 }

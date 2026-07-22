@@ -245,7 +245,11 @@ type TagsAsFields struct {
 // Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
 // of discovering all the nodes of a cluster by querying one of its members.
 type Sniffing struct {
-	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
+	// Enabled, if set to true, enables sniffing for the ElasticSearch client: the
+	// client queries one seed node once at startup and adds the cluster's other
+	// nodes to its connection pool. Left off by default because a cluster that
+	// publishes addresses the client cannot reach (a common AWS/proxy setup)
+	// would break; enable it only when every node is directly reachable.
 	Enabled bool `mapstructure:"enabled"`
 	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
 	// For ESV8, the scheme is set to HTTPS by default, so this configuration is ignored.
@@ -532,5 +536,16 @@ func (c *Configuration) Validate() error {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
-	return nil
+	return validateLogLevel(c.LogLevel)
+}
+
+// validateLogLevel rejects an unrecognized log_level. An empty value is allowed
+// and means no client logging is attached.
+func validateLogLevel(level string) error {
+	switch level {
+	case "", "debug", "info", "error":
+		return nil
+	default:
+		return fmt.Errorf("unrecognized log_level %q: valid values are debug, info, error", level)
+	}
 }

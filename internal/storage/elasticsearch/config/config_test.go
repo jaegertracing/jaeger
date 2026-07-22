@@ -370,6 +370,18 @@ func TestValidate(t *testing.T) {
 			expectedError: "Servers: non zero value required",
 		},
 		{
+			name: "unrecognized log_level rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				LogLevel: "trace",
+			},
+			expectedError: `unrecognized log_level "trace"`,
+		},
+		{
+			name:   "recognized log_level accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, LogLevel: "debug"},
+		},
+		{
 			name:          "ilm disabled and read-write aliases enabled error",
 			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, UseILM: configoptional.Some(true)},
 			expectedError: "UseILM must always be used in conjunction with UseReadWriteAliases to ensure ES writers and readers refer to the single index mapping",
