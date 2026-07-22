@@ -38,8 +38,8 @@ var newPool = elastictransport.NewClient
 
 // newRawClient builds a rawClient that round-robins requests across servers,
 // sending each through base. Node discovery (sniffing) is left disabled to avoid
-// AWS/proxy misconfiguration.
-func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) {
+// AWS/proxy misconfiguration. compressRequestBody gzips outgoing request bodies.
+func newRawClient(servers []string, base http.RoundTripper, compressRequestBody bool) (*rawClient, error) {
 	if len(servers) == 0 {
 		return nil, errors.New("no servers specified")
 	}
@@ -59,11 +59,20 @@ func newRawClient(servers []string, base http.RoundTripper) (*rawClient, error) 
 	// Node discovery (sniffing) is left at its default of off. Retry is disabled
 	// to preserve the current admin-client behavior; the data plane can opt into
 	// the pool's read retry when it adopts rawClient in Stage B.
-	pool, err := newPool(
+	opts := []elastictransport.Option{
 		elastictransport.WithURLs(urls...),
 		elastictransport.WithTransport(base),
 		elastictransport.WithDisableRetry(),
-	)
+	}
+	if compressRequestBody {
+		// Defaults to gzip.DefaultCompression, matching the level the olivere
+		// client used before it was retired. The pool gzips the body and sets
+		// Content-Encoding before handing the request to base, so the auth stack
+		// below (notably the SigV4 signer) signs the compressed payload that
+		// actually goes on the wire.
+		opts = append(opts, elastictransport.WithCompression())
+	}
+	pool, err := newPool(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transport pool: %w", err)
 	}
