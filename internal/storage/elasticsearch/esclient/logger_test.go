@@ -4,7 +4,6 @@
 package esclient
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -82,14 +81,14 @@ func TestNewClientAttachesRequestLogger(t *testing.T) {
 	defer server.Close()
 
 	core, logs := observer.New(zap.InfoLevel)
-	c, err := NewClient(context.Background(), &config.Configuration{
+	c, err := NewClient(t.Context(), &config.Configuration{
 		Servers:  []string{server.URL},
 		LogLevel: "info",
 		Version:  uint(es.ElasticV7), // pin so NewClient doesn't probe
 	}, zap.New(core), nil)
 	require.NoError(t, err)
 
-	_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: "_cluster/health"})
+	_, err = c.request(t.Context(), elasticRequest{method: http.MethodGet, endpoint: "_cluster/health"})
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, logs.FilterMessage("Elasticsearch request").All(), "log_level=info must log the request through zap")
@@ -104,13 +103,13 @@ func TestNewClientNoRequestLoggerWhenLevelEmpty(t *testing.T) {
 	defer server.Close()
 
 	core, logs := observer.New(zap.DebugLevel)
-	c, err := NewClient(context.Background(), &config.Configuration{
+	c, err := NewClient(t.Context(), &config.Configuration{
 		Servers: []string{server.URL},
 		Version: uint(es.ElasticV7),
 	}, zap.New(core), nil)
 	require.NoError(t, err)
 
-	_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: "_cluster/health"})
+	_, err = c.request(t.Context(), elasticRequest{method: http.MethodGet, endpoint: "_cluster/health"})
 	require.NoError(t, err)
 
 	assert.Empty(t, logs.FilterMessage("Elasticsearch request").All())

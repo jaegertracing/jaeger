@@ -6,7 +6,6 @@ package esclient
 import (
 	"bytes"
 	"compress/gzip"
-	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -60,7 +59,7 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 	defer server2.Close()
 
 	base := headerStampRoundTripper{base: http.DefaultTransport, key: "X-Jaeger-Test", value: "applied"}
-	rc, err := newRawClient(context.Background(), base, rawClientOptions{servers: []string{server1.URL, server2.URL}})
+	rc, err := newRawClient(t.Context(), base, rawClientOptions{servers: []string{server1.URL, server2.URL}})
 	require.NoError(t, err)
 
 	const requests = 6
@@ -85,7 +84,7 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 func TestNewRawClientNoServers(t *testing.T) {
 	for name, servers := range map[string][]string{"nil": nil, "empty": {}} {
 		t.Run(name, func(t *testing.T) {
-			_, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{servers: servers})
+			_, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{servers: servers})
 			require.EqualError(t, err, "no servers specified")
 		})
 	}
@@ -99,7 +98,7 @@ func TestNewRawClientInvalidURL(t *testing.T) {
 	}
 	for name, server := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{servers: []string{server}})
+			_, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{servers: []string{server}})
 			require.Error(t, err)
 		})
 	}
@@ -116,7 +115,7 @@ func TestRawClientHonorsServerPathPrefix(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rc, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{servers: []string{server.URL + "/es"}})
+	rc, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{servers: []string{server.URL + "/es"}})
 	require.NoError(t, err)
 	req, err := http.NewRequest(http.MethodGet, "/_cluster/health", http.NoBody)
 	require.NoError(t, err)
@@ -136,21 +135,21 @@ func TestNewClientAppliesTLSConfig(t *testing.T) {
 	}))
 	defer server.Close()
 
-	strict, err := NewClient(context.Background(), &config.Configuration{
+	strict, err := NewClient(t.Context(), &config.Configuration{
 		Servers: []string{server.URL},
 		Version: uint(es.ElasticV7), // pin so NewClient doesn't probe; test the request path
 	}, zap.NewNop(), nil)
 	require.NoError(t, err)
-	_, err = strict.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
+	_, err = strict.request(t.Context(), elasticRequest{method: http.MethodGet, endpoint: ""})
 	require.Error(t, err, "an untrusted self-signed cert must fail TLS verification")
 
-	insecure, err := NewClient(context.Background(), &config.Configuration{
+	insecure, err := NewClient(t.Context(), &config.Configuration{
 		Servers: []string{server.URL},
 		Version: uint(es.ElasticV7),
 		TLS:     configtls.ClientConfig{Insecure: true},
 	}, zap.NewNop(), nil)
 	require.NoError(t, err)
-	_, err = insecure.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
+	_, err = insecure.request(t.Context(), elasticRequest{method: http.MethodGet, endpoint: ""})
 	require.NoError(t, err, "InsecureSkipVerify must be honored")
 }
 
@@ -182,14 +181,14 @@ func TestNewClientHonorsHTTPCompression(t *testing.T) {
 			}))
 			defer server.Close()
 
-			c, err := NewClient(context.Background(), &config.Configuration{
+			c, err := NewClient(t.Context(), &config.Configuration{
 				Servers:         []string{server.URL},
 				HTTPCompression: test.compression,
 				Version:         uint(es.ElasticV7), // pin so NewClient doesn't probe
 			}, zap.NewNop(), nil)
 			require.NoError(t, err)
 
-			_, err = c.request(context.Background(), elasticRequest{
+			_, err = c.request(t.Context(), elasticRequest{
 				method:   http.MethodPost,
 				endpoint: "_bulk",
 				body:     payload,
@@ -227,7 +226,7 @@ func TestRawClientCompressesBeforeBaseRoundTripper(t *testing.T) {
 
 	// Stands in for the auth/header stack that wraps the real transport.
 	spy := &bodyObservingRoundTripper{base: http.DefaultTransport}
-	rc, err := newRawClient(context.Background(), spy, rawClientOptions{servers: []string{server.URL}, compressRequestBody: true})
+	rc, err := newRawClient(t.Context(), spy, rawClientOptions{servers: []string{server.URL}, compressRequestBody: true})
 	require.NoError(t, err)
 
 	req, err := http.NewRequest(http.MethodPost, "/_bulk", strings.NewReader(`{"index":{}}`))
@@ -294,7 +293,7 @@ func TestBulkIndexerRequestsAreCompressed(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c, err := NewClient(context.Background(), &config.Configuration{
+	c, err := NewClient(t.Context(), &config.Configuration{
 		Servers:         []string{server.URL},
 		HTTPCompression: true,
 		Version:         uint(es.ElasticV7),
@@ -327,13 +326,13 @@ func TestClientRequestBodyAndTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c, err := NewClient(context.Background(), &config.Configuration{
+	c, err := NewClient(t.Context(), &config.Configuration{
 		Servers:      []string{server.URL},
 		QueryTimeout: time.Minute,
 		Version:      uint(es.ElasticV7),
 	}, zap.NewNop(), nil)
 	require.NoError(t, err)
-	_, err = c.request(context.Background(), elasticRequest{
+	_, err = c.request(t.Context(), elasticRequest{
 		method:   http.MethodPost,
 		endpoint: "_bulk",
 		body:     []byte("request-payload"),
@@ -352,7 +351,7 @@ func TestClientClose(t *testing.T) {
 	}))
 	defer server.Close()
 
-	c, err := NewClient(context.Background(), &config.Configuration{
+	c, err := NewClient(t.Context(), &config.Configuration{
 		Servers: []string{server.URL},
 		Version: uint(es.ElasticV7),
 	}, zap.NewNop(), nil)
@@ -366,7 +365,7 @@ func TestClientClose(t *testing.T) {
 // TestTestsOnlyBackendVersion covers the test-only accessor that exposes the
 // version resolved at construction, so integration tests need not re-probe.
 func TestTestsOnlyBackendVersion(t *testing.T) {
-	c, err := NewClient(context.Background(), &config.Configuration{
+	c, err := NewClient(t.Context(), &config.Configuration{
 		Servers: []string{"http://localhost:9200"},
 		Version: uint(es.OpenSearch2),
 	}, zap.NewNop(), nil)
@@ -388,20 +387,20 @@ func (errReader) Read([]byte) (int, error) { return 0, io.ErrClosedPipe }
 
 func TestClientRequestErrorPaths(t *testing.T) {
 	t.Run("invalid method fails request construction", func(t *testing.T) {
-		c, err := NewClient(context.Background(), &config.Configuration{
+		c, err := NewClient(t.Context(), &config.Configuration{
 			Servers: []string{"http://localhost:9200"},
 			Version: uint(es.ElasticV7),
 		}, zap.NewNop(), nil)
 		require.NoError(t, err)
-		_, err = c.request(context.Background(), elasticRequest{method: "BAD METHOD", endpoint: "x"})
+		_, err = c.request(t.Context(), elasticRequest{method: "BAD METHOD", endpoint: "x"})
 		require.Error(t, err)
 	})
 
 	t.Run("response body read error propagates", func(t *testing.T) {
-		raw, err := newRawClient(context.Background(), errBodyRoundTripper{}, rawClientOptions{servers: []string{"http://localhost:9200"}})
+		raw, err := newRawClient(t.Context(), errBodyRoundTripper{}, rawClientOptions{servers: []string{"http://localhost:9200"}})
 		require.NoError(t, err)
 		c := Client{transport: raw}
-		_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
+		_, err = c.request(t.Context(), elasticRequest{method: http.MethodGet, endpoint: ""})
 		require.Error(t, err)
 	})
 }
@@ -409,7 +408,7 @@ func TestClientRequestErrorPaths(t *testing.T) {
 // TestNewClientRoundTripperError covers NewClient surfacing an error from
 // GetHTTPRoundTripper (here, an invalid basic-auth config).
 func TestNewClientRoundTripperError(t *testing.T) {
-	_, err := NewClient(context.Background(), &config.Configuration{
+	_, err := NewClient(t.Context(), &config.Configuration{
 		Servers: []string{"http://localhost:9200"},
 		Authentication: config.Authentication{
 			BasicAuthentication: configoptional.Some(config.BasicAuthentication{
@@ -438,7 +437,7 @@ func TestRawClientSniffingDiscoversNodesOnStart(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rc, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{
+	rc, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{
 		servers:       []string{server.URL},
 		discoverNodes: true,
 	})
@@ -459,7 +458,7 @@ func TestRawClientSniffingDisabledSkipsDiscovery(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{
+	_, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{
 		servers: []string{server.URL},
 	})
 	require.NoError(t, err)
@@ -479,7 +478,7 @@ func TestRawClientSniffingDiscoveryFailureIsFatal(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{
+	_, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{
 		servers:       []string{server.URL},
 		discoverNodes: true,
 	})
@@ -492,6 +491,6 @@ func TestNewRawClientPoolBuildError(t *testing.T) {
 	newPool = func(...elastictransport.Option) (*elastictransport.Client, error) {
 		return nil, errors.New("boom")
 	}
-	_, err := newRawClient(context.Background(), http.DefaultTransport, rawClientOptions{servers: []string{"http://localhost:9200"}})
+	_, err := newRawClient(t.Context(), http.DefaultTransport, rawClientOptions{servers: []string{"http://localhost:9200"}})
 	require.ErrorContains(t, err, "failed to build transport pool")
 }
