@@ -1,0 +1,44 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# This workflow opts a pull request into the storage backward-compatibility
+# test suite on demand, via a PR label. Because those tests are expensive
+# (they build the @main Jaeger binary to write data, then verify the PR's
+# binary can read it), they don't run on every PR — only when a maintainer
+# adds a `check-backward-compatibility:<storage>` label (e.g.
+# `check-backward-compatibility:es/os`).
+#
+# The check-label job scans the PR's labels for that prefix and extracts the
+# `<storage>` suffix. If a matching label is present, the backward-compatibility
+# job runs the reusable ci-backward-compatibility-all.yml workflow for that
+# storage; otherwise (no matching label) the run is a no-op.
+name: Check backward compatibility
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  check-label:
+    runs-on: ubuntu-latest
+    outputs:
+      storage: ${{ steps.parse.outputs.storage }}
+    steps:
+      - id: parse
+        run: |
+          for label in ${{ join(github.event.pull_request.labels.*.name, ' ') }}; do
+            case "$label" in
+              check-backward-compatibility:*)
+                echo "storage=${label#check-backward-compatibility:}" >> "$GITHUB_OUTPUT"
+                exit 0
+                ;;
+            esac
+          done
+  backward-compatibility-tests:
+    needs: check-label
+    if: ${{ needs.check-label.outputs.storage != '' }}
+    uses: ./.github/workflows/ci-backward-compatibility-all.yml
+    with:
+      storage: ${{ needs.check-label.outputs.storage }}

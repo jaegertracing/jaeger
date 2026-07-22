@@ -3,6 +3,11 @@
 
 package capabilities
 
+import (
+	"os"
+	"strconv"
+)
+
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
@@ -31,6 +36,19 @@ func (c Capabilities) GetDependenciesMissingSource() bool {
 
 // SkipList returns a list of tests that should be skipped for this storage backend.
 func (c Capabilities) SkipList() []string {
+	if IsBackwardCompatibilityEnv() {
+		// TODO: Write a separate backward-compatibility tests for testing GetServices
+		c.skipList = appendIfNotExists(c.skipList, "GetServices")
+		// This test is skipped because it provides no value in testing backward
+		// compatibility and makes the whole test very heavy due to large number
+		// of traces being injected to jaeger
+		c.skipList = appendIfNotExists(c.skipList, "GetLargeTrace")
+		// This test is not applicable to backward-compatibility
+		c.skipList = appendIfNotExists(c.skipList, "NotFound_error")
+		// TODO: Support FindTraceSummaries test for backward compatibility testing
+		// Probably by adding a new fixture and adding more constraints to the query
+		c.skipList = appendIfNotExists(c.skipList, "FindTraceSummaries")
+	}
 	return c.skipList
 }
 
@@ -122,4 +140,18 @@ func Kafka() Capabilities {
 		getDependenciesMissingSource: true,
 		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}
+}
+
+func IsBackwardCompatibilityEnv() bool {
+	is, _ := strconv.ParseBool(os.Getenv("BACKWARD_COMPATIBILITY"))
+	return is
+}
+
+func appendIfNotExists(list []string, item string) []string {
+	for _, existing := range list {
+		if existing == item {
+			return list
+		}
+	}
+	return append(list, item)
 }
