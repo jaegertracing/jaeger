@@ -4,11 +4,14 @@
 package esclient
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
@@ -56,7 +60,7 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 	defer server2.Close()
 
 	base := headerStampRoundTripper{base: http.DefaultTransport, key: "X-Jaeger-Test", value: "applied"}
-	rc, err := newRawClient([]string{server1.URL, server2.URL}, base)
+	rc, err := newRawClient([]string{server1.URL, server2.URL}, base, false)
 	require.NoError(t, err)
 
 	const requests = 6
@@ -81,7 +85,7 @@ func TestRawClientRoundRobinsAndAppliesBase(t *testing.T) {
 func TestNewRawClientNoServers(t *testing.T) {
 	for name, servers := range map[string][]string{"nil": nil, "empty": {}} {
 		t.Run(name, func(t *testing.T) {
-			_, err := newRawClient(servers, http.DefaultTransport)
+			_, err := newRawClient(servers, http.DefaultTransport, false)
 			require.EqualError(t, err, "no servers specified")
 		})
 	}
@@ -95,7 +99,7 @@ func TestNewRawClientInvalidURL(t *testing.T) {
 	}
 	for name, server := range tests {
 		t.Run(name, func(t *testing.T) {
-			_, err := newRawClient([]string{server}, http.DefaultTransport)
+			_, err := newRawClient([]string{server}, http.DefaultTransport, false)
 			require.Error(t, err)
 		})
 	}
@@ -112,7 +116,7 @@ func TestRawClientHonorsServerPathPrefix(t *testing.T) {
 	}))
 	defer server.Close()
 
-	rc, err := newRawClient([]string{server.URL + "/es"}, http.DefaultTransport)
+	rc, err := newRawClient([]string{server.URL + "/es"}, http.DefaultTransport, false)
 	require.NoError(t, err)
 	req, err := http.NewRequest(http.MethodGet, "/_cluster/health", http.NoBody)
 	require.NoError(t, err)
@@ -148,6 +152,168 @@ func TestNewClientAppliesTLSConfig(t *testing.T) {
 	require.NoError(t, err)
 	_, err = insecure.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
 	require.NoError(t, err, "InsecureSkipVerify must be honored")
+}
+
+// TestNewClientHonorsHTTPCompression guards the wiring of the http_compression
+// setting through to the transport pool. The option is on by default and gzipped
+// every request body until the olivere client was retired (#8982), after which it
+// was parsed but read by nothing, so bodies silently went out uncompressed (#9071).
+func TestNewClientHonorsHTTPCompression(t *testing.T) {
+	// An NDJSON _bulk body: the write path this regression actually degraded.
+	payload := []byte(`{"index":{"_index":"jaeger-span-write"}}` + "\n" +
+		`{"traceID":"1234567890abcdef","operationName":"test-operation"}` + "\n")
+	tests := []struct {
+		name         string
+		compression  bool
+		wantEncoding string
+	}{
+		{name: "compression enabled", compression: true, wantEncoding: "gzip"},
+		{name: "compression disabled", compression: false, wantEncoding: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var gotEncoding, gotBody atomic.Value
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotEncoding.Store(r.Header.Get("Content-Encoding"))
+				b, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				gotBody.Store(b)
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			c, err := NewClient(context.Background(), &config.Configuration{
+				Servers:         []string{server.URL},
+				HTTPCompression: test.compression,
+				Version:         uint(es.ElasticV7), // pin so NewClient doesn't probe
+			}, zap.NewNop(), nil)
+			require.NoError(t, err)
+
+			_, err = c.request(context.Background(), elasticRequest{
+				method:   http.MethodPost,
+				endpoint: "_bulk",
+				body:     payload,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, test.wantEncoding, gotEncoding.Load())
+			body, ok := gotBody.Load().([]byte)
+			require.True(t, ok)
+			if !test.compression {
+				assert.Equal(t, payload, body)
+				return
+			}
+			// The server must receive real gzip that round-trips to the payload,
+			// not merely a header claiming it.
+			zr, err := gzip.NewReader(bytes.NewReader(body))
+			require.NoError(t, err, "body must be valid gzip")
+			decompressed, err := io.ReadAll(zr)
+			require.NoError(t, err)
+			assert.Equal(t, payload, decompressed)
+		})
+	}
+}
+
+// TestRawClientCompressesBeforeBaseRoundTripper pins the ordering the auth stack
+// depends on: the pool must gzip the body and set Content-Encoding *before* the
+// base RoundTripper runs, so a SigV4 signer signs the bytes that actually go on
+// the wire. Signing a payload that does not match the transmitted body is the
+// failure mode behind #8307, so the ordering deserves an explicit guard.
+func TestRawClientCompressesBeforeBaseRoundTripper(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	// Stands in for the auth/header stack that wraps the real transport.
+	spy := &bodyObservingRoundTripper{base: http.DefaultTransport}
+	rc, err := newRawClient([]string{server.URL}, spy, true)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest(http.MethodPost, "/_bulk", strings.NewReader(`{"index":{}}`))
+	require.NoError(t, err)
+	resp, err := rc.perform(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+
+	assert.Equal(t, "gzip", spy.encoding, "the base RoundTripper must see Content-Encoding already set")
+	assert.True(t, bytes.HasPrefix(spy.body, gzipMagic), "the base RoundTripper must see gzip-framed bytes")
+
+	// A signer re-reads the payload through GetBody rather than the consumed Body.
+	// If GetBody replayed the original uncompressed bytes, the signature would cover
+	// a different payload than the one transmitted — the #8307 failure mode — so
+	// assert it yields exactly what the transport sends, not merely that it is set.
+	require.NotNil(t, spy.getBody, "GetBody must be populated for a signer to re-read the payload")
+	replay, err := spy.getBody()
+	require.NoError(t, err)
+	replayed, err := io.ReadAll(replay)
+	require.NoError(t, err)
+	require.NoError(t, replay.Close())
+	assert.Equal(t, spy.body, replayed, "GetBody must replay the same compressed bytes the transport sends")
+}
+
+// gzipMagic is the two-byte header every gzip stream starts with.
+var gzipMagic = []byte{0x1f, 0x8b}
+
+// bodyObservingRoundTripper records what the auth layer would see.
+type bodyObservingRoundTripper struct {
+	base     http.RoundTripper
+	encoding string
+	body     []byte
+	getBody  func() (io.ReadCloser, error)
+}
+
+func (rt *bodyObservingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.encoding = req.Header.Get("Content-Encoding")
+	rt.getBody = req.GetBody
+	if req.Body != nil {
+		body, err := io.ReadAll(req.Body)
+		if err != nil {
+			return nil, err
+		}
+		rt.body = body
+		req.Body = io.NopCloser(bytes.NewReader(body))
+	}
+	return rt.base.RoundTrip(req)
+}
+
+// TestBulkIndexerRequestsAreCompressed guards the path that actually regressed in
+// #9071. TestNewClientHonorsHTTPCompression covers request(); this covers the
+// esutil BulkIndexer, which reaches the pool through Perform instead, so a future
+// refactor giving bulk writes their own transport cannot silently drop gzip again.
+func TestBulkIndexerRequestsAreCompressed(t *testing.T) {
+	var gotEncoding, gotBody atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotEncoding.Store(r.Header.Get("Content-Encoding"))
+		b, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		gotBody.Store(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, err = w.Write([]byte(`{"took":1,"errors":false,"items":[]}`))
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+
+	c, err := NewClient(context.Background(), &config.Configuration{
+		Servers:         []string{server.URL},
+		HTTPCompression: true,
+		Version:         uint(es.ElasticV7),
+	}, zap.NewNop(), nil)
+	require.NoError(t, err)
+
+	b, err := NewBulkIndexer(c, BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "jaeger-span-write", Body: map[string]string{"traceID": "1234567890abcdef"}})
+	require.NoError(t, b.Close())
+
+	assert.Equal(t, "gzip", gotEncoding.Load())
+	body, ok := gotBody.Load().([]byte)
+	require.True(t, ok)
+	zr, err := gzip.NewReader(bytes.NewReader(body))
+	require.NoError(t, err, "the bulk body must be valid gzip")
+	decompressed, err := io.ReadAll(zr)
+	require.NoError(t, err)
+	assert.Contains(t, string(decompressed), "1234567890abcdef", "the gzip must round-trip to the enqueued document")
 }
 
 // TestClientRequestBodyAndTimeout covers request() sending a body under a
@@ -232,7 +398,7 @@ func TestClientRequestErrorPaths(t *testing.T) {
 	})
 
 	t.Run("response body read error propagates", func(t *testing.T) {
-		raw, err := newRawClient([]string{"http://localhost:9200"}, errBodyRoundTripper{})
+		raw, err := newRawClient([]string{"http://localhost:9200"}, errBodyRoundTripper{}, false)
 		require.NoError(t, err)
 		c := Client{transport: raw}
 		_, err = c.request(context.Background(), elasticRequest{method: http.MethodGet, endpoint: ""})
@@ -262,6 +428,6 @@ func TestNewRawClientPoolBuildError(t *testing.T) {
 	newPool = func(...elastictransport.Option) (*elastictransport.Client, error) {
 		return nil, errors.New("boom")
 	}
-	_, err := newRawClient([]string{"http://localhost:9200"}, http.DefaultTransport)
+	_, err := newRawClient([]string{"http://localhost:9200"}, http.DefaultTransport, false)
 	require.ErrorContains(t, err, "failed to build transport pool")
 }

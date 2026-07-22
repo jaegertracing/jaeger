@@ -1,0 +1,75 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# Example config for the query-interceptor extension point.
+#
+# The example extension `query_interceptor_example` is an ordinary OTel
+# extension that implements queryinterceptor.Interceptor. jaeger_query
+# references it by ID in `query_interceptors`, and applies it around every
+# trace query: OnQuery (pre) rejects a search that filters on a forbidden
+# attribute, OnResult (post) redacts configured attributes from the results.
+#
+# query_interceptor_example is a demonstration extension and is NOT part of the
+# stock Jaeger distribution, so running this config requires a build that
+# includes it — e.g. a custom OCB build adding
+# components/extension/queryinterceptorexample. The integration test in this
+# package exercises this file end to end.
+service:
+  extensions: [jaeger_storage, jaeger_query, query_interceptor_example]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    metrics:
+      # This demo doesn't need the collector's own metrics endpoint.
+      level: none
+
+extensions:
+  # The interceptor extension must be listed in `extensions` (so the collector
+  # instantiates it) and referenced from jaeger_query.query_interceptors below.
+  query_interceptor_example:
+    # The caller's role is read from this request header (exposed to the
+    # interceptor's context via jaeger_query.http.include_metadata below).
+    identity_header: x-jaeger-caller-role
+    # Callers with one of these roles bypass the restrictions below.
+    privileged_roles: [admin]
+    # A non-privileged caller may not filter a search on these attributes.
+    deny_query_attributes: [prompt]
+    # For a non-privileged caller, these span attribute values are replaced with
+    # "REDACTED" in the results.
+    redact_attributes: [prompt, llm.response]
+
+  jaeger_query:
+    storage:
+      traces: some_store
+    # Ordered list of interceptor extension IDs. Each must implement
+    # queryinterceptor.Interceptor and be defined in `extensions` above.
+    query_interceptors: [query_interceptor_example]
+    # Bind addresses default to the standard query ports; the env overrides let
+    # this same file run on free ports (e.g. from a test) without editing it.
+    http:
+      endpoint: "${env:JAEGER_QUERY_HTTP_ENDPOINT:-0.0.0.0:16686}"
+      # Expose request headers (e.g. the caller identity) to the interceptor
+      # through the request context.
+      include_metadata: true
+    grpc:
+      endpoint: "${env:JAEGER_QUERY_GRPC_ENDPOINT:-0.0.0.0:16685}"
+
+  jaeger_storage:
+    backends:
+      some_store:
+        memory:
+          max_traces: 100000
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "${env:OTLP_GRPC_ENDPOINT:-localhost:4317}"
+      http:
+        endpoint: "${env:OTLP_HTTP_ENDPOINT:-localhost:4318}"
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_store

@@ -37,6 +37,10 @@ type ReaderConfig struct {
 }
 
 type Reader struct {
+	// ClickHouse does not compute trace summaries natively yet; fall back to
+	// FindTraces + client-side aggregation.
+	tracestore.UnsupportedTraceSummaries
+
 	conn          driver.Conn
 	config        ReaderConfig
 	attrMetaCache cache.Cache

@@ -48,7 +48,7 @@ func NewClient(ctx context.Context, c *config.Configuration, logger *zap.Logger,
 	if err != nil {
 		return nil, err
 	}
-	transport, err := newRawClient(c.Servers, base)
+	transport, err := newRawClient(c.Servers, base, c.HTTPCompression)
 	if err != nil {
 		return nil, err
 	}
