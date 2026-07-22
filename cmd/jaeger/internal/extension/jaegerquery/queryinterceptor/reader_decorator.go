@@ -58,52 +58,64 @@ func fromPublicQuery(q pub.Query) tracestore.TraceQueryParams {
 	}
 }
 
-func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams) (tracestore.TraceQueryParams, error) {
+// onQuery runs every interceptor's OnQuery in order, threading the context each
+// returns into the next. The final context is returned so callers can pass it to
+// the storage reader and to onResult, letting an interceptor carry per-query state
+// (e.g. a resolved caller identity) from the pre-query hook to the return path.
+func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams) (context.Context, tracestore.TraceQueryParams, error) {
 	pq := toPublicQuery(query)
 	var err error
 	for _, interceptor := range r.interceptors {
-		pq, err = interceptor.OnQuery(ctx, pq)
+		ctx, pq, err = interceptor.OnQuery(ctx, pq)
 		if err != nil {
-			return query, err
+			return ctx, query, err
 		}
 	}
-	return fromPublicQuery(pq), nil
+	return ctx, fromPublicQuery(pq), nil
 }
 
-func (r *reader) onResult(ctx context.Context, traces []ptrace.Traces) ([]ptrace.Traces, error) {
+// onResult runs every interceptor's OnResult in order on one batch, threading the
+// context each returns into the next. The final context is returned so the caller
+// can feed it into onResult for the next batch, letting state accumulate across a
+// multi-batch result.
+func (r *reader) onResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
 	var err error
 	for _, interceptor := range r.interceptors {
-		traces, err = interceptor.OnResult(ctx, traces)
+		ctx, traces, err = interceptor.OnResult(ctx, traces)
 		if err != nil {
-			return nil, err
+			return ctx, nil, err
 		}
 	}
-	return traces, nil
+	return ctx, traces, nil
 }
 
 func (r *reader) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		gated, err := r.onQuery(ctx, query)
+		var err error
+		// onQuery returns the (possibly enriched) context and gated query; assign
+		// them back so every statement below sees the post-hook values, never the
+		// originals. The same applies to onResult's context inside the loop.
+		ctx, query, err = r.onQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		for traces, err := range r.next.FindTraces(ctx, gated) {
+		for traces, err := range r.next.FindTraces(ctx, query) {
 			if err != nil {
 				if !yield(nil, err) {
 					return
 				}
 				continue
 			}
-			sanitized, serr := r.onResult(ctx, traces)
-			if serr != nil {
+			ctx, traces, err = r.onResult(ctx, traces)
+			if err != nil {
 				// Per the Interceptor contract, an OnResult error aborts the stream:
 				// stop rather than emit further batches, which could leak results the
 				// failed sanitize/redaction was meant to withhold.
-				yield(nil, serr)
+				yield(nil, err)
 				return
 			}
-			if !yield(sanitized, nil) {
+			if !yield(traces, nil) {
 				return
 			}
 		}
@@ -112,12 +124,13 @@ func (r *reader) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 
 func (r *reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		gated, err := r.onQuery(ctx, query)
+		var err error
+		ctx, query, err = r.onQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		for ids, err := range r.next.FindTraceIDs(ctx, gated) {
+		for ids, err := range r.next.FindTraceIDs(ctx, query) {
 			if !yield(ids, err) {
 				return
 			}
@@ -127,6 +140,8 @@ func (r *reader) FindTraceIDs(ctx context.Context, query tracestore.TraceQueryPa
 
 func (r *reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		// GetTraces has no pre-query hook, so OnResult's context chain seeds from
+		// the inbound context; assigning it back threads across batches.
 		for traces, err := range r.next.GetTraces(ctx, traceIDs...) {
 			if err != nil {
 				if !yield(nil, err) {
@@ -134,15 +149,15 @@ func (r *reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 				}
 				continue
 			}
-			sanitized, serr := r.onResult(ctx, traces)
-			if serr != nil {
+			ctx, traces, err = r.onResult(ctx, traces)
+			if err != nil {
 				// Per the Interceptor contract, an OnResult error aborts the stream:
 				// stop rather than emit further batches, which could leak results the
 				// failed sanitize/redaction was meant to withhold.
-				yield(nil, serr)
+				yield(nil, err)
 				return
 			}
-			if !yield(sanitized, nil) {
+			if !yield(traces, nil) {
 				return
 			}
 		}
@@ -167,12 +182,13 @@ func (r *reader) GetOperations(ctx context.Context, query tracestore.OperationQu
 // summary hook is left as a contract extension.
 func (r *reader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		gated, err := r.onQuery(ctx, query)
+		var err error
+		ctx, query, err = r.onQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		for summaries, err := range r.next.FindTraceSummaries(ctx, gated) {
+		for summaries, err := range r.next.FindTraceSummaries(ctx, query) {
 			if !yield(summaries, err) {
 				return
 			}

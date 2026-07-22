@@ -22,12 +22,12 @@ type stubInterceptor struct{}
 
 func (stubInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubInterceptor) OnQuery(_ context.Context, q pub.Query) (pub.Query, error) {
-	return q, nil
+func (stubInterceptor) OnQuery(ctx context.Context, q pub.Query) (context.Context, pub.Query, error) {
+	return ctx, q, nil
 }
 
-func (stubInterceptor) OnResult(_ context.Context, t []ptrace.Traces) ([]ptrace.Traces, error) {
-	return t, nil
+func (stubInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	return ctx, t, nil
 }
 
 // plainExtension is an extension that does NOT implement Interceptor.

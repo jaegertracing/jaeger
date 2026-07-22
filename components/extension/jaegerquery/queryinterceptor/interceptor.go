@@ -67,15 +67,28 @@ type Query struct {
 // (client is go.opentelemetry.io/collector/client). An access-control
 // implementation reads the caller's identity/token this way and resolves it
 // against its policy system. The example extension does exactly this.
+//
+// Both methods also *return* a context. jaeger-query threads OnQuery's returned
+// context into the storage reader and into OnResult, and threads OnResult's
+// returned context into the OnResult call for the next batch of a multi-batch
+// result. This lets an implementation do expensive per-query work once — resolve
+// the caller's identity against a policy system in OnQuery — and stash the result
+// (via context.WithValue) for the return path to reuse, rather than repeating it
+// on every batch. Return the inbound context unchanged when there is nothing to
+// carry across.
 type Interceptor interface {
 	// OnQuery runs before a trace search executes. Returning an error rejects
 	// the query (the caller sees the error); returning a modified Query
-	// constrains what the search may match. Return the query unchanged for a
-	// no-op.
-	OnQuery(ctx context.Context, query Query) (Query, error)
+	// constrains what the search may match. The returned context is threaded into
+	// the storage reader and OnResult. Return the inbound context and query
+	// unchanged for a no-op.
+	OnQuery(ctx context.Context, query Query) (context.Context, Query, error)
 
 	// OnResult runs on each batch of traces before it is returned to the caller.
 	// The returned batch replaces the input; an implementation may drop whole
-	// traces or redact sub-attributes. Returning an error aborts the stream.
-	OnResult(ctx context.Context, traces []ptrace.Traces) ([]ptrace.Traces, error)
+	// traces or redact sub-attributes. The returned context is threaded into the
+	// OnResult call for the next batch, so state can accumulate across a
+	// multi-batch result. Returning an error aborts the stream. Return the inbound
+	// context and traces unchanged for a no-op.
+	OnResult(ctx context.Context, traces []ptrace.Traces) (context.Context, []ptrace.Traces, error)
 }
