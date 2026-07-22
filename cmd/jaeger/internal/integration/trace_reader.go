@@ -30,9 +30,8 @@ import (
 )
 
 var (
-	_ tracestore.Reader        = (*traceReader)(nil)
-	_ tracestore.SummaryReader = (*traceReader)(nil)
-	_ io.Closer                = (*traceReader)(nil)
+	_ tracestore.Reader = (*traceReader)(nil)
+	_ io.Closer         = (*traceReader)(nil)
 )
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.

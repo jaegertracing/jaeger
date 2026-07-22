@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/clickhousetest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
@@ -346,16 +345,6 @@ func TestNewFactory_TLSLoadSuccess(t *testing.T) {
 	_, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), "failed to load TLS configuration")
-}
-
-func TestNewFactory_FeatureGateDisabled(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), false))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(clickhouseStorageGate.ID(), true))
-	})
-	f, err := NewFactory(context.Background(), Configuration{}, telemetry.NoopSettings())
-	require.ErrorContains(t, err, "must be explicitly enabled")
-	require.Nil(t, f)
 }
 
 func TestNewSchemaBuilder_Errors(t *testing.T) {

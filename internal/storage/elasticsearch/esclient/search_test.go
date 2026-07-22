@@ -200,6 +200,45 @@ func TestMultiSearchNDJSONAndResponse(t *testing.T) {
 	require.Len(t, resps[0].Hits.Hits, 1)
 }
 
+// TestMultiSearchDecodesPerItemError covers a failed _msearch item: the overall
+// response is HTTP 200 but the item carries {"error": ..., "status": N} and no
+// hits. The error must be decoded and reported by Err(), not swallowed as an
+// empty result.
+func TestMultiSearchDecodesPerItemError(t *testing.T) {
+	const respBody = `{"responses":[` +
+		`{"error":{"type":"search_phase_execution_exception","reason":"all shards failed"},"status":503},` +
+		`{"status":200,"hits":{"total":1,"hits":[{"_source":{"traceID":"abc"}}]}}]}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(respBody))
+	}))
+	defer server.Close()
+
+	sc := SearchClient{Client: makeClient(t, server.URL, "", "", es.ElasticV7)}
+	resps, err := sc.MultiSearch(context.Background(), []MultiSearchRequest{
+		{Indices: []string{"idx-a"}},
+		{Indices: []string{"idx-b"}},
+	})
+	require.NoError(t, err)
+	require.Len(t, resps, 2)
+
+	itemErr := resps[0].Err()
+	require.ErrorContains(t, itemErr, "status 503")
+	require.ErrorContains(t, itemErr, "search_phase_execution_exception")
+
+	require.NoError(t, resps[1].Err())
+	assert.Equal(t, 1, resps[1].Hits.Total.Value)
+}
+
+func TestSearchResponseErr(t *testing.T) {
+	var ok SearchResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"status":200,"hits":{"total":0,"hits":[]}}`), &ok))
+	require.NoError(t, ok.Err())
+
+	var nullErr SearchResponse
+	require.NoError(t, json.Unmarshal([]byte(`{"error":null,"status":200}`), &nullErr))
+	require.NoError(t, nullErr.Err())
+}
+
 func TestMultiSearchMultipleIndicesRenderAsArray(t *testing.T) {
 	var gotBody []byte
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -6,10 +6,8 @@ package clickhouse
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"text/template"
 	"time"
 
@@ -29,13 +27,27 @@ import (
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
-var clickhouseStorageGate = featuregate.GlobalRegistry().MustRegister(
-	"storage.clickhouse",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterFromVersion("v2.18.0"),
-	featuregate.WithRegisterDescription(
-		"Enables ClickHouse as a storage backend.",
-	),
+// ClickHouse is always available as a storage backend and is selected through
+// configuration; no feature gate is required to enable it. The gate IDs below
+// remain registered as Stable only so that existing --feature-gates values keep
+// working (as no-ops) until they are removed in v2.23.0.
+var (
+	_ = featuregate.GlobalRegistry().MustRegister(
+		"jaeger.clickhouse",
+		featuregate.StageStable,
+		featuregate.WithRegisterFromVersion("v2.21.0"),
+		featuregate.WithRegisterToVersion("v2.23.0"),
+		featuregate.WithRegisterDescription("No-op: ClickHouse is always available as a storage backend and is selected through configuration. Retained for backward compatibility and removed in v2.23.0."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	)
+	_ = featuregate.GlobalRegistry().MustRegister(
+		"storage.clickhouse",
+		featuregate.StageStable,
+		featuregate.WithRegisterFromVersion("v2.18.0"),
+		featuregate.WithRegisterToVersion("v2.23.0"),
+		featuregate.WithRegisterDescription("No-op: deprecated alias for jaeger.clickhouse, retained for backward compatibility and removed in v2.23.0."),
+		featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/issues/9016"),
+	)
 )
 
 var (
@@ -112,25 +124,6 @@ type Factory struct {
 }
 
 func NewFactory(ctx context.Context, cfg Configuration, telset telemetry.Settings) (*Factory, error) {
-	if !clickhouseStorageGate.IsEnabled() {
-		return nil, errors.New(
-			"ClickHouse storage is experimental and must be explicitly enabled. " +
-				"The schema is subject to breaking changes. " +
-				"Enable it with --feature-gates=storage.clickhouse",
-		)
-	}
-	fmt.Fprint(os.Stderr, `
-*******************************************************************************
-
-⚠️  WARNING: ClickHouse Storage is Experimental
-
-You are using the ClickHouse storage backend, which is currently experimental.
-The schema is subject to breaking changes in future releases.
-
-⚠️  WARNING: ClickHouse Storage is Experimental
-
-*******************************************************************************
-`)
 	cfg.applyDefaults()
 
 	var builder *schemaBuilder
