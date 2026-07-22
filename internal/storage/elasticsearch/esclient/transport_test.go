@@ -237,10 +237,23 @@ func TestRawClientCompressesBeforeBaseRoundTripper(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 
 	assert.Equal(t, "gzip", spy.encoding, "the base RoundTripper must see Content-Encoding already set")
-	require.NotEmpty(t, spy.body)
-	assert.Equal(t, []byte{0x1f, 0x8b}, spy.body[:2], "the base RoundTripper must see gzip-framed bytes")
-	assert.NotNil(t, spy.getBody, "GetBody must be populated so a signer can re-read the compressed payload")
+	assert.True(t, bytes.HasPrefix(spy.body, gzipMagic), "the base RoundTripper must see gzip-framed bytes")
+
+	// A signer re-reads the payload through GetBody rather than the consumed Body.
+	// If GetBody replayed the original uncompressed bytes, the signature would cover
+	// a different payload than the one transmitted — the #8307 failure mode — so
+	// assert it yields exactly what the transport sends, not merely that it is set.
+	require.NotNil(t, spy.getBody, "GetBody must be populated for a signer to re-read the payload")
+	replay, err := spy.getBody()
+	require.NoError(t, err)
+	replayed, err := io.ReadAll(replay)
+	require.NoError(t, err)
+	require.NoError(t, replay.Close())
+	assert.Equal(t, spy.body, replayed, "GetBody must replay the same compressed bytes the transport sends")
 }
+
+// gzipMagic is the two-byte header every gzip stream starts with.
+var gzipMagic = []byte{0x1f, 0x8b}
 
 // bodyObservingRoundTripper records what the auth layer would see.
 type bodyObservingRoundTripper struct {
