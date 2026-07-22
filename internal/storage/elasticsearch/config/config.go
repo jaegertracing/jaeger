@@ -259,7 +259,7 @@ type BulkProcessing struct {
 	//
 	// Deprecated: the bulk indexer flushes only on a byte threshold (max_bytes) or a
 	// flush interval (flush_interval); it has no action-count trigger, so this setting
-	// never had any effect. It is now rejected by config validation and will be removed
+	// is unsupported. It is now rejected by config validation and will be removed
 	// in a future release.
 	MaxActions configoptional.Optional[int] `mapstructure:"max_actions"`
 	// FlushInterval is the interval at the end of which a flush occurs.
@@ -498,7 +498,7 @@ func (c *Configuration) Validate() error {
 		return errors.New(
 			"'bulk_processing.max_actions' is no longer supported: the bulk indexer flushes " +
 				"only on a byte threshold or a time interval, so an action count has no effect; " +
-				"remove the setting and use 'bulk_processing.max_bytes' and/or " +
+				"please remove the setting and use 'bulk_processing.max_bytes' and/or " +
 				"'bulk_processing.flush_interval' to control flushing",
 		)
 	}
