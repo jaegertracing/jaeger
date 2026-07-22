@@ -13,7 +13,8 @@ func TestMemoryStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageMemoryV2)
 
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config.yaml",
+		ConfigFile:         "../../config.yaml",
+		RequireCoreMetrics: true, // golden-list BC check; see metrics_compat.go / #6278
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
 		},

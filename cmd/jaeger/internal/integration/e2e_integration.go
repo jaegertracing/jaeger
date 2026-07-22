@@ -47,6 +47,13 @@ type E2EStorageIntegration struct {
 	MetricsPort     int // overridable, default to 8888
 	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
 
+	// RequireCoreMetrics enables a golden-list check on the scraped /metrics
+	// body after the test finishes. Enable for full all-in-one / storage e2e
+	// binaries that exercise receive → export → storage. Partial deployments
+	// (query-only, remote backends, kafka split) should leave this false.
+	// See metrics_compat.go and jaegertracing/jaeger#6278.
+	RequireCoreMetrics bool
+
 	// EnvVarOverrides contains a map of environment variables to set.
 	// The key in the map is the environment variable to override and the value
 	// is the value of the environment variable to set.
@@ -148,6 +155,9 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
 	outputDir := "../../../../.metrics"
 	require.NoError(t, os.MkdirAll(outputDir, os.ModePerm))
 
@@ -155,8 +165,12 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	require.NoError(t, err)
 	defer metricsFile.Close()
 
-	_, err = io.Copy(metricsFile, resp.Body)
+	_, err = metricsFile.Write(body)
 	require.NoError(t, err)
+
+	if s.RequireCoreMetrics {
+		assertCoreMetricsPresent(t, string(body))
+	}
 }
 
 func createStorageCleanerConfig(t *testing.T, configFile string, storage string) string {
