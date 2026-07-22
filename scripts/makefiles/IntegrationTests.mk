@@ -18,7 +18,30 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) $(RUN_FLAGS) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+
+# Directory where the @main jaeger binary is installed by install-jaeger-at-main.
+# Must match mainJaegerBinary in cmd/jaeger/internal/integration/badger_test.go.
+JAEGER_MAIN_INSTALL_DIR = /tmp/jaeger-at-main
+
+# Installs the @main jaeger binary into JAEGER_MAIN_INSTALL_DIR.
+# Reusable by other backward-compatibility targets (e.g. for future backends).
+.PHONY: install-jaeger-at-main
+install-jaeger-at-main:
+	mkdir -p $(JAEGER_MAIN_INSTALL_DIR)
+	GOBIN=$(JAEGER_MAIN_INSTALL_DIR) go install github.com/jaegertracing/jaeger/cmd/jaeger@main
+
+# Backward compatibility test for jaeger-v2 storage: writes traces with the @main
+# binary, then reads them back with the current-branch binary, simulating a rolling
+# upgrade against a shared Badger store. The build-and-run logic is reused from
+# jaeger-v2-storage-integration-test; only the @main binary provisioning, the
+# BACKWARD_COMPATIBILITY toggle, and the test filter are layered on top. The filter
+# keeps the env scoped to the backward-compat test so it can't affect the normal suite.
+.PHONY: jaeger-v2-backward-compatibility-test
+jaeger-v2-backward-compatibility-test: install-jaeger-at-main
+	BACKWARD_COMPATIBILITY=true \
+	STORAGE=badger \
+	$(MAKE) jaeger-v2-storage-integration-test RUN_FLAGS="-run TestBadgerBackwardCompatibility"
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)
