@@ -59,6 +59,21 @@ func TestZapLoggerLogRoundTrip(t *testing.T) {
 		assert.Equal(t, "boom", entries[0].ContextMap()["error"])
 	})
 
+	t.Run("4xx/5xx response logs at error even without a transport error", func(t *testing.T) {
+		for _, code := range []int{http.StatusBadRequest, http.StatusInternalServerError} {
+			// log_level=error is the default, so a failing status must surface there.
+			core, logs := observer.New(zap.InfoLevel)
+			l := newZapLogger("error", zap.New(core))
+			res := &http.Response{StatusCode: code}
+			require.NoError(t, l.LogRoundTrip(req, res, nil, time.Now(), time.Millisecond))
+
+			entries := logs.All()
+			require.Len(t, entries, 1)
+			assert.Equal(t, zap.ErrorLevel, entries[0].Level)
+			assert.Equal(t, int64(code), entries[0].ContextMap()["status_code"])
+		}
+	})
+
 	t.Run("error level mutes successful round trips", func(t *testing.T) {
 		core, logs := observer.New(zap.InfoLevel)
 		// newZapLogger raises the threshold to error, so an info-level success is dropped.

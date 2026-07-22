@@ -39,9 +39,10 @@ func newZapLogger(logLevel string, logger *zap.Logger) *zapLogger {
 }
 
 // LogRoundTrip logs one request/response exchange: method, URL, status, and
-// duration. Successful round trips log at info, failures at error, so
-// log_level=error surfaces only failures while log_level=info also traces every
-// request. Bodies are not logged (see RequestBodyEnabled).
+// duration. Failures — a transport error or a 4xx/5xx response — log at error;
+// other round trips log at info. So log_level=error surfaces only failures while
+// log_level=info also traces every request. Bodies are not logged (see
+// RequestBodyEnabled).
 func (l *zapLogger) LogRoundTrip(req *http.Request, res *http.Response, err error, _ time.Time, dur time.Duration) error {
 	fields := []zap.Field{
 		zap.String("method", req.Method),
@@ -53,11 +54,17 @@ func (l *zapLogger) LogRoundTrip(req *http.Request, res *http.Response, err erro
 	if res != nil {
 		fields = append(fields, zap.Int("status_code", res.StatusCode))
 	}
-	if err != nil {
+	switch {
+	case err != nil:
 		l.logger.Error("Elasticsearch request failed", append(fields, zap.Error(err))...)
-		return nil
+	case res != nil && res.StatusCode >= http.StatusBadRequest:
+		// A 4xx/5xx is a failed request even though the round trip itself
+		// succeeded, so log it at error too — otherwise log_level=error (the
+		// default) would hide 500s and only surface transport-level errors.
+		l.logger.Error("Elasticsearch request returned error status", fields...)
+	default:
+		l.logger.Info("Elasticsearch request", fields...)
 	}
-	l.logger.Info("Elasticsearch request", fields...)
 	return nil
 }
 
