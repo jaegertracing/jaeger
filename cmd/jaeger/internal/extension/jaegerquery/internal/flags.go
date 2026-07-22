@@ -22,6 +22,8 @@ type UIConfig struct {
 	// ConfigFile is the path to a configuration file for the UI.
 	ConfigFile string `mapstructure:"config_file" valid:"optional"`
 	// AssetsPath is the path for the static assets for the UI (https://github.com/uber/jaeger-ui).
+	// It may be either a directory or the assets.tar.gz bundle published on the
+	// jaeger-ui releases page, in which case the archive is read directly.
 	AssetsPath string `mapstructure:"assets_path" valid:"optional" `
 	// LogAccess tells static handler to log access to static assets, useful in debugging.
 	LogAccess bool `mapstructure:"log_access" valid:"optional"`
