@@ -93,7 +93,7 @@ To enable multi-tenancy:
 
 ```yaml
 grpc:
-  host-port: :17271
+  endpoint: :17271
 
 multi_tenancy:
   enabled: true
@@ -108,6 +108,8 @@ storage:
       memory:
         max_traces: 100000
 ```
+
+When enabled, the gRPC server requires the tenant header on every RPC and attaches the tenant to the request context. Memory storage partitions data per tenant; most other backends do not. For how this fits with Jaeger v2 query and the gRPC storage client, see [Multi-tenancy in Jaeger v2](../jaeger/docs/multi-tenancy.md).
 
 ## Integration with Jaeger
 
