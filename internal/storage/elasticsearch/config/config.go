@@ -124,12 +124,24 @@ type Configuration struct {
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
-	// Disable the Elasticsearch health check
-	DisableHealthCheck bool `mapstructure:"disable_health_check"`
-	// Set the Elasticsearch health check timeout startup
-	HealthCheckTimeoutStartup time.Duration `mapstructure:"health_check_timeout_startup"`
-	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
-	SendGetBodyAs string `mapstructure:"send_get_body_as"`
+	// DisableHealthCheck used to disable the Elasticsearch health check.
+	//
+	// Deprecated: the owned esclient transport performs no client-side health
+	// check, so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	DisableHealthCheck configoptional.Optional[bool] `mapstructure:"disable_health_check"`
+	// HealthCheckTimeoutStartup used to set the Elasticsearch health check startup timeout.
+	//
+	// Deprecated: the owned esclient transport performs no client-side health
+	// check, so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	HealthCheckTimeoutStartup configoptional.Optional[time.Duration] `mapstructure:"health_check_timeout_startup"`
+	// SendGetBodyAs used to select the HTTP verb for requests that carry a body.
+	//
+	// Deprecated: the owned esclient transport sends each request with a fixed
+	// verb, so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	SendGetBodyAs configoptional.Optional[string] `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
 	QueryTimeout time.Duration `mapstructure:"query_timeout"`
 	// HTTPCompression can be set to false to disable gzip compression for requests to ElasticSearch
@@ -251,16 +263,25 @@ type Sniffing struct {
 	// publishes addresses the client cannot reach (a common AWS/proxy setup)
 	// would break; enable it only when every node is directly reachable.
 	Enabled bool `mapstructure:"enabled"`
-	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
-	// For ESV8, the scheme is set to HTTPS by default, so this configuration is ignored.
-	UseHTTPS bool `mapstructure:"use_https"`
+	// UseHTTPS used to force the HTTPS scheme when sniffing discovered nodes.
+	//
+	// Deprecated: the owned esclient transport derives the scheme of discovered
+	// nodes from the seed server URL (an https:// seed already yields https://
+	// nodes), so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	UseHTTPS configoptional.Optional[bool] `mapstructure:"use_https"`
 }
 
 type BulkProcessing struct {
 	// MaxBytes, contains the number of bytes which specifies when to flush.
 	MaxBytes int `mapstructure:"max_bytes"`
-	// MaxActions contain the number of added actions which specifies when to flush.
-	MaxActions int `mapstructure:"max_actions"`
+	// MaxActions used to contain the number of added actions which specifies when to flush.
+	//
+	// Deprecated: the bulk indexer flushes only on a byte threshold (max_bytes) or a
+	// flush interval (flush_interval); it has no action-count trigger, so this setting
+	// has no effect since v2.20.0. It is now rejected by config validation and will be
+	// removed in a future release.
+	MaxActions configoptional.Optional[int] `mapstructure:"max_actions"`
 	// FlushInterval is the interval at the end of which a flush occurs.
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
 	// Workers contains the number of concurrent workers allowed to be executed.
@@ -386,14 +407,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkProcessing.Workers == 0 {
 		c.BulkProcessing.Workers = source.BulkProcessing.Workers
 	}
-	if c.BulkProcessing.MaxActions == 0 {
-		c.BulkProcessing.MaxActions = source.BulkProcessing.MaxActions
-	}
 	if c.BulkProcessing.FlushInterval == 0 {
 		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
-	}
-	if !c.Sniffing.UseHTTPS {
-		c.Sniffing.UseHTTPS = source.Sniffing.UseHTTPS
 	}
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
@@ -412,9 +427,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.LogLevel == "" {
 		c.LogLevel = source.LogLevel
-	}
-	if c.SendGetBodyAs == "" {
-		c.SendGetBodyAs = source.SendGetBodyAs
 	}
 	if !c.HTTPCompression {
 		c.HTTPCompression = source.HTTPCompression
@@ -496,6 +508,36 @@ func (c *Configuration) Validate() error {
 		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
 	}
 
+	// Reject options orphaned when the olivere client stack was retired (#8982):
+	// the owned esclient transport never wired them back up, so they have no
+	// effect. sniffing.use_https is a sniffing sub-option, disable_health_check /
+	// health_check_timeout_startup / send_get_body_as are connection options, and
+	// bulk_processing.max_actions is a client option; none has a lever on the
+	// current transport. Fail fast rather than accept a setting that silently does
+	// nothing.
+	if c.Sniffing.UseHTTPS.HasValue() {
+		return rejectUnwiredKey("sniffing.use_https",
+			"the client derives the scheme of discovered nodes from the seed server URL, "+
+				"so an https:// entry in 'server_urls' already yields https:// nodes")
+	}
+	if c.DisableHealthCheck.HasValue() {
+		return rejectUnwiredKey("disable_health_check",
+			"the client performs no client-side health check, so there is nothing to disable")
+	}
+	if c.HealthCheckTimeoutStartup.HasValue() {
+		return rejectUnwiredKey("health_check_timeout_startup",
+			"the client performs no client-side health check")
+	}
+	if c.SendGetBodyAs.HasValue() {
+		return rejectUnwiredKey("send_get_body_as",
+			"the client sends each request with a fixed HTTP verb")
+	}
+	if c.BulkProcessing.MaxActions.HasValue() {
+		return rejectUnwiredKey("bulk_processing.max_actions",
+			"the bulk indexer flushes only on a byte threshold ('bulk_processing.max_bytes') "+
+				"or a time interval ('bulk_processing.flush_interval'), so an action count has no effect")
+	}
+
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
@@ -548,4 +590,15 @@ func validateLogLevel(level string) error {
 	default:
 		return fmt.Errorf("unrecognized log_level %q: valid values are debug, info, error", level)
 	}
+}
+
+// rejectUnwiredKey builds the validation error for a config key that the current
+// Elasticsearch client no longer reads, pointing operators at the PR that explains
+// the change. The migration is always the same: remove the key.
+func rejectUnwiredKey(key, reason string) error {
+	return fmt.Errorf(
+		"'%s' is no longer supported: %s; please remove the setting "+
+			"(see https://github.com/jaegertracing/jaeger/pull/9076)",
+		key, reason,
+	)
 }
