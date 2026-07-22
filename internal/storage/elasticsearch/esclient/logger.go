@@ -45,7 +45,9 @@ func newZapLogger(logLevel string, logger *zap.Logger) *zapLogger {
 func (l *zapLogger) LogRoundTrip(req *http.Request, res *http.Response, err error, _ time.Time, dur time.Duration) error {
 	fields := []zap.Field{
 		zap.String("method", req.Method),
-		zap.String("url", req.URL.String()),
+		// Redacted() masks any userinfo password in the URL so a
+		// http://user:pass@host seed URL does not leak the password into logs.
+		zap.String("url", req.URL.Redacted()),
 		zap.Duration("duration", dur),
 	}
 	if res != nil {
