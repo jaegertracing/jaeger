@@ -119,12 +119,12 @@ type stubQueryInterceptor struct{}
 
 func (stubQueryInterceptor) Start(context.Context, component.Host) error { return nil }
 func (stubQueryInterceptor) Shutdown(context.Context) error              { return nil }
-func (stubQueryInterceptor) OnQuery(_ context.Context, q queryinterceptor.Query) (queryinterceptor.Query, error) {
-	return q, nil
+func (stubQueryInterceptor) OnQuery(ctx context.Context, q queryinterceptor.Query) (context.Context, queryinterceptor.Query, error) {
+	return ctx, q, nil
 }
 
-func (stubQueryInterceptor) OnResult(_ context.Context, t []ptrace.Traces) ([]ptrace.Traces, error) {
-	return t, nil
+func (stubQueryInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	return ctx, t, nil
 }
 
 var (
@@ -285,10 +285,10 @@ func TestServerStart(t *testing.T) {
 			tt.config.GRPC.NetAddr.Endpoint = "localhost:0"
 			tt.config.GRPC.NetAddr.Transport = confignet.TransportTypeTCP
 			server := newServer(tt.config, telemetrySettings)
-			err := server.Start(context.Background(), host)
+			err := server.Start(t.Context(), host)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
-				defer server.Shutdown(context.Background())
+				defer server.Shutdown(t.Context())
 				// We need to wait for servers to become available.
 				// Otherwise, we could call shutdown before the servers are even started,
 				// which could cause flaky code coverage by going through error cases.
@@ -491,10 +491,10 @@ func TestQueryService(t *testing.T) {
 	}
 
 	server := newServer(config, telemetrySettings)
-	err := server.Start(context.Background(), host)
+	err := server.Start(t.Context(), host)
 	require.NoError(t, err)
 	defer func() {
-		require.NoError(t, server.Shutdown(context.Background()))
+		require.NoError(t, server.Shutdown(t.Context()))
 	}()
 
 	qs := server.QueryService()
