@@ -343,9 +343,8 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := escfg.Configuration{
-		Servers:            []string{server.URL},
-		DisableHealthCheck: true,
-		LogLevel:           "error",
+		Servers:  []string{server.URL},
+		LogLevel: "error",
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch data client")
@@ -366,7 +365,6 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:              []string{server.URL},
 		CreateIndexTemplates: true,
-		DisableHealthCheck:   true,
 		LogLevel:             "error",
 		Indices: escfg.Indices{
 			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
