@@ -1141,11 +1141,10 @@ func newMetricsClient(t *testing.T, url string, version es.BackendVersion) escli
 // deterministic across versions.
 func metricsSnapshotConfig(url string, version es.BackendVersion) config.Configuration {
 	return config.Configuration{
-		Servers:        []string{url},
-		Version:        uint(version),
-		LogLevel:       "info",
-		BulkProcessing: config.BulkProcessing{MaxBytes: -1},
-		Tags:           config.TagsAsFields{DotReplacement: "@"},
+		Servers:  []string{url},
+		Version:  uint(version),
+		LogLevel: "info",
+		Tags:     config.TagsAsFields{DotReplacement: "@"},
 	}
 }
 
