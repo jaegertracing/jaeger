@@ -15,7 +15,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
-	"github.com/jaegertracing/jaeger/internal/cache"
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
@@ -28,14 +27,15 @@ const (
 	indexCacheTTLDefault   = 48 * time.Hour
 )
 
-type serviceWriter func(string, *dbmodel.Span)
-
-// SpanWriter writes spans and their service:operation pairs via the bulk indexer.
+// SpanWriter writes spans and their service:operation pairs through an
+// esclient.BatchWriter — the async indexer or the synchronous bulk writer, chosen by
+// the factory. Which one is not the writer's concern; it assembles the batch and
+// hands it over the same way regardless.
 type SpanWriter struct {
-	bulkWriter        esclient.BulkWriter
+	batchWriter       esclient.BatchWriter
+	serviceOp         *ServiceOperationStorage
 	logger            *zap.Logger
 	writerMetrics     *spanstoremetrics.WriteMetrics
-	serviceWriter     serviceWriter
 	spanRotation      indices.Rotation
 	serviceRotation   indices.Rotation
 	allTagsAsFields   bool
@@ -46,20 +46,19 @@ type SpanWriter struct {
 // Writer is a DB-Level abstraction which directly deals with database level operations
 type Writer interface {
 	// WriteSpans writes a batch of spans and their corresponding service:operation
-	// pairs to Elasticsearch/OpenSearch. It is the batch entry point the v2
-	// TraceWriter drives once per WriteTraces call. The async implementation
-	// enqueues each document into the shared bulk indexer and returns nil (an
-	// enqueue cannot fail synchronously); a synchronous implementation issues one
-	// blocking _bulk per batch and returns the real write error (RFC 0007).
+	// pairs to Elasticsearch/OpenSearch through the configured batch writer,
+	// returning its error. It is the batch entry point the v2 TraceWriter drives
+	// once per WriteTraces call.
 	WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 	// Close closes Writer
 	Close() error
 }
 
-// SpanWriterParams holds constructor parameters for NewSpanWriter. BulkWriter is
-// required — the writer enqueues every span and service document through it.
+// SpanWriterParams holds constructor parameters for NewSpanWriter. BatchWriter is
+// the destination for assembled documents; the factory supplies the async or
+// synchronous implementation, so the writer stays mode-agnostic.
 type SpanWriterParams struct {
-	BulkWriter        esclient.BulkWriter
+	BatchWriter       esclient.BatchWriter
 	Logger            *zap.Logger
 	MetricsFactory    metrics.Factory
 	AllTagsAsFields   bool
@@ -82,13 +81,11 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		tags[k] = true
 	}
 
-	// The writer only calls Write (never the read methods), so it needs no searcher.
-	serviceOperationStorage := NewServiceOperationStorage(nil, p.BulkWriter, p.Logger, serviceCacheTTL)
 	return &SpanWriter{
-		bulkWriter:        p.BulkWriter,
+		batchWriter:       p.BatchWriter,
+		serviceOp:         NewServiceOperationStorage(nil, p.Logger, serviceCacheTTL), // write-only: no searcher
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
-		serviceWriter:     serviceOperationStorage.Write,
 		spanRotation:      p.SpanRotation,
 		serviceRotation:   p.ServiceRotation,
 		tagKeysAsFields:   tags,
@@ -97,34 +94,45 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	}
 }
 
-// WriteSpans enqueues a batch of spans and their service:operation pairs into the
-// bulk indexer. Because the indexer is asynchronous (fire-and-forget), the enqueue
-// cannot fail synchronously, so this always returns nil; per-item failures surface
-// in the indexer's OnFailure callback. RFC 0007 adds a synchronous peer that issues
-// one blocking _bulk per batch and returns the real error.
-func (s *SpanWriter) WriteSpans(_ context.Context, spans []dbmodel.Span) error {
+// WriteSpans assembles the whole batch's documents — each span, plus any new
+// service:operation dedup docs — and writes them through the batch writer, returning
+// its error. The service cache is marked only after a successful write (§4.3), so
+// a failed-and-retried batch re-sends the service docs rather than skipping them.
+func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error {
+	items := make([]esclient.BulkItem, 0, len(spans))
+	serviceOps := newServiceOperationBatch(s.serviceOp)
 	for i := range spans {
 		span := &spans[i]
-		s.writeSpan(model.EpochMicrosecondsAsTime(span.StartTime), span)
-	}
-	return nil
-}
+		s.writerMetrics.Attempts.Inc(1)
+		spanStartTime := model.EpochMicrosecondsAsTime(span.StartTime)
 
-// writeSpan writes a single span and its corresponding service:operation into the
-// bulk indexer.
-func (s *SpanWriter) writeSpan(spanStartTime time.Time, span *dbmodel.Span) {
-	s.writerMetrics.Attempts.Inc(1)
-	s.convertNestedTagsToFieldTags(span)
-	if s.spanRotation.RequiresDocumentTimestamp() {
-		span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
+		// Service:operation pair doc, deduped to one doc per batch unless already cached.
+		if item, ok := serviceOps.toUpsertItem(s.serviceRotation.WriteTarget(spanStartTime), span); ok {
+			items = append(items, item)
+		}
+
+		// Span doc.
+		s.convertNestedTagsToFieldTags(span)
+		if s.spanRotation.RequiresDocumentTimestamp() {
+			span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
+		}
+		item, err := s.buildSpanItem(s.spanRotation.WriteTarget(spanStartTime), span)
+		if err != nil {
+			// A span carrying an unencodable value (e.g. a NaN/Inf float tag) cannot
+			// be stored; drop it rather than fail the batch.
+			s.writerMetrics.Errors.Inc(1)
+			s.logger.Error("failed to encode span document", zap.Error(err))
+			continue
+		}
+		items = append(items, item)
 	}
-	spanIndexName := s.spanRotation.WriteTarget(spanStartTime)
-	serviceIndexName := s.serviceRotation.WriteTarget(spanStartTime)
-	if serviceIndexName != "" {
-		s.writeService(serviceIndexName, span)
+
+	if err := s.batchWriter.WriteBatch(ctx, items); err != nil {
+		return err
 	}
-	s.writeSpanToIndex(spanIndexName, span)
-	s.logger.Debug("Wrote span to ES index", zap.String("index", spanIndexName))
+	// Durable now (or enqueued, in async mode): safe to remember the service docs.
+	serviceOps.commitToCache()
+	return nil
 }
 
 func (s *SpanWriter) convertNestedTagsToFieldTags(span *dbmodel.Span) {
@@ -142,42 +150,21 @@ func (*SpanWriter) Close() error {
 	return nil
 }
 
-func keyInCache(key string, c cache.Cache) bool {
-	return c.Get(key) != nil
-}
-
-func writeCache(key string, c cache.Cache) {
-	c.Put(key, key)
-}
-
-func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {
-	s.serviceWriter(indexName, jsonSpan)
-}
-
-func (s *SpanWriter) writeSpanToIndex(indexName string, jsonSpan *dbmodel.Span) {
-	// Marshal the span once and reuse the bytes for both the content-hash _id and
-	// the NDJSON document (handed to the bulk writer as json.RawMessage so it is not
-	// re-encoded), avoiding a second reflection-heavy marshal on this hot path.
+// buildSpanItem marshals a span into a BulkItem with a deterministic _id, returning
+// an error if it cannot be encoded (e.g. a NaN/Inf float tag) — the caller decides
+// what to do. The span is marshaled once here; the bytes are reused for the _id and
+// handed to the batch writer as json.RawMessage so they are not re-encoded.
+func (s *SpanWriter) buildSpanItem(indexName string, jsonSpan *dbmodel.Span) (esclient.BulkItem, error) {
 	body, err := json.Marshal(jsonSpan)
 	if err != nil {
-		// Reachable when a span carries an unencodable value — e.g. a NaN/Inf float
-		// tag: it cannot be stored, so drop it with a logged error rather than
-		// enqueue a document with no _id. Mirrors the bulk writer's own
-		// encode-failure handling.
-		s.writerMetrics.Errors.Inc(1)
-		s.logger.Error("failed to encode span document",
-			zap.String("index", indexName), zap.Error(err))
-		return
+		return esclient.BulkItem{}, err
 	}
-	// A SpanWriter always has a bulkWriter (a required SpanWriterParams field), so
-	// unlike ServiceOperationStorage.Write — which also serves read-only instances
-	// with a nil writer — this is not nil-checked.
-	s.bulkWriter.Add(esclient.BulkItem{
+	return esclient.BulkItem{
 		Index:  indexName,
 		ID:     spanDocID(jsonSpan, body),
 		OpType: s.spanRotation.WriteOpType(),
 		Body:   json.RawMessage(body),
-	})
+	}, nil
 }
 
 // spanDocID returns a deterministic _id for a span document, which makes span

@@ -28,7 +28,7 @@ type IndexExistenceChecker interface {
 
 type SamplingStore struct {
 	searcher    esclient.Searcher
-	bulkWriter  esclient.BulkWriter
+	batchWriter esclient.BatchWriter
 	indexClient IndexExistenceChecker
 	logger      *zap.Logger
 	maxDocCount int
@@ -42,7 +42,7 @@ type SamplingStore struct {
 
 type Params struct {
 	Searcher    esclient.Searcher
-	BulkWriter  esclient.BulkWriter
+	BatchWriter esclient.BatchWriter
 	IndexClient IndexExistenceChecker
 	Logger      *zap.Logger
 	Lookback    time.Duration
@@ -53,7 +53,7 @@ type Params struct {
 func NewSamplingStore(p Params) *SamplingStore {
 	return &SamplingStore{
 		searcher:    p.Searcher,
-		bulkWriter:  p.BulkWriter,
+		batchWriter: p.BatchWriter,
 		indexClient: p.IndexClient,
 		logger:      p.Logger,
 		maxDocCount: p.MaxDocCount,
@@ -66,8 +66,10 @@ func NewSamplingStore(p Params) *SamplingStore {
 func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 	ts := s.now()
 	indexName := s.rotation.WriteTarget(ts)
-	for _, eachThroughput := range dbmodel.FromThroughputs(throughput) {
-		s.bulkWriter.Add(esclient.BulkItem{
+	converted := dbmodel.FromThroughputs(throughput)
+	items := make([]esclient.BulkItem, 0, len(converted))
+	for _, eachThroughput := range converted {
+		items = append(items, esclient.BulkItem{
 			Index: indexName,
 			Body: &dbmodel.TimeThroughput{
 				Timestamp:  ts,
@@ -75,7 +77,9 @@ func (s *SamplingStore) InsertThroughput(throughput []*model.Throughput) error {
 			},
 		})
 	}
-	return nil
+	// context.Background: sampling writes are not request-scoped, and the async
+	// indexer this uses ignores the context anyway (see BulkIndexer.WriteBatch).
+	return s.batchWriter.WriteBatch(context.Background(), items)
 }
 
 func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput, error) {
@@ -112,8 +116,7 @@ func (s *SamplingStore) InsertProbabilitiesAndQPS(hostname string,
 		Probabilities: probabilities,
 		QPS:           qps,
 	}
-	s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
-	return nil
+	return s.writeProbabilitiesAndQPS(writeIndexName, ts, val)
 }
 
 func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
@@ -148,14 +151,15 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	return latestProbabilities.ProbabilitiesAndQPS.Probabilities, nil
 }
 
-func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) {
-	s.bulkWriter.Add(esclient.BulkItem{
+func (s *SamplingStore) writeProbabilitiesAndQPS(indexName string, ts time.Time, pandqps dbmodel.ProbabilitiesAndQPS) error {
+	// context.Background: see InsertThroughput.
+	return s.batchWriter.WriteBatch(context.Background(), []esclient.BulkItem{{
 		Index: indexName,
 		Body: &dbmodel.TimeProbabilitiesAndQPS{
 			Timestamp:           ts,
 			ProbabilitiesAndQPS: pandqps,
 		},
-	})
+	}})
 }
 
 func (s *SamplingStore) getLatestIndex(ctx context.Context) (string, error) {

@@ -157,7 +157,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		BulkWriter:        f.bulkWriter,
+		BatchWriter:       f.bulkWriter,
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
 		TagDotReplacement: f.config.Tags.DotReplacement,
@@ -173,7 +173,7 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
 		Searcher:    f.searcher,
-		BulkWriter:  f.bulkWriter,
+		BatchWriter: f.bulkWriter,
 		Logger:      f.logger,
 		MaxDocCount: f.config.MaxDocCount,
 		Rotation:    f.buildDependencyRotation(),
@@ -183,7 +183,7 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
 		Searcher:    f.searcher,
-		BulkWriter:  f.bulkWriter,
+		BatchWriter: f.bulkWriter,
 		IndexClient: &esclient.IndicesClient{Client: f.esClient},
 		Logger:      f.logger,
 		Lookback:    f.config.AdaptiveSamplingLookback,

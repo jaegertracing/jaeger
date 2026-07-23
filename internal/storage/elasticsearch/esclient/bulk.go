@@ -44,7 +44,7 @@ type BulkIndexer struct {
 	logger  *zap.Logger
 }
 
-var _ BulkWriter = (*BulkIndexer)(nil)
+var _ BatchWriter = (*BulkIndexer)(nil)
 
 // newESUtilBulkIndexer wraps esutil.NewBulkIndexer in an overridable package var
 // so tests can exercise the constructor error path (which real esutil only
@@ -126,6 +126,20 @@ func (b *BulkIndexer) onFlushEnd(ctx context.Context) {
 		return
 	}
 	b.metrics.LatencyOk.Record(time.Since(st.start))
+}
+
+// WriteBatch enqueues every item (see Add) and returns nil: an enqueue cannot fail
+// synchronously, and per-item failures surface in the indexer's callbacks. It lets
+// *BulkIndexer satisfy BatchWriter, so a caller can treat the async and synchronous
+// writers uniformly. The context is intentionally not forwarded to Add: the async
+// enqueue is background-scoped (the buffered flush outlives this call's context,
+// which the collector cancels once ConsumeTraces returns), so honoring it here could
+// cancel in-flight writes.
+func (b *BulkIndexer) WriteBatch(_ context.Context, items []BulkItem) error {
+	for i := range items {
+		b.Add(items[i]) //nolint:contextcheck // async enqueue is intentionally background-scoped (see above)
+	}
+	return nil
 }
 
 // Add encodes and enqueues a document. Encoding or enqueue failures are logged

@@ -56,6 +56,22 @@ func TestBulkIndexerWritesNDJSON(t *testing.T) {
 	assert.Contains(t, body, `"traceID":"1"`)
 }
 
+func TestBulkIndexerWriteBatch(t *testing.T) {
+	rec, url := bulkServer(t, okBulk)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	// WriteBatch enqueues every item (fire-and-forget) and returns nil.
+	require.NoError(t, b.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", ID: "a", Body: map[string]any{"n": 1}},
+		{Index: "idx", ID: "b", Body: map[string]any{"n": 2}},
+	}))
+	require.NoError(t, b.Close())
+	require.Len(t, rec.Requests(), 1)
+	body := string(rec.Requests()[0].Body)
+	assert.Contains(t, body, `"_id":"a"`)
+	assert.Contains(t, body, `"_id":"b"`)
+}
+
 func TestBulkIndexerRawMessageBodyPassthrough(t *testing.T) {
 	rec, url := bulkServer(t, okBulk)
 	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
