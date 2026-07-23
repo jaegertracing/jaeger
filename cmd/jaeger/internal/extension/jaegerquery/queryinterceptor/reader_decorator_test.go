@@ -21,6 +21,7 @@ import (
 // and yields a single configured batch (or error).
 type fakeReader struct {
 	gotQuery        tracestore.TraceQueryParams
+	gotCtx          context.Context
 	findCalled      bool
 	batch           []ptrace.Traces
 	ids             []tracestore.FoundTraceID
@@ -34,9 +35,10 @@ type fakeReader struct {
 	summaryErr      error
 }
 
-func (f *fakeReader) FindTraces(_ context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
+func (f *fakeReader) FindTraces(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	f.findCalled = true
 	f.gotQuery = q
+	f.gotCtx = ctx
 	return func(yield func([]ptrace.Traces, error) bool) {
 		if f.err != nil {
 			yield(nil, f.err)
@@ -93,24 +95,36 @@ func (f *fakeReader) FindTraceSummaries(_ context.Context, q tracestore.TraceQue
 }
 
 // fakeInterceptor lets each test supply the hook behavior it needs. It receives
-// the public Query, exactly as a real interceptor would.
+// the public Query, exactly as a real interceptor would. The optional onQueryCtx
+// and onResultCtx hooks transform (and observe) the context, so a test can assert
+// how the decorator threads it from OnQuery into the reader and OnResult.
 type fakeInterceptor struct {
-	onQuery  func(pub.Query) (pub.Query, error)
-	onResult func([]ptrace.Traces) ([]ptrace.Traces, error)
+	onQuery     func(pub.Query) (pub.Query, error)
+	onResult    func([]ptrace.Traces) ([]ptrace.Traces, error)
+	onQueryCtx  func(context.Context) context.Context
+	onResultCtx func(context.Context) context.Context
 }
 
-func (f fakeInterceptor) OnQuery(_ context.Context, q pub.Query) (pub.Query, error) {
+func (f fakeInterceptor) OnQuery(ctx context.Context, q pub.Query) (context.Context, pub.Query, error) {
+	if f.onQueryCtx != nil {
+		ctx = f.onQueryCtx(ctx)
+	}
 	if f.onQuery != nil {
-		return f.onQuery(q)
+		nq, err := f.onQuery(q)
+		return ctx, nq, err
 	}
-	return q, nil
+	return ctx, q, nil
 }
 
-func (f fakeInterceptor) OnResult(_ context.Context, t []ptrace.Traces) ([]ptrace.Traces, error) {
-	if f.onResult != nil {
-		return f.onResult(t)
+func (f fakeInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (context.Context, []ptrace.Traces, error) {
+	if f.onResultCtx != nil {
+		ctx = f.onResultCtx(ctx)
 	}
-	return t, nil
+	if f.onResult != nil {
+		nt, err := f.onResult(t)
+		return ctx, nt, err
+	}
+	return ctx, t, nil
 }
 
 func tracesWith(key, val string) []ptrace.Traces {
@@ -171,7 +185,7 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	}
 	r := NewReaderDecorator(next, ic)
 
-	out, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{ServiceName: "original"}))
+	out, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{ServiceName: "original"}))
 	require.NoError(t, err)
 	assert.Equal(t, "gated", next.gotQuery.ServiceName, "pre-query hook must reach storage")
 	require.Len(t, out, 1)
@@ -185,7 +199,7 @@ func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
 	})
 
-	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
 	require.ErrorIs(t, err, sentinel)
 	assert.False(t, next.findCalled, "storage must not be queried when the query is rejected")
 }
@@ -197,7 +211,7 @@ func TestReader_FindTraces_ResultErrorAborts(t *testing.T) {
 		onResult: func([]ptrace.Traces) ([]ptrace.Traces, error) { return nil, sentinel },
 	})
 
-	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
 	require.ErrorIs(t, err, sentinel)
 }
 
@@ -206,7 +220,7 @@ func TestReader_FindTraces_StorageErrorPropagates(t *testing.T) {
 	next := &fakeReader{err: sentinel}
 	r := NewReaderDecorator(next, fakeInterceptor{})
 
-	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
 	require.ErrorIs(t, err, sentinel)
 }
 
@@ -214,7 +228,7 @@ func TestReader_GetTraces_AppliesResultHook(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("secret", "value")}
 	r := NewReaderDecorator(next, fakeInterceptor{onResult: redactResult("secret")})
 
-	out, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
+	out, err := collectTraces(r.GetTraces(t.Context(), tracestore.GetTraceParams{}))
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, out[0], "secret"))
@@ -223,7 +237,7 @@ func TestReader_GetTraces_AppliesResultHook(t *testing.T) {
 func TestReader_GetTraces_StorageErrorPropagates(t *testing.T) {
 	sentinel := errors.New("storage down")
 	r := NewReaderDecorator(&fakeReader{err: sentinel}, fakeInterceptor{})
-	_, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
+	_, err := collectTraces(r.GetTraces(t.Context(), tracestore.GetTraceParams{}))
 	require.ErrorIs(t, err, sentinel)
 }
 
@@ -233,7 +247,7 @@ func TestReader_GetTraces_ResultErrorAborts(t *testing.T) {
 	r := NewReaderDecorator(next, fakeInterceptor{
 		onResult: func([]ptrace.Traces) ([]ptrace.Traces, error) { return nil, sentinel },
 	})
-	_, err := collectTraces(r.GetTraces(context.Background(), tracestore.GetTraceParams{}))
+	_, err := collectTraces(r.GetTraces(t.Context(), tracestore.GetTraceParams{}))
 	require.ErrorIs(t, err, sentinel)
 }
 
@@ -243,7 +257,7 @@ func TestReader_GetTraces_ContinuesAfterError(t *testing.T) {
 	r := NewReaderDecorator(next, fakeInterceptor{onResult: redactResult("secret")})
 
 	var errs, batches int
-	for batch, err := range r.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
+	for batch, err := range r.GetTraces(t.Context(), tracestore.GetTraceParams{}) {
 		if err != nil {
 			require.ErrorIs(t, err, sentinel)
 			errs++
@@ -313,13 +327,13 @@ func assertResultErrorStops(t *testing.T, call func(tracestore.Reader) iter.Seq2
 
 func TestReader_FindTraces_ResultErrorStopsIteration(t *testing.T) {
 	assertResultErrorStops(t, func(r tracestore.Reader) iter.Seq2[[]ptrace.Traces, error] {
-		return r.FindTraces(context.Background(), tracestore.TraceQueryParams{})
+		return r.FindTraces(t.Context(), tracestore.TraceQueryParams{})
 	})
 }
 
 func TestReader_GetTraces_ResultErrorStopsIteration(t *testing.T) {
 	assertResultErrorStops(t, func(r tracestore.Reader) iter.Seq2[[]ptrace.Traces, error] {
-		return r.GetTraces(context.Background(), tracestore.GetTraceParams{})
+		return r.GetTraces(t.Context(), tracestore.GetTraceParams{})
 	})
 }
 
@@ -333,7 +347,7 @@ func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
 	})
 
 	var got [][]tracestore.FoundTraceID
-	for ids, err := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+	for ids, err := range r.FindTraceIDs(t.Context(), tracestore.TraceQueryParams{}) {
 		require.NoError(t, err)
 		got = append(got, ids)
 	}
@@ -348,7 +362,7 @@ func TestReader_FindTraceIDs_QueryRejectionSkipsStorage(t *testing.T) {
 		onQuery: func(q pub.Query) (pub.Query, error) { return q, sentinel },
 	})
 	var err error
-	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+	for _, e := range r.FindTraceIDs(t.Context(), tracestore.TraceQueryParams{}) {
 		err = e
 	}
 	require.ErrorIs(t, err, sentinel)
@@ -358,7 +372,7 @@ func TestReader_FindTraceIDs_StorageErrorPropagates(t *testing.T) {
 	sentinel := errors.New("storage down")
 	r := NewReaderDecorator(&fakeReader{idsErr: sentinel}, fakeInterceptor{})
 	var err error
-	for _, e := range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+	for _, e := range r.FindTraceIDs(t.Context(), tracestore.TraceQueryParams{}) {
 		err = e
 	}
 	require.ErrorIs(t, err, sentinel)
@@ -366,17 +380,17 @@ func TestReader_FindTraceIDs_StorageErrorPropagates(t *testing.T) {
 
 // The early-stop tests exercise the "consumer stopped iterating" branches: when
 // the range loop breaks, yield returns false and the decorator must return.
-func TestReader_EarlyStop(*testing.T) {
+func TestReader_EarlyStop(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("k", "v"), ids: []tracestore.FoundTraceID{{}}}
 	r := NewReaderDecorator(next, fakeInterceptor{})
 
-	for range r.FindTraces(context.Background(), tracestore.TraceQueryParams{}) {
+	for range r.FindTraces(t.Context(), tracestore.TraceQueryParams{}) {
 		break
 	}
-	for range r.GetTraces(context.Background(), tracestore.GetTraceParams{}) {
+	for range r.GetTraces(t.Context(), tracestore.GetTraceParams{}) {
 		break
 	}
-	for range r.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{}) {
+	for range r.FindTraceIDs(t.Context(), tracestore.TraceQueryParams{}) {
 		break
 	}
 }
@@ -385,11 +399,11 @@ func TestReader_PassThroughMethods(t *testing.T) {
 	next := &fakeReader{services: []string{"svc"}}
 	r := NewReaderDecorator(next, fakeInterceptor{})
 
-	svcs, err := r.GetServices(context.Background())
+	svcs, err := r.GetServices(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, []string{"svc"}, svcs)
 
-	ops, err := r.GetOperations(context.Background(), tracestore.OperationQueryParams{})
+	ops, err := r.GetOperations(t.Context(), tracestore.OperationQueryParams{})
 	require.NoError(t, err)
 	assert.Equal(t, []tracestore.Operation{{Name: "op"}}, ops)
 }
@@ -407,9 +421,71 @@ func TestReader_ChainAppliesInOrder(t *testing.T) {
 	}}
 	r := NewReaderDecorator(next, first, second)
 
-	_, err := collectTraces(r.FindTraces(context.Background(), tracestore.TraceQueryParams{}))
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
 	require.NoError(t, err)
 	assert.Equal(t, []string{"first", "second"}, order)
+}
+
+type ctxKey struct{}
+
+func TestReader_FindTraces_ThreadsQueryContextToStorageAndResult(t *testing.T) {
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	var resultSaw any
+	ic := fakeInterceptor{
+		onQueryCtx: func(ctx context.Context) context.Context {
+			return context.WithValue(ctx, ctxKey{}, "from-onquery")
+		},
+		onResultCtx: func(ctx context.Context) context.Context {
+			resultSaw = ctx.Value(ctxKey{})
+			return ctx
+		},
+	}
+	r := NewReaderDecorator(next, ic)
+
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
+	require.NoError(t, err)
+	assert.Equal(t, "from-onquery", next.gotCtx.Value(ctxKey{}), "storage reader must see the context OnQuery returned")
+	assert.Equal(t, "from-onquery", resultSaw, "OnResult must see the context OnQuery returned")
+}
+
+func TestReader_FindTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
+	next := &multiBatchReader{
+		fakeReader: &fakeReader{},
+		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
+	}
+	var seen []int
+	ic := fakeInterceptor{
+		onResultCtx: func(ctx context.Context) context.Context {
+			n, _ := ctx.Value(ctxKey{}).(int)
+			seen = append(seen, n)
+			return context.WithValue(ctx, ctxKey{}, n+1)
+		},
+	}
+	r := NewReaderDecorator(next, ic)
+
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
+}
+
+func TestReader_GetTraces_ThreadsResultContextAcrossBatches(t *testing.T) {
+	next := &multiBatchReader{
+		fakeReader: &fakeReader{},
+		batches:    [][]ptrace.Traces{tracesWith("k", "1"), tracesWith("k", "2")},
+	}
+	var seen []int
+	ic := fakeInterceptor{
+		onResultCtx: func(ctx context.Context) context.Context {
+			n, _ := ctx.Value(ctxKey{}).(int)
+			seen = append(seen, n)
+			return context.WithValue(ctx, ctxKey{}, n+1)
+		},
+	}
+	r := NewReaderDecorator(next, ic)
+
+	_, err := collectTraces(r.GetTraces(t.Context(), tracestore.GetTraceParams{}))
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1}, seen, "OnResult's returned context must thread into the next batch")
 }
 
 func TestReader_FindTraceSummaries_AppliesQueryHook(t *testing.T) {
@@ -422,7 +498,7 @@ func TestReader_FindTraceSummaries_AppliesQueryHook(t *testing.T) {
 	})
 
 	var got [][]tracestore.TraceSummary
-	for s, err := range r.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{ServiceName: "original"}) {
+	for s, err := range r.FindTraceSummaries(t.Context(), tracestore.TraceQueryParams{ServiceName: "original"}) {
 		require.NoError(t, err)
 		got = append(got, s)
 	}
@@ -440,7 +516,7 @@ func TestReader_FindTraceSummaries_QueryRejectionSkipsStorage(t *testing.T) {
 	})
 
 	var err error
-	for _, e := range r.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+	for _, e := range r.FindTraceSummaries(t.Context(), tracestore.TraceQueryParams{}) {
 		err = e
 	}
 	require.ErrorIs(t, err, sentinel)
@@ -453,7 +529,7 @@ func TestReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
 	r := NewReaderDecorator(next, fakeInterceptor{})
 
 	var err error
-	for _, e := range r.FindTraceSummaries(context.Background(), tracestore.TraceQueryParams{}) {
+	for _, e := range r.FindTraceSummaries(t.Context(), tracestore.TraceQueryParams{}) {
 		err = e
 	}
 	require.ErrorIs(t, err, sentinel)
