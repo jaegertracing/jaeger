@@ -1,5 +1,5 @@
 {
-  "method": "GET",
+  "method": "POST",
   "path": "/_msearch",
   "ndjson": [
     {

@@ -33,8 +33,7 @@ func TestApplyDefaults(t *testing.T) {
 			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
 		},
 		Sniffing: Sniffing{
-			Enabled:  true,
-			UseHTTPS: true,
+			Enabled: true,
 		},
 		MaxSpanAge:               100,
 		AdaptiveSamplingLookback: 50,
@@ -60,13 +59,11 @@ func TestApplyDefaults(t *testing.T) {
 		BulkProcessing: BulkProcessing{
 			MaxBytes:      1000,
 			Workers:       10,
-			MaxActions:    100,
 			FlushInterval: 30,
 		},
-		Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-		MaxDocCount:   10000,
-		LogLevel:      "info",
-		SendGetBodyAs: "json",
+		Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+		MaxDocCount: 10000,
+		LogLevel:    "info",
 	}
 
 	tests := []struct {
@@ -111,8 +108,7 @@ func TestApplyDefaults(t *testing.T) {
 					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
 				},
 				Sniffing: Sniffing{
-					Enabled:  true,
-					UseHTTPS: true,
+					Enabled: true,
 				},
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
@@ -137,13 +133,11 @@ func TestApplyDefaults(t *testing.T) {
 				BulkProcessing: BulkProcessing{
 					MaxBytes:      1000,
 					Workers:       10,
-					MaxActions:    100,
 					FlushInterval: 30,
 				},
-				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:   10000,
-				LogLevel:      "info",
-				SendGetBodyAs: "json",
+				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount: 10000,
+				LogLevel:    "info",
 			},
 		},
 		{
@@ -154,8 +148,7 @@ func TestApplyDefaults(t *testing.T) {
 					BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
 				},
 				Sniffing: Sniffing{
-					Enabled:  true,
-					UseHTTPS: true,
+					Enabled: true,
 				},
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
@@ -180,13 +173,11 @@ func TestApplyDefaults(t *testing.T) {
 				BulkProcessing: BulkProcessing{
 					MaxBytes:      1000,
 					Workers:       10,
-					MaxActions:    100,
 					FlushInterval: 30,
 				},
-				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:   10000,
-				LogLevel:      "info",
-				SendGetBodyAs: "json",
+				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount: 10000,
+				LogLevel:    "info",
 			},
 			expected: source,
 		},
@@ -368,6 +359,82 @@ func TestValidate(t *testing.T) {
 			name:          "no valid input are set",
 			config:        &Configuration{},
 			expectedError: "Servers: non zero value required",
+		},
+		{
+			name: "unrecognized log_level rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				LogLevel: "trace",
+			},
+			expectedError: `unrecognized log_level "trace"`,
+		},
+		{
+			name:   "recognized log_level accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, LogLevel: "debug"},
+		},
+		{
+			name: "sniffing.use_https set is rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				Sniffing: Sniffing{UseHTTPS: configoptional.Some(true)},
+			},
+			expectedError: "'sniffing.use_https' is no longer supported",
+		},
+		{
+			name: "sniffing.use_https set to false is still rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				Sniffing: Sniffing{UseHTTPS: configoptional.Some(false)},
+			},
+			expectedError: "'sniffing.use_https' is no longer supported",
+		},
+		{
+			name: "disable_health_check set is rejected",
+			config: &Configuration{
+				Servers:            []string{"localhost:8000/dummyserver"},
+				DisableHealthCheck: configoptional.Some(true),
+			},
+			expectedError: "'disable_health_check' is no longer supported",
+		},
+		{
+			name: "health_check_timeout_startup set is rejected",
+			config: &Configuration{
+				Servers:                   []string{"localhost:8000/dummyserver"},
+				HealthCheckTimeoutStartup: configoptional.Some(5 * time.Second),
+			},
+			expectedError: "'health_check_timeout_startup' is no longer supported",
+		},
+		{
+			name: "send_get_body_as set is rejected",
+			config: &Configuration{
+				Servers:       []string{"localhost:8000/dummyserver"},
+				SendGetBodyAs: configoptional.Some("POST"),
+			},
+			expectedError: "'send_get_body_as' is no longer supported",
+		},
+		{
+			name: "max_actions set is rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(1000)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "max_actions set to zero is still rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(0)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "rejection error points to the explaining PR",
+			config: &Configuration{
+				Servers:       []string{"localhost:8000/dummyserver"},
+				SendGetBodyAs: configoptional.Some("POST"),
+			},
+			expectedError: "github.com/jaegertracing/jaeger/pull/9076",
 		},
 		{
 			name:          "ilm disabled and read-write aliases enabled error",

@@ -25,6 +25,10 @@ var errInvalidSearchDepth = errors.New("search depth must be greater than 0 and 
 
 // Store is an in-memory store of traces
 type Store struct {
+	// The in-memory store does not compute trace summaries natively; fall back to
+	// FindTraces + client-side aggregation.
+	tracestore.UnsupportedTraceSummaries
+
 	mu sync.RWMutex
 	// Each tenant gets a copy of default config.
 	// In the future this can be extended to contain per-tenant configuration.
