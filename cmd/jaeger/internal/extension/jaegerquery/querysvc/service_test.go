@@ -861,7 +861,8 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 	require.Empty(t, services)
 }
 
-// mockSummaryReader implements both tracestore.Reader and tracestore.SummaryReader.
+// mockSummaryReader is a tracestore.Reader whose FindTraceSummaries computes
+// summaries natively (rather than yielding ErrUnsupported).
 type mockSummaryReader struct {
 	tracestoremocks.Reader
 	summaries []tracestore.TraceSummary
@@ -878,26 +879,6 @@ func (m *mockSummaryReader) FindTraceSummaries(_ context.Context, _ tracestore.T
 			yield(m.summaries, nil)
 		}
 	}
-}
-
-func TestFindTraceSummaries_Fallback(t *testing.T) {
-	tqs := initializeTestService()
-	qp := tracestore.TraceQueryParams{
-		ServiceName: "frontend",
-		Attributes:  pcommon.NewMap(),
-	}
-	tqs.traceReader.
-		On("FindTraces", mock.Anything, qp).
-		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
-			yield([]ptrace.Traces{makeMultiServiceTrace()}, nil)
-		})).Once()
-
-	summaries, err := jiter.FlattenWithErrors(tqs.queryService.FindTraceSummaries(context.Background(), TraceQueryParams{
-		TraceQueryParams: qp,
-	}))
-	require.NoError(t, err)
-	require.Len(t, summaries, 1)
-	assert.Equal(t, "frontend", summaries[0].RootServiceName)
 }
 
 func TestFindTraceSummaries_NativePath(t *testing.T) {
@@ -917,7 +898,7 @@ func TestFindTraceSummaries_NativePath(t *testing.T) {
 }
 
 // TestFindTraceSummaries_NativeError verifies that a non-ErrUnsupported error
-// yielded by SummaryReader is propagated to the caller without falling back to FindTraces.
+// yielded by FindTraceSummaries is propagated to the caller without falling back to FindTraces.
 func TestFindTraceSummaries_NativeError(t *testing.T) {
 	errReader := &mockSummaryReader{
 		err: assert.AnError,
@@ -932,7 +913,7 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 	errReader.AssertNotCalled(t, "FindTraces")
 }
 
-// TestFindTraceSummaries_ErrUnsupported verifies that when a SummaryReader yields
+// TestFindTraceSummaries_ErrUnsupported verifies that when FindTraceSummaries yields
 // errors.ErrUnsupported as the first error, QueryService transparently falls back
 // to FindTraces + computeSummaries rather than propagating the error to the caller.
 func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
