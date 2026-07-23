@@ -10,5 +10,6 @@ services:
       - http.host=0.0.0.0
       - transport.host=127.0.0.1
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=passRT%^#234
+      - cluster.routing.allocation.disk.threshold_enabled=false
     ports:
       - "9200:9200"
