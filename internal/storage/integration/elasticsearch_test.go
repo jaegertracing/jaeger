@@ -195,6 +195,58 @@ func TestElasticsearchStorage_SyncBulkWriter(t *testing.T) {
 	s.testSyncBulkWriter(t)
 }
 
+// TestElasticsearchStorage_WriteIdempotency proves the deterministic content-hash
+// _id (RFC 0007 §4.7) makes span writes idempotent end-to-end: writing the same
+// trace twice through the real trace writer yields exactly one document (an
+// op_type: index upsert), not a duplicate. The op_type: create side of §4.7 (a 409
+// treated as a benign idempotent write) is covered by the esclient bulk unit test
+// and the live 409 in TestElasticsearchStorage_SyncBulkWriter; a full data-stream
+// end-to-end test follows once data-stream rotation is wired.
+func TestElasticsearchStorage_WriteIdempotency(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+	s := &ESStorageIntegration{}
+	s.initializeES(t, false)
+	s.testWriteIdempotency(t)
+}
+
+func (s *ESStorageIntegration) testWriteIdempotency(t *testing.T) {
+	ctx := context.Background()
+	tID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0, 0, 44})
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "idempotent_service")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("idempotent_span")
+	span.SetTraceID(tID)
+	span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 66})
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Truncate(time.Microsecond)))
+	span.SetEndTimestamp(span.StartTimestamp())
+
+	// Write the identical trace twice. With a server-generated _id this would store
+	// two span documents; the deterministic _id makes the second write upsert onto
+	// the first, so exactly one document remains.
+	require.NoError(t, s.TraceWriter.WriteTraces(ctx, trace))
+	require.NoError(t, s.TraceWriter.WriteTraces(ctx, trace))
+
+	var actual ptrace.Traces
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
+		iterTraces := s.TraceReader.GetTraces(ctx, tracestore.GetTraceParams{TraceID: tID})
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
+		if err != nil || len(traces) == 0 {
+			return false
+		}
+		actual = traces[0]
+		return true
+	})
+	require.True(t, found, "the span should be durably readable")
+	assert.Equal(t, 1, actual.SpanCount(), "writing the same span twice must yield exactly one document")
+}
+
 func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	ctx := context.Background()
 	index := indexPrefix + "-syncbulk"

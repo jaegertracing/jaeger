@@ -5,6 +5,7 @@ package esclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -53,6 +54,20 @@ func TestBulkIndexerWritesNDJSON(t *testing.T) {
 	assert.Contains(t, body, `"_index":"jaeger-span-000001"`)
 	assert.Contains(t, body, `"_id":"abc"`)
 	assert.Contains(t, body, `"traceID":"1"`)
+}
+
+func TestBulkIndexerRawMessageBodyPassthrough(t *testing.T) {
+	rec, url := bulkServer(t, okBulk)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	// A pre-encoded body is written to the bulk request verbatim — not re-marshaled
+	// (which would base64-encode the []byte or reorder), so the span hot path can
+	// marshal once and reuse the bytes.
+	b.Add(BulkItem{Index: "idx", ID: "x", Body: json.RawMessage(`{"traceID":"1","n":2}`)})
+	require.NoError(t, b.Close())
+	reqs := rec.Requests()
+	require.Len(t, reqs, 1)
+	assert.Contains(t, string(reqs[0].Body), `{"traceID":"1","n":2}`)
 }
 
 func TestBulkIndexerCreateOpType(t *testing.T) {
@@ -223,4 +238,26 @@ func TestBulkIndexerFailureMetrics(t *testing.T) {
 		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1},
 	)
 	assert.Positive(t, logs.FilterMessageSnippet("part of bulk request failed").Len())
+}
+
+// TestBulkIndexerConflictIsIdempotent asserts a 409 version_conflict (op_type:
+// create against a deterministic _id already present) is counted as a successful
+// idempotent write, not an error — RFC 0007 §4.7.
+func TestBulkIndexerConflictIsIdempotent(t *testing.T) {
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"took":1,"errors":true,"items":[{"create":{"status":409,"error":{"type":"version_conflict_engine_exception"}}}]}`))
+	})
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	core, logs := observer.New(zap.ErrorLevel)
+	b, err := NewBulkIndexer(makeClient(t, url, "", "", es.ElasticV7), BulkIndexerConfig{}, mf, zap.New(core))
+	require.NoError(t, err)
+	b.Add(BulkItem{Index: "jaeger.spans", ID: "dup", OpType: es.WriteOpCreate, Body: map[string]any{"a": 1}})
+	require.NoError(t, b.Close())
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 1},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 0},
+	)
+	assert.Zero(t, logs.FilterMessageSnippet("part of bulk request failed").Len(), "a benign 409 must not log an error")
 }
