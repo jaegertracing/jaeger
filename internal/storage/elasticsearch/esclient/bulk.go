@@ -23,7 +23,7 @@ type BulkItem struct {
 	Index  string         // target index, alias, or data stream
 	ID     string         // optional document _id (empty ⇒ server-generated)
 	OpType es.WriteOpType // "index" (default) or "create", depending on rotation strategy
-	Body   any            // source document; a json.RawMessage is written verbatim, anything else is json.Marshal'd
+	Body   any            // source document; a json.RawMessage (must be a valid JSON document) is written verbatim, anything else is json.Marshal'd
 }
 
 // BulkIndexerConfig bounds a BulkIndexer's buffering and concurrency.
