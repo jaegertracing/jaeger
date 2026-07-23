@@ -12,6 +12,6 @@ services:
       - xpack.security.http.ssl.enabled=false  # Disable HTTPS
       - action.destructive_requires_name=false
       - xpack.monitoring.collection.enabled=false  # Disable monitoring features
+      - cluster.routing.allocation.disk.threshold_enabled=false
     ports:
       - "9200:9200"
-
