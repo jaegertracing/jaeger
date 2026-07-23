@@ -45,6 +45,10 @@ extensions:
       # Serve the Jaeger telemetry MCP tools in-process at /api/ai/mcp/ on the
       # query port (replaces the retired standalone jaeger_mcp extension).
       enable_mcp: true
+      # Optional directory of operator-supplied skills served by the
+      # read_skill MCP tool under custom/ alongside the built-in skills.
+      # Requires enable_mcp: true.
+      # skills_dir: /etc/jaeger/skills
     # Accept OTLP/HTTP spans from the UI same-origin at /api/otlp/v1/*
     # and forward to the OTLP HTTP receiver above.
     otlp_proxy:

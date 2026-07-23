@@ -16,3 +16,7 @@ Read a sub-skill's SKILL.md before applying it.
 
 - [error-root-cause](error-root-cause/SKILL.md) — Walk a failed trace to the first
   originating error span. Use when a request failed and the user wants to know where.
+
+Installation-specific skills, if any, are listed under
+[custom/SKILL.md](custom/SKILL.md).
+If that file does not exist, then no custom skills are installed for this Jaeger instance.

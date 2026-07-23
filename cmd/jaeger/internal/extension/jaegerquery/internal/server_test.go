@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1218,6 +1219,32 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 				"session-scoped endpoint must be mounted and reject unknown session at %s", scopedPath)
 		}
 	})
+
+	// An unusable skills_dir path is broken configuration and must abort
+	// startup on whichever endpoint is being constructed (see
+	// buildMergedSkillsFS for the failure-handling contract).
+	badSkillsDir := filepath.Join(t.TempDir(), "no-such-dir")
+
+	t.Run("unusable skills_dir fails initRouter via the session-scoped endpoint", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{
+			AgentURL: "ws://127.0.0.1:1", EnableMCP: true,
+			SkillsDir: badSkillsDir, MaxRequestBodySize: 1 << 20,
+		})
+
+		_, _, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.ErrorContains(t, err, "cannot open skills_dir")
+	})
+
+	t.Run("unusable skills_dir fails initRouter via the session-free endpoint", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{
+			EnableMCP: true, SkillsDir: badSkillsDir, MaxRequestBodySize: 1 << 20,
+		})
+
+		_, _, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.ErrorContains(t, err, "cannot open skills_dir")
+	})
 }
 
 // TestRegisterMCPTools_BasePathNormalization checks the mount prefix directly
@@ -1234,7 +1261,7 @@ func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, telset)
+				require.NoError(t, registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, "", telset))
 			})
 
 			want := "/api/ai/mcp/"

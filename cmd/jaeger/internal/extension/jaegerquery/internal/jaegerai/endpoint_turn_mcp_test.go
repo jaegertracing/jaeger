@@ -44,7 +44,8 @@ func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
-	h := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", zap.NewNop())
+	h, err := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", "", zap.NewNop())
+	require.NoError(t, err)
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
 
@@ -110,7 +111,8 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	idA := registerTurn(turns, newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
 	idB := registerTurn(turns, newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
-	h := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", zap.NewNop())
+	h, err := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", "", zap.NewNop())
+	require.NoError(t, err)
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
 	ts := httptest.NewServer(mux)

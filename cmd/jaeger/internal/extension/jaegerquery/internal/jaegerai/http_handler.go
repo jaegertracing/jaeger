@@ -49,6 +49,10 @@ type HandlerParams struct {
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Telset       telemetry.Settings
+	// SkillsDir is the operator's skills directory (ai.skills_dir), threaded
+	// into the turn-scoped MCP endpoint so it serves the same merged skill
+	// tree as the shared one. Empty means built-in skills only.
+	SkillsDir string
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -56,8 +60,9 @@ type HandlerParams struct {
 // canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
 // so a chat turn and its MCP callbacks resolve to the same turn. When p.EnableMCP
 // is set, the turn-scoped MCP endpoint is built from the supplied query service,
-// tenancy manager, and telemetry settings.
-func NewHandler(p HandlerParams) *Handler {
+// tenancy manager, and telemetry settings; an unusable p.SkillsDir path fails
+// construction (broken configuration).
+func NewHandler(p HandlerParams) (*Handler, error) {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	h := &Handler{
@@ -65,9 +70,13 @@ func NewHandler(p HandlerParams) *Handler {
 		chat:     newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize),
 	}
 	if p.EnableMCP {
-		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+		mcp, err := newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.SkillsDir, p.Logger)
+		if err != nil {
+			return nil, err
+		}
+		h.mcp = mcp
 	}
-	return h
+	return h, nil
 }
 
 // normalizeBasePath canonicalises the operator-supplied jaeger-query base path so

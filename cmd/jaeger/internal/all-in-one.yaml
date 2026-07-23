@@ -31,6 +31,9 @@ extensions:
     ai:
       # Serve the Jaeger MCP tools /api/ai/mcp/
       enable_mcp: true
+      # Optional directory of operator-supplied skills served by read_skill
+      # under custom/ alongside the built-in skills.
+      # skills_dir: /etc/jaeger/skills
 
   jaeger_storage:
     backends:

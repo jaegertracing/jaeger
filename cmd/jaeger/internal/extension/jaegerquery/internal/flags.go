@@ -54,6 +54,11 @@ type AIConfig struct {
 	// retired standalone jaeger_mcp extension (which served :16687); point
 	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
 	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
+	// SkillsDir is an optional directory of operator-supplied skill playbooks
+	// on the server disk, served by the read_skill MCP tool under custom/
+	// alongside the built-in skills. Requires EnableMCP. Empty (default)
+	// serves the built-in skills only.
+	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 	// HealthCheckInterval controls how often the AI health checker contacts
@@ -92,6 +97,9 @@ func (c *OTLPProxyConfig) Validate() error {
 func (c *AIConfig) Validate() error {
 	if c.AgentURL == "" && !c.EnableMCP {
 		return errors.New("ai requires agent_url (AI chat) or enable_mcp (telemetry MCP tools)")
+	}
+	if c.SkillsDir != "" && !c.EnableMCP {
+		return errors.New("ai.skills_dir requires ai.enable_mcp to be true")
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")
