@@ -88,7 +88,11 @@ type loadedConfig struct {
 func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCapabilities, aiHealthCheck func() bool, logger *zap.Logger) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
-		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
+		var err error
+		assetsFS, err = newAssetsFS(qOpts.UIConfig.AssetsPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
@@ -117,6 +121,29 @@ func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCap
 		logger.Info("Using UI configuration", zap.String("path", h.uiConfigFile))
 	}
 	return h, nil
+}
+
+// newAssetsFS resolves ui.assets_path to a file system. The path is normally a
+// directory, but it may also be the jaeger-ui assets.tar.gz bundle as
+// published on the releases page, which saves a custom distribution from
+// having to unpack the archive at image-build time.
+//
+// A path that merely looks like an archive but cannot be stat'ed, or that is a
+// directory despite the suffix, falls through to http.Dir so the existing
+// "cannot load index.html" error still describes the real problem.
+func newAssetsFS(assetsPath string) (http.FileSystem, error) {
+	if !strings.HasSuffix(strings.ToLower(assetsPath), tarGzSuffix) {
+		return http.Dir(assetsPath), nil
+	}
+	info, err := os.Stat(assetsPath)
+	if err != nil || info.IsDir() {
+		return http.Dir(assetsPath), nil
+	}
+	fsys, err := newTarGzFS(assetsPath)
+	if err != nil {
+		return nil, err
+	}
+	return http.FS(fsys), nil
 }
 
 // getUIConfig returns the cached parsed UI config, re-reading it from disk
