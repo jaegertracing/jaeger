@@ -148,7 +148,7 @@ So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is
 
 ## 5. Predicate anatomy — subject, operator, and value type
 
-A predicate has three parts. Its **subject** — what it filters on — is exactly one of a _level-qualified attribute_ (§5.1) or a _property_ (§5.2). Its **operator** (§5.3) says how to compare the subject against a value. And an optional **value type** (§5.3–§5.4) tells the backend how to interpret that value.
+A predicate has three parts. Its **subject** — what it filters on — is exactly one of a _level-qualified attribute_ (§5.1) or a _property_ (§5.2). Its **operator** (§5.3) compares that subject against a **value**, usually a literal constant but — because both sides are operands of the same kind — optionally another subject (`span.a > span.b`; §6.1). A literal value also carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
 
 ### 5.1 Attribute levels
 
@@ -186,7 +186,7 @@ Properties are a natural extension of the same leaf, but they are not required o
 
 ### 5.3 Operators and value typing
 
-The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`. `value` is a string on the wire; the predicate also carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it. Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
+The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`. A literal `value` is a string on the wire and carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it (on the `Literal` term, §6.1). Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
 
 **Units of numeric values (decision point).** For a value with an implied unit — chiefly `duration` — the wire value should carry the unit *explicitly*, in Go duration syntax (`2s`, `1h30m`), matching today's `duration_min`/`duration_max` fields, rather than a bare number in an assumed unit (which is ambiguous — nanoseconds? milliseconds?). A bare-number value (e.g. a numeric attribute like `http.response.size`) is compared numerically and carries no RFC-defined unit: the caller and the stored data share whatever unit the attribute was recorded in, exactly as today. See §10 Q7.
 
@@ -221,21 +221,42 @@ The relocation is fully realizable only on ClickHouse; ES/OS partially (and only
 
 ## 6. Proposed API
 
-The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are predicates over level-qualified attributes or properties (§5). `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
+The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are **comparisons over expressions**. An *expression* is a level-qualified attribute, a property (§5), or a literal constant; a *comparison* applies an operator to expression operands. Making both sides of a comparison expressions — rather than baking in a fixed `subject op literal` shape — lets a predicate compare two subjects (`span.a > span.b`), and makes the expression the one reusable term a future projection or grouping (§4 L3/L4) would operate on, so those tiers stay reachable rather than walled off. `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
 
 ### 6.1 Proto
 
 ```protobuf
-// A single predicate: a level-qualified attribute OR a property, compared by an operator.
-message AttributeFilter {
-  // Target — set exactly one of {key(+level)} or {property}.
-  string key      = 1;  // attribute key; empty when `property` is set
-  string level    = 2;  // span|resource|instrumentation|event|link; empty = span-or-resource
-  string property = 3;  // duration|name|service|status|kind|…; mutually exclusive with key/level
+// A term in a predicate: a level-qualified attribute, a built-in property, or
+// a literal constant — set exactly one. The oneof leaves room for a future
+// `call` term (arithmetic / functions over other terms) without changing the
+// leaf or the boolean tree, and it is the same term a future SELECT / GROUP BY
+// (§4 L3/L4) would project or group by.
+message Expression {
+  oneof term {
+    Attribute attribute = 1;  // level-qualified attribute
+    string    property  = 2;  // duration|name|service|status|kind|…
+    Literal   literal   = 3;  // typed constant
+    // (future) Call call = 4;  — e.g. count(), (a - b)
+  }
+}
 
-  string op    = 4;     // eq|ne|gt|lt|regex|exists; empty = eq
-  string value = 5;     // ignored when op = "exists"
-  string type  = 6;     // optional hint: string(default)|int|double|bool; empty = any type (§5.4)
+message Attribute {
+  string key   = 1;  // attribute key, e.g. "http.status_code"
+  string level = 2;  // span|resource|instrumentation|event|link; empty = span-or-resource
+}
+
+message Literal {
+  string value = 1;
+  string type  = 2;  // optional hint: string(default)|int|double|bool; empty = any type (§5.4)
+}
+
+// A comparison predicate: `op` applied to operand expressions — binary for
+// eq|ne|gt|lt|regex (operands = [left, right]), unary for exists (operands = [x]).
+// Because both operands are expressions, `span.a > span.b` is expressible, not
+// only `attribute op literal`.
+message Comparison {
+  string op = 1;                        // eq|ne|gt|lt|regex|exists; empty = eq
+  repeated Expression operands = 2;
 }
 
 // A boolean combination of sub-expressions.
@@ -244,11 +265,11 @@ message BooleanOp {
   repeated FilterExpression operands = 2;
 }
 
-// A node in the filter tree: either a leaf predicate or a boolean combination.
+// A node in the filter tree: either a leaf comparison or a boolean combination.
 message FilterExpression {
   oneof node {
-    AttributeFilter predicate = 1;
-    BooleanOp       bool      = 2;
+    Comparison predicate = 1;
+    BooleanOp  bool      = 2;
   }
 }
 
@@ -269,9 +290,9 @@ The top-level `repeated FilterExpression` is implicitly ANDed. This keeps the do
 Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defaults, so a proto *enum* would cross the wire as its full `CONSTANT_CASE` name (`"level":"ATTRIBUTE_LEVEL_SPAN"`) with no short-alias option, and proto3 enums are *open* (an unknown number is accepted, not rejected). Plain `string` fields avoid the verbosity, and the closed value set is still declared and validated in the generated OpenAPI schema via the gnostic `enum` annotation — a **closed** set (unknown values rejected, stricter than an open proto enum):
 
 ```yaml
-level: { type: string, enum: [span, resource, instrumentation, event, link] }
-op:    { type: string, enum: [eq, ne, gt, lt, regex, exists] }
-type:  { type: string, enum: [string, int, double, bool] }   # optional; empty = any type
+level: { type: string, enum: [span, resource, instrumentation, event, link] }  # Attribute.level
+op:    { type: string, enum: [eq, ne, gt, lt, regex, exists] }                  # Comparison.op
+type:  { type: string, enum: [string, int, double, bool] }                      # Literal.type; optional, empty = any type
 ```
 
 Legend: 🟢 strong · 🟡 adequate · 🔴 weak
@@ -286,17 +307,33 @@ Legend: 🟢 strong · 🟡 adequate · 🔴 weak
 
 ¹ `string` proto field + OpenAPI `enum` annotation.
 
-The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check. A conjunction thus reads cleanly:
+The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
+
+The operand-expression shape makes the raw JSON more verbose than a fixed `subject op value` triple would — each comparison carries an `operands` array whose entries name their kind (`attribute`/`property`/`literal`). This is the deliberate cost of keeping `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s OR http.status_code IN {500,503}` are:
 
 ```
-GET /api/v3/traces?query.filters=[{"predicate":{"key":"http.status_code","value":"500","level":"span"}}]
+GET /api/v3/traces?query.filters=[{"predicate":{"op":"eq","operands":[{"attribute":{"key":"http.status_code","level":"span"}},{"literal":{"value":"500"}}]}}]
 ```
 ```json
 { "query": { "filters": [
-  { "predicate": { "property": "duration", "op": "gt", "value": "2s" } },
+  { "predicate": { "op": "gt", "operands": [
+      { "property": "duration" },
+      { "literal": { "value": "2s" } } ] } },
   { "bool": { "op": "or", "operands": [
-    { "predicate": { "key": "http.status_code", "value": "500", "level": "span", "type": "int" } },
-    { "predicate": { "key": "http.status_code", "value": "503", "level": "span", "type": "int" } } ] } } ] } }
+    { "predicate": { "op": "eq", "operands": [
+      { "attribute": { "key": "http.status_code", "level": "span" } },
+      { "literal": { "value": "500", "type": "int" } } ] } },
+    { "predicate": { "op": "eq", "operands": [
+      { "attribute": { "key": "http.status_code", "level": "span" } },
+      { "literal": { "value": "503", "type": "int" } } ] } } ] } } ] } }
+```
+
+The subject-vs-subject case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is now just another comparison with two `attribute` operands:
+
+```json
+{ "predicate": { "op": "ne", "operands": [
+  { "attribute": { "key": "enduser.id", "level": "span" } },
+  { "attribute": { "key": "enduser.id", "level": "resource" } } ] } }
 ```
 
 ---
@@ -309,7 +346,9 @@ GET /api/v3/traces?query.filters=[{"predicate":{"key":"http.status_code","value"
 
 This is clean for the **internal `TraceReader`** API, which is versioned with the binary and can simply drop the redundant scalar fields once the query service populates `filters`. It is harder at the **Remote Storage gRPC API**: those scalar fields are part of the published `storage.v2` contract and existing third-party plugins read them.
 
-Crucially, **a bare additive `filters` field on the existing `FindTraces`/`FindTraceIDs` RPCs is not enough** for the remote boundary: a plugin that predates `filters` silently ignores the unknown field and answers from the scalar fields alone — under-filtering with *no signal* to the query service. The clean fix is the one Jaeger already used for `FindTraceSummaries`: **add an optional, filter-aware RPC variant and detect support at runtime.** A plugin that does not implement it returns gRPC `UNIMPLEMENTED` (the generated `UnimplementedTraceReaderServer` provides this for free), so the query service routes the rich `filters` query to backends that advertise support and **down-converts** to the existing V2 call (legacy scalar fields + `attributes`, rejecting what V2 cannot express — e.g. `OR`/`NOT`) for those that don't. This turns a silent gap into an explicit capability check, moves capable backends to the single filter model with no redundant mirroring and no forced protocol-wide break, and leaves old plugins untouched. The internal `TraceReader` cleanup can proceed as soon as the in-tree backends read predicates from `filters` (Stage B), independent of this remote-API work. (Alternatives considered — mirroring the scalars alongside `filters` forever, or a whole-protocol major-version bump — are heavier and are the fallback if the optional-RPC route is rejected; §10 Q5.)
+Crucially, **a bare additive `filters` field on the existing `FindTraces`/`FindTraceIDs` RPCs is not enough** for the remote boundary: a plugin that predates `filters` silently ignores the unknown field and answers from the scalar fields alone — under-filtering with *no signal* to the query service. A new *field* on an existing RPC yields no such signal; only a *method an old binary does not have* does. So `filters` must ride a **new, filter-aware RPC**: a plugin built without it returns gRPC `UNIMPLEMENTED` (the generated `UnimplementedTraceReaderServer` provides this for free), which the remote client normalizes to `errors.ErrUnsupported`. The query service routes the rich `filters` query to backends that implement the new RPC and **down-converts** to the existing V2 call (legacy scalar fields + `attributes`, rejecting what V2 cannot express — e.g. `OR`/`NOT`) for those that don't. This turns a silent gap into an explicit capability check, moves capable backends to the single filter model with no redundant mirroring and no forced protocol-wide break, and leaves old plugins untouched.
+
+This is deliberately **standard gRPC method-presence signaling, not a bespoke optional Go interface.** Jaeger tried the interface route for `FindTraceSummaries` — an optional `tracestore.SummaryReader` discovered at runtime by type-assertion — and [#9067](https://github.com/jaegertracing/jaeger/pull/9067) removed it, folding the method into the main `tracestore.Reader`: the optional interface imposed a composition tax (every decorator wrapping a reader had to re-detect and re-expose the capability or silently drop it — it regressed twice), and it never protected the remote boundary anyway, which was always the `UNIMPLEMENTED`→`ErrUnsupported` path. So `filters` follows that corrected model rather than the withdrawn one: it is a field on the *main* reader's query params (an in-tree backend that cannot honor a predicate returns `ErrUnsupported`, which the gRPC server translates to `UNIMPLEMENTED`), and the remote surface gains just the one new RPC — no side interface to re-plumb through every decorator. The internal `TraceReader` cleanup can proceed as soon as the in-tree backends read predicates from `filters` (Stage B), independent of this remote-API work. (Alternatives considered — mirroring the scalars alongside `filters` forever, or a whole-protocol major-version bump — are heavier and are the fallback if the new-RPC route is rejected; §10 Q5.)
 
 **Capability-based degradation.** A backend advertises what it can honor and *rejects* what it cannot, rather than silently returning wrong results:
 
@@ -318,7 +357,7 @@ Crucially, **a bare additive `filters` field on the existing `FindTraces`/`FindT
 - **Boolean structure** — ClickHouse and ES/OS evaluate the full L2 tree. Flat backends evaluate the conjunctive subset and reject any `OR`/`NOT` node.
 - **Remote-storage plugins** — a plugin that ignores the new `filters` field still receives the legacy `attributes` and behaves exactly as today; the query service can populate `attributes` from a purely-conjunctive, unqualified `filters` for such plugins.
 
-**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured predicate — `resource.service.name:foo` → `{predicate:{key:"service.name",level:"resource"}}`, `duration>2s` → `{predicate:{property:"duration",op:"gt",value:"2s"}}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose JSON by hand.
+**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured comparison — `resource.service.name:foo` → an `eq` comparison of `attribute{key:"service.name",level:"resource"}` against `literal{"foo"}`; `duration>2s` → a `gt` comparison of `property:"duration"` against `literal{"2s"}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose operand JSON by hand.
 
 ---
 
@@ -339,7 +378,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 
 **Stage A — API foundation (additive, no behavior change)**
 
-- **M1 — Proto types in jaeger-idl.** Add `AttributeFilter`, `BooleanOp`, and `FilterExpression` (with `level`/`op` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute-predicate leaf (`key`/`level`) and add the `property` field in a follow-up, since it is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the `FilterExpression` tree (`AttributeFilter`/`BooleanOp`/`FilterExpression` + the `filters` field) with the `level`/`op`/`type` string enumerations per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
+- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Attribute`, `Literal`, `Comparison`, `BooleanOp`, and `FilterExpression` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute and literal terms and add the `property` term in a follow-up, since the oneof is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the `FilterExpression` tree (`Expression`/`Comparison`/`BooleanOp`/`FilterExpression` + the `filters` field) with the `level`/`op`/`type` string enumerations per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
 - **M2 — Plumb the filter through the query service to the storage interface.** Extend the internal `TraceQueryParams` ([`reader.go`](../../internal/storage/v2/api/tracestore/reader.go)) to carry the expression tree alongside the legacy `Attributes` map, and translate the proto field in the api_v3 handler. With no backend routing yet, a purely-conjunctive tree is treated as unqualified search-all (today's results); non-conjunctive trees and unsupported operators are rejected at the edge. *Exit:* a conjunctive level-qualified filter reaches every backend as unqualified attributes and returns today's results; `OR`/`NOT` and unsupported operators return `Unimplemented`; plugins ignoring `filters` are unaffected.
 
 **Stage B — Backend routing (one PR per backend, parallelizable after M2)**
@@ -369,7 +408,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 2. **Attribute discovery (keys, types, values).** Add a discovery API so the UI can autocomplete valid keys per level *and their type(s)* — a key may have several (§5.4) — plus sample values, so the builder emits correctly-typed predicates. This is the load-bearing piece for typed UX (§5.4). ClickHouse's `attribute_metadata` supports it directly; ES/OS only partially and the flat backends not at all — so typed authoring assistance is ClickHouse-first, and other backends default to untyped.
 3. **Conjunction semantics across spans.** Must `resource.service.name=foo AND span.http.status_code=500` match the *same* span, or may they match different spans of the same trace? (The internal `TraceReader.FindTraces` contract currently leaves this implementation-dependent.)
 4. **Property phasing.** Which properties are required in the first implementation (`duration`/`name`/`service`/`status`/`kind`) vs deferred (trace-level, IDs)?
-5. **Remote-storage capability rollout (§7).** Confirm the optional filter-aware RPC — the `FindTraceSummaries` `UNIMPLEMENTED`-detection pattern — as the way to expose `filters` over remote storage, with the query service down-converting to the V2 call for plugins that don't implement it. The heavier fallbacks (mirror the legacy scalars alongside `filters` indefinitely, or a whole-protocol major bump) apply only if that route is rejected. Either way the internal `TraceReader` cleanup is not blocked.
+5. **Remote-storage capability rollout (§7).** Confirm the **new filter-aware RPC**, with capability detected via standard gRPC `UNIMPLEMENTED`→`ErrUnsupported`, as the way to expose `filters` over remote storage — the query service down-converts to the existing V2 call for plugins that don't implement it. This is method-presence signaling on the main reader, *not* a resurrected optional interface: [#9067](https://github.com/jaegertracing/jaeger/pull/9067) removed that shape for `FindTraceSummaries` (composition tax; the boundary was always the `UNIMPLEMENTED` path). The heavier fallbacks (mirror the legacy scalars alongside `filters` indefinitely, or a whole-protocol major bump) apply only if the new-RPC route is rejected. Either way the internal `TraceReader` cleanup is not blocked.
 6. **Prefix collision escape hatch.** Does the shorthand (§7) need an escape for user keys that literally begin with a level name, or is the structured JSON form the sufficient unambiguous alternative?
 7. **Units of numeric values (§5.3).** Confirm that `duration` (and any future unit-bearing property) carries an explicit unit via Go duration syntax (`2s`), while bare numeric values stay unit-less and are compared as-is. Do any other properties need an explicit unit or format convention (e.g. timestamps)?
 
@@ -384,6 +423,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 - [Elasticsearch tag query](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go) — multi-field OR expansion
 - [api_v3 HTTP query parser](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go) — `query.attributes` parsing
 - [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206) — proto foundation (M1)
+- [#9067](https://github.com/jaegertracing/jaeger/pull/9067) — merged `FindTraceSummaries` into the main `tracestore.Reader`, the capability-signaling precedent for the remote `filters` RPC (§7)
 
 **External**
 - [OpenTelemetry trace data model](https://opentelemetry.io/docs/specs/otel/trace/api/) — the five attribute levels
