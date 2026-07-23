@@ -33,8 +33,7 @@ func TestApplyDefaults(t *testing.T) {
 			BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
 		},
 		Sniffing: Sniffing{
-			Enabled:  true,
-			UseHTTPS: true,
+			Enabled: true,
 		},
 		MaxSpanAge:               100,
 		AdaptiveSamplingLookback: 50,
@@ -60,13 +59,11 @@ func TestApplyDefaults(t *testing.T) {
 		BulkProcessing: BulkProcessing{
 			MaxBytes:      1000,
 			Workers:       10,
-			MaxActions:    100,
 			FlushInterval: 30,
 		},
-		Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-		MaxDocCount:   10000,
-		LogLevel:      "info",
-		SendGetBodyAs: "json",
+		Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+		MaxDocCount: 10000,
+		LogLevel:    "info",
 	}
 
 	tests := []struct {
@@ -111,8 +108,7 @@ func TestApplyDefaults(t *testing.T) {
 					BasicAuthentication: basicAuth("customUser", "sourcePass", ""),
 				},
 				Sniffing: Sniffing{
-					Enabled:  true,
-					UseHTTPS: true,
+					Enabled: true,
 				},
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
@@ -137,13 +133,11 @@ func TestApplyDefaults(t *testing.T) {
 				BulkProcessing: BulkProcessing{
 					MaxBytes:      1000,
 					Workers:       10,
-					MaxActions:    100,
 					FlushInterval: 30,
 				},
-				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:   10000,
-				LogLevel:      "info",
-				SendGetBodyAs: "json",
+				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount: 10000,
+				LogLevel:    "info",
 			},
 		},
 		{
@@ -154,8 +148,7 @@ func TestApplyDefaults(t *testing.T) {
 					BasicAuthentication: basicAuth("sourceUser", "sourcePass", ""),
 				},
 				Sniffing: Sniffing{
-					Enabled:  true,
-					UseHTTPS: true,
+					Enabled: true,
 				},
 				MaxSpanAge:               100,
 				AdaptiveSamplingLookback: 50,
@@ -180,13 +173,11 @@ func TestApplyDefaults(t *testing.T) {
 				BulkProcessing: BulkProcessing{
 					MaxBytes:      1000,
 					Workers:       10,
-					MaxActions:    100,
 					FlushInterval: 30,
 				},
-				Tags:          TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
-				MaxDocCount:   10000,
-				LogLevel:      "info",
-				SendGetBodyAs: "json",
+				Tags:        TagsAsFields{AllAsFields: true, DotReplacement: "dot", Include: "include", File: "file"},
+				MaxDocCount: 10000,
+				LogLevel:    "info",
 			},
 			expected: source,
 		},
@@ -339,6 +330,11 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	// Several cases below configure legacy rotation flags to exercise alias/rotation
+	// validation, which only applies when RejectLegacyRotationFlags is disabled; the
+	// gate is Beta (enabled by default), so disable it for these cases.
+	setRejectLegacyRotationFlagsGate(t, false)
+
 	tests := []struct {
 		name          string
 		config        *Configuration
@@ -351,9 +347,94 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
+			name:   "explicit supported version accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 102},
+		},
+		{
+			name:          "explicit unsupported version rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, Version: 10},
+			expectedError: "unsupported version 10",
+		},
+		{
 			name:          "no valid input are set",
 			config:        &Configuration{},
 			expectedError: "Servers: non zero value required",
+		},
+		{
+			name: "unrecognized log_level rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				LogLevel: "trace",
+			},
+			expectedError: `unrecognized log_level "trace"`,
+		},
+		{
+			name:   "recognized log_level accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, LogLevel: "debug"},
+		},
+		{
+			name: "sniffing.use_https set is rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				Sniffing: Sniffing{UseHTTPS: configoptional.Some(true)},
+			},
+			expectedError: "'sniffing.use_https' is no longer supported",
+		},
+		{
+			name: "sniffing.use_https set to false is still rejected",
+			config: &Configuration{
+				Servers:  []string{"localhost:8000/dummyserver"},
+				Sniffing: Sniffing{UseHTTPS: configoptional.Some(false)},
+			},
+			expectedError: "'sniffing.use_https' is no longer supported",
+		},
+		{
+			name: "disable_health_check set is rejected",
+			config: &Configuration{
+				Servers:            []string{"localhost:8000/dummyserver"},
+				DisableHealthCheck: configoptional.Some(true),
+			},
+			expectedError: "'disable_health_check' is no longer supported",
+		},
+		{
+			name: "health_check_timeout_startup set is rejected",
+			config: &Configuration{
+				Servers:                   []string{"localhost:8000/dummyserver"},
+				HealthCheckTimeoutStartup: configoptional.Some(5 * time.Second),
+			},
+			expectedError: "'health_check_timeout_startup' is no longer supported",
+		},
+		{
+			name: "send_get_body_as set is rejected",
+			config: &Configuration{
+				Servers:       []string{"localhost:8000/dummyserver"},
+				SendGetBodyAs: configoptional.Some("POST"),
+			},
+			expectedError: "'send_get_body_as' is no longer supported",
+		},
+		{
+			name: "max_actions set is rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(1000)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "max_actions set to zero is still rejected",
+			config: &Configuration{
+				Servers:        []string{"localhost:8000/dummyserver"},
+				BulkProcessing: BulkProcessing{MaxActions: configoptional.Some(0)},
+			},
+			expectedError: "'bulk_processing.max_actions' is no longer supported",
+		},
+		{
+			name: "rejection error points to the explaining PR",
+			config: &Configuration{
+				Servers:       []string{"localhost:8000/dummyserver"},
+				SendGetBodyAs: configoptional.Some("POST"),
+			},
+			expectedError: "github.com/jaegertracing/jaeger/pull/9076",
 		},
 		{
 			name:          "ilm disabled and read-write aliases enabled error",
@@ -425,6 +506,107 @@ func TestValidate(t *testing.T) {
 					IndexPrefix: "prod",
 				},
 			},
+		},
+		// --- auth mutual-exclusion tests ---
+		{
+			name: "single basic auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+				},
+			},
+		},
+		{
+			name: "single bearer_token auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+				},
+			},
+		},
+		{
+			name: "single api_key auth is valid",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+		},
+		{
+			name: "basic + bearer_token auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "basic + api_key auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "bearer_token + api_key auth rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
+		},
+		{
+			name: "all three auth methods rejected",
+			config: &Configuration{
+				Servers: []string{"localhost:8000/dummyserver"},
+				Authentication: Authentication{
+					BasicAuthentication: configoptional.Some(BasicAuthentication{
+						Username: "user",
+						Password: "pass",
+					}),
+					BearerTokenAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/token",
+					}),
+					APIKeyAuth: configoptional.Some(TokenAuthentication{
+						FilePath: "/tmp/apikey",
+					}),
+				},
+			},
+			expectedError: "at most one authentication method (basic, bearer_token, api_key) may be configured",
 		},
 	}
 
@@ -800,11 +982,19 @@ func TestConfiguration_HasAnyLegacyRotationFlags(t *testing.T) {
 	}
 }
 
-func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), true))
+// setRejectLegacyRotationFlagsGate sets the gate for the duration of the test and
+// restores its original value on cleanup. The gate is Beta (enabled by default), so
+// tests that exercise the legacy-flag validation path must disable it explicitly.
+func setRejectLegacyRotationFlagsGate(t *testing.T, enabled bool) {
+	original := RejectLegacyRotationFlags.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), enabled))
 	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+		require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), original))
 	})
+}
+
+func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
+	setRejectLegacyRotationFlagsGate(t, true)
 
 	cfg := &Configuration{
 		Servers:             []string{"localhost:8000/dummyserver"},
@@ -816,7 +1006,7 @@ func TestValidate_RejectLegacyRotationFlagsGate(t *testing.T) {
 }
 
 func TestValidate_LegacyFlagsAllowedWhenGateDisabled(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set(RejectLegacyRotationFlags.ID(), false))
+	setRejectLegacyRotationFlagsGate(t, false)
 
 	cfg := &Configuration{
 		Servers:              []string{"localhost:8000/dummyserver"},

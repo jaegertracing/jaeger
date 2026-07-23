@@ -230,4 +230,12 @@ As much as possible, use OTel Collector's [feature gates][feature_gates] to mana
 
 See https://github.com/jaegertracing/jaeger/pull/6441 for an example of this workflow.
 
+Conventions for Jaeger feature gates:
+  * **Naming.** Every new gate ID MUST use the `jaeger.` prefix (e.g. `jaeger.es.config.rejectLegacyRotationFlags`). Jaeger shares the process-wide OTel `featuregate.GlobalRegistry()` with the embedded Collector and its contrib components, and the prefix avoids ID collisions with their gates. A legacy ID that predates this convention (e.g. `storage.clickhouse`) may stay registered without the prefix for the duration of its deprecation/removal window, but it must not be the canonical ID for new work: introduce the `jaeger.`-prefixed name and treat the old one as a deprecated alias per the renaming cycle below.
+  * **`FromVersion` records introduction, not stage.** Set `WithRegisterFromVersion` to the release in which the gate ID is first added, and do not change it when the gate graduates between stages — it is not a "current stage since" marker.
+  * **`ToVersion` is the removal release.** It is required once a gate is Stable or Deprecated (registration panics otherwise) and names the release in which the gate ID is removed. A Stable gate can no longer be disabled; explicitly enabling one logs that it will be removed in `ToVersion`.
+  * **Renaming a gate is itself a breaking change.** A gate ID is user-facing config (`--feature-gates=<id>`) and the OTel API has no built-in ID alias, so a rename needs a deprecation cycle: register the new ID and keep the old one working as a deprecated alias via `internal/featuregate.RenamedGate` for a window, then remove the old ID in a later release. `RenamedGate` supports only Alpha and Beta, so a renamed gate must have its legacy alias removed before it can be promoted to Stable.
+
+The current inventory of registered gates and their recommended transitions is tracked in https://github.com/jaegertracing/jaeger/issues/9057.
+
 [feature_gates]: https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md

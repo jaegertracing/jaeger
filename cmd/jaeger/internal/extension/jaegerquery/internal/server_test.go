@@ -1186,6 +1186,38 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 		require.NotEqual(t, http.StatusNotFound, rr.Code)
 	})
+
+	t.Run("chat and MCP both enabled: session-free and session-scoped endpoints coexist", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", EnableMCP: true, MaxRequestBodySize: 1 << 20})
+
+		// initRouter registers both /api/ai/mcp/ (session-free, jaeger-query)
+		// and /api/ai/mcp/{sessionID}/ (session-scoped, jaegerai) on the same
+		// mux. ServeMux panics on conflicting patterns, so a clean return here
+		// is itself the coexistence assertion.
+		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, closer.Close())
+		})
+
+		// Session-free endpoint is mounted.
+		freeRR := httptest.NewRecorder()
+		handler.ServeHTTP(freeRR, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/", http.NoBody))
+		require.NotEqual(t, http.StatusNotFound, freeRR.Code, "session-free endpoint must be mounted")
+
+		// Session-scoped endpoint is mounted and takes precedence: an unknown
+		// session id reaches the session-scoped handler and is rejected (404).
+		// If it were NOT mounted, the session-free subtree pattern would match
+		// this path and serve telemetry (not 404) instead. Both the slash and
+		// no-slash forms must behave this way.
+		for _, scopedPath := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
+			scopedRR := httptest.NewRecorder()
+			handler.ServeHTTP(scopedRR, httptest.NewRequest(http.MethodGet, scopedPath, http.NoBody))
+			require.Equal(t, http.StatusNotFound, scopedRR.Code,
+				"session-scoped endpoint must be mounted and reject unknown session at %s", scopedPath)
+		}
+	})
 }
 
 // TestRegisterMCPTools_BasePathNormalization checks the mount prefix directly

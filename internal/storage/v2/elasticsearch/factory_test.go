@@ -10,19 +10,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 var mockEsServerResponse = []byte(`
 {
-	"Version": {
-		"Number": "6"
-	}
+	"version": {
+		"number": "7.10.2"
+	},
+	"tagline": "You Know, for Search"
 }
 `)
 
@@ -60,7 +59,7 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 
 func TestESStorageFactoryErr(t *testing.T) {
 	f, err := NewFactory(context.Background(), escfg.Configuration{}, telemetry.NoopSettings(), nil)
-	require.ErrorContains(t, err, "failed to create Elasticsearch client: no servers specified")
+	require.ErrorContains(t, err, "no servers specified")
 	require.Nil(t, f)
 }
 
@@ -122,43 +121,22 @@ func TestAlwaysIncludesRequiredTags(t *testing.T) {
 	}
 }
 
-func TestCreateTraceReaderNativeSummariesGate(t *testing.T) {
+func TestCreateTraceReader(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
 	}))
 	defer server.Close()
 
-	tests := []struct {
-		name           string
-		gateEnabled    bool
-		wantSummaryRdr bool
-	}{
-		{name: "enabled exposes SummaryReader", gateEnabled: true, wantSummaryRdr: true},
-		{name: "disabled falls back to query service", gateEnabled: false, wantSummaryRdr: false},
-	}
+	cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := nativeTraceSummariesGate.IsEnabled()
-			require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), tt.gateEnabled))
-			defer func() {
-				require.NoError(t, featuregate.GlobalRegistry().Set(nativeTraceSummariesGate.ID(), original))
-			}()
-
-			cfg := escfg.Configuration{Servers: []string{server.URL}, LogLevel: "error"}
-			factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
-			require.NoError(t, err)
-			defer factory.Close()
-
-			reader, err := factory.CreateTraceReader()
-			require.NoError(t, err)
-
-			// The metrics decorator forwards SummaryReader only when the gate enabled
-			// the native wrapper; the query service discovers it via this same assertion.
-			_, ok := reader.(tracestore.SummaryReader)
-			require.Equal(t, tt.wantSummaryRdr, ok)
-		})
-	}
+	// Gate-driven behavior of FindTraceSummaries is covered by the tracestore package
+	// unit tests; here we only assert the factory wires up a usable reader.
+	reader, err := factory.CreateTraceReader()
+	require.NoError(t, err)
+	require.NotNil(t, reader)
 }
 
 func TestEnsureRequiredFields_AllAsFieldsTrue(t *testing.T) {
