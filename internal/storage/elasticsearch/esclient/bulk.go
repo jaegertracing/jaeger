@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v9/esutil"
@@ -22,7 +23,7 @@ type BulkItem struct {
 	Index  string         // target index, alias, or data stream
 	ID     string         // optional document _id (empty ⇒ server-generated)
 	OpType es.WriteOpType // "index" (default) or "create", depending on rotation strategy
-	Body   any            // JSON-serializable source document
+	Body   any            // source document; a json.RawMessage is written verbatim, anything else is json.Marshal'd
 }
 
 // BulkIndexerConfig bounds a BulkIndexer's buffering and concurrency.
@@ -131,7 +132,7 @@ func (b *BulkIndexer) onFlushEnd(ctx context.Context) {
 // and counted; the bulk API's own semantics (buffering, flush, per-item results)
 // are handled by esutil.
 func (b *BulkIndexer) Add(item BulkItem) {
-	body, err := json.Marshal(item.Body)
+	body, err := encodeBody(item.Body)
 	if err != nil {
 		b.recordDropped(item.Index, "failed to encode bulk document", err)
 		return
@@ -149,6 +150,15 @@ func (b *BulkIndexer) Add(item BulkItem) {
 			b.onItemSuccess()
 		},
 		OnFailure: func(_ context.Context, _ esutil.BulkIndexerItem, resp esutil.BulkIndexerResponseItem, itemErr error) {
+			if resp.Status == http.StatusConflict {
+				// A 409 version_conflict on a document with our deterministic _id
+				// (op_type: create, used by data streams) means the byte-identical
+				// span is already stored — the expected outcome of an at-least-once
+				// retry, not a failure. Treat it as an idempotent success rather than
+				// logging a spurious error. See RFC 0007 §4.7.
+				b.onItemConflict(item.Index)
+				return
+			}
 			b.onItemFailure(item.Index, resp.Status, itemErr)
 		},
 	})
@@ -158,6 +168,17 @@ func (b *BulkIndexer) Add(item BulkItem) {
 		// would land here; treat it as a dropped document rather than ignore it.
 		b.recordDropped(item.Index, "failed to enqueue bulk document", err)
 	}
+}
+
+// encodeBody returns the JSON document bytes for a bulk item. A json.RawMessage is
+// already-encoded JSON, returned verbatim: this lets the span hot path marshal the
+// document once, hash those bytes for the _id, and hand them straight to the bulk
+// request without a second reflection-heavy encode. Any other value is marshaled.
+func encodeBody(doc any) ([]byte, error) {
+	if raw, ok := doc.(json.RawMessage); ok {
+		return raw, nil
+	}
+	return json.Marshal(doc)
 }
 
 // onItemSuccess counts one successfully indexed document.
@@ -176,6 +197,17 @@ func (b *BulkIndexer) onItemFailure(index string, status int, err error) {
 	b.metrics.Errors.Inc(1)
 	b.logger.Error("Elasticsearch part of bulk request failed",
 		zap.String("index", index), zap.Int("status", status), zap.Error(err))
+}
+
+// onItemConflict counts a document rejected with a 409 version_conflict as a
+// successful (idempotent) write: with a deterministic _id the conflicting document
+// is already durably stored, so the write achieved its goal. Counted like a normal
+// insert and logged at debug, not as an error (see the OnFailure handler).
+func (b *BulkIndexer) onItemConflict(index string) {
+	b.metrics.Attempts.Inc(1)
+	b.metrics.Inserts.Inc(1)
+	b.logger.Debug("Elasticsearch bulk item already present (idempotent write)",
+		zap.String("index", index), zap.Int("status", http.StatusConflict))
 }
 
 // recordDropped counts a document that never reached the server — dropped before

@@ -7,6 +7,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http/httptest"
 	"strconv"
 	"testing"
@@ -164,6 +165,12 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				assert.IsType(t, dbmodel.Service{}, service.Body)
 				assert.Equal(t, spanIndexName, spanItem.Index)
 				assert.Equal(t, es.WriteOpIndex, spanItem.OpType)
+				// The span carries a deterministic _id (RFC 0007 §4.7) — the trace and
+				// span IDs plus a content hash — so a re-sent identical span upserts.
+				assert.Contains(t, spanItem.ID, "testing-traceid_testing-spanid_")
+				// The span body is handed to the bulk writer pre-encoded (marshaled
+				// once), not as the raw struct.
+				assert.IsType(t, json.RawMessage{}, spanItem.Body)
 
 				for _, expectedLog := range testCase.expectedLogs {
 					assert.Contains(t, w.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
@@ -281,6 +288,65 @@ func TestWriteSpanToIndex_DataStreamOpType(t *testing.T) {
 	require.Len(t, *added, 1)
 	assert.Equal(t, es.WriteOpCreate, (*added)[0].OpType)
 	assert.Equal(t, "jaeger.spans", (*added)[0].Index)
+}
+
+func TestWriteSpanToIndex_EncodeError(t *testing.T) {
+	logger, logBuf := testutils.NewLogger()
+	bulkWriter := &esclientmocks.BulkWriter{}
+	added := captureBulk(bulkWriter)
+	writer := NewSpanWriter(SpanWriterParams{
+		BulkWriter:      bulkWriter,
+		Logger:          logger,
+		MetricsFactory:  metricstest.NewFactory(0),
+		SpanRotation:    indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+		ServiceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+	})
+
+	// A NaN float tag value cannot be JSON-encoded, so the span is dropped with a
+	// logged error rather than enqueued without an _id.
+	span := &dbmodel.Span{TraceID: "a", SpanID: "b", Tag: map[string]any{"bad": math.NaN()}}
+	writer.writeSpanToIndex("jaeger-span-write", span)
+
+	assert.Empty(t, *added, "an unencodable span must not be enqueued")
+	assert.Contains(t, logBuf.String(), "failed to encode span document")
+}
+
+func TestSpanDocID(t *testing.T) {
+	// id marshals the span the way the writer does, then derives the _id, so the
+	// test exercises the real (marshal → hash) path.
+	id := func(s *dbmodel.Span) string {
+		body, err := json.Marshal(s)
+		require.NoError(t, err)
+		return spanDocID(s, body)
+	}
+	base := &dbmodel.Span{
+		TraceID:       "1234567890abcdef",
+		SpanID:        "abcdef1234567890",
+		OperationName: "op",
+		StartTime:     100,
+	}
+
+	// Deterministic: an identical span always hashes to the same id, so a re-sent
+	// span upserts rather than duplicating.
+	sameContent := *base
+	assert.Equal(t, id(base), id(&sameContent))
+
+	// Content-sensitive: a different field yields a different id.
+	other := *base
+	other.OperationName = "other-op"
+	assert.NotEqual(t, id(base), id(&other), "differing content must not collide")
+
+	// Shared-span model: a client and server span may legitimately share
+	// (traceID, spanID) but differ in content; the content hash keeps them distinct
+	// (a traceID+spanID key would wrongly collapse them).
+	sharedID := *base
+	sharedID.Tags = []dbmodel.KeyValue{{Key: "span.kind", Type: dbmodel.StringType, Value: "server"}}
+	assert.NotEqual(t, id(base), id(&sharedID))
+
+	// The id is scoped by trace and span id (delimited so it stays injective even
+	// for empty ids): distinct (traceID, spanID) never collide, so a hash collision
+	// can only ever affect spans that share them.
+	assert.Contains(t, id(base), string(base.TraceID)+"_"+string(base.SpanID)+"_")
 }
 
 // noWriteRotation is a stub whose WriteTarget is empty, so WriteSpan skips the
