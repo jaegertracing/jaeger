@@ -148,7 +148,7 @@ So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is
 
 ## 5. Predicate anatomy — subject, operator, and value type
 
-A predicate names what it filters on and compares it with an operator. It targets exactly one of two things: a _level-qualified attribute_ or a _property_.
+A predicate has three parts. Its **subject** — what it filters on — is exactly one of a _level-qualified attribute_ (§5.1) or a _property_ (§5.2). Its **operator** (§5.3) says how to compare the subject against a value. And an optional **value type** (§5.3–§5.4) tells the backend how to interpret that value.
 
 ### 5.1 Attribute levels
 
