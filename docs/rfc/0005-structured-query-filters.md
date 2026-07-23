@@ -94,7 +94,7 @@ Feasibility is dominated by how each backend physically stores and indexes attri
 The model factors cleanly into two orthogonal axes, addressed in the next two sections:
 
 - **Composition (§4)** — *how predicates combine.* This is the "how expressive?" question, mapped as a continuum from today's flat conjunction up to a full trace query language, with an explicit decision on where Jaeger stops.
-- **Reference (§5)** — *what a single predicate points at.* A reference model of attribute levels, properties, and operators.
+- **Predicate anatomy (§5)** — *a single predicate's subject (a level-qualified attribute or a property), operator, and value type.*
 
 They are independent: the composition tier could be chosen with or without properties, and vice versa. §6 combines the two into one proto/AST.
 
@@ -146,7 +146,7 @@ So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is
 
 ---
 
-## 5. Reference — levels and properties
+## 5. Predicate anatomy — subject, operator, and value type
 
 A predicate names what it filters on and compares it with an operator. It targets exactly one of two things: a _level-qualified attribute_ or a _property_.
 
