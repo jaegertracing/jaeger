@@ -26,13 +26,15 @@
           ]
         }
       },
-      "search_after": [
-        1577847845000000
-      ],
       "size": 100,
       "sort": [
         {
           "startTime": {
+            "order": "asc"
+          }
+        },
+        {
+          "spanID": {
             "order": "asc"
           }
         }
