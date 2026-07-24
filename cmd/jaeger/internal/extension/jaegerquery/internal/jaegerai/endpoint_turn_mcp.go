@@ -69,15 +69,23 @@ type turnScopedEndpoint struct {
 // reads the route id from the request context and, for that turn,
 // advertises its UI tools in tools/list and dispatches their tools/call to the
 // browser stream. This avoids standing up a fresh server per turn.
-func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, logger *zap.Logger) *turnScopedEndpoint {
-	srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
+// skillsDir threads the operator's ai.skills_dir into the server so this
+// endpoint serves the same merged skill tree as the shared one; an unusable
+// skillsDir path fails construction.
+func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, skillsDir string, logger *zap.Logger) (*turnScopedEndpoint, error) {
+	cfg := mcptools.DefaultConfig()
+	cfg.SkillsDir = skillsDir
+	srv, err := mcptools.NewServer(telset, queryAPI, cfg)
+	if err != nil {
+		return nil, err
+	}
 	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
 	return &turnScopedEndpoint{
 		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
 		turns:      turns,
 		basePath:   basePath,
 		logger:     logger,
-	}
+	}, nil
 }
 
 // registerRoutes mounts the endpoint on both the slash and no-slash forms of its

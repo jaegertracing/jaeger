@@ -32,6 +32,10 @@ type Config struct {
 	MaxSearchResults         int
 	// MaxReadFileSize bounds the size (bytes) of a file served by read_skill.
 	MaxReadFileSize int64
+	// SkillsDir is an optional directory of operator-supplied skills on the
+	// server disk, served by read_skill under custom/ alongside the built-in
+	// skills. Empty means built-ins only.
+	SkillsDir string
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so

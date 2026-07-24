@@ -217,7 +217,7 @@ func initRouter(
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the session-scoped MCP endpoint
 					// (/api/ai/mcp/<id>/).
-					jaegerai.NewHandler(jaegerai.HandlerParams{
+					aiHandler, err := jaegerai.NewHandler(jaegerai.HandlerParams{
 						Logger:             telset.Logger,
 						AgentURL:           aiCfg.AgentURL,
 						BasePath:           queryOpts.BasePath,
@@ -226,12 +226,19 @@ func initRouter(
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
-					}).RegisterRoutes(r)
+						SkillsDir:          aiCfg.SkillsDir,
+					})
+					if err != nil {
+						return nil, nil, err
+					}
+					aiHandler.RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
 					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
 					// the wildcard session-scoped pattern above.
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+					if err := registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, aiCfg.SkillsDir, telset); err != nil {
+						return nil, nil, err
+					}
 				}
 			}
 		}
@@ -286,11 +293,17 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, skillsDir string, telset telemetry.Settings) error {
+	cfg := mcptools.DefaultConfig()
+	cfg.SkillsDir = skillsDir
+	handler, err := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
+	if err != nil {
+		return err
+	}
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
+	return nil
 }
 
 // per-route wrap is the only instrumentation layer.
