@@ -65,6 +65,17 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	return wr, nil
 }
 
+// SyncBulkWriteByteCap reports whether spans are written synchronously
+// (write_mode: sync) and, if so, the maximum number of bytes the synchronous
+// writer places in a single _bulk request (bulk_processing.max_bytes). A blocking
+// exporter uses it to reject, at startup, a configured batch size that could
+// exceed the cap and force the writer to split one batch into several _bulk
+// requests, breaking the one-request-per-batch atomicity synchronous mode relies
+// on (RFC 0007 §4.5). In async mode sync is false and the cap is irrelevant.
+func (f *Factory) SyncBulkWriteByteCap() (sync bool, maxBytes int) {
+	return f.config.EffectiveWriteMode() == escfg.WriteModeSync, f.config.BulkProcessing.MaxBytes
+}
+
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {
 	params := f.coreFactory.GetDependencyStoreParams()
 	return v2depstore.NewDependencyStoreV2(params), nil
