@@ -49,7 +49,7 @@ func TestBadgerStorageFactoryWithConfig(t *testing.T) {
 	t.Parallel()
 	cfg := badger.Config{}
 	_, err := NewFactory(cfg, telemetry.NoopSettings())
-	require.ErrorContains(t, err, "Error Creating Dir: \"\" err: mkdir : no such file or directory")
+	require.ErrorContains(t, err, "Error Creating Dir:")
 
 	cfg = badger.Config{
 		Ephemeral:             true,

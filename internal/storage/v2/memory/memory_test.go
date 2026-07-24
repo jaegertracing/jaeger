@@ -522,15 +522,19 @@ func TestFindTraces_StatusCode(t *testing.T) {
 	})
 	traceId1 := fromString(t, "00000000000000010000000000000000")
 	traceId2 := fromString(t, "00000000000000020000000000000000")
+	traceId3 := fromString(t, "00000000000000030000000000000000")
 	require.NoError(t, err)
 	td := ptrace.NewTraces()
 	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
 	span1 := spans.AppendEmpty()
 	span2 := spans.AppendEmpty()
+	span3 := spans.AppendEmpty()
 	span1.SetTraceID(traceId1)
 	span1.Status().SetCode(ptrace.StatusCodeOk)
 	span2.SetTraceID(traceId2)
 	span2.Status().SetCode(ptrace.StatusCodeError)
+	span3.SetTraceID(traceId3)
+	// span3 has ptrace.StatusCodeUnset by default
 	err = store.WriteTraces(context.Background(), td)
 	require.NoError(t, err)
 	queryAttributes := pcommon.NewMap()
@@ -553,13 +557,15 @@ func TestFindTraces_StatusCode(t *testing.T) {
 		Attributes:  queryAttributes,
 		SearchDepth: 10,
 	})
+	var gotIDs []pcommon.TraceID
 	for traces, err := range iter2 {
 		require.NoError(t, err)
 		iterLength++
 		assert.Len(t, traces, 1)
-		assert.Equal(t, traceId1, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+		gotIDs = append(gotIDs, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
 	}
-	assert.Equal(t, 1, iterLength)
+	assert.Equal(t, 2, iterLength)
+	assert.ElementsMatch(t, []pcommon.TraceID{traceId1, traceId3}, gotIDs)
 }
 
 func TestGetOperationsWithKind(t *testing.T) {

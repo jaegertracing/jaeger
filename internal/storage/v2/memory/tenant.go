@@ -265,7 +265,7 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 		if errorVal && span.Status().Code() != ptrace.StatusCodeError {
 			return false
 		}
-		if !errorVal && span.Status().Code() != ptrace.StatusCodeOk {
+		if !errorVal && span.Status().Code() == ptrace.StatusCodeError {
 			return false
 		}
 	}
