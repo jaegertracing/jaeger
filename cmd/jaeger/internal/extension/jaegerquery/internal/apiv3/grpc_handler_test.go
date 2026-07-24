@@ -199,6 +199,60 @@ func TestFindTraces(t *testing.T) {
 	require.Equal(t, 1, td.SpanCount())
 }
 
+func TestTraceQueryParamsSearchDepth(t *testing.T) {
+	baseQuery := func() *api_v3.TraceQueryParameters {
+		return &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+	}
+	tests := []struct {
+		name        string
+		searchDepth int32
+		expected    int
+	}{
+		{name: "unset defaults", searchDepth: 0, expected: defaultSearchDepth},
+		{name: "negative defaults", searchDepth: -1, expected: defaultSearchDepth},
+		{name: "explicit value preserved", searchDepth: 42, expected: 42},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			query := baseQuery()
+			query.SearchDepth = test.searchDepth
+			params, err := traceQueryParams(query)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, params.SearchDepth)
+		})
+	}
+}
+
+func TestFindTracesDefaultsSearchDepth(t *testing.T) {
+	// A FindTraces request without search_depth (proto3 default 0) must reach
+	// the storage backend with the default search depth, matching the HTTP
+	// gateway. Some backends (e.g. the in-memory store) reject a literal 0.
+	tsc := newTestServerClient(t)
+	tsc.reader.On("FindTraces", matchContext, mock.MatchedBy(func(q tracestore.TraceQueryParams) bool {
+		return q.SearchDepth == defaultSearchDepth
+	})).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	td := recv.ToTraces()
+	require.Equal(t, 1, td.SpanCount())
+	tsc.reader.AssertExpectations(t)
+}
+
 func TestFindTracesSendError(t *testing.T) {
 	reader := new(tracestoremocks.Reader)
 	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).

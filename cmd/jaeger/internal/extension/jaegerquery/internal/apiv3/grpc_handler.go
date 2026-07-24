@@ -71,7 +71,10 @@ func (h *Handler) internalFindTraces(
 }
 
 // traceQueryParams converts a proto TraceQueryParameters to querysvc.TraceQueryParams,
-// validating that the required time range fields are present.
+// validating that the required time range fields are present. An unset (or
+// non-positive) search_depth defaults to defaultSearchDepth, mirroring the
+// HTTP gateway: proto3 cannot distinguish an omitted field from 0, and a
+// literal 0 is rejected by some storage backends (e.g. the in-memory store).
 func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryParams, error) {
 	if query == nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "missing query")
@@ -79,12 +82,16 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
+	searchDepth := int(query.GetSearchDepth())
+	if searchDepth <= 0 {
+		searchDepth = defaultSearchDepth
+	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
+			SearchDepth:   searchDepth,
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
