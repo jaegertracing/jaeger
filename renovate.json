@@ -172,6 +172,44 @@
       ]
     },
     {
+      "groupName": "ClickHouse 25.8.x LTS docker images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/docker-compose.yml",
+        "docker-compose/clickhouse/lts-previous/docker-compose.yml",
+        "docker-compose/monitor/docker-compose-clickhouse.yml"
+      ],
+      "allowedVersions": "/^25\\.8\\./",
+      "matchUpdateTypes": [
+        "patch",
+        "digest"
+      ],
+      "enabled": true
+    },
+    {
+      "groupName": "ClickHouse 26.3.x LTS docker images",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "clickhouse/clickhouse-server"
+      ],
+      "matchFileNames": [
+        "docker-compose/clickhouse/lts-latest/docker-compose.yml"
+      ],
+      "allowedVersions": "/^26\\.3\\./",
+      "matchUpdateTypes": [
+        "patch",
+        "digest"
+      ],
+      "enabled": true
+    },
+    {
       "groupName": "OpenSearch 3.x docker images",
       "matchDatasources": [
         "docker"
