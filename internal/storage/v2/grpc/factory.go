@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -143,6 +144,11 @@ func (f *Factory) initializeConnections(
 		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamClientInterceptor())
 	}
 
+	if f.config.Timeout > 0 {
+		unaryInterceptors = append(unaryInterceptors, timeoutUnaryClientInterceptor(f.config.Timeout))
+		streamInterceptors = append(streamInterceptors, timeoutStreamClientInterceptor(f.config.Timeout))
+	}
+
 	baseOpts := []grpc.DialOption{
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
@@ -176,4 +182,62 @@ func (f *Factory) initializeConnections(
 	f.readerConn, f.writerConn = readerConn, writerConn
 
 	return nil
+}
+
+type timeoutClientStream struct {
+	grpc.ClientStream
+	cancel context.CancelFunc
+}
+
+func (t *timeoutClientStream) RecvMsg(m any) error {
+	err := t.ClientStream.RecvMsg(m)
+	if err != nil {
+		t.cancel()
+	}
+	return err
+}
+
+func (t *timeoutClientStream) SendMsg(m any) error {
+	err := t.ClientStream.SendMsg(m)
+	if err != nil {
+		t.cancel()
+	}
+	return err
+}
+
+func timeoutUnaryClientInterceptor(timeout time.Duration) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+func timeoutStreamClientInterceptor(timeout time.Duration) grpc.StreamClientInterceptor {
+	return func(
+		ctx context.Context,
+		desc *grpc.StreamDesc,
+		cc *grpc.ClientConn,
+		method string,
+		streamer grpc.Streamer,
+		opts ...grpc.CallOption,
+	) (grpc.ClientStream, error) {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		clientStream, err := streamer(ctx, desc, cc, method, opts...)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		return &timeoutClientStream{
+			ClientStream: clientStream,
+			cancel:       cancel,
+		}, nil
+	}
 }
