@@ -42,6 +42,12 @@ var (
 
 	// errServiceParameterRequired occurs when no service name is defined.
 	errServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
+
+	// errLimitMustBePositive occurs when the limit parameter is zero or negative.
+	errLimitMustBePositive = fmt.Errorf("parameter '%s' must be greater than 0", limitParam)
+
+	// errStartTimeAfterEnd occurs when the start time is after the end time.
+	errStartTimeAfterEnd = fmt.Errorf("'%s' must not be later than '%s'", startTimeParam, endTimeParam)
 )
 
 type (
@@ -361,6 +367,12 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
 		return errServiceParameterRequired
+	}
+	if len(traceQuery.TraceIDs) == 0 && traceQuery.SearchDepth <= 0 {
+		return errLimitMustBePositive
+	}
+	if len(traceQuery.TraceIDs) == 0 && traceQuery.StartTimeMin.After(traceQuery.StartTimeMax) {
+		return errStartTimeAfterEnd
 	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
 		if traceQuery.DurationMax < traceQuery.DurationMin {
