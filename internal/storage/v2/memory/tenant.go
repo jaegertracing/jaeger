@@ -172,6 +172,9 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 		if !traceWithTime.traceIsBetweenStartAndEnd(query.StartTime, query.EndTime) {
 			continue
 		}
+		// Build a spanID -> serviceName map for O(1) parent lookups
+		// instead of scanning all spans for each parent (O(n^2) -> O(n)).
+		spanServiceMap := buildSpanServiceMap(traceWithTime.trace)
 		for _, resourceSpan := range traceWithTime.trace.ResourceSpans().All() {
 			for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 				for _, span := range scopeSpan.Spans().All() {
@@ -179,7 +182,7 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 						continue
 					}
 					spanServiceName := getServiceNameFromResource(resourceSpan.Resource())
-					parentSpanServiceName, found := findServiceNameWithSpanId(traceWithTime.trace, span.ParentSpanID())
+					parentSpanServiceName, found := spanServiceMap[span.ParentSpanID()]
 					if !found {
 						continue
 					}
@@ -204,17 +207,19 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 	return retMe, nil
 }
 
-func findServiceNameWithSpanId(trace ptrace.Traces, spanId pcommon.SpanID) (string, bool) {
+// buildSpanServiceMap builds a map from span ID to service name for all spans
+// in the trace. This allows O(1) parent span lookups in getDependencies.
+func buildSpanServiceMap(trace ptrace.Traces) map[pcommon.SpanID]string {
+	m := make(map[pcommon.SpanID]string)
 	for _, resourceSpan := range trace.ResourceSpans().All() {
+		serviceName := getServiceNameFromResource(resourceSpan.Resource())
 		for _, scopeSpan := range resourceSpan.ScopeSpans().All() {
 			for _, span := range scopeSpan.Spans().All() {
-				if span.SpanID() == spanId {
-					return getServiceNameFromResource(resourceSpan.Resource()), true
-				}
+				m[span.SpanID()] = serviceName
 			}
 		}
 	}
-	return "", false
+	return m
 }
 
 func validTrace(td ptrace.Traces, query tracestore.TraceQueryParams) bool {
