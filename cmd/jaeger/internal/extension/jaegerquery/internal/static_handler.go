@@ -5,7 +5,9 @@
 package app
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,12 +19,44 @@ import (
 	"sync"
 	"time"
 
+	"github.com/spf13/afero"
+	"github.com/spf13/afero/tarfs"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
+
+func assetsFileSystem(assetsPath string) (http.FileSystem, error) {
+	if !strings.HasSuffix(assetsPath, ".tar.gz") {
+		return http.Dir(assetsPath), nil
+	}
+	info, err := os.Stat(filepath.Clean(assetsPath))
+	if err != nil {
+		return nil, fmt.Errorf("cannot inspect UI assets path %q: %w", assetsPath, err)
+	}
+	if !info.Mode().IsRegular() {
+		return http.Dir(assetsPath), nil
+	}
+
+	file, err := os.Open(filepath.Clean(assetsPath))
+	if err != nil {
+		return nil, fmt.Errorf("cannot open UI assets archive %q: %w", assetsPath, err)
+	}
+	defer file.Close()
+	gzipReader, err := gzip.NewReader(file)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read UI assets archive %q: %w", assetsPath, err)
+	}
+	defer gzipReader.Close()
+
+	archiveFS := tarfs.New(tar.NewReader(gzipReader))
+	if archiveFS == nil {
+		return nil, fmt.Errorf("cannot read UI assets archive %q", assetsPath)
+	}
+	return afero.NewHttpFs(archiveFS).Dir("/"), nil
+}
 
 var (
 	// The following patterns are searched and replaced in the index.html as a way of customizing the UI.
@@ -88,7 +122,11 @@ type loadedConfig struct {
 func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCapabilities, aiHealthCheck func() bool, logger *zap.Logger) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
-		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
+		var err error
+		assetsFS, err = assetsFileSystem(qOpts.UIConfig.AssetsPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 	raw, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
