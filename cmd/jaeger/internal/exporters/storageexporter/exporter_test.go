@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -65,6 +67,102 @@ func TestExporterConfigError(t *testing.T) {
 	config := createDefaultConfig().(*Config)
 	err := config.Validate()
 	require.EqualError(t, err, "TraceStorage: non zero value required")
+}
+
+// fakeSyncFactory is a tracestore.Factory that also advertises a synchronous,
+// byte-capped write mode via syncBulkWriteConfig. The embedded interface is nil;
+// the batch-sizing guard never calls its factory methods, so tests that only
+// exercise the guard don't need a working implementation.
+type fakeSyncFactory struct {
+	tracestore.Factory
+	sync     bool
+	maxBytes int
+}
+
+func (f fakeSyncFactory) SyncBulkWriteByteCap() (bool, int) { return f.sync, f.maxBytes }
+
+// fakeFactoryExt is a jaegerstorage.Extension serving a single named trace-store
+// factory, letting a start() test inject an arbitrary factory (e.g. fakeSyncFactory).
+type fakeFactoryExt struct {
+	name    string
+	factory tracestore.Factory
+}
+
+var _ jaegerstorage.Extension = (*fakeFactoryExt)(nil)
+
+func (*fakeFactoryExt) Start(context.Context, component.Host) error { return nil }
+func (*fakeFactoryExt) Shutdown(context.Context) error              { return nil }
+
+func (e *fakeFactoryExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
+	if e.name == name {
+		return e.factory, nil
+	}
+	return nil, errors.New("storage not found")
+}
+
+func (*fakeFactoryExt) MetricStorageFactory(string) (storage.MetricStoreFactory, error) {
+	return nil, errors.New("metric storage not found")
+}
+
+func byteBatchQueue(maxSize int64) configoptional.Optional[exporterhelper.QueueBatchConfig] {
+	return configoptional.Some(exporterhelper.QueueBatchConfig{
+		Batch: configoptional.Some(exporterhelper.BatchConfig{
+			Sizer:   exporterhelper.RequestSizerTypeBytes,
+			MaxSize: maxSize,
+		}),
+	})
+}
+
+func TestValidateSyncBatchSizing(t *testing.T) {
+	const maxBytes = 5_000_000
+	itemBatchQueue := configoptional.Some(exporterhelper.QueueBatchConfig{
+		Batch: configoptional.Some(exporterhelper.BatchConfig{
+			Sizer:   exporterhelper.RequestSizerTypeItems,
+			MaxSize: maxBytes + 1,
+		}),
+	})
+	tests := []struct {
+		name    string
+		factory tracestore.Factory
+		queue   configoptional.Optional[exporterhelper.QueueBatchConfig]
+		wantErr string
+	}{
+		{name: "factory without sync capability is skipped", factory: new(tracestoremocks.Factory), queue: byteBatchQueue(maxBytes + 1)},
+		{name: "async factory is skipped", factory: fakeSyncFactory{sync: false, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes + 1)},
+		{name: "sync with zero cap is skipped", factory: fakeSyncFactory{sync: true, maxBytes: 0}, queue: byteBatchQueue(maxBytes + 1)},
+		{name: "sync without queue is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: configoptional.None[exporterhelper.QueueBatchConfig]()},
+		{name: "sync with queue but no batch is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: configoptional.Some(exporterhelper.QueueBatchConfig{})},
+		{name: "sync with item-sized batch is skipped", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: itemBatchQueue},
+		{name: "sync with byte batch within cap passes", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes)},
+		{name: "sync with byte batch over cap fails", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(maxBytes + 1), wantErr: "got max_size=5000001"},
+		{name: "sync with unbounded byte batch fails", factory: fakeSyncFactory{sync: true, maxBytes: maxBytes}, queue: byteBatchQueue(0), wantErr: "got max_size=0"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exp := &storageExporter{config: &Config{QueueConfig: tt.queue}}
+			err := exp.validateSyncBatchSizing(tt.factory)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, tt.wantErr)
+			require.ErrorContains(t, err, "write_mode: sync")
+		})
+	}
+}
+
+func TestExporterStartRejectsOversizedSyncBatch(t *testing.T) {
+	host := storagetest.NewStorageHost()
+	host.WithExtension(jaegerstorage.ID, &fakeFactoryExt{
+		name:    "es",
+		factory: fakeSyncFactory{sync: true, maxBytes: 1000},
+	})
+	exp := &storageExporter{config: &Config{
+		TraceStorage: "es",
+		QueueConfig:  byteBatchQueue(2000),
+	}}
+	err := exp.start(context.Background(), host)
+	require.ErrorContains(t, err, "queue.batch.max_size")
 }
 
 func TestExporterStartBadNameError(t *testing.T) {
