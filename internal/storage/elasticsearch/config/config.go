@@ -31,6 +31,18 @@ const (
 	SamplingIndexName   = "jaeger-sampling"
 )
 
+// WriteMode selects how the Elasticsearch/OpenSearch trace writer persists spans.
+type WriteMode string
+
+const (
+	// WriteModeAsync enqueues spans into a client-side bulk buffer and returns from
+	// WriteTraces before the data is durable. It is the default when write_mode is unset.
+	WriteModeAsync WriteMode = "async"
+	// WriteModeSync writes each batch with a single blocking _bulk request and returns
+	// a real error from WriteTraces if any span fails to persist.
+	WriteModeSync WriteMode = "sync"
+)
+
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
@@ -153,6 +165,16 @@ type Configuration struct {
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
+	// WriteMode selects how the trace writer persists spans. Valid values are
+	// "async" and "sync":
+	//   - "async": spans are enqueued into a client-side bulk buffer and
+	//     WriteTraces returns before the data is durable (higher throughput, but
+	//     a bulk-flush failure is not surfaced to the caller).
+	//   - "sync": each batch is written with a single blocking _bulk request and
+	//     WriteTraces returns a real error if any span fails to persist,
+	//     respecting the tracestore.Writer contract. See RFC 0007 for background.
+	// When empty, it defaults to "async". See config.EffectiveWriteMode().
+	WriteMode WriteMode `mapstructure:"write_mode"`
 	// Version contains the backend version number (e.g. 7, 8, 9 for Elasticsearch,
 	// 101, 102, 103 for OpenSearch). If 0, it will be auto-detected from the server.
 	Version uint `mapstructure:"version"`
@@ -410,6 +432,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkProcessing.FlushInterval == 0 {
 		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
 	}
+	if c.WriteMode == "" {
+		c.WriteMode = source.WriteMode
+	}
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
 	}
@@ -578,7 +603,33 @@ func (c *Configuration) Validate() error {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
+	if err := validateWriteMode(c.WriteMode); err != nil {
+		return err
+	}
+
 	return validateLogLevel(c.LogLevel)
+}
+
+// EffectiveWriteMode resolves the write mode Jaeger should use: the explicit
+// WriteMode from config, or WriteModeAsync when it is unset.
+func (c *Configuration) EffectiveWriteMode() WriteMode {
+	if c.WriteMode != "" {
+		return c.WriteMode
+	}
+	return WriteModeAsync
+}
+
+// validateWriteMode rejects an unrecognized write_mode. An empty value is allowed
+// and resolves to the default (WriteModeAsync). It mirrors validateLogLevel:
+// write_mode carries no govalidator struct tag, so the whole-config Validate must
+// check it explicitly.
+func validateWriteMode(mode WriteMode) error {
+	switch mode {
+	case "", WriteModeAsync, WriteModeSync:
+		return nil
+	default:
+		return fmt.Errorf("unrecognized write_mode %q: valid values are %q and %q", mode, WriteModeAsync, WriteModeSync)
+	}
 }
 
 // validateLogLevel rejects an unrecognized log_level. An empty value is allowed
