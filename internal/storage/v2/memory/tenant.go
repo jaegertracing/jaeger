@@ -180,7 +180,7 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 					}
 					spanServiceName := getServiceNameFromResource(resourceSpan.Resource())
 					parentSpanServiceName, found := findServiceNameWithSpanId(traceWithTime.trace, span.ParentSpanID())
-					if !found {
+					if !found || parentSpanServiceName == spanServiceName {
 						continue
 					}
 					depKey := parentSpanServiceName + "&&&" + spanServiceName

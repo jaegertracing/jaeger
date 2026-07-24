@@ -797,6 +797,49 @@ func TestGetDependencies(t *testing.T) {
 	assert.Empty(t, emptyDeps)
 }
 
+func TestGetDependencies_SameService(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	traceId := fromString(t, "00000000000000010000000000000000")
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), "service-x")
+	startTime := time.Now()
+	parent := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	parent.SetTraceID(traceId)
+	parent.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	parent.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	parent.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(2 * time.Second)))
+	child := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	child.SetTraceID(traceId)
+	child.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	child.SetParentSpanID(spanIdFromString(t, "0000000000000001"))
+	child.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	child.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	otherResourceSpans := td.ResourceSpans().AppendEmpty()
+	otherResourceSpans.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), "service-y")
+	remoteChild := otherResourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	remoteChild.SetTraceID(traceId)
+	remoteChild.SetSpanID(spanIdFromString(t, "0000000000000003"))
+	remoteChild.SetParentSpanID(spanIdFromString(t, "0000000000000001"))
+	remoteChild.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	remoteChild.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-1 * time.Second),
+		EndTime:   startTime.Add(3 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []model.DependencyLink{{
+		Parent:    "service-x",
+		Child:     "service-y",
+		CallCount: 1,
+	}}, deps)
+}
+
 func TestGetDependencies_Err(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
