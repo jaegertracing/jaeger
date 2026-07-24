@@ -312,7 +312,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_REQUEST_MODEL: "gemini-2.5-flash",
         }):
             logger.info("Starting agentic Gemini loop for session %s", session_id)
-            system_instruction = (
+            base_system_instruction = (
                 "You are Jaeger AI, an assistant for distributed tracing investigations. "
                 "You will be given telemetry information from MCP tool results; treat that data as your source of truth. "
                 "When telemetry evidence is needed, request the MCP tool instead of answering from assumptions. "
@@ -327,6 +327,14 @@ class JaegerSidecarAgent(Agent):
             for tool in mcp_tools:
                 if tool.function_declarations:
                     mcp_tool_names.update(fd.name for fd in tool.function_declarations if fd.name)
+
+            # The MCP server's `instructions` field (from its initialize response),
+            # if any, is appended so Gemini sees tool-usage guidance the server
+            # itself provides, in addition to our base instruction.
+            if self._mcp.instructions:
+                system_instruction = f"{base_system_instruction}\n\n{self._mcp.instructions}"
+            else:
+                system_instruction = base_system_instruction
 
             contextual_tools = self._contextual_tools.get(session_id, [])
             contextual_tool_names = {t["name"] for t in contextual_tools if t.get("name")}
