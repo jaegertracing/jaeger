@@ -47,7 +47,7 @@ CREATE TABLE
         scope_int_attributes Nested (key String, value Int64),
         scope_str_attributes Nested (key String, value String),
         scope_complex_attributes Nested (key String, value String),
-        INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 1,
+        INDEX idx_trace_id trace_id TYPE bloom_filter({{ .TraceIDBloomFilterFalsePositive }}) GRANULARITY 1,
         INDEX idx_duration duration TYPE minmax GRANULARITY 1
     ) ENGINE = MergeTree
 PARTITION BY toDate(start_time)
