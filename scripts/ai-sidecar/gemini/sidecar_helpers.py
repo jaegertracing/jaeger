@@ -100,6 +100,29 @@ def _to_tool_text(value: Any) -> str:
         return str(value)
 
 
+# MAX_SPAN_ATTR_CHARS caps gen_ai.tool.call.arguments/result span attribute
+# values. Tool payloads (e.g. search_traces results, or a full read_skill
+# load) can be arbitrarily large; an uncapped value risks tripping OTLP
+# exporter/backend attribute-size limits and failing export for the whole
+# span batch. Set comfortably above the ~5000-token (~20-25k char) skill
+# budget so a legitimate full skill load is never truncated — this is meant
+# to catch pathological payloads (e.g. a huge search_traces dump), not normal
+# skill/tool content. Truncation only affects what lands in the trace
+# attribute — the untruncated value still reaches the AG-UI wire / LLM
+# context via the normal session_update / ext_method paths.
+MAX_SPAN_ATTR_CHARS = 65536
+
+
+def _truncate_for_span(text: str, max_chars: int = MAX_SPAN_ATTR_CHARS) -> str:
+    if len(text) <= max_chars:
+        return text
+    suffix = f"... [truncated, {len(text)} chars total]"
+    if max_chars <= len(suffix):
+        return suffix[:max_chars]
+    keep = max_chars - len(suffix)
+    return f"{text[:keep]}{suffix}"
+
+
 def _extract_function_declaration(tool: Any) -> types.FunctionDeclaration | None:
     """Return a Gemini function declaration from an ADK tool.
 
