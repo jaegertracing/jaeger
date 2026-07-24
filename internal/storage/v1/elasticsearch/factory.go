@@ -45,15 +45,15 @@ type FactoryBase struct {
 	config *config.Configuration
 
 	// esClient is the shared esclient over the transport pool that backs every
-	// data-plane path; searcher and bulkWriter compose over it, and the admin
+	// data-plane path; searcher and asyncBulkWriter compose over it, and the admin
 	// operations (templates, purge) run an IndicesClient over it too.
 	esClient *esclient.Client
-	// searcher and bulkWriter are the data-plane surfaces over the esclient
+	// searcher and asyncBulkWriter are the data-plane surfaces over the esclient
 	// transport pool: service/operation reads, span writes, sampling reads/writes,
-	// dependency and metric reads. The factory owns the bulk indexer's lifecycle
-	// and closes it in Close.
-	searcher   esclient.Searcher
-	bulkWriter *esclient.BulkIndexer
+	// dependency and metric reads. The factory owns the async bulk indexer's
+	// lifecycle and closes it in Close.
+	searcher        esclient.Searcher
+	asyncBulkWriter *esclient.BulkIndexer
 
 	tags []string
 }
@@ -108,7 +108,7 @@ func NewFactoryBase(
 	f.searcher = esclient.SearchClient{Client: esClient}
 	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
 	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
-	bulkWriter, err := f.newBulkIndexerFn(esClient, esclient.BulkIndexerConfig{
+	asyncBulkWriter, err := f.newBulkIndexerFn(esClient, esclient.BulkIndexerConfig{
 		FlushBytes:    f.config.BulkProcessing.MaxBytes,
 		FlushInterval: f.config.BulkProcessing.FlushInterval,
 		Workers:       f.config.BulkProcessing.Workers,
@@ -116,7 +116,7 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch bulk indexer: %w", err)
 	}
-	f.bulkWriter = bulkWriter
+	f.asyncBulkWriter = asyncBulkWriter
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -153,11 +153,25 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	}
 }
 
+// spanBatchWriter chooses the batch writer the span writer uses, from
+// elasticsearch.write_mode: the synchronous writer (one blocking _bulk per batch,
+// returning the real error — RFC 0007) or the default asynchronous indexer.
+// max_bytes is reused as the sync chunk cap. The async indexer is created regardless
+// because the dependency and sampling paths use it in every mode (RFC 0007 scopes
+// write_mode to spans — see the RFC's open question on those paths); the sync writer
+// holds no resources of its own (it writes over esClient, which the factory closes).
+func (f *FactoryBase) spanBatchWriter() esclient.BatchWriter {
+	if f.config.EffectiveWriteMode() == config.WriteModeSync {
+		return esclient.NewSyncBulkWriter(f.esClient, f.config.BulkProcessing.MaxBytes, f.metricsFactory, f.logger)
+	}
+	return f.asyncBulkWriter
+}
+
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		BulkWriter:        f.bulkWriter,
+		BatchWriter:       f.spanBatchWriter(),
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
 		TagDotReplacement: f.config.Tags.DotReplacement,
@@ -173,7 +187,7 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
 		Searcher:    f.searcher,
-		BulkWriter:  f.bulkWriter,
+		BatchWriter: f.asyncBulkWriter,
 		Logger:      f.logger,
 		MaxDocCount: f.config.MaxDocCount,
 		Rotation:    f.buildDependencyRotation(),
@@ -183,7 +197,7 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
 		Searcher:    f.searcher,
-		BulkWriter:  f.bulkWriter,
+		BatchWriter: f.asyncBulkWriter,
 		IndexClient: &esclient.IndicesClient{Client: f.esClient},
 		Logger:      f.logger,
 		Lookback:    f.config.AdaptiveSamplingLookback,
@@ -228,8 +242,8 @@ func (f *FactoryBase) indicesClient() *esclient.IndicesClient {
 // was created, e.g. a query-only service.
 func (f *FactoryBase) Close() error {
 	var errs []error
-	if f.bulkWriter != nil {
-		errs = append(errs, f.bulkWriter.Close())
+	if f.asyncBulkWriter != nil {
+		errs = append(errs, f.asyncBulkWriter.Close())
 	}
 	// Release the owned esclient's pooled idle connections. The data plane
 	// (searcher, bulk indexer, admin ops) runs over this client. Close is safe on
