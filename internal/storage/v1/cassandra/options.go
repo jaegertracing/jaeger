@@ -18,7 +18,8 @@ type Options struct {
 	config.Configuration   `mapstructure:",squash"`
 	SpanStoreWriteCacheTTL time.Duration `mapstructure:"span_store_write_cache_ttl"`
 	Index                  IndexConfig   `mapstructure:"index"`
-	ArchiveEnabled         bool          `mapstructure:"-"`
+	DependencyBucketDuration time.Duration `mapstructure:"dependency_bucket_duration"`
+	ArchiveEnabled           bool          `mapstructure:"-"`
 }
 
 // IndexConfig configures indexing.
@@ -37,6 +38,7 @@ func NewOptions() *Options {
 	options := &Options{
 		Configuration:          config.DefaultConfiguration(),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
+		DependencyBucketDuration: 24 * time.Hour,
 		ArchiveEnabled:         false,
 	}
 
