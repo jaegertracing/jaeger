@@ -14,20 +14,20 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 )
 
-func withPopulatedSamplingStore(f func(samplingStore *SamplingStore)) {
-	now := time.Now()
-	millisAfter := now.Add(time.Millisecond * time.Duration(100))
-	secondsAfter := now.Add(time.Second * time.Duration(2))
+func withPopulatedSamplingStore(f func(samplingStore *SamplingStore, baseTime time.Time)) {
+	baseTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	millisAfter := baseTime.Add(time.Millisecond * time.Duration(100))
+	secondsAfter := baseTime.Add(time.Second * time.Duration(2))
 	throughputs := []*storedThroughput{
-		{[]*model.Throughput{{Service: "svc-1", Operation: "op-1", Count: 1}}, now},
+		{[]*model.Throughput{{Service: "svc-1", Operation: "op-1", Count: 1}}, baseTime},
 		{[]*model.Throughput{{Service: "svc-1", Operation: "op-2", Count: 1}}, millisAfter},
 		{[]*model.Throughput{{Service: "svc-2", Operation: "op-3", Count: 1}}, secondsAfter},
 	}
 	pQPS := &storedServiceOperationProbabilitiesAndQPS{
-		hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: now,
+		hostname: "guntur38ab8928", probabilities: model.ServiceOperationProbabilities{"svc-1": {"op-1": 0.01}}, qps: model.ServiceOperationQPS{"svc-1": {"op-1": 10.0}}, time: baseTime,
 	}
 	samplingStore := &SamplingStore{throughputs: throughputs, probabilitiesAndQPS: pQPS}
-	f(samplingStore)
+	f(samplingStore, baseTime)
 }
 
 func withMemorySamplingStore(f func(samplingStore *SamplingStore)) {
@@ -36,7 +36,7 @@ func withMemorySamplingStore(f func(samplingStore *SamplingStore)) {
 
 func TestInsertThroughtput(t *testing.T) {
 	withMemorySamplingStore(func(samplingStore *SamplingStore) {
-		start := time.Now()
+		start := time.Now().Add(-time.Millisecond) // ensure stored time is After(start)
 		throughputs := []*model.Throughput{
 			{Service: "my-svc", Operation: "op"},
 			{Service: "our-svc", Operation: "op2"},
@@ -56,8 +56,8 @@ func TestInsertThroughtput(t *testing.T) {
 }
 
 func TestGetThroughput(t *testing.T) {
-	withPopulatedSamplingStore(func(samplingStore *SamplingStore) {
-		start := time.Now()
+	withPopulatedSamplingStore(func(samplingStore *SamplingStore, baseTime time.Time) {
+		start := baseTime
 		ret, err := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
 		require.NoError(t, err)
 		assert.Len(t, ret, 1)
@@ -86,7 +86,7 @@ func TestGetLatestProbability(t *testing.T) {
 		assert.Empty(t, ret)
 	})
 
-	withPopulatedSamplingStore(func(samplingStore *SamplingStore) {
+	withPopulatedSamplingStore(func(samplingStore *SamplingStore, _ time.Time) {
 		// With some pregenerated data
 		ret, err := samplingStore.GetLatestProbabilities()
 		require.NoError(t, err)
