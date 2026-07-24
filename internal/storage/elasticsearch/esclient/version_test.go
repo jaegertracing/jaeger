@@ -267,7 +267,7 @@ func TestVersionRequestSnapshot(t *testing.T) {
 	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(versionResponse(es.ElasticV7)))
-	})
+	}, snapshottest.NdJSONPath("_bulk", "_msearch"))
 	server := httptest.NewServer(rec)
 	defer server.Close()
 
