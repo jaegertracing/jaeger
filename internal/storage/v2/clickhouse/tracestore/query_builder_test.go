@@ -190,3 +190,24 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	assert.Contains(t, query, "str_attributes")
 	assert.Len(t, args, 4)
 }
+
+// Regression test for https://github.com/jaegertracing/jaeger/issues/8780:
+// Note: We intentionally assert the "old" behavior here (only span str level queried).
+// The correct remedy for a partial cache is TTL expiry + retry, not query widening,
+// as widening the query adds a permanent performance cost to all string queries.
+func TestBuildStringAttributeCondition_PartialMetadata(t *testing.T) {
+	partialMetadata := attributeMetadata{
+		"k": {span: []pcommon.ValueType{pcommon.ValueTypeStr}},
+	}
+	attr := pcommon.NewValueStr("v")
+	var q strings.Builder
+	args := buildStringAttributeCondition(&q, nil, "k", attr, partialMetadata)
+
+	query := q.String()
+	assert.Contains(t, query, "str_attributes")
+	assert.NotContains(t, query, "resource_str_attributes")
+	assert.NotContains(t, query, "scope_str_attributes")
+	assert.NotContains(t, query, "events")
+	assert.NotContains(t, query, "links")
+	assert.Len(t, args, 2)
+}
