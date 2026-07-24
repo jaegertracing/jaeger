@@ -6,6 +6,8 @@ package app
 
 import (
 	"errors"
+	"net"
+	"net/url"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -54,6 +56,20 @@ type AIConfig struct {
 	// retired standalone jaeger_mcp extension (which served :16687); point
 	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
 	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
+	// MCPBaseURL is the externally-reachable scheme+authority a sidecar uses to
+	// dial the turn-scoped MCP endpoint, e.g. "https://jaeger.example.com:16686".
+	// The gateway announces "<MCPBaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
+	// the sidecar in the session/new request.
+	//
+	// Optional override. Left empty, the gateway infers its own localhost address
+	// when the sidecar is co-located — AgentURL is a loopback address, so a sidecar
+	// the gateway reaches over loopback can reach it back the same way — which
+	// covers the common single-host deployment with no configuration (see
+	// resolveMCPBaseURL). Set this only when the sidecar reaches the gateway at a
+	// different address (behind a proxy, in another network namespace, or with TLS
+	// terminated elsewhere), which the query server cannot infer. Ignored unless
+	// both AgentURL and EnableMCP are set.
+	MCPBaseURL string `mapstructure:"mcp_base_url" valid:"optional"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 	// HealthCheckInterval controls how often the AI health checker contacts
@@ -102,7 +118,64 @@ func (c *AIConfig) Validate() error {
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
+	if c.MCPBaseURL != "" {
+		// Reject anything we cannot turn into a dialable absolute URL. A relative
+		// or scheme-less value would be announced verbatim and fail at the
+		// sidecar, which is exactly the mid-turn failure this field exists to
+		// avoid — so fail fast at config load instead.
+		u, err := url.Parse(c.MCPBaseURL)
+		if err != nil || !u.IsAbs() || u.Host == "" {
+			return errors.New("ai.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
+		}
+	}
 	return nil
+}
+
+// resolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped
+// MCP endpoint, or "" to announce no HTTP transport. An explicit MCPBaseURL always
+// wins. Otherwise the gateway infers its own localhost address, but only when the
+// sidecar is co-located — AgentURL is a loopback address. A sidecar the gateway
+// already reaches over loopback shares its network namespace, so it can reach the
+// gateway back at localhost; announcing that is safe and needs no configuration.
+// For a remote sidecar (non-loopback AgentURL) the reachable address cannot be
+// inferred, so nothing is announced until an operator sets MCPBaseURL. httpEndpoint
+// is the query server's HTTP host:port and tlsEnabled selects the scheme.
+func (c *AIConfig) resolveMCPBaseURL(httpEndpoint string, tlsEnabled bool) string {
+	if c.MCPBaseURL != "" {
+		return c.MCPBaseURL
+	}
+	if !isLoopbackHost(c.AgentURL) {
+		return ""
+	}
+	_, port, err := net.SplitHostPort(httpEndpoint)
+	if err != nil || port == "" || port == "0" {
+		// No fixed port to advertise (unset, or a dynamic ":0" resolved only at
+		// listen time), so we cannot build a dialable URL — announce nothing.
+		return ""
+	}
+	scheme := "http"
+	if tlsEnabled {
+		scheme = "https"
+	}
+	return scheme + "://localhost:" + port
+}
+
+// isLoopbackHost reports whether rawURL's host is a loopback address — "localhost"
+// or a loopback IP. Used to detect a co-located sidecar from AgentURL.
+func isLoopbackHost(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2

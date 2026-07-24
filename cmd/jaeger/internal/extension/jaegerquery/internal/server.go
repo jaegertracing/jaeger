@@ -164,11 +164,27 @@ func createGRPCServer(
 
 type httpServer struct {
 	*http.Server
-	staticHandlerCloser io.Closer
+	// closers are the components initRouter mounts that own resources past a single
+	// request — the static assets handler, the AI gateway's MCP sessions, and
+	// whatever is mounted next. Closing them here shuts them down with the query
+	// server instead of leaving them to process exit.
+	closers []io.Closer
 }
 
 var _ io.Closer = (*httpServer)(nil)
 
+// closeAll closes every closer and joins the errors, so one failure does not hide
+// the rest. This mirrors how the storage extension shuts its factories down.
+func closeAll(closers []io.Closer) error {
+	var errs []error
+	for _, closer := range closers {
+		errs = append(errs, closer.Close())
+	}
+	return errors.Join(errs...)
+}
+
+// initRouter returns, alongside the handler, the closers for everything it mounted
+// that outlives a request; the caller owns closing them (see httpServer.closers).
 func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
@@ -177,7 +193,7 @@ func initRouter(
 	aiHealthCheck func() bool,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, io.Closer, error) {
+) (http.Handler, []io.Closer, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -208,6 +224,7 @@ func initRouter(
 	}
 
 	// AI Gateway Endpoints
+	var aiGateway *jaegerai.Handler
 	if queryOpts.AI.HasValue() {
 		if aiCfg := queryOpts.AI.Get(); aiCfg != nil {
 			if err := aiCfg.Validate(); err != nil {
@@ -215,22 +232,29 @@ func initRouter(
 			} else {
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
-					// if MCP is also enabled, the session-scoped MCP endpoint
-					// (/api/ai/mcp/<id>/).
-					jaegerai.NewHandler(jaegerai.HandlerParams{
+					// if MCP is also enabled, the turn-scoped MCP endpoint
+					// (/api/ai/mcp/<id>/). It holds MCP sessions past the request
+					// that opened them, so it joins the closers returned below.
+					//
+					// The announced base URL is resolved here because inferring the
+					// gateway's own localhost address needs the query HTTP endpoint
+					// and TLS setting, which live on QueryOptions, not AIConfig.
+					aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
 						Logger:             telset.Logger,
 						AgentURL:           aiCfg.AgentURL,
 						BasePath:           queryOpts.BasePath,
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 						EnableMCP:          aiCfg.EnableMCP,
+						MCPBaseURL:         aiCfg.resolveMCPBaseURL(queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
-					}).RegisterRoutes(r)
+					})
+					aiGateway.RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
-					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
-					// the wildcard session-scoped pattern above.
+					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the
+					// wildcard turn-scoped pattern above.
 					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
 				}
 			}
@@ -247,7 +271,10 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	staticHandlerCloser := RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)
+	closers := []io.Closer{RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)}
+	if aiGateway != nil {
+		closers = append(closers, aiGateway)
+	}
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -260,7 +287,7 @@ func initRouter(
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
-	return handler, staticHandlerCloser, nil
+	return handler, closers, nil
 }
 
 func otlpProxyPathPrefix(basePath string) string {
@@ -325,7 +352,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, staticHandlerCloser, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, closers, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -365,24 +392,18 @@ func createHTTPServer(
 		),
 	)
 	if err != nil {
-		return nil, errors.Join(err, staticHandlerCloser.Close())
+		return nil, errors.Join(err, closeAll(closers))
 	}
 	server := &httpServer{
-		Server:              hs,
-		staticHandlerCloser: staticHandlerCloser,
+		Server:  hs,
+		closers: closers,
 	}
 
 	return server, nil
 }
 
 func (hS httpServer) Close() error {
-	var errs []error
-	errs = append(
-		errs,
-		hS.Server.Close(),
-		hS.staticHandlerCloser.Close(),
-	)
-	return errors.Join(errs...)
+	return errors.Join(hS.Server.Close(), closeAll(hS.closers))
 }
 
 // initListener initialises listeners of the server

@@ -1072,9 +1072,9 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 		{HTTPName: "x-user", Role: headerforwarding.RoleUsername},
 	}
 
-	handler, closer, err := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	handler, closers, err := initRouter(qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, closer.Close()) })
+	t.Cleanup(func() { require.NoError(t, closeAll(closers)) })
 
 	req := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
 	req.Header.Set("x-user", "alice")
@@ -1099,10 +1099,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{AgentURL: ""})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, closer.Close())
+			require.NoError(t, closeAll(closers))
 		})
 
 		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
@@ -1116,10 +1116,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, closer.Close())
+			require.NoError(t, closeAll(closers))
 		})
 
 		req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
@@ -1134,10 +1134,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.AI = configoptional.Some(AIConfig{AgentURL: "ws://127.0.0.1:1", MaxRequestBodySize: 1 << 20})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, closer.Close())
+			require.NoError(t, closeAll(closers))
 		})
 
 		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/ai/chat", strings.NewReader(`{"messages":[{"role":"user","content":"hello"}]}`))
@@ -1151,10 +1151,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{EnableMCP: true, MaxRequestBodySize: 1 << 20})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, closer.Close())
+			require.NoError(t, closeAll(closers))
 		})
 
 		// The telemetry MCP route is mounted (not 404); chat is not, since
@@ -1175,10 +1175,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.AI = configoptional.Some(AIConfig{EnableMCP: true, MaxRequestBodySize: 1 << 20})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, closer.Close())
+			require.NoError(t, closeAll(closers))
 		})
 
 		req := httptest.NewRequest(http.MethodGet, "/jaeger/api/ai/mcp/", http.NoBody)
@@ -1195,10 +1195,10 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		// and /api/ai/mcp/{sessionID}/ (session-scoped, jaegerai) on the same
 		// mux. ServeMux panics on conflicting patterns, so a clean return here
 		// is itself the coexistence assertion.
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			require.NoError(t, closer.Close())
+			require.NoError(t, closeAll(closers))
 		})
 
 		// Session-free endpoint is mounted.
@@ -1280,9 +1280,9 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		require.False(t, opts.OTLPProxy.HasValue())
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+		t.Cleanup(func() { require.NoError(t, closeAll(closers)) })
 
 		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader(`{}`))
 		rr := httptest.NewRecorder()
@@ -1316,9 +1316,9 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+		t.Cleanup(func() { require.NoError(t, closeAll(closers)) })
 
 		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("payload"))
 		req.Header.Set("Content-Type", "application/x-protobuf")
@@ -1339,9 +1339,9 @@ func TestInitRouterOTLPProxy(t *testing.T) {
 		opts.BasePath = "/jaeger"
 		opts.OTLPProxy = configoptional.Some(OTLPProxyConfig{Target: upstream.URL})
 
-		handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, closer.Close()) })
+		t.Cleanup(func() { require.NoError(t, closeAll(closers)) })
 
 		req := httptest.NewRequest(http.MethodPost, "/jaeger/api/otlp/v1/traces", strings.NewReader("payload"))
 		rr := httptest.NewRecorder()
@@ -1391,9 +1391,9 @@ func TestInitRouterOTLPProxyEmitsMetrics(t *testing.T) {
 
 	querySvc := makeQuerySvc()
 	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
-	handler, closer, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+	handler, closers, err := initRouter(querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, closer.Close()) })
+	t.Cleanup(func() { require.NoError(t, closeAll(closers)) })
 
 	for range 3 {
 		req := httptest.NewRequest(http.MethodPost, "/api/otlp/v1/traces", strings.NewReader("payload"))

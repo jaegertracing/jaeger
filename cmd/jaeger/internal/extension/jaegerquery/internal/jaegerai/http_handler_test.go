@@ -4,10 +4,14 @@
 package jaegerai
 
 import (
+	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -79,6 +83,29 @@ func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
 	assert.Equal(t, "/jaeger", h.basePath, "NewHandler must trim the trailing slash")
 }
 
+// TestNewHandlerNormalizesMCPBaseURL pins the trailing-slash handling: config only
+// requires an absolute URL, so an operator may legally write trailing slashes, and
+// an announced "…//api/ai/mcp/<id>/" is a path the mux never matches. NewHandler
+// must trim them so the announced URL has exactly one slash before the route.
+func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	for _, base := range []string{
+		"http://127.0.0.1:16686",
+		"http://127.0.0.1:16686/",
+		"http://127.0.0.1:16686//",
+	} {
+		h := NewHandler(HandlerParams{
+			Logger: zap.NewNop(), AgentURL: "ws://x", MaxRequestBodySize: 1,
+			EnableMCP: true, QueryService: svc, TenancyMgr: tenancy.NewManager(&tenancy.Options{}),
+			Telset: telemetry.NoopSettings(), MCPBaseURL: base,
+		})
+		got := announceMCPServers(httpCaps(true), h.chat.mcpBaseURL, h.basePath, "SID")
+		require.Len(t, got, 1)
+		assert.Equal(t, "http://127.0.0.1:16686/api/ai/mcp/SID/", got[0].Http.Url,
+			"base URL %q must normalize to a single slash", base)
+	}
+}
+
 func mcpEnabledHandler(t *testing.T, basePath string) *Handler {
 	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
@@ -130,4 +157,43 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any-id/mcp", http.NoBody))
 	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
+}
+
+// TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
+// chain (Server.Close → httpServer.Close → closeAll → here). The MCP SDK reaps a
+// session only when it goes idle, so without this a live session would outlive the
+// server that served it.
+func TestHandlerCloseReapsMCPSessions(t *testing.T) {
+	h := mcpEnabledHandler(t, "")
+	require.Implements(t, (*io.Closer)(nil), h, "the gateway must be closable by the server's teardown chain")
+	require.NotNil(t, h.mcp)
+
+	// Bind a session the way an MCP client on the HTTP transport does: nothing else
+	// owns it, so nothing else would ever reap it.
+	serverTransport, _ := mcp.NewInMemoryTransports()
+	_, err := h.mcp.server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, slices.Collect(h.mcp.server.Sessions()), "precondition: a session is bound")
+
+	require.NoError(t, h.Close())
+	assert.Empty(t, slices.Collect(h.mcp.server.Sessions()),
+		"Close must reap every session left on the shared server")
+}
+
+// TestHandlerCloseIsNoOpWhenNothingToClose covers the two shapes jaeger-query holds
+// when the gateway is not fully enabled: a nil Handler (no AI at all) and a Handler
+// with no MCP server (chat only). Both must close to nothing, because
+// httpServer.Close calls straight through without a guard.
+func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
+	var nilHandler *Handler
+	require.NoError(t, nilHandler.Close(), "a nil gateway must be closable")
+
+	chatOnly := NewHandler(HandlerParams{
+		Logger:             zap.NewNop(),
+		AgentURL:           "ws://127.0.0.1:1",
+		MaxRequestBodySize: 1 << 20,
+		Telset:             telemetry.NoopSettings(),
+	})
+	require.Nil(t, chatOnly.mcp)
+	require.NoError(t, chatOnly.Close())
 }
