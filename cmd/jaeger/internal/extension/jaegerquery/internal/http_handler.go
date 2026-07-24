@@ -23,7 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/apiv3"
-	deepdependencies "github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ddg"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/qualitymetrics"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/api_v2/metrics"
@@ -345,7 +345,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) deepDependencies(w http.ResponseWriter, r *http.Request) {
 	focalService := r.URL.Query().Get("service")
-	data := deepdependencies.GetData(focalService)
+	data := ddg.GetData(focalService)
 	aH.writeJSON(w, r, &data)
 }
 
