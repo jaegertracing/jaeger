@@ -1,0 +1,21 @@
+{
+  "name": "@jaegertracing/jaeger-ai-sidecar-claude-code",
+  "version": "0.1.0",
+  "description": "Thin WS bridge that lets Jaeger's AI gateway use claude-agent-acp as the ACP sidecar",
+  "private": true,
+  "type": "module",
+  "main": "jaeger-ws-bridge.mjs",
+  "scripts": {
+    "start": "node jaeger-ws-bridge.mjs",
+    "auth:max": "claude-agent-acp --cli auth login --claudeai",
+    "auth:status": "claude-agent-acp --cli auth status"
+  },
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "^0.36.1",
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "license": "Apache-2.0"
+}
