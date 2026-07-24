@@ -16,10 +16,16 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
+	"github.com/jaegertracing/jaeger/internal/jiter"
+	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -198,4 +204,83 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 		newClientFn,
 	)
 	assert.ErrorContains(t, err, "error creating reader client connection")
+}
+
+type sleepServer struct {
+	storage.UnimplementedTraceReaderServer
+	sleepDuration time.Duration
+}
+
+func (s *sleepServer) GetServices(ctx context.Context, _ *storage.GetServicesRequest) (*storage.GetServicesResponse, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-time.After(s.sleepDuration):
+		return &storage.GetServicesResponse{Services: []string{"foo"}}, nil
+	}
+}
+
+func (s *sleepServer) GetTraces(_ *storage.GetTracesRequest, srv storage.TraceReader_GetTracesServer) error {
+	select {
+	case <-srv.Context().Done():
+		return srv.Context().Err()
+	case <-time.After(s.sleepDuration):
+		return nil
+	}
+}
+
+func TestFactory_Timeout(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	s := grpc.NewServer()
+	srv := &sleepServer{sleepDuration: 200 * time.Millisecond}
+	storage.RegisterTraceReaderServer(s, srv)
+
+	go func() {
+		_ = s.Serve(lis)
+	}()
+	defer s.Stop()
+
+	cfg := Config{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: lis.Addr().String(),
+			TLS: configtls.ClientConfig{
+				Insecure: true,
+			},
+		},
+		TimeoutConfig: exporterhelper.TimeoutConfig{
+			Timeout: 20 * time.Millisecond,
+		},
+	}
+
+	f, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings())
+	require.NoError(t, err)
+	defer f.Close()
+
+	tr, err := f.CreateTraceReader()
+	require.NoError(t, err)
+
+	t.Run("unary timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		_, err := tr.GetServices(ctx)
+		require.Error(t, err)
+		// gRPC translates context deadline exceeded into codes.DeadlineExceeded;
+		// check the status code rather than the error string to be format-agnostic.
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+	})
+
+	t.Run("streaming timeout", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		it := tr.GetTraces(ctx, tracestore.GetTraceParams{})
+		_, err := jiter.FlattenWithErrors(it)
+		require.Error(t, err)
+		// gRPC translates context deadline exceeded into codes.DeadlineExceeded;
+		// check the status code rather than the error string to be format-agnostic.
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
+	})
 }
