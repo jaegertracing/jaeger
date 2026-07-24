@@ -323,6 +323,9 @@ class JaegerSidecarAgent(Agent):
             )
 
             mcp_tools = await self._mcp.get_gemini_tools()
+            if self._mcp.instructions:
+                system_instruction = f"{self._mcp.instructions}\n\n{system_instruction}"
+
             mcp_tool_names: set[str] = set()
             for tool in mcp_tools:
                 if tool.function_declarations:
