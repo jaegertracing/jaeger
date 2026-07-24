@@ -65,6 +65,7 @@ class JaegerSidecarAgent(Agent):
         config.validate()
         self._conn: Client | None = None
         self._gemini = genai.Client(api_key=config.gemini_api_key)
+        self._model_name = config.gemini_model_name
         self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
         self._next_session_id = 1
         self._next_tool_call_id = 1
@@ -309,7 +310,7 @@ class JaegerSidecarAgent(Agent):
     async def _run_agentic_gemini_loop(self, session_id: str, user_text: str) -> str:
         with tracer().start_as_current_span("sidecar.agentic_loop", attributes={
             GEN_AI_CONVERSATION_ID: session_id,
-            GEN_AI_REQUEST_MODEL: "gemini-2.5-flash",
+            GEN_AI_REQUEST_MODEL: self._model_name,
         }):
             logger.info("Starting agentic Gemini loop for session %s", session_id)
             system_instruction = (
@@ -343,7 +344,7 @@ class JaegerSidecarAgent(Agent):
             )
 
             chat = self._gemini.chats.create(
-                model="gemini-2.5-flash",
+                model=self._model_name,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
                     tools=cast(Any, tools_for_gemini),
