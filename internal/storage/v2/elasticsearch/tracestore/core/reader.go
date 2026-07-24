@@ -138,7 +138,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		searcher:                p.Searcher,
 		maxSpanAge:              p.MaxSpanAge,
 		maxTraceDuration:        p.MaxTraceDuration,
-		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, nil, p.Logger, 0), // read-only: no bulk writer; the decorator takes care of metrics
+		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
 		maxDocCount:             p.MaxDocCount,

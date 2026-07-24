@@ -77,17 +77,15 @@ func NewSyncBulkWriter(client *Client, maxBytes int, metricsFactory metrics.Fact
 	}
 }
 
-// Bulk writes every item in one or more synchronous _bulk requests, each bounded
-// to maxBytes, and returns an error if the transport failed or any item was
-// rejected. Chunks are sent in sequence and their errors joined. On error the
-// caller re-sends the whole batch (Kafka re-delivery / exporter retry). Retry is
-// not idempotent for spans: a span document carries no _id, so ES/OS assigns a
-// fresh one and a re-sent span becomes a duplicate — today's behavior on any
-// retry. A document with a deterministic _id (the service:operation dedup doc)
-// instead upserts and never duplicates. A single item larger than maxBytes is
-// still sent in a chunk of its own — the backend, not the client, decides whether
-// it fits (a 413 then surfaces as a returned error).
-func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
+// WriteBatch writes every item in one or more synchronous _bulk requests, each
+// bounded to maxBytes, and returns an error if the transport failed or any item was
+// rejected. Chunks are sent in sequence and their errors joined. On error the caller
+// re-sends the whole batch (Kafka re-delivery / exporter retry); an item that carries
+// a deterministic _id upserts on retry (or is a benign 409 under op_type: create)
+// instead of duplicating. A single item larger than maxBytes is still sent in a chunk
+// of its own — the backend, not the client, decides whether it fits (a 413 then
+// surfaces as a returned error).
+func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error {
 	if len(items) == 0 {
 		return nil
 	}

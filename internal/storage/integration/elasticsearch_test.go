@@ -268,7 +268,7 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	})
 
 	// One blocking _bulk indexes both documents; a nil return means durable.
-	require.NoError(t, writer.Bulk(ctx, []esclient.BulkItem{
+	require.NoError(t, writer.WriteBatch(ctx, []esclient.BulkItem{
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
 		{Index: index, ID: "sb-2", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "two"}},
 	}))
@@ -285,7 +285,7 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	// succeeds while re-creating an existing _id (sb-1) is rejected with a 409
 	// version conflict. The sync writer surfaces the rejection as a real error —
 	// the whole point of RFC 0007 — even though the sibling item was written.
-	err := writer.Bulk(ctx, []esclient.BulkItem{
+	err := writer.WriteBatch(ctx, []esclient.BulkItem{
 		{Index: index, ID: "sb-3", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "three"}},
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
 	})
