@@ -56,6 +56,10 @@ type ESStorageIntegration struct {
 
 	factory        *esv2.Factory
 	archiveFactory *esv2.Factory
+
+	// writeMode selects the elasticsearch.write_mode for the factories under test
+	// (empty = async default; "sync" exercises the RFC 0007 synchronous path).
+	writeMode escfg.WriteMode
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
@@ -80,6 +84,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	cfg.BulkProcessing = escfg.BulkProcessing{
 		MaxBytes: 1, // flush on essentially every document, for test determinism
 	}
+	cfg.WriteMode = s.writeMode
 	cfg.Tags.AllAsFields = allTagsAsFields
 	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
@@ -93,6 +98,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.ReadAliasSuffix = archiveAliasSuffix
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = configoptional.Some(true)
+	acfg.WriteMode = s.writeMode
 	acfg.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
@@ -127,7 +133,7 @@ func healthCheck(c *http.Client) error {
 	return errors.New("elastic search is not ready")
 }
 
-func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
+func runElasticsearchTest(t *testing.T, allTagsAsFields bool, writeMode escfg.WriteMode) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
@@ -136,6 +142,7 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
 			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			Capabilities: capabilities.Elasticsearch(),
 		},
+		writeMode: writeMode,
 	}
 	s.initializeES(t, allTagsAsFields)
 	s.RunAll(t)
@@ -146,14 +153,24 @@ func TestElasticsearchStorage(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	runElasticsearchTest(t, false)
+	runElasticsearchTest(t, false, escfg.WriteModeAsync)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	runElasticsearchTest(t, true)
+	runElasticsearchTest(t, true, escfg.WriteModeAsync)
+}
+
+// TestElasticsearchStorage_Sync runs the full trace-storage suite with
+// elasticsearch.write_mode: sync, validating the wired synchronous write path
+// (RFC 0007 M4) end-to-end against a live backend alongside the async run.
+func TestElasticsearchStorage_Sync(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	runElasticsearchTest(t, false, escfg.WriteModeSync)
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {

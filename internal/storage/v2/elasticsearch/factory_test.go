@@ -7,9 +7,12 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
@@ -55,6 +58,44 @@ func TestESStorageFactoryWithConfig(t *testing.T) {
 	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
 	require.NoError(t, err)
 	factory.Close()
+}
+
+// TestSyncWriteModePropagatesBulkError asserts the RFC 0007 M4 wiring end-to-end:
+// with write_mode: sync, a failing _bulk request surfaces as a WriteTraces error
+// (unlike async mode, which returns nil at enqueue time). The mock backend answers
+// the version probe but rejects _bulk with 500.
+func TestSyncWriteModePropagatesBulkError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "_bulk") {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	cfg := escfg.Configuration{
+		Servers:   []string{server.URL},
+		WriteMode: escfg.WriteModeSync,
+		LogLevel:  "error",
+	}
+	factory, err := NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	defer factory.Close()
+
+	writer, err := factory.CreateTraceWriter()
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("op")
+	span.SetTraceID(pcommon.TraceID([16]byte{1}))
+	span.SetSpanID(pcommon.SpanID([8]byte{2}))
+
+	err = writer.WriteTraces(context.Background(), td)
+	require.Error(t, err, "a failing _bulk must surface as a WriteTraces error in sync mode")
 }
 
 func TestESStorageFactoryErr(t *testing.T) {
