@@ -133,7 +133,7 @@ The central design question is *how expressive should the structured filter be?*
 | UI query builder (🟢 = simple) | 🟢 | 🟢 | 🟡⁸ | 🟡 | 🔴 | 🔴 |
 | Cross-backend uniformity | 🟢 | 🟡 | 🟡⁹ | 🟡 | 🔴 | 🟡 |
 
-¹ ES `bool` query (`must`/`should`/`must_not`) nests arbitrarily. ² ES aggregations exist but overlap Jaeger's metrics/SPM path. ³ structural operators are evaluated *post-fetch* — the query service assembles each candidate trace and checks ancestor/descendant/sibling in memory — so they work on any backend; but no Jaeger schema encodes the trace tree, so they cannot be pushed into storage to prune candidates, which makes them **inefficient at scale, not infeasible**. ⁴ ClickHouse could additionally push some structural checks into a self-join within a trace partition, though not with today's schema/query builder; otherwise it is post-fetch as in ³. ⁵ superset-safe only for the levels the flat index actually contains — span/resource/event; link is unrepresentable and instrumentation indistinguishable (§1.6). ⁶ a flat inverted index has no `OR`/`NOT`. ⁷ L2 is a small delta over L1 — two message types (a boolean node + a oneof); see §6. ⁸ the API need not wait for the UI: a builder can render the conjunctive subset first and add nesting later. ⁹ capable backends evaluate the full tree; flat backends evaluate the conjunctive subset and reject `OR`/`NOT` — the same posture they already take for unsupported operators.
+¹ ES `bool` query (`must`/`should`/`must_not`) nests arbitrarily. ² ES aggregations exist but overlap Jaeger's metrics/SPM path. ³ structural operators are evaluated *post-fetch* — the query service assembles each candidate trace and checks ancestor/descendant/sibling in memory — so they work on any backend; but no Jaeger schema encodes the trace tree, so they cannot be pushed into storage to prune candidates, which makes them **inefficient at scale, not infeasible**. ⁴ ClickHouse could additionally push some structural checks into a self-join within a trace partition, though not with today's schema/query builder; otherwise it is post-fetch as in ³. ⁵ superset-safe only for the levels the flat index actually contains — span/resource/event; link is unrepresentable and instrumentation indistinguishable (§1.6). ⁶ a flat inverted index has no `OR`/`NOT`. ⁷ L2 is not a delta in message types at all — boolean `and`/`or`/`not` are just more `op` values on the same `Operation` node the conjunctive subset already uses; see §6. ⁸ the API need not wait for the UI: a builder can render the conjunctive subset first and add nesting later. ⁹ capable backends evaluate the full tree; flat backends evaluate the conjunctive subset and reject `OR`/`NOT` — the same posture they already take for unsupported operators.
 
 **Decision — target L2 (the full boolean tree); conjunction is the subset every backend supports.**
 
@@ -144,7 +144,7 @@ The central design question is *how expressive should the structured filter be?*
 
 So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is retained only as a *capability tier* — the conjunctive subset that every backend, including the flat ones, supports. **L3 is deferred** (awkward against Jaeger's whole-trace result model, and inert until L4 exists). **L4 is excluded** (belongs to the metrics/SPM subsystem; a separate RFC). **L5 is excluded** — not for infeasibility (structural predicates can be evaluated post-fetch on any backend, assembling each candidate trace) but because it is a distinct fetch-then-filter execution model that cannot prune in storage, is inefficient at scale, and is a large surface; deferred as a separate effort. The one honest internal nuance is that a pure conjunction admits a fast all-predicates-pushdown path while a tree with `OR` needs fuller evaluation — an optimization inside the capable backends, not an API concern.
 
-**Relation to TraceQL — why the exclusions are bounded, not dead ends.** TraceQL's AST is a *pipeline of spanset operations*: a chain (`|`) of spanset filters, structural operators (`>>`/`<<`/`>`/`<`/`~`), `select()`, `by()`, and aggregates, over a per-span *field expression* (attribute/intrinsic/static combined by boolean, comparison, and arithmetic operators). This RFC's `FilterExpression` corresponds to exactly one TraceQL construct — the field expression inside a single spanset filter `{ … }`. That correspondence is the reassurance behind the deferrals: the excluded tiers extend this AST rather than replace it. L3/L4 add sibling terms and clauses over the same `Expression` (a `select` is a list of expressions, a `by` is an expression, an aggregate is a `call` expression). L5 adds an *outer* layer — a pipeline whose per-spanset filter is a `FilterExpression` — so structural queries would wrap this AST, not force a redesign of it. What this AST cannot yet express and would need shape work to add later is narrower: **set membership over a list** (addressed here via `in`/`not_in` + `Array`, §6.1) and TraceQL's `parent.` modifier, which is orthogonal to `level` (a parent-scope flag over a scope, not a scope value) and belongs with the deferred structural tier. Arithmetic and richer operators (`>=`/`<=`, `!~`) and semantic literal types (duration/status/kind) are pure additions to the open `op`/`type` vocabularies and the reserved `call` term.
+**Relation to TraceQL — why the exclusions are bounded, not dead ends.** TraceQL's AST is a *pipeline of spanset operations*: a chain (`|`) of spanset filters, structural operators (`>>`/`<<`/`>`/`<`/`~`), `select()`, `by()`, and aggregates, over a per-span *field expression* (attribute/intrinsic/static combined by boolean, comparison, and arithmetic operators). This RFC's `Expression` corresponds to exactly one TraceQL construct — the field expression inside a single spanset filter `{ … }` — and shares its shape: TraceQL builds that field expression from one recursive `BinaryOperation`/`UnaryOperation` type carrying arithmetic, comparison, and boolean operators alike, exactly as our `Operation` does. That correspondence is the reassurance behind the deferrals: the excluded tiers extend this AST rather than replace it. L3/L4 add sibling clauses over the same `Expression` (a `select` is a list of expressions, a `by` is an expression, an aggregate is an `Operation`). L5 adds an *outer* layer — a pipeline whose per-spanset filter is an `Expression` — so structural queries would wrap this AST, not force a redesign of it. What this AST cannot yet express and would need shape work to add later is narrower: **set membership over a list** (addressed here via `in`/`not_in` + `Array`, §6.1) and TraceQL's `parent.` modifier, which is orthogonal to `level` (a parent-scope flag over a scope, not a scope value) and belongs with the deferred structural tier. Arithmetic and richer operators (`>=`/`<=`, `!~`) and semantic literal types (duration/status/kind) are pure additions to the open `op`/`type` vocabularies — no new node types.
 
 ---
 
@@ -223,26 +223,30 @@ The relocation is fully realizable only on ClickHouse; ES/OS partially (and only
 
 ## 6. Proposed API
 
-The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are **comparisons over expressions**. An *expression* is a level-qualified attribute, a property (§5), or a constant (a scalar, or a homogeneous array for `in`/`not_in`); a *comparison* applies an operator to expression operands. Making both sides of a comparison expressions — rather than baking in a fixed `subject op scalar` shape — lets a predicate compare two subjects (`span.a > span.b`), and makes the expression the one reusable term a future projection, grouping, or value-producing `call` (§4 L3/L4) would operate on, so those tiers stay reachable rather than walled off. `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
+The two axes combine into one structured AST: a single, uniformly recursive **`Expression`**. An expression is either an *atom* — a reference (a level-qualified attribute or a property, §5) or a constant (a scalar, or a homogeneous array for `in`/`not_in`) — or an *operation* applying an operator to operand expressions. Boolean combination (`and`/`or`/`not`), comparison (`eq`/`gt`/…), set membership, and future arithmetic/aggregation are all the same `Operation` node, so `a AND b`, `span.a > span.b`, and `(a + b) > c` compose uniformly, and the expression is the one reusable term a future projection, grouping, or call (§4 L3/L4) would operate on. The AST deliberately does **not** encode value types: a filter is an expression that *type-checks* to boolean, and `duration > "x"` is a type error but a valid graph — validated separately, as expression ASTs conventionally are (§6.1). `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
 
 ### 6.1 Proto
 
 ```protobuf
-// A term in a predicate: a level-qualified attribute, a built-in property, a
-// scalar constant, or an array constant — set exactly one (the oneof makes
-// "scalar XOR array" a structural guarantee, not an intra-message invariant).
-// The oneof also reserves a future `call` term: a value-producing call —
-// arithmetic (`a - b`) or an aggregate (`avg(x)`) — which is itself an
-// Expression, so it composes as an operand of another node. That is the same
-// term a future SELECT / GROUP BY (§4 L3/L4) would project or group by, so the
-// leaf shape does not wall those tiers off.
+// Expression is a node in the filter AST: either an atom — a reference
+// (attribute or property) or a constant (scalar or array) — or an Operation
+// applied to operand Expressions. The tree is uniformly recursive: an
+// operation's operands are themselves Expressions, so boolean combination,
+// comparison, set membership, and (later) arithmetic and aggregation are all
+// the same shape, and `(a + b) > c` composes as naturally as `a AND b`.
+//
+// The AST does not encode value types. A well-formed filter is an Expression
+// that evaluates to a boolean; `duration > "x"` and `"a" + 3` are type errors
+// but valid AST graphs — rejected by a separate validation pass, not by the
+// grammar. This keeps the node set minimal and matches how expression ASTs are
+// conventionally typed (see TraceQL's single `BinaryOperation`, §4).
 message Expression {
   oneof term {
-    Attribute attribute = 1;  // level-qualified attribute
-    string    property  = 2;  // duration|name|service|status|kind|…
-    Scalar    scalar    = 3;  // single typed constant
-    Array     array     = 4;  // homogeneous list — right operand of in / not_in
-    // (future) Call call = 5;  — arithmetic / aggregate, itself an Expression
+    Attribute attribute = 1;  // reference: level-qualified attribute
+    string    property  = 2;  // reference: built-in value — duration|name|service|status|kind|…
+    Scalar    scalar    = 3;  // constant: single typed value
+    Array     array     = 4;  // constant: homogeneous list (right operand of in / not_in)
+    Operation operation = 5;  // operator applied to operand Expressions
   }
 }
 
@@ -261,41 +265,29 @@ message Array {
   string type = 2;          // optional hint applied to every element; empty = any type
 }
 
-// A comparison predicate: `op` applied to operand expressions — binary for
-// eq|ne|gt|lt|regex|in|not_in (operands = [left, right]), unary for exists
-// (operands = [x]). Because both operands are expressions, `span.a > span.b`
-// is expressible, not only `attribute op scalar`; `in`/`not_in` take an Array
-// as the right operand.
-message Comparison {
-  string op = 1;                        // eq|ne|gt|lt|regex|exists|in|not_in; empty = eq
+// Operation applies `op` to operand Expressions. Arity is implied by the
+// operator: `not`/`exists` are unary; `and`/`or` take two or more operands; the
+// comparisons and `in`/`not_in` are binary ([left, right]). Because operands
+// are Expressions, `span.a > span.b` and `(a + b) > c` are expressible, not
+// only `attribute op scalar`; `in`/`not_in` take an Array as the right operand.
+message Operation {
+  string op = 1;                  // and|or|not | eq|ne|gt|lt|regex|exists|in|not_in | (future: gte|lte|not_regex|add|sub|avg|count|…); empty = eq
   repeated Expression operands = 2;
-}
-
-// A boolean combination of sub-expressions.
-message BooleanOp {
-  string op = 1;                        // and|or|not
-  repeated FilterExpression operands = 2;
-}
-
-// A node in the filter tree: either a leaf comparison or a boolean combination.
-message FilterExpression {
-  oneof node {
-    Comparison predicate = 1;
-    BooleanOp  bool      = 2;
-  }
 }
 
 message TraceQueryParameters {
   // Legacy: unqualified AND-equality over the tag map. Retained unchanged.
   map<string, string> attributes = 3;
 
-  // Structured filter. The top-level list is implicitly ANDed, so the common
-  // conjunction reads as a flat array; any element may nest into a bool node.
-  repeated FilterExpression filters = 10;
+  // Structured filter: each element is a boolean-valued Expression. The
+  // top-level list is implicitly ANDed (and ANDed with `attributes`), so the
+  // common conjunction reads as a flat array while any element may nest via an
+  // `and`/`or`/`not` Operation.
+  repeated Expression filters = 10;
 }
 ```
 
-The top-level `repeated FilterExpression` is implicitly ANDed. This keeps the dominant conjunction case as ergonomic as a flat list while still allowing full boolean nesting inside any element. (A single-root `FilterExpression filter` is the alternative shape — more uniform but forcing an explicit `and` node for the common multi-predicate case; see §10.)
+The top-level `repeated Expression` is implicitly ANDed. This keeps the dominant conjunction case as ergonomic as a flat list while still allowing full boolean nesting inside any element. (A single-root `Expression filter` is the alternative shape — marginally more uniform but forcing an explicit `and` operation for the common multi-predicate case; see §10.)
 
 ### 6.2 REST/JSON encoding, and why string enumerations
 
@@ -303,7 +295,7 @@ Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defa
 
 ```yaml
 level: { type: string, enum: [span, resource, instrumentation, event, link] }  # Attribute.level
-op:    { type: string, enum: [eq, ne, gt, lt, regex, exists, in, not_in] }      # Comparison.op
+op:    { type: string, enum: [and, or, not, eq, ne, gt, lt, regex, exists, in, not_in] }  # Operation.op
 type:  { type: string, enum: [string, int, double, bool] }                      # Scalar.type / Array.type; optional, empty = any type
 ```
 
@@ -321,27 +313,27 @@ Legend: 🟢 strong · 🟡 adequate · 🔴 weak
 
 The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
 
-The operand-expression shape makes the raw JSON more verbose than a fixed `subject op value` triple would — each comparison carries an `operands` array whose entries name their kind (`attribute`/`property`/`scalar`/`array`). This is the deliberate cost of keeping `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
+The recursive `Operation` shape makes the raw JSON more verbose than a fixed `subject op value` triple would — each operation carries an `operands` array whose entries name their kind (`attribute`/`property`/`scalar`/`array`/`operation`). This is the deliberate cost of one uniform node that keeps `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
 
 ```
-GET /api/v3/traces?query.filters=[{"predicate":{"op":"eq","operands":[{"attribute":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}}]
+GET /api/v3/traces?query.filters=[{"operation":{"op":"eq","operands":[{"attribute":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}}]
 ```
 ```json
 { "query": { "filters": [
-  { "predicate": { "op": "gt", "operands": [
+  { "operation": { "op": "gt", "operands": [
       { "property": "duration" },
       { "scalar": { "value": "2s" } } ] } },
-  { "predicate": { "op": "in", "operands": [
+  { "operation": { "op": "in", "operands": [
       { "attribute": { "key": "http.status_code", "level": "span" } },
       { "array": { "values": ["500", "503"], "type": "int" } } ] } } ] } }
 ```
 
-The second filter reads as a single `in` comparison instead of an `OR` of two `eq`s. `OR`/`NOT` still nest via a `bool` node when the branches are genuinely different predicates.
+The second filter reads as a single `in` operation instead of an `or` of two `eq`s. Genuine disjunction nests via an `or`/`not` operation whose operands are themselves expressions.
 
-The subject-vs-subject case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is now just another comparison with two `attribute` operands:
+The subject-vs-subject case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is just another operation with two `attribute` operands:
 
 ```json
-{ "predicate": { "op": "ne", "operands": [
+{ "operation": { "op": "ne", "operands": [
   { "attribute": { "key": "enduser.id", "level": "span" } },
   { "attribute": { "key": "enduser.id", "level": "resource" } } ] } }
 ```
@@ -364,10 +356,10 @@ This is deliberately **standard gRPC method-presence signaling, not a bespoke op
 
 - **Levels** — ClickHouse honors all five. ES/OS honor span/resource/event today; instrumentation and link await schema evolution. The flat backends honor only the levels their write path indexes — span/resource/event — because instrumentation-scope attributes are merged into span tags and **link attributes are not stored at all** (§1.6). A predicate naming an unsupported level is rejected (`Unimplemented`), not widened — widening would be a superset only for indexed levels and plain wrong for link.
 - **Operators** — a backend that has not implemented `regex`/`gt`/… rejects that predicate; it never approximates.
-- **Boolean structure** — ClickHouse and ES/OS evaluate the full L2 tree. Flat backends evaluate the conjunctive subset and reject any `OR`/`NOT` node.
+- **Boolean structure** — ClickHouse and ES/OS evaluate the full L2 tree. Flat backends evaluate the conjunctive subset and reject any `or`/`not` operation.
 - **Remote-storage plugins** — a plugin that ignores the new `filters` field still receives the legacy `attributes` and behaves exactly as today; the query service can populate `attributes` from a purely-conjunctive, unqualified `filters` for such plugins.
 
-**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured comparison — `resource.service.name:foo` → an `eq` comparison of `attribute{key:"service.name",level:"resource"}` against `scalar{"foo"}`; `duration>2s` → a `gt` comparison of `property:"duration"` against `scalar{"2s"}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose operand JSON by hand.
+**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured expression — `resource.service.name:foo` → an `eq` operation over `attribute{key:"service.name",level:"resource"}` and `scalar{"foo"}`; `duration>2s` → a `gt` operation over `property:"duration"` and `scalar{"2s"}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose operand JSON by hand.
 
 ---
 
@@ -388,7 +380,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 
 **Stage A — API foundation (additive, no behavior change)**
 
-- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Attribute`, `Scalar`, `Array`, `Comparison`, `BooleanOp`, and `FilterExpression` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute and scalar terms and add the `property` and `array` terms in a follow-up, since the oneof is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the `FilterExpression` tree (`Expression`/`Comparison`/`BooleanOp`/`FilterExpression` + the `filters` field) with the `level`/`op`/`type` string enumerations per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
+- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Attribute`, `Scalar`, `Array`, and `Operation` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute and scalar terms and add the `property` and `array` terms in a follow-up, since the oneof is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the recursive `Expression` AST (`Expression` + `Operation` over `Attribute`/`Scalar`/`Array` atoms + the `filters` field) with the `level`/`op`/`type` string enumerations per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
 - **M2 — Plumb the filter through the query service to the storage interface.** Extend the internal `TraceQueryParams` ([`reader.go`](../../internal/storage/v2/api/tracestore/reader.go)) to carry the expression tree alongside the legacy `Attributes` map, and translate the proto field in the api_v3 handler. With no backend routing yet, a purely-conjunctive tree is treated as unqualified search-all (today's results); non-conjunctive trees and unsupported operators are rejected at the edge. *Exit:* a conjunctive level-qualified filter reaches every backend as unqualified attributes and returns today's results; `OR`/`NOT` and unsupported operators return `Unimplemented`; plugins ignoring `filters` are unaffected.
 
 **Stage B — Backend routing (one PR per backend, parallelizable after M2)**
@@ -414,7 +406,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 
 ## 10. Open questions
 
-1. **Top-level shape.** `repeated FilterExpression filters` (implicit-AND list, best conjunction ergonomics) vs a single-root `FilterExpression filter` (uniform, but forces an explicit `and` for multi-predicate queries)? §6.1 recommends the former.
+1. **Top-level shape.** `repeated Expression filters` (implicit-AND list, best conjunction ergonomics) vs a single-root `Expression filter` (marginally more uniform, but forces an explicit `and` operation for multi-predicate queries)? §6.1 recommends the former.
 2. **Attribute discovery (keys, types, values).** Add a discovery API so the UI can autocomplete valid keys per level *and their type(s)* — a key may have several (§5.4) — plus sample values, so the builder emits correctly-typed predicates. This is the load-bearing piece for typed UX (§5.4). ClickHouse's `attribute_metadata` supports it directly; ES/OS only partially and the flat backends not at all — so typed authoring assistance is ClickHouse-first, and other backends default to untyped.
 3. **Conjunction semantics across spans.** Must `resource.service.name=foo AND span.http.status_code=500` match the *same* span, or may they match different spans of the same trace? (The internal `TraceReader.FindTraces` contract currently leaves this implementation-dependent.)
 4. **Property phasing.** Which properties are required in the first implementation (`duration`/`name`/`service`/`status`/`kind`) vs deferred (trace-level, IDs)?
