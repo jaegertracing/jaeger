@@ -373,6 +373,15 @@ func TestValidate(t *testing.T) {
 			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, LogLevel: "debug"},
 		},
 		{
+			name:   "write_mode sync accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, WriteMode: WriteModeSync},
+		},
+		{
+			name:          "unrecognized write_mode rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, WriteMode: "eventually"},
+			expectedError: `unrecognized write_mode "eventually"`,
+		},
+		{
 			name: "sniffing.use_https set is rejected",
 			config: &Configuration{
 				Servers:  []string{"localhost:8000/dummyserver"},
@@ -620,6 +629,12 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEffectiveWriteMode(t *testing.T) {
+	assert.Equal(t, WriteModeAsync, (&Configuration{}).EffectiveWriteMode(), "unset defaults to async")
+	assert.Equal(t, WriteModeAsync, (&Configuration{WriteMode: WriteModeAsync}).EffectiveWriteMode())
+	assert.Equal(t, WriteModeSync, (&Configuration{WriteMode: WriteModeSync}).EffectiveWriteMode())
 }
 
 func TestApplyForIndexPrefix(t *testing.T) {

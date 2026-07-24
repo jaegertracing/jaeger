@@ -31,9 +31,14 @@ type Searcher interface {
 	MultiSearch(ctx context.Context, reqs []MultiSearchRequest) ([]SearchResponse, error)
 }
 
-// BulkWriter enqueues documents for writing via the bulk API. It is the narrow
-// surface callers depend on; the concrete indexer's lifecycle (Close) is owned
-// by whoever constructs it (the factory).
-type BulkWriter interface {
-	Add(item BulkItem)
+// BatchWriter is the single interface for writing documents via the bulk API: it
+// writes a whole batch in one call and returns an error if the write failed. Both
+// bulk writers implement it — the async BulkIndexer enqueues the batch
+// fire-and-forget (returning nil; an enqueue cannot fail synchronously, and per-item
+// failures surface in its callbacks), and the SyncBulkWriter issues one blocking
+// _bulk and returns the real per-batch error (RFC 0007). Single-document callers
+// pass a one-element batch. The concrete indexer's lifecycle (Close) is owned by
+// whoever constructs it (the factory).
+type BatchWriter interface {
+	WriteBatch(ctx context.Context, items []BulkItem) error
 }

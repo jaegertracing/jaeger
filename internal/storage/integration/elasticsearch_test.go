@@ -56,6 +56,10 @@ type ESStorageIntegration struct {
 
 	factory        *esv2.Factory
 	archiveFactory *esv2.Factory
+
+	// writeMode selects the elasticsearch.write_mode for the factories under test
+	// (empty = async default; "sync" exercises the RFC 0007 synchronous path).
+	writeMode escfg.WriteMode
 }
 
 func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields bool) {
@@ -80,6 +84,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	cfg.BulkProcessing = escfg.BulkProcessing{
 		MaxBytes: 1, // flush on essentially every document, for test determinism
 	}
+	cfg.WriteMode = s.writeMode
 	cfg.Tags.AllAsFields = allTagsAsFields
 	cfg.ServiceCacheTTL = 1 * time.Second
 	cfg.Indices.IndexPrefix = indexPrefix
@@ -93,6 +98,7 @@ func (s *ESStorageIntegration) initSpanstore(t *testing.T, allTagsAsFields bool)
 	acfg.ReadAliasSuffix = archiveAliasSuffix
 	acfg.WriteAliasSuffix = archiveAliasSuffix
 	acfg.UseReadWriteAliases = configoptional.Some(true)
+	acfg.WriteMode = s.writeMode
 	acfg.Tags.AllAsFields = allTagsAsFields
 	acfg.Indices.IndexPrefix = indexPrefix
 	af, err := esv2.NewFactory(context.Background(), acfg, telemetry.NoopSettings(), nil)
@@ -127,7 +133,7 @@ func healthCheck(c *http.Client) error {
 	return errors.New("elastic search is not ready")
 }
 
-func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
+func runElasticsearchTest(t *testing.T, allTagsAsFields bool, writeMode escfg.WriteMode) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	c := getESHttpClient(t)
 	require.NoError(t, healthCheck(c))
@@ -136,6 +142,7 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool) {
 			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 			Capabilities: capabilities.Elasticsearch(),
 		},
+		writeMode: writeMode,
 	}
 	s.initializeES(t, allTagsAsFields)
 	s.RunAll(t)
@@ -146,14 +153,24 @@ func TestElasticsearchStorage(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	runElasticsearchTest(t, false)
+	runElasticsearchTest(t, false, escfg.WriteModeAsync)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})
-	runElasticsearchTest(t, true)
+	runElasticsearchTest(t, true, escfg.WriteModeAsync)
+}
+
+// TestElasticsearchStorage_Sync runs the full trace-storage suite with
+// elasticsearch.write_mode: sync, validating the wired synchronous write path
+// (RFC 0007 M4) end-to-end against a live backend alongside the async run.
+func TestElasticsearchStorage_Sync(t *testing.T) {
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	runElasticsearchTest(t, false, escfg.WriteModeSync)
 }
 
 func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
@@ -195,6 +212,58 @@ func TestElasticsearchStorage_SyncBulkWriter(t *testing.T) {
 	s.testSyncBulkWriter(t)
 }
 
+// TestElasticsearchStorage_WriteIdempotency proves the deterministic content-hash
+// _id (RFC 0007 §4.7) makes span writes idempotent end-to-end: writing the same
+// trace twice through the real trace writer yields exactly one document (an
+// op_type: index upsert), not a duplicate. The op_type: create side of §4.7 (a 409
+// treated as a benign idempotent write) is covered by the esclient bulk unit test
+// and the live 409 in TestElasticsearchStorage_SyncBulkWriter; a full data-stream
+// end-to-end test follows once data-stream rotation is wired.
+func TestElasticsearchStorage_WriteIdempotency(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+	s := &ESStorageIntegration{}
+	s.initializeES(t, false)
+	s.testWriteIdempotency(t)
+}
+
+func (s *ESStorageIntegration) testWriteIdempotency(t *testing.T) {
+	ctx := context.Background()
+	tID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0, 0, 44})
+	trace := ptrace.NewTraces()
+	rs := trace.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "idempotent_service")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("idempotent_span")
+	span.SetTraceID(tID)
+	span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 66})
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now().Truncate(time.Microsecond)))
+	span.SetEndTimestamp(span.StartTimestamp())
+
+	// Write the identical trace twice. With a server-generated _id this would store
+	// two span documents; the deterministic _id makes the second write upsert onto
+	// the first, so exactly one document remains.
+	require.NoError(t, s.TraceWriter.WriteTraces(ctx, trace))
+	require.NoError(t, s.TraceWriter.WriteTraces(ctx, trace))
+
+	var actual ptrace.Traces
+	found := s.waitForCondition(t, func(_ *testing.T) bool {
+		iterTraces := s.TraceReader.GetTraces(ctx, tracestore.GetTraceParams{TraceID: tID})
+		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
+		if err != nil || len(traces) == 0 {
+			return false
+		}
+		actual = traces[0]
+		return true
+	})
+	require.True(t, found, "the span should be durably readable")
+	assert.Equal(t, 1, actual.SpanCount(), "writing the same span twice must yield exactly one document")
+}
+
 func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	ctx := context.Background()
 	index := indexPrefix + "-syncbulk"
@@ -216,7 +285,7 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	})
 
 	// One blocking _bulk indexes both documents; a nil return means durable.
-	require.NoError(t, writer.Bulk(ctx, []esclient.BulkItem{
+	require.NoError(t, writer.WriteBatch(ctx, []esclient.BulkItem{
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
 		{Index: index, ID: "sb-2", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "two"}},
 	}))
@@ -233,7 +302,7 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	// succeeds while re-creating an existing _id (sb-1) is rejected with a 409
 	// version conflict. The sync writer surfaces the rejection as a real error —
 	// the whole point of RFC 0007 — even though the sibling item was written.
-	err := writer.Bulk(ctx, []esclient.BulkItem{
+	err := writer.WriteBatch(ctx, []esclient.BulkItem{
 		{Index: index, ID: "sb-3", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "three"}},
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
 	})
