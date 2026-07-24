@@ -39,13 +39,10 @@ from acp.helpers import start_tool_call, tool_content, update_tool_call
 from acp.interfaces import Client
 from acp.schema import (
     AgentCapabilities,
-    CloseSessionResponse,
     Implementation,
     ListSessionsResponse,
     LoadSessionResponse,
     NewSessionResponse,
-    SessionCapabilities,
-    SessionCloseCapabilities,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,9 +112,7 @@ class JaegerSidecarAgent(Agent):
         logger.info("Agent initialized with protocol version %s", protocol_version)
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
-            agent_capabilities=AgentCapabilities(
-                session_capabilities=SessionCapabilities(close=SessionCloseCapabilities()),
-            ),
+            agent_capabilities=AgentCapabilities(),
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
         )
 
@@ -144,6 +139,12 @@ class JaegerSidecarAgent(Agent):
 
         contextual = _extract_contextual_tools(kwargs)
         if contextual:
+            # The only cleanup path for contextual tools is currently the
+            # prompt() finally block. If a session is abandoned after
+            # new_session() but before prompt() runs, the entry remains in
+            # _contextual_tools until process restart. This is a narrow, known
+            # tradeoff that avoids depending on unstable ACP session/close
+            # routing.
             self._contextual_tools[session_id] = contextual
             logger.info(
                 "Registered %d contextual tool(s) for session %s: %s",
@@ -153,21 +154,6 @@ class JaegerSidecarAgent(Agent):
             )
 
         return NewSessionResponse(session_id=session_id)
-
-    async def close_session(self, session_id: str, **kwargs: Any) -> CloseSessionResponse:
-        """Handle ACP `session/close` RPC.
-
-        Invoked by the gateway when an HTTP chat request finishes (success,
-        failure, or client disconnect mid-stream). Drops any per-session
-        bookkeeping the agent holds. ``pop(..., None)`` is idempotent so
-        sessions that never registered contextual tools — or that were
-        already cleaned up by ``prompt``'s ``finally`` block — are safe to
-        close again. Capability is advertised in ``initialize`` via
-        ``SessionCapabilities.close``.
-        """
-        self._contextual_tools.pop(session_id, None)
-        logger.info("Closed session %s", session_id)
-        return CloseSessionResponse()
 
     async def load_session(
         self,
