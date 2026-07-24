@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"time"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -38,9 +37,8 @@ type TimeRange struct {
 	// extendedStartTimeMillis is an extended start time used for lookback periods
 	// in certain aggregations (e.g., cumulative sums or rate calculations)
 	// where data prior to startTimeMillis is needed to compute metrics accurately
-	// within the primary time range. This typically accounts for a window of
-	// preceding data (e.g., 10 minutes) to ensure that the initial data
-	// points in the primary time range have enough historical context for calculation.
+	// within the primary time range. The window size equals params.RatePer so that
+	// the sliding-window rate calculator always has enough preceding data points.
 	extendedStartTimeMillis int64
 }
 
@@ -233,12 +231,12 @@ func (r MetricsReader) executeSearch(ctx context.Context, p MetricsQueryParams, 
 }
 
 func calculateTimeRange(params *metricstore.BaseQueryParameters) (TimeRange, error) {
-	if params == nil || params.EndTime == nil || params.Lookback == nil {
-		return TimeRange{}, errors.New("invalid parameters")
+	if params == nil || params.EndTime == nil || params.Lookback == nil || params.RatePer == nil {
+		return TimeRange{}, errors.New("invalid parameters: EndTime, Lookback, and RatePer are required")
 	}
 	endTime := *params.EndTime
 	startTime := endTime.Add(-*params.Lookback)
-	extendedStartTime := startTime.Add(-10 * time.Minute)
+	extendedStartTime := startTime.Add(-*params.RatePer)
 
 	return TimeRange{
 		startTimeMillis:         startTime.UnixMilli(),
