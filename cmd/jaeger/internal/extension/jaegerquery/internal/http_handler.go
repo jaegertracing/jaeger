@@ -47,6 +47,13 @@ const (
 
 	defaultAPIPrefix  = "api"
 	prettyPrintIndent = "    "
+
+	// defaultMaxOTLPTransformBodySize caps the request body the UI may POST
+	// to /api/transform. The endpoint translates a user-supplied OTLP payload
+	// for display, so it has to accept whole exported traces but must not
+	// let a single request exhaust process memory. 10 MiB is comfortable for
+	// the trace sizes the UI actually uploads.
+	defaultMaxOTLPTransformBodySize int64 = 10 << 20
 )
 
 // HTTPHandler handles http requests
@@ -184,8 +191,18 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 }
 
 func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
+	// Cap the request body so a single oversized POST cannot exhaust
+	// process memory in io.ReadAll below. MaxBytesReader returns
+	// *http.MaxBytesError once the cap is exceeded; surface that as 413.
+	r.Body = http.MaxBytesReader(w, r.Body, defaultMaxOTLPTransformBodySize)
 	body, err := io.ReadAll(r.Body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
+	if err != nil {
+		status := http.StatusBadRequest
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			status = http.StatusRequestEntityTooLarge
+		}
+		aH.handleError(w, err, status)
 		return
 	}
 
