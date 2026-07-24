@@ -315,6 +315,16 @@ func TestRolloverFrequencyAsNegativeDuration(t *testing.T) {
 			expected:       -24 * time.Hour,
 		},
 		{
+			name:           "monthly jaeger-span",
+			indexFrequency: "month",
+			expected:       -28 * 24 * time.Hour,
+		},
+		{
+			name:           "yearly jaeger-span",
+			indexFrequency: "year",
+			expected:       -365 * 24 * time.Hour,
+		},
+		{
 			name:           "empty jaeger-span",
 			indexFrequency: "",
 			expected:       -24 * time.Hour,
@@ -1142,6 +1152,66 @@ func TestResolvedRotation(t *testing.T) {
 			checkFn: func(t *testing.T, rc RotationConfig) {
 				assert.True(t, rc.Periodic.HasValue())
 				assert.Equal(t, "2006010215", rc.Periodic.Get().DateLayout)
+			},
+		},
+		{
+			name: "legacy rollover_frequency month without date_layout resolves to monthly layout",
+			cfg: &Configuration{
+				Indices: Indices{
+					Spans: IndexOptions{
+						RolloverFrequency: configoptional.Some("month"),
+					},
+				},
+			},
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.Periodic.HasValue())
+				assert.Equal(t, "2006-01", rc.Periodic.Get().DateLayout)
+				assert.Equal(t, "month", rc.Periodic.Get().RolloverFrequency)
+			},
+		},
+		{
+			name: "legacy rollover_frequency year without date_layout resolves to yearly layout",
+			cfg: &Configuration{
+				Indices: Indices{
+					Spans: IndexOptions{
+						RolloverFrequency: configoptional.Some("year"),
+					},
+				},
+			},
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.Periodic.HasValue())
+				assert.Equal(t, "2006", rc.Periodic.Get().DateLayout)
+				assert.Equal(t, "year", rc.Periodic.Get().RolloverFrequency)
+			},
+		},
+		{
+			name: "legacy rollover_frequency hour without date_layout resolves to hourly layout",
+			cfg: &Configuration{
+				Indices: Indices{
+					Spans: IndexOptions{
+						RolloverFrequency: configoptional.Some("hour"),
+					},
+				},
+			},
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.Periodic.HasValue())
+				assert.Equal(t, "2006-01-02-15", rc.Periodic.Get().DateLayout)
+				assert.Equal(t, "hour", rc.Periodic.Get().RolloverFrequency)
+			},
+		},
+		{
+			name: "explicit date_layout takes precedence over rollover_frequency-based default",
+			cfg: &Configuration{
+				Indices: Indices{
+					Spans: IndexOptions{
+						DateLayout:        configoptional.Some("2006-01-02"),
+						RolloverFrequency: configoptional.Some("month"),
+					},
+				},
+			},
+			checkFn: func(t *testing.T, rc RotationConfig) {
+				assert.True(t, rc.Periodic.HasValue())
+				assert.Equal(t, "2006-01-02", rc.Periodic.Get().DateLayout)
 			},
 		},
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
@@ -112,6 +113,58 @@ func TestBuildRotation(t *testing.T) {
 			wantRead:  []string{"jaeger-span-2024-03-15"},
 		},
 		{
+			name: "monthly rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006-01",
+					RolloverFrequency: "month",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03",
+			wantRead:  []string{"jaeger-span-2024-03"},
+		},
+		{
+			name: "yearly rollover frequency",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006",
+					RolloverFrequency: "year",
+				}),
+			},
+			wantWrite: "jaeger-span-2024",
+			wantRead:  []string{"jaeger-span-2024"},
+		},
+		{
+			name: "monthly rollover frequency with omitted date layout defaults to monthly layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "month",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03",
+			wantRead:  []string{"jaeger-span-2024-03"},
+		},
+		{
+			name: "yearly rollover frequency with omitted date layout defaults to yearly layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "year",
+				}),
+			},
+			wantWrite: "jaeger-span-2024",
+			wantRead:  []string{"jaeger-span-2024"},
+		},
+		{
+			name: "hourly rollover frequency with omitted date layout defaults to hourly layout",
+			rc: config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					RolloverFrequency: "hour",
+				}),
+			},
+			wantWrite: "jaeger-span-2024-03-15-00",
+			wantRead:  []string{"jaeger-span-2024-03-15-00"},
+		},
+		{
 			name: "data stream derives its name from the index prefix",
 			rc: config.RotationConfig{
 				DataStream: configoptional.Some(config.DataStreamRotation{}),
@@ -137,6 +190,47 @@ func TestBuildRotation(t *testing.T) {
 			assert.Equal(t, tt.wantRead, r.ReadTargets(ts, ts))
 		})
 	}
+}
+
+func TestBuildRotation_PeriodicRolloverFrequencyDuration(t *testing.T) {
+	logger := zap.NewNop()
+
+	frequencies := []string{"hour", "day", "month", "year", "unrecognized-defaults-to-day"}
+	for _, frequency := range frequencies {
+		t.Run(frequency, func(t *testing.T) {
+			rc := config.RotationConfig{
+				Periodic: configoptional.Some(config.PeriodicRotation{
+					DateLayout:        "2006-01-02",
+					RolloverFrequency: frequency,
+				}),
+			}
+			r := BuildRotation("", config.SpanIndexName, rc, nil, logger)
+
+			pr, ok := r.(*PeriodicRotation)
+			require.True(t, ok, "expected BuildRotation to return a *PeriodicRotation when Periodic is set")
+			assert.Equal(t, -config.RolloverFrequencyDuration(frequency), pr.rolloverFrequency)
+		})
+	}
+}
+
+func TestBuildRotation_MonthlyFrequencyWithoutDateLayoutDoesNotSkipIndices(t *testing.T) {
+	logger := zap.NewNop()
+	rc := config.RotationConfig{
+		Periodic: configoptional.Some(config.PeriodicRotation{
+			RolloverFrequency: "month",
+		}),
+	}
+	r := BuildRotation("", config.SpanIndexName, rc, nil, logger)
+
+	assert.Equal(t, "jaeger-span-2024-03", r.WriteTarget(time.Date(2024, time.March, 15, 0, 0, 0, 0, time.UTC)))
+
+	start := time.Date(2024, time.January, 10, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, time.March, 20, 0, 0, 0, 0, time.UTC)
+	assert.Equal(t, []string{
+		"jaeger-span-2024-03",
+		"jaeger-span-2024-02",
+		"jaeger-span-2024-01",
+	}, r.ReadTargets(start, end))
 }
 
 func TestIndexToDataStreamName(t *testing.T) {

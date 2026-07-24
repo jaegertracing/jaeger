@@ -50,9 +50,9 @@ func BuildRotation(indexPrefix config.IndexPrefix, baseName string, rc config.Ro
 		p := rc.Periodic.Get()
 		dateLayout := p.DateLayout
 		if dateLayout == "" {
-			dateLayout = "2006-01-02"
+			dateLayout = config.DefaultDateLayout(p.RolloverFrequency)
 		}
-		r = NewPeriodicRotation(prefix, dateLayout, rolloverFrequencyDuration(p.RolloverFrequency))
+		r = NewPeriodicRotation(prefix, dateLayout, config.RolloverFrequencyDuration(p.RolloverFrequency))
 	default:
 		r = NewPeriodicRotation(prefix, "2006-01-02", 24*time.Hour)
 	}
@@ -77,11 +77,4 @@ func indexToDataStreamName(indexName string) string {
 	default:
 		return strings.ReplaceAll(indexName, "-", ".")
 	}
-}
-
-func rolloverFrequencyDuration(frequency string) time.Duration {
-	if frequency == "hour" {
-		return time.Hour
-	}
-	return 24 * time.Hour
 }

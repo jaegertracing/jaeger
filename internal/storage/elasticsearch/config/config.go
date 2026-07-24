@@ -60,7 +60,7 @@ type IndexOptions struct {
 	Replicas *int64 `mapstructure:"replicas"`
 	// RolloverFrequency contains the rollover frequency setting used to fetch
 	// indices from elasticsearch.
-	// Valid configuration options are: [hour, day].
+	// Valid configuration options are: [hour, day, month, year].
 	// This setting does not affect the index rotation and is simply used for
 	// fetching indices.
 	//
@@ -83,12 +83,28 @@ type Indices struct {
 
 type IndexPrefix string
 
-// GetDateLayout returns the effective DateLayout value, defaulting to "2006-01-02".
+// GetDateLayout returns the effective DateLayout value, defaulting based on
+// GetRolloverFrequency() rather than a fixed daily layout.
 func (o *IndexOptions) GetDateLayout() string {
 	if p := o.DateLayout.Get(); p != nil {
 		return *p
 	}
-	return "2006-01-02"
+	return DefaultDateLayout(o.GetRolloverFrequency())
+}
+
+// DefaultDateLayout returns the date-suffix layout matching the granularity
+// of the given rollover frequency.
+func DefaultDateLayout(frequency string) string {
+	switch frequency {
+	case "hour":
+		return "2006-01-02-15"
+	case "month":
+		return "2006-01"
+	case "year":
+		return "2006"
+	default:
+		return "2006-01-02"
+	}
 }
 
 // GetRolloverFrequency returns the effective RolloverFrequency value, defaulting to "day".
@@ -468,11 +484,23 @@ func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
 }
 
 // RolloverFrequencyDuration returns the index rollover frequency as a positive duration.
+//
+// This value is only used as a step size while scanning backwards from the end of a
+// time range to enumerate the indices that need to be queried (see timeRangeIndices).
+// Because "month" and "year" do not have a fixed length, an underestimate is returned
+// for them (28 days and 365 days respectively) so that scanning never steps over an
+// index; at worst it results in one extra, harmless iteration.
 func RolloverFrequencyDuration(frequency string) time.Duration {
-	if frequency == "hour" {
+	switch frequency {
+	case "hour":
 		return time.Hour
+	case "month":
+		return 28 * 24 * time.Hour
+	case "year":
+		return 365 * 24 * time.Hour
+	default:
+		return 24 * time.Hour
 	}
-	return 24 * time.Hour
 }
 
 // TagKeysAsFields returns tags from the file and command line merged
