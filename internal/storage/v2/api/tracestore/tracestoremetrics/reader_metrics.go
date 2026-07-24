@@ -14,27 +14,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var (
-	_ tracestore.Reader        = (*ReadMetricsDecorator)(nil)
-	_ tracestore.Reader        = (*ReadMetricsDecoratorWithSummary)(nil)
-	_ tracestore.SummaryReader = (*ReadMetricsDecoratorWithSummary)(nil)
-)
+var _ tracestore.Reader = (*ReadMetricsDecorator)(nil)
 
 // ReadMetricsDecorator wraps a tracestore.Reader and collects metrics around each read operation.
 type ReadMetricsDecorator struct {
-	traceReader          tracestore.Reader
-	findTracesMetrics    *queryMetrics
-	findTraceIDsMetrics  *queryMetrics
-	getTraceMetrics      *queryMetrics
-	getServicesMetrics   *queryMetrics
-	getOperationsMetrics *queryMetrics
-}
-
-// ReadMetricsDecoratorWithSummary extends ReadMetricsDecorator with tracestore.SummaryReader support.
-// It is returned by NewReaderDecorator when the wrapped reader also implements SummaryReader.
-type ReadMetricsDecoratorWithSummary struct {
-	ReadMetricsDecorator
+	traceReader               tracestore.Reader
+	findTracesMetrics         *queryMetrics
+	findTraceIDsMetrics       *queryMetrics
 	findTraceSummariesMetrics *queryMetrics
+	getTraceMetrics           *queryMetrics
+	getServicesMetrics        *queryMetrics
+	getOperationsMetrics      *queryMetrics
 }
 
 type queryMetrics struct {
@@ -57,24 +47,17 @@ func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
 }
 
 // NewReaderDecorator returns a ReadMetricsDecorator that instruments all tracestore.Reader
-// methods with metrics. If traceReader also implements tracestore.SummaryReader, the returned
-// value will implement it too, forwarding calls with the same metrics instrumentation.
+// methods with metrics.
 func NewReaderDecorator(traceReader tracestore.Reader, metricsFactory metrics.Factory) tracestore.Reader {
-	base := &ReadMetricsDecorator{
-		traceReader:          traceReader,
-		findTracesMetrics:    buildQueryMetrics("find_traces", metricsFactory),
-		findTraceIDsMetrics:  buildQueryMetrics("find_trace_ids", metricsFactory),
-		getTraceMetrics:      buildQueryMetrics("get_trace", metricsFactory),
-		getServicesMetrics:   buildQueryMetrics("get_services", metricsFactory),
-		getOperationsMetrics: buildQueryMetrics("get_operations", metricsFactory),
+	return &ReadMetricsDecorator{
+		traceReader:               traceReader,
+		findTracesMetrics:         buildQueryMetrics("find_traces", metricsFactory),
+		findTraceIDsMetrics:       buildQueryMetrics("find_trace_ids", metricsFactory),
+		findTraceSummariesMetrics: buildQueryMetrics("find_trace_summaries", metricsFactory),
+		getTraceMetrics:           buildQueryMetrics("get_trace", metricsFactory),
+		getServicesMetrics:        buildQueryMetrics("get_services", metricsFactory),
+		getOperationsMetrics:      buildQueryMetrics("get_operations", metricsFactory),
 	}
-	if _, ok := traceReader.(tracestore.SummaryReader); ok {
-		return &ReadMetricsDecoratorWithSummary{
-			ReadMetricsDecorator:      *base,
-			findTraceSummariesMetrics: buildQueryMetrics("find_trace_summaries", metricsFactory),
-		}
-	}
-	return base
 }
 
 func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
@@ -163,8 +146,8 @@ func (m *ReadMetricsDecorator) GetOperations(
 	return retMe, err
 }
 
-// FindTraceSummaries implements tracestore.SummaryReader#FindTraceSummaries
-func (m *ReadMetricsDecoratorWithSummary) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+// FindTraceSummaries implements tracestore.Reader#FindTraceSummaries
+func (m *ReadMetricsDecorator) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		start := time.Now()
 		var err error
@@ -172,8 +155,7 @@ func (m *ReadMetricsDecoratorWithSummary) FindTraceSummaries(ctx context.Context
 		defer func() {
 			m.findTraceSummariesMetrics.emit(err, time.Since(start), length)
 		}()
-		summaryReader := m.traceReader.(tracestore.SummaryReader)
-		for summaries, iterErr := range summaryReader.FindTraceSummaries(ctx, query) {
+		for summaries, iterErr := range m.traceReader.FindTraceSummaries(ctx, query) {
 			err = iterErr
 			length += len(summaries)
 			if !yield(summaries, iterErr) {

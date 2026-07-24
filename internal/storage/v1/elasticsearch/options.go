@@ -48,14 +48,12 @@ func DefaultConfig() config.Configuration {
 		Sniffing: config.Sniffing{
 			Enabled: false,
 		},
-		DisableHealthCheck:       false,
 		MaxSpanAge:               72 * time.Hour,
 		MaxTraceDuration:         24 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
 			MaxBytes:      5 * 1000 * 1000,
 			Workers:       1,
-			MaxActions:    1000,
 			FlushInterval: time.Millisecond * 200,
 		},
 		Tags: config.TagsAsFields{
@@ -67,7 +65,6 @@ func DefaultConfig() config.Configuration {
 		RemoteReadClusters:   []string{},
 		MaxDocCount:          10_000,
 		LogLevel:             "error",
-		SendGetBodyAs:        "",
 		CreateIndexTemplates: true,
 		HTTPCompression:      true,
 		Indices: config.Indices{

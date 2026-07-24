@@ -5,6 +5,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -137,12 +138,14 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	sr, ok := h.traceReader.(tracestore.SummaryReader)
-	if !ok {
-		return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented")
-	}
-	for summaries, err := range sr.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
+	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
 		if err != nil {
+			// A backend that cannot compute summaries natively signals this with
+			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
+			// client falls back to loading full traces and aggregating client-side.
+			if errors.Is(err, errors.ErrUnsupported) {
+				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
+			}
 			return err
 		}
 		batch := make([]*storage.TraceSummary, len(summaries))

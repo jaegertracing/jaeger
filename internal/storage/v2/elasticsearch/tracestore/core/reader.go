@@ -29,6 +29,7 @@ const (
 	indexPrefixSeparator = "-"
 
 	traceIDField           = "traceID"
+	spanIDField            = "spanID"
 	durationField          = "duration"
 	startTimeField         = "startTime"
 	startTimeMillisField   = "startTimeMillis"
@@ -147,18 +148,40 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 }
 
+// traceReadCursor is the search_after pagination cursor for the per-trace read:
+// the (startTime, spanID) pair of the last span of the previous page. spanID is
+// the tie-breaker startTime alone cannot provide — spans routinely share a
+// startTime (it has microsecond granularity, and SDKs that batch at millisecond
+// precision emit many spans at the same instant), and search_after resumes
+// strictly after the cursor, so paging on startTime alone silently drops every
+// span that shares the boundary timestamp. Elasticsearch/OpenSearch require a
+// unique tie-breaker field for a correct search_after; spanID is unique within a
+// trace and stored as a sortable keyword.
+type traceReadCursor struct {
+	startTime uint64
+	spanID    string
+}
+
 // buildTraceReadRequest builds the per-trace search body multiRead pages through:
-// the trace's query, ordered by startTime ascending, with search_after for the
-// pagination cursor and track_total_hits so the loop knows when a trace is fully
-// fetched.
-func (s *SpanReader) buildTraceReadRequest(q esquery.Query, nextTime uint64) esclient.SearchRequest {
-	return esclient.SearchRequest{
-		Query:          q,
-		Size:           s.maxDocCount,
-		Sort:           []esclient.SortOrder{{Field: startTimeField, Order: esquery.Ascending}},
-		SearchAfter:    []any{nextTime},
+// the trace's query, ordered by (startTime, spanID) ascending, with track_total_hits
+// so the loop knows when a trace is fully fetched. The first page passes a nil
+// cursor and omits search_after — the startTime range filter already bounds the
+// lower end; follow-up pages pass the previous page's last (startTime, spanID) to
+// resume. See traceReadCursor for why the spanID tie-breaker is required.
+func (s *SpanReader) buildTraceReadRequest(q esquery.Query, cursor *traceReadCursor) esclient.SearchRequest {
+	req := esclient.SearchRequest{
+		Query: q,
+		Size:  s.maxDocCount,
+		Sort: []esclient.SortOrder{
+			{Field: startTimeField, Order: esquery.Ascending},
+			{Field: spanIDField, Order: esquery.Ascending},
+		},
 		TrackTotalHits: true,
 	}
+	if cursor != nil {
+		req.SearchAfter = []any{cursor.startTime, cursor.spanID}
+	}
+	return req
 }
 
 // GetTraces takes a traceID and returns a Trace associated with that traceID
@@ -283,8 +306,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 
 	// See timeRangeDesign above for context on the padding and the alias filter.
 	idxList := s.spanRotation.ReadTargets(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
-	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-s.maxTraceDuration))
-	searchAfterTime := make(map[dbmodel.TraceID]uint64)
+	searchAfter := make(map[dbmodel.TraceID]traceReadCursor)
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
 	for len(traceIDs) != 0 {
@@ -296,13 +318,16 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				Must(traceQuery).
 				Must(startTimeRangeQuery)
 
-			if val, ok := searchAfterTime[traceID]; ok {
-				nextTime = val
+			// First page sends no search_after; follow-up pages resume from the
+			// previous page's last span.
+			var cursor *traceReadCursor
+			if val, ok := searchAfter[traceID]; ok {
+				cursor = &val
 			}
 
 			searchRequests[i] = esclient.MultiSearchRequest{
 				Indices: idxList,
-				Search:  s.buildTraceReadRequest(query, nextTime),
+				Search:  s.buildTraceReadRequest(query, cursor),
 			}
 		}
 		// set traceIDs to empty
@@ -348,7 +373,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpan.TraceID] < result.Hits.Total.Value {
 				traceIDs = append(traceIDs, lastSpan.TraceID)
-				searchAfterTime[lastSpan.TraceID] = lastSpan.StartTime
+				searchAfter[lastSpan.TraceID] = traceReadCursor{
+					startTime: lastSpan.StartTime,
+					spanID:    string(lastSpan.SpanID),
+				}
 			}
 		}
 	}

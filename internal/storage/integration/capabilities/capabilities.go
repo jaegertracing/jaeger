@@ -42,8 +42,8 @@ func Memory() Capabilities {
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
-// FindTraceSummaries is skipped because it depends on the backing store
-// implementing tracestore.SummaryReader; the test backend (memory) does not yet.
+// FindTraceSummaries is skipped because it depends on the backing store computing
+// summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
 		skipList: []string{FindTraceSummariesTest},
