@@ -144,11 +144,13 @@ The central design question is *how expressive should the structured filter be?*
 
 So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is retained only as a *capability tier* — the conjunctive subset that every backend, including the flat ones, supports. **L3 is deferred** (awkward against Jaeger's whole-trace result model, and inert until L4 exists). **L4 is excluded** (belongs to the metrics/SPM subsystem; a separate RFC). **L5 is excluded** — not for infeasibility (structural predicates can be evaluated post-fetch on any backend, assembling each candidate trace) but because it is a distinct fetch-then-filter execution model that cannot prune in storage, is inefficient at scale, and is a large surface; deferred as a separate effort. The one honest internal nuance is that a pure conjunction admits a fast all-predicates-pushdown path while a tree with `OR` needs fuller evaluation — an optimization inside the capable backends, not an API concern.
 
+**Relation to TraceQL — why the exclusions are bounded, not dead ends.** TraceQL's AST is a *pipeline of spanset operations*: a chain (`|`) of spanset filters, structural operators (`>>`/`<<`/`>`/`<`/`~`), `select()`, `by()`, and aggregates, over a per-span *field expression* (attribute/intrinsic/static combined by boolean, comparison, and arithmetic operators). This RFC's `FilterExpression` corresponds to exactly one TraceQL construct — the field expression inside a single spanset filter `{ … }`. That correspondence is the reassurance behind the deferrals: the excluded tiers extend this AST rather than replace it. L3/L4 add sibling terms and clauses over the same `Expression` (a `select` is a list of expressions, a `by` is an expression, an aggregate is a `call` expression). L5 adds an *outer* layer — a pipeline whose per-spanset filter is a `FilterExpression` — so structural queries would wrap this AST, not force a redesign of it. What this AST cannot yet express and would need shape work to add later is narrower: **set membership over a list** (addressed here via `in`/`not_in` + `Array`, §6.1) and TraceQL's `parent.` modifier, which is orthogonal to `level` (a parent-scope flag over a scope, not a scope value) and belongs with the deferred structural tier. Arithmetic and richer operators (`>=`/`<=`, `!~`) and semantic literal types (duration/status/kind) are pure additions to the open `op`/`type` vocabularies and the reserved `call` term.
+
 ---
 
 ## 5. Predicate anatomy — subject, operator, and value type
 
-A predicate has three parts. Its **subject** — what it filters on — is exactly one of a _level-qualified attribute_ (§5.1) or a _property_ (§5.2). Its **operator** (§5.3) compares that subject against a **value**, usually a literal constant but — because both sides are operands of the same kind — optionally another subject (`span.a > span.b`; §6.1). A literal value also carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
+A predicate has three parts. Its **subject** — what it filters on — is exactly one of a _level-qualified attribute_ (§5.1) or a _property_ (§5.2). Its **operator** (§5.3) compares that subject against a **value**, usually a constant (a scalar, or an array for `in`/`not_in`) but — because both sides are operands of the same kind — optionally another subject (`span.a > span.b`; §6.1). A constant also carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
 
 ### 5.1 Attribute levels
 
@@ -186,7 +188,7 @@ Properties are a natural extension of the same leaf, but they are not required o
 
 ### 5.3 Operators and value typing
 
-The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`. A literal `value` is a string on the wire and carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it (on the `Literal` term, §6.1). Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
+The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`, and set membership `in`/`not_in` (whose right operand is an `Array`, §6.1). A constant `value` is a string on the wire and carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it (on the `Scalar`/`Array` term, §6.1). Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
 
 **Units of numeric values (decision point).** For a value with an implied unit — chiefly `duration` — the wire value should carry the unit *explicitly*, in Go duration syntax (`2s`, `1h30m`), matching today's `duration_min`/`duration_max` fields, rather than a bare number in an assumed unit (which is ambiguous — nanoseconds? milliseconds?). A bare-number value (e.g. a numeric attribute like `http.response.size`) is compared numerically and carries no RFC-defined unit: the caller and the stored data share whatever unit the attribute was recorded in, exactly as today. See §10 Q7.
 
@@ -221,22 +223,26 @@ The relocation is fully realizable only on ClickHouse; ES/OS partially (and only
 
 ## 6. Proposed API
 
-The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are **comparisons over expressions**. An *expression* is a level-qualified attribute, a property (§5), or a literal constant; a *comparison* applies an operator to expression operands. Making both sides of a comparison expressions — rather than baking in a fixed `subject op literal` shape — lets a predicate compare two subjects (`span.a > span.b`), and makes the expression the one reusable term a future projection or grouping (§4 L3/L4) would operate on, so those tiers stay reachable rather than walled off. `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
+The two axes combine into one structured AST: a boolean tree (§4, L2) whose leaves are **comparisons over expressions**. An *expression* is a level-qualified attribute, a property (§5), or a constant (a scalar, or a homogeneous array for `in`/`not_in`); a *comparison* applies an operator to expression operands. Making both sides of a comparison expressions — rather than baking in a fixed `subject op scalar` shape — lets a predicate compare two subjects (`span.a > span.b`), and makes the expression the one reusable term a future projection, grouping, or value-producing `call` (§4 L3/L4) would operate on, so those tiers stay reachable rather than walled off. `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
 
 ### 6.1 Proto
 
 ```protobuf
-// A term in a predicate: a level-qualified attribute, a built-in property, or
-// a literal constant — set exactly one. The oneof leaves room for a future
-// `call` term (arithmetic / functions over other terms) without changing the
-// leaf or the boolean tree, and it is the same term a future SELECT / GROUP BY
-// (§4 L3/L4) would project or group by.
+// A term in a predicate: a level-qualified attribute, a built-in property, a
+// scalar constant, or an array constant — set exactly one (the oneof makes
+// "scalar XOR array" a structural guarantee, not an intra-message invariant).
+// The oneof also reserves a future `call` term: a value-producing call —
+// arithmetic (`a - b`) or an aggregate (`avg(x)`) — which is itself an
+// Expression, so it composes as an operand of another node. That is the same
+// term a future SELECT / GROUP BY (§4 L3/L4) would project or group by, so the
+// leaf shape does not wall those tiers off.
 message Expression {
   oneof term {
     Attribute attribute = 1;  // level-qualified attribute
     string    property  = 2;  // duration|name|service|status|kind|…
-    Literal   literal   = 3;  // typed constant
-    // (future) Call call = 4;  — e.g. count(), (a - b)
+    Scalar    scalar    = 3;  // single typed constant
+    Array     array     = 4;  // homogeneous list — right operand of in / not_in
+    // (future) Call call = 5;  — arithmetic / aggregate, itself an Expression
   }
 }
 
@@ -245,17 +251,23 @@ message Attribute {
   string level = 2;  // span|resource|instrumentation|event|link; empty = span-or-resource
 }
 
-message Literal {
+message Scalar {
   string value = 1;
   string type  = 2;  // optional hint: string(default)|int|double|bool; empty = any type (§5.4)
 }
 
+message Array {
+  repeated string values = 1;
+  string type = 2;          // optional hint applied to every element; empty = any type
+}
+
 // A comparison predicate: `op` applied to operand expressions — binary for
-// eq|ne|gt|lt|regex (operands = [left, right]), unary for exists (operands = [x]).
-// Because both operands are expressions, `span.a > span.b` is expressible, not
-// only `attribute op literal`.
+// eq|ne|gt|lt|regex|in|not_in (operands = [left, right]), unary for exists
+// (operands = [x]). Because both operands are expressions, `span.a > span.b`
+// is expressible, not only `attribute op scalar`; `in`/`not_in` take an Array
+// as the right operand.
 message Comparison {
-  string op = 1;                        // eq|ne|gt|lt|regex|exists; empty = eq
+  string op = 1;                        // eq|ne|gt|lt|regex|exists|in|not_in; empty = eq
   repeated Expression operands = 2;
 }
 
@@ -291,8 +303,8 @@ Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defa
 
 ```yaml
 level: { type: string, enum: [span, resource, instrumentation, event, link] }  # Attribute.level
-op:    { type: string, enum: [eq, ne, gt, lt, regex, exists] }                  # Comparison.op
-type:  { type: string, enum: [string, int, double, bool] }                      # Literal.type; optional, empty = any type
+op:    { type: string, enum: [eq, ne, gt, lt, regex, exists, in, not_in] }      # Comparison.op
+type:  { type: string, enum: [string, int, double, bool] }                      # Scalar.type / Array.type; optional, empty = any type
 ```
 
 Legend: 🟢 strong · 🟡 adequate · 🔴 weak
@@ -309,24 +321,22 @@ Legend: 🟢 strong · 🟡 adequate · 🔴 weak
 
 The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
 
-The operand-expression shape makes the raw JSON more verbose than a fixed `subject op value` triple would — each comparison carries an `operands` array whose entries name their kind (`attribute`/`property`/`literal`). This is the deliberate cost of keeping `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s OR http.status_code IN {500,503}` are:
+The operand-expression shape makes the raw JSON more verbose than a fixed `subject op value` triple would — each comparison carries an `operands` array whose entries name their kind (`attribute`/`property`/`scalar`/`array`). This is the deliberate cost of keeping `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
 
 ```
-GET /api/v3/traces?query.filters=[{"predicate":{"op":"eq","operands":[{"attribute":{"key":"http.status_code","level":"span"}},{"literal":{"value":"500"}}]}}]
+GET /api/v3/traces?query.filters=[{"predicate":{"op":"eq","operands":[{"attribute":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}}]
 ```
 ```json
 { "query": { "filters": [
   { "predicate": { "op": "gt", "operands": [
       { "property": "duration" },
-      { "literal": { "value": "2s" } } ] } },
-  { "bool": { "op": "or", "operands": [
-    { "predicate": { "op": "eq", "operands": [
+      { "scalar": { "value": "2s" } } ] } },
+  { "predicate": { "op": "in", "operands": [
       { "attribute": { "key": "http.status_code", "level": "span" } },
-      { "literal": { "value": "500", "type": "int" } } ] } },
-    { "predicate": { "op": "eq", "operands": [
-      { "attribute": { "key": "http.status_code", "level": "span" } },
-      { "literal": { "value": "503", "type": "int" } } ] } } ] } } ] } }
+      { "array": { "values": ["500", "503"], "type": "int" } } ] } } ] } }
 ```
+
+The second filter reads as a single `in` comparison instead of an `OR` of two `eq`s. `OR`/`NOT` still nest via a `bool` node when the branches are genuinely different predicates.
 
 The subject-vs-subject case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is now just another comparison with two `attribute` operands:
 
@@ -357,7 +367,7 @@ This is deliberately **standard gRPC method-presence signaling, not a bespoke op
 - **Boolean structure** — ClickHouse and ES/OS evaluate the full L2 tree. Flat backends evaluate the conjunctive subset and reject any `OR`/`NOT` node.
 - **Remote-storage plugins** — a plugin that ignores the new `filters` field still receives the legacy `attributes` and behaves exactly as today; the query service can populate `attributes` from a purely-conjunctive, unqualified `filters` for such plugins.
 
-**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured comparison — `resource.service.name:foo` → an `eq` comparison of `attribute{key:"service.name",level:"resource"}` against `literal{"foo"}`; `duration>2s` → a `gt` comparison of `property:"duration"` against `literal{"2s"}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose operand JSON by hand.
+**Prefix syntax as the human on-ramp.** The verbose structured form is machine-first. For humans (the UI text box, `curl`), the query parser accepts a prefix shorthand that normalizes into the structured comparison — `resource.service.name:foo` → an `eq` comparison of `attribute{key:"service.name",level:"resource"}` against `scalar{"foo"}`; `duration>2s` → a `gt` comparison of `property:"duration"` against `scalar{"2s"}`. This is a convenience layer over the same AST, not a second contract, and it means the UI need never emit the verbose operand JSON by hand.
 
 ---
 
@@ -378,7 +388,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 
 **Stage A — API foundation (additive, no behavior change)**
 
-- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Attribute`, `Literal`, `Comparison`, `BooleanOp`, and `FilterExpression` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute and literal terms and add the `property` term in a follow-up, since the oneof is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the `FilterExpression` tree (`Expression`/`Comparison`/`BooleanOp`/`FilterExpression` + the `filters` field) with the `level`/`op`/`type` string enumerations per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
+- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Attribute`, `Scalar`, `Array`, `Comparison`, `BooleanOp`, and `FilterExpression` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema, and `property` as an open documented string — §6.2) and the `filters` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the attribute and scalar terms and add the `property` and `array` terms in a follow-up, since the oneof is additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the `FilterExpression` tree (`Expression`/`Comparison`/`BooleanOp`/`FilterExpression` + the `filters` field) with the `level`/`op`/`type` string enumerations per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
 - **M2 — Plumb the filter through the query service to the storage interface.** Extend the internal `TraceQueryParams` ([`reader.go`](../../internal/storage/v2/api/tracestore/reader.go)) to carry the expression tree alongside the legacy `Attributes` map, and translate the proto field in the api_v3 handler. With no backend routing yet, a purely-conjunctive tree is treated as unqualified search-all (today's results); non-conjunctive trees and unsupported operators are rejected at the edge. *Exit:* a conjunctive level-qualified filter reaches every backend as unqualified attributes and returns today's results; `OR`/`NOT` and unsupported operators return `Unimplemented`; plugins ignoring `filters` are unaffected.
 
 **Stage B — Backend routing (one PR per backend, parallelizable after M2)**
