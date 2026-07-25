@@ -272,7 +272,7 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 	// e2e configuration may be a remote writer). Once synchronous mode is wired
 	// into the ES trace writer, prefer exercising it through WriteTraces so the
 	// whole write path — remote included — is covered.
-	writer := esclient.NewSyncBulkWriter(s.client.client, 0, metrics.NullFactory, zap.NewNop())
+	writer := esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop())
 	searcher := esclient.SearchClient{Client: s.client.client}
 	// Scoped teardown: remove only the one-off index this test created. The suite's
 	// esCleanUp / factory.Purge are both DeleteAllIndices ("*"), not a prefix-scoped

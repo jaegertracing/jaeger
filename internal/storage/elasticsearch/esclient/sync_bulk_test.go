@@ -23,7 +23,11 @@ import (
 )
 
 func newSyncWriter(t *testing.T, url string, maxBytes int, mf metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
-	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), maxBytes, mf, logger)
+	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), maxBytes, false, mf, logger)
+}
+
+func newSyncWriterDropPoison(t *testing.T, url string, mf metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
+	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), 0, true, mf, logger)
 }
 
 // okBulkN answers with a successful _bulk response carrying exactly n item
@@ -55,7 +59,7 @@ func TestSyncBulkWriter_WritesNDJSON(t *testing.T) {
 }
 
 func TestSyncBulkWriter_DefaultsMaxBytes(t *testing.T) {
-	w := NewSyncBulkWriter(makeClient(t, "http://localhost:1", "", ""), -1, metrics.NullFactory, zap.NewNop())
+	w := NewSyncBulkWriter(makeClient(t, "http://localhost:1", "", ""), -1, false, metrics.NullFactory, zap.NewNop())
 	assert.Equal(t, defaultSyncBulkMaxBytes, w.maxBytes)
 }
 
@@ -114,6 +118,63 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	_, gauges := mf.Snapshot()
 	assert.True(t, hasTimer(gauges, "bulk_index.latency-ok"), "item rejection still records latency-ok: %v", gauges)
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
+}
+
+func TestSyncBulkWriter_DropPoison_TerminalDropped(t *testing.T) {
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` +
+			`{"index":{"_index":"idx","status":201}},` +
+			`{"index":{"_index":"idx","status":400,"error":{"type":"mapper_parsing_exception","reason":"bad field"}}}` +
+			`]}`))
+	})
+	core, logs := observer.New(zap.WarnLevel)
+	w := newSyncWriterDropPoison(t, url, mf, zap.New(core))
+
+	err := w.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.NoError(t, err, "a terminally-rejected poison doc is dropped, so the batch completes and the offset can advance")
+	assert.Positive(t, logs.FilterMessageSnippet("dropping poison-pill").Len())
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 1},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1}, // the dropped poison doc
+	)
+}
+
+func TestSyncBulkWriter_DropPoison_TransientStillErrors(t *testing.T) {
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` +
+			`{"index":{"_index":"idx","status":429,"error":{"type":"es_rejected_execution_exception","reason":"busy"}}}` +
+			`]}`))
+	})
+	w := newSyncWriterDropPoison(t, url, metrics.NullFactory, zap.NewNop())
+
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	require.Error(t, err, "a transient 429 is retried, never dropped")
+	assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
+}
+
+func TestSyncBulkWriter_DropPoison_MixedRetries(t *testing.T) {
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` +
+			`{"index":{"_index":"idx","status":400,"error":{"reason":"poison"}}},` + // terminal → dropped
+			`{"index":{"_index":"idx","status":503,"error":{"reason":"unavailable"}}}` + // transient → retry
+			`]}`))
+	})
+	core, logs := observer.New(zap.WarnLevel)
+	w := newSyncWriterDropPoison(t, url, metrics.NullFactory, zap.New(core))
+
+	err := w.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.Error(t, err, "a transient failure in the batch still fails it for retry")
+	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected", "only the transient item is reported as retryable")
+	assert.Positive(t, logs.FilterMessageSnippet("dropping poison-pill").Len(), "the terminal item is still dropped and logged")
 }
 
 func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
