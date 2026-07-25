@@ -43,8 +43,8 @@ func setupMockServer(t *testing.T, response []byte, statusCode int) *httptest.Se
 
 func getVersionResponse(t *testing.T) []byte {
 	versionResponse, e := json.Marshal(map[string]any{
-		"Version": map[string]any{
-			"Number": "7",
+		"version": map[string]any{
+			"number": "7",
 		},
 	})
 	require.NoError(t, e)

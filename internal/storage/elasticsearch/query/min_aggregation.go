@@ -4,8 +4,7 @@
 package query
 
 // MinAggregation computes the minimum value of a numeric field. It renders to
-// {"min": {"field": field}}, matching what the storage layer previously produced
-// via olivere's MinAggregation.
+// {"min": {"field": field}}, matching what the storage layer previously produced.
 type MinAggregation struct {
 	field string
 }

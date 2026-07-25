@@ -16,8 +16,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
@@ -35,41 +33,34 @@ type FactoryBase struct {
 	logger         *zap.Logger
 	tracer         trace.TracerProvider
 
-	// newLegacyClientFn constructs the olivere-based client that still backs the
-	// paths not yet migrated to esclient. It is a seam so tests can inject a
-	// client that doesn't probe a live cluster.
-	newLegacyClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, metricsFactory metrics.Factory, httpAuth extensionauth.HTTPClient) (es.Client, error)
 	// newESClientFn constructs the shared esclient over the transport pool that
-	// backs the migrated data-plane paths (search in M5, bulk writes in M6). It is
-	// a seam mirroring newLegacyClientFn so tests can inject a client that doesn't
-	// probe a live cluster (esclient.NewClient issues a GET / at construction).
-	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (esclient.Client, error)
-	// newBulkIndexerFn constructs the bulk writer over the esclient. It is a seam,
-	// like the client constructors above, so tests can inject a failing indexer to
+	// backs every data-plane path. Tests override it to inject a client that
+	// doesn't probe a live cluster (esclient.NewClient issues a GET / at construction).
+	newESClientFn func(ctx context.Context, c *config.Configuration, logger *zap.Logger, httpAuth extensionauth.HTTPClient) (*esclient.Client, error)
+	// newBulkIndexerFn constructs the bulk writer over the esclient. Tests override
+	// it, like the client constructor above, to inject a failing indexer and
 	// exercise the construction error path.
-	newBulkIndexerFn func(client esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
+	newBulkIndexerFn func(client *esclient.Client, cfg esclient.BulkIndexerConfig, mf metrics.Factory, logger *zap.Logger) (*esclient.BulkIndexer, error)
 
 	config *config.Configuration
 
-	client es.Client
-	// esClient is the shared esclient over the transport pool that backs the
-	// migrated data-plane paths; searcher and bulkWriter compose over it, and the
-	// sampling store's index-existence check runs an IndicesClient over it too.
-	esClient esclient.Client
-	// searcher and bulkWriter are the migrated data-plane surfaces over the
-	// esclient transport pool: service/operation reads (RFC 0006 M5), span
-	// writes (M6), and sampling reads/writes (M9). Other paths still use the
-	// olivere client above. The factory owns the bulk indexer's lifecycle and
-	// closes it in Close.
-	searcher   esclient.Searcher
-	bulkWriter *esclient.BulkIndexer
+	// esClient is the shared esclient over the transport pool that backs every
+	// data-plane path; searcher and asyncBulkWriter compose over it, and the admin
+	// operations (templates, purge) run an IndicesClient over it too.
+	esClient *esclient.Client
+	// searcher and asyncBulkWriter are the data-plane surfaces over the esclient
+	// transport pool: service/operation reads, span writes, sampling reads/writes,
+	// dependency and metric reads. The factory owns the async bulk indexer's
+	// lifecycle and closes it in Close.
+	searcher        esclient.Searcher
+	asyncBulkWriter *esclient.BulkIndexer
 
 	tags []string
 }
 
 // factoryOption overrides a factory field before construction proceeds. It lets
-// tests inject failing/fake client constructors through the newLegacyClientFn /
-// newESClientFn seams to exercise the construction error paths.
+// tests inject failing/fake client constructors through the newESClientFn /
+// newBulkIndexerFn fields to exercise the construction error paths.
 type factoryOption func(*FactoryBase)
 
 func NewFactoryBase(
@@ -81,17 +72,16 @@ func NewFactoryBase(
 	opts ...factoryOption,
 ) (*FactoryBase, error) {
 	f := &FactoryBase{
-		config:            &cfg,
-		newLegacyClientFn: clientbuilder.NewClient,
-		newESClientFn:     esclient.NewClient,
-		newBulkIndexerFn:  esclient.NewBulkIndexer,
-		tracer:            otel.GetTracerProvider(),
+		config:           &cfg,
+		newESClientFn:    esclient.NewClient,
+		newBulkIndexerFn: esclient.NewBulkIndexer,
+		tracer:           otel.GetTracerProvider(),
 	}
 	for _, opt := range opts {
 		opt(f)
 	}
 	// If construction fails partway, close whatever was already created (the
-	// legacy client and the bulk indexer's workers). Close is nil-safe.
+	// esclient and the bulk indexer's workers). Close is nil-safe.
 	success := false
 	defer func() { //nolint:contextcheck // Close releases resources and takes no context
 		if !success {
@@ -107,16 +97,9 @@ func NewFactoryBase(
 	}
 	f.tags = tags
 
-	client, err := f.newLegacyClientFn(ctx, f.config, logger, metricsFactory, httpAuth)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Elasticsearch client: %w", err)
-	}
-	f.client = client
-
-	// The migrated data-plane paths (service/operation reads, span writes) run
-	// over the esclient transport pool; other paths still use the olivere client
-	// above. Both the searcher and the bulk indexer share one esclient (one
-	// version probe).
+	// One esclient over the transport pool backs every path — the searcher, the
+	// bulk indexer, and the admin IndicesClient (templates, purge) — with a single
+	// version probe.
 	esClient, err := f.newESClientFn(ctx, f.config, logger, httpAuth)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch data client: %w", err)
@@ -125,7 +108,7 @@ func NewFactoryBase(
 	f.searcher = esclient.SearchClient{Client: esClient}
 	// esutil.BulkIndexer flushes on a byte threshold or a time interval only; it
 	// has no action-count trigger, so BulkProcessing.MaxActions is not wired here.
-	bulkWriter, err := f.newBulkIndexerFn(esClient, esclient.BulkIndexerConfig{
+	asyncBulkWriter, err := f.newBulkIndexerFn(esClient, esclient.BulkIndexerConfig{
 		FlushBytes:    f.config.BulkProcessing.MaxBytes,
 		FlushInterval: f.config.BulkProcessing.FlushInterval,
 		Workers:       f.config.BulkProcessing.Workers,
@@ -133,7 +116,7 @@ func NewFactoryBase(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Elasticsearch bulk indexer: %w", err)
 	}
-	f.bulkWriter = bulkWriter
+	f.asyncBulkWriter = asyncBulkWriter
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -142,10 +125,6 @@ func NewFactoryBase(
 
 	success = true
 	return f, nil
-}
-
-func (f *FactoryBase) getClient() es.Client {
-	return f.client
 }
 
 // GetSpanReaderParams returns the SpanReaderParams which can be used to initialize the v1 and v2 readers.
@@ -174,11 +153,25 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	}
 }
 
+// spanBatchWriter chooses the batch writer the span writer uses, from
+// elasticsearch.write_mode: the synchronous writer (one blocking _bulk per batch,
+// returning the real error — RFC 0007) or the default asynchronous indexer.
+// max_bytes is reused as the sync chunk cap. The async indexer is created regardless
+// because the dependency and sampling paths use it in every mode (RFC 0007 scopes
+// write_mode to spans — see the RFC's open question on those paths); the sync writer
+// holds no resources of its own (it writes over esClient, which the factory closes).
+func (f *FactoryBase) spanBatchWriter() esclient.BatchWriter {
+	if f.config.EffectiveWriteMode() == config.WriteModeSync {
+		return esclient.NewSyncBulkWriter(f.esClient, f.config.BulkProcessing.MaxBytes, f.config.EffectivePoisonHandling() == config.PoisonDrop, f.metricsFactory, f.logger)
+	}
+	return f.asyncBulkWriter
+}
+
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
 	return esspanstore.SpanWriterParams{
-		BulkWriter:        f.bulkWriter,
+		BatchWriter:       f.spanBatchWriter(),
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
 		TagKeysAsFields:   f.tags,
 		TagDotReplacement: f.config.Tags.DotReplacement,
@@ -194,7 +187,7 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 	return esdepstorev2.Params{
 		Searcher:    f.searcher,
-		BulkWriter:  f.bulkWriter,
+		BatchWriter: f.asyncBulkWriter,
 		Logger:      f.logger,
 		MaxDocCount: f.config.MaxDocCount,
 		Rotation:    f.buildDependencyRotation(),
@@ -204,7 +197,7 @@ func (f *FactoryBase) GetDependencyStoreParams() esdepstorev2.Params {
 func (f *FactoryBase) CreateSamplingStore(int /* maxBuckets */) (samplingstore.Store, error) {
 	params := essamplestore.Params{
 		Searcher:    f.searcher,
-		BulkWriter:  f.bulkWriter,
+		BatchWriter: f.asyncBulkWriter,
 		IndexClient: &esclient.IndicesClient{Client: f.esClient},
 		Logger:      f.logger,
 		Lookback:    f.config.AdaptiveSamplingLookback,
@@ -234,10 +227,13 @@ func (f *FactoryBase) indicesClient() *esclient.IndicesClient {
 		ilmPolicyName = spanRC.AutoRollover.Get().PolicyName
 	}
 	return &esclient.IndicesClient{
-		Client:        f.esClient,
-		Indices:       f.config.Indices,
-		UseILM:        ilmPolicyName != "",
-		ILMPolicyName: ilmPolicyName,
+		Client:  f.esClient,
+		Indices: f.config.Indices,
+		// Purge deletes "*" for cleanup, so tolerate missing indices rather than
+		// failing when there is nothing to delete.
+		IgnoreUnavailableIndex: true,
+		UseILM:                 ilmPolicyName != "",
+		ILMPolicyName:          ilmPolicyName,
 	}
 }
 
@@ -246,19 +242,18 @@ func (f *FactoryBase) indicesClient() *esclient.IndicesClient {
 // was created, e.g. a query-only service.
 func (f *FactoryBase) Close() error {
 	var errs []error
-	if f.bulkWriter != nil {
-		errs = append(errs, f.bulkWriter.Close())
+	if f.asyncBulkWriter != nil {
+		errs = append(errs, f.asyncBulkWriter.Close())
 	}
-	if c := f.getClient(); c != nil {
-		errs = append(errs, c.Close())
-	}
+	// Release the owned esclient's pooled idle connections. The data plane
+	// (searcher, bulk indexer, admin ops) runs over this client. Close is safe on
+	// a nil Client.
+	errs = append(errs, f.esClient.Close())
 	return errors.Join(errs...)
 }
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
-	esClient := f.getClient()
-	_, err := esClient.DeleteIndex("*").Do(ctx)
-	return err
+	return f.indicesClient().DeleteAllIndices(ctx)
 }
 
 // TODO: Support RemoteClusters for sampling via a feature flag.

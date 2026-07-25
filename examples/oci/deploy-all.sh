@@ -97,7 +97,7 @@ if [[ "$MODE" == "upgrade" ]]; then
       echo "🟡 Use clean mode or repair the Prometheus release separately to reinstall monitoring."
       ;;
   esac
-  HELM_JAEGER_CMD="upgrade --install --wait"
+  HELM_JAEGER_CMD="upgrade --install --wait --atomic"
   HELM_PROM_CMD="upgrade --install --wait"
 else
   echo "🟣 Clean mode: Uninstalling Jaeger and Prometheus..."

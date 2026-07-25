@@ -5,8 +5,7 @@ package query
 
 // TopHitsAggregation returns the top matching documents within a bucket. It
 // renders to {"top_hits": {...}} with optional size, sort, and _source includes,
-// matching what the storage layer previously produced via olivere's
-// TopHitsAggregation.
+// matching what the storage layer previously produced.
 type TopHitsAggregation struct {
 	size           int
 	sorts          []map[string]any

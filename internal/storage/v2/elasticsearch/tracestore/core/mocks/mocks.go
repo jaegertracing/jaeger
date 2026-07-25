@@ -11,7 +11,6 @@ package mocks
 
 import (
 	"context"
-	"time"
 
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	mock "github.com/stretchr/testify/mock"
@@ -517,33 +516,44 @@ func (_c *Writer_Close_Call) RunAndReturn(run func() error) *Writer_Close_Call {
 	return _c
 }
 
-// WriteSpan provides a mock function for the type Writer
-func (_mock *Writer) WriteSpan(spanStartTime time.Time, span *dbmodel.Span) {
-	_mock.Called(spanStartTime, span)
-	return
+// WriteSpans provides a mock function for the type Writer
+func (_mock *Writer) WriteSpans(ctx context.Context, spans []dbmodel.Span) error {
+	ret := _mock.Called(ctx, spans)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WriteSpans")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []dbmodel.Span) error); ok {
+		r0 = returnFunc(ctx, spans)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
 }
 
-// Writer_WriteSpan_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpan'
-type Writer_WriteSpan_Call struct {
+// Writer_WriteSpans_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteSpans'
+type Writer_WriteSpans_Call struct {
 	*mock.Call
 }
 
-// WriteSpan is a helper method to define mock.On call
-//   - spanStartTime time.Time
-//   - span *dbmodel.Span
-func (_e *Writer_Expecter) WriteSpan(spanStartTime interface{}, span interface{}) *Writer_WriteSpan_Call {
-	return &Writer_WriteSpan_Call{Call: _e.mock.On("WriteSpan", spanStartTime, span)}
+// WriteSpans is a helper method to define mock.On call
+//   - ctx context.Context
+//   - spans []dbmodel.Span
+func (_e *Writer_Expecter) WriteSpans(ctx interface{}, spans interface{}) *Writer_WriteSpans_Call {
+	return &Writer_WriteSpans_Call{Call: _e.mock.On("WriteSpans", ctx, spans)}
 }
 
-func (_c *Writer_WriteSpan_Call) Run(run func(spanStartTime time.Time, span *dbmodel.Span)) *Writer_WriteSpan_Call {
+func (_c *Writer_WriteSpans_Call) Run(run func(ctx context.Context, spans []dbmodel.Span)) *Writer_WriteSpans_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 time.Time
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(time.Time)
+			arg0 = args[0].(context.Context)
 		}
-		var arg1 *dbmodel.Span
+		var arg1 []dbmodel.Span
 		if args[1] != nil {
-			arg1 = args[1].(*dbmodel.Span)
+			arg1 = args[1].([]dbmodel.Span)
 		}
 		run(
 			arg0,
@@ -553,12 +563,12 @@ func (_c *Writer_WriteSpan_Call) Run(run func(spanStartTime time.Time, span *dbm
 	return _c
 }
 
-func (_c *Writer_WriteSpan_Call) Return() *Writer_WriteSpan_Call {
-	_c.Call.Return()
+func (_c *Writer_WriteSpans_Call) Return(err error) *Writer_WriteSpans_Call {
+	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *Writer_WriteSpan_Call) RunAndReturn(run func(spanStartTime time.Time, span *dbmodel.Span)) *Writer_WriteSpan_Call {
-	_c.Run(run)
+func (_c *Writer_WriteSpans_Call) RunAndReturn(run func(ctx context.Context, spans []dbmodel.Span) error) *Writer_WriteSpans_Call {
+	_c.Call.Return(run)
 	return _c
 }

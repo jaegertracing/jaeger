@@ -18,7 +18,7 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverpkg=./... -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)

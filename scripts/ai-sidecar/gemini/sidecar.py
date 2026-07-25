@@ -24,7 +24,7 @@ from sidecar_helpers import (
     _to_tool_text,
     _validate_function_call,
 )
-from tracing import tracer
+from tracing import extract_trace_context, tracer
 
 from acp import (
     PROTOCOL_VERSION,
@@ -393,7 +393,8 @@ class JaegerSidecarAgent(Agent):
         Invoked by ACP runtime dispatch after initialize/session handshake; this
         is the protocol entrypoint for prompt execution.
         """
-        with tracer().start_as_current_span("sidecar.prompt", attributes={
+        parent_ctx = extract_trace_context(kwargs)
+        with tracer().start_as_current_span("sidecar.prompt", context=parent_ctx, attributes={
             GEN_AI_CONVERSATION_ID: session_id,
         }) as span:
             logger.info("Received prompt request for session %s", session_id)

@@ -4,15 +4,8 @@
 package integration
 
 import (
-	"context"
-	"fmt"
-	"io"
-	"net/http"
-	"strconv"
-	"strings"
 	"testing"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,16 +20,14 @@ const (
 func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
-	client, err := createESClient(t, getESHttpClient(t))
-	require.NoError(t, err)
-	require.NoError(t, err)
+	client := createESClient(t)
 	// make sure ES is clean
 	cleanES(t, client, defaultILMPolicyName)
 	envVars := []string{"ES_USE_ILM=true"}
 	// Run the ES rollover test with adaptive sampling disabled (set to false).
-	err = runEsRollover("init", envVars, false)
+	err := runEsRollover("init", envVars, false)
 	require.EqualError(t, err, "exit status 1")
 	assert.Empty(t, getJaegerIndices(t, client, ""))
 }
@@ -44,13 +35,12 @@ func TestIndexRollover_FailIfILMNotPresent(t *testing.T) {
 func TestIndexRollover_Idempotency(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
-	client, err := createESClient(t, getESHttpClient(t))
-	require.NoError(t, err)
+	client := createESClient(t)
 	// Make sure that es is clean before the test!
 	cleanES(t, client, defaultILMPolicyName)
-	err = runEsRollover("init", []string{}, false)
+	err := runEsRollover("init", []string{}, false)
 	require.NoError(t, err)
 	// Run again and it should return without any error
 	err = runEsRollover("init", []string{}, false)
@@ -61,7 +51,7 @@ func TestIndexRollover_Idempotency(t *testing.T) {
 func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
 	t.Cleanup(func() {
-		testutils.VerifyGoLeaksOnceForES(t)
+		testutils.VerifyGoLeaksOnce(t)
 	})
 	// Test using the default ILM Policy Name, i.e. do not pass the ES_ILM_POLICY_NAME env var to the rollover script.
 	t.Run("DefaultPolicyName", func(t *testing.T) {
@@ -75,10 +65,8 @@ func TestIndexRollover_CreateIndicesWithILM(t *testing.T) {
 }
 
 func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
-	client, err := createESClient(t, getESHttpClient(t))
-	require.NoError(t, err)
-	version, err := getBackendVersion(client)
-	require.NoError(t, err)
+	client := createESClient(t)
+	version := client.backendVersion()
 
 	envVars := []string{
 		"ES_USE_ILM=true",
@@ -100,7 +88,7 @@ func runCreateIndicesWithILM(t *testing.T, ilmPolicyName string) {
 	})
 }
 
-func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version es.BackendVersion, prefix string, expectedIndices, envVars []string, ilmPolicyName string, adaptiveSampling bool) {
+func runIndexRolloverWithILMTest(t *testing.T, client *esTestClient, version es.BackendVersion, prefix string, expectedIndices, envVars []string, ilmPolicyName string, adaptiveSampling bool) {
 	writeAliases := []string{"jaeger-service-write", "jaeger-span-write", "jaeger-dependencies-write"}
 	if adaptiveSampling {
 		writeAliases = append(writeAliases, "jaeger-sampling-write")
@@ -108,12 +96,10 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version e
 	}
 	// make sure ES is cleaned before test
 	cleanES(t, client, ilmPolicyName)
-	v8Client, err := createESV8Client(getESHttpClient(t).Transport)
-	require.NoError(t, err)
 	// make sure ES is cleaned after test
 	defer cleanES(t, client, ilmPolicyName)
-	defer cleanESIndexTemplates(t, client, v8Client, prefix)
-	createILMPolicy(t, client, version, ilmPolicyName)
+	defer client.cleanTemplates(t, prefix)
+	PutRolloverLifecyclePolicy(t, client.ilm, ilmPolicyName)
 
 	if prefix != "" {
 		prefix += "-"
@@ -127,19 +113,23 @@ func runIndexRolloverWithILMTest(t *testing.T, client *elastic.Client, version e
 	}
 
 	// Run rollover with given EnvVars
-	err = runEsRollover("init", envVars, adaptiveSampling)
+	err := runEsRollover("init", envVars, adaptiveSampling)
 	require.NoError(t, err)
 
 	// Get settings and verify ILM policy name (ES) or ISM rollover alias (OpenSearch)
-	settings, err := client.IndexGetSettings(expected...).FlatSettings(true).Do(context.Background())
-	require.NoError(t, err)
-	for _, v := range settings {
+	settings := client.flatSettings(t, expected)
+	for name, s := range settings {
+		aliasKey := "index.lifecycle.rollover_alias"
 		if version.IsOpenSearch() {
-			actualWriteAliases = append(actualWriteAliases, v.Settings["index.plugins.index_state_management.rollover_alias"].(string))
+			aliasKey = "index.plugins.index_state_management.rollover_alias"
 		} else {
-			assert.Equal(t, ilmPolicyName, v.Settings["index.lifecycle.name"])
-			actualWriteAliases = append(actualWriteAliases, v.Settings["index.lifecycle.rollover_alias"].(string))
+			assert.Equal(t, ilmPolicyName, s["index.lifecycle.name"])
 		}
+		// Checked assertion: a missing/typeless key fails the test with a clear
+		// message instead of panicking on the bare type assertion.
+		alias, ok := s[aliasKey].(string)
+		require.True(t, ok, "index %q settings missing string %q: %v", name, aliasKey, s)
+		actualWriteAliases = append(actualWriteAliases, alias)
 	}
 	// Check indices created
 	assert.ElementsMatch(t, getJaegerIndices(t, client, prefix), expected)

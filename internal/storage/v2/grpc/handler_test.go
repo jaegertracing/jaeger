@@ -5,6 +5,8 @@ package grpc
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"testing"
 	"time"
@@ -16,6 +18,8 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -749,28 +753,21 @@ func (s *summaryStream) Send(r *storage.FindTraceSummariesResponse) error {
 	return nil
 }
 
-// readerWithSummaries embeds tracestoremocks.Reader and additionally
-// implements tracestore.SummaryReader so the handler sees a single object
-// that satisfies both interfaces.
-type readerWithSummaries struct {
-	tracestoremocks.Reader
-	summaryMock *tracestoremocks.SummaryReader
-}
-
-func (r *readerWithSummaries) FindTraceSummaries(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
-	return r.summaryMock.FindTraceSummaries(ctx, q)
-}
-
 func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
+	// A backend that cannot compute summaries natively yields errors.ErrUnsupported;
+	// the handler must translate that into gRPC Unimplemented.
 	reader := new(tracestoremocks.Reader)
-	writer := new(tracestoremocks.Writer)
-	depReader := new(depstoremocks.Reader)
-	handler := NewHandler(reader, writer, depReader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(nil, fmt.Errorf("bare reader: %w", errors.ErrUnsupported))
+		})).Once()
+	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
 	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
 		Query: &storage.TraceQueryParameters{},
 	}, &summaryStream{})
 	require.Error(t, err)
+	require.Equal(t, codes.Unimplemented, status.Code(err))
 	require.Contains(t, err.Error(), "not implemented")
 }
 
@@ -792,13 +789,12 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 			},
 		},
 	}
-	summaryMock := new(tracestoremocks.SummaryReader)
-	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(want, nil)
 		})).Once()
 
-	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 	stream := &summaryStream{}
 
@@ -820,13 +816,12 @@ func TestHandler_FindTraceSummaries_Success(t *testing.T) {
 }
 
 func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
-	summaryMock := new(tracestoremocks.SummaryReader)
-	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(nil, assert.AnError)
 		})).Once()
 
-	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
 	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
@@ -836,13 +831,12 @@ func TestHandler_FindTraceSummaries_StorageError(t *testing.T) {
 }
 
 func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
-	summaryMock := new(tracestoremocks.SummaryReader)
-	summaryMock.On("FindTraceSummaries", mock.Anything, mock.Anything).
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield([]tracestore.TraceSummary{{TraceID: pcommon.TraceID([16]byte{1})}}, nil)
 		})).Once()
 
-	reader := &readerWithSummaries{summaryMock: summaryMock}
 	handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
 
 	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{
