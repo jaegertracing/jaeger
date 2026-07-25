@@ -1,8 +1,8 @@
 # ADR-010: Trace Summary API for Lightweight Search Results
 
-* **Status**: In progress (✅ Milestones 1, 2, 3, and 4 complete; ✅ Milestone 5 complete via [#8812](https://github.com/jaegertracing/jaeger/pull/8812))
+* **Status**: Implemented — all five milestones complete (Milestone 5 via [#8812](https://github.com/jaegertracing/jaeger/pull/8812))
 * **Date**: 2026-05-21
-* **Last updated**: 2026-06-30
+* **Last updated**: 2026-07-25
 
 ## Context
 

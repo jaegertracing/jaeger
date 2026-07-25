@@ -4,6 +4,8 @@
 * **Date**: 2026-03-20
 * **Related Issues**: [#5833](https://github.com/jaegertracing/jaeger/issues/5833)
 
+> **Filing note:** This is a forward-looking proposal with a tracked step-by-step plan, written before [`docs/rfc/`](../rfc/) existed — today it would be an [RFC](../rfc/README.md), not an ADR. It keeps its ADR number so existing links stay valid. All four steps of the plan have since landed.
+
 ---
 
 ## Context

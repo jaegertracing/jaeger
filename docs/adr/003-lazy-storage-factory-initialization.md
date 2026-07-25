@@ -1,7 +1,9 @@
 # Lazy Storage Factory Initialization
 
-* **Status**: Implemented -- https://github.com/jaegertracing/jaeger/pull/7887
+* **Status**: Implemented — [#7887](https://github.com/jaegertracing/jaeger/pull/7887)
 * **Date**: 2026-01-20
+
+> **Filing note:** This is a forward-looking proposal — it weighs two options and closes with a recommendation, written before [`docs/rfc/`](../rfc/) existed. Today it would be an [RFC](../rfc/README.md), not an ADR. It keeps its ADR number so existing links stay valid. The outcome: Option 2 (simple lazy initialization) was adopted in [#7887](https://github.com/jaegertracing/jaeger/pull/7887).
 
 ## Context
 
