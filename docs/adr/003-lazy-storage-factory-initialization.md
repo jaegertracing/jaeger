@@ -1,16 +1,16 @@
 # Lazy Storage Factory Initialization
 
-* **Status**: Implemented — [#7887](https://github.com/jaegertracing/jaeger/pull/7887); graduated from [RFC 0009](../rfc/0009-lazy-storage-factory-initialization.md)
-* **Date**: 2026-01-20
-* **Last updated**: 2026-07-25
+* **Status**: Implemented; graduated from [RFC 0009](../rfc/0009-lazy-storage-factory-initialization.md)
+* **Decided**: 2026-01-20 — delivered in [#7887](https://github.com/jaegertracing/jaeger/pull/7887), error propagation later refined in [#8593](https://github.com/jaegertracing/jaeger/pull/8593)
+* **Describes the implementation as of**: 2026-07-25
 
-> **Graduation note:** The proposal behind this decision — the problem analysis, the two options weighed against each other, and the recommendation — lives in [RFC 0009](../rfc/0009-lazy-storage-factory-initialization.md). This ADR records only the resulting implementation.
+> **Graduation note:** The proposal behind this decision — the problem analysis, the two options weighed against each other, and the recommendation — lives in [RFC 0009](../rfc/0009-lazy-storage-factory-initialization.md). This ADR describes the implementation as it stands today.
 
 ## Context
 
-The `jaeger_storage` extension lets a deployment declare any number of storage backends by name, and consumers request the ones they need by name. Initializing every declared backend at startup made a backend nobody used still open connections, allocate memory, and start background goroutines — and made an unavailable unused backend fail the entire process, even when the storage actually serving traffic was healthy.
+The `jaeger_storage` extension lets a deployment declare any number of storage backends by name, and consumers request the ones they need by name — so a configuration routinely declares backends that a given deployment never uses. Constructing all of them at startup, as the extension originally did, meant an unused backend still opened connections, allocated memory and started background goroutines, and an unused backend that happened to be unavailable failed the whole process even when the storage actually serving traffic was healthy.
 
-Deferring initialization to first use fixes that, at the cost of moving connection failures from startup into request handling. [RFC 0009](../rfc/0009-lazy-storage-factory-initialization.md) covers the trade-off and the rejected alternative (a two-phase `Configure`/`Initialize` factory framework applied to every backend).
+Initialization is therefore deferred to first use, accepting that a connection failure surfaces when a component first requests the storage rather than at startup. [RFC 0009](../rfc/0009-lazy-storage-factory-initialization.md) covers that trade-off and the rejected alternative — a two-phase `Configure`/`Initialize` framework imposed on every backend factory.
 
 ## Decision
 
@@ -30,17 +30,17 @@ A backend that is declared but never requested is therefore never constructed at
 
 ### The lookup methods return an error, not a bool
 
-The `Extension` interface exposes `TraceStorageFactory(name string) (tracestore.Factory, error)` and `MetricStorageFactory(name string) (storage.MetricStoreFactory, error)`. Returning an error rather than a `bool` lets callers distinguish "not declared in configuration" from "initialization failed" and surface the underlying cause. The package-level helpers `GetTraceStoreFactory`, `GetMetricStorageFactory`, `GetSamplingStoreFactory` and `GetPurger` propagate it.
+The `Extension` interface exposes `TraceStorageFactory(name string) (tracestore.Factory, error)` and `MetricStorageFactory(name string) (storage.MetricStoreFactory, error)`. Returning an error rather than a `bool` lets callers distinguish "not declared in configuration" from "initialization failed" and surface the underlying cause.
+
+The package-level helpers `GetTraceStoreFactory`, `GetMetricStorageFactory`, `GetSamplingStoreFactory` and `GetPurger` return that error unchanged. They originally re-wrapped it as `cannot find definition of storage '<name>' …`, which claimed the name was missing from configuration even when the name resolved and initialization was what failed; [#8593](https://github.com/jaegertracing/jaeger/pull/8593) dropped the wrapper, since the two lookup methods already describe both cases accurately.
 
 ### Shutdown closes only what was built
 
 `Shutdown` iterates the populated factory maps and closes each entry implementing `io.Closer`, joining any errors. Entries for unrequested backends are absent rather than empty, so nothing has to be skipped.
 
-### Divergences from the proposal
+### The factory interfaces are untouched
 
-- The extension keeps no separate `host` field and does not call `telemetry.FromOtelComponent` per factory; `Start` assigns the host onto the shared telemetry settings once, and factory creation uses those.
-- Startup validation, listed in RFC 0009 as an optional mitigation, shipped as part of the change rather than as a follow-up.
-- No `ConfigurableFactory`, `InitializableFactory`, or `IsInitialized` exists anywhere in the tree: the two-phase framework was not adopted, and `tracestore.Factory` implementations were left untouched.
+Lazy initialization lives entirely in the extension. `tracestore.Factory` implementations know nothing about it: there is no `Configure`, `Initialize` or `IsInitialized` anywhere in the tree, and a backend factory still connects in its constructor. What changed is only *when* the extension calls that constructor.
 
 ## Consequences
 
@@ -48,7 +48,7 @@ The `Extension` interface exposes `TraceStorageFactory(name string) (tracestore.
 
 - A declared but unused backend consumes no connections, memory, or goroutines.
 - Startup succeeds when an unused backend is unavailable, so one broken archive backend cannot keep Jaeger from serving.
-- Backend factory implementations were unaffected, keeping the change to the extension and its callers.
+- Backend factory implementations carry no lazy-initialization logic, so the behavior stays confined to the extension and its callers.
 - Error returns name the failing storage and the reason.
 
 ### Negative

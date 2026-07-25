@@ -398,7 +398,13 @@ The recommended option shipped in a single PR, [#7887](https://github.com/jaeger
 6. ✅ Update tests to verify lazy initialization behavior.
 7. Document the behavior change in release notes.
 
-See [ADR-003](../adr/003-lazy-storage-factory-initialization.md) for the resulting implementation, including where it diverged from the sketch above.
+The delivered code differs from the sketches above in three ways:
+
+- The extension keeps no separate `host` field and does not call `telemetry.FromOtelComponent` per factory; `Start` assigns the host onto the shared `telemetry.Settings` once, and factory creation uses those.
+- Startup configuration validation, framed above as an *optional* mitigation, shipped as part of the same change.
+- Error propagation was refined afterwards: the package-level `Get*` helpers initially re-wrapped the new error, and [#8593](https://github.com/jaegertracing/jaeger/pull/8593) removed that wrapper.
+
+See [ADR-003](../adr/003-lazy-storage-factory-initialization.md) for the resulting implementation as it stands today.
 
 ## 6. References
 
