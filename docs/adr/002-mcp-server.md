@@ -1,7 +1,11 @@
 # MCP Server Extension for Jaeger
 
-* **Status**: Proposed
+* **Status**: Implemented ([#8423](https://github.com/jaegertracing/jaeger/pull/8423)); the extension architecture below has since been superseded — see the filing note
 * **Date**: 2026-01-23
+
+> **Filing note:** This is a forward-looking proposal, written before [`docs/rfc/`](../rfc/) existed — today it would be an [RFC](../rfc/README.md), not an ADR. It keeps its ADR number so existing links stay valid, and is read as a snapshot of the original design.
+>
+> The standalone `jaeger_mcp` extension it proposes shipped in [#8423](https://github.com/jaegertracing/jaeger/pull/8423) and no longer exists in that form: [RFC 0008](../rfc/0008-ai-gateway-mcp-tool-routing.md) M1 folded it into the query extension ([#8894](https://github.com/jaegertracing/jaeger/pull/8894)), and the tools now live in [`cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/`](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/). RFC 0008 is the current source of truth for MCP tool routing.
 
 ## Context
 
@@ -625,4 +629,3 @@ Reuse existing test fixtures from:
 - [MCP Go SDK Documentation](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk/mcp)
 - Jaeger Extension Pattern: [`cmd/jaeger/internal/extension/jaegerquery/`](../../cmd/jaeger/internal/extension/jaegerquery/)
 - Critical Path UI Implementation: [`jaeger-ui/packages/jaeger-ui/src/components/TracePage/CriticalPath/index.tsx`](../../jaeger-ui/packages/jaeger-ui/src/components/TracePage/CriticalPath/index.tsx)
-- Original Design Document: [`design.md`](../../design.md)
