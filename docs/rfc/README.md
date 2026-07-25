@@ -50,3 +50,4 @@ Graduation is optional and not the only end state. An RFC may also be superseded
 - [0006: Unified Elasticsearch/OpenSearch Client](./0006-unified-elasticsearch-client.md) - Collapse the data-plane and control-plane ES/OS clients into one Jaeger-owned client
 - [0007: Synchronous Elasticsearch/OpenSearch Writes](./0007-synchronous-elasticsearch-writes.md) - Per-batch synchronous bulk writes so failures propagate and Kafka offsets commit only after durable persistence
 - [0008: AI Gateway — Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md) - Consolidate telemetry and UI tool dispatch through one gateway-hosted MCP server; supersedes the tool-routing decision in RFC 0002
+- [0009: Lazy Storage Factory Initialization](./0009-lazy-storage-factory-initialization.md) - Defer storage backend initialization until first use, weighing a two-phase factory framework against simply deferring factory creation; extracted from ADR-003, which records the outcome
