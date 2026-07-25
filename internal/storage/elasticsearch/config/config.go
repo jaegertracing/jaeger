@@ -43,6 +43,23 @@ const (
 	WriteModeSync WriteMode = "sync"
 )
 
+// PoisonHandling selects what a synchronous writer does with a document the backend
+// rejects *terminally* — a "poison pill" (mapping conflict, malformed field, other
+// 4xx) that will fail identically on every retry. It has no effect in async mode.
+type PoisonHandling string
+
+const (
+	// PoisonFail fails the whole batch on any terminal rejection, so the write is
+	// retried indefinitely. This is the default: it never drops data, at the cost of
+	// head-of-line blocking on the Kafka ingest path until the document is fixed.
+	PoisonFail PoisonHandling = "fail"
+	// PoisonDrop discards a terminally-rejected document — logging and counting it —
+	// so the batch completes and the Kafka offset advances. Transient failures
+	// (429 / 5xx / transport) still fail the batch and are retried. Use this when
+	// dropping a rare malformed span is preferable to stalling a partition.
+	PoisonDrop PoisonHandling = "drop"
+)
+
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
 	// Priority contains the priority of index template (ESv8 only).
@@ -175,6 +192,11 @@ type Configuration struct {
 	//     respecting the tracestore.Writer contract. See RFC 0007 for background.
 	// When empty, it defaults to "async". See config.EffectiveWriteMode().
 	WriteMode WriteMode `mapstructure:"write_mode"`
+	// PoisonPillHandling selects what the synchronous writer does with a document the
+	// backend rejects terminally: "fail" (default — retry forever, never drop) or
+	// "drop" (discard the poison doc so the offset advances). No effect in async mode.
+	// When empty it defaults to "fail". See config.EffectivePoisonHandling().
+	PoisonPillHandling PoisonHandling `mapstructure:"poison_pill_handling"`
 	// Version contains the backend version number (e.g. 7, 8, 9 for Elasticsearch,
 	// 101, 102, 103 for OpenSearch). If 0, it will be auto-detected from the server.
 	Version uint `mapstructure:"version"`
@@ -435,6 +457,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.WriteMode == "" {
 		c.WriteMode = source.WriteMode
 	}
+	if c.PoisonPillHandling == "" {
+		c.PoisonPillHandling = source.PoisonPillHandling
+	}
 	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
 	}
@@ -607,6 +632,10 @@ func (c *Configuration) Validate() error {
 		return err
 	}
 
+	if err := validatePoisonHandling(c.PoisonPillHandling); err != nil {
+		return err
+	}
+
 	return validateLogLevel(c.LogLevel)
 }
 
@@ -617,6 +646,26 @@ func (c *Configuration) EffectiveWriteMode() WriteMode {
 		return c.WriteMode
 	}
 	return WriteModeAsync
+}
+
+// EffectivePoisonHandling resolves the poison-pill policy Jaeger should use: the
+// explicit PoisonPillHandling from config, or PoisonFail when it is unset.
+func (c *Configuration) EffectivePoisonHandling() PoisonHandling {
+	if c.PoisonPillHandling != "" {
+		return c.PoisonPillHandling
+	}
+	return PoisonFail
+}
+
+// validatePoisonHandling rejects an unrecognized poison_pill_handling. An empty
+// value is allowed and resolves to the default (PoisonFail).
+func validatePoisonHandling(mode PoisonHandling) error {
+	switch mode {
+	case "", PoisonFail, PoisonDrop:
+		return nil
+	default:
+		return fmt.Errorf("unrecognized poison_pill_handling %q: valid values are %q and %q", mode, PoisonFail, PoisonDrop)
+	}
 }
 
 // validateWriteMode rejects an unrecognized write_mode. An empty value is allowed
