@@ -102,8 +102,8 @@ func TestOptions(t *testing.T) {
 	assert.EqualValues(t, 1, *primary.Indices.Dependencies.Replicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffing.Enabled)
-	assert.False(t, primary.Sniffing.UseHTTPS)
-	assert.False(t, primary.DisableHealthCheck)
+	assert.False(t, primary.Sniffing.UseHTTPS.HasValue())
+	assert.False(t, primary.DisableHealthCheck.HasValue())
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -131,9 +131,9 @@ func TestOptionsWithFlags(t *testing.T) {
 		MaxSpanAge:         48 * time.Hour,
 		Sniffing: escfg.Sniffing{
 			Enabled:  true,
-			UseHTTPS: true,
+			UseHTTPS: configoptional.Some(true),
 		},
-		DisableHealthCheck: true,
+		DisableHealthCheck: configoptional.Some(true),
 		TLS: configtls.ClientConfig{
 			Insecure:           false,
 			InsecureSkipVerify: true,
@@ -181,8 +181,10 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	// Sniffing
 	assert.True(t, primary.Sniffing.Enabled)
-	assert.True(t, primary.Sniffing.UseHTTPS)
-	assert.True(t, primary.DisableHealthCheck)
+	require.NotNil(t, primary.Sniffing.UseHTTPS.Get())
+	assert.True(t, *primary.Sniffing.UseHTTPS.Get())
+	require.NotNil(t, primary.DisableHealthCheck.Get())
+	assert.True(t, *primary.DisableHealthCheck.Get())
 	// TLS
 	assert.False(t, primary.TLS.Insecure)
 	assert.True(t, primary.TLS.InsecureSkipVerify)

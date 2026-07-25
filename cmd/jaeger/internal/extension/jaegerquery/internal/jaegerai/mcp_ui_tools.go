@@ -21,27 +21,27 @@ const (
 	methodCallTool  = "tools/call"
 )
 
-// uiDispatchMiddleware layers a session's frontend-declared UI tools onto the
+// uiToolsMiddleware layers a turn's frontend-declared UI tools onto the
 // shared telemetry MCP server without registering them on it. It is installed
 // as receiving middleware, so it wraps every inbound method and acts on two:
 //
 //   - tools/list — after the shared server lists the built-in telemetry tools,
-//     the calling session's UI tools are appended so the agent can see them.
+//     the calling turn's UI tools are appended so the agent can see them.
 //     A UI tool whose name matches a telemetry tool shadows it (matching
 //     Server.AddTool's replace-by-name semantics), keeping the list free of
 //     duplicate names.
-//   - tools/call — a call to one of the session's UI tools is dispatched to the
+//   - tools/call — a call to one of the turn's UI tools is dispatched to the
 //     browser over its SSE stream (the browser is the executor) and acked;
 //     everything else falls through to the telemetry handlers.
 //
-// The session is resolved from the request context: ServeHTTP stamps the URL
-// session id before delegating, and the go-sdk propagates the initialize
+// The turn is resolved from the request context: ServeHTTP stamps the URL
+// route id before delegating, and the go-sdk propagates the initialize
 // request's context values onto the ServerSession, so the id is recoverable on
-// tools/list and tools/call alike. A request with no active session degrades to
+// tools/list and tools/call alike. A request with no active turn degrades to
 // telemetry-only. UI-tool dispatch short-circuits before the telemetry tracing/
 // metrics middleware (which this wraps), so browser dispatches don't pollute the
 // query-tool instrumentation.
-func uiDispatchMiddleware(streams *sessionStreams, logger *zap.Logger) mcp.Middleware {
+func uiToolsMiddleware(turns *turnRegistry, logger *zap.Logger) mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
 			switch method {
@@ -54,8 +54,8 @@ func uiDispatchMiddleware(streams *sessionStreams, logger *zap.Logger) mcp.Middl
 				if !ok {
 					return res, nil
 				}
-				if sess := streams.get(sessionIDFromContext(ctx)); sess != nil {
-					lt.Tools = appendUITools(lt.Tools, sess, logger)
+				if turn := turns.get(mcpRouteIDFromContext(ctx)); turn != nil {
+					lt.Tools = appendUITools(lt.Tools, turn, logger)
 				}
 				return lt, nil
 
@@ -72,11 +72,11 @@ func uiDispatchMiddleware(streams *sessionStreams, logger *zap.Logger) mcp.Middl
 					// Params.Name unconditionally and would panic on nil.
 					return uiToolErrorResult("missing tool call parameters"), nil
 				}
-				sess := streams.get(sessionIDFromContext(ctx))
-				if sess == nil || !sessionDeclaredUITool(sess, call.Params.Name) {
+				turn := turns.get(mcpRouteIDFromContext(ctx))
+				if turn == nil || !turnDeclaredUITool(turn, call.Params.Name) {
 					return next(ctx, method, req)
 				}
-				return dispatchUIToolCall(sess.stream, call.Params.Name, call.Params.Arguments), nil
+				return emitUIToolCall(turn.stream, call.Params.Name, call.Params.Arguments), nil
 
 			default:
 				return next(ctx, method, req)
@@ -85,13 +85,13 @@ func uiDispatchMiddleware(streams *sessionStreams, logger *zap.Logger) mcp.Middl
 	}
 }
 
-// appendUITools returns the telemetry tool list with the session's UI tools
+// appendUITools returns the telemetry tool list with the turn's UI tools
 // added. Any telemetry tool shadowed by a same-named UI tool is dropped so the
 // result carries a single entry per name (UI wins, mirroring AddTool's
 // replace-by-name behaviour). The input slice is not mutated. Malformed UI tools
 // are skipped and logged.
-func appendUITools(telemetryTools []*mcp.Tool, sess *session, logger *zap.Logger) []*mcp.Tool {
-	uiTools := uiToolDescriptors(sess, logger)
+func appendUITools(telemetryTools []*mcp.Tool, turn *turnState, logger *zap.Logger) []*mcp.Tool {
+	uiTools := uiToolDescriptors(turn, logger)
 	if len(uiTools) == 0 {
 		return telemetryTools
 	}
@@ -117,7 +117,7 @@ type uiToolDef struct {
 	schema      map[string]any
 }
 
-// uiToolDescriptors parses the session's declared UI tools into MCP tool
+// uiToolDescriptors parses the turn's declared UI tools into MCP tool
 // descriptors for advertisement in tools/list, skipping malformed entries
 // (frontend input is untrusted) and collapsing repeated names to their first
 // occurrence so the advertised list has no duplicates. The InputSchema is
@@ -125,10 +125,10 @@ type uiToolDef struct {
 // agent reject the tool. These descriptors are advertised only, never registered
 // on the server — dispatch is handled by the middleware — so they bypass
 // Server.AddTool's schema validation by design.
-func uiToolDescriptors(sess *session, logger *zap.Logger) []*mcp.Tool {
-	descriptors := make([]*mcp.Tool, 0, len(sess.uiTools))
-	seen := make(map[string]struct{}, len(sess.uiTools))
-	for _, raw := range sess.uiTools {
+func uiToolDescriptors(turn *turnState, logger *zap.Logger) []*mcp.Tool {
+	descriptors := make([]*mcp.Tool, 0, len(turn.uiTools))
+	seen := make(map[string]struct{}, len(turn.uiTools))
+	for _, raw := range turn.uiTools {
 		def, ok := parseUITool(raw)
 		if !ok {
 			logger.Warn("skipping malformed UI tool", zap.ByteString("tool", raw))
@@ -147,10 +147,10 @@ func uiToolDescriptors(sess *session, logger *zap.Logger) []*mcp.Tool {
 	return descriptors
 }
 
-// sessionDeclaredUITool reports whether toolName is one of the session's
+// turnDeclaredUITool reports whether toolName is one of the turn's
 // frontend-declared UI tools. Malformed or unnamed entries never match.
-func sessionDeclaredUITool(sess *session, toolName string) bool {
-	for _, raw := range sess.uiTools {
+func turnDeclaredUITool(turn *turnState, toolName string) bool {
+	for _, raw := range turn.uiTools {
 		if def, ok := parseUITool(raw); ok && def.name == toolName {
 			return true
 		}
@@ -177,14 +177,14 @@ func parseUITool(raw json.RawMessage) (uiToolDef, bool) {
 	}, true
 }
 
-// dispatchUIToolCall fires the UI tool's TOOL_CALL_* lifecycle onto the browser
+// emitUIToolCall fires the UI tool's TOOL_CALL_* lifecycle onto the browser
 // SSE stream and returns a synthetic ack so the agent's tool-call loop can
 // progress. The browser is the real executor, so this is fire-and-forget at the
-// LLM layer. A nil stream (session ended mid-request) or malformed arguments
+// LLM layer. A nil stream (turn ended mid-request) or malformed arguments
 // return an MCP error result rather than failing the call at the transport.
-func dispatchUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMessage) *mcp.CallToolResult {
+func emitUIToolCall(stream *streamingClient, toolName string, rawArgs json.RawMessage) *mcp.CallToolResult {
 	if stream == nil {
-		return uiToolErrorResult(fmt.Sprintf("session stream closed for tool %q", toolName))
+		return uiToolErrorResult(fmt.Sprintf("browser stream closed for tool %q", toolName))
 	}
 	var args any
 	if len(rawArgs) > 0 {

@@ -20,6 +20,10 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 
 // TraceReader adapts a v1 spanstore.Reader to the v2 tracestore.Reader interface.
 type TraceReader struct {
+	// v1 storage backends do not compute trace summaries natively; fall back to
+	// FindTraces + client-side aggregation.
+	tracestore.UnsupportedTraceSummaries
+
 	spanReader spanstore.Reader
 }
 

@@ -34,27 +34,26 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 	return b
 }
 
-// sessionMCPServer mounts a real session-scoped handler with one active session
+// turnMCPServer mounts a real turn-scoped handler with one active turn
 // ("sess-1") holding the given UI tools, and returns the test HTTP server plus
-// the recorder backing that session's SSE stream (to observe UI-tool dispatch).
-func sessionMCPServer(t *testing.T, uiTools []json.RawMessage) (*httptest.Server, *httptest.ResponseRecorder) {
+// the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
+func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	streams := newSessionStreams()
-	rec := httptest.NewRecorder()
-	streams.set("sess-1", newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
+	turns := newTurnRegistry()
+	rec = httptest.NewRecorder()
+	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
-	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	h := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", zap.NewNop())
 	mux := http.NewServeMux()
-	mux.Handle(routeMCPSession, h)
-	mux.Handle(routeMCPSessionNoSlash, h)
+	h.registerRoutes(mux)
 
-	ts := httptest.NewServer(mux)
+	ts = httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
-	return ts, rec
+	return ts, rec, routeID
 }
 
-func connectSessionMCP(t *testing.T, ts *httptest.Server, path string) *mcp.ClientSession {
+func connectTurnMCP(t *testing.T, ts *httptest.Server, path string) *mcp.ClientSession {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
@@ -68,9 +67,9 @@ func connectSessionMCP(t *testing.T, ts *httptest.Server, path string) *mcp.Clie
 	return session
 }
 
-func TestMCPSessionHandlerServesTelemetryPlusUITools(t *testing.T) {
-	ts, _ := sessionMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
-	session := connectSessionMCP(t, ts, "/api/ai/mcp/sess-1/")
+func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
+	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
@@ -80,12 +79,12 @@ func TestMCPSessionHandlerServesTelemetryPlusUITools(t *testing.T) {
 		got = append(got, tool.Name)
 	}
 	assert.Contains(t, got, "get_services", "built-in telemetry tools must be advertised")
-	assert.Contains(t, got, "show_chart", "the session's UI tools must be advertised")
+	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
 }
 
-func TestMCPSessionHandlerDispatchesUIToolToStream(t *testing.T) {
-	ts, rec := sessionMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
-	session := connectSessionMCP(t, ts, "/api/ai/mcp/sess-1/")
+func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
+	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "show_chart",
@@ -94,32 +93,31 @@ func TestMCPSessionHandlerDispatchesUIToolToStream(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, result.IsError)
 
-	// The UI-tool call was dispatched to the browser over the session's SSE
+	// The UI-tool call was dispatched to the browser over the turn's SSE
 	// stream — the recorder should carry the TOOL_CALL_* frames for it.
 	assert.Contains(t, rec.Body.String(), "show_chart")
 }
 
-// TestMCPSessionHandlerIsolatesSessions is the key guarantee of the single
-// shared server: two sessions declaring different UI tools each see only their
+// TestTurnScopedEndpointIsolatesTurns is the key guarantee of the single
+// shared server: two turns declaring different UI tools each see only their
 // own (plus the shared telemetry tools), and a UI-tool call reaches only the
-// calling session's stream. If the middleware ever resolved the wrong session
+// calling turn's stream. If the middleware ever resolved the wrong turn
 // from the request context, this would cross the wires.
-func TestMCPSessionHandlerIsolatesSessions(t *testing.T) {
+func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	streams := newSessionStreams()
+	turns := newTurnRegistry()
 	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
-	streams.set("sess-a", newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
-	streams.set("sess-b", newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
+	idA := registerTurn(turns, newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
+	idB := registerTurn(turns, newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
-	h := newMCPSessionHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), streams, "", zap.NewNop())
+	h := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", zap.NewNop())
 	mux := http.NewServeMux()
-	mux.Handle(routeMCPSession, h)
-	mux.Handle(routeMCPSessionNoSlash, h)
+	h.registerRoutes(mux)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 
-	sessionA := connectSessionMCP(t, ts, "/api/ai/mcp/sess-a/")
-	sessionB := connectSessionMCP(t, ts, "/api/ai/mcp/sess-b/")
+	sessionA := connectTurnMCP(t, ts, "/api/ai/mcp/"+idA+"/")
+	sessionB := connectTurnMCP(t, ts, "/api/ai/mcp/"+idB+"/")
 
 	listA, err := sessionA.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
@@ -128,20 +126,20 @@ func TestMCPSessionHandlerIsolatesSessions(t *testing.T) {
 	namesA, namesB := toolNames(listA.Tools), toolNames(listB.Tools)
 
 	assert.Contains(t, namesA, "chart_a")
-	assert.NotContains(t, namesA, "chart_b", "session A must not see session B's UI tools")
+	assert.NotContains(t, namesA, "chart_b", "turn A must not see turn B's UI tools")
 	assert.Contains(t, namesB, "chart_b")
-	assert.NotContains(t, namesB, "chart_a", "session B must not see session A's UI tools")
-	assert.Contains(t, namesA, "get_services", "both sessions still see the shared telemetry tools")
+	assert.NotContains(t, namesB, "chart_a", "turn B must not see turn A's UI tools")
+	assert.Contains(t, namesA, "get_services", "both turns still see the shared telemetry tools")
 	assert.Contains(t, namesB, "get_services")
 
 	_, err = sessionA.CallTool(context.Background(), &mcp.CallToolParams{Name: "chart_a"})
 	require.NoError(t, err)
-	assert.Contains(t, recA.Body.String(), "chart_a", "the dispatch reaches the calling session's stream")
-	assert.NotContains(t, recB.Body.String(), "chart_a", "the other session's stream is untouched")
+	assert.Contains(t, recA.Body.String(), "chart_a", "the dispatch reaches the calling turn's stream")
+	assert.NotContains(t, recB.Body.String(), "chart_a", "the other turn's stream is untouched")
 }
 
-func TestMCPSessionHandlerRejectsUnknownSession(t *testing.T) {
-	ts, _ := sessionMCPServer(t, nil)
+func TestTurnScopedEndpointRejectsUnknownTurn(t *testing.T) {
+	ts, _, _ := turnMCPServer(t, nil)
 	for _, p := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
 		t.Run(p, func(t *testing.T) {
 			resp, err := ts.Client().Get(ts.URL + p)

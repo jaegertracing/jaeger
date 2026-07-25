@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -39,6 +40,12 @@ func setupHTTPGatewayNoServer(
 	gw := &testGateway{
 		reader: &tracestoremocks.Reader{},
 	}
+	// The mock reader models a backend without native trace summaries: FindTraceSummaries
+	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
+	gw.reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
+		})).Maybe()
 
 	q := querysvc.NewQueryService(
 		gw.reader,

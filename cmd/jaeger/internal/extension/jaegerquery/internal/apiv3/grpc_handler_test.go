@@ -5,6 +5,8 @@ package apiv3
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
 	"net"
 	"testing"
@@ -59,6 +61,12 @@ func newTestServerClient(t *testing.T) *testServerClient {
 		reader:     &tracestoremocks.Reader{},
 		depsReader: &dependencystoremocks.Reader{},
 	}
+	// The mock reader models a backend without native trace summaries: FindTraceSummaries
+	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
+	tsc.reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
+		})).Maybe()
 
 	q := querysvc.NewQueryService(
 		tsc.reader,

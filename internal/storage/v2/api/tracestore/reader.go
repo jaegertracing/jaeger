@@ -60,6 +60,21 @@ type Reader interface {
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
 	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]FoundTraceID, error]
+
+	// FindTraceSummaries returns an iterator over lightweight summaries of the traces
+	// matching the query parameters (the metadata shown in search-result lists). The
+	// iterator is single-use: once consumed, it cannot be used again.
+	//
+	// Backends that can compute summaries natively (e.g. via a storage-side aggregation)
+	// should do so. Backends that cannot must yield errors.ErrUnsupported (wrapped with
+	// %w) as the first error, before any batch; the caller then falls back to FindTraces
+	// plus client-side aggregation. Such backends can embed UnsupportedTraceSummaries to
+	// get this behavior for free.
+	//
+	// The iterator streams result batches; each yielded batch may contain one or more
+	// summaries, and implementations may yield incrementally rather than buffering all
+	// results first.
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.

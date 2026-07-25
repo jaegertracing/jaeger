@@ -21,10 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var (
-	_ tracestore.Reader        = (*TraceReader)(nil)
-	_ tracestore.SummaryReader = (*TraceReader)(nil)
-)
+var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
 	client storage.TraceReaderClient
