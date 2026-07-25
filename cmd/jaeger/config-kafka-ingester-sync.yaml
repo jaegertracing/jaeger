@@ -1,0 +1,106 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+# At-least-once Kafka ingester with synchronous Elasticsearch writes (RFC 0007).
+#
+# This is the ingester half of a Collector -> Kafka -> Ingester -> Elasticsearch
+# pipeline configured so a Kafka offset is committed only after the spans it
+# covers are durably written:
+#
+#   1. elasticsearch.write_mode: sync — each batch is one blocking _bulk request,
+#      so a write failure is surfaced to the pipeline instead of being swallowed by
+#      the async bulk buffer.
+#   2. elasticsearch.poison_pill_handling: drop — a document the backend rejects
+#      terminally (a malformed/poison span) is discarded rather than failing the
+#      batch forever, so a bad span can never stall the partition. Transient
+#      failures still fail the batch and are retried. (This is what makes sync mode
+#      safe to run without the dead-letter path — RFC 0007 §4.8.)
+#   3. The storage exporter blocks on the write result (queue.wait_for_result) and
+#      batches inside its sending queue, so there is NO pipeline `batch` processor.
+#   4. The Kafka receiver marks offsets only after successful processing
+#      (message_marking.after: true, on_error: false).
+
+service:
+  extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+  pipelines:
+    traces:
+      receivers: [kafka]
+      # No `batch` processor: batching happens in the exporter's sending queue so
+      # the Kafka offset stays coupled to the write result.
+      processors: []
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    resource:
+      service.name: jaeger_ingester
+    metrics:
+      level: detailed
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                # use different port to avoid conflict with the collector
+                port: 8889
+    logs:
+      level: info
+
+extensions:
+  healthcheckv2:
+    use_v2: true
+    http:
+      # use different port to avoid conflict with the collector
+      endpoint: 0.0.0.0:14133
+
+  jaeger_query:
+    storage:
+      traces: some_storage
+
+  jaeger_storage:
+    backends:
+      some_storage:
+        elasticsearch:
+          server_urls:
+            - http://localhost:9200
+          # Write each batch with one blocking _bulk request (RFC 0007).
+          write_mode: sync
+          # Drop poison spans so a malformed document can't stall the partition.
+          poison_pill_handling: drop
+          bulk_processing:
+            # Per-request byte cap of the synchronous writer; keep queue.batch.max_size
+            # below at or under this so a batch is one atomic _bulk request.
+            max_bytes: 5000000
+          indices:
+            index_prefix: "jaeger-main"
+
+receivers:
+  kafka:
+    brokers:
+      - ${env:KAFKA_BROKER:-localhost:9092}
+    traces:
+      topics:
+        - ${env:KAFKA_TOPIC:-jaeger-spans}
+      encoding: ${env:KAFKA_ENCODING:-otlp_proto}
+    initial_offset: earliest
+    # Commit an offset only after the spans it covers are durably written.
+    message_marking:
+      after: true
+      on_error: false
+
+processors:
+
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: some_storage
+    # Block the receiver on the write result and batch inside the queue, replacing
+    # the pipeline `batch` processor. Sizes are in bytes to stay comparable with the
+    # storage's bulk_processing.max_bytes.
+    queue:
+      wait_for_result: true
+      sizer: bytes
+      num_consumers: 1
+      queue_size: 104857600 # 100 MiB of buffered spans
+      batch:
+        sizer: bytes
+        flush_timeout: 200ms
+        min_size: 0 # flush as soon as flush_timeout elapses; keeps the e2e latency low
+        max_size: 4194304 # 4 MiB, kept <= bulk_processing.max_bytes above
