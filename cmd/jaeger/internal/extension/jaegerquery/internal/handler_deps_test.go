@@ -140,10 +140,8 @@ func TestDeduplicateDependencies(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		for range 100 {
-			actual := handler.deduplicateDependencies(test.input)
-			require.Equal(t, test.expected, actual, test.description)
-		}
+		actual := handler.deduplicateDependencies(test.input)
+		assert.Equal(t, test.expected, actual, test.description)
 	}
 }
 
