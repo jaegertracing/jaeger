@@ -26,9 +26,10 @@ import (
 const tagError = "error"
 
 var (
-	_ io.Closer          = (*Factory)(nil)
-	_ tracestore.Factory = (*Factory)(nil)
-	_ depstore.Factory   = (*Factory)(nil)
+	_ io.Closer                      = (*Factory)(nil)
+	_ tracestore.Factory             = (*Factory)(nil)
+	_ tracestore.SyncBulkWriteConfig = (*Factory)(nil)
+	_ depstore.Factory               = (*Factory)(nil)
 )
 
 type Factory struct {
@@ -63,6 +64,16 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	params := f.coreFactory.GetSpanWriterParams()
 	wr := v2tracestore.NewTraceWriter(params)
 	return wr, nil
+}
+
+// SyncBulkWriteByteCap implements tracestore.SyncBulkWriteConfig: it reports
+// whether spans are written synchronously (write_mode: sync) and, if so, the
+// maximum number of bytes the synchronous writer places in a single _bulk request
+// (bulk_processing.max_bytes). A blocking exporter uses it to check its configured
+// batch size against the cap (RFC 0007 §4.5). In async mode sync is false and the
+// cap is irrelevant.
+func (f *Factory) SyncBulkWriteByteCap() (sync bool, maxBytes int) {
+	return f.config.EffectiveWriteMode() == escfg.WriteModeSync, f.config.BulkProcessing.MaxBytes
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {

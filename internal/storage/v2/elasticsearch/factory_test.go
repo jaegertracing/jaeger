@@ -104,6 +104,31 @@ func TestESStorageFactoryErr(t *testing.T) {
 	require.Nil(t, f)
 }
 
+func TestSyncBulkWriteByteCap(t *testing.T) {
+	tests := []struct {
+		name        string
+		writeMode   escfg.WriteMode
+		maxBytes    int
+		expectSync  bool
+		expectedCap int
+	}{
+		{name: "sync mode reports its byte cap", writeMode: escfg.WriteModeSync, maxBytes: 5_000_000, expectSync: true, expectedCap: 5_000_000},
+		{name: "async mode is not sync", writeMode: escfg.WriteModeAsync, maxBytes: 5_000_000, expectSync: false, expectedCap: 5_000_000},
+		{name: "unset mode defaults to async", writeMode: "", maxBytes: 5_000_000, expectSync: false, expectedCap: 5_000_000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &Factory{config: escfg.Configuration{
+				WriteMode:      tt.writeMode,
+				BulkProcessing: escfg.BulkProcessing{MaxBytes: tt.maxBytes},
+			}}
+			sync, maxBytes := f.SyncBulkWriteByteCap()
+			require.Equal(t, tt.expectSync, sync)
+			require.Equal(t, tt.expectedCap, maxBytes)
+		})
+	}
+}
+
 // func getTestingFactoryBase(t *testing.T, cfg *escfg.Configuration) *elasticsearch.FactoryBase {
 // 	f := &elasticsearch.FactoryBase{}
 // 	err := elasticsearch.SetFactoryForTest(f, zaptest.NewLogger(t), metrics.NullFactory, cfg)
