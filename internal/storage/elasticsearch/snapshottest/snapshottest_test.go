@@ -388,6 +388,8 @@ func TestValidateNDJSON(t *testing.T) {
 		{name: "missing content type", contentType: "", body: body, wantErr: "is not one of"},
 		{name: "wrong content type", contentType: "text/plain", body: body, wantErr: "is not one of"},
 		{name: "empty body", contentType: "application/x-ndjson", body: "", wantErr: "must not be empty"},
+		{name: "newline only", contentType: "application/x-ndjson", body: "\n", wantErr: "at least one JSON document"},
+		{name: "whitespace only", contentType: "application/x-ndjson", body: "  \n", wantErr: "at least one JSON document"},
 		{
 			name: "no trailing newline", contentType: "application/x-ndjson",
 			body: `{"index":{}}` + "\n" + `{"a":1}`, wantErr: "must end with a newline",

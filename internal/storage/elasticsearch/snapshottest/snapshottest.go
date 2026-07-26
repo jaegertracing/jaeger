@@ -222,6 +222,13 @@ func validateNDJSON(contentType string, body []byte) error {
 	if len(body) == 0 {
 		return errors.New("body must not be empty")
 	}
+	// A body of only newlines/whitespace passes the suffix checks below but carries
+	// no document — the backend rejects it, and toSnapshot would trim it to empty
+	// and never reach parseNDJSON, so the blank line escapes detection. Require at
+	// least one non-whitespace (JSON) line here.
+	if len(bytes.TrimSpace(body)) == 0 {
+		return errors.New("body must contain at least one JSON document")
+	}
 	if !bytes.HasSuffix(body, []byte("\n")) {
 		return errors.New("body must end with a newline")
 	}
