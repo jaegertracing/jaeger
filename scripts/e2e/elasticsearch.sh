@@ -134,10 +134,10 @@ main() {
   set -x
 
   bring_up_storage "${distro}" "${es_version}"
-  build_local_img
   if [[ "${storage_test}" == "e2e" ]]; then
     STORAGE=${distro} SPAN_STORAGE_TYPE=${distro} make jaeger-v2-storage-integration-test
   elif [[ "${storage_test}" == "direct" ]]; then
+    build_local_img
     echo "::group::⬇️ Pre-pull test docker images"
     docker pull localhost:5000/jaegertracing/jaeger-es-index-cleaner:local-test
     docker pull localhost:5000/jaegertracing/jaeger-es-rollover:local-test

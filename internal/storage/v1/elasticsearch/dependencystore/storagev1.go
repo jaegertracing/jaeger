@@ -35,11 +35,6 @@ func (s *StoreV1) WriteDependencies(ts time.Time, dependencies []model.Dependenc
 	return s.depStore.WriteDependencies(ts, dbDependencies)
 }
 
-// CreateTemplates creates index templates.
-func (s *StoreV1) CreateTemplates(dependenciesTemplate string) error {
-	return s.depStore.CreateTemplates(dependenciesTemplate)
-}
-
 // GetDependencies returns all interservice dependencies
 func (s *StoreV1) GetDependencies(ctx context.Context, endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	dbDependencies, err := s.depStore.GetDependencies(ctx, endTs, lookback)

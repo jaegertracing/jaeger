@@ -7,12 +7,12 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/olivere/elastic/v7"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
@@ -41,7 +41,7 @@ func (ql *QueryLogger) TraceQuery(ctx context.Context, metricName string) trace.
 }
 
 // LogAndTraceResult logs the Elasticsearch query results and potentially adds them to the span.
-func (ql *QueryLogger) LogAndTraceResult(span trace.Span, searchResult *elastic.SearchResult) {
+func (ql *QueryLogger) LogAndTraceResult(span trace.Span, searchResult *esclient.SearchResponse) {
 	if span.IsRecording() {
 		resultJSON, _ := json.MarshalIndent(searchResult, "", "  ")
 		ql.logger.Debug("Elasticsearch metricsreader query results", zap.String("results", string(resultJSON)))

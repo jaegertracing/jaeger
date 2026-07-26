@@ -10,15 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.uber.org/zap"
 
-	esmetrics "github.com/jaegertracing/jaeger/internal/metrics"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
+	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 )
 
@@ -57,7 +56,7 @@ func setupTestQB() *QueryBuilder {
 	}, testSpanRotation())
 }
 
-func testAggregationStructure(t *testing.T, agg elastic.Aggregation, expectedInterval string, validateSubAggs func(map[string]any)) {
+func testAggregationStructure(t *testing.T, agg esquery.Aggregation, expectedInterval string, validateSubAggs func(map[string]any)) {
 	src, err := agg.Source()
 	require.NoError(t, err)
 
@@ -135,7 +134,7 @@ func TestBuildTimeSeriesAggQuery(t *testing.T) {
 		Step:             &step,
 		GroupByOperation: false,
 	}
-	subAgg := elastic.NewCumulativeSumAggregation()
+	subAgg := esquery.NewCumulativeSumAggregation()
 
 	agg := qb.buildTimeSeriesAggQuery(params, commonTimeRange, "test_sub_agg", subAgg)
 	require.NotNil(t, agg)
@@ -161,15 +160,15 @@ func TestExecute(t *testing.T) {
 		Servers:  []string{mockServer.URL},
 		LogLevel: "debug",
 	}
-	client := clientProvider(t, cfg, zap.NewNop(), esmetrics.NullFactory)
+	client := clientProvider(t, cfg, zap.NewNop())
 	qb := NewQueryBuilder(client, *cfg, testSpanRotation())
 
-	boolQuery := elastic.NewBoolQuery()
-	aggQuery := elastic.NewDateHistogramAggregation().Field("startTimeMillis").FixedInterval("60000ms")
+	boolQuery := esquery.NewBoolQuery()
+	aggQuery := esquery.NewDateHistogramAggregation().Field("startTimeMillis").FixedInterval("60000ms")
 
 	// Use epoch zero — with daily layout (Spans) this produces "1970-01-01",
 	// with hourly layout (Services) it would produce "1970-01-01-00".
-	result, err := qb.Execute(context.Background(), *boolQuery, aggQuery, TimeRange{endTimeMillis: 0, startTimeMillis: 0})
+	result, err := qb.Execute(context.Background(), boolQuery, aggQuery, TimeRange{endTimeMillis: 0, startTimeMillis: 0})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

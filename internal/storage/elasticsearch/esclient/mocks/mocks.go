@@ -12,7 +12,6 @@ package mocks
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -225,16 +224,16 @@ func (_c *IndexAPI_CreateIndex_Call) RunAndReturn(run func(ctx context.Context, 
 }
 
 // CreateTemplate provides a mock function for the type IndexAPI
-func (_mock *IndexAPI) CreateTemplate(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error)) error {
-	ret := _mock.Called(ctx, name, render)
+func (_mock *IndexAPI) CreateTemplate(ctx context.Context, name string, mappingType esclient.MappingType) error {
+	ret := _mock.Called(ctx, name, mappingType)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateTemplate")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, func(elasticsearch.BackendVersion) (string, error)) error); ok {
-		r0 = returnFunc(ctx, name, render)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, esclient.MappingType) error); ok {
+		r0 = returnFunc(ctx, name, mappingType)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -249,12 +248,12 @@ type IndexAPI_CreateTemplate_Call struct {
 // CreateTemplate is a helper method to define mock.On call
 //   - ctx context.Context
 //   - name string
-//   - render func(elasticsearch.BackendVersion) (string, error)
-func (_e *IndexAPI_Expecter) CreateTemplate(ctx interface{}, name interface{}, render interface{}) *IndexAPI_CreateTemplate_Call {
-	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, name, render)}
+//   - mappingType esclient.MappingType
+func (_e *IndexAPI_Expecter) CreateTemplate(ctx interface{}, name interface{}, mappingType interface{}) *IndexAPI_CreateTemplate_Call {
+	return &IndexAPI_CreateTemplate_Call{Call: _e.mock.On("CreateTemplate", ctx, name, mappingType)}
 }
 
-func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error))) *IndexAPI_CreateTemplate_Call {
+func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name string, mappingType esclient.MappingType)) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
@@ -264,9 +263,9 @@ func (_c *IndexAPI_CreateTemplate_Call) Run(run func(ctx context.Context, name s
 		if args[1] != nil {
 			arg1 = args[1].(string)
 		}
-		var arg2 func(elasticsearch.BackendVersion) (string, error)
+		var arg2 esclient.MappingType
 		if args[2] != nil {
-			arg2 = args[2].(func(elasticsearch.BackendVersion) (string, error))
+			arg2 = args[2].(esclient.MappingType)
 		}
 		run(
 			arg0,
@@ -282,7 +281,7 @@ func (_c *IndexAPI_CreateTemplate_Call) Return(err error) *IndexAPI_CreateTempla
 	return _c
 }
 
-func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, name string, render func(elasticsearch.BackendVersion) (string, error)) error) *IndexAPI_CreateTemplate_Call {
+func (_c *IndexAPI_CreateTemplate_Call) RunAndReturn(run func(ctx context.Context, name string, mappingType esclient.MappingType) error) *IndexAPI_CreateTemplate_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -718,6 +717,74 @@ func (_m *Searcher) EXPECT() *Searcher_Expecter {
 	return &Searcher_Expecter{mock: &_m.Mock}
 }
 
+// MultiSearch provides a mock function for the type Searcher
+func (_mock *Searcher) MultiSearch(ctx context.Context, reqs []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error) {
+	ret := _mock.Called(ctx, reqs)
+
+	if len(ret) == 0 {
+		panic("no return value specified for MultiSearch")
+	}
+
+	var r0 []esclient.SearchResponse
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error)); ok {
+		return returnFunc(ctx, reqs)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.MultiSearchRequest) []esclient.SearchResponse); ok {
+		r0 = returnFunc(ctx, reqs)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]esclient.SearchResponse)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, []esclient.MultiSearchRequest) error); ok {
+		r1 = returnFunc(ctx, reqs)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Searcher_MultiSearch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'MultiSearch'
+type Searcher_MultiSearch_Call struct {
+	*mock.Call
+}
+
+// MultiSearch is a helper method to define mock.On call
+//   - ctx context.Context
+//   - reqs []esclient.MultiSearchRequest
+func (_e *Searcher_Expecter) MultiSearch(ctx interface{}, reqs interface{}) *Searcher_MultiSearch_Call {
+	return &Searcher_MultiSearch_Call{Call: _e.mock.On("MultiSearch", ctx, reqs)}
+}
+
+func (_c *Searcher_MultiSearch_Call) Run(run func(ctx context.Context, reqs []esclient.MultiSearchRequest)) *Searcher_MultiSearch_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []esclient.MultiSearchRequest
+		if args[1] != nil {
+			arg1 = args[1].([]esclient.MultiSearchRequest)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Searcher_MultiSearch_Call) Return(searchResponses []esclient.SearchResponse, err error) *Searcher_MultiSearch_Call {
+	_c.Call.Return(searchResponses, err)
+	return _c
+}
+
+func (_c *Searcher_MultiSearch_Call) RunAndReturn(run func(ctx context.Context, reqs []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error)) *Searcher_MultiSearch_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Search provides a mock function for the type Searcher
 func (_mock *Searcher) Search(ctx context.Context, indices []string, req esclient.SearchRequest) (*esclient.SearchResponse, error) {
 	ret := _mock.Called(ctx, indices, req)
@@ -792,13 +859,13 @@ func (_c *Searcher_Search_Call) RunAndReturn(run func(ctx context.Context, indic
 	return _c
 }
 
-// NewBulkWriter creates a new instance of BulkWriter. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// NewBatchWriter creates a new instance of BatchWriter. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
-func NewBulkWriter(t interface {
+func NewBatchWriter(t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *BulkWriter {
-	mock := &BulkWriter{}
+}) *BatchWriter {
+	mock := &BatchWriter{}
 	mock.Mock.Test(t)
 
 	t.Cleanup(func() { mock.AssertExpectations(t) })
@@ -806,55 +873,72 @@ func NewBulkWriter(t interface {
 	return mock
 }
 
-// BulkWriter is an autogenerated mock type for the BulkWriter type
-type BulkWriter struct {
+// BatchWriter is an autogenerated mock type for the BatchWriter type
+type BatchWriter struct {
 	mock.Mock
 }
 
-type BulkWriter_Expecter struct {
+type BatchWriter_Expecter struct {
 	mock *mock.Mock
 }
 
-func (_m *BulkWriter) EXPECT() *BulkWriter_Expecter {
-	return &BulkWriter_Expecter{mock: &_m.Mock}
+func (_m *BatchWriter) EXPECT() *BatchWriter_Expecter {
+	return &BatchWriter_Expecter{mock: &_m.Mock}
 }
 
-// Add provides a mock function for the type BulkWriter
-func (_mock *BulkWriter) Add(item esclient.BulkItem) {
-	_mock.Called(item)
-	return
+// WriteBatch provides a mock function for the type BatchWriter
+func (_mock *BatchWriter) WriteBatch(ctx context.Context, items []esclient.BulkItem) error {
+	ret := _mock.Called(ctx, items)
+
+	if len(ret) == 0 {
+		panic("no return value specified for WriteBatch")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []esclient.BulkItem) error); ok {
+		r0 = returnFunc(ctx, items)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
 }
 
-// BulkWriter_Add_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Add'
-type BulkWriter_Add_Call struct {
+// BatchWriter_WriteBatch_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'WriteBatch'
+type BatchWriter_WriteBatch_Call struct {
 	*mock.Call
 }
 
-// Add is a helper method to define mock.On call
-//   - item esclient.BulkItem
-func (_e *BulkWriter_Expecter) Add(item interface{}) *BulkWriter_Add_Call {
-	return &BulkWriter_Add_Call{Call: _e.mock.On("Add", item)}
+// WriteBatch is a helper method to define mock.On call
+//   - ctx context.Context
+//   - items []esclient.BulkItem
+func (_e *BatchWriter_Expecter) WriteBatch(ctx interface{}, items interface{}) *BatchWriter_WriteBatch_Call {
+	return &BatchWriter_WriteBatch_Call{Call: _e.mock.On("WriteBatch", ctx, items)}
 }
 
-func (_c *BulkWriter_Add_Call) Run(run func(item esclient.BulkItem)) *BulkWriter_Add_Call {
+func (_c *BatchWriter_WriteBatch_Call) Run(run func(ctx context.Context, items []esclient.BulkItem)) *BatchWriter_WriteBatch_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 esclient.BulkItem
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(esclient.BulkItem)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 []esclient.BulkItem
+		if args[1] != nil {
+			arg1 = args[1].([]esclient.BulkItem)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *BulkWriter_Add_Call) Return() *BulkWriter_Add_Call {
-	_c.Call.Return()
+func (_c *BatchWriter_WriteBatch_Call) Return(err error) *BatchWriter_WriteBatch_Call {
+	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *BulkWriter_Add_Call) RunAndReturn(run func(item esclient.BulkItem)) *BulkWriter_Add_Call {
-	_c.Run(run)
+func (_c *BatchWriter_WriteBatch_Call) RunAndReturn(run func(ctx context.Context, items []esclient.BulkItem) error) *BatchWriter_WriteBatch_Call {
+	_c.Call.Return(run)
 	return _c
 }

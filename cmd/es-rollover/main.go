@@ -42,12 +42,15 @@ func main() {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c esclient.Client, cfg app.Config) app.Action {
+			}, func(c *esclient.Client, cfg app.Config) app.Action {
 				initCfg.Config = cfg
 				initCfg.InitFromViper(v)
 				indicesClient := &esclient.IndicesClient{
 					Client:               c,
 					MasterTimeoutSeconds: initCfg.Timeout,
+					Indices:              initCfg.Indices,
+					UseILM:               initCfg.UseILM,
+					ILMPolicyName:        initCfg.ILMPolicyName,
 				}
 				ilmClient := &esclient.ILMClient{
 					Client: c,
@@ -76,7 +79,7 @@ func main() {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c esclient.Client, cfg app.Config) app.Action {
+			}, func(c *esclient.Client, cfg app.Config) app.Action {
 				rolloverCfg.Config = cfg
 				rolloverCfg.InitFromViper(v)
 				indicesClient := &esclient.IndicesClient{
@@ -104,7 +107,7 @@ func main() {
 				Args:   args,
 				Viper:  v,
 				Logger: logger,
-			}, func(c esclient.Client, cfg app.Config) app.Action {
+			}, func(c *esclient.Client, cfg app.Config) app.Action {
 				lookbackCfg.Config = cfg
 				lookbackCfg.InitFromViper(v)
 				indicesClient := &esclient.IndicesClient{
