@@ -5,8 +5,6 @@
 package app
 
 import (
-	"cmp"
-	"slices"
 	"testing"
 	"time"
 
@@ -65,11 +63,6 @@ func TestDeduplicateDependencies(t *testing.T) {
 			[]ui.DependencyLink{
 				{
 					Parent:    "Dáin I",
-					Child:     "Thrór",
-					CallCount: 314,
-				},
-				{
-					Parent:    "Dáin I",
 					Child:     "Frór",
 					CallCount: 159,
 				},
@@ -77,6 +70,11 @@ func TestDeduplicateDependencies(t *testing.T) {
 					Parent:    "Dáin I",
 					Child:     "Grór",
 					CallCount: 265,
+				},
+				{
+					Parent:    "Dáin I",
+					Child:     "Thrór",
+					CallCount: 314,
 				},
 			},
 		},
@@ -96,14 +94,14 @@ func TestDeduplicateDependencies(t *testing.T) {
 			},
 			[]ui.DependencyLink{
 				{
-					Parent:    "Hador",
-					Child:     "Glóredhel",
-					CallCount: 3,
-				},
-				{
 					Parent:    "Gildis",
 					Child:     "Glóredhel",
 					CallCount: 9,
+				},
+				{
+					Parent:    "Hador",
+					Child:     "Glóredhel",
+					CallCount: 3,
 				},
 			},
 		},
@@ -129,35 +127,24 @@ func TestDeduplicateDependencies(t *testing.T) {
 			[]ui.DependencyLink{
 				{
 					Parent:    "Dáin I",
-					Child:     "Thrór",
-					CallCount: 473,
+					Child:     "Grór",
+					CallCount: 265,
 				},
 				{
 					Parent:    "Dáin I",
-					Child:     "Grór",
-					CallCount: 265,
+					Child:     "Thrór",
+					CallCount: 473,
 				},
 			},
 		},
 	}
 
 	for _, test := range tests {
-		actual := handler.deduplicateDependencies(test.input)
-		slices.SortFunc(actual, compareDependencyLinks)
-		expected := test.expected
-		slices.SortFunc(expected, compareDependencyLinks)
-		assert.Equal(t, expected, actual, test.description)
+		for range 100 {
+			actual := handler.deduplicateDependencies(test.input)
+			require.Equal(t, test.expected, actual, test.description)
+		}
 	}
-}
-
-func compareDependencyLinks(a, b ui.DependencyLink) int {
-	if a.Parent != b.Parent {
-		return cmp.Compare(a.Parent, b.Parent)
-	}
-	if a.Child != b.Child {
-		return cmp.Compare(a.Child, b.Child)
-	}
-	return cmp.Compare(a.CallCount, b.CallCount)
 }
 
 func TestFilterDependencies(t *testing.T) {
