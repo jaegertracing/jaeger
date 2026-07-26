@@ -39,7 +39,7 @@ extensions:
     backends:
       some-storage:
         clickhouse:
-          attribute_metadata_cache_ttl: 5s
+          attribute_metadata_cache_ttl: ${env:CLICKHOUSE_ATTR_METADATA_CACHE_TTL:-10m}
           addresses:
             - localhost:9000
           database: jaeger

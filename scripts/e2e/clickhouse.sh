@@ -53,6 +53,10 @@ run_integration_test() {
     trap teardown_clickhouse EXIT
     healthcheck_clickhouse
     if [[ "${storage_test}" == "e2e" ]]; then
+        # Short TTL so that a cache entry populated from a partially flushed batch
+        # expires within the test's retry window. Propagated to the Jaeger subprocess
+        # via PropagateEnvVars in clickhouse_test.go.
+        export CLICKHOUSE_ATTR_METADATA_CACHE_TTL=5s
         STORAGE=clickhouse make jaeger-v2-storage-integration-test
     elif [[ "${storage_test}" == "direct" ]]; then
         STORAGE=clickhouse make storage-integration-test
