@@ -55,8 +55,14 @@ const (
 type SyncBulkWriter struct {
 	client   *Client
 	maxBytes int
-	metrics  *spanstoremetrics.WriteMetrics
-	logger   *zap.Logger
+	// dropPoison, when true, discards documents the backend rejects terminally
+	// (a poison pill — a 4xx that will fail identically on retry) instead of failing
+	// the batch, so the write completes and the offset advances. Transient failures
+	// (429 / 5xx / transport) still fail the batch. When false, any rejection fails
+	// the batch (retry-forever). Set from config.PoisonHandling by the factory.
+	dropPoison bool
+	metrics    *spanstoremetrics.WriteMetrics
+	logger     *zap.Logger
 }
 
 // NewSyncBulkWriter returns a SyncBulkWriter that sends each _bulk chunk over the
@@ -65,29 +71,28 @@ type SyncBulkWriter struct {
 // body larger than http.max_content_length (default 100 MB) with 413. The cap
 // bounds only the assembled chunk; a single document exceeding maxBytes cannot be
 // split, so it is sent alone and may still hit that server limit (§4.4).
-func NewSyncBulkWriter(client *Client, maxBytes int, metricsFactory metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
+func NewSyncBulkWriter(client *Client, maxBytes int, dropPoison bool, metricsFactory metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
 	if maxBytes <= 0 {
 		maxBytes = defaultSyncBulkMaxBytes
 	}
 	return &SyncBulkWriter{
-		client:   client,
-		maxBytes: maxBytes,
-		metrics:  spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
-		logger:   logger,
+		client:     client,
+		maxBytes:   maxBytes,
+		dropPoison: dropPoison,
+		metrics:    spanstoremetrics.NewWriter(metricsFactory, "bulk_index"),
+		logger:     logger,
 	}
 }
 
-// Bulk writes every item in one or more synchronous _bulk requests, each bounded
-// to maxBytes, and returns an error if the transport failed or any item was
-// rejected. Chunks are sent in sequence and their errors joined. On error the
-// caller re-sends the whole batch (Kafka re-delivery / exporter retry). Retry is
-// not idempotent for spans: a span document carries no _id, so ES/OS assigns a
-// fresh one and a re-sent span becomes a duplicate — today's behavior on any
-// retry. A document with a deterministic _id (the service:operation dedup doc)
-// instead upserts and never duplicates. A single item larger than maxBytes is
-// still sent in a chunk of its own — the backend, not the client, decides whether
-// it fits (a 413 then surfaces as a returned error).
-func (w *SyncBulkWriter) Bulk(ctx context.Context, items []BulkItem) error {
+// WriteBatch writes every item in one or more synchronous _bulk requests, each
+// bounded to maxBytes, and returns an error if the transport failed or any item was
+// rejected. Chunks are sent in sequence and their errors joined. On error the caller
+// re-sends the whole batch (Kafka re-delivery / exporter retry); an item that carries
+// a deterministic _id upserts on retry (or is a benign 409 under op_type: create)
+// instead of duplicating. A single item larger than maxBytes is still sent in a chunk
+// of its own — the backend, not the client, decides whether it fits (a 413 then
+// surfaces as a returned error).
+func (w *SyncBulkWriter) WriteBatch(ctx context.Context, items []BulkItem) error {
 	if len(items) == 0 {
 		return nil
 	}
@@ -193,17 +198,34 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	// a malformed or proxied response could report errors:false while an item still
 	// carries a failing status, and silently succeeding there would advance the
 	// Kafka offset over lost data — exactly what this synchronous writer prevents.
-	failed, sample := resp.failures()
+	terminal, transient, sample := resp.classify()
+	failed := terminal + transient
 	if failed == 0 {
 		return count, nil
 	}
-	w.logger.Error("synchronous bulk write had rejected items",
-		zap.Int("rejected", failed), zap.Int("total", count))
 	msg := strings.Join(sample, "; ")
 	if failed > len(sample) {
 		msg += fmt.Sprintf("; …and %d more", failed-len(sample))
 	}
-	return count - failed, fmt.Errorf("%d of %d bulk items rejected: %s", failed, count, msg)
+	// Drop mode: discard poison (terminal) items so the batch can complete. If the
+	// only failures are terminal, the chunk succeeds (offset advances) with the
+	// poison logged out-of-band. Transient failures — or fail mode — still error and
+	// retry the whole batch; any terminal items ride along and are re-dropped each
+	// retry until the transient ones clear.
+	if w.dropPoison && terminal > 0 {
+		w.logger.Warn("dropping poison-pill documents the backend rejected terminally",
+			zap.Int("dropped", terminal), zap.Int("total", count), zap.String("sample", msg))
+	}
+	if w.dropPoison && transient == 0 {
+		return count - terminal, nil
+	}
+	rejected := failed
+	if w.dropPoison {
+		rejected = transient // terminal items were dropped above, not retried
+	}
+	w.logger.Error("synchronous bulk write had rejected items",
+		zap.Int("rejected", rejected), zap.Int("total", count))
+	return count - failed, fmt.Errorf("%d of %d bulk items rejected: %s", rejected, count, msg)
 }
 
 // encodeBulkItem renders one document as its two NDJSON lines: the action line
@@ -248,31 +270,54 @@ type bulkItemState struct {
 	Error  json.RawMessage `json:"error"`
 }
 
-// failures returns the number of items that are not a confirmed durable write and
-// a bounded, human-readable sample of their reasons — at most maxReportedFailures
-// entries, each error payload truncated to maxErrorPayloadBytes — so the returned
-// error stays small even when an entire large batch is rejected.
+// classify splits the rejected items into terminal (a poison pill — a status the
+// backend will reject identically on replay, e.g. a 4xx mapping/validation error)
+// and transient (429 / 5xx / a malformed item result — worth retrying), and returns
+// a bounded, human-readable sample of their reasons (at most maxReportedFailures
+// entries, each payload truncated to maxErrorPayloadBytes) so the error stays small
+// even when an entire large batch is rejected.
 //
 // Durability is positively confirmed, not merely assumed from the absence of an
-// error: an item counts as durable only when it has exactly one action result
-// with a 2xx status and no error object. Anything else fails the chunk — a non-2xx
-// status, a present error, an empty item ({}), a missing status (which parses to
-// 0), or multiple action entries — because none of those is an acknowledgement, and
-// treating them as success would let Bulk return nil without the backend having
-// stored the document.
-func (r bulkResponse) failures() (count int, sample []string) {
+// error: an item counts as durable only when it has exactly one action result with
+// a 2xx status and no error object. Anything else is a failure — a non-2xx status, a
+// present error, an empty item ({}), a missing status (0), or multiple action
+// entries — because none of those is an acknowledgement, and treating them as
+// success would let the writer return nil without the backend having stored the doc.
+func (r bulkResponse) classify() (terminal, transient int, sample []string) {
 	for _, item := range r.Items {
 		state, durable := itemResult(item)
 		if durable {
 			continue
 		}
-		count++
-		if len(sample) >= maxReportedFailures {
-			continue
+		if isTransientStatus(state.Status) {
+			transient++
+		} else {
+			terminal++
 		}
-		sample = append(sample, rejectionReason(item, state))
+		if len(sample) < maxReportedFailures {
+			sample = append(sample, rejectionReason(item, state))
+		}
 	}
-	return count, sample
+	return terminal, transient, sample
+}
+
+// isTransientStatus reports whether a rejected item's status is worth retrying:
+// backpressure (429), server-side/gateway errors (5xx), and the zero value used for
+// a malformed item result (retry rather than risk dropping a real write). Any other
+// failing status is terminal — a 4xx the backend rejects identically on replay
+// (mapping conflict, malformed field, oversized field).
+func isTransientStatus(status int) bool {
+	switch status {
+	case 0, // malformed/unparsed item — conservatively retry rather than drop
+		http.StatusTooManyRequests,     // 429
+		http.StatusInternalServerError, // 500
+		http.StatusBadGateway,          // 502
+		http.StatusServiceUnavailable,  // 503
+		http.StatusGatewayTimeout:      // 504
+		return true
+	default:
+		return false
+	}
 }
 
 // itemResult returns a bulk item's single action result and whether the item is a

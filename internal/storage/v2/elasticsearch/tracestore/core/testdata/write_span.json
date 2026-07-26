@@ -4,6 +4,7 @@
   "ndjson": [
     {
       "index": {
+        "_id": "1234567890abcdef_abcdef1234567890_e2a9c552fe5e7be7",
         "_index": "jaeger-span-write-000001"
       }
     },

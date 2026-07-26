@@ -373,6 +373,24 @@ func TestValidate(t *testing.T) {
 			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, LogLevel: "debug"},
 		},
 		{
+			name:   "write_mode sync accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, WriteMode: WriteModeSync},
+		},
+		{
+			name:          "unrecognized write_mode rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, WriteMode: "eventually"},
+			expectedError: `unrecognized write_mode "eventually"`,
+		},
+		{
+			name:   "poison_pill_handling drop accepted",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, PoisonPillHandling: PoisonDrop},
+		},
+		{
+			name:          "unrecognized poison_pill_handling rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, PoisonPillHandling: "quarantine"},
+			expectedError: `unrecognized poison_pill_handling "quarantine"`,
+		},
+		{
 			name: "sniffing.use_https set is rejected",
 			config: &Configuration{
 				Servers:  []string{"localhost:8000/dummyserver"},
@@ -620,6 +638,29 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEffectiveWriteMode(t *testing.T) {
+	assert.Equal(t, WriteModeAsync, (&Configuration{}).EffectiveWriteMode(), "unset defaults to async")
+	assert.Equal(t, WriteModeAsync, (&Configuration{WriteMode: WriteModeAsync}).EffectiveWriteMode())
+	assert.Equal(t, WriteModeSync, (&Configuration{WriteMode: WriteModeSync}).EffectiveWriteMode())
+}
+
+func TestEffectivePoisonHandling(t *testing.T) {
+	assert.Equal(t, PoisonFail, (&Configuration{}).EffectivePoisonHandling(), "unset defaults to fail")
+	assert.Equal(t, PoisonFail, (&Configuration{PoisonPillHandling: PoisonFail}).EffectivePoisonHandling())
+	assert.Equal(t, PoisonDrop, (&Configuration{PoisonPillHandling: PoisonDrop}).EffectivePoisonHandling())
+}
+
+func TestApplyDefaultsPoisonHandling(t *testing.T) {
+	source := &Configuration{PoisonPillHandling: PoisonDrop}
+	target := &Configuration{}
+	target.ApplyDefaults(source)
+	assert.Equal(t, PoisonDrop, target.PoisonPillHandling, "unset target inherits the source policy")
+
+	explicit := &Configuration{PoisonPillHandling: PoisonFail}
+	explicit.ApplyDefaults(source)
+	assert.Equal(t, PoisonFail, explicit.PoisonPillHandling, "explicit target policy is preserved")
 }
 
 func TestApplyForIndexPrefix(t *testing.T) {

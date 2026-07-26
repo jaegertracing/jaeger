@@ -23,7 +23,11 @@ import (
 )
 
 func newSyncWriter(t *testing.T, url string, maxBytes int, mf metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
-	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), maxBytes, mf, logger)
+	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), maxBytes, false, mf, logger)
+}
+
+func newSyncWriterDropPoison(t *testing.T, url string, mf metrics.Factory, logger *zap.Logger) *SyncBulkWriter {
+	return NewSyncBulkWriter(makeClient(t, url, "", "", es.ElasticV7), 0, true, mf, logger)
 }
 
 // okBulkN answers with a successful _bulk response carrying exactly n item
@@ -42,7 +46,7 @@ func TestSyncBulkWriter_WritesNDJSON(t *testing.T) {
 	rec, url := bulkServer(t, okBulkN(2))
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
 
-	err := w.Bulk(context.Background(), []BulkItem{
+	err := w.WriteBatch(context.Background(), []BulkItem{
 		{Index: "jaeger-span-000001", ID: "abc", Body: map[string]any{"traceID": "1"}},
 		{Index: "jaeger.spans", OpType: es.WriteOpCreate, Body: map[string]any{"a": 1}},
 	})
@@ -55,14 +59,14 @@ func TestSyncBulkWriter_WritesNDJSON(t *testing.T) {
 }
 
 func TestSyncBulkWriter_DefaultsMaxBytes(t *testing.T) {
-	w := NewSyncBulkWriter(makeClient(t, "http://localhost:1", "", ""), -1, metrics.NullFactory, zap.NewNop())
+	w := NewSyncBulkWriter(makeClient(t, "http://localhost:1", "", ""), -1, false, metrics.NullFactory, zap.NewNop())
 	assert.Equal(t, defaultSyncBulkMaxBytes, w.maxBytes)
 }
 
 func TestSyncBulkWriter_Empty(t *testing.T) {
 	rec, url := bulkServer(t, okBulk)
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, w.Bulk(context.Background(), nil))
+	require.NoError(t, w.WriteBatch(context.Background(), nil))
 	assert.Empty(t, rec.Requests(), "an empty batch issues no request")
 }
 
@@ -72,7 +76,7 @@ func TestSyncBulkWriter_ChunkSplitByMaxBytes(t *testing.T) {
 	// into its own chunk (the first item alone exceeds the cap but is still sent).
 	w := newSyncWriter(t, url, 20, metrics.NullFactory, zap.NewNop())
 
-	err := w.Bulk(context.Background(), []BulkItem{
+	err := w.WriteBatch(context.Background(), []BulkItem{
 		{Index: "idx", Body: map[string]any{"a": 1}},
 		{Index: "idx", Body: map[string]any{"b": 2}},
 	})
@@ -95,7 +99,7 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	core, logs := observer.New(zap.ErrorLevel)
 	w := newSyncWriter(t, url, 0, mf, zap.New(core))
 
-	err := w.Bulk(context.Background(), []BulkItem{
+	err := w.WriteBatch(context.Background(), []BulkItem{
 		{Index: "idx", Body: map[string]any{"a": 1}},
 		{Index: "idx", Body: map[string]any{"b": 2}},
 	})
@@ -116,6 +120,63 @@ func TestSyncBulkWriter_ItemErrorPropagates(t *testing.T) {
 	assert.False(t, hasTimer(gauges, "bulk_index.latency-err"), "item rejection must not record latency-err: %v", gauges)
 }
 
+func TestSyncBulkWriter_DropPoison_TerminalDropped(t *testing.T) {
+	mf := metricstest.NewFactory(time.Second)
+	defer mf.Stop()
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` +
+			`{"index":{"_index":"idx","status":201}},` +
+			`{"index":{"_index":"idx","status":400,"error":{"type":"mapper_parsing_exception","reason":"bad field"}}}` +
+			`]}`))
+	})
+	core, logs := observer.New(zap.WarnLevel)
+	w := newSyncWriterDropPoison(t, url, mf, zap.New(core))
+
+	err := w.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.NoError(t, err, "a terminally-rejected poison doc is dropped, so the batch completes and the offset can advance")
+	assert.Positive(t, logs.FilterMessageSnippet("dropping poison-pill").Len())
+	mf.AssertCounterMetrics(
+		t,
+		metricstest.ExpectedMetric{Name: "bulk_index.inserts", Value: 1},
+		metricstest.ExpectedMetric{Name: "bulk_index.errors", Value: 1}, // the dropped poison doc
+	)
+}
+
+func TestSyncBulkWriter_DropPoison_TransientStillErrors(t *testing.T) {
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` +
+			`{"index":{"_index":"idx","status":429,"error":{"type":"es_rejected_execution_exception","reason":"busy"}}}` +
+			`]}`))
+	})
+	w := newSyncWriterDropPoison(t, url, metrics.NullFactory, zap.NewNop())
+
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	require.Error(t, err, "a transient 429 is retried, never dropped")
+	assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
+}
+
+func TestSyncBulkWriter_DropPoison_MixedRetries(t *testing.T) {
+	_, url := bulkServer(t, func(w http.ResponseWriter) {
+		w.Write([]byte(`{"errors":true,"items":[` +
+			`{"index":{"_index":"idx","status":400,"error":{"reason":"poison"}}},` + // terminal → dropped
+			`{"index":{"_index":"idx","status":503,"error":{"reason":"unavailable"}}}` + // transient → retry
+			`]}`))
+	})
+	core, logs := observer.New(zap.WarnLevel)
+	w := newSyncWriterDropPoison(t, url, metrics.NullFactory, zap.New(core))
+
+	err := w.WriteBatch(context.Background(), []BulkItem{
+		{Index: "idx", Body: map[string]any{"a": 1}},
+		{Index: "idx", Body: map[string]any{"b": 2}},
+	})
+	require.Error(t, err, "a transient failure in the batch still fails it for retry")
+	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected", "only the transient item is reported as retryable")
+	assert.Positive(t, logs.FilterMessageSnippet("dropping poison-pill").Len(), "the terminal item is still dropped and logged")
+}
+
 func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
 	mf := metricstest.NewFactory(time.Second)
 	defer mf.Stop()
@@ -124,7 +185,7 @@ func TestSyncBulkWriter_TransportErrorPropagates(t *testing.T) {
 	})
 	w := newSyncWriter(t, url, 0, mf, zap.NewNop())
 
-	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bulk request failed")
 	// A whole-request failure durably indexes nothing: every item counts as error.
@@ -140,7 +201,7 @@ func TestSyncBulkWriter_ItemCountMismatch(t *testing.T) {
 	// truncated the body) can't be accounted per-item, so the whole chunk fails.
 	_, url := bulkServer(t, okBulkN(1))
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
-	err := w.Bulk(context.Background(), []BulkItem{
+	err := w.WriteBatch(context.Background(), []BulkItem{
 		{Index: "idx", Body: map[string]any{"a": 1}},
 		{Index: "idx", Body: map[string]any{"b": 2}},
 	})
@@ -161,7 +222,7 @@ func TestSyncBulkWriter_CapsReportedFailures(t *testing.T) {
 	})
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
 
-	err := w.Bulk(context.Background(), sent)
+	err := w.WriteBatch(context.Background(), sent)
 	require.Error(t, err)
 	// The true counts are always reported...
 	assert.Contains(t, err.Error(), fmt.Sprintf("%d of %d bulk items rejected", n, n))
@@ -178,7 +239,7 @@ func TestSyncBulkWriter_TruncatesErrorPayload(t *testing.T) {
 	})
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
 
-	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "…")
 	assert.NotContains(t, err.Error(), huge, "the raw error payload must not appear in full")
@@ -193,7 +254,7 @@ func TestSyncBulkWriter_ItemFailureDespiteErrorsFalse(t *testing.T) {
 		w.Write([]byte(`{"errors":false,"items":[{"create":{"_index":"idx","status":400,"error":{"reason":"bad"}}}]}`))
 	})
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
-	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
 }
@@ -205,7 +266,7 @@ func TestSyncBulkWriter_ErrorsFlagWithoutFailingItem(t *testing.T) {
 		w.Write([]byte(`{"errors":true,"items":[{"index":{"_index":"idx","status":200}}]}`))
 	})
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}}))
+	require.NoError(t, w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}}))
 }
 
 func TestSyncBulkWriter_ContextCancelledAborts(t *testing.T) {
@@ -214,7 +275,7 @@ func TestSyncBulkWriter_ContextCancelledAborts(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	err := w.Bulk(ctx, []BulkItem{
+	err := w.WriteBatch(ctx, []BulkItem{
 		{Index: "idx", Body: map[string]any{"a": 1}},
 		{Index: "idx", Body: map[string]any{"b": 2}},
 	})
@@ -246,7 +307,7 @@ func TestSyncBulkWriter_MalformedItemResultFails(t *testing.T) {
 				w.Write([]byte(`{"items":[` + tt.item + `]}`))
 			})
 			w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
-			err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+			err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
 		})
@@ -267,7 +328,7 @@ func TestSyncBulkWriter_UnparsableResponse(t *testing.T) {
 		w.Write([]byte(`not json`))
 	})
 	w := newSyncWriter(t, url, 0, metrics.NullFactory, zap.NewNop())
-	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: map[string]any{"a": 1}}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse bulk response")
 }
@@ -278,7 +339,7 @@ func TestSyncBulkWriter_EncodeError(t *testing.T) {
 	rec, url := bulkServer(t, okBulk)
 	w := newSyncWriter(t, url, 0, mf, zap.NewNop())
 
-	err := w.Bulk(context.Background(), []BulkItem{{Index: "idx", Body: make(chan int)}})
+	err := w.WriteBatch(context.Background(), []BulkItem{{Index: "idx", Body: make(chan int)}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to encode bulk document")
 	assert.Empty(t, rec.Requests(), "an unencodable document is never sent")
