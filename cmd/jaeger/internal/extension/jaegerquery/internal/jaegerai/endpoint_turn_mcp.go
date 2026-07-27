@@ -11,9 +11,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // routeTurnMCP and routeTurnMCPNoSlash are the turn-scoped MCP
@@ -69,11 +69,18 @@ type turnScopedEndpoint struct {
 // reads the route id from the request context and, for that turn,
 // advertises its UI tools in tools/list and dispatches their tools/call to the
 // browser stream. This avoids standing up a fresh server per turn.
-func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, logger *zap.Logger) *turnScopedEndpoint {
-	srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
-	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
+func newTurnScopedEndpoint(
+	server *mcp.Server,
+	telset telemetry.Settings,
+	tenancyMgr *tenancy.Manager,
+	turns *turnRegistry,
+	basePath string,
+	logger *zap.Logger,
+) *turnScopedEndpoint {
+	server.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
+
 	return &turnScopedEndpoint{
-		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
+		streamable: mcptools.WrapHTTP(server, tenancyMgr, telset),
 		turns:      turns,
 		basePath:   basePath,
 		logger:     logger,

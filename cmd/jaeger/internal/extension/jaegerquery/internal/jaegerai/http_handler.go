@@ -9,9 +9,9 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const routeChat = "/api/ai/chat"
@@ -45,10 +45,10 @@ type HandlerParams struct {
 	MaxRequestBodySize int64
 	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
 	// chat endpoint is registered.
-	EnableMCP    bool
-	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
-	Telset       telemetry.Settings
+	EnableMCP  bool
+	TenancyMgr *tenancy.Manager
+	Telset     telemetry.Settings
+	MCPServer  *mcp.Server
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -64,9 +64,18 @@ func NewHandler(p HandlerParams) *Handler {
 		basePath: basePath,
 		chat:     newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize),
 	}
+
 	if p.EnableMCP {
-		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+		h.mcp = newTurnScopedEndpoint(
+			p.MCPServer,
+			p.Telset,
+			p.TenancyMgr,
+			turns,
+			basePath,
+			p.Logger,
+		)
 	}
+
 	return h
 }
 
