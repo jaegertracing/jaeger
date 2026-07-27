@@ -261,6 +261,50 @@ func TestFindTraces_ErrorAttributeStringCompatibility(t *testing.T) {
 	}
 }
 
+// TestFindTraces_ErrorFalseMatchesUnsetStatus verifies that error=false matches
+// spans with the default (Unset) OTEL status, not only spans explicitly set to
+// Ok. Unset is the common case, so excluding it would make error=false drop most
+// non-error traces. error=false is the complement of error=true: it must exclude
+// only Error spans.
+func TestFindTraces_ErrorFalseMatchesUnsetStatus(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	traceIDUnset := fromString(t, "00000000000000010000000000000000")
+	traceIDError := fromString(t, "00000000000000020000000000000000")
+
+	spanUnset := spans.AppendEmpty()
+	spanUnset.SetTraceID(traceIDUnset)
+	spanUnset.Status().SetCode(ptrace.StatusCodeUnset)
+
+	spanError := spans.AppendEmpty()
+	spanError.SetTraceID(traceIDError)
+	spanError.Status().SetCode(ptrace.StatusCodeError)
+
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutBool(errorAttribute, false)
+	iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
+	})
+
+	var gotTraceIDs []pcommon.TraceID
+	for traces, err := range iter {
+		require.NoError(t, err)
+		require.Len(t, traces, 1)
+		gotTraceIDs = append(gotTraceIDs, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+	}
+
+	// error=false returns the Unset-status trace and excludes the Error one.
+	assert.Equal(t, []pcommon.TraceID{traceIDUnset}, gotTraceIDs)
+}
+
 func TestFindTraces_ErrorAttributeInvalidType(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,
