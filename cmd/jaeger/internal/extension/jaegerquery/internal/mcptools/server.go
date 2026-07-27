@@ -124,7 +124,7 @@ func addTool[In, Out any](server *mcp.Server, names map[string]bool, tool *mcp.T
 // wiring each handler to the supplied QueryService. cfg supplies the per-tool
 // limits (search results, span details, read-file size) and the optional
 // operator skills directory; an unusable cfg.SkillsDir path is the only error
-// case (see buildMergedSkillsFS). The returned set of tool names is the same
+// case (see openOperatorSkillsDir). The returned set of tool names is the same
 // one used to validate operator skills' allowed-tools lists, exposed so
 // tests can assert it never drifts from the live ListTools() output.
 func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Config, logger *zap.Logger) (map[string]bool, error) {
@@ -132,7 +132,6 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 		mcpServer *mcp.Server
 		config    Config
 		queryAPI  *querysvc.QueryService
-		skillsFS  fs.FS
 	}{
 		mcpServer: server,
 		config:    cfg,
@@ -194,12 +193,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 		Name: "read_skill",
 		Description: "Read a skill file for trace analysis. " +
 			"Skills are organized using progressive disclosure. " +
-			"Start with SKILL.md which will guide you to more specific sub-skills. " +
-			"The root SKILL.md also points to custom/SKILL.md, an operator-supplied " +
-			"catalog of installation-specific skills (served under custom/ when the " +
-			"operator has configured one) — always check it too, since it may contain " +
-			"skills tailored to this Jaeger installation that the built-in catalog " +
-			"does not know about.",
+			"Start with SKILL.md which will guide you to more specific sub-skills.",
 	}
 	// read_skill is registered below (after the FS it serves is built), but
 	// it must already count as a registered tool when operator skills'
@@ -208,12 +202,11 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 
 	// error not possible because we embed /skills dir
 	builtins, _ := fs.Sub(skillsEmbedFS, "skills")
-	var err error
-	s.skillsFS, err = buildMergedSkillsFS(builtins, s.config.SkillsDir, registeredToolNames, logger)
+	operator, excluded, err := openOperatorSkillsDir(s.config.SkillsDir, registeredToolNames, logger)
 	if err != nil {
 		return nil, err
 	}
 	addTool(s.mcpServer, registeredToolNames, readSkillTool,
-		handlers.NewReadSkillHandler(s.skillsFS, s.config.MaxReadFileSize))
+		handlers.NewReadSkillHandler(builtins, operator, excluded, s.config.MaxReadFileSize))
 	return registeredToolNames, nil
 }

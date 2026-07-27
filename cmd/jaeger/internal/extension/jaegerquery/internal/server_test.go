@@ -40,6 +40,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -1261,7 +1262,7 @@ func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				require.NoError(t, registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, "", telset))
+				require.NoError(t, registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, mcptools.DefaultConfig(), telset))
 			})
 
 			want := "/api/ai/mcp/"

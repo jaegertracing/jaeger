@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -127,13 +128,15 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	})
 }
 
-// TestNewHandlerSkillsDir confirms SkillsDir reaches the turn-scoped MCP
-// endpoint's construction with the same two-tier failure handling as the
-// shared endpoint: an unusable path fails NewHandler, but a malformed
+// TestNewHandlerSkillsDir confirms the MCP config's SkillsDir reaches the
+// turn-scoped endpoint's construction with the same two-tier failure handling
+// as the shared endpoint: an unusable path fails NewHandler, but a malformed
 // individual skill next to a valid one does not.
 func TestNewHandlerSkillsDir(t *testing.T) {
 	newParams := func(skillsDir string) HandlerParams {
 		svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+		mcpCfg := mcptools.DefaultConfig()
+		mcpCfg.SkillsDir = skillsDir
 		return HandlerParams{
 			Logger:             zap.NewNop(),
 			AgentURL:           "ws://127.0.0.1:1",
@@ -143,7 +146,7 @@ func TestNewHandlerSkillsDir(t *testing.T) {
 			QueryService:       svc,
 			TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
 			Telset:             telemetry.NoopSettings(),
-			SkillsDir:          skillsDir,
+			MCPConfig:          mcpCfg,
 		}
 	}
 

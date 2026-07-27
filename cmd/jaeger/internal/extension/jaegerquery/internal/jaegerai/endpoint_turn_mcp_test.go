@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -44,7 +45,14 @@ func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
-	h, err := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", "", zap.NewNop())
+	h, err := turnScopedEndpointBuilder{
+		telset:     telemetry.NoopSettings(),
+		queryAPI:   svc,
+		tenancyMgr: tenancy.NewManager(&tenancy.Options{}),
+		turns:      turns,
+		mcpConfig:  mcptools.DefaultConfig(),
+		logger:     zap.NewNop(),
+	}.build()
 	require.NoError(t, err)
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
@@ -111,7 +119,14 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 	idA := registerTurn(turns, newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
 	idB := registerTurn(turns, newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
-	h, err := newTurnScopedEndpoint(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), turns, "", "", zap.NewNop())
+	h, err := turnScopedEndpointBuilder{
+		telset:     telemetry.NoopSettings(),
+		queryAPI:   svc,
+		tenancyMgr: tenancy.NewManager(&tenancy.Options{}),
+		turns:      turns,
+		mcpConfig:  mcptools.DefaultConfig(),
+		logger:     zap.NewNop(),
+	}.build()
 	require.NoError(t, err)
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)

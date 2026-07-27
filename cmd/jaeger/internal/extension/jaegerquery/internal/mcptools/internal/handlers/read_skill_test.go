@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"io/fs"
 	"testing"
 	"testing/fstest"
 
@@ -26,8 +27,28 @@ func testSkillsFS() fstest.MapFS {
 	}
 }
 
+func testOperatorFS() fstest.MapFS {
+	return fstest.MapFS{
+		"SKILL.md":              &fstest.MapFile{Data: []byte("# Operator catalog")},
+		"slow-db-call/SKILL.md": &fstest.MapFile{Data: []byte("# Slow DB Call")},
+		"bad-skill/SKILL.md":    &fstest.MapFile{Data: []byte("# Excluded")},
+	}
+}
+
+// newTestHandler serves built-ins only, as when no skills_dir is configured.
 func newTestHandler() *readSkillHandler {
-	return &readSkillHandler{skillsFS: testSkillsFS(), maxFileSize: testMaxFileSize}
+	return &readSkillHandler{builtins: testSkillsFS(), maxFileSize: testMaxFileSize}
+}
+
+// newTestHandlerWithOperator also serves an operator tree under custom/,
+// with "bad-skill" excluded as a failed-validation skill would be.
+func newTestHandlerWithOperator() *readSkillHandler {
+	return &readSkillHandler{
+		builtins:    testSkillsFS(),
+		operator:    testOperatorFS(),
+		excluded:    map[string]bool{"bad-skill": true},
+		maxFileSize: testMaxFileSize,
+	}
 }
 
 func TestReadSkillHandler_RootSkillMD(t *testing.T) {
@@ -54,6 +75,7 @@ func TestReadSkillHandler_InvalidPaths(t *testing.T) {
 		{"empty", ""},
 		{"traversal", "../etc/passwd"},
 		{"absolute", "/etc/passwd"},
+		{"traversal via custom prefix", "custom/../../etc/passwd"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -95,7 +117,55 @@ func TestReadSkillHandler_RawTextInContent(t *testing.T) {
 	assert.Equal(t, tc.Text, output.Instructions)
 }
 
+// Without an operator tree, custom/ paths must 404 rather than fall through
+// to the built-ins.
+func TestReadSkillHandler_CustomPathWithoutOperatorFS(t *testing.T) {
+	h := newTestHandler()
+	for _, p := range []string{"custom", "custom/SKILL.md", "custom/slow-db-call/SKILL.md"} {
+		t.Run(p, func(t *testing.T) {
+			_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: p})
+			require.ErrorIs(t, err, fs.ErrNotExist)
+		})
+	}
+}
+
+func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
+	h := newTestHandlerWithOperator()
+
+	t.Run("custom prefix reaches the operator tree", func(t *testing.T) {
+		_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Slow DB Call", output.Instructions)
+	})
+
+	t.Run("operator catalog is served", func(t *testing.T) {
+		_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Operator catalog", output.Instructions)
+	})
+
+	t.Run("built-ins still reachable at the root", func(t *testing.T) {
+		_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+		require.NoError(t, err)
+		assert.Equal(t, "# Skill A\n\nContent here.", output.Instructions)
+	})
+
+	t.Run("excluded skill is invisible", func(t *testing.T) {
+		_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/bad-skill/SKILL.md"})
+		require.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("bare custom lists the operator root", func(t *testing.T) {
+		f, err := h.open("custom")
+		require.NoError(t, err)
+		defer f.Close()
+		info, err := f.Stat()
+		require.NoError(t, err)
+		assert.True(t, info.IsDir())
+	})
+}
+
 func TestNewReadSkillHandler(t *testing.T) {
-	handler := NewReadSkillHandler(testSkillsFS(), testMaxFileSize)
+	handler := NewReadSkillHandler(testSkillsFS(), nil, nil, testMaxFileSize)
 	assert.NotNil(t, handler)
 }

@@ -63,28 +63,38 @@ type turnScopedEndpoint struct {
 	logger     *zap.Logger
 }
 
-// newTurnScopedEndpoint builds the turn-scoped handler around a single shared
-// MCP server. The telemetry tools are a fixed capability, so they are registered
-// once; the per-turn UI tools are layered on via uiToolsMiddleware, which
-// reads the route id from the request context and, for that turn,
-// advertises its UI tools in tools/list and dispatches their tools/call to the
-// browser stream. This avoids standing up a fresh server per turn.
-// skillsDir threads the operator's ai.skills_dir into the server so this
-// endpoint serves the same merged skill tree as the shared one; an unusable
-// skillsDir path fails construction.
-func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, skillsDir string, logger *zap.Logger) (*turnScopedEndpoint, error) {
-	cfg := mcptools.DefaultConfig()
-	cfg.SkillsDir = skillsDir
-	srv, err := mcptools.NewServer(telset, queryAPI, cfg)
+// turnScopedEndpointBuilder collects the dependencies of a turnScopedEndpoint
+// so callers assign named fields instead of threading a long positional
+// argument list. MCPConfig is supplied ready-made by the caller — this
+// package does not decide MCP configuration.
+type turnScopedEndpointBuilder struct {
+	telset     telemetry.Settings
+	queryAPI   *querysvc.QueryService
+	tenancyMgr *tenancy.Manager
+	turns      *turnRegistry
+	basePath   string
+	mcpConfig  mcptools.Config
+	logger     *zap.Logger
+}
+
+// build assembles the turn-scoped handler around a single shared MCP server.
+// The telemetry tools are a fixed capability, so they are registered once; the
+// per-turn UI tools are layered on via uiToolsMiddleware, which reads the route
+// id from the request context and, for that turn, advertises its UI tools in
+// tools/list and dispatches their tools/call to the browser stream. This avoids
+// standing up a fresh server per turn. An unusable mcpConfig.SkillsDir path
+// fails the build.
+func (b turnScopedEndpointBuilder) build() (*turnScopedEndpoint, error) {
+	srv, err := mcptools.NewServer(b.telset, b.queryAPI, b.mcpConfig)
 	if err != nil {
 		return nil, err
 	}
-	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
+	srv.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.logger))
 	return &turnScopedEndpoint{
-		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
-		turns:      turns,
-		basePath:   basePath,
-		logger:     logger,
+		streamable: mcptools.WrapHTTP(srv, b.tenancyMgr, b.telset),
+		turns:      b.turns,
+		basePath:   b.basePath,
+		logger:     b.logger,
 	}, nil
 }
 

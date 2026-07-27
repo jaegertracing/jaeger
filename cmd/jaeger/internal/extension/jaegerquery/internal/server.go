@@ -213,9 +213,14 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
+				// One MCP config for both endpoints: the shared one mounted
+				// below and the turn-scoped one jaegerai mounts, so an agent
+				// sees the same tools and skills whichever it dials.
+				mcpCfg := mcptools.DefaultConfig()
+				mcpCfg.SkillsDir = aiCfg.SkillsDir
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
-					// if MCP is also enabled, the session-scoped MCP endpoint
+					// if MCP is also enabled, the turn-scoped MCP endpoint
 					// (/api/ai/mcp/<id>/).
 					aiHandler, err := jaegerai.NewHandler(jaegerai.HandlerParams{
 						Logger:             telset.Logger,
@@ -226,7 +231,7 @@ func initRouter(
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
-						SkillsDir:          aiCfg.SkillsDir,
+						MCPConfig:          mcpCfg,
 					})
 					if err != nil {
 						return nil, nil, err
@@ -234,9 +239,9 @@ func initRouter(
 					aiHandler.RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
-					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
-					// the wildcard session-scoped pattern above.
-					if err := registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, aiCfg.SkillsDir, telset); err != nil {
+					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with
+					// the wildcard turn-scoped pattern above.
+					if err := registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset); err != nil {
 						return nil, nil, err
 					}
 				}
@@ -293,9 +298,7 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, skillsDir string, telset telemetry.Settings) error {
-	cfg := mcptools.DefaultConfig()
-	cfg.SkillsDir = skillsDir
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, cfg mcptools.Config, telset telemetry.Settings) error {
 	handler, err := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
 	if err != nil {
 		return err

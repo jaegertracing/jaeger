@@ -9,6 +9,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -49,10 +50,11 @@ type HandlerParams struct {
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Telset       telemetry.Settings
-	// SkillsDir is the operator's skills directory (ai.skills_dir), threaded
-	// into the turn-scoped MCP endpoint so it serves the same merged skill
-	// tree as the shared one. Empty means built-in skills only.
-	SkillsDir string
+	// MCPConfig configures the MCP server behind the turn-scoped endpoint.
+	// The caller builds it (jaeger-query derives it from ai.* config) and
+	// passes the same value used for the shared endpoint, so both serve an
+	// identical tool and skill set. Only read when EnableMCP is set.
+	MCPConfig mcptools.Config
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -60,8 +62,8 @@ type HandlerParams struct {
 // canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
 // so a chat turn and its MCP callbacks resolve to the same turn. When p.EnableMCP
 // is set, the turn-scoped MCP endpoint is built from the supplied query service,
-// tenancy manager, and telemetry settings; an unusable p.SkillsDir path fails
-// construction (broken configuration).
+// tenancy manager, telemetry settings, and MCP config; an unusable
+// p.MCPConfig.SkillsDir path fails construction (broken configuration).
 func NewHandler(p HandlerParams) (*Handler, error) {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
@@ -70,7 +72,15 @@ func NewHandler(p HandlerParams) (*Handler, error) {
 		chat:     newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize),
 	}
 	if p.EnableMCP {
-		mcp, err := newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.SkillsDir, p.Logger)
+		mcp, err := turnScopedEndpointBuilder{
+			telset:     p.Telset,
+			queryAPI:   p.QueryService,
+			tenancyMgr: p.TenancyMgr,
+			turns:      turns,
+			basePath:   basePath,
+			mcpConfig:  p.MCPConfig,
+			logger:     p.Logger,
+		}.build()
 		if err != nil {
 			return nil, err
 		}
