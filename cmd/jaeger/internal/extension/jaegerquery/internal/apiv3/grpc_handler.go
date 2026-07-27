@@ -4,9 +4,11 @@
 package apiv3
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
@@ -193,6 +195,14 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	if err != nil {
 		return nil, err
 	}
+	// Sort the links so the response order is deterministic; the storage layer
+	// builds dependency links from a map, whose iteration order is not stable.
+	slices.SortFunc(deps, func(a, b model.DependencyLink) int {
+		if c := cmp.Compare(a.Parent, b.Parent); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Child, b.Child)
+	})
 	links := make([]*api_v3.Dependency, len(deps))
 	for i, dep := range deps {
 		links[i] = &api_v3.Dependency{
