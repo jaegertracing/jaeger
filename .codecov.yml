@@ -4,7 +4,13 @@
 codecov:
   notify:
     require_ci_to_pass: yes
-    after_n_builds: 18
+    # Number of coverage uploads to wait for before notifying, so the status checks
+    # and PR comment reflect a complete report rather than whichever uploads landed
+    # first. Codecov withholds *all* notifications until this many arrive, so a value
+    # above the number of uploads that carry coverage blocks every PR silently.
+    # Keep it equal to the number of jobs calling .github/actions/upload-codecov,
+    # each of which must upload a profile covering packages `ignore` does not exclude.
+    after_n_builds: 12
   strict_yaml_branch: main  # only use the latest copy on the main branch
 
 ignore:
