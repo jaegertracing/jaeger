@@ -1,6 +1,6 @@
 # RFC 0013: Reliable Coverage Gating and Real E2E Coverage
 
-- **Status:** Draft
+- **Status:** Partially Implemented
 - **Author:** Yuri Shkuro
 - **Created:** 2026-07-28
 - **Last Updated:** 2026-07-28
@@ -13,7 +13,7 @@
 
 | Milestone | Scope | Status |
 | --- | --- | --- |
-| M1 | Unstick PRs: realign `after_n_builds` with the real upload count | ⬜ |
+| M1 | Unstick PRs: realign `after_n_builds` with the real upload count | ✅ [#9130](https://github.com/jaegertracing/jaeger/pull/9130) |
 | M2 | Enforce the upload invariant: every upload carries coverage, count matches | ⬜ |
 | M3 | Graceful shutdown of the e2e jaeger binary | ⬜ |
 | M4 | Spike: `-cover` + `GOCOVERDIR` on one e2e leg, measure the gain | ⬜ |
@@ -212,7 +212,7 @@ The honest counterweight is that **the size of the gain is unknown**. The `direc
 
 ## 6. Implementation plan
 
-### M1 — Unstick pull requests today ⬜
+### M1 — Unstick pull requests today ✅ [#9130](https://github.com/jaegertracing/jaeger/pull/9130)
 
 **Set `after_n_builds: 18` → `12`** in [`.codecov.yml`](../../.codecov.yml). One line. Codecov resumes notifying, both `codecov/patch` and `codecov/project` reappear, every open pull request unblocks, and diff-level enforcement returns with them. No branch-protection change and no gate is given up.
 
