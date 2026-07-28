@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -1229,12 +1230,17 @@ func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
 	querySvc := makeQuerySvc()
 	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
 
+	mcpServer := mcptools.NewServer(
+		telset,
+		querySvc.qs,
+		mcptools.DefaultConfig(),
+	)
 	for _, basePath := range []string{"", "/", "/jaeger", "/jaeger/"} {
 		t.Run("base path "+basePath, func(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, telset)
+				registerMCPTools(r, mcpServer, tenancyMgr, basePath, telset)
 			})
 
 			want := "/api/ai/mcp/"

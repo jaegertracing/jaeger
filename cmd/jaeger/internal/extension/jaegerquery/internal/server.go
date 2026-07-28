@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -213,6 +214,11 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
+				var mcpServer *mcp.Server
+				if aiCfg.EnableMCP {
+					mcpServer = mcptools.NewServer(telset, querySvc, mcptools.DefaultConfig())
+				}
+
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the session-scoped MCP endpoint
@@ -223,7 +229,7 @@ func initRouter(
 						BasePath:           queryOpts.BasePath,
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 						EnableMCP:          aiCfg.EnableMCP,
-						QueryService:       querySvc,
+						MCPServer:          mcpServer,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
 					}).RegisterRoutes(r)
@@ -231,7 +237,7 @@ func initRouter(
 				if aiCfg.EnableMCP {
 					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
 					// the wildcard session-scoped pattern above.
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+					registerMCPTools(r, mcpServer, tenancyMgr, queryOpts.BasePath, telset)
 				}
 			}
 		}
@@ -286,8 +292,14 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+func registerMCPTools(
+	r *http.ServeMux,
+	server *mcp.Server,
+	tenancyMgr *tenancy.Manager,
+	basePath string,
+	telset telemetry.Settings,
+) {
+	handler := mcptools.WrapHTTP(server, tenancyMgr, telset)
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))

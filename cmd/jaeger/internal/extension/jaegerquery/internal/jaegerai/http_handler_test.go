@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -81,16 +82,25 @@ func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
 
 func mcpEnabledHandler(t *testing.T, basePath string) *Handler {
 	t.Helper()
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+
+	svc := querysvc.NewQueryService(
+		&tracestoremocks.Reader{},
+		&depstoremocks.Reader{},
+		querysvc.QueryServiceOptions{},
+	)
+
+	telset := telemetry.NoopSettings()
+	mcpServer := mcptools.NewServer(telset, svc, mcptools.DefaultConfig())
+
 	return NewHandler(HandlerParams{
 		Logger:             zap.NewNop(),
 		AgentURL:           "ws://127.0.0.1:1",
 		BasePath:           basePath,
 		MaxRequestBodySize: 1 << 20,
 		EnableMCP:          true,
-		QueryService:       svc,
+		MCPServer:          mcpServer,
 		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
-		Telset:             telemetry.NoopSettings(),
+		Telset:             telset,
 	})
 }
 
