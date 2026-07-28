@@ -44,6 +44,12 @@ func makeTestMetricFamily() *metrics.MetricFamily {
 						Value:     &metrics.MetricPoint_GaugeValue{GaugeValue: &metrics.GaugeValue{Value: &metrics.GaugeValue_DoubleValue{DoubleValue: math.NaN()}}},
 						Timestamp: &gogotypes.Timestamp{Seconds: 1700000060},
 					},
+					{
+						// +/-Inf can come out of quantile calculations and is
+						// not JSON-encodable either.
+						Value:     &metrics.MetricPoint_GaugeValue{GaugeValue: &metrics.GaugeValue{Value: &metrics.GaugeValue_DoubleValue{DoubleValue: math.Inf(1)}}},
+						Timestamp: &gogotypes.Timestamp{Seconds: 1700000120},
+					},
 				},
 			},
 		},
@@ -51,7 +57,7 @@ func makeTestMetricFamily() *metrics.MetricFamily {
 }
 
 func TestGetServiceMetrics_Latency(t *testing.T) {
-	reader := &metricstoremocks.Reader{}
+	reader := metricstoremocks.NewReader(t)
 	reader.On("GetLatencies", mock.Anything, mock.MatchedBy(func(p *metricstore.LatenciesQueryParameters) bool {
 		return p.Quantile == 0.95 && // default applied
 			len(p.ServiceNames) == 1 && p.ServiceNames[0] == "frontend" &&
@@ -76,12 +82,14 @@ func TestGetServiceMetrics_Latency(t *testing.T) {
 	assert.Equal(t, "frontend", series.ServiceName)
 	assert.Equal(t, "GET /dispatch", series.OperationName)
 	assert.Equal(t, "SPAN_KIND_SERVER", series.SpanKind)
-	require.Len(t, series.DataPoints, 2)
+	require.Len(t, series.DataPoints, 3)
 	assert.Equal(t, int64(1700000000500), series.DataPoints[0].TimestampMs)
 	require.NotNil(t, series.DataPoints[0].Value)
 	assert.InDelta(t, 42.5, *series.DataPoints[0].Value, 1e-9)
 	assert.Equal(t, int64(1700000060000), series.DataPoints[1].TimestampMs)
 	assert.Nil(t, series.DataPoints[1].Value, "NaN from the backend must become null, not a fake number")
+	assert.Equal(t, int64(1700000120000), series.DataPoints[2].TimestampMs)
+	assert.Nil(t, series.DataPoints[2].Value, "Inf from the backend must become null; json.Marshal cannot encode it")
 }
 
 func TestGetServiceMetrics_CallRateAndErrorRate(t *testing.T) {
@@ -94,7 +102,7 @@ func TestGetServiceMetrics_CallRateAndErrorRate(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.metricType, func(t *testing.T) {
-			reader := &metricstoremocks.Reader{}
+			reader := metricstoremocks.NewReader(t)
 			reader.On(test.mockMethod, mock.Anything, mock.Anything).Return(makeTestMetricFamily(), nil).Once()
 
 			handler := NewGetServiceMetricsHandler(reader)
@@ -106,14 +114,13 @@ func TestGetServiceMetrics_CallRateAndErrorRate(t *testing.T) {
 			assert.Equal(t, test.metricType, output.MetricType)
 			assert.Zero(t, output.Quantile, "quantile applies to latency only")
 			require.Len(t, output.Metrics, 1)
-			reader.AssertExpectations(t)
 		})
 	}
 }
 
 func TestGetServiceMetrics_CustomParameters(t *testing.T) {
 	endTime := time.Date(2026, 7, 28, 10, 0, 0, 0, time.UTC)
-	reader := &metricstoremocks.Reader{}
+	reader := metricstoremocks.NewReader(t)
 	reader.On("GetLatencies", mock.Anything, mock.MatchedBy(func(p *metricstore.LatenciesQueryParameters) bool {
 		return p.Quantile == 0.99 &&
 			p.EndTime.Equal(endTime) &&
@@ -137,7 +144,6 @@ func TestGetServiceMetrics_CustomParameters(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, output.Metrics, "empty result must be an empty list, not null")
 	assert.Empty(t, output.Metrics)
-	reader.AssertExpectations(t)
 }
 
 func TestGetServiceMetrics_InputValidation(t *testing.T) {
@@ -202,7 +208,7 @@ func TestGetServiceMetrics_InputValidation(t *testing.T) {
 }
 
 func TestGetServiceMetrics_ReaderError(t *testing.T) {
-	reader := &metricstoremocks.Reader{}
+	reader := metricstoremocks.NewReader(t)
 	reader.On("GetCallRates", mock.Anything, mock.Anything).Return(nil, assert.AnError).Once()
 
 	handler := NewGetServiceMetricsHandler(reader)

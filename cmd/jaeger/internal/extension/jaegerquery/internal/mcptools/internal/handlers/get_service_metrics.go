@@ -208,9 +208,10 @@ func normalizeSpanKinds(kinds []string) ([]string, error) {
 	return normalized, nil
 }
 
-// buildSeries converts a MetricFamily into the tool's output series. A NaN
-// gauge value, which the metricstore reports when the backend has no data for
-// a timestamp, becomes a null value rather than a fake zero.
+// buildSeries converts a MetricFamily into the tool's output series. Non-finite
+// gauge values become null: NaN is what the metricstore reports when the
+// backend has no data for a timestamp, and +/-Inf can come out of quantile
+// calculations; neither is JSON-encodable, and a fake number would be worse.
 func buildSeries(family *metrics.MetricFamily) []types.ServiceMetricSeries {
 	series := []types.ServiceMetricSeries{}
 	if family == nil {
@@ -244,7 +245,7 @@ func buildSeries(family *metrics.MetricFamily) []types.ServiceMetricSeries {
 				dp.TimestampMs = ts.Seconds*1000 + int64(ts.Nanos)/1_000_000
 			}
 			if gauge := point.GetGaugeValue(); gauge != nil {
-				if v := gauge.GetDoubleValue(); !math.IsNaN(v) {
+				if v := gauge.GetDoubleValue(); !math.IsNaN(v) && !math.IsInf(v, 0) {
 					dp.Value = &v
 				}
 			}
