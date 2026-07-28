@@ -137,8 +137,8 @@ func createGRPCServer(
 
 	//nolint:contextcheck // The context is handled by the interceptors
 	if len(options.HeaderForwarding) > 0 {
-		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryServerInterceptor(options.HeaderForwarding))
-		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamServerInterceptor(options.HeaderForwarding))
+		unaryInterceptors = append(unaryInterceptors, headerforwarding.NewUnaryServerInterceptor(telset.Logger, options.HeaderForwarding))
+		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamServerInterceptor(telset.Logger, options.HeaderForwarding))
 	}
 
 	grpcOpts = append(
@@ -254,7 +254,7 @@ func initRouter(
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
 	if len(queryOpts.HeaderForwarding) > 0 {
-		handler = headerforwarding.HTTPServerMiddleware(queryOpts.HeaderForwarding, handler)
+		handler = headerforwarding.HTTPServerMiddleware(telset.Logger, queryOpts.HeaderForwarding, handler)
 	}
 	if tenancyMgr.Enabled {
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)

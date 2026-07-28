@@ -6,6 +6,7 @@ package headerforwarding
 import (
 	"context"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -36,10 +37,11 @@ func extractFromIncomingMetadata(ctx context.Context, headers []ForwardedHeader)
 
 // NewUnaryServerInterceptor returns a gRPC unary server interceptor that extracts
 // the configured headers from incoming metadata and stores them in the context.
-func NewUnaryServerInterceptor(headers []ForwardedHeader) grpc.UnaryServerInterceptor {
-	return func(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+func NewUnaryServerInterceptor(logger *zap.Logger, headers []ForwardedHeader) grpc.UnaryServerInterceptor {
+	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if incoming := extractFromIncomingMetadata(ctx, headers); len(incoming) > 0 {
 			ctx = ContextWithCaptured(ctx, incoming)
+			logCapturedHeaders(logger, "grpc", info.FullMethod, incoming)
 		}
 		return handler(ctx, req)
 	}
@@ -47,11 +49,12 @@ func NewUnaryServerInterceptor(headers []ForwardedHeader) grpc.UnaryServerInterc
 
 // NewStreamServerInterceptor returns a gRPC streaming server interceptor that extracts
 // the configured headers from incoming metadata and stores them in the context.
-func NewStreamServerInterceptor(headers []ForwardedHeader) grpc.StreamServerInterceptor {
-	return func(srv any, ss grpc.ServerStream, _ *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func NewStreamServerInterceptor(logger *zap.Logger, headers []ForwardedHeader) grpc.StreamServerInterceptor {
+	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 		ctx := ss.Context()
 		if incoming := extractFromIncomingMetadata(ctx, headers); len(incoming) > 0 {
 			ss = &serverStream{ServerStream: ss, ctx: ContextWithCaptured(ctx, incoming)}
+			logCapturedHeaders(logger, "grpc", info.FullMethod, incoming)
 		}
 		return handler(srv, ss)
 	}

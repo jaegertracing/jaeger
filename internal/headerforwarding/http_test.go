@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 )
@@ -58,7 +59,7 @@ func TestHTTPServerMiddleware(t *testing.T) {
 					}
 				}
 			})
-			h := headerforwarding.HTTPServerMiddleware(headers, inner)
+			h := headerforwarding.HTTPServerMiddleware(zap.NewNop(), headers, inner)
 
 			req := httptest.NewRequest(http.MethodGet, "/", http.NoBody)
 			for k, v := range tt.reqHdrs {

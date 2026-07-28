@@ -3,7 +3,11 @@
 
 package headerforwarding
 
-import "context"
+import (
+	"context"
+
+	"go.uber.org/zap"
+)
 
 type contextKeyType int
 
@@ -29,4 +33,13 @@ func CapturedFromContext(ctx context.Context) []CapturedHeader {
 		return v
 	}
 	return nil
+}
+
+func logCapturedHeaders(logger *zap.Logger, protocol string, path string, captured []CapturedHeader) {
+	fields := make([]zap.Field, 0, len(captured)+2)
+	fields = append(fields, zap.String("protocol", protocol), zap.String("path", path))
+	for _, c := range captured {
+		fields = append(fields, zap.String("header."+c.Header.HTTPName, c.Value))
+	}
+	logger.Debug("captured forwarded headers", fields...)
 }

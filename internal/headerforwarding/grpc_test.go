@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
@@ -59,7 +60,7 @@ func TestUnaryServerInterceptor_ExtractsFromMetadata(t *testing.T) {
 	})
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
-	interceptor := headerforwarding.NewUnaryServerInterceptor(testHeaders)
+	interceptor := headerforwarding.NewUnaryServerInterceptor(zap.NewNop(), testHeaders)
 	var gotMap map[string]string
 	handler := func(ctx context.Context, _ any) (any, error) {
 		gotMap = capturedToMap(headerforwarding.CapturedFromContext(ctx))
@@ -77,7 +78,7 @@ func TestUnaryServerInterceptor_MultiValueUsesFirst(t *testing.T) {
 	md := metadata.Pairs("x-grpc-user", "alice", "x-grpc-user", "bob")
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
-	interceptor := headerforwarding.NewUnaryServerInterceptor(testHeaders)
+	interceptor := headerforwarding.NewUnaryServerInterceptor(zap.NewNop(), testHeaders)
 	var gotMap map[string]string
 	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
 		gotMap = capturedToMap(headerforwarding.CapturedFromContext(ctx))
@@ -88,7 +89,7 @@ func TestUnaryServerInterceptor_MultiValueUsesFirst(t *testing.T) {
 }
 
 func TestUnaryServerInterceptor_NoMetadata(t *testing.T) {
-	interceptor := headerforwarding.NewUnaryServerInterceptor(testHeaders)
+	interceptor := headerforwarding.NewUnaryServerInterceptor(zap.NewNop(), testHeaders)
 	var got []headerforwarding.CapturedHeader
 	handler := func(ctx context.Context, _ any) (any, error) {
 		got = headerforwarding.CapturedFromContext(ctx)
@@ -103,7 +104,7 @@ func TestStreamServerInterceptor_ExtractsFromMetadata(t *testing.T) {
 	md := metadata.New(map[string]string{"x-grpc-user": "alice"})
 	ctx := metadata.NewIncomingContext(context.Background(), md)
 
-	interceptor := headerforwarding.NewStreamServerInterceptor(testHeaders)
+	interceptor := headerforwarding.NewStreamServerInterceptor(zap.NewNop(), testHeaders)
 	var gotMap map[string]string
 	handler := func(_ any, ss grpc.ServerStream) error {
 		gotMap = capturedToMap(headerforwarding.CapturedFromContext(ss.Context()))
@@ -173,7 +174,7 @@ func TestHeaderFallbacks(t *testing.T) {
 		ctx := metadata.NewIncomingContext(context.Background(), md)
 
 		var gotMap map[string]string
-		_, err := headerforwarding.NewUnaryServerInterceptor(headers)(ctx, nil, &grpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+		_, err := headerforwarding.NewUnaryServerInterceptor(zap.NewNop(), headers)(ctx, nil, &grpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
 			gotMap = capturedToMap(headerforwarding.CapturedFromContext(ctx))
 			return nil, nil
 		})
