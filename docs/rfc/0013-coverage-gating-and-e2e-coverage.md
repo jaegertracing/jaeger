@@ -14,7 +14,7 @@
 | Milestone | Scope | Status |
 | --- | --- | --- |
 | M1 | Unstick PRs: realign `after_n_builds` with the real upload count | ✅ [#9130](https://github.com/jaegertracing/jaeger/pull/9130) |
-| M2 | Enforce the upload invariant: every upload carries coverage, count matches | ⬜ |
+| M2 | Enforce the upload invariant: every upload carries coverage, count matches | ✅ [#9133](https://github.com/jaegertracing/jaeger/pull/9133) |
 | M3 | Graceful shutdown of the e2e jaeger binary | ⬜ |
 | M4 | Spike: `-cover` + `GOCOVERDIR` on one e2e leg, measure the gain | ⬜ |
 | M5 | Roll binary coverage across the e2e matrix; remove the double compile | ⬜ |
@@ -222,7 +222,7 @@ The value is derived, not guessed: 12 is the number of uploads that carry non-ig
 
 12 is an interim value that encodes a defect, not a target. The intended state is that all 27 uploads carry coverage and the threshold reads 27; M5 is what gets there, and M2 is what stops the discrepancy from being silent in the meantime. This milestone deliberately does not restore `-coverpkg=./...` to inflate the count back to 27, because that restores the *number* without restoring the *measurement* (§5).
 
-### M2 — Enforce the upload invariant ⬜
+### M2 — Enforce the upload invariant ✅ [#9133](https://github.com/jaegertracing/jaeger/pull/9133)
 
 The invariant this milestone establishes and defends is:
 
@@ -234,7 +234,7 @@ So the check is on the invariant, not on the arithmetic: add a step to the `summ
 
 The fan-in is the right place because it is the only job that sees every profile and already applies the same exclusion list Codecov does. The distinction matters: #9086 left the number of `upload-codecov` invocations at 27 and changed only whether 15 of them carried anything, so a check counting invocations — the obvious implementation — would have passed throughout the outage.
 
-Note the consequence for sequencing. On landing, this check **fails** on `main`, because the 15 e2e legs violate it today. That is the correct behavior and the reason M2 precedes M3–M5: it converts a silent stall into a standing, named defect that the fidelity work then closes. Whether it lands as blocking or as a warning that becomes blocking at M5 is the one open call in this milestone.
+Note the consequence for sequencing. A check that failed on every signal-free upload would redden `main` immediately, because the 15 e2e legs violate the invariant today. The delivered split resolves the open call in favour of warning on that standing violation while **failing** on the condition that actually stalls the queue — at least `after_n_builds` jobs uploaded, yet fewer than that many carrying coverage. The warning is promoted to a failure once M5 makes it clean.
 
 ### M3 — Graceful shutdown of the spawned binary ⬜
 
