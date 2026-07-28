@@ -1234,7 +1234,7 @@ func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, telset)
+				registerMCPTools(r, querySvc.qs, nil, tenancyMgr, basePath, telset)
 			})
 
 			want := "/api/ai/mcp/"
