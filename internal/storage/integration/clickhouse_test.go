@@ -80,9 +80,6 @@ func (s *ClickHouseStorageIntegration) testNativeTraceSummaries(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	sr, ok := s.TraceReader.(tracestore.SummaryReader)
-	require.True(t, ok)
-
 	base := time.Now().Add(-1 * time.Hour)
 	traceID := pcommon.TraceID([16]byte{1})
 	traces := ptrace.NewTraces()
@@ -130,7 +127,7 @@ func (s *ClickHouseStorageIntegration) testNativeTraceSummaries(t *testing.T) {
 
 	var summaries []tracestore.TraceSummary
 	found := s.waitForCondition(t, func(_ *testing.T) bool {
-		batches, err := jiter.CollectWithErrors(sr.FindTraceSummaries(context.Background(), query))
+		batches, err := jiter.CollectWithErrors(s.TraceReader.FindTraceSummaries(context.Background(), query))
 		if err != nil {
 			return false
 		}

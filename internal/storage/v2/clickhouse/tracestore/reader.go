@@ -23,10 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/tracestore/dbmodel"
 )
 
-var (
-	_ tracestore.Reader        = (*Reader)(nil)
-	_ tracestore.SummaryReader = (*Reader)(nil)
-)
+var _ tracestore.Reader = (*Reader)(nil)
 
 type ReaderConfig struct {
 	// DefaultSearchDepth is the default number of trace IDs to return when searching for traces.
@@ -42,10 +39,6 @@ type ReaderConfig struct {
 }
 
 type Reader struct {
-	// ClickHouse does not compute trace summaries natively yet; fall back to
-	// FindTraces + client-side aggregation.
-	tracestore.UnsupportedTraceSummaries
-
 	conn          driver.Conn
 	config        ReaderConfig
 	attrMetaCache cache.Cache
@@ -217,11 +210,12 @@ func (r *Reader) FindTraces(
 	}
 }
 
-// FindTraceSummaries natively computes trace summaries in ClickHouse, satisfying
-// tracestore.SummaryReader (ADR-010 Milestone 5). It reuses the same filtered,
-// limited trace-ID selection as FindTraces but aggregates only summary columns
-// instead of full span payloads. Summaries come from raw stored spans and skip the
-// querysvc adjusters; see sql.SelectTraceSummaries for the semantics.
+// FindTraceSummaries natively computes trace summaries in ClickHouse rather than
+// falling back to tracestore.UnsupportedTraceSummaries (ADR-010 Milestone 5). It
+// reuses the same filtered, limited trace-ID selection as FindTraces but
+// aggregates only summary columns instead of full span payloads. Summaries come
+// from raw stored spans and skip the querysvc adjusters; see
+// sql.SelectTraceSummaries for the semantics.
 func (r *Reader) FindTraceSummaries(
 	ctx context.Context,
 	query tracestore.TraceQueryParams,
