@@ -9,7 +9,9 @@ type contextKeyType int
 
 const contextKey = contextKeyType(iota)
 
-// CapturedHeader pairs a runtime value with the config entry that described it.
+// CapturedHeader pairs a runtime header value with the config entry that described
+// it. In-process consumers retrieve it via CapturedFromContext to read the value
+// together with its configured Role and names.
 type CapturedHeader struct {
 	Header *ForwardedHeader
 	Value  string
