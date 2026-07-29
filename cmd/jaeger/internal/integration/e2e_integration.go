@@ -94,13 +94,16 @@ func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool))
 	if dir, ok := lookupEnv(binaryCoverDirEnvVar); ok && dir != "" {
 		envVars = append(envVars, "GOCOVERDIR="+dir)
 	}
+	// Order preserved from before this function was extracted: os/exec keeps the
+	// last of duplicate keys, so it decides which wins if a variable appears in
+	// both EnvVarOverrides and PropagateEnvVars.
+	for key, value := range s.EnvVarOverrides {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+	}
 	for _, key := range s.PropagateEnvVars {
 		if value, ok := lookupEnv(key); ok {
 			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
 		}
-	}
-	for key, value := range s.EnvVarOverrides {
-		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
 	}
 	return envVars
 }
