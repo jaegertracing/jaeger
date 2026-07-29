@@ -22,23 +22,30 @@ all-in-one-integration-test: $(GOTESTSUM)
 # The counters are converted to a profile and merged into COVEROUT, so Codecov
 # and the CI Summary Report fan-in pick them up through the existing upload with
 # no workflow changes.
+#
+# Both sides pin -covermode=atomic because gocovmerge refuses to merge profiles
+# with different modes: `go test -race` silently promotes the test profile to
+# atomic while covdata emits set, so leaving the mode implicit makes the merge
+# succeed locally (no -race) and fail in CI (-race).
 BINARY_COVERDIR = $(CURDIR)/.cover-binary
 BINARY_COVEROUT = cover-binary.out
 
 .PHONY: jaeger-v2-storage-integration-test
 jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	rm -rf $(BINARY_COVERDIR) && mkdir -p $(BINARY_COVERDIR)
-	(cd cmd/jaeger/ && go build -cover -o jaeger .)
+	(cd cmd/jaeger/ && go build -cover -covermode=atomic -o jaeger .)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -covermode=atomic -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
 	# covdata fails on a directory with no meta file, which is what an empty run
 	# looks like; treat that as "no binary coverage" rather than a build failure,
 	# since the missing contribution is reported by the coverage-upload check.
 	@if ls $(BINARY_COVERDIR)/covmeta.* >/dev/null 2>&1; then \
+		set -e; \
 		go tool covdata textfmt -i=$(BINARY_COVERDIR) -o $(BINARY_COVEROUT); \
-		$(GOCOVMERGE) $(COVEROUT) $(BINARY_COVEROUT) > $(COVEROUT).tmp && mv $(COVEROUT).tmp $(COVEROUT); \
+		$(GOCOVMERGE) $(COVEROUT) $(BINARY_COVEROUT) > $(COVEROUT).tmp; \
+		mv $(COVEROUT).tmp $(COVEROUT); \
 		echo "Merged binary coverage into $(COVEROUT)"; \
 	else \
 		echo "WARNING: no binary coverage counters in $(BINARY_COVERDIR); did the binary exit cleanly?"; \
