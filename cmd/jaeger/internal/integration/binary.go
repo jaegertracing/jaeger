@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -21,6 +22,10 @@ import (
 
 	"github.com/jaegertracing/jaeger/ports"
 )
+
+// stopTimeout is how long Stop waits for the process to exit after SIGTERM
+// before escalating to SIGKILL. Overridden in tests.
+var stopTimeout = 5 * time.Second
 
 // Binary is a wrapper around exec.Cmd to help running binaries in tests.
 type Binary struct {
@@ -73,17 +78,46 @@ func (b *Binary) Start(t *testing.T) {
 	t.Logf("%s is ready", b.Name)
 }
 
-// Stop kills the process and waits for it to exit. It is safe to call more than
-// once (and after the process has already exited): once the process has been
-// reaped, Kill returns os.ErrProcessDone, which is treated as a successful stop.
+// Stop terminates the process and waits for it to exit. SIGTERM lets the binary
+// exit through its normal shutdown path, which flushes buffered work and, for
+// `-cover` builds, coverage counters; SIGKILL flushes neither. A process that has
+// not exited within stopTimeout is killed so it cannot hang the test run. Safe to
+// call more than once: signalling a reaped process returns os.ErrProcessDone,
+// which is treated as a successful stop.
 func (b *Binary) Stop(t *testing.T) {
+	t.Helper()
+	exited := make(chan struct{})
+	go func() {
+		defer close(exited)
+		b.Process.Wait()
+	}()
+
+	if err := b.Process.Signal(syscall.SIGTERM); err != nil {
+		if errors.Is(err, os.ErrProcessDone) {
+			<-exited
+			return
+		}
+		// Windows supports no signal other than Kill.
+		t.Logf("Failed to send SIGTERM to %s (%v), killing it instead", b.Name, err)
+		b.kill(t)
+	}
+
+	t.Logf("Waiting for %s to exit", b.Name)
+	select {
+	case <-exited:
+	case <-time.After(stopTimeout):
+		t.Logf("%s did not exit within %v after SIGTERM, killing it", b.Name, stopTimeout)
+		b.kill(t)
+		<-exited
+	}
+	t.Logf("%s exited", b.Name)
+}
+
+func (b *Binary) kill(t *testing.T) {
 	t.Helper()
 	if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		t.Errorf("Failed to kill %s process: %v", b.Name, err)
 	}
-	t.Logf("Waiting for %s to exit", b.Name)
-	b.Process.Wait()
-	t.Logf("%s exited", b.Name)
 }
 
 func (b *Binary) doHealthCheck(t *testing.T, client *http.Client) bool {
