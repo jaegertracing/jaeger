@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read  # SPIKE (#9143): gh run download of the prebuilt e2e binary
 
 jobs:
   # SPIKE (#9143): build the coverage-instrumented binary once per run instead of

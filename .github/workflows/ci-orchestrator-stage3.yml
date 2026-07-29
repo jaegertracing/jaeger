@@ -34,6 +34,9 @@ jobs:
     secrets: inherit
 
   e2e-tests:
+    permissions:
+      contents: read
+      actions: read  # SPIKE (#9143): gh run download of the prebuilt e2e binary
     uses: ./.github/workflows/ci-e2e-all.yml
     secrets: inherit
 
