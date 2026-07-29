@@ -231,6 +231,12 @@ run-all-in-one: build-ui
 run-ai-gemini:
 	./scripts/ai-sidecar/gemini/run.sh
 
+# Same chat experience as run-ai-gemini, but inference runs on a local Ollama
+# model: no API key, and no prompt or telemetry leaves the machine.
+.PHONY: run-ai-ollama
+run-ai-ollama:
+	./scripts/ai-sidecar/ollama/run.sh
+
 .PHONY: changelog
 changelog:
 	@./scripts/release/notes.py --exclude-dependabot --verbose
