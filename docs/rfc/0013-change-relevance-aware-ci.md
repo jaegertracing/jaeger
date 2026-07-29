@@ -1,11 +1,11 @@
-# RFC 0014: Change-Relevance-Aware CI
+# RFC 0013: Change-Relevance-Aware CI
 
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-07-28
 - **Last Updated:** 2026-07-29
 - **Issue:** [#3113](https://github.com/jaegertracing/jaeger/issues/3113)
-- **Related:** [#1476](https://github.com/jaegertracing/jaeger/issues/1476) · [#1784](https://github.com/jaegertracing/jaeger/issues/1784) · [RFC 0013 Reliable Coverage Gating and Real E2E Coverage](./0013-coverage-gating-and-e2e-coverage.md) (in review as [#9131](https://github.com/jaegertracing/jaeger/pull/9131)) · [ADR-004 Migrating Coverage Gating to GitHub Actions](../adr/004-migrating-coverage-gating-to-github-actions.md)
+- **Related:** [#1476](https://github.com/jaegertracing/jaeger/issues/1476) · [#1784](https://github.com/jaegertracing/jaeger/issues/1784) · [#9084](https://github.com/jaegertracing/jaeger/issues/9084) · [ADR-004 Migrating Coverage Gating to GitHub Actions](../adr/004-migrating-coverage-gating-to-github-actions.md)
 
 ---
 
@@ -99,9 +99,9 @@ $ go list -deps ./cmd/jaeger | grep -c jaegertracing/jaeger
 
 `internal/storage/v2/clickhouse/sql` is in the closure of the binary the *Cassandra* leg runs, because that binary links ClickHouse whether or not it ever calls it. Reachability therefore marks 70% of the module relevant to all 12 e2e legs at once, and a purely static scheme skips almost nothing for almost any Go change. The graph answers "could this change alter the bytes of the binary this leg runs" — a sound question, and the wrong one.
 
-The question that discriminates is "which packages does this leg actually run", and it is answerable by measurement. The 11 `direct` legs already run storage code in-process under `-coverpkg=./...` and produce real profiles today ([RFC 0013 §2.1](./0013-coverage-gating-and-e2e-coverage.md)), so their executed-package sets are already in artifacts the run uploads; the spawned-binary legs are exactly what [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) M3–M5 fixes with `go build -cover` and `GOCOVERDIR`. This is the mechanism behind Azure DevOps' Test Impact Analysis, and it is preferable to the model-trained alternative (Develocity Predictive Test Selection) because a measured map is inspectable and its errors are attributable.
+The question that discriminates is "which packages does this leg actually run", and it is answerable by measurement — with the measurement already in place. The 11 `direct` legs run storage code in-process under `-coverpkg=./...`, and since [#9140](https://github.com/jaegertracing/jaeger/pull/9140) the spawned-binary legs build `cmd/jaeger` with `go build -cover -covermode=atomic` and merge the child's counters into the leg's profile. Every leg's executed-package set is therefore already sitting in the `coverage-*` artifacts of each run. This is the mechanism behind Azure DevOps' Test Impact Analysis, and it is preferable to the model-trained alternative (Develocity Predictive Test Selection) because a measured map is inspectable and its errors are attributable.
 
-One independence is worth stating, because it decouples this RFC from RFC 0013's decision gate: RFC 0013 M4 gates rollout on whether binary coverage adds *material* coverage, whereas a relevance map needs only the **set of packages with a non-zero counter**. A leg whose new coverage is 0.2 percentage points still names precisely the packages it executed. If M4 finds the coverage immaterial for gating, the instrumentation remains worth keeping for this purpose.
+That instrumentation was justified as a coverage improvement and turned out to be a modest one — 0.28 percentage points on `memory_v2`, 0.65 on `cassandra` — but it produced something a relevance map needs and nothing else supplies. [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md) records the finding: the `cassandra` leg's profile names 13 cassandra-specific packages the `memory_v2` leg's does not. A relevance map needs only the **set of packages with a non-zero counter**, not the magnitude, so the per-leg attribution is the whole input required here and it exists today.
 
 ### 2.3 The relevance manifest: four tiers
 
@@ -132,7 +132,7 @@ The tiers decide; the guards are what make the decision trustworthy. Each conver
 
 **G4 — shadow mode.** Before enforcement the `relevance` job publishes its selection while everything still runs, so disagreements are observable on real traffic. The same instrumentation remains afterward for auditing a specific pull request.
 
-**G5 — the merge queue is the sound gate,** per §2.1. The precondition is that pull requests actually merge through the queue; the administrator bypasses forced by the coverage freeze that [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) M1 has now fixed were an anomaly, and if bypassing became routine the backstop would weaken to post-merge detection on `main`.
+**G5 — the merge queue is the sound gate,** per §2.1. The precondition is that pull requests actually merge through the queue; the administrator bypasses forced by the Codecov notification freeze that [#9130](https://github.com/jaegertracing/jaeger/pull/9130) fixed were an anomaly, and if bypassing became routine the backstop would weaken to post-merge detection on `main`.
 
 **G6 — explainability and override.** The `relevance` job writes a step-summary table — every job key, ran or skipped, and the rule that decided it — and a `ci:full` label forces a full run, mirroring the existing `ci:parallel`.
 
@@ -153,10 +153,12 @@ This is the sharp edge, and it means selection cannot be switched on before the 
 | Check | Why a partial run breaks it | Resolution |
 | --- | --- | --- |
 | `codecov/patch`, `codecov/project` | withheld until `after_n_builds: 12` uploads arrive, and 11 of the 12 come from cells inside the `ci-e2e-*` workflows | `codecov.notify.manual_trigger: true` plus `codecovcli send-notifications` from the fan-in |
-| `Coverage Gate` | compares the merged total against a `main` baseline; a partial run lowers the total by construction | `carryforward: true` per flag, and diff-level gating ([RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) M6) |
+| `Coverage Gate` | compares the merged total against a `main` baseline; a partial run lowers the total by construction | `carryforward: true` per flag, and the diff-level gate [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md) records as an open gap |
 | `Metrics Comparison` | consumes `.metrics/metrics_snapshot_<storage>.txt` files that e2e legs produce | report absent snapshots as deselected, not as regressions |
 
-Deselecting any e2e leg today drops the upload count below the threshold and Codecov posts nothing — reproducing the five-day merge freeze [RFC 0013 §1.1](./0013-coverage-gating-and-e2e-coverage.md) documents. Replacing `after_n_builds` with an explicit completion signal from [`ci-summary-report.yml`](../../.github/workflows/ci-summary-report.yml) — the only job that sees the whole run — removes the hand-maintained mirror of the job count that RFC 0013 identifies as the freeze's root cause, so it is worth doing on its own merits. `carryforward` is Codecov's mechanism for exactly this situation: a flag receiving no upload carries its coverage forward from the base, keeping the merged total comparable.
+The Codecov constraint is the hard one, and it is now tighter than it was: `after_n_builds` is 27 and, since [#9140](https://github.com/jaegertracing/jaeger/pull/9140), all 27 uploads carry countable coverage. Deselecting any e2e leg drops the count below the threshold, Codecov posts neither required status, and the pull request blocks with nothing failing to point at — the shape of the five-day freeze that [#9130](https://github.com/jaegertracing/jaeger/pull/9130) fixed. The invariant check added by [#9133](https://github.com/jaegertracing/jaeger/pull/9133) already anticipates this: [`check_coverage_uploads.py`](../../scripts/e2e/check_coverage_uploads.py) treats a run with fewer uploads than the threshold as a *reduced matrix*, emits `::notice::reduced matrix: N upload(s) is below after_n_builds`, and deliberately does not fail — so it names the condition without unblocking it.
+
+Replacing `after_n_builds` with `codecov.notify.manual_trigger: true` and a `codecovcli send-notifications` call from [`ci-summary-report.yml`](../../.github/workflows/ci-summary-report.yml) — the only job that sees the whole run — makes report completeness a signal rather than a count, which retires both the threshold and the invariant check that exists to defend it. `carryforward: true` covers the project total: a flag receiving no upload carries its coverage forward from the base, keeping the merged percentage comparable to the `main` baseline.
 
 ### 3.2 Structural facts the design has to accommodate
 
@@ -168,7 +170,7 @@ Deselecting any e2e leg today drops the upload count below the threshold and Cod
 
 Essentially none, because the map is derived from artifacts CI already uploads: the fan-in job already downloads every `coverage-*` artifact to compute `Coverage Gate`, and extracting the set of packages with a non-zero counter is a read of data it is already holding. The only new persisted object is the tier-2 JSON, whose hard upper bound is small — the module's 242 import paths total 16 KB of text, so even the absurd case of all 31 cells executing all 242 packages is ~490 KB, and the realistic figure is a file well under 200 KB that changes only when code moves between packages.
 
-For scale, a full run currently stores 54 artifacts totalling 1 MB with 7-day retention (coverage profiles are the bulk, 80–171 KB each). The repository is public, so Actions minutes are free and unmetered and artifact storage is not separately charged; were the manifest kept in an Actions cache instead (§5), the relevant limit is 10 GB per repository, against which 200 KB alongside the existing `coverage-baseline_` entry is noise. The net direction is downward: fewer jobs per pull-request run means fewer coverage profiles and metrics snapshots uploaded. The one thing that does grow artifact volume is not this RFC — [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) M5 replaces 15 near-empty profiles with real ones, plausibly taking a run from ~1 MB to ~2 MB.
+For scale, a post-[#9140](https://github.com/jaegertracing/jaeger/pull/9140) run stores 40 artifacts totalling 2.76 MB with 7-day retention, coverage profiles being the bulk at 79–171 KB each (run [`30476714160`](https://github.com/jaegertracing/jaeger/actions/runs/30476714160); [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md)'s “~50–100 MB per CI run” is the uncompressed profile volume, whereas what counts against storage is the compressed archive). The repository is public, so Actions minutes are free and unmetered and artifact storage is not separately charged; were the manifest kept in an Actions cache instead (§5), the relevant limit is 10 GB per repository, against which 200 KB alongside the existing `coverage-baseline_` entry is noise. The net direction is downward, since fewer jobs per pull-request run means fewer coverage profiles and metrics snapshots uploaded.
 
 ---
 
@@ -189,7 +191,7 @@ Together these recover ~42% of the run. Requires `ci-success` to accept `skipped
 
 ### M3 — Make the required checks tolerate a partial run ⬜
 
-The three resolutions in §3.1. Ordered before any selection that touches a coverage-uploading job. Coordinate with [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) M2, whose upload invariant is stated in terms of `after_n_builds` and will need restating in terms of the explicit completion signal.
+The three resolutions in §3.1, and the strict prerequisite for any selection that touches a coverage-uploading job — which, at `after_n_builds: 27`, is every e2e leg. Moving to an explicit completion signal supersedes [`check_coverage_uploads.py`](../../scripts/e2e/check_coverage_uploads.py) rather than extending it: with completeness signalled instead of counted, there is no threshold left to drift. [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md) needs updating in the same pull request, since the upload invariant is one of its recorded decisions.
 
 ### M4 — Manifest tiers 0/1/3 and the exhaustiveness guard ⬜
 
@@ -197,7 +199,7 @@ The manifest file, the substrate rule, build-graph inversion including `EmbedFil
 
 ### M5 — Tier 2: measured executed-package sets ⬜
 
-Extract per-leg package sets from the `coverage-*` artifacts of `main` runs, starting with the 11 `direct` legs whose profiles are already real, extending to the spawned-binary legs once [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) M3–M5 lands and noting §2.2's independence from its materiality verdict. Implement G2 so a grown set opens a refresh pull request and disables selection rather than silently under-claiming.
+Extract per-leg package sets from the `coverage-*` artifacts of `main` runs. No new instrumentation is required — [#9140](https://github.com/jaegertracing/jaeger/pull/9140) already made every leg's profile real, so this milestone is a consumer of data the pipeline produces. Implement G2 so a grown set opens a refresh pull request and disables selection rather than silently under-claiming.
 
 ### M6 — Enforce ⬜
 
@@ -233,13 +235,13 @@ Capture the resulting arrangement — the tiers, the guards, where the decision 
 | Covers non-Go inputs | — | 🟢 | 🟡 <sup>8</sup> | 🟡 <sup>9</sup> | 🟢 | 🟢 |
 | PR wall-clock reduction | 🔴 | 🟢 | 🔴 <sup>6</sup> | 🟢 | 🟢 | 🟢 |
 | Machine-minute reduction | 🔴 | 🟢 | 🔴 <sup>6</sup> | 🟢 | 🟡 <sup>10</sup> | 🟢 |
-| No build-system change | 🟢 | 🟢 | 🟢 | 🟡 <sup>11</sup> | 🟢 | 🔴 |
+| No build-system change | 🟢 | 🟢 | 🟢 | 🟢 <sup>11</sup> | 🟢 | 🔴 |
 | Ongoing maintenance | 🟢 | 🔴 | 🟢 | 🟡 <sup>12</sup> | 🟢 | 🔴 |
 | Decision explainable to a contributor | 🟢 | 🟢 | 🟢 | 🟢 <sup>13</sup> | 🟢 | 🟡 |
 
 🟢 good · 🟡 partial or caveated · 🔴 poor · — not applicable
 
-<sup>1</sup> §6.1. <sup>2</sup> Nothing prevents the same filters applying in the merge queue, and the temptation to apply them there is what makes the unsoundness reach `main`. <sup>3</sup> By construction: selection is restricted to `pull_request` events (§2.1). <sup>4</sup> Storage failures surface after review; for outside contributors, a rejected queue entry instead of a red check. <sup>5</sup> Achievable by hand, but with no basis beyond someone's belief. <sup>6</sup> §2.2: `cmd/jaeger`'s closure is 170 of 242 packages. <sup>7</sup> Requires per-backend test targets and hermetic backend stacks, which is most of the migration cost. <sup>8</sup> `//go:embed` assets only. <sup>9</sup> Tier 3 remains declared, held exhaustive by G1. <sup>10</sup> The merge queue still runs everything, and a rejection re-runs it. <sup>11</sup> Depends on [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md)'s `-cover` instrumentation. <sup>12</sup> Tiers 0–2 are derived; tier 3 is 68 guarded files. <sup>13</sup> Via G6's step-summary table.
+<sup>1</sup> §6.1. <sup>2</sup> Nothing prevents the same filters applying in the merge queue, and the temptation to apply them there is what makes the unsoundness reach `main`. <sup>3</sup> By construction: selection is restricted to `pull_request` events (§2.1). <sup>4</sup> Storage failures surface after review; for outside contributors, a rejected queue entry instead of a red check. <sup>5</sup> Achievable by hand, but with no basis beyond someone's belief. <sup>6</sup> §2.2: `cmd/jaeger`'s closure is 170 of 242 packages. <sup>7</sup> Requires per-backend test targets and hermetic backend stacks, which is most of the migration cost. <sup>8</sup> `//go:embed` assets only. <sup>9</sup> Tier 3 remains declared, held exhaustive by G1. <sup>10</sup> The merge queue still runs everything, and a rejection re-runs it. <sup>11</sup> The `-cover` instrumentation it consumes already exists ([#9140](https://github.com/jaegertracing/jaeger/pull/9140)). <sup>12</sup> Tiers 0–2 are derived; tier 3 is 68 guarded files. <sup>13</sup> Via G6's step-summary table.
 
 **D, restricted to `pull_request` events, keeping E's guarantee as the backstop.** D is the only option that both discriminates between legs linking the same binary and reports when its own map has gone stale. E is not adopted as a strategy — deferring all storage validation past review is a real cost to contributors and reviewers — but its guarantee is retained wholesale.
 
@@ -264,8 +266,8 @@ Bazel or Pants would make change analysis correct by construction. The cost is a
 - [#3113](https://github.com/jaegertracing/jaeger/issues/3113) — Rethink our CI to avoid building all the docker images every time
 - [#1476](https://github.com/jaegertracing/jaeger/issues/1476) — Optimize CI
 - [#1784](https://github.com/jaegertracing/jaeger/issues/1784) — Elasticsearch integration tests started taking too long
-- [RFC 0013](./0013-coverage-gating-and-e2e-coverage.md) — Reliable Coverage Gating and Real E2E Coverage
-- [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md) — Migrating Coverage Gating to GitHub Actions
+- [#9084](https://github.com/jaegertracing/jaeger/issues/9084) — e2e coverage fidelity, where the unified-binary attribution problem was first established
+- [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md) — Migrating Coverage Gating to GitHub Actions, extended by [#9141](https://github.com/jaegertracing/jaeger/pull/9141) with binary coverage, the upload invariant, and the known gaps this RFC builds on
 - [`.github/workflows/README.md`](../../.github/workflows/README.md) — the staged orchestrator architecture
 - [Azure DevOps Test Impact Analysis](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis?view=azure-devops) — selection from a dynamic dependency map built during test execution
 - [Develocity Predictive Test Selection](https://docs.gradle.com/develocity/2026.1/using-develocity/predictive-test-selection/) — the model-trained alternative to a measured map
