@@ -38,10 +38,15 @@ jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	# might have changed even though the code remains the same.
 	go clean -testcache
 	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -covermode=atomic -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
-	# covdata fails on a directory with no meta file, which is what an empty run
-	# looks like; treat that as "no binary coverage" rather than a build failure,
-	# since the missing contribution is reported by the coverage-upload check.
-	@if ls $(BINARY_COVERDIR)/covmeta.* >/dev/null 2>&1; then \
+	# Require both files. The meta file is written when the instrumented binary
+	# starts, the counters only when it exits normally, so an abnormal exit leaves
+	# meta alone. covdata is happy to convert that: it exits 0 and emits a profile
+	# listing every instrumented statement at zero, which merged into COVEROUT would
+	# add ~22k uncovered statements and collapse the reported total — surfacing as a
+	# coverage regression rather than as the missing counters it actually is.
+	# Treat that as "no binary coverage"; the absent contribution is then reported by
+	# scripts/e2e/check_coverage_uploads.py.
+	@if ls $(BINARY_COVERDIR)/covmeta.* >/dev/null 2>&1 && ls $(BINARY_COVERDIR)/covcounters.* >/dev/null 2>&1; then \
 		set -e; \
 		go tool covdata textfmt -i=$(BINARY_COVERDIR) -o $(BINARY_COVEROUT); \
 		$(GOCOVMERGE) $(COVEROUT) $(BINARY_COVEROUT) > $(COVEROUT).tmp; \
