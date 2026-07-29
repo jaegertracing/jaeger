@@ -36,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"net/url"
 	"os"
@@ -213,10 +214,15 @@ func isNDJSONEndpoint(path string) bool {
 // It returns an error rather than asserting so the rules are unit-testable on their
 // own; toSnapshot turns the error into a test failure.
 func validateNDJSON(contentType string, body []byte) error {
-	// Compare only the media type, so a charset or other parameter does not fail an
-	// otherwise correct header.
-	mediaType, _, _ := strings.Cut(contentType, ";")
-	if !slices.Contains(ndjsonContentTypes, strings.TrimSpace(mediaType)) {
+	// Parse the full header so a malformed parameter is rejected (not silently
+	// dropped) and the media type is normalized: mime.ParseMediaType lower-cases it,
+	// so a valid mixed-case header like "Application/X-NDJSON" is accepted, and any
+	// parameters (e.g. "; charset=utf-8") are validated rather than ignored.
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return fmt.Errorf("invalid Content-Type %q: %w", contentType, err)
+	}
+	if !slices.Contains(ndjsonContentTypes, mediaType) {
 		return fmt.Errorf("Content-Type %q is not one of %v", contentType, ndjsonContentTypes)
 	}
 	if len(body) == 0 {
