@@ -8,17 +8,18 @@ import (
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
 
-	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/metricstoremetrics"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 )
 
 type Factory struct {
-	config config.Configuration
-	telset telemetry.Settings
-	client es.Client
+	config   config.Configuration
+	telset   telemetry.Settings
+	searcher esclient.Searcher
 }
 
 // NewFactory creates a new Factory with the given configuration and telemetry settings.
@@ -32,24 +33,34 @@ func NewFactory(
 		return nil, err
 	}
 
-	client, err := config.NewClient(ctx, &cfg, telset.Logger, telset.Metrics, httpAuth)
+	client, err := esclient.NewClient(ctx, &cfg, telset.Logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Factory{
-		config: cfg,
-		telset: telset,
-		client: client,
+		config:   cfg,
+		telset:   telset,
+		searcher: esclient.SearchClient{Client: client},
 	}, nil
 }
 
 // CreateMetricsReader implements storage.MetricStoreFactory.
 func (f *Factory) CreateMetricsReader() (metricstore.Reader, error) {
-	mr := NewMetricsReader(f.client, f.config, f.telset.Logger, f.telset.TracerProvider)
+	spanRotation := indices.BuildRotation(
+		f.config.Indices.IndexPrefix,
+		config.SpanIndexName,
+		f.config.ResolvedSpanRotation(),
+		f.config.RemoteReadClusters,
+		f.telset.Logger,
+	)
+	mr := NewMetricsReader(f.searcher, f.config, f.telset.Logger, f.telset.TracerProvider, spanRotation)
 	return metricstoremetrics.NewReaderDecorator(mr, f.telset.Metrics), nil
 }
 
-func (f *Factory) Close() error {
-	return f.client.Close()
+// Close releases the factory's resources. The esclient transport holds no
+// resources requiring explicit shutdown (matching the other ES storage factories),
+// so this is a no-op kept to satisfy the closer contract.
+func (*Factory) Close() error {
+	return nil
 }

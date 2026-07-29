@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/filter"
 )
 
@@ -27,12 +27,12 @@ type IndexFilter struct {
 }
 
 // Filter filters indices.
-func (i *IndexFilter) Filter(indices []client.Index) []client.Index {
+func (i *IndexFilter) Filter(indices []esclient.Index) []esclient.Index {
 	indices = i.filterByPattern(indices)
 	return filter.ByDate(indices, i.DeleteBeforeThisDate)
 }
 
-func (i *IndexFilter) filterByPattern(indices []client.Index) []client.Index {
+func (i *IndexFilter) filterByPattern(indices []esclient.Index) []esclient.Index {
 	var reg *regexp.Regexp
 	switch {
 	case i.Archive:
@@ -44,7 +44,7 @@ func (i *IndexFilter) filterByPattern(indices []client.Index) []client.Index {
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
 	}
 
-	var filtered []client.Index
+	var filtered []esclient.Index
 	for _, in := range indices {
 		if reg.MatchString(in.Index) {
 			// index in write alias cannot be removed

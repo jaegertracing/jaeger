@@ -11,7 +11,7 @@ import (
 )
 
 func TestGRPCStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "grpc")
+	integration.SkipUnlessEnv(t, integration.StorageGRPC)
 
 	if os.Getenv("CUSTOM_STORAGE") != "true" {
 		remoteBackend := &E2EStorageIntegration{

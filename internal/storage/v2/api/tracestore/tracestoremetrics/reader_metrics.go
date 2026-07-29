@@ -18,12 +18,13 @@ var _ tracestore.Reader = (*ReadMetricsDecorator)(nil)
 
 // ReadMetricsDecorator wraps a tracestore.Reader and collects metrics around each read operation.
 type ReadMetricsDecorator struct {
-	traceReader          tracestore.Reader
-	findTracesMetrics    *queryMetrics
-	findTraceIDsMetrics  *queryMetrics
-	getTraceMetrics      *queryMetrics
-	getServicesMetrics   *queryMetrics
-	getOperationsMetrics *queryMetrics
+	traceReader               tracestore.Reader
+	findTracesMetrics         *queryMetrics
+	findTraceIDsMetrics       *queryMetrics
+	findTraceSummariesMetrics *queryMetrics
+	getTraceMetrics           *queryMetrics
+	getServicesMetrics        *queryMetrics
+	getOperationsMetrics      *queryMetrics
 }
 
 type queryMetrics struct {
@@ -45,15 +46,17 @@ func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
 	}
 }
 
-// NewReaderDecorator returns a new ReadMetricsDecorator.
-func NewReaderDecorator(traceReader tracestore.Reader, metricsFactory metrics.Factory) *ReadMetricsDecorator {
+// NewReaderDecorator returns a ReadMetricsDecorator that instruments all tracestore.Reader
+// methods with metrics.
+func NewReaderDecorator(traceReader tracestore.Reader, metricsFactory metrics.Factory) tracestore.Reader {
 	return &ReadMetricsDecorator{
-		traceReader:          traceReader,
-		findTracesMetrics:    buildQueryMetrics("find_traces", metricsFactory),
-		findTraceIDsMetrics:  buildQueryMetrics("find_trace_ids", metricsFactory),
-		getTraceMetrics:      buildQueryMetrics("get_trace", metricsFactory),
-		getServicesMetrics:   buildQueryMetrics("get_services", metricsFactory),
-		getOperationsMetrics: buildQueryMetrics("get_operations", metricsFactory),
+		traceReader:               traceReader,
+		findTracesMetrics:         buildQueryMetrics("find_traces", metricsFactory),
+		findTraceIDsMetrics:       buildQueryMetrics("find_trace_ids", metricsFactory),
+		findTraceSummariesMetrics: buildQueryMetrics("find_trace_summaries", metricsFactory),
+		getTraceMetrics:           buildQueryMetrics("get_trace", metricsFactory),
+		getServicesMetrics:        buildQueryMetrics("get_services", metricsFactory),
+		getOperationsMetrics:      buildQueryMetrics("get_operations", metricsFactory),
 	}
 }
 
@@ -132,13 +135,6 @@ func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error
 	return retMe, err
 }
 
-// Unwrap returns the underlying tracestore.Reader, allowing callers to
-// discover optional interfaces (e.g. tracestore.SummaryReader) that the
-// wrapped reader may implement but the decorator does not forward.
-func (m *ReadMetricsDecorator) Unwrap() tracestore.Reader {
-	return m.traceReader
-}
-
 // GetOperations implements tracestore.Reader#GetOperations
 func (m *ReadMetricsDecorator) GetOperations(
 	ctx context.Context,
@@ -148,4 +144,23 @@ func (m *ReadMetricsDecorator) GetOperations(
 	retMe, err := m.traceReader.GetOperations(ctx, query)
 	m.getOperationsMetrics.emit(err, time.Since(start), len(retMe))
 	return retMe, err
+}
+
+// FindTraceSummaries implements tracestore.Reader#FindTraceSummaries
+func (m *ReadMetricsDecorator) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		start := time.Now()
+		var err error
+		length := 0
+		defer func() {
+			m.findTraceSummariesMetrics.emit(err, time.Since(start), length)
+		}()
+		for summaries, iterErr := range m.traceReader.FindTraceSummaries(ctx, query) {
+			err = iterErr
+			length += len(summaries)
+			if !yield(summaries, iterErr) {
+				return
+			}
+		}
+	}
 }

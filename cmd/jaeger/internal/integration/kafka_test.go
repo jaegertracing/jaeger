@@ -13,7 +13,7 @@ import (
 )
 
 func TestKafkaStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "kafka")
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
 
 	tests := []struct {
 		encoding string

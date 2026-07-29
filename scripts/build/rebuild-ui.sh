@@ -18,7 +18,7 @@ if [[ "${JAEGER_UI_DIR}" != "jaeger-ui" ]]; then
 fi
 
 # When JAEGER_UI_SKIP_RELEASE_CHECK is set (e.g. snapshot builds pointing at a
-# non-release commit), skip the tag lookup and go straight to the npm build.
+# non-release commit), skip the tag lookup and go straight to the source build.
 # This avoids a costly git fetch --unshallow + fetch --all --tags on a shallow clone.
 if [[ -z "${JAEGER_UI_SKIP_RELEASE_CHECK:-}" ]]; then
     if [[ "$(git rev-parse --is-shallow-repository)" == "true" ]]; then
@@ -52,4 +52,9 @@ fi
 # do a regular full build
 # nvm is only available in local environments; CI uses actions/setup-node instead.
 if type nvm &>/dev/null 2>&1; then nvm use; fi
-npm ci && cd packages/jaeger-ui && npm run build
+# jaeger-ui is pnpm-based (pinned via its package.json "packageManager" field).
+# In CI the setup-node.js action installs pnpm; locally, enable it via corepack.
+if ! type pnpm &>/dev/null 2>&1; then corepack enable; fi
+# Delegate install+build to jaeger-ui's own Makefile so the build recipe stays
+# owned by the UI repo (make reinstall = pnpm install --frozen-lockfile).
+make reinstall && make build

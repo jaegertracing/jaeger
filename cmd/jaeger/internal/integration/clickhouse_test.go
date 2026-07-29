@@ -10,13 +10,12 @@ import (
 )
 
 func TestClickHouseStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "clickhouse")
+	integration.SkipUnlessEnv(t, integration.StorageClickHouse)
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
 		},
-		FeatureGates: []string{"storage.clickhouse"},
 	}
 	s.e2eInitialize(t, "clickhouse")
 	s.RunSpanStoreTests(t)

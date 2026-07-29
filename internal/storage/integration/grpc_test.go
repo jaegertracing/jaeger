@@ -66,7 +66,7 @@ func (s *GRPCStorageIntegrationTestSuite) cleanUp(t *testing.T) {
 }
 
 func TestGRPCRemoteStorage(t *testing.T) {
-	SkipUnlessEnv(t, "grpc")
+	SkipUnlessEnv(t, StorageGRPC)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

@@ -72,7 +72,7 @@ jobs:
       # Checkout the base repo so that .github/scripts/ci-summary-report-publish.js
       # is available for require() in the github-script step below.
       # Do NOT checkout the PR head: this workflow must only run base-repo code.
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # Download the ci-summary artifact (pre-computed by ci-summary-report.yml).
       # head_sha and pr_number are read from ci-summary.json in the next step.

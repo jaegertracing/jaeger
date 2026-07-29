@@ -26,6 +26,10 @@ import (
 
 const otlpPort = 4317
 
+// binaryCoverDirEnvVar names the directory where the spawned jaeger binary should
+// write coverage counters. Deliberately not GOCOVERDIR — see binaryEnv.
+const binaryCoverDirEnvVar = "JAEGER_BINARY_COVERDIR"
+
 // E2EStorageIntegration holds components for e2e mode of Jaeger-v2
 // storage integration test. The intended usage is as follows:
 //   - Initialize a specific storage implementation declares its own test functions
@@ -42,6 +46,7 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
+	BinaryPath         string // overrides default "./cmd/jaeger/jaeger"; resolved relative to the repo root
 
 	MetricsPort     int // overridable, default to 8888
 	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
@@ -56,6 +61,8 @@ type E2EStorageIntegration struct {
 	PropagateEnvVars []string
 	// FeatureGates contains a list of feature gate IDs to enable for the Jaeger binary.
 	FeatureGates []string
+
+	binary *Binary // set by e2eInitialize; allows mid-test shutdown via binary.Stop(t)
 }
 
 func (s *E2EStorageIntegration) args(configFile string) []string {
@@ -64,6 +71,41 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 		args = append(args, "--feature-gates="+strings.Join(s.FeatureGates, ","))
 	}
 	return args
+}
+
+// binaryEnv builds the environment for the spawned jaeger binary. The child gets
+// an explicit environment rather than inheriting the test process's, so anything
+// it needs must be listed here.
+//
+// lookupEnv has os.LookupEnv's signature and is a parameter so that tests can
+// exercise this without mutating the test process's own environment. That
+// matters here: these tests run in the same process as the e2e tests, which rely
+// on GOCOVERDIR being set, so a test that unset it would silently disable binary
+// coverage for every test that ran afterwards.
+func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool)) []string {
+	envVars := []string{"OTEL_TRACES_SAMPLER=always_off"}
+	// A binary built with `go build -cover` writes its coverage counters into
+	// GOCOVERDIR when it exits. That directory cannot simply be inherited: when the
+	// tests themselves run under `go test -coverprofile`, the toolchain sets
+	// GOCOVERDIR in the test process to a temp dir of its own, so an inherited value
+	// would be overwritten and the binary's counters would land somewhere the build
+	// discards. The make target therefore passes the destination as
+	// binaryCoverDirEnvVar and it is mapped onto GOCOVERDIR only for the child.
+	if dir, ok := lookupEnv(binaryCoverDirEnvVar); ok && dir != "" {
+		envVars = append(envVars, "GOCOVERDIR="+dir)
+	}
+	// Order preserved from before this function was extracted: os/exec keeps the
+	// last of duplicate keys, so it decides which wins if a variable appears in
+	// both EnvVarOverrides and PropagateEnvVars.
+	for key, value := range s.EnvVarOverrides {
+		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+	}
+	for _, key := range s.PropagateEnvVars {
+		if value, ok := lookupEnv(key); ok {
+			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+	return envVars
 }
 
 // e2eInitialize starts the Jaeger-v2 collector with the provided config file,
@@ -87,21 +129,17 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	require.NoError(t, err)
 	t.Logf("Config file content:\n%s", string(cfgBytes))
 
-	envVars := []string{"OTEL_TRACES_SAMPLER=always_off"}
-	for key, value := range s.EnvVarOverrides {
-		envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
-	}
-	for _, key := range s.PropagateEnvVars {
-		if value, ok := os.LookupEnv(key); ok {
-			envVars = append(envVars, fmt.Sprintf("%s=%s", key, value))
-		}
-	}
+	envVars := s.binaryEnv(os.LookupEnv)
 
+	binaryPath := s.BinaryPath
+	if binaryPath == "" {
+		binaryPath = "./cmd/jaeger/jaeger"
+	}
 	cmd := Binary{
 		Name:            s.BinaryName,
 		HealthCheckPort: s.HealthCheckPort,
 		Cmd: exec.Cmd{
-			Path: "./cmd/jaeger/jaeger",
+			Path: binaryPath,
 			Args: s.args(configFile),
 			// Change the working directory to the root of this project
 			// since the binary config file jaeger_query's ui.config_file points to
@@ -111,6 +149,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 		},
 	}
 	cmd.Start(t)
+	s.binary = &cmd
 
 	s.TraceWriter, err = createTraceWriter(logger, otlpPort)
 	require.NoError(t, err)
@@ -135,7 +174,7 @@ func (s *E2EStorageIntegration) scrapeMetrics(t *testing.T, storage string) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, metricsUrl, http.NoBody)
 	require.NoError(t, err)
 
-	client := &http.Client{}
+	client := testingHttpClient(t)
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -232,7 +271,7 @@ func purge(t *testing.T) {
 	r, err := http.NewRequestWithContext(context.Background(), http.MethodPost, addr, http.NoBody)
 	require.NoError(t, err)
 
-	client := &http.Client{}
+	client := testingHttpClient(t)
 
 	resp, err := client.Do(r)
 	require.NoError(t, err)
@@ -241,4 +280,12 @@ func purge(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(body))
+}
+
+func testingHttpClient(t *testing.T) *http.Client {
+	cl := http.DefaultClient
+	t.Cleanup(func() {
+		cl.CloseIdleConnections()
+	})
+	return cl
 }

@@ -105,7 +105,7 @@ func (s *CassandraStorageIntegration) initializeDependencyReaderAndWriter(t *tes
 }
 
 func TestCassandraStorage(t *testing.T) {
-	SkipUnlessEnv(t, "cassandra")
+	SkipUnlessEnv(t, StorageCassandra)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

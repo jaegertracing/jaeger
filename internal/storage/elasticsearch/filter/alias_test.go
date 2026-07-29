@@ -8,10 +8,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/client"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
-var indices = []client.Index{
+var indices = []esclient.Index{
 	{
 		Index: "jaeger-span-0001",
 		Aliases: map[string]bool{
@@ -50,7 +50,7 @@ var indices = []client.Index{
 
 func TestByAlias(t *testing.T) {
 	filtered := ByAlias(indices, []string{"jaeger-span-read", "jaeger-span-other"})
-	expected := []client.Index{
+	expected := []esclient.Index{
 		{
 			Index: "jaeger-span-0001",
 			Aliases: map[string]bool{
@@ -82,7 +82,7 @@ func TestByAlias(t *testing.T) {
 
 func TestByAliasExclude(t *testing.T) {
 	filtered := ByAliasExclude(indices, []string{"jaeger-span-read", "jaeger-span-other"})
-	expected := []client.Index{
+	expected := []esclient.Index{
 		{
 			Index: "jaeger-span-0005",
 			Aliases: map[string]bool{

@@ -7,15 +7,21 @@ package elasticsearch
 import (
 	"time"
 
+	"go.opentelemetry.io/collector/config/configoptional"
+
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 )
 
 var defaultIndexOptions = config.IndexOptions{
-	DateLayout:        initDateLayout("day", "-"),
-	RolloverFrequency: "day",
-	Shards:            5,
-	Replicas:          new(int64(1)),
-	Priority:          0,
+	Shards:   5,
+	Replicas: new(int64(1)),
+	Priority: 0,
+	Rotation: config.RotationConfig{
+		Periodic: configoptional.Default(config.PeriodicRotation{
+			DateLayout:        initDateLayout("day", "-"),
+			RolloverFrequency: "day",
+		}),
+	},
 }
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -42,28 +48,24 @@ func DefaultConfig() config.Configuration {
 		Sniffing: config.Sniffing{
 			Enabled: false,
 		},
-		DisableHealthCheck:       false,
 		MaxSpanAge:               72 * time.Hour,
+		MaxTraceDuration:         24 * time.Hour,
 		AdaptiveSamplingLookback: 72 * time.Hour,
 		BulkProcessing: config.BulkProcessing{
 			MaxBytes:      5 * 1000 * 1000,
 			Workers:       1,
-			MaxActions:    1000,
 			FlushInterval: time.Millisecond * 200,
 		},
 		Tags: config.TagsAsFields{
 			DotReplacement: "@",
 		},
 		Enabled:              true,
-		CreateIndexTemplates: true,
 		Version:              0,
-		UseReadWriteAliases:  false,
-		UseILM:               false,
 		Servers:              []string{"http://127.0.0.1:9200"},
 		RemoteReadClusters:   []string{},
 		MaxDocCount:          10_000,
 		LogLevel:             "error",
-		SendGetBodyAs:        "",
+		CreateIndexTemplates: true,
 		HTTPCompression:      true,
 		Indices: config.Indices{
 			Spans:        defaultIndexOptions,

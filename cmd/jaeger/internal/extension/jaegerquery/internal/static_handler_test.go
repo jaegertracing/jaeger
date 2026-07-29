@@ -28,8 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-//go:generate mockery -all -dir ../../../internal/fswatcher
-
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},

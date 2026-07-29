@@ -21,6 +21,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 	"github.com/jaegertracing/jaeger/internal/metrics"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 // Redis is a simulator of remote Redis cache
@@ -41,7 +42,11 @@ func newRedis(otelExporter string, metricsFactory metrics.Factory, logger log.Fa
 // FindDriverIDs finds IDs of drivers who are near the location.
 func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 	ctx, span := r.tracer.Start(ctx, "FindDriverIDs", trace.WithSpanKind(trace.SpanKindClient))
-	span.SetAttributes(attribute.Key("param.driver.location").String(location))
+	span.SetAttributes(
+		otelsemconv.DBSystemAttribute("redis"),
+		otelsemconv.DBOperationNameAttribute("GET"),
+		attribute.Key("param.driver.location").String(location),
+	)
 	defer span.End()
 
 	// simulate RPC delay
@@ -59,7 +64,11 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 // GetDriver returns driver and the current car location
 func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) {
 	ctx, span := r.tracer.Start(ctx, "GetDriver", trace.WithSpanKind(trace.SpanKindClient))
-	span.SetAttributes(attribute.Key("param.driverID").String(driverID))
+	span.SetAttributes(
+		otelsemconv.DBSystemAttribute("redis"),
+		otelsemconv.DBOperationNameAttribute("GET"),
+		attribute.Key("param.driverID").String(driverID),
+	)
 	defer span.End()
 
 	// simulate RPC delay

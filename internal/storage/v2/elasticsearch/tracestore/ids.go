@@ -49,8 +49,11 @@ func fromDbSpanId(dbSpanId dbmodel.SpanID) (pcommon.SpanID, error) {
 	return spanId, nil
 }
 
-// TODO extend DB model to support parent span ID directly
 func getParentSpanId(dbSpan *dbmodel.Span) dbmodel.SpanID {
+	if dbSpan.ParentSpanID != "" {
+		return dbSpan.ParentSpanID
+	}
+	// Fallback for data written before parentSpanID was populated on the write path.
 	var followsFromRef *dbmodel.Reference
 	for i := range dbSpan.References {
 		ref := dbSpan.References[i]

@@ -58,6 +58,7 @@ Run these commands without asking for permission:
 ## Tests
 
 - All new functionality must include tests.
+- **Cover your changed code before pushing.** Codecov enforces a **95% patch target** (`.codecov.yml`), so a PR whose diff dips below it fails CI. Measure patch coverage locally before opening or updating a PR — e.g. `go test -covermode=atomic -coverprofile=cover.out ./<changed-pkg>/... && go tool cover -func=cover.out` — and add tests for the uncovered new/changed lines. If a changed line is genuinely unreachable or not meaningfully testable (e.g. an error branch no test can trigger), restructure it to be testable or call it out in the PR description; don't leave the gap silent. Files matched by `.codecov.yml`'s `ignore` list (generated code, `mocks/`, `main.go`, integration tests, `internal/tools`) are exempt.
 - Bug fixes must include a regression test that fails without the fix.
 - Do not delete existing tests to make a build green. If a test is genuinely wrong, explain why in the PR description.
 - Do not weaken assertions (e.g. replacing exact checks with `assert.NotNil`) just to make a flaky test pass.
@@ -68,6 +69,15 @@ Run these commands without asking for permission:
 - Do not reformat, rename, or restructure code outside the scope of the requested change.
 - Do not bump dependencies unless the task requires it.
 - Do not change CI workflows or release tooling unless explicitly asked.
+
+## RFC / ADR Documents
+
+RFCs (`docs/rfc/`) are point-in-time proposals; ADRs (`docs/adr/`) are decision records.
+
+- When a PR implements a milestone described in an RFC or ADR, update that document in the same PR: mark the milestone ✅ and link the delivering PR. Keep the milestone/status tracking current.
+- Do **not** rewrite an RFC's prose, abstract, or diagrams to match the evolving codebase — its narrative is a historical snapshot of the state and plan when it was written.
+- ADRs are different: they describe a design, not a plan, so keeping one accurate is worth more than keeping it pristine. Judge by proportion. If a change touches a small part of an ADR and reverses none of its decisions, **edit that ADR in place** — extend the affected sections, note the extension in the Status or Date line, and leave the original Context and Decision prose alone. Write a new superseding ADR only when the change replaces the original's decision or architecture outright. [ADR-004](./docs/adr/004-migrating-coverage-gating-to-github-actions.md) is an example of the former: its fan-in gating decision and requirements stood, so later work extended it rather than superseding it. What the rule forbids is rewriting an ADR into running documentation of the code.
+- When an RFC's work is fully delivered, mark its status Implemented; if the resulting architecture is worth an enduring reference, graduate it into a new ADR in [`docs/adr/`](./docs/adr/) that states the outcome and links back to the RFC, rather than mutating the RFC. [ADR-012](./docs/adr/012-unified-elasticsearch-client.md) (graduated from RFC 0006) is an example.
 
 ## When in Doubt
 

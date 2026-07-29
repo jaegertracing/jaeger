@@ -37,6 +37,28 @@ import (
 //go:embed fixtures
 var fixtures embed.FS
 
+// StorageType is a typed string for the STORAGE environment variable
+// to avoid typos in test skip guards.
+type StorageType string
+
+const (
+	StorageElasticsearch StorageType = "elasticsearch"
+	StorageOpenSearch    StorageType = "opensearch"
+	StorageKafka         StorageType = "kafka"
+	StorageGRPC          StorageType = "grpc"
+	StorageBadger        StorageType = "badger"
+	StorageCassandra     StorageType = "cassandra"
+	StorageClickHouse    StorageType = "clickhouse"
+	StorageQuery         StorageType = "query"
+
+	// StorageMemory is used for direct-path memory tests (runs during `make cover`).
+	// StorageMemoryV2 is used for e2e memory tests that require a pre-built binary.
+	// They cannot be consolidated because `make cover` runs ./... and would trigger
+	// the e2e test which expects the Jaeger binary to exist.
+	StorageMemory   StorageType = "memory"
+	StorageMemoryV2 StorageType = "memory_v2"
+)
+
 // StorageIntegration holds components for storage integration test.
 // The intended usage is as follows:
 // - a specific storage implementation declares its own test functions
@@ -124,12 +146,18 @@ func (s *StorageIntegration) cleanUp(t *testing.T) {
 	s.CleanUp(t)
 }
 
-func SkipUnlessEnv(t *testing.T, storage ...string) {
+func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
 	env := os.Getenv("STORAGE")
-	if slices.Contains(storage, env) {
-		return
+	for _, s := range storage {
+		if string(s) == env {
+			return
+		}
 	}
-	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(storage, "|"))
+	names := make([]string, len(storage))
+	for i, s := range storage {
+		names[i] = string(s)
+	}
+	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(names, "|"))
 }
 
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
@@ -380,9 +408,6 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	sr, ok := s.TraceReader.(tracestore.SummaryReader)
-	require.True(t, ok, "TraceReader must implement tracestore.SummaryReader; add FindTraceSummaries to Capabilities.SkipList to opt out")
-
 	trace := s.loadParseAndWriteExampleTrace(t)
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
@@ -417,31 +442,31 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 		SearchDepth:  10,
 	}
 
-	var summaries []tracestore.TraceSummary
+	expectedSpanCount := trace.SpanCount()
+	var summary *tracestore.TraceSummary
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		batches, err := jiter.CollectWithErrors(sr.FindTraceSummaries(context.Background(), query))
+		batches, err := jiter.CollectWithErrors(s.TraceReader.FindTraceSummaries(context.Background(), query))
 		if err != nil {
 			t.Log(err)
 			return false
 		}
-		summaries = nil
+		summary = nil
 		for _, b := range batches {
-			summaries = append(summaries, b...)
+			for i := range b {
+				if b[i].TraceID == expectedTraceID {
+					sm := b[i]
+					summary = &sm
+				}
+			}
 		}
-		return len(summaries) > 0
+		// ES refreshes asynchronously, so an early query can observe a partially
+		// indexed trace. Wait until the summary reports the full span count.
+		return summary != nil && summary.SpanCount == expectedSpanCount
 	})
-	require.True(t, found, "timed out waiting for FindTraceSummaries to return results")
+	require.True(t, found, "timed out waiting for the complete FindTraceSummaries result for trace %s", expectedTraceID)
+	require.NotNil(t, summary)
 
-	// Find the summary for our trace.
-	var summary *tracestore.TraceSummary
-	for i := range summaries {
-		if summaries[i].TraceID == expectedTraceID {
-			summary = &summaries[i]
-			break
-		}
-	}
-	require.NotNil(t, summary, "expected trace ID %s not found in summaries", expectedTraceID)
-	assert.Equal(t, trace.SpanCount(), summary.SpanCount)
+	assert.Equal(t, expectedSpanCount, summary.SpanCount)
 	assert.False(t, summary.MinStartTime.IsZero(), "MinStartTime should not be zero")
 	assert.False(t, summary.MaxEndTime.IsZero(), "MaxEndTime should not be zero")
 	assert.NotEmpty(t, summary.Services, "services should not be empty")

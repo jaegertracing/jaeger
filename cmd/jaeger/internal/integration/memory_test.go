@@ -10,7 +10,7 @@ import (
 )
 
 func TestMemoryStorage(t *testing.T) {
-	integration.SkipUnlessEnv(t, "memory_v2")
+	integration.SkipUnlessEnv(t, integration.StorageMemoryV2)
 
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config.yaml",

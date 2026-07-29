@@ -44,7 +44,7 @@ func (s *MemStorageIntegrationTestSuite) initialize(t *testing.T) {
 }
 
 func TestMemoryStorage(t *testing.T) {
-	SkipUnlessEnv(t, "memory")
+	SkipUnlessEnv(t, StorageMemory)
 	t.Cleanup(func() {
 		testutils.VerifyGoLeaksOnce(t)
 	})

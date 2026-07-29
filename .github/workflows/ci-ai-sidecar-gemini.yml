@@ -19,10 +19,10 @@ jobs:
         with:
           egress-policy: audit # TODO: change to 'egress-policy: block' after a couple of runs
 
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.14'
 
@@ -39,6 +39,6 @@ jobs:
         working-directory: scripts/ai-sidecar/gemini
         run: uv run pyright ./
 
-      - name: Run Gemini sidecar workflow test
+      - name: Run Gemini sidecar tests
         working-directory: scripts/ai-sidecar/gemini
-        run: uv run pytest -q test_sidecar_workflow.py
+        run: uv run pytest -q
