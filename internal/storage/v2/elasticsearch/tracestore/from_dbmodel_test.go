@@ -867,12 +867,230 @@ func TestToDbModel_Fixtures_StringTags(t *testing.T) {
 	testTraces(t, expectedTraces, td)
 }
 
+func TestDbSpanToSpan_NoTags(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:       dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:        dbmodel.SpanID("0123456789abcdef"),
+		OperationName: "test-operation",
+		StartTime:     1000000,
+		Duration:      1000,
+		Flags:         1,
+	}
+
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.NoError(t, err)
+	assert.Equal(t, "test-operation", span.Name())
+	assert.Equal(t, uint32(1), span.Flags())
+	assert.Equal(t, ptrace.SpanKindUnspecified, span.Kind())
+	assert.Equal(t, 0, span.Attributes().Len())
+	assert.Empty(t, span.TraceState().AsRaw())
+	assert.Equal(t, ptrace.StatusCodeUnset, span.Status().Code())
+}
+
+func TestDbSpanToSpan_NonSpecialTags(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:       dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:        dbmodel.SpanID("0123456789abcdef"),
+		OperationName: "test-operation",
+		StartTime:     1000000,
+		Duration:      1000,
+		Tags: []dbmodel.KeyValue{
+			{Key: "string-key", Value: "string-val", Type: dbmodel.StringType},
+			{Key: "int-key", Value: int64(42), Type: dbmodel.Int64Type},
+			{Key: "bool-key", Value: true, Type: dbmodel.BoolType},
+			{Key: "double-key", Value: 3.14, Type: dbmodel.Float64Type},
+		},
+	}
+
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.NoError(t, err)
+	attrs := span.Attributes()
+	assert.Equal(t, "string-val", attrStr(attrs, "string-key"))
+	assert.Equal(t, int64(42), attrInt(attrs, "int-key"))
+	assert.True(t, attrBool(attrs, "bool-key"))
+	assert.InDelta(t, 3.14, attrDouble(attrs, "double-key"), 0.001)
+	assert.Equal(t, 4, attrs.Len())
+}
+
+func TestDbSpanToSpan_ErrorStatusTags(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:       dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:        dbmodel.SpanID("0123456789abcdef"),
+		OperationName: "test-operation",
+		StartTime:     1000000,
+		Duration:      1000,
+		Tags: []dbmodel.KeyValue{
+			{Key: tagError, Value: true, Type: dbmodel.BoolType},
+			{Key: conventions.OtelStatusDescription, Value: "server error", Type: dbmodel.StringType},
+		},
+	}
+
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.NoError(t, err)
+	assert.Equal(t, ptrace.StatusCodeError, span.Status().Code())
+	assert.Equal(t, "server error", span.Status().Message())
+	assert.Equal(t, 0, span.Attributes().Len())
+}
+
+func TestDbSpanToSpan_W3CTraceState(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:       dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:        dbmodel.SpanID("0123456789abcdef"),
+		OperationName: "test-operation",
+		StartTime:     1000000,
+		Duration:      1000,
+		Tags: []dbmodel.KeyValue{
+			{Key: tagW3CTraceState, Value: "vendor1=val1,vendor2=val2", Type: dbmodel.StringType},
+			{Key: "normal-tag", Value: "normal", Type: dbmodel.StringType},
+		},
+	}
+
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.NoError(t, err)
+	assert.Equal(t, "vendor1=val1,vendor2=val2", span.TraceState().AsRaw())
+	_, exists := span.Attributes().Get(tagW3CTraceState)
+	assert.False(t, exists, "W3C trace state attribute should be removed")
+	assert.Equal(t, 1, span.Attributes().Len())
+}
+
+func TestDbSpanToSpan_InvalidTraceID(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID: dbmodel.TraceID("not-a-valid-hex-trace-id"),
+		SpanID:  dbmodel.SpanID("0123456789abcdef"),
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.ErrorContains(t, err, "encoding/hex")
+}
+
+func TestDbSpanToSpan_InvalidSpanID(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:  dbmodel.SpanID("zzzzzzzzzzzzzzzz"),
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.ErrorContains(t, err, "encoding/hex")
+}
+
+func TestDbSpanToSpan_InvalidParentSpanID(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:      dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:       dbmodel.SpanID("0123456789abcdef"),
+		ParentSpanID: dbmodel.SpanID("invalid-hex"),
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.ErrorContains(t, err, "encoding/hex")
+}
+
+func TestDbSpanToSpan_TraceIDTooLong(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef01234567"),
+		SpanID:  dbmodel.SpanID("0123456789abcdef"),
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.ErrorContains(t, err, "trace ID from DB is too long")
+}
+
+func TestDbSpanToSpan_SpanIDTooLong(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID: dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:  dbmodel.SpanID("0123456789abcdef01234567"),
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.ErrorContains(t, err, "span ID from DB is too long")
+}
+
+func TestDbSpanToSpan_ParentSpanIDTooLong(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:      dbmodel.TraceID("0123456789abcdef0123456789abcdef"),
+		SpanID:       dbmodel.SpanID("0123456789abcdef"),
+		ParentSpanID: dbmodel.SpanID("0123456789abcdef0123"),
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.ErrorContains(t, err, "span ID from DB is too long")
+}
+
+func TestDbSpanToSpan_ShortTraceID(t *testing.T) {
+	dbSpan := &dbmodel.Span{
+		TraceID:       dbmodel.TraceID("0123456789abcdef"),
+		SpanID:        dbmodel.SpanID("0123456789abcdef"),
+		OperationName: "test-operation",
+	}
+	span := ptrace.NewSpan()
+	err := dbSpanToSpan(dbSpan, span)
+	require.NoError(t, err)
+
+	assert.Equal(t, "test-operation", span.Name())
+	assert.Equal(t, pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef}), span.TraceID())
+}
+
+func TestFromDbSpanId_TooLong(t *testing.T) {
+	_, err := fromDbSpanId(dbmodel.SpanID("0123456789abcdef01234567"))
+	require.ErrorContains(t, err, "span ID from DB is too long")
+}
+
+func TestFromDbSpanId_InvalidHex(t *testing.T) {
+	_, err := fromDbSpanId(dbmodel.SpanID("zzzzzzzzzzzzzzzz"))
+	require.ErrorContains(t, err, "encoding/hex")
+}
+
+func TestConvertTraceIDFromDB_TooLong(t *testing.T) {
+	_, err := convertTraceIDFromDB(dbmodel.TraceID("0123456789abcdef0123456789abcdef01234567"))
+	require.ErrorContains(t, err, "trace ID from DB is too long")
+}
+
+func TestConvertTraceIDFromDB_InvalidHex(t *testing.T) {
+	_, err := convertTraceIDFromDB(dbmodel.TraceID("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"))
+	require.ErrorContains(t, err, "encoding/hex")
+}
+
 func getDbTraceIdFromByteArray(arr [16]byte) dbmodel.TraceID {
 	return dbmodel.TraceID(hex.EncodeToString(arr[:]))
 }
 
 func getDbSpanIdFromByteArray(arr [8]byte) dbmodel.SpanID {
 	return dbmodel.SpanID(hex.EncodeToString(arr[:]))
+}
+
+func attrStr(m pcommon.Map, k string) string {
+	v, ok := m.Get(k)
+	if !ok {
+		return ""
+	}
+	return v.Str()
+}
+
+func attrInt(m pcommon.Map, k string) int64 {
+	v, ok := m.Get(k)
+	if !ok {
+		return 0
+	}
+	return v.Int()
+}
+
+func attrBool(m pcommon.Map, k string) bool {
+	v, ok := m.Get(k)
+	if !ok {
+		return false
+	}
+	return v.Bool()
+}
+
+func attrDouble(m pcommon.Map, k string) float64 {
+	v, ok := m.Get(k)
+	if !ok {
+		return 0
+	}
+	return v.Double()
 }
 
 func BenchmarkProtoBatchToInternalTraces(b *testing.B) {
