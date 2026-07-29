@@ -15,8 +15,8 @@
 | --- | --- | --- |
 | M1 | Unstick PRs: realign `after_n_builds` with the real upload count | ✅ [#9130](https://github.com/jaegertracing/jaeger/pull/9130) |
 | M2 | Enforce the upload invariant: every upload carries coverage, count matches | ✅ [#9133](https://github.com/jaegertracing/jaeger/pull/9133) |
-| M3 | Graceful shutdown of the e2e jaeger binary | ⬜ |
-| M4 | Spike: `-cover` + `GOCOVERDIR` on one e2e leg, measure the gain | ⬜ |
+| M3 | Graceful shutdown of the e2e jaeger binary | ✅ [#9139](https://github.com/jaegertracing/jaeger/pull/9139) |
+| M4 | Spike: `-cover` + `GOCOVERDIR` on one e2e leg, measure the gain | ✅ measured |
 | M5 | Roll binary coverage across the e2e matrix; remove the double compile | ⬜ |
 | M6 | Diff-level gating in `Coverage Gate` as defense in depth | ⬜ |
 | M7 | Record the outcome as an ADR | ⬜ |
@@ -236,13 +236,19 @@ The fan-in is the right place because it is the only job that sees every profile
 
 Note the consequence for sequencing. A check that failed on every signal-free upload would redden `main` immediately, because the 15 e2e legs violate the invariant today. The delivered split resolves the open call in favour of warning on that standing violation while **failing** on the condition that actually stalls the queue — at least `after_n_builds` jobs uploaded, yet fewer than that many carrying coverage. The warning is promoted to a failure once M5 makes it clean.
 
-### M3 — Graceful shutdown of the spawned binary ⬜
+### M3 — Graceful shutdown of the spawned binary ✅ [#9139](https://github.com/jaegertracing/jaeger/pull/9139)
 
 Replace `Process.Kill()` in `Binary.Stop` ([`binary.go`](../../cmd/jaeger/internal/integration/binary.go)) with `SIGTERM` and a bounded wait, falling back to `SIGKILL` on timeout so a wedged process cannot hang CI. Prerequisite for M4 per §3.2, and independently exercises collector shutdown and storage `Close()`.
 
-### M4 — Measure binary coverage on one leg ⬜
+### M4 — Measure binary coverage on one leg ✅ (measured; decision gate resolved)
 
 Instrument a single cheap e2e leg with no external stack — `memory-v2` or `badger e2e` — by building the spawned binary with `go build -cover`, pointing it at a `GOCOVERDIR`, and converting with `go tool covdata textfmt` into the existing `cover.out` path. Report how many lines and which packages are newly covered relative to that leg's current profile, and the change in compile time. **Decision gate:** proceed to M5 only if the additional coverage is material; otherwise close out the workstream, retaining M3.
+
+**Measured on `memory_v2` and `cassandra`.** The `SIGKILL` dependency is confirmed by control experiment: identical runs differing only in `Binary.Stop` yield 0 covered statements under `Process.Kill()` and 2,482 under `SIGTERM`, because Go writes counters only on a normal exit.
+
+Additional statements not covered by unit tests, after `.codecov.yml` exclusions: **55 (0.28 pp)** for `memory_v2`, **129 (0.65 pp)** for `cassandra`, the latter concentrated in `internal/storage/v1/cassandra/schema`, `internal/storage/v1/cassandra`, and `internal/storage/cassandra/gocql`. How much of that the `direct` legs already collect is not established.
+
+On coverage percentage alone the gate would resolve against proceeding. It resolves **in favour** on a different basis: binary coverage is the only available source of per-leg package attribution. The `cassandra` leg's profile names 13 cassandra-specific packages absent from the `memory_v2` leg's, and vice versa — a distinction static analysis cannot make, because the single binary links every backend, so `go list -deps ./cmd/jaeger` reaches 170 of 242 packages regardless of which leg runs. [RFC 0014](./0014-change-relevance-aware-ci.md) Tier 2 requires exactly this attribution, and the e2e legs currently emit only harness coverage, which supplies none of it. The value of M5 is therefore the per-leg package map, with the coverage gain incidental.
 
 ### M5 — Roll out across the e2e matrix ⬜
 
