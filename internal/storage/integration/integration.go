@@ -79,6 +79,9 @@ type StorageIntegration struct {
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func(t *testing.T)
+
+	SkipReadingTraces bool // write phase of backward-compatibility tests: skip read-and-assert
+	SkipWritingTraces bool // read phase of backward-compatibility tests: skip writes
 }
 
 // === SpanStore Integration Tests ===
@@ -160,6 +163,28 @@ func SkipUnlessEnv(t *testing.T, storage ...StorageType) {
 	t.Skipf("This test requires environment variable STORAGE=%s", strings.Join(names, "|"))
 }
 
+func backwardCompatibilityEnabled() bool {
+	return os.Getenv("BACKWARD_COMPATIBILITY") == "true"
+}
+
+func SkipUnlessBackwardCompatibility(t *testing.T) {
+	if !backwardCompatibilityEnabled() {
+		t.Skip("This test requires environment variable BACKWARD_COMPATIBILITY=true")
+	}
+}
+
+func skipIfBackwardCompatibility(t *testing.T) {
+	if backwardCompatibilityEnabled() {
+		t.Skip("Skipped in backward-compatibility mode")
+	}
+}
+
+func (s *StorageIntegration) skipReadingTracesIfNeeded(t *testing.T) {
+	if s.SkipReadingTraces {
+		t.Skip("Skipping read assertions in write phase of backward-compatibility test")
+	}
+}
+
 func (s *StorageIntegration) skipIfNeeded(t *testing.T) {
 	for _, pat := range s.Capabilities.SkipList() {
 		escapedPat := regexp.QuoteMeta(pat)
@@ -186,6 +211,8 @@ func (*StorageIntegration) waitForCondition(t *testing.T, predicate func(t *test
 
 func (s *StorageIntegration) testGetServices(t *testing.T) {
 	s.skipIfNeeded(t)
+	// Exact service list can't hold once the store is shared across sub-tests without cleanup.
+	skipIfBackwardCompatibility(t)
 	defer s.cleanUp(t)
 
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
@@ -245,6 +272,7 @@ func (s *StorageIntegration) helperTestGetTrace(
 	t.Logf("Testing %s...", testName)
 
 	expected := s.writeLargeTraceWithDuplicateSpanIds(t, traceSize, duplicateCount)
+	s.skipReadingTracesIfNeeded(t)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
 	actual := ptrace.NewTraces()
@@ -312,6 +340,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 		}
 	}
 	s.loadParseAndWriteExampleTrace(t)
+	s.skipReadingTracesIfNeeded(t)
 
 	var actual []tracestore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -340,6 +369,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	defer s.cleanUp(t)
 
 	expected := s.loadParseAndWriteExampleTrace(t)
+	s.skipReadingTracesIfNeeded(t)
 	expectedTraceID := expected.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID()
 
 	actual := ptrace.Traces{} // no spans
@@ -362,6 +392,8 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	}
 
 	t.Run("NotFound error", func(t *testing.T) {
+		// The fake trace id collides with a query fixture once the store is shared without cleanup.
+		skipIfBackwardCompatibility(t)
 		fakeTraceID := pcommon.TraceID{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 		iterTraces := s.TraceReader.GetTraces(context.Background(), tracestore.GetTraceParams{TraceID: fakeTraceID})
 		traces, err := jiter.CollectWithErrors(jptrace.AggregateTraces(iterTraces))
@@ -394,6 +426,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		}
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
+	s.skipReadingTracesIfNeeded(t)
 	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
@@ -409,6 +442,7 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	defer s.cleanUp(t)
 
 	trace := s.loadParseAndWriteExampleTrace(t)
+	s.skipReadingTracesIfNeeded(t)
 
 	// Derive the expected trace ID, time range, and service name from the written trace.
 	expectedTraceID := jptrace.GetTraceID(trace)
@@ -498,6 +532,9 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.T
 }
 
 func (s *StorageIntegration) writeTrace(t *testing.T, trace ptrace.Traces) {
+	if s.SkipWritingTraces {
+		return
+	}
 	t.Logf("%-23s Writing trace with %d spans", time.Now().Format("2006-01-02 15:04:05.999"), trace.SpanCount())
 	ctx, cx := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cx()
