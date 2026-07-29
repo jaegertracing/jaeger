@@ -52,3 +52,6 @@ test-results.json
 .mockery.log
 build.log
 sidecar.py.orig
+node_modules/
+npm-debug.log*
+*.log
