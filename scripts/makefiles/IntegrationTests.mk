@@ -12,13 +12,37 @@ all-in-one-integration-test: $(GOTESTSUM)
 # A general integration tests for jaeger-v2 storage backends,
 # these tests placed at `./cmd/jaeger/internal/integration/*_test.go`.
 # The integration tests are filtered by STORAGE env.
+# Coverage of the jaeger binary the e2e harness spawns. The harness runs jaeger
+# as a separate OS process, so `go test -coverpkg` in the test process cannot see
+# it — the tests only drive it over the wire. Instead the binary itself is built
+# with `go build -cover` and writes counters into GOCOVERDIR when it exits, which
+# is why Binary.Stop must terminate it with SIGTERM rather than SIGKILL: Go
+# flushes counters from the runtime exit path, and SIGKILL skips it.
+#
+# The counters are converted to a profile and merged into COVEROUT, so Codecov
+# and the CI Summary Report fan-in pick them up through the existing upload with
+# no workflow changes.
+BINARY_COVERDIR = $(CURDIR)/.cover-binary
+BINARY_COVEROUT = cover-binary.out
+
 .PHONY: jaeger-v2-storage-integration-test
-jaeger-v2-storage-integration-test: $(GOTESTSUM)
-	(cd cmd/jaeger/ && go build .)
+jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
+	rm -rf $(BINARY_COVERDIR) && mkdir -p $(BINARY_COVERDIR)
+	(cd cmd/jaeger/ && go build -cover -o jaeger .)
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
-	$(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	JAEGER_BINARY_COVERDIR=$(BINARY_COVERDIR) $(GOTESTSUM) $(INTEGRATION_TEST_FLAGS) -- $(RACE) -coverprofile $(COVEROUT) $(JAEGER_V2_STORAGE_PKGS)
+	# covdata fails on a directory with no meta file, which is what an empty run
+	# looks like; treat that as "no binary coverage" rather than a build failure,
+	# since the missing contribution is reported by the coverage-upload check.
+	@if ls $(BINARY_COVERDIR)/covmeta.* >/dev/null 2>&1; then \
+		go tool covdata textfmt -i=$(BINARY_COVERDIR) -o $(BINARY_COVEROUT); \
+		$(GOCOVMERGE) $(COVEROUT) $(BINARY_COVEROUT) > $(COVEROUT).tmp && mv $(COVEROUT).tmp $(COVEROUT); \
+		echo "Merged binary coverage into $(COVEROUT)"; \
+	else \
+		echo "WARNING: no binary coverage counters in $(BINARY_COVERDIR); did the binary exit cleanly?"; \
+	fi
 
 .PHONY: storage-integration-test
 storage-integration-test: $(GOTESTSUM)

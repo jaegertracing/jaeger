@@ -7,7 +7,7 @@ codecov:
     # Codecov posts nothing — not even the required codecov/* checks — until this many
     # uploads arrive, so the report it posts is complete. Keep it equal to the number
     # of jobs calling upload-codecov, each of which must cover packages not `ignore`-ed.
-    after_n_builds: 12
+    after_n_builds: 27
   strict_yaml_branch: main  # only use the latest copy on the main branch
 
 ignore:
