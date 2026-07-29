@@ -12,8 +12,8 @@ Write an RFC when the work has not been decided yet. Write an ADR when you are r
 | **Written** | Before the work | At or after the decision |
 | **Voice** | "We propose to…", alternatives weighed, one recommended | "We decided…" / "This is how it works", with consequences |
 | **Typical sections** | Abstract, Motivation, Design, Alternatives, Implementation Plan | Context, Decision, Consequences |
-| **Maintenance** | Prose frozen after merge; Status and milestone tracking kept current | Frozen after merge |
-| **End state** | Implemented (optionally graduating into an ADR), Superseded, or abandoned | Superseded by a later ADR |
+| **Maintenance** | Prose frozen after merge; Status and milestone tracking kept current | Edited in place for a change affecting part of it; see [ADR lifecycle](../adr/README.md#lifecycle) |
+| **End state** | Implemented (optionally graduating into an ADR), Superseded, or abandoned | Extended, or superseded by a later ADR |
 | **File name** | `NNNN-slug.md` (four digits) | `NNN-slug.md` (three digits) |
 
 ## Lifecycle
