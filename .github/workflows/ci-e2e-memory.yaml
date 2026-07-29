@@ -11,6 +11,7 @@ on:
 # See https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions
 permissions:  # added using https://github.com/step-security/secure-workflows
   contents: read
+  actions: read  # gh run download, for the prebuilt binary artifact
 
 jobs:
   memory-v2:
@@ -27,9 +28,22 @@ jobs:
       with:
         go-version: 1.26.x
 
+    # SPIKE (#9143): consume the once-per-run binary instead of building it here.
+    # gh run download rather than actions/download-artifact: the fan-in workflow
+    # already uses it, so there is no new action to pin.
+    - name: Download the once-per-run instrumented binary
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        time gh run download "${{ github.run_id }}" \
+          --repo "${{ github.repository }}" -n jaeger-e2e-binary -D cmd/jaeger
+        # upload-artifact does not preserve the executable bit.
+        chmod +x cmd/jaeger/jaeger
+        ls -l cmd/jaeger/jaeger | awk '{printf "downloaded binary: %.0f MB\n", $5/1048576}'
+
     - name: Run Memory storage integration tests
       run: |
-        STORAGE=memory_v2 make jaeger-v2-storage-integration-test
+        STORAGE=memory_v2 PREBUILT_JAEGER=1 make jaeger-v2-storage-integration-test
 
     - uses: ./.github/actions/verify-metrics-snapshot
       with:

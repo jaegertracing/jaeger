@@ -13,6 +13,30 @@ permissions:
   contents: read
 
 jobs:
+  # SPIKE (#9143): build the coverage-instrumented binary once per run instead of
+  # once per matrix cell. Wired to the memory leg only, to measure the artifact
+  # round-trip cost before rolling it across the other ~30 cells.
+  build-e2e-binary:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+    - uses: ./.github/actions/setup-go
+      with:
+        go-version: 1.26.x
+    - name: Build instrumented jaeger binary
+      run: make build-e2e-binary
+    - name: Report artifact size before upload
+      run: |
+        ls -l cmd/jaeger/jaeger | awk '{printf "raw binary: %.0f MB\n", $5/1048576}'
+    - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      with:
+        name: jaeger-e2e-binary
+        path: cmd/jaeger/jaeger
+        # 1 day is the floor; retention-days cannot be expressed in hours.
+        retention-days: 1
+
   badger:
     uses: ./.github/workflows/ci-e2e-badger.yaml
 
@@ -29,6 +53,7 @@ jobs:
     uses: ./.github/workflows/ci-e2e-kafka.yml
 
   memory:
+    needs: build-e2e-binary
     uses: ./.github/workflows/ci-e2e-memory.yaml
 
   opensearch:

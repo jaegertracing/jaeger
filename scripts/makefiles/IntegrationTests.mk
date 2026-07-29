@@ -30,10 +30,32 @@ all-in-one-integration-test: $(GOTESTSUM)
 BINARY_COVERDIR = $(CURDIR)/.cover-binary
 BINARY_COVEROUT = cover-binary.out
 
+JAEGER_E2E_BINARY = cmd/jaeger/jaeger
+
+# Builds the coverage-instrumented binary the e2e harness spawns. Exposed as its
+# own target so CI can build it once per run and share it, rather than repeating
+# the build in every matrix cell (see #9143).
+.PHONY: build-e2e-binary
+build-e2e-binary:
+	(cd cmd/jaeger/ && go build -cover -covermode=atomic -o jaeger .)
+
 .PHONY: jaeger-v2-storage-integration-test
 jaeger-v2-storage-integration-test: $(GOTESTSUM) $(GOCOVMERGE)
 	rm -rf $(BINARY_COVERDIR) && mkdir -p $(BINARY_COVERDIR)
-	(cd cmd/jaeger/ && go build -cover -covermode=atomic -o jaeger .)
+	# PREBUILT_JAEGER lets CI supply the instrumented binary instead of building it
+	# here. It is a cache hit, never a requirement: unset — as in any local run —
+	# this builds exactly as before. Set, the binary must already be present and
+	# executable, which is checked rather than assumed because upload-artifact does
+	# not preserve the executable bit.
+	@if [ -z "$(PREBUILT_JAEGER)" ]; then \
+		echo "Building instrumented jaeger binary"; \
+		$(MAKE) build-e2e-binary; \
+	elif [ -x $(JAEGER_E2E_BINARY) ]; then \
+		echo "Using prebuilt instrumented binary $(JAEGER_E2E_BINARY)"; \
+	else \
+		echo "PREBUILT_JAEGER is set but $(JAEGER_E2E_BINARY) is missing or not executable"; \
+		exit 1; \
+	fi
 	# Expire tests results for jaeger storage integration tests since the environment
 	# might have changed even though the code remains the same.
 	go clean -testcache
