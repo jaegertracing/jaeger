@@ -116,14 +116,15 @@ func (b *Binary) Stop(t *testing.T) {
 
 	select {
 	case <-exited:
+		t.Logf("%s exited on SIGTERM", b.Name)
 	case <-time.After(timeout):
 		t.Logf("%s did not exit within %v of SIGTERM, sending SIGKILL", b.Name, timeout)
 		if err := b.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 			t.Errorf("Failed to kill %s process: %v", b.Name, err)
 		}
 		<-exited
+		t.Logf("%s killed", b.Name)
 	}
-	t.Logf("%s exited", b.Name)
 }
 
 func (b *Binary) doHealthCheck(t *testing.T, client *http.Client) bool {
