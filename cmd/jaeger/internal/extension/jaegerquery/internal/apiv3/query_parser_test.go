@@ -176,6 +176,16 @@ func TestParseFindTracesQuery(t *testing.T) {
 			wantErr: "malformed parameter " + paramNumTraces,
 		},
 		{
+			name:    "negative searchDepth",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "-1"},
+			wantErr: "malformed parameter " + paramSearchDepth + ": value must be greater than 0",
+		},
+		{
+			name:    "zero searchDepth",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramSearchDepth: "0"},
+			wantErr: "malformed parameter " + paramSearchDepth + ": value must be greater than 0",
+		},
+		{
 			name:    "bad durationMin (canonical)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramDurationMin: "NaN"},
 			wantErr: "malformed parameter " + paramDurationMin,
@@ -194,6 +204,11 @@ func TestParseFindTracesQuery(t *testing.T) {
 			name:    "bad duration_max (deprecated)",
 			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramDurationMaxDeprecated: "NaN"},
 			wantErr: "malformed parameter " + paramDurationMaxDeprecated,
+		},
+		{
+			name:    "durationMax less than durationMin",
+			params:  map[string]string{paramTimeMin: goodMin, paramTimeMax: goodMax, paramDurationMin: "10s", paramDurationMax: "1s"},
+			wantErr: paramDurationMax + " must be greater than " + paramDurationMin,
 		},
 		{
 			name:    "bad rawTraces (canonical)",
