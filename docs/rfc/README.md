@@ -12,8 +12,8 @@ Write an RFC when the work has not been decided yet. Write an ADR when you are r
 | **Written** | Before the work | At or after the decision |
 | **Voice** | "We propose to…", alternatives weighed, one recommended | "We decided…" / "This is how it works", with consequences |
 | **Typical sections** | Abstract, Motivation, Design, Alternatives, Implementation Plan | Context, Decision, Consequences |
-| **Maintenance** | Prose frozen after merge; Status and milestone tracking kept current | Frozen after merge |
-| **End state** | Implemented (optionally graduating into an ADR), Superseded, or abandoned | Superseded by a later ADR |
+| **Maintenance** | Prose frozen after merge; Status and milestone tracking kept current | Edited in place when a change affects part of it; see below |
+| **End state** | Implemented (optionally graduating into an ADR), Superseded, or abandoned | Extended, or superseded by a later ADR |
 | **File name** | `NNNN-slug.md` (four digits) | `NNN-slug.md` (three digits) |
 
 ## Lifecycle
@@ -24,6 +24,15 @@ At the same time, the RFC's narrative is a point-in-time snapshot of the system 
 
 - **Keep the delivery tracking current.** As each milestone lands, mark it ✅ and link the PR that delivered it, and update the top-level `Status` field — done by the PR implementing the milestone, in that same PR. [RFC 0007](./0007-synchronous-elasticsearch-writes.md) annotates its milestones in place; [RFC 0008](./0008-ai-gateway-mcp-tool-routing.md) keeps a status table up front. Both shapes are fine.
 - **Leave the prose alone.** Do not rewrite the abstract, design sections, or diagrams to track the evolving codebase. When the design changes materially, supersede the RFC with a new one instead of editing the old one into agreement with the code. [RFC 0002](./0002-ai-gateway-contextual-tools.md) is the example: its tool-routing choice is superseded by [RFC 0008](./0008-ai-gateway-mcp-tool-routing.md), and the document itself is retained unchanged, with a note pointing forward.
+
+### Extending an ADR versus superseding it
+
+An RFC's prose is frozen because it is a point-in-time proposal, read later as a snapshot. An ADR is not that: it describes a design, and a reader consults it to learn how something works today. Keeping it accurate is therefore worth more than keeping it pristine, and the choice between editing and superseding is a matter of proportion rather than principle.
+
+- **A change touching a small part of the ADR, reversing none of its decisions → edit it in place.** Extend the affected sections, record the extension in the `Status` or `Date` line so the addition is dated, and leave the original Context and Decision prose alone. One accurate document beats a subject split across two that a reader has to reconcile. [ADR-004](../adr/004-migrating-coverage-gating-to-github-actions.md) took this route: its fan-in gating decision and all its requirements stood, and later work added an input, a pipeline step, and a resolution to a follow-up it had left open.
+- **A change replacing the decision or the architecture → write a new ADR that supersedes it.** The two then point at each other through their `Status` fields, so a reader landing on either finds the other.
+
+What neither route permits is rewriting an ADR into running documentation of the current code. Record the design and the reasoning; do not maintain a narrative of how the code got there.
 
 ### Graduating into an ADR
 
