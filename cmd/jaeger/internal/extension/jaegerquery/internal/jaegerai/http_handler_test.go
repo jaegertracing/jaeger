@@ -160,7 +160,7 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 }
 
 // TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
-// chain (Server.Close → httpServer.Close → closeAll → here). The MCP SDK reaps a
+// chain (Server.Close → httpServer.Close → closers.Close → here). The MCP SDK reaps a
 // session only when it goes idle, so without this a live session would outlive the
 // server that served it.
 func TestHandlerCloseReapsMCPSessions(t *testing.T) {

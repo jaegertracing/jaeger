@@ -162,26 +162,31 @@ func createGRPCServer(
 	)
 }
 
-type httpServer struct {
-	*http.Server
-	// closers are the components initRouter mounts that own resources past a single
-	// request — the static assets handler, the AI gateway's MCP sessions, and
-	// whatever is mounted next. Closing them here shuts them down with the query
-	// server instead of leaving them to process exit.
-	closers []io.Closer
-}
+// closers are the components initRouter mounts that own resources past a single
+// request — the static assets handler, the AI gateway's MCP sessions, and whatever
+// is mounted next. Being an io.Closer itself lets both the caller that owns the
+// slice and the httpServer that stores it close the whole set the same way.
+type closers []io.Closer
 
-var _ io.Closer = (*httpServer)(nil)
+var _ io.Closer = closers(nil)
 
-// closeAll closes every closer and joins the errors, so one failure does not hide
-// the rest. This mirrors how the storage extension shuts its factories down.
-func closeAll(closers []io.Closer) error {
+// Close closes every closer and joins the errors, so one failure does not hide the
+// rest. This mirrors how the storage extension shuts its factories down.
+func (cs closers) Close() error {
 	var errs []error
-	for _, closer := range closers {
+	for _, closer := range cs {
 		errs = append(errs, closer.Close())
 	}
 	return errors.Join(errs...)
 }
+
+type httpServer struct {
+	*http.Server
+	// closers shut down with the query server instead of being left to process exit.
+	closers closers
+}
+
+var _ io.Closer = (*httpServer)(nil)
 
 // initRouter returns, alongside the handler, the closers for everything it mounted
 // that outlives a request; the caller owns closing them (see httpServer.closers).
@@ -194,7 +199,7 @@ func initRouter(
 	aiHealthCheck func() bool,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
-) (http.Handler, []io.Closer, error) {
+) (http.Handler, closers, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(telset.Logger),
 		HandlerOptions.Tracer(telset.TracerProvider),
@@ -272,9 +277,9 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	closers := []io.Closer{RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)}
+	cs := closers{RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)}
 	if aiGateway != nil {
-		closers = append(closers, aiGateway)
+		cs = append(cs, aiGateway)
 	}
 
 	var handler http.Handler = r
@@ -288,7 +293,7 @@ func initRouter(
 		handler = tenancy.ExtractTenantHTTPHandler(tenancyMgr, handler)
 	}
 	handler = traceResponseHandler(handler)
-	return handler, closers, nil
+	return handler, cs, nil
 }
 
 func otlpProxyPathPrefix(basePath string) string {
@@ -353,7 +358,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, closers, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -393,18 +398,18 @@ func createHTTPServer(
 		),
 	)
 	if err != nil {
-		return nil, errors.Join(err, closeAll(closers))
+		return nil, errors.Join(err, cs.Close())
 	}
 	server := &httpServer{
 		Server:  hs,
-		closers: closers,
+		closers: cs,
 	}
 
 	return server, nil
 }
 
 func (hS httpServer) Close() error {
-	return errors.Join(hS.Server.Close(), closeAll(hS.closers))
+	return errors.Join(hS.Server.Close(), hS.closers.Close())
 }
 
 // initListener initialises listeners of the server

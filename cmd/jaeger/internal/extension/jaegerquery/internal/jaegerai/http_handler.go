@@ -115,7 +115,7 @@ var _ io.Closer = (*Handler)(nil)
 // not outlive the gateway. The go-sdk reaps a session only when it goes idle
 // (see StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
 // disconnected would otherwise linger after Shutdown. Called by the jaeger-query
-// server's Close path (Server.Close → httpServer.Close → closeAll → here).
+// server's Close path (Server.Close → httpServer.Close → closers.Close → here).
 //
 // ServerSession.Close is the only teardown the SDK exposes — there is no
 // server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
