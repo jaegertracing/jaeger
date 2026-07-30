@@ -5,6 +5,7 @@
 package app
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -134,16 +135,84 @@ func TestAIConfigResolveMCPBaseURL(t *testing.T) {
 			want:     "http://localhost:16686",
 		},
 		{
-			name:     "co-located over TLS infers https",
+			// A server certificate carries a SAN for the name operators dial the
+			// gateway by, essentially never for a loopback host, so an inferred
+			// https:// URL would fail certificate verification at the sidecar.
+			name:     "TLS infers nothing",
 			agentURL: "ws://localhost:16688",
 			endpoint: httpEndpoint,
 			tls:      true,
-			want:     "https://localhost:16686",
+			want:     "",
+		},
+		{
+			name:       "explicit override still wins under TLS",
+			mcpBaseURL: "https://jaeger.example.com:16686",
+			agentURL:   "ws://localhost:16688",
+			endpoint:   httpEndpoint,
+			tls:        true,
+			want:       "https://jaeger.example.com:16686",
 		},
 		{
 			name:     "loopback IPv4 agent url infers localhost",
 			agentURL: "ws://127.0.0.1:16688",
 			endpoint: "0.0.0.0:16686",
+			want:     "http://localhost:16686",
+		},
+		{
+			name:     "wildcard IPv6 bind infers localhost",
+			agentURL: "ws://localhost:16688",
+			endpoint: "[::]:16686",
+			want:     "http://localhost:16686",
+		},
+		{
+			// Announced verbatim, not as "localhost": on a dual-stack host
+			// "localhost" may resolve to the family the gateway did not bind.
+			name:     "loopback IPv4 bind is announced verbatim",
+			agentURL: "ws://localhost:16688",
+			endpoint: "127.0.0.1:16686",
+			want:     "http://127.0.0.1:16686",
+		},
+		{
+			// JoinHostPort has to bracket the host, or the URL is unparseable.
+			name:     "loopback IPv6 bind is announced bracketed",
+			agentURL: "ws://localhost:16688",
+			endpoint: "[::1]:16686",
+			want:     "http://[::1]:16686",
+		},
+		{
+			name:     "localhost bind infers localhost",
+			agentURL: "ws://localhost:16688",
+			endpoint: "localhost:16686",
+			want:     "http://localhost:16686",
+		},
+		{
+			// Bound to one specific interface, nothing answers on loopback, so the
+			// co-located sidecar still cannot reach us there.
+			name:     "specific non-loopback interface bind infers nothing",
+			agentURL: "ws://localhost:16688",
+			endpoint: "10.0.0.5:16686",
+			want:     "",
+		},
+		{
+			// Resolving the host, rather than string-matching "localhost", is what
+			// makes these agree with what a dial would do.
+			name:     "agent url host is matched case-insensitively",
+			agentURL: "ws://LOCALHOST:16688",
+			endpoint: httpEndpoint,
+			want:     "http://localhost:16686",
+		},
+		{
+			// ".invalid" is reserved as non-resolvable (RFC 2606), so the bound
+			// host is not something we can reason about.
+			name:     "unresolvable bind host infers nothing",
+			agentURL: "ws://localhost:16688",
+			endpoint: "nowhere.invalid:16686",
+			want:     "",
+		},
+		{
+			name:     "portless agent url is co-located",
+			agentURL: "ws://localhost",
+			endpoint: httpEndpoint,
 			want:     "http://localhost:16686",
 		},
 		{
@@ -186,7 +255,7 @@ func TestAIConfigResolveMCPBaseURL(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := AIConfig{AgentURL: tc.agentURL, MCPBaseURL: tc.mcpBaseURL}
-			assert.Equal(t, tc.want, cfg.resolveMCPBaseURL(tc.endpoint, tc.tls))
+			assert.Equal(t, tc.want, cfg.resolveMCPBaseURL(context.Background(), tc.endpoint, tc.tls))
 		})
 	}
 }

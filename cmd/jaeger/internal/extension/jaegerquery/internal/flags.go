@@ -5,8 +5,10 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"net/url"
 	"time"
 
@@ -61,14 +63,14 @@ type AIConfig struct {
 	// The gateway announces "<MCPBaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
 	// the sidecar in the session/new request.
 	//
-	// Optional override. Left empty, the gateway infers its own localhost address
-	// when the sidecar is co-located — AgentURL is a loopback address, so a sidecar
-	// the gateway reaches over loopback can reach it back the same way — which
-	// covers the common single-host deployment with no configuration (see
-	// resolveMCPBaseURL). Set this only when the sidecar reaches the gateway at a
-	// different address (behind a proxy, in another network namespace, or with TLS
-	// terminated elsewhere), which the query server cannot infer. Ignored unless
-	// both AgentURL and EnableMCP are set.
+	// Optional override. If left empty, the gateway infers its own loopback address
+	// when the sidecar is co-located (AgentURL is a loopback address), the query
+	// server is bound to loopback or a wildcard, and TLS is off — the common
+	// single-host deployment, which then needs no configuration at all (see
+	// resolveMCPBaseURL). Set this whenever the sidecar reaches the gateway at
+	// some other address — behind a proxy, in another network namespace, with TLS
+	// terminated elsewhere, or forwarded into a container — none of which the
+	// query server can infer. Ignored unless both AgentURL and EnableMCP are set.
 	MCPBaseURL string `mapstructure:"mcp_base_url" valid:"optional"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
@@ -133,49 +135,118 @@ func (c *AIConfig) Validate() error {
 
 // resolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped
 // MCP endpoint, or "" to announce no HTTP transport. An explicit MCPBaseURL always
-// wins. Otherwise the gateway infers its own localhost address, but only when the
-// sidecar is co-located — AgentURL is a loopback address. A sidecar the gateway
-// already reaches over loopback shares its network namespace, so it can reach the
-// gateway back at localhost; announcing that is safe and needs no configuration.
-// For a remote sidecar (non-loopback AgentURL) the reachable address cannot be
-// inferred, so nothing is announced until an operator sets MCPBaseURL. httpEndpoint
-// is the query server's HTTP host:port and tlsEnabled selects the scheme.
-func (c *AIConfig) resolveMCPBaseURL(httpEndpoint string, tlsEnabled bool) string {
+// wins. Otherwise the gateway infers its own loopback address, which requires every
+// leg of the round trip to hold:
+//
+//   - The sidecar must be co-located: AgentURL is a loopback address, so the
+//     sidecar shares this network namespace and its "localhost" is ours.
+//   - The query server must actually be listening on loopback: a wildcard bind
+//     (":16686", "0.0.0.0", "::") or a loopback bind. Bound to one specific
+//     interface, say "10.0.0.5:16686", nothing answers on loopback.
+//   - TLS must be off. A server certificate carries a SAN for the name operators
+//     dial the gateway by, essentially never for an inferred loopback host, so an
+//     inferred https:// URL fails certificate verification at the sidecar.
+//
+// If any leg is unmet, nothing is announced until an operator sets MCPBaseURL. The
+// gateway declines rather than guessing: a specific-interface bind or TLS is positive
+// evidence that an inferred loopback URL is wrong, and there is nothing else here to
+// derive a correct one from.
+//
+// One case this cannot detect: loopback forwarded across namespaces (a sidecar in a
+// container published with "-p 127.0.0.1:16688:16688", or "kubectl port-forward").
+// The gateway reaches the sidecar over loopback, but the sidecar's loopback is its
+// own namespace, where the gateway is not listening. That is indistinguishable from
+// genuine co-location here, and needs an explicit MCPBaseURL.
+//
+// httpEndpoint is the query server's own HTTP host:port and tlsEnabled its own TLS
+// setting; neither is derived from AgentURL, which only gates the inference.
+func (c *AIConfig) resolveMCPBaseURL(ctx context.Context, httpEndpoint string, tlsEnabled bool) string {
 	if c.MCPBaseURL != "" {
 		return c.MCPBaseURL
 	}
-	if !isLoopbackHost(c.AgentURL) {
+	if tlsEnabled {
 		return ""
 	}
-	_, port, err := net.SplitHostPort(httpEndpoint)
+	if !isLoopbackURL(ctx, c.AgentURL) {
+		return ""
+	}
+	boundHost, port, err := net.SplitHostPort(httpEndpoint)
 	if err != nil || port == "" || port == "0" {
 		// No fixed port to advertise (unset, or a dynamic ":0" resolved only at
 		// listen time), so we cannot build a dialable URL — announce nothing.
 		return ""
 	}
-	scheme := "http"
-	if tlsEnabled {
-		scheme = "https"
+	host := loopbackAnnounceHost(ctx, boundHost)
+	if host == "" {
+		return ""
 	}
-	return scheme + "://localhost:" + port
+	// JoinHostPort, not concatenation: an IPv6 host has to be bracketed, or
+	// "http://::1:16686" is not a parseable URL.
+	return "http://" + net.JoinHostPort(host, port)
 }
 
-// isLoopbackHost reports whether rawURL's host is a loopback address — "localhost"
-// or a loopback IP. Used to detect a co-located sidecar from AgentURL.
-func isLoopbackHost(rawURL string) bool {
-	if rawURL == "" {
-		return false
+// loopbackAnnounceHost returns the host to announce for the query server's bound
+// host, or "" when the gateway is not reachable over loopback. A wildcard bind
+// listens on every interface including loopback, so "localhost" is announced. A
+// loopback bind is announced verbatim rather than as "localhost", because on a
+// dual-stack host "localhost" may resolve to the family the gateway did not bind
+// (127.0.0.1 against a "[::1]" bind, or the reverse).
+func loopbackAnnounceHost(ctx context.Context, boundHost string) string {
+	if boundHost == "" {
+		return "localhost" // ":16686" — wildcard, every interface
 	}
+	ip := hostIP(ctx, boundHost)
+	switch {
+	case ip == nil:
+		return "" // not resolvable, so not something we can reason about
+	case ip.IsUnspecified():
+		return "localhost" // "0.0.0.0" / "::" — wildcard
+	case ip.IsLoopback():
+		return boundHost
+	default:
+		return "" // one specific non-loopback interface
+	}
+}
+
+// isLoopbackURL reports whether rawURL's host is a loopback address. Used to detect
+// a co-located sidecar from AgentURL.
+func isLoopbackURL(ctx context.Context, rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return false
 	}
-	host := u.Hostname()
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
+	ip := hostIP(ctx, u.Hostname())
 	return ip != nil && ip.IsLoopback()
+}
+
+// hostLookupTimeout bounds name resolution in hostIP on top of whatever deadline
+// the caller's context carries. The resolver is consulted while the query server is
+// starting up, so an unreachable or slow DNS server must not stall startup; giving
+// up means "not loopback", which only declines to infer.
+const hostLookupTimeout = 2 * time.Second
+
+// hostIP resolves a host — a name or an IP literal — to an IP address, or nil if it
+// does not resolve. Resolving, rather than string-matching "localhost", is what
+// makes the loopback checks agree with what a dial would actually do: it accepts
+// any spelling of a name that maps to loopback, "LOCALHOST" or an /etc/hosts alias
+// included, instead of the one spelling a comparison would hard-code.
+func hostIP(ctx context.Context, host string) net.IP {
+	if host == "" {
+		return nil
+	}
+	// An IP literal needs no resolver at all, which keeps the common case off the
+	// network entirely. netip.ParseAddr rather than net.ParseIP so that an IPv6
+	// zone, "::1%lo0", parses instead of being rejected.
+	if addr, err := netip.ParseAddr(host); err == nil {
+		return net.IP(addr.AsSlice())
+	}
+	ctx, cancel := context.WithTimeout(ctx, hostLookupTimeout)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil || len(addrs) == 0 {
+		return nil
+	}
+	return addrs[0].IP
 }
 
 // QueryOptions holds configuration for query service shared with jaeger-v2

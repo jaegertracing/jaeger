@@ -186,6 +186,7 @@ func closeAll(closers []io.Closer) error {
 // initRouter returns, alongside the handler, the closers for everything it mounted
 // that outlives a request; the caller owns closing them (see httpServer.closers).
 func initRouter(
+	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
@@ -245,7 +246,7 @@ func initRouter(
 						BasePath:           queryOpts.BasePath,
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 						EnableMCP:          aiCfg.EnableMCP,
-						MCPBaseURL:         aiCfg.resolveMCPBaseURL(queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
+						MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
@@ -352,7 +353,7 @@ func createHTTPServer(
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, closers, err := initRouter(querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, closers, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
 	if err != nil {
 		return nil, err
 	}
