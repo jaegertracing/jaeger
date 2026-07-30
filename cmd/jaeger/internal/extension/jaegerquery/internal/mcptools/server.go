@@ -22,6 +22,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
@@ -48,7 +50,11 @@ var skillsEmbedFS embed.FS
 // session-scoped endpoint that advertises per-session UI tools via receiving
 // middleware) build a server here, add their middleware, and serve it with
 // WrapHTTP.
-func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
+// metricsReader supplies the SPM RED metrics behind the get_service_metrics
+// tool. Pass nil (or the disabled reader) when no metrics backend is
+// configured; the tool is then not registered, so agents never see a tool
+// that can only return errors.
+func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, metricsReader metricstore.Reader, cfg Config) *mcp.Server {
 	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
@@ -58,7 +64,7 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 			Instructions: serverInstructions,
 		},
 	)
-	registerTools(server, queryAPI, cfg)
+	registerTools(server, queryAPI, metricsReader, cfg)
 
 	mw := []mcp.Middleware{
 		createTracingMiddleware(telset.TracerProvider),
@@ -102,14 +108,14 @@ func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.
 // over streamable HTTP, backed by the given QueryService — the session-free
 // endpoint (e.g. jaeger-query at /api/ai/mcp/). It is a thin composition of
 // NewServer and WrapHTTP around a single shared server.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
-	return WrapHTTP(NewServer(telset, queryAPI, cfg), tenancyMgr, telset)
+func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, metricsReader metricstore.Reader, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
+	return WrapHTTP(NewServer(telset, queryAPI, metricsReader, cfg), tenancyMgr, telset)
 }
 
 // RegisterTools registers all Jaeger telemetry MCP tools on the given server,
 // wiring each handler to the supplied QueryService. cfg supplies the per-tool
 // limits (search results, span details, read-file size).
-func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Config) {
+func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, metricsReader metricstore.Reader, cfg Config) {
 	s := struct { // alias to minimize code diff during move
 		mcpServer *mcp.Server
 		config    Config
@@ -164,6 +170,20 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 			"that determined end-to-end duration. " +
 			"Higher self_time_us values indicate where time is concentrated on the critical path.",
 	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
+
+	// Only expose the metrics tool when a metrics backend is actually
+	// configured; the disabled reader is the sentinel jaeger_query installs
+	// when storage.metrics is not set, and a tool that can only return
+	// "metrics disabled" errors is worse for an agent than no tool.
+	if _, metricsDisabled := metricsReader.(*disabled.MetricsReader); metricsReader != nil && !metricsDisabled {
+		mcp.AddTool(s.mcpServer, &mcp.Tool{
+			Name: "get_service_metrics",
+			Description: "Get RED metrics (latency percentile, call rate, error rate) for services " +
+				"as time series from Service Performance Monitoring. " +
+				"Each series is per-bucket data points over the query window; " +
+				"a null value means no data at that timestamp, as opposed to a measured 0.",
+		}, handlers.NewGetServiceMetricsHandler(metricsReader))
+	}
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_service_dependencies",

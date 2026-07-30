@@ -224,6 +224,7 @@ func initRouter(
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 						EnableMCP:          aiCfg.EnableMCP,
 						QueryService:       querySvc,
+						MetricsQuerySvc:    metricsQuerySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
 					}).RegisterRoutes(r)
@@ -231,7 +232,7 @@ func initRouter(
 				if aiCfg.EnableMCP {
 					// Session-free telemetry endpoint (/api/ai/mcp/). Coexists with
 					// the wildcard session-scoped pattern above.
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+					registerMCPTools(r, querySvc, metricsQuerySvc, tenancyMgr, queryOpts.BasePath, telset)
 				}
 			}
 		}
@@ -286,8 +287,8 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, metricsQuerySvc metricstore.Reader, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
+	handler := mcptools.NewHandler(telset, querySvc, metricsQuerySvc, tenancyMgr, mcptools.DefaultConfig())
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))

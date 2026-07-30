@@ -16,6 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
+	"github.com/jaegertracing/jaeger/internal/storage/metricstore/disabled"
+	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
+	metricstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	tracestoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -48,7 +51,7 @@ func connectTestClient(t *testing.T, handler http.Handler) *mcp.ClientSession {
 // backed by empty mocks.
 func TestNewHandler_ListTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telemetry.NoopSettings(), svc, nil, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
 
 	session := connectTestClient(t, handler)
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
@@ -65,13 +68,46 @@ func TestNewHandler_ListTools(t *testing.T) {
 	}, got)
 }
 
+// TestNewHandler_MetricsToolRegistration asserts get_service_metrics is only
+// advertised when a real metrics backend is behind the reader: present with a
+// working reader, absent with the disabled sentinel jaeger_query installs when
+// storage.metrics is not configured (nil is covered by TestNewHandler_ListTools).
+func TestNewHandler_MetricsToolRegistration(t *testing.T) {
+	tests := []struct {
+		name          string
+		metricsReader metricstore.Reader
+		expectTool    bool
+	}{
+		{name: "configured reader registers the tool", metricsReader: &metricstoremocks.Reader{}, expectTool: true},
+		{name: "disabled reader does not register the tool", metricsReader: &disabled.MetricsReader{}, expectTool: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+			handler := NewHandler(telemetry.NoopSettings(), svc, test.metricsReader, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+
+			session := connectTestClient(t, handler)
+			listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+			require.NoError(t, err)
+
+			found := false
+			for _, tool := range listed.Tools {
+				if tool.Name == "get_service_metrics" {
+					found = true
+				}
+			}
+			assert.Equal(t, test.expectTool, found)
+		})
+	}
+}
+
 // TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,
 // confirming the handler reaches the QueryService and returns a result.
 func TestNewHandler_CallTool(t *testing.T) {
 	reader := &tracestoremocks.Reader{}
 	reader.On("GetServices", mock.Anything).Return([]string{"svc-a", "svc-b"}, nil)
 	svc := querysvc.NewQueryService(reader, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
-	handler := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	handler := NewHandler(telemetry.NoopSettings(), svc, nil, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
 
 	session := connectTestClient(t, handler)
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{Name: "get_services"})
@@ -93,7 +129,7 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 	telset := telemetry.NoopSettings()
 	telset.MeterProvider = &failingMeterProvider{failCounter: true}
 
-	srv := NewServer(telset, svc, DefaultConfig())
+	srv := NewServer(telset, svc, nil, DefaultConfig())
 	require.NotNil(t, srv)
 }
 
@@ -104,7 +140,7 @@ func TestRegisterTools(t *testing.T) {
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.0"}, nil)
-	registerTools(server, svc, DefaultConfig())
+	registerTools(server, svc, nil, DefaultConfig())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
