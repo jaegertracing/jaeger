@@ -1088,6 +1088,14 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			expectedIDs:    []pcommon.TraceID{traceID5, traceID4, traceID3},
 		},
 		{
+			// An unrecognized status must not fall back to Unset, which would
+			// match the three Unset traces above.
+			name:           "Filter by span.status=INVALID (no match)",
+			queryAttrs:     map[string]string{"span.status": "INVALID"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
 			name:           "Filter by span.kind=SERVER",
 			queryAttrs:     map[string]string{"span.kind": "SERVER"},
 			expectedTraces: 1,
@@ -1237,6 +1245,87 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 					assert.Equal(t, expectedID, actualID)
 				}
 			}
+		})
+	}
+}
+
+// TestFindTraces_InvalidOTLPEnumFilters covers a span carrying the default
+// Unset status and Unspecified kind, which TestFindTraces_OTLPFields does not.
+// Without validation, an unrecognized span.status or span.kind value parses as
+// the enum's zero value and matches such spans, even though every other
+// non-matching filter returns no traces.
+func TestFindTraces_InvalidOTLPEnumFilters(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	traceID := fromString(t, "00000000000000010000000000000000")
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service1")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(traceID)
+	span.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span.SetName("operation1")
+	span.SetKind(ptrace.SpanKindUnspecified)
+	span.Status().SetCode(ptrace.StatusCodeUnset)
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Second)))
+
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+
+	tests := []struct {
+		name           string
+		queryAttrs     map[string]string
+		expectedTraces int
+	}{
+		{
+			name:           "span.status=UNSET matches the Unset span",
+			queryAttrs:     map[string]string{"span.status": "UNSET"},
+			expectedTraces: 1,
+		},
+		{
+			name:           "span.kind=UNSPECIFIED matches the Unspecified span",
+			queryAttrs:     map[string]string{"span.kind": "UNSPECIFIED"},
+			expectedTraces: 1,
+		},
+		{
+			name:           "unrecognized span.status does not match the Unset span",
+			queryAttrs:     map[string]string{"span.status": "NOT_A_STATUS"},
+			expectedTraces: 0,
+		},
+		{
+			name:           "unrecognized span.kind does not match the Unspecified span",
+			queryAttrs:     map[string]string{"span.kind": "NOT_A_KIND"},
+			expectedTraces: 0,
+		},
+		{
+			name:           "a typo in span.status is not treated as Unset",
+			queryAttrs:     map[string]string{"span.status": "UNSETT"},
+			expectedTraces: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			for k, v := range tt.queryAttrs {
+				attrs.PutStr(k, v)
+			}
+
+			query := tracestore.TraceQueryParams{
+				Attributes:  attrs,
+				SearchDepth: 10,
+			}
+
+			var foundTraces []ptrace.Traces
+			for traces, err := range store.FindTraces(context.Background(), query) {
+				require.NoError(t, err)
+				foundTraces = append(foundTraces, traces...)
+			}
+
+			assert.Len(t, foundTraces, tt.expectedTraces, "query: %v", tt.queryAttrs)
 		})
 	}
 }
