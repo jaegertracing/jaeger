@@ -5,6 +5,8 @@ package jaegerai
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -62,10 +64,8 @@ type turnScopedEndpoint struct {
 	// on by the uiToolsMiddleware registered on that server, keyed by the
 	// route id carried in the request context.
 	streamable http.Handler
-	// server is the shared MCP server behind streamable. It is retained so the
-	// chat handler can reap the sessions still bound to it at shutdown (see
-	// Handler.Close) — the SDK reaps a session only when it goes idle, so a live
-	// one would otherwise outlive the server.
+	// server is the shared MCP server behind streamable. It is retained so this
+	// endpoint can reap the sessions still bound to it at shutdown (see Close).
 	server   *mcp.Server
 	turns    *turnRegistry
 	basePath string
@@ -96,6 +96,24 @@ func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QuerySe
 func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
 	router.Handle(h.basePath+routeTurnMCP, h)
 	router.Handle(h.basePath+routeTurnMCPNoSlash, h)
+}
+
+var _ io.Closer = (*turnScopedEndpoint)(nil)
+
+// Close tears down the MCP sessions still bound to this endpoint's server so they do
+// not outlive it. The go-sdk reaps a session only once it goes idle (see
+// StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
+// disconnected would otherwise linger after shutdown.
+//
+// ServerSession.Close is the only teardown the SDK exposes — there is no
+// server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
+// closing each one mid-iteration, which deregisters it, is safe.
+func (h *turnScopedEndpoint) Close() error {
+	var errs []error
+	for session := range h.server.Sessions() {
+		errs = append(errs, session.Close())
+	}
+	return errors.Join(errs...)
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {

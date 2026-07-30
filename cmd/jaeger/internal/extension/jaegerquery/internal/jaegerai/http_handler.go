@@ -4,7 +4,6 @@
 package jaegerai
 
 import (
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -111,26 +110,17 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 
 var _ io.Closer = (*Handler)(nil)
 
-// Close tears down any MCP sessions still bound to the shared server so they do
-// not outlive the gateway. The go-sdk reaps a session only when it goes idle
-// (see StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
-// disconnected would otherwise linger after Shutdown. Called by the jaeger-query
-// server's Close path (Server.Close → httpServer.Close → closers.Close → here).
-//
-// ServerSession.Close is the only teardown the SDK exposes — there is no
-// server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
-// closing each one mid-iteration, which deregisters it, is safe.
+// Close shuts down the endpoints that hold resources past the request that opened
+// them. Called by the jaeger-query server's Close path (Server.Close →
+// httpServer.Close → closers.Close → here), so the gateway's MCP sessions do not
+// outlive the server that served them.
 //
 // A nil Handler is what jaeger-query holds when the AI gateway is disabled, and a
-// Handler with no MCP server is what it holds when only chat is enabled — both
-// close to nothing, so callers need no guard.
+// Handler with no turn-scoped endpoint is what it holds when only chat is enabled —
+// both close to nothing, so callers need no guard.
 func (h *Handler) Close() error {
 	if h == nil || h.mcp == nil {
 		return nil
 	}
-	var errs []error
-	for session := range h.mcp.server.Sessions() {
-		errs = append(errs, session.Close())
-	}
-	return errors.Join(errs...)
+	return h.mcp.Close()
 }
