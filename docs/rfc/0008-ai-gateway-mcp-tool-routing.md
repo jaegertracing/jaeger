@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Authors:** Nabil Salah ([@Nabil-Salah](https://github.com/Nabil-Salah)), Yuri Shkuro ([@yurishkuro](https://github.com/yurishkuro))
 - **Created:** 2026-07-15
-- **Last Updated:** 2026-07-15
+- **Last Updated:** 2026-07-30
 
 This RFC captures the "MCP movement": consolidating every AI tool call — telemetry and UI alike — through a single gateway-hosted MCP dispatch surface. It supersedes the tool-routing decision recorded in [RFC 0002 §5](./0002-ai-gateway-contextual-tools.md) (which chose an ACP extension method and rejected a gateway-hosted MCP server), building on the internal [Tool Routing Design doc][doc-routing] and the runnable spike in POC [#8854][pr-8854]. It does not touch [RFC 0003](./0003-simplify-ai-sidecar-setup.md) (sidecar setup ergonomics), which remains a separate, already-shipping concern.
 
@@ -18,7 +18,7 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M2 | Turn-scoped MCP endpoint `/api/ai/mcp/<id>/` + turn registry ([#8910][pr-8910]), then serving telemetry **+** per-turn UI tools over it ([#8973][pr-8973]) — dormant until a URL is announced | ✅ Done |
 | M3 | Tool-call observability: GenAI span attributes + gateway↔sidecar trace propagation | ✅ Done — [#8942][pr-8942] |
 | M4 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ✅ Done — [#9017][pr-9017] |
-| M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ⏳ In review — [#9009][pr-9009] |
+| M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ✅ Done — [#9009][pr-9009] |
 | M6 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its bespoke `jaeger_mcp` bridge and the ext-method path | ⏳ Pending |
 | M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server` (two instances today; the turn-scoped middleware already degrades to telemetry-only when no turn is active, so one serves both) | ⏳ Proposed — cleanup |
 | M8 | Probe `ai.mcp_base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
