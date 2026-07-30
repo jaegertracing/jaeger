@@ -139,6 +139,21 @@ func TestGetTrace(t *testing.T) {
 	}
 }
 
+func TestGetTraceNotFound(t *testing.T) {
+	tsc := newTestServerClient(t)
+	tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{}, nil)
+		})).Once()
+
+	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{TraceId: "1"})
+	require.NoError(t, err)
+	recv, err := getTraceStream.Recv()
+	require.Equal(t, codes.NotFound, status.Code(err))
+	require.ErrorContains(t, err, "trace not found")
+	assert.Nil(t, recv)
+}
+
 func TestGetTraceStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
