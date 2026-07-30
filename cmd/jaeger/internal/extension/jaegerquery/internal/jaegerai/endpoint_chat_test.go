@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -421,19 +422,72 @@ func announceEndpoint(baseURL, basePath string) *chatEndpoint {
 }
 
 func TestAnnounceMCPOverHTTP(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), "route-1")
+	got := announceEndpoint(testBaseURL, "").announceMCP(context.Background(), httpCaps(true), "route-1")
 	require.Len(t, got, 1)
 	require.NotNil(t, got[0].Http)
 	assert.Equal(t, "http", got[0].Http.Type)
 	assert.Equal(t, mcpServerName, got[0].Http.Name)
 	assert.Equal(t, testBaseURL+"/api/ai/mcp/route-1/", got[0].Http.Url)
+	assert.Empty(t, got[0].Http.Headers)
+}
+
+func TestAnnounceMCPPropagatesTenantHeader(t *testing.T) {
+	tenantCtx := tenancy.WithTenant(context.Background(), "acme")
+	tests := []struct {
+		name             string
+		tenancyMgr       *tenancy.Manager
+		ctx              context.Context
+		wantAnnouncement bool
+		wantHeaders      []acp.HttpHeader
+	}{
+		{
+			name:             "default header",
+			tenancyMgr:       tenancy.NewManager(&tenancy.Options{Enabled: true}),
+			ctx:              tenantCtx,
+			wantAnnouncement: true,
+			wantHeaders:      []acp.HttpHeader{{Name: "x-tenant", Value: "acme"}},
+		},
+		{
+			name:             "custom header",
+			tenancyMgr:       tenancy.NewManager(&tenancy.Options{Enabled: true, Header: "X-Scope-OrgID"}),
+			ctx:              tenantCtx,
+			wantAnnouncement: true,
+			wantHeaders:      []acp.HttpHeader{{Name: "X-Scope-OrgID", Value: "acme"}},
+		},
+		{
+			name:       "missing tenant",
+			tenancyMgr: tenancy.NewManager(&tenancy.Options{Enabled: true}),
+			ctx:        context.Background(),
+		},
+		{
+			name:             "tenancy disabled",
+			tenancyMgr:       tenancy.NewManager(&tenancy.Options{}),
+			ctx:              tenantCtx,
+			wantAnnouncement: true,
+			wantHeaders:      []acp.HttpHeader{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			endpoint := announceEndpoint(testBaseURL, "")
+			endpoint.tenancyMgr = test.tenancyMgr
+			got := endpoint.announceMCP(test.ctx, httpCaps(true), "route-1")
+			if !test.wantAnnouncement {
+				assert.Empty(t, got)
+				return
+			}
+			require.Len(t, got, 1)
+			assert.Equal(t, test.wantHeaders, got[0].Http.Headers)
+		})
+	}
 }
 
 // TestAnnounceMCPRequiresHTTPCapability is the core contract: ACP requires an agent
 // to opt into each McpServer variant, so announcing HTTP to an agent that cannot
 // consume it would make it fail the session.
 func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(false), "route-1")
+	got := announceEndpoint(testBaseURL, "").announceMCP(context.Background(), httpCaps(false), "route-1")
 	assert.Empty(t, got, "an agent that did not advertise mcpCapabilities.http is offered nothing")
 }
 
@@ -441,17 +495,17 @@ func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
 // turn-scoped endpoint is not mounted at all, or it is mounted but no reachable
 // address is known (see AIConfig.resolveMCPBaseURL).
 func TestAnnounceMCPRequiresBaseURL(t *testing.T) {
-	got := announceEndpoint("", "").announceMCP(httpCaps(true), "route-1")
+	got := announceEndpoint("", "").announceMCP(context.Background(), httpCaps(true), "route-1")
 	assert.Empty(t, got, "with no reachable base URL the endpoint is not announced")
 }
 
 func TestAnnounceMCPRequiresRouteID(t *testing.T) {
-	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), "")
+	got := announceEndpoint(testBaseURL, "").announceMCP(context.Background(), httpCaps(true), "")
 	assert.Empty(t, got, "without a route id there is no turn-scoped endpoint to announce")
 }
 
 func TestAnnounceMCPEmbedsBasePath(t *testing.T) {
-	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(httpCaps(true), "u-1")
+	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(context.Background(), httpCaps(true), "u-1")
 	require.Len(t, got, 1)
 	assert.Equal(t, "http://127.0.0.1:16686/jaeger/api/ai/mcp/u-1/", got[0].Http.Url,
 		"the announced URL must carry the query server's base path")
@@ -472,10 +526,12 @@ func TestChatEndpointAnnouncesMCPEndpoint(t *testing.T) {
 
 	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "/jaeger", 1<<20)
 	handler.mcpBaseURL = "https://jaeger.example.com:16686"
+	handler.tenancyMgr = tenancy.NewManager(&tenancy.Options{Enabled: true})
 
 	reqBody, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	req = req.WithContext(tenancy.WithTenant(req.Context(), "acme"))
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -484,6 +540,7 @@ func TestChatEndpointAnnouncesMCPEndpoint(t *testing.T) {
 	require.NotNil(t, sessionReq)
 	require.Len(t, sessionReq.McpServers, 1, "the endpoint must be announced")
 	require.NotNil(t, sessionReq.McpServers[0].Http)
+	assert.Equal(t, []acp.HttpHeader{{Name: "x-tenant", Value: "acme"}}, sessionReq.McpServers[0].Http.Headers)
 
 	url := sessionReq.McpServers[0].Http.Url
 	assert.True(t, strings.HasPrefix(url, "https://jaeger.example.com:16686/jaeger/api/ai/mcp/"),

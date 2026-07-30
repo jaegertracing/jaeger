@@ -70,6 +70,7 @@ func NewHandler(p HandlerParams) *Handler {
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
 		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+		chat.tenancyMgr = p.TenancyMgr
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
 		// here is what keeps the announcement off when no endpoint is mounted.
