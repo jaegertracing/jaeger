@@ -6,6 +6,7 @@ package app
 
 import (
 	"context"
+	"net"
 	"testing"
 	"time"
 
@@ -282,5 +283,36 @@ func TestAIConfigValidateRejectsNonPositiveHealthCheckTimeoutWhenEnabled(t *test
 		cfg.HealthCheckTimeout = timeout
 		require.EqualError(t, cfg.Validate(),
 			"ai.health_check_timeout must be positive when health_check_interval is positive")
+	}
+}
+
+// TestHostIPUsesFirstResolvedAddress covers the name-resolution path. "localhost" is
+// short-circuited and IP literals never reach the resolver, so a stubbed lookup is
+// the only way to reach it without depending on the environment's DNS.
+func TestHostIPUsesFirstResolvedAddress(t *testing.T) {
+	restore := lookupIPAddr
+	t.Cleanup(func() { lookupIPAddr = restore })
+	lookupIPAddr = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		assert.Equal(t, "sidecar.internal", host, "the host is passed through verbatim")
+		return []net.IPAddr{{IP: net.IPv4(127, 0, 0, 5)}, {IP: net.IPv4(10, 0, 0, 1)}}, nil
+	}
+	assert.Equal(t, "127.0.0.5", hostIP(context.Background(), "sidecar.internal").String(),
+		"the first resolved address decides")
+}
+
+// TestHostIPSkipsResolverForLocalhost pins the fast path: ai.agent_url defaults to
+// ws://localhost:16688, so resolving it would put a lookup on every default-config
+// startup. A stub that fails the test if called proves it is never consulted.
+func TestHostIPSkipsResolverForLocalhost(t *testing.T) {
+	restore := lookupIPAddr
+	t.Cleanup(func() { lookupIPAddr = restore })
+	lookupIPAddr = func(_ context.Context, host string) ([]net.IPAddr, error) {
+		assert.Fail(t, "resolver must not be consulted", "called for %q", host)
+		return nil, nil
+	}
+	for _, host := range []string{"localhost", "LOCALHOST", "127.0.0.1", "::1"} {
+		ip := hostIP(context.Background(), host)
+		require.NotNil(t, ip, "%q must resolve without the resolver", host)
+		assert.True(t, ip.IsLoopback(), "%q is loopback", host)
 	}
 }

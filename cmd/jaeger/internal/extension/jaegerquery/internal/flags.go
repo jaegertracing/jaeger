@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -225,6 +226,11 @@ func isLoopbackURL(ctx context.Context, rawURL string) bool {
 // up means "not loopback", which only declines to infer.
 const hostLookupTimeout = 2 * time.Second
 
+// lookupIPAddr is net.DefaultResolver's lookup, indirected so tests can exercise the
+// name-resolution path without depending on what DNS or /etc/hosts happens to answer
+// in the environment the tests run in.
+var lookupIPAddr = net.DefaultResolver.LookupIPAddr
+
 // hostIP resolves a host — a name or an IP literal — to an IP address, or nil if it
 // does not resolve. Resolving, rather than string-matching "localhost", is what
 // makes the loopback checks agree with what a dial would actually do: it accepts
@@ -240,9 +246,18 @@ func hostIP(ctx context.Context, host string) net.IP {
 	if addr, err := netip.ParseAddr(host); err == nil {
 		return net.IP(addr.AsSlice())
 	}
+	// "localhost" is the one name worth short-circuiting: it is the host in
+	// DefaultAIAgentURL, so resolving it would put a lookup on every default-config
+	// startup to learn what every resolver on every platform already agrees on. Any
+	// other name still goes to the resolver below.
+	if strings.EqualFold(host, "localhost") {
+		// A fresh value, not net.IPv6loopback: that is a mutable package var, and
+		// callers have no reason to be handed an alias of it.
+		return net.IPv4(127, 0, 0, 1)
+	}
 	ctx, cancel := context.WithTimeout(ctx, hostLookupTimeout)
 	defer cancel()
-	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	addrs, err := lookupIPAddr(ctx, host)
 	if err != nil || len(addrs) == 0 {
 		return nil
 	}
