@@ -406,6 +406,147 @@ func TestChatEndpointRegistersTurnInRegistry(t *testing.T) {
 	assert.Equal(t, 0, turns.count(), "the stream must be removed at end of turn")
 }
 
+func httpCaps(supported bool) acp.AgentCapabilities {
+	return acp.AgentCapabilities{
+		McpCapabilities: acp.McpCapabilities{Http: supported},
+	}
+}
+
+const testBaseURL = "https://jaeger.example.com:16686"
+
+// announceEndpoint is a chatEndpoint reduced to the fields announceMCP reads, so the
+// announcement can be exercised without standing up a sidecar.
+func announceEndpoint(baseURL, basePath string) *chatEndpoint {
+	return &chatEndpoint{mcpBaseURL: baseURL, basePath: basePath}
+}
+
+func TestAnnounceMCPOverHTTP(t *testing.T) {
+	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), "route-1")
+	require.Len(t, got, 1)
+	require.NotNil(t, got[0].Http)
+	assert.Equal(t, "http", got[0].Http.Type)
+	assert.Equal(t, mcpServerName, got[0].Http.Name)
+	assert.Equal(t, testBaseURL+"/api/ai/mcp/route-1/", got[0].Http.Url)
+}
+
+// TestAnnounceMCPRequiresHTTPCapability is the core contract: ACP requires an agent
+// to opt into each McpServer variant, so announcing HTTP to an agent that cannot
+// consume it would make it fail the session.
+func TestAnnounceMCPRequiresHTTPCapability(t *testing.T) {
+	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(false), "route-1")
+	assert.Empty(t, got, "an agent that did not advertise mcpCapabilities.http is offered nothing")
+}
+
+// TestAnnounceMCPRequiresBaseURL covers both reasons mcpBaseURL is empty: the
+// turn-scoped endpoint is not mounted at all, or it is mounted but no reachable
+// address is known (see AIConfig.resolveMCPBaseURL).
+func TestAnnounceMCPRequiresBaseURL(t *testing.T) {
+	got := announceEndpoint("", "").announceMCP(httpCaps(true), "route-1")
+	assert.Empty(t, got, "with no reachable base URL the endpoint is not announced")
+}
+
+func TestAnnounceMCPRequiresRouteID(t *testing.T) {
+	got := announceEndpoint(testBaseURL, "").announceMCP(httpCaps(true), "")
+	assert.Empty(t, got, "without a route id there is no turn-scoped endpoint to announce")
+}
+
+func TestAnnounceMCPEmbedsBasePath(t *testing.T) {
+	got := announceEndpoint("http://127.0.0.1:16686", "/jaeger").announceMCP(httpCaps(true), "u-1")
+	require.Len(t, got, 1)
+	assert.Equal(t, "http://127.0.0.1:16686/jaeger/api/ai/mcp/u-1/", got[0].Http.Url,
+		"the announced URL must carry the query server's base path")
+}
+
+// TestChatEndpointAnnouncesMCPEndpoint is the end-to-end wiring check: the turn's
+// route id is registered in the turn registry and announced to the sidecar as a
+// reachable URL, so the agent can finally dial the endpoint that #8973 made serve
+// telemetry + UI tools.
+func TestChatEndpointAnnouncesMCPEndpoint(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "/jaeger", 1<<20)
+	handler.mcpBaseURL = "https://jaeger.example.com:16686"
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	require.Len(t, sessionReq.McpServers, 1, "the endpoint must be announced")
+	require.NotNil(t, sessionReq.McpServers[0].Http)
+
+	url := sessionReq.McpServers[0].Http.Url
+	assert.True(t, strings.HasPrefix(url, "https://jaeger.example.com:16686/jaeger/api/ai/mcp/"),
+		"announced URL must point at this turn's turn-scoped endpoint, got %q", url)
+	assert.True(t, strings.HasSuffix(url, "/"))
+	assert.Zero(t, handler.turns.count(), "the turn's registry entry is removed once the turn ends")
+}
+
+// TestChatEndpointAnnouncesNothingWhenMCPDisabled covers AI chat without MCP: no
+// endpoint is mounted, so the sidecar must be pointed at nothing.
+func TestChatEndpointAnnouncesNothingWhenMCPDisabled(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "", 1<<20) // no mcpServer
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	assert.Empty(t, sessionReq.McpServers, "no MCP server may be announced when MCP is off")
+}
+
+// TestChatEndpointAnnouncesNothingWithoutBaseURL covers the case where the base
+// URL resolves to empty — a remote sidecar the gateway cannot infer an address for
+// (see resolveMCPBaseURL), and no override configured. MCP is enabled (the shared
+// server is present), but with no reachable URL the gateway announces nothing and
+// the turn still completes, rather than announcing a URL the sidecar would fail to
+// dial.
+func TestChatEndpointAnnouncesNothingWithoutBaseURL(t *testing.T) {
+	agent := &mockACPAgent{
+		agentCapabilities: acp.AgentCapabilities{
+			McpCapabilities: acp.McpCapabilities{Http: true},
+		},
+	}
+	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
+	defer cleanup()
+
+	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "", 1<<20)
+	// mcpBaseURL deliberately left empty — enable_mcp without ai.mcp_base_url.
+
+	reqBody, err := json.Marshal(newAGUIRequest("hello"))
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/api/ai/chat", bytes.NewReader(reqBody))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "the turn must still succeed without a base URL")
+
+	_, sessionReq, _ := agent.snapshot()
+	require.NotNil(t, sessionReq)
+	assert.Empty(t, sessionReq.McpServers, "nothing may be announced when ai.mcp_base_url is unset")
+}
+
 func TestChatEndpointAppendsContextEntriesToPromptBlocks(t *testing.T) {
 	agent := &mockACPAgent{}
 	wsURL, cleanup := startMockACPWebSocketServer(t, agent)
