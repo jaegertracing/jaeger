@@ -50,7 +50,7 @@ type HandlerParams struct {
 	EnableMCP bool
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
-	// endpoint. Empty announces nothing — see announceMCPServers. Ignored when
+	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
 	// EnableMCP is false.
 	MCPBaseURL   string
 	QueryService *querysvc.QueryService
@@ -71,12 +71,14 @@ func NewHandler(p HandlerParams) *Handler {
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
 		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
-		// Hand the chat endpoint the shared server and its reachable URL so each
-		// turn announces this endpoint to the sidecar (see chatEndpoint.announceMCP).
-		chat.mcpServer = h.mcp.server
+		// Hand the chat endpoint the endpoint's reachable base URL so each turn
+		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
+		// here is what keeps the announcement off when no endpoint is mounted.
+		//
 		// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a
-		// value like "http://host:16686//" is legal, and leaving either slash on
-		// would announce "…//api/ai/mcp/<id>/" — a path the mux never matches.
+		// value like "http://host:16686//" is legal, and TrimSuffix would leave one
+		// slash on. A doubled slash still reaches the endpoint — ServeMux redirects
+		// to the cleaned path — but at the cost of a redirect on every MCP call.
 		chat.mcpBaseURL = strings.TrimRight(p.MCPBaseURL, "/")
 	}
 	return h

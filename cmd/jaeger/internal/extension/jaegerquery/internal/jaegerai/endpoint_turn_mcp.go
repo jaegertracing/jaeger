@@ -19,7 +19,7 @@ import (
 
 // routeMCPPrefix is the single source of truth for the endpoint's path: the mux
 // patterns, the prefix ServeHTTP strips, and the URL announced to the sidecar
-// (see announceMCPServers) all derive from it, so they cannot drift.
+// (see chatEndpoint.announceMCP) all derive from it, so they cannot drift.
 //
 // routeTurnMCP and routeTurnMCPNoSlash are strictly more specific than the shared
 // "/api/ai/mcp/" pattern jaeger-query mounts, so all three coexist on one mux:

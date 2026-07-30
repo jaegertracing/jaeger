@@ -12,7 +12,6 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	acp "github.com/coder/acp-go-sdk"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -36,35 +35,48 @@ type chatEndpoint struct {
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
 	turns *turnRegistry
-	// mcpServer is the shared MCP server behind the turn-scoped endpoint. Non-nil
-	// exactly when the operator enabled MCP, so it doubles as the gate: nil means
-	// no endpoint is mounted, so the turn announces no MCP server.
-	mcpServer *mcp.Server
-	// mcpBaseURL is the scheme+authority announced for the endpoint. Empty means
-	// nothing is announced.
+	// mcpBaseURL is the scheme+authority announced for the turn-scoped MCP
+	// endpoint. NewHandler sets it only when that endpoint is actually mounted and
+	// a reachable address is known, so empty means announce nothing.
 	mcpBaseURL         string
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
 }
 
-// announceMCP builds this turn's NewSessionRequest.mcpServers. It returns an empty
-// list when MCP is disabled — no endpoint is mounted, so there is nothing to point
-// the sidecar at.
+// mcpServerName is the human-readable name the gateway gives its MCP server in the
+// session/new announcement. Agents surface it in logs and tool namespacing, so keep
+// it stable.
+const mcpServerName = "jaeger"
+
+// announceMCP builds this turn's NewSessionRequest.mcpServers, pointing the sidecar
+// at the turn-scoped MCP endpoint. Without it the endpoint is dormant: it serves the
+// telemetry tools and the turn's UI tools, but no agent knows the URL to dial.
+//
+// The announcement is capability-gated on the agent's InitializeResponse: ACP
+// requires an agent to opt into each McpServer variant, and announcing one it cannot
+// consume would make it fail the session. Streamable HTTP is the only variant the
+// gateway offers today.
 func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
-	if h.mcpServer == nil {
+	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
 	}
-	return announceMCPServers(caps, h.mcpBaseURL, h.basePath, mcpRouteID)
+	return []acp.McpServer{{
+		Http: &acp.McpServerHttpInline{
+			Type:    "http",
+			Name:    mcpServerName,
+			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
+			Headers: []acp.HttpHeader{},
+		},
+	}}
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
 // ctxTools may be nil in tests that do not exercise contextual tooling. basePath
 // is the jaeger-query base path; it is normalized once and kept on the endpoint
 // for consistency with sibling handlers even though ServeHTTP does not currently
-// read it. The MCP announce fields (mcpServer, mcpBaseURL) default to their zero
-// values — the announcement stays off until NewHandler enables it — so tests that
-// do not exercise MCP need no extra wiring.
+// read it. mcpBaseURL defaults to the zero value — the announcement stays off until
+// NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
 func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,

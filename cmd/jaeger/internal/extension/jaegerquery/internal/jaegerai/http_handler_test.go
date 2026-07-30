@@ -99,7 +99,7 @@ func TestNewHandlerNormalizesMCPBaseURL(t *testing.T) {
 			EnableMCP: true, QueryService: svc, TenancyMgr: tenancy.NewManager(&tenancy.Options{}),
 			Telset: telemetry.NoopSettings(), MCPBaseURL: base,
 		})
-		got := announceMCPServers(httpCaps(true), h.chat.mcpBaseURL, h.basePath, "SID")
+		got := h.chat.announceMCP(httpCaps(true), "SID")
 		require.Len(t, got, 1)
 		assert.Equal(t, "http://127.0.0.1:16686/api/ai/mcp/SID/", got[0].Http.Url,
 			"base URL %q must normalize to a single slash", base)
