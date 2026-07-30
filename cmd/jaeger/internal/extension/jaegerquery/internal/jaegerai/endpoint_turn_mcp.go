@@ -33,8 +33,8 @@ import (
 // fall through to the shared subtree pattern instead of the turn-scoped handler.
 const (
 	routeMCPPrefix      = "/api/ai/mcp/"
-	routeTurnMCP        = routeMCPPrefix + "{mcpRouteID}/"
 	routeTurnMCPNoSlash = routeMCPPrefix + "{mcpRouteID}"
+	routeTurnMCP        = routeTurnMCPNoSlash + "/"
 )
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
