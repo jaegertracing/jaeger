@@ -4,6 +4,7 @@
 package jaegerai
 
 import (
+	"io"
 	"net/http"
 	"strings"
 
@@ -45,7 +46,12 @@ type HandlerParams struct {
 	MaxRequestBodySize int64
 	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
 	// chat endpoint is registered.
-	EnableMCP    bool
+	EnableMCP bool
+	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
+	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
+	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
+	// EnableMCP is false.
+	MCPBaseURL   string
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Telset       telemetry.Settings
@@ -60,12 +66,19 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	h := &Handler{
-		basePath: basePath,
-		chat:     newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize),
-	}
+	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
+	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
 		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+		// Hand the chat endpoint the endpoint's reachable base URL so each turn
+		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
+		// here is what keeps the announcement off when no endpoint is mounted.
+		//
+		// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a
+		// value like "http://host:16686//" is legal, and TrimSuffix would leave one
+		// slash on. A doubled slash still reaches the endpoint — ServeMux redirects
+		// to the cleaned path — but at the cost of a redirect on every MCP call.
+		chat.mcpBaseURL = strings.TrimRight(p.MCPBaseURL, "/")
 	}
 	return h
 }
@@ -93,4 +106,21 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 	if h.mcp != nil {
 		h.mcp.registerRoutes(router)
 	}
+}
+
+var _ io.Closer = (*Handler)(nil)
+
+// Close shuts down the endpoints that hold resources past the request that opened
+// them. Called by the jaeger-query server's Close path (Server.Close →
+// httpServer.Close → closers.Close → here), so the gateway's MCP sessions do not
+// outlive the server that served them.
+//
+// A nil Handler is what jaeger-query holds when the AI gateway is disabled, and a
+// Handler with no turn-scoped endpoint is what it holds when only chat is enabled —
+// both close to nothing, so callers need no guard.
+func (h *Handler) Close() error {
+	if h == nil || h.mcp == nil {
+		return nil
+	}
+	return h.mcp.Close()
 }
