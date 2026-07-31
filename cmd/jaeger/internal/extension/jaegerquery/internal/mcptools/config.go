@@ -4,6 +4,7 @@
 package mcptools
 
 import (
+	"io/fs"
 	"time"
 
 	"github.com/jaegertracing/jaeger/internal/version"
@@ -32,6 +33,11 @@ type Config struct {
 	MaxSearchResults         int
 	// MaxReadFileSize bounds the size (bytes) of a file served by read_skill.
 	MaxReadFileSize int64
+	// OperatorSkillsFS is the operator's skills directory (ai.skills_dir),
+	// already opened by the caller, served by read_skill under custom/ beside
+	// the built-in skills. Nil means the operator configured none, and only
+	// the built-ins are served.
+	OperatorSkillsFS fs.FS
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so
