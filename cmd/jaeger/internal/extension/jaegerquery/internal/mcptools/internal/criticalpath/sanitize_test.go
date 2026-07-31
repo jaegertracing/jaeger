@@ -297,6 +297,71 @@ func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
 	assert.False(t, ok4)
 }
 
+// TestSanitizeOverFlowingChildren_OrphanCascade pins the behavior of a "true
+// orphan": a span whose ParentSpanID is non-empty but does not exist anywhere
+// in spanMap (its parent was never part of the trace, not merely dropped during
+// this pass).
+//
+// The original single-pass code dropped the orphan via the `parentExists ==
+// false` branch (delete + continue, no explicit child cascade). Children of the
+// orphan were still in the flat spanIDs snapshot, so they were visited later;
+// their own parent-lookup also failed (orphan was deleted), causing them to be
+// deleted too. The net result: the full subtree rooted at the orphan is removed.
+//
+// The BFS rewrite replicates this by enqueuing the orphan's children
+// (appendChildren) before the continue, so they are processed in the same pass
+// and deleted via the same orphan-detection branch. The observable result is
+// identical: every span in the orphan's subtree is absent from the output.
+//
+// This test explicitly asserts that contract for a two-level subtree:
+//
+//	Orphan O  (ParentSpanID → X, X not in map)
+//	  └─ Child C
+//	       └─ Grandchild G
+func TestSanitizeOverFlowingChildren_OrphanCascade(t *testing.T) {
+	spO := pcommon.SpanID([8]byte{0xE1}) // orphan: parent missing from map
+	spC := pcommon.SpanID([8]byte{0xE2}) // child of orphan
+	spG := pcommon.SpanID([8]byte{0xE3}) // grandchild of orphan
+	spX := pcommon.SpanID([8]byte{0xFF}) // the missing parent (never in map)
+
+	input := map[pcommon.SpanID]CPSpan{
+		spO: {
+			SpanID:       spO,
+			ParentSpanID: spX, // points outside the map
+			StartTime:    100,
+			Duration:     200,
+			ChildSpanIDs: []pcommon.SpanID{spC},
+		},
+		spC: {
+			SpanID:       spC,
+			ParentSpanID: spO,
+			StartTime:    110,
+			Duration:     50,
+			ChildSpanIDs: []pcommon.SpanID{spG},
+		},
+		spG: {
+			SpanID:       spG,
+			ParentSpanID: spC,
+			StartTime:    120,
+			Duration:     20,
+		},
+	}
+
+	result := removeOverflowingChildren(input)
+
+	// The entire subtree must be absent.
+	_, okO := result[spO]
+	assert.False(t, okO, "orphan O must be dropped (its parent is not in the map)")
+
+	_, okC := result[spC]
+	assert.False(t, okC, "child C of orphan O must be cascade-dropped")
+
+	_, okG := result[spG]
+	assert.False(t, okG, "grandchild G of orphan O must be cascade-dropped")
+
+	assert.Empty(t, result, "result must be completely empty")
+}
+
 // TestSanitizeOverFlowingChildren_GrandchildCascade is a regression test for
 // a non-deterministic bug where a grandchild could survive sanitization if its
 // intermediate parent (which overflows the grandparent) happened to be iterated
