@@ -70,6 +70,15 @@ Run these commands without asking for permission:
 - Do not bump dependencies unless the task requires it.
 - Do not change CI workflows or release tooling unless explicitly asked.
 
+## RFC / ADR Documents
+
+RFCs (`docs/rfc/`) are point-in-time proposals; ADRs (`docs/adr/`) are decision records.
+
+- When a PR implements a milestone described in an RFC or ADR, update that document in the same PR: mark the milestone ✅ and link the delivering PR. Keep the milestone/status tracking current.
+- Do **not** rewrite an RFC's prose, abstract, or diagrams to match the evolving codebase — its narrative is a historical snapshot of the state and plan when it was written.
+- ADRs are different: they describe a design, not a plan, so keeping one accurate is worth more than keeping it pristine. Judge by proportion. If a change touches a small part of an ADR and reverses none of its decisions, **edit that ADR in place** — extend the affected sections, note the extension in the Status or Date line, and leave the original Context and Decision prose alone. Write a new superseding ADR only when the change replaces the original's decision or architecture outright. [ADR-004](./docs/adr/004-migrating-coverage-gating-to-github-actions.md) is an example of the former: its fan-in gating decision and requirements stood, so later work extended it rather than superseding it. What the rule forbids is rewriting an ADR into running documentation of the code.
+- When an RFC's work is fully delivered, mark its status Implemented; if the resulting architecture is worth an enduring reference, graduate it into a new ADR in [`docs/adr/`](./docs/adr/) that states the outcome and links back to the RFC, rather than mutating the RFC. [ADR-012](./docs/adr/012-unified-elasticsearch-client.md) (graduated from RFC 0006) is an example.
+
 ## When in Doubt
 
 Stop and ask rather than guessing. It is better to surface a question in the PR description than to invent behavior, fabricate API names, or silence failing checks.

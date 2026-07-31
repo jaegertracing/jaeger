@@ -103,15 +103,15 @@ func TestGetLatestIndex(t *testing.T) {
 }
 
 func TestInsertThroughput(t *testing.T) {
-	bulkWriter := esclientmocks.NewBulkWriter(t)
+	batchWriter := esclientmocks.NewBatchWriter(t)
 	var added []esclient.BulkItem
-	bulkWriter.On("Add", mock.Anything).Run(func(args mock.Arguments) {
-		added = append(added, args.Get(0).(esclient.BulkItem))
-	}).Return()
+	batchWriter.On("WriteBatch", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		added = append(added, args.Get(1).([]esclient.BulkItem)...)
+	}).Return(nil)
 
 	fixedTime := time.Date(2024, 2, 8, 12, 0, 0, 0, time.UTC)
 	store := NewSamplingStore(Params{
-		BulkWriter:  bulkWriter,
+		BatchWriter: batchWriter,
 		Logger:      zap.NewNop(),
 		MaxDocCount: defaultMaxDocCount,
 		Rotation:    dailyRotation(),
@@ -133,15 +133,15 @@ func TestInsertThroughput(t *testing.T) {
 }
 
 func TestInsertProbabilitiesAndQPS(t *testing.T) {
-	bulkWriter := esclientmocks.NewBulkWriter(t)
+	batchWriter := esclientmocks.NewBatchWriter(t)
 	var added []esclient.BulkItem
-	bulkWriter.On("Add", mock.Anything).Run(func(args mock.Arguments) {
-		added = append(added, args.Get(0).(esclient.BulkItem))
-	}).Return()
+	batchWriter.On("WriteBatch", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		added = append(added, args.Get(1).([]esclient.BulkItem)...)
+	}).Return(nil)
 
 	fixedTime := time.Date(2024, 2, 8, 12, 0, 0, 0, time.UTC)
 	store := NewSamplingStore(Params{
-		BulkWriter:  bulkWriter,
+		BatchWriter: batchWriter,
 		Logger:      zap.NewNop(),
 		MaxDocCount: defaultMaxDocCount,
 		Rotation:    dailyRotation(),
@@ -391,10 +391,10 @@ func TestSamplingStoreRequestSnapshots(t *testing.T) {
 // captureBulkWrite gives the store a fresh bulk indexer, runs write, then closes
 // the indexer to flush the single bulk request the recorder captures. A new
 // indexer per write keeps each write's request in its own snapshot.
-func captureBulkWrite(t *testing.T, client esclient.Client, rec *snapshottest.Recorder, store *SamplingStore, write func()) string {
+func captureBulkWrite(t *testing.T, client *esclient.Client, rec *snapshottest.Recorder, store *SamplingStore, write func()) string {
 	bulkWriter, err := esclient.NewBulkIndexer(client, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	store.bulkWriter = bulkWriter
+	store.batchWriter = bulkWriter
 	rec.Reset()
 	write()
 	require.NoError(t, bulkWriter.Close())

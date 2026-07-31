@@ -9,6 +9,7 @@ package tracestore
 import (
 	"encoding/hex"
 
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -27,8 +28,26 @@ const (
 	tagError         = "error"
 )
 
-// ToDBModel translates internal trace data into the DB Spans.
-// Returns slice of translated DB Spans and error if translation failed.
+// omitParentSpanIDReferenceGate, when enabled, stops the write path from encoding a
+// span's parent span ID as a synthetic CHILD_OF entry in the References field. Since
+// v2.20 the parent is written to its own dedicated parentSpanID field, so the synthetic
+// reference is redundant; it is retained by default only so that older query-service
+// readers, which derive the parent from References, keep working against the same index
+// during a rolling upgrade. Once all readers rely on the parentSpanID field this gate can
+// be promoted to Beta and eventually the compat write removed.
+var omitParentSpanIDReferenceGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.omitParentSpanIDReference",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.20.0"),
+	featuregate.WithRegisterDescription(
+		"When enabled, the Elasticsearch/OpenSearch write path no longer encodes the parent "+
+			"span ID as a synthetic CHILD_OF reference; the parent is written only to the "+
+			"dedicated parentSpanID field. Keep disabled for compatibility with older readers "+
+			"that derive the parent span from the references list.",
+	),
+)
+
+// ToDBModel translates internal trace data into a slice of DB Spans.
 func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	resourceSpans := td.ResourceSpans()
 
@@ -36,10 +55,14 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 		return nil
 	}
 
+	// Read the gate once per batch rather than per span. It is deliberately not read
+	// inside spanToDbSpan: a feature-gate call in that hot leaf function trips
+	// golangci-lint's contextcheck/nolintlint whole-program analysis on unrelated files.
+	omitParentSpanIDReference := omitParentSpanIDReferenceGate.IsEnabled()
 	batches := make([]dbmodel.Span, 0, resourceSpans.Len())
 	for i := 0; i < resourceSpans.Len(); i++ {
 		rs := resourceSpans.At(i)
-		batch := resourceSpansToDbSpans(rs)
+		batch := resourceSpansToDbSpans(rs, omitParentSpanIDReference)
 		if batch != nil {
 			batches = append(batches, batch...)
 		}
@@ -48,7 +71,7 @@ func ToDBModel(td ptrace.Traces) []dbmodel.Span {
 	return batches
 }
 
-func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
+func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans, omitParentSpanIDReference bool) []dbmodel.Span {
 	resource := resourceSpans.Resource()
 	scopeSpans := resourceSpans.ScopeSpans()
 
@@ -64,7 +87,7 @@ func resourceSpansToDbSpans(resourceSpans ptrace.ResourceSpans) []dbmodel.Span {
 
 	for _, scopeSpan := range scopeSpans.All() {
 		for _, span := range scopeSpan.Spans().All() {
-			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process)
+			dbSpan := spanToDbSpan(span, scopeSpan.Scope(), process, omitParentSpanIDReference)
 			dbSpans = append(dbSpans, dbSpan)
 		}
 	}
@@ -123,19 +146,16 @@ func attributeToDbTag(key string, attr pcommon.Value) dbmodel.KeyValue {
 	return tag
 }
 
-func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process) dbmodel.Span {
+func spanToDbSpan(span ptrace.Span, libraryTags pcommon.InstrumentationScope, process dbmodel.Process, omitParentSpanIDReference bool) dbmodel.Span {
 	traceID := dbmodel.TraceID(span.TraceID().String())
 	parentSpanID := dbmodel.SpanID(span.ParentSpanID().String())
 	startTime := span.StartTimestamp().AsTime()
 	return dbmodel.Span{
-		TraceID:       traceID,
-		SpanID:        dbmodel.SpanID(span.SpanID().String()),
-		ParentSpanID:  parentSpanID,
-		OperationName: span.Name(),
-		// TODO after v2.20: stop encoding parentSpanID as a CHILD_OF reference;
-		// only write actual span links here. Kept for now so older readers that
-		// derive the parent from references still work against the same index.
-		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID),
+		TraceID:         traceID,
+		SpanID:          dbmodel.SpanID(span.SpanID().String()),
+		ParentSpanID:    parentSpanID,
+		OperationName:   span.Name(),
+		References:      linksToDbSpanRefs(span.Links(), parentSpanID, traceID, omitParentSpanIDReference),
 		StartTime:       model.TimeAsEpochMicroseconds(startTime),
 		StartTimeMillis: model.TimeAsEpochMicroseconds(startTime) / 1000,
 		Duration:        model.DurationAsMicroseconds(span.EndTimestamp().AsTime().Sub(startTime)),
@@ -199,10 +219,15 @@ func getDbSpanTags(span ptrace.Span, scope pcommon.InstrumentationScope) []dbmod
 }
 
 // linksToDbSpanRefs constructs jaeger span references based on parent span ID and span links.
-// The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of the links.
-func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID) []dbmodel.Reference {
+// The parent span ID is used to add a CHILD_OF reference, _unless_ it is referenced from one of
+// the links. When omitParentSpanIDReference is set (see omitParentSpanIDReferenceGate) the parent
+// is not encoded as a reference at all — it lives only in the dedicated parentSpanID field — and
+// only the span links are written.
+func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, traceID dbmodel.TraceID, omitParentSpanIDReference bool) []dbmodel.Reference {
+	includeParentRef := parentSpanID != "" && !omitParentSpanIDReference
+
 	refsCount := links.Len()
-	if parentSpanID != "" {
+	if includeParentRef {
 		refsCount++
 	}
 
@@ -214,7 +239,7 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 
 	// Put parent span ID at the first place because usually backends look for it
 	// as the first CHILD_OF item in the model.SpanRef slice.
-	if parentSpanID != "" {
+	if includeParentRef {
 		refs = append(refs, dbmodel.Reference{
 			TraceID: traceID,
 			SpanID:  parentSpanID,
@@ -227,7 +252,7 @@ func linksToDbSpanRefs(links ptrace.SpanLinkSlice, parentSpanID dbmodel.SpanID, 
 		linkTraceID := dbmodel.TraceID(link.TraceID().String())
 		linkSpanID := dbmodel.SpanID(link.SpanID().String())
 		linkRefType := refTypeFromLink(link)
-		if parentSpanID != "" && linkTraceID == traceID && linkSpanID == parentSpanID {
+		if includeParentRef && linkTraceID == traceID && linkSpanID == parentSpanID {
 			// We already added a reference to this span, but maybe with the wrong type, so override.
 			refs[0].RefType = linkRefType
 			continue

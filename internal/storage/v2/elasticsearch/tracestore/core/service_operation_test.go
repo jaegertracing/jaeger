@@ -6,11 +6,13 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -19,47 +21,62 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/clientbuilder"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-func TestWriteService(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		indexName := "jaeger-1995-04-21"
-		serviceHash := "de3b5a8f1a79989d"
-		jsonSpan := &dbmodel.Span{
-			TraceID:       dbmodel.TraceID("1"),
-			SpanID:        dbmodel.SpanID("0"),
-			OperationName: "operation",
-			Process: dbmodel.Process{
-				ServiceName: "service",
-			},
-		}
+func TestToUpsertItem(t *testing.T) {
+	indexName := "jaeger-1995-04-21"
+	serviceHash := "de3b5a8f1a79989d"
+	jsonSpan := &dbmodel.Span{
+		OperationName: "operation",
+		Process:       dbmodel.Process{ServiceName: "service"},
+	}
+	s := NewServiceOperationStorage(nil, zap.NewNop(), time.Hour)
 
-		w.writer.writeService(indexName, jsonSpan)
+	item, key, ok := s.toUpsertItem(indexName, jsonSpan)
+	require.True(t, ok)
+	assert.Equal(t, indexName, item.Index)
+	assert.Equal(t, serviceHash, item.ID)
+	assert.Equal(t, key, item.ID)
+	assert.IsType(t, dbmodel.Service{}, item.Body)
 
-		require.Len(t, *w.added, 1)
-		assert.Equal(t, indexName, (*w.added)[0].Index)
-		assert.Equal(t, serviceHash, (*w.added)[0].ID)
-		assert.Empty(t, w.logBuffer.String())
+	// Still pending on a repeat: the pair is not cached until the write is confirmed
+	// durable (RFC 0007 §4.3), so a failed batch would re-send it.
+	_, _, ok = s.toUpsertItem(indexName, jsonSpan)
+	require.True(t, ok, "must stay pending until confirmed")
 
-		// test that cache works, will enqueue the document only once.
-		w.writer.writeService(indexName, jsonSpan)
-		assert.Len(t, *w.added, 1)
-	})
+	// After confirming, the pair is deduplicated.
+	s.commitToCache(key)
+	_, _, ok = s.toUpsertItem(indexName, jsonSpan)
+	assert.False(t, ok, "must be cached after confirm")
 }
 
 // oneBucketResponse is a search response with a single terms-aggregation bucket
 // keyed "123", used to assert getServices/getOperations extract the bucket keys.
 func oneBucketResponse(aggName string) *esclient.SearchResponse {
 	return &esclient.SearchResponse{
-		Aggregations: map[string]esclient.AggregationResult{
+		Aggregations: termsAggregations(map[string]esclient.AggregationResult{
 			aggName: {Buckets: []esclient.AggregationBucket{{Key: "123", DocCount: 16}}},
-		},
+		}),
 	}
+}
+
+// termsAggregations builds the raw-message Aggregations a response carries from
+// typed terms results, so tests can assert bucket parsing without hand-writing the
+// wire JSON. Marshalling static test data cannot fail.
+func termsAggregations(byName map[string]esclient.AggregationResult) esclient.Aggregations {
+	aggs := esclient.Aggregations{}
+	for name, result := range byName {
+		raw, err := json.Marshal(result)
+		if err != nil {
+			panic(err)
+		}
+		aggs[name] = raw
+	}
+	return aggs
 }
 
 func TestSpanReader_GetServices(t *testing.T) {
@@ -77,7 +94,7 @@ func TestSpanReader_GetServices(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + servicesAggregation,
 		},
 		{
@@ -122,7 +139,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 		},
 		{
 			name:   "missing aggregation",
-			resp:   &esclient.SearchResponse{Aggregations: map[string]esclient.AggregationResult{"other": {}}},
+			resp:   &esclient.SearchResponse{Aggregations: termsAggregations(map[string]esclient.AggregationResult{"other": {}})},
 			errMsg: "could not find aggregation of " + operationsAggregation,
 		},
 		{
@@ -159,22 +176,13 @@ func TestSpanReader_GetOperations(t *testing.T) {
 // fail clearly (not with a nil-pointer panic) when the storage was built for
 // write-only use, i.e. with a nil searcher.
 func TestServiceOperationStorage_ReadWithoutSearcher(t *testing.T) {
-	s := NewServiceOperationStorage(nil, nil, zap.NewNop(), 0)
+	s := NewServiceOperationStorage(nil, zap.NewNop(), 0)
 
 	_, err := s.getServices(context.Background(), []string{"idx"}, 10)
 	require.ErrorIs(t, err, errNoSearcher)
 
 	_, err = s.getOperations(context.Background(), []string{"idx"}, "svc", 10)
 	require.ErrorIs(t, err, errNoSearcher)
-}
-
-// TestServiceOperationStorage_WriteWithoutBulkWriter verifies Write on a
-// read-only instance (nil bulk writer) is a logged no-op, not a panic.
-func TestServiceOperationStorage_WriteWithoutBulkWriter(t *testing.T) {
-	s := NewServiceOperationStorage(nil, nil, zap.NewNop(), 0)
-	assert.NotPanics(t, func() {
-		s.Write("idx", &dbmodel.Span{})
-	})
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
@@ -204,22 +212,6 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 // service/operation read + write path over esclient (SearchClient for reads,
 // the bulk indexer for writes). Every supported version emits the same request,
 // so the snapshots collapse to a single file per operation.
-
-// newDataClient builds a real es.Client for the given backend version, pointed at
-// the recording server. Version is set explicitly so no ping is issued, and the
-// bulk processor only flushes on Close.
-func newDataClient(t *testing.T, url string, version es.BackendVersion) es.Client {
-	cfg := &config.Configuration{
-		Servers:            []string{url},
-		Version:            uint(version),
-		DisableHealthCheck: true,
-		LogLevel:           "info",
-		BulkProcessing:     config.BulkProcessing{MaxBytes: -1},
-	}
-	client, err := clientbuilder.NewClient(context.Background(), cfg, zap.NewNop(), metrics.NullFactory, nil)
-	require.NoError(t, err)
-	return client
-}
 
 // dataRecorder answers each request with an empty-but-valid response for its
 // endpoint (search, msearch, or bulk), so operations complete without error
@@ -266,7 +258,7 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		searcher := esclient.SearchClient{Client: esClient}
 		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
 		require.NoError(t, err)
-		sos := NewServiceOperationStorage(searcher, bulkWriter, zap.NewNop(), 0)
+		sos := NewServiceOperationStorage(searcher, zap.NewNop(), 0)
 		ctx := context.Background()
 
 		rec.Reset()
@@ -280,7 +272,9 @@ func TestServiceOperationRequestSnapshots(t *testing.T) {
 		getOperations[version] = rec.Marshal(t)
 
 		rec.Reset()
-		sos.Write(writeIndex, span)
+		item, _, ok := sos.toUpsertItem(writeIndex, span)
+		require.True(t, ok)
+		bulkWriter.Add(item)
 		require.NoError(t, bulkWriter.Close()) // flushes the bulk request
 		writeService[version] = rec.Marshal(t)
 	}

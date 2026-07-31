@@ -16,6 +16,10 @@ import (
 )
 
 type TraceReader struct {
+	// Cassandra does not compute trace summaries natively; fall back to
+	// FindTraces + client-side aggregation.
+	tracestore.UnsupportedTraceSummaries
+
 	reader spanstore.CoreSpanReader
 }
 

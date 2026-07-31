@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
@@ -30,7 +29,6 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
-	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/mocks"
 	esdepstorev2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
@@ -38,9 +36,10 @@ import (
 
 var mockEsServerResponse = []byte(`
 {
-	"Version": {
-		"Number": "6"
-	}
+	"version": {
+		"number": "7.10.2"
+	},
+	"tagline": "You Know, for Search"
 }
 `)
 
@@ -66,48 +65,76 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
+func TestFactoryBase_SpanBatchWriterForWriteMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	// The writer always receives a batch writer; the factory picks the async or sync
+	// implementation from write_mode (sync behavior is asserted end-to-end in the v2
+	// factory's fault-injection test).
+	for _, mode := range []escfg.WriteMode{escfg.WriteModeAsync, escfg.WriteModeSync} {
+		t.Run(string(mode), func(t *testing.T) {
+			cfg := escfg.Configuration{Servers: []string{server.URL}, WriteMode: mode}
+			f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, f.Close()) })
+			assert.NotNil(t, f.GetSpanWriterParams().BatchWriter)
+		})
+	}
+}
+
 func TestFactoryBase_Purge(t *testing.T) {
 	tests := []struct {
 		name        string
-		setupMock   func(*mocks.IndicesDeleteService)
+		status      int
 		expectedErr bool
 	}{
-		{
-			name: "successful purge",
-			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
-				mockDelete.On("Do", mock.Anything).Return(nil, nil)
-			},
-			expectedErr: false,
-		},
-		{
-			name: "purge error",
-			setupMock: func(mockDelete *mocks.IndicesDeleteService) {
-				mockDelete.On("Do", mock.Anything).Return(nil, errors.New("delete error"))
-			},
-			expectedErr: true,
-		},
+		{name: "successful purge", status: http.StatusOK, expectedErr: false},
+		{name: "purge error", status: http.StatusInternalServerError, expectedErr: true},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &mocks.Client{}
-			mockDelete := &mocks.IndicesDeleteService{}
-			mockClient.On("DeleteIndex", "*").Return(mockDelete)
+			// The handler runs on a separate goroutine, so guard the captured
+			// request fields with a mutex.
+			var (
+				mu                           sync.Mutex
+				gotMethod, gotPath, gotQuery string
+			)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodDelete {
+					mu.Lock()
+					gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+					mu.Unlock()
+					w.WriteHeader(tt.status)
+					w.Write([]byte("{}"))
+					return
+				}
+				w.Write(mockEsServerResponse)
+			}))
+			defer server.Close()
 
-			tt.setupMock(mockDelete)
+			esClient, err := esclient.NewClient(context.Background(),
+				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+			require.NoError(t, err)
+			f := &FactoryBase{esClient: esClient, logger: zap.NewNop(), config: &escfg.Configuration{}}
 
-			var client es.Client = mockClient
-			f := &FactoryBase{client: client}
-
-			err := f.Purge(context.Background())
+			err = f.Purge(context.Background())
+			mu.Lock()
+			method, path, query := gotMethod, gotPath, gotQuery
+			mu.Unlock()
 			if tt.expectedErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				assert.Equal(t, http.MethodDelete, method)
+				assert.Equal(t, "/*", path)
+				// Cleanup tolerates missing indices, and no master_timeout=0s is
+				// sent (the cluster default is used instead).
+				assert.Contains(t, query, "ignore_unavailable=true")
+				assert.NotContains(t, query, "master_timeout")
 			}
-
-			mockClient.AssertExpectations(t)
-			mockDelete.AssertExpectations(t)
 		})
 	}
 }
@@ -196,112 +223,120 @@ func TestTagKeysAsFields(t *testing.T) {
 	}
 }
 
+// TestCreateTemplates drives the migrated data-plane path: createTemplates
+// installs the span and service templates through the owned esclient, so the
+// test records the PUTs against a real server.
 func TestCreateTemplates(t *testing.T) {
 	tests := []struct {
-		err                    string
-		spanTemplateService    func() *mocks.TemplateCreateService
-		serviceTemplateService func() *mocks.TemplateCreateService
-		indexPrefix            escfg.IndexPrefix
+		name      string
+		status    int
+		expectErr string
 	}{
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := &mocks.TemplateCreateService{}
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			indexPrefix: "test",
-		},
-		{
-			err: "span-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("span-template-error"))
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-		},
-		{
-			err: "service-template-error",
-			spanTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, nil)
-				return tService
-			},
-			serviceTemplateService: func() *mocks.TemplateCreateService {
-				tService := new(mocks.TemplateCreateService)
-				tService.On("Body", mock.Anything).Return(tService)
-				tService.On("Do", context.Background()).Return(nil, errors.New("service-template-error"))
-				return tService
-			},
-		},
+		{name: "success", status: http.StatusOK},
+		{name: "template error", status: http.StatusInternalServerError, expectErr: "failed to create template"},
 	}
-
 	for _, test := range tests {
-		f := FactoryBase{}
-		mockClient := &mocks.Client{}
-		mockClient.On("GetVersion").Return(es.ElasticV7)
-		f.newLegacyClientFn = func(_ context.Context, _ *escfg.Configuration, _ *zap.Logger, _ metrics.Factory, _ extensionauth.HTTPClient) (es.Client, error) {
-			return mockClient, nil
-		}
-		f.logger = zaptest.NewLogger(t)
-		f.metricsFactory = metrics.NullFactory
-		f.config = &escfg.Configuration{CreateIndexTemplates: true, Indices: escfg.Indices{
-			IndexPrefix: test.indexPrefix,
-			Spans: escfg.IndexOptions{
-				Shards:   3,
-				Replicas: new(int64(1)),
-				Priority: 10,
-			},
-			Services: escfg.IndexOptions{
-				Shards:   3,
-				Replicas: new(int64(1)),
-				Priority: 10,
-			},
-		}}
-		f.tracer = otel.GetTracerProvider()
-		client, err := f.newLegacyClientFn(context.Background(), &escfg.Configuration{}, zaptest.NewLogger(t), metrics.NullFactory, nil)
-		require.NoError(t, err)
-		f.client = client
-		f.templateBuilder = es.TextTemplateBuilder{}
-		jaegerSpanId := test.indexPrefix.Apply(escfg.SpanIndexName)
-		jaegerServiceId := test.indexPrefix.Apply(escfg.ServiceIndexName)
-		mockClient.On("CreateTemplate", jaegerSpanId).Return(test.spanTemplateService())
-		mockClient.On("CreateTemplate", jaegerServiceId).Return(test.serviceTemplateService())
-		err = f.createTemplates(context.Background())
-		if test.err != "" {
-			require.ErrorContains(t, err, test.err)
-		} else {
+		t.Run(test.name, func(t *testing.T) {
+			var puts []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					puts = append(puts, r.URL.Path)
+					w.WriteHeader(test.status)
+					w.Write([]byte("{}"))
+					return
+				}
+				w.Write(mockEsServerResponse)
+			}))
+			defer server.Close()
+
+			esClient, err := esclient.NewClient(
+				context.Background(),
+				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)},
+				zap.NewNop(), nil,
+			)
 			require.NoError(t, err)
-		}
+			f := &FactoryBase{
+				esClient: esClient,
+				logger:   zap.NewNop(),
+				config: &escfg.Configuration{
+					CreateIndexTemplates: true,
+					Indices: escfg.Indices{
+						Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+						Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+					},
+				},
+			}
+			err = f.createTemplates(context.Background())
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, []string{"/_template/jaeger-span", "/_template/jaeger-service"}, puts)
+			}
+		})
 	}
+}
+
+// TestCreateTemplatesServiceError exercises the service-template error branch:
+// the span PUT succeeds and only the service PUT fails.
+func TestCreateTemplatesServiceError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			if strings.Contains(r.URL.Path, escfg.ServiceIndexName) {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.Write([]byte("{}"))
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Spans:    escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+				Services: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+	require.ErrorContains(t, f.createTemplates(context.Background()), escfg.ServiceIndexName)
+}
+
+// TestCreateSamplingStoreTemplateError exercises the sampling-template error
+// branch in CreateSamplingStore.
+func TestCreateSamplingStoreTemplateError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	defer server.Close()
+
+	esClient, err := esclient.NewClient(context.Background(),
+		&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
+	require.NoError(t, err)
+	f := &FactoryBase{
+		esClient: esClient,
+		logger:   zap.NewNop(),
+		config: &escfg.Configuration{
+			CreateIndexTemplates: true,
+			Indices: escfg.Indices{
+				Sampling: escfg.IndexOptions{Shards: 3, Replicas: new(int64(1))},
+			},
+		},
+	}
+	_, err = f.CreateSamplingStore(1)
+	require.ErrorContains(t, err, "failed to create template")
 }
 
 func TestESStorageFactoryWithConfig(t *testing.T) {
@@ -328,12 +363,11 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := escfg.Configuration{
-		Servers:            []string{server.URL},
-		DisableHealthCheck: true,
-		LogLevel:           "error",
+		Servers:  []string{server.URL},
+		LogLevel: "error",
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
-	require.ErrorContains(t, err, "failed to create Elasticsearch client")
+	require.ErrorContains(t, err, "failed to create Elasticsearch data client")
 }
 
 // TestESStorageFactoryClosesOnTemplateError drives NewFactoryBase past client
@@ -351,7 +385,6 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:              []string{server.URL},
 		CreateIndexTemplates: true,
-		DisableHealthCheck:   true,
 		LogLevel:             "error",
 		Indices: escfg.Indices{
 			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
@@ -362,65 +395,47 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func withLegacyClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error)) factoryOption {
-	return func(f *FactoryBase) { f.newLegacyClientFn = fn }
-}
-
-func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error)) factoryOption {
+func withESClientFn(fn func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error)) factoryOption {
 	return func(f *FactoryBase) { f.newESClientFn = fn }
 }
 
-func withBulkIndexerFn(fn func(esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error)) factoryOption {
+func withBulkIndexerFn(fn func(*esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error)) factoryOption {
 	return func(f *FactoryBase) { f.newBulkIndexerFn = fn }
 }
 
-// TestNewFactoryBaseDataClientError injects a failing esclient constructor (the
-// legacy client succeeds) to exercise the data-client error path and verify the
-// deferred cleanup closes the already-built legacy client.
+// TestNewFactoryBaseDataClientError injects a failing esclient constructor to
+// exercise the data-client error path and its deferred cleanup.
 func TestNewFactoryBaseDataClientError(t *testing.T) {
-	legacyClient := &mocks.Client{}
-	legacyClient.On("Close").Return(nil)
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
 		metrics.NullFactory, zap.NewNop(), nil,
-		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
-			return legacyClient, nil
-		}),
-		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
-			return esclient.Client{}, errors.New("data client boom")
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
+			return nil, errors.New("data client boom")
 		}),
 	)
 	require.ErrorContains(t, err, "data client")
-	legacyClient.AssertCalled(t, "Close") // deferred cleanup closed the legacy client
 }
 
 // TestNewFactoryBaseBulkIndexerError injects a failing bulk-indexer constructor
-// (both clients succeed) to exercise that error path and its deferred cleanup.
+// (the esclient succeeds) to exercise that error path and its deferred cleanup.
 func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
-	legacyClient := &mocks.Client{}
-	legacyClient.On("Close").Return(nil)
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
 		metrics.NullFactory, zap.NewNop(), nil,
-		withLegacyClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, metrics.Factory, extensionauth.HTTPClient) (es.Client, error) {
-			return legacyClient, nil
+		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
+			return &esclient.Client{}, nil
 		}),
-		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (esclient.Client, error) {
-			return esclient.Client{}, nil
-		}),
-		withBulkIndexerFn(func(esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error) {
+		withBulkIndexerFn(func(*esclient.Client, esclient.BulkIndexerConfig, metrics.Factory, *zap.Logger) (*esclient.BulkIndexer, error) {
 			return nil, errors.New("bulk boom")
 		}),
 	)
 	require.ErrorContains(t, err, "bulk indexer")
-	legacyClient.AssertCalled(t, "Close")
 }
 
 func TestFactoryESClientsAreNil(t *testing.T) {
 	f := &FactoryBase{}
-	assert.Nil(t, f.getClient())
 	assert.NoError(t, f.Close()) // must not panic on nil client
 }
 
@@ -465,7 +480,6 @@ func runPasswordFromFileTest(t *testing.T) {
 		},
 		BulkProcessing: escfg.BulkProcessing{
 			MaxBytes:      -1, // disable bulk size limit
-			MaxActions:    -1, // disable bulk action limit
 			FlushInterval: 10 * time.Millisecond,
 		},
 	}
@@ -475,7 +489,7 @@ func runPasswordFromFileTest(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 
 	writer := core.NewSpanWriter(f.GetSpanWriterParams())
-	writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{{Process: dbmodel.Process{ServiceName: "foo"}}}))
 
 	assert.Eventually(t, func() bool {
 		_, ok := authReceived.Load(upwd1)
@@ -490,7 +504,11 @@ func runPasswordFromFileTest(t *testing.T) {
 	// After ReloadInterval expires the transport re-reads the file; keep writing
 	// spans until the new auth header is observed.
 	assert.Eventually(t, func() bool {
-		writer.WriteSpan(time.Now(), &dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}})
+		// Eventually runs this condition on a separate goroutine, so a write
+		// error is surfaced by returning false (retry) rather than require.
+		if err := writer.WriteSpans(context.Background(), []dbmodel.Span{{Process: dbmodel.Process{ServiceName: "foo"}}}); err != nil {
+			return false
+		}
 		_, ok := authReceived.Load(upwd2)
 		return ok
 	}, 5*time.Second, 100*time.Millisecond, "expecting ES client to use second password after cache reload")
@@ -526,8 +544,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates authenticator setup
+			MaxBytes: -1, // disable bulk
 		},
 	}
 
@@ -702,7 +719,10 @@ func TestBuildRotations(t *testing.T) {
 	}
 }
 
-func TestMappingBuilderFromConfig(t *testing.T) {
+// TestIndicesClientFromConfig verifies the factory derives the template-rendering
+// ILM inputs from the span rotation config: auto_rollover with a policy name
+// enables ILM, while periodic rotation (or an empty policy name) leaves it off.
+func TestIndicesClientFromConfig(t *testing.T) {
 	tests := []struct {
 		name               string
 		cfg                escfg.Configuration
@@ -746,12 +766,10 @@ func TestMappingBuilderFromConfig(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockClient := &mocks.Client{}
-			mockClient.On("GetVersion").Return(es.ElasticV7)
-			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop(), client: mockClient}
-			mb := f.mappingBuilderFromConfig(f.config)
-			assert.Equal(t, tc.expectedUseILM, mb.UseILM)
-			assert.Equal(t, tc.expectedPolicyName, mb.ILMPolicyName)
+			f := &FactoryBase{config: &tc.cfg, logger: zap.NewNop()}
+			ic := f.indicesClient()
+			assert.Equal(t, tc.expectedUseILM, ic.UseILM)
+			assert.Equal(t, tc.expectedPolicyName, ic.ILMPolicyName)
 		})
 	}
 }

@@ -1019,26 +1019,13 @@ func TestMetricsQueryDisabled(t *testing.T) {
 	ts := initializeTestServer(t, HandlerOptions.MetricsQueryService(disabledReader))
 	defer ts.server.Close()
 
-	for _, tc := range []struct {
-		name             string
-		urlPath          string
-		wantErrorMessage string
-	}{
-		{
-			name:             "metrics query disabled error returned when fetching latency metrics",
-			urlPath:          "/api/metrics/latencies?service=emailservice&quantile=0.95",
-			wantErrorMessage: "metrics querying is currently disabled",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			// Test
-			var response any
-			err := getJSON(ts.server.URL+tc.urlPath, &response)
-
-			// Verify
-			assert.ErrorContains(t, err, tc.wantErrorMessage)
-		})
-	}
+	const urlPath = "/api/metrics/latencies?service=emailservice&quantile=0.95"
+	var response any
+	err = getJSON(ts.server.URL+urlPath, &response)
+	var httpErr *HTTPError
+	require.ErrorAs(t, err, &httpErr)
+	require.Equal(t, http.StatusNotImplemented, httpErr.StatusCode)
+	require.Contains(t, httpErr.Body, "currently disabled")
 }
 
 // getJSON fetches a JSON document from a server via HTTP GET

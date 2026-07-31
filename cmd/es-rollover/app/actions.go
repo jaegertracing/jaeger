@@ -19,7 +19,7 @@ import (
 // newESClient builds the client and detects the backend version once, so all
 // version-dependent operations (template endpoint, ILM vs ISM) are resolved at
 // construction time instead of re-detecting per call.
-func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (esclient.Client, error) {
+func newESClient(ctx context.Context, endpoint string, cfg *Config, logger *zap.Logger) (*esclient.Client, error) {
 	esCfg := &config.Configuration{
 		Servers:      []string{endpoint},
 		QueryTimeout: time.Duration(cfg.Timeout) * time.Second,
@@ -60,7 +60,7 @@ type ActionExecuteOptions struct {
 }
 
 // ActionCreatorFunction type is the function type in charge of create the action to be executed
-type ActionCreatorFunction func(esclient.Client, Config) Action
+type ActionCreatorFunction func(*esclient.Client, Config) Action
 
 // ExecuteAction execute the action returned by the createAction function
 func ExecuteAction(opts ActionExecuteOptions, createAction ActionCreatorFunction) error {

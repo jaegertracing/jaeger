@@ -1,0 +1,226 @@
+{
+  "method": "PUT",
+  "path": "/_index_template/test-jaeger-span",
+  "body": {
+    "index_patterns": "test-jaeger-span-*",
+    "priority": 500,
+    "template": {
+      "aliases": {
+        "test-jaeger-span-read": {}
+      },
+      "mappings": {
+        "dynamic_templates": [
+          {
+            "span_tags_map": {
+              "mapping": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "path_match": "tag.*"
+            }
+          },
+          {
+            "process_tags_map": {
+              "mapping": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "path_match": "process.tag.*"
+            }
+          },
+          {
+            "scope_tags_map": {
+              "mapping": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "path_match": "scopeTag.*"
+            }
+          }
+        ],
+        "properties": {
+          "duration": {
+            "type": "long"
+          },
+          "flags": {
+            "type": "integer"
+          },
+          "logs": {
+            "dynamic": false,
+            "properties": {
+              "fields": {
+                "dynamic": false,
+                "properties": {
+                  "key": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  },
+                  "type": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  },
+                  "value": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "nested"
+              },
+              "timestamp": {
+                "type": "long"
+              }
+            },
+            "type": "nested"
+          },
+          "operationName": {
+            "ignore_above": 256,
+            "type": "keyword"
+          },
+          "parentSpanID": {
+            "ignore_above": 256,
+            "type": "keyword"
+          },
+          "process": {
+            "properties": {
+              "serviceName": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "tag": {
+                "type": "object"
+              },
+              "tags": {
+                "dynamic": false,
+                "properties": {
+                  "key": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  },
+                  "type": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  },
+                  "value": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "nested"
+              }
+            }
+          },
+          "references": {
+            "dynamic": false,
+            "properties": {
+              "flags": {
+                "type": "integer"
+              },
+              "refType": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "spanID": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "tags": {
+                "dynamic": false,
+                "properties": {
+                  "key": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  },
+                  "type": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  },
+                  "value": {
+                    "ignore_above": 256,
+                    "type": "keyword"
+                  }
+                },
+                "type": "nested"
+              },
+              "traceID": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "traceState": {
+                "ignore_above": 256,
+                "type": "keyword"
+              }
+            },
+            "type": "nested"
+          },
+          "scopeTag": {
+            "type": "object"
+          },
+          "scopeTags": {
+            "dynamic": false,
+            "properties": {
+              "key": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "type": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "value": {
+                "ignore_above": 256,
+                "type": "keyword"
+              }
+            },
+            "type": "nested"
+          },
+          "spanID": {
+            "ignore_above": 256,
+            "type": "keyword"
+          },
+          "startTime": {
+            "type": "long"
+          },
+          "startTimeMillis": {
+            "format": "epoch_millis",
+            "type": "date"
+          },
+          "tag": {
+            "type": "object"
+          },
+          "tags": {
+            "dynamic": false,
+            "properties": {
+              "key": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "type": {
+                "ignore_above": 256,
+                "type": "keyword"
+              },
+              "value": {
+                "ignore_above": 256,
+                "type": "keyword"
+              }
+            },
+            "type": "nested"
+          },
+          "traceID": {
+            "ignore_above": 256,
+            "type": "keyword"
+          }
+        }
+      },
+      "settings": {
+        "index.mapping.nested_fields.limit": 50,
+        "index.number_of_replicas": 3,
+        "index.number_of_shards": 3,
+        "index.requests.cache.enable": true,
+        "lifecycle": {
+          "name": "jaeger-test-policy",
+          "rollover_alias": "test-jaeger-span-write"
+        }
+      }
+    }
+  }
+}
