@@ -72,21 +72,31 @@ type turnScopedEndpoint struct {
 	logger   *zap.Logger
 }
 
-// newTurnScopedEndpoint builds the turn-scoped handler around a single shared
-// MCP server. The telemetry tools are a fixed capability, so they are registered
-// once; the per-turn UI tools are layered on via uiToolsMiddleware, which
-// reads the route id from the request context and, for that turn,
-// advertises its UI tools in tools/list and dispatches their tools/call to the
-// browser stream. This avoids standing up a fresh server per turn.
-func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, turns *turnRegistry, basePath string, logger *zap.Logger) *turnScopedEndpoint {
-	srv := mcptools.NewServer(telset, queryAPI, mcptools.DefaultConfig())
-	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
+// turnScopedEndpointBuilder collects the endpoint's dependencies. mcpConfig
+// arrives ready-made: deciding MCP configuration belongs with the gateway's
+// other config handling, not in this constructor.
+type turnScopedEndpointBuilder struct {
+	telset     telemetry.Settings
+	queryAPI   *querysvc.QueryService
+	tenancyMgr *tenancy.Manager
+	turns      *turnRegistry
+	basePath   string
+	mcpConfig  mcptools.Config
+}
+
+// build assembles the turn-scoped handler around a single shared MCP server:
+// the telemetry tools are a fixed capability registered once, and each turn's
+// UI tools are layered on per-request by uiToolsMiddleware, so no server has to
+// be stood up per turn.
+func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
+	srv := mcptools.NewServer(b.telset, b.queryAPI, b.mcpConfig)
+	srv.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.telset.Logger))
 	return &turnScopedEndpoint{
-		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
+		streamable: mcptools.WrapHTTP(srv, b.tenancyMgr, b.telset),
 		server:     srv,
-		turns:      turns,
-		basePath:   basePath,
-		logger:     logger,
+		turns:      b.turns,
+		basePath:   b.basePath,
+		logger:     b.telset.Logger,
 	}
 }
 

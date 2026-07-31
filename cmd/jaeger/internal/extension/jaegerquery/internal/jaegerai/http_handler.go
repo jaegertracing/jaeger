@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/tenancy"
@@ -55,6 +56,10 @@ type HandlerParams struct {
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
 	Telset       telemetry.Settings
+	// MCPConfig configures the MCP server behind the turn-scoped endpoint. The
+	// caller passes the same value it gives the shared endpoint, so the two
+	// cannot drift. Read only when EnableMCP is set.
+	MCPConfig mcptools.Config
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
@@ -69,7 +74,14 @@ func NewHandler(p HandlerParams) *Handler {
 	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
-		h.mcp = newTurnScopedEndpoint(p.Telset, p.QueryService, p.TenancyMgr, turns, basePath, p.Logger)
+		h.mcp = turnScopedEndpointBuilder{
+			telset:     p.Telset,
+			queryAPI:   p.QueryService,
+			tenancyMgr: p.TenancyMgr,
+			turns:      turns,
+			basePath:   basePath,
+			mcpConfig:  p.MCPConfig,
+		}.build()
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
 		// here is what keeps the announcement off when no endpoint is mounted.
