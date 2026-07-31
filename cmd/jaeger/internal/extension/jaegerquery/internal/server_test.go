@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -1146,6 +1147,20 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		handler.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusBadGateway, rr.Code)
+	})
+
+	// An unusable skills_dir is broken configuration, so it has to stop the
+	// server coming up rather than degrade to serving no custom skills.
+	t.Run("unusable skills_dir aborts startup", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{
+			EnableMCP:          true,
+			SkillsDir:          filepath.Join(t.TempDir(), "no-such-dir"),
+			MaxRequestBodySize: 1 << 20,
+		})
+
+		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.ErrorContains(t, err, "cannot open skills_dir")
 	})
 
 	t.Run("mcp endpoint mounted in MCP-only mode", func(t *testing.T) {

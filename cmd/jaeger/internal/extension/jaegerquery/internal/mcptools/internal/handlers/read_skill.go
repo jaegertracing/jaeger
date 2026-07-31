@@ -22,21 +22,21 @@ const customSkillsDir = "custom"
 
 type readSkillHandler struct {
 	builtins fs.FS
-	// operator serves the operator's skills_dir tree; nil when none is
-	// configured, in which case every custom/ path reports not-exist.
-	operator    fs.FS
+	// custom serves the skills_dir tree; nil when none is configured, in which
+	// case every custom/ path reports not-exist.
+	custom      fs.FS
 	maxFileSize int64
 }
 
 // NewReadSkillHandler creates a handler that reads skill files, choosing the
-// tree by path prefix: custom/ comes from operator, everything else from
-// builtins. operator may be nil (no skills_dir configured).
+// tree by path prefix: custom/ comes from custom, everything else from
+// builtins. custom may be nil (no skills_dir configured).
 func NewReadSkillHandler(
 	builtins fs.FS,
-	operator fs.FS,
+	custom fs.FS,
 	maxFileSize int64,
 ) mcp.ToolHandlerFor[types.ReadSkillInput, types.ReadSkillOutput] {
-	h := &readSkillHandler{builtins: builtins, operator: operator, maxFileSize: maxFileSize}
+	h := &readSkillHandler{builtins: builtins, custom: custom, maxFileSize: maxFileSize}
 	return h.handle
 }
 
@@ -66,22 +66,19 @@ func (h *readSkillHandler) handle(
 	}, types.ReadSkillOutput{Instructions: content}, nil
 }
 
-// open routes p to the operator tree when it names the custom/ prefix and to
-// the built-in tree otherwise — two filesystems and a prefix check, rather than
-// a merged view over both.
+// open routes p to the custom tree when it names the custom/ prefix and to the
+// built-in tree otherwise — two filesystems and a prefix check, rather than a
+// merged view over both.
 func (h *readSkillHandler) open(p string) (fs.File, error) {
 	if !fs.ValidPath(p) {
 		return nil, &fs.PathError{Op: "open", Path: p, Err: fs.ErrInvalid}
 	}
 	rest, isCustom := strings.CutPrefix(p, customSkillsDir+"/")
-	if p == customSkillsDir {
-		rest, isCustom = ".", true
-	}
 	if !isCustom {
 		return h.builtins.Open(p)
 	}
-	if h.operator == nil {
+	if h.custom == nil {
 		return nil, &fs.PathError{Op: "open", Path: p, Err: fs.ErrNotExist}
 	}
-	return h.operator.Open(rest)
+	return h.custom.Open(rest)
 }

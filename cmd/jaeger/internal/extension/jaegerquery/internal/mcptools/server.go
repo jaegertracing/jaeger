@@ -178,5 +178,5 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 		Description: "Read a skill file for trace analysis. " +
 			"Skills are organized using progressive disclosure. " +
 			"Start with SKILL.md which will guide you to more specific sub-skills.",
-	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.OperatorSkillsFS, s.config.MaxReadFileSize))
+	}, handlers.NewReadSkillHandler(s.skillsFS, s.config.CustomSkillsFS, s.config.MaxReadFileSize))
 }

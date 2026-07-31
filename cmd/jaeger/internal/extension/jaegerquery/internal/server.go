@@ -240,11 +240,11 @@ func initRouter(
 				// skills directory is opened once here, so both share the handle
 				// and a broken path is reported once, at startup.
 				mcpCfg := mcptools.DefaultConfig()
-				operatorSkills, err := mcptools.OpenOperatorSkillsDir(aiCfg.SkillsDir)
+				customSkills, err := mcptools.OpenCustomSkillsDir(aiCfg.SkillsDir)
 				if err != nil {
 					return nil, nil, err
 				}
-				mcpCfg.OperatorSkillsFS = operatorSkills
+				mcpCfg.CustomSkillsFS = customSkills
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the turn-scoped MCP endpoint

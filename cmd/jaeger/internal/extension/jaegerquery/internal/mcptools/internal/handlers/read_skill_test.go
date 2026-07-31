@@ -101,18 +101,18 @@ func TestNewReadSkillHandler(t *testing.T) {
 	assert.NotNil(t, handler)
 }
 
-func testOperatorFS() fstest.MapFS {
+func testCustomFS() fstest.MapFS {
 	return fstest.MapFS{
 		"SKILL.md":              &fstest.MapFile{Data: []byte("# Operator catalog")},
 		"slow-db-call/SKILL.md": &fstest.MapFile{Data: []byte("# Slow DB Call")},
 	}
 }
 
-// Without an operator tree every custom/ path must report not-exist rather than
-// falling through to the built-ins.
+// With no skills_dir configured every custom/ path must report not-exist
+// rather than falling through to the built-ins.
 func TestReadSkillHandler_CustomPathWithoutOperatorFS(t *testing.T) {
 	h := newTestHandler()
-	for _, p := range []string{"custom", "custom/SKILL.md", "custom/slow-db-call/SKILL.md"} {
+	for _, p := range []string{"custom/SKILL.md", "custom/slow-db-call/SKILL.md"} {
 		t.Run(p, func(t *testing.T) {
 			_, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: p})
 			require.ErrorIs(t, err, fs.ErrNotExist)
@@ -121,15 +121,15 @@ func TestReadSkillHandler_CustomPathWithoutOperatorFS(t *testing.T) {
 }
 
 func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
-	h := &readSkillHandler{builtins: testSkillsFS(), operator: testOperatorFS(), maxFileSize: testMaxFileSize}
+	h := &readSkillHandler{builtins: testSkillsFS(), custom: testCustomFS(), maxFileSize: testMaxFileSize}
 
-	t.Run("custom prefix reaches the operator tree", func(t *testing.T) {
+	t.Run("custom prefix reaches the custom tree", func(t *testing.T) {
 		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
 		require.NoError(t, err)
 		assert.Equal(t, "# Slow DB Call", out.Instructions)
 	})
 
-	t.Run("operator catalog is served", func(t *testing.T) {
+	t.Run("custom catalog is served", func(t *testing.T) {
 		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
 		require.NoError(t, err)
 		assert.Equal(t, "# Operator catalog", out.Instructions)
@@ -139,15 +139,6 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
 		require.NoError(t, err)
 		assert.Equal(t, "# Skill A\n\nContent here.", out.Instructions)
-	})
-
-	t.Run("bare custom lists the operator root", func(t *testing.T) {
-		f, err := h.open("custom")
-		require.NoError(t, err)
-		defer f.Close()
-		info, err := f.Stat()
-		require.NoError(t, err)
-		assert.True(t, info.IsDir())
 	})
 
 	t.Run("traversal out of custom is rejected", func(t *testing.T) {
