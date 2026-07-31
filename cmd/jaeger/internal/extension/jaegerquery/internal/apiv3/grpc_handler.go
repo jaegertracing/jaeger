@@ -47,7 +47,18 @@ func (h *Handler) GetTrace(request *api_v3.GetTraceRequest, stream api_v3.QueryS
 		RawTraces: request.GetRawTraces(),
 	}
 	getTracesIter := h.QueryService.GetTraces(stream.Context(), query)
-	return receiveTraces(getTracesIter, stream.Send)
+	traceFound := false
+	err = receiveTraces(getTracesIter, func(data *jptrace.TracesData) error {
+		traceFound = true
+		return stream.Send(data)
+	})
+	if err != nil {
+		return err
+	}
+	if !traceFound {
+		return status.Error(codes.NotFound, "trace not found")
+	}
+	return nil
 }
 
 // FindTraces implements api_v3.QueryServiceServer's FindTraces
