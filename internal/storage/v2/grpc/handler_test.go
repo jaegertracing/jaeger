@@ -844,3 +844,25 @@ func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
 	}, &summaryStream{sendErr: assert.AnError})
 	require.ErrorIs(t, err, assert.AnError)
 }
+
+func TestHandler_MissingQuery(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	handler := NewHandler(reader, writer, depReader)
+
+	err := handler.FindTraces(&storage.FindTracesRequest{}, &testStream{})
+	require.Error(t, err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, err.Error(), "missing query")
+
+	err = handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{}, &summaryStream{})
+	require.Error(t, err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, err.Error(), "missing query")
+
+	_, err = handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{})
+	require.Error(t, err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, err.Error(), "missing query")
+}
