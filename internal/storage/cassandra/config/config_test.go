@@ -53,6 +53,14 @@ func TestValidate_DoesNotReturnErrorWhenRequiredFieldsSet(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidate_ReturnsErrorWhenConsistencyInvalid(t *testing.T) {
+	cfg := DefaultConfiguration()
+	cfg.Query.Consistency = "garbage"
+
+	err := cfg.Validate()
+	require.EqualError(t, err, `invalid query consistency "garbage": invalid consistency "GARBAGE"`)
+}
+
 func TestNewClusterWithDefaults(t *testing.T) {
 	cfg := DefaultConfiguration()
 	cl, err := cfg.NewCluster()
@@ -117,6 +125,30 @@ func TestNewClusterWithOverrides(t *testing.T) {
 	assert.Equal(t, "password", auth.Password)
 	assert.NotNil(t, cl.SslOpts)
 	assert.True(t, cl.DisableInitialHostLookup)
+}
+
+func TestNewCluster_ReturnsErrorWhenConsistencyInvalid(t *testing.T) {
+	cfg := DefaultConfiguration()
+	cfg.Query.Consistency = "garbage"
+
+	var (
+		cl  *gocql.ClusterConfig
+		err error
+	)
+	require.NotPanics(t, func() {
+		cl, err = cfg.NewCluster()
+	})
+	require.Nil(t, cl)
+	require.EqualError(t, err, `invalid query consistency "garbage": invalid consistency "GARBAGE"`)
+}
+
+func TestNewCluster_AcceptsAnyConsistency(t *testing.T) {
+	cfg := DefaultConfiguration()
+	cfg.Query.Consistency = "ANY"
+
+	cl, err := cfg.NewCluster()
+	require.NoError(t, err)
+	assert.Equal(t, gocql.Any, cl.Consistency)
 }
 
 func TestApplyDefaults(t *testing.T) {

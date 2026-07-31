@@ -200,7 +200,11 @@ func (c *Configuration) NewCluster() (*gocql.ClusterConfig, error) {
 	if c.Query.Consistency == "" {
 		cluster.Consistency = gocql.LocalOne
 	} else {
-		cluster.Consistency = gocql.ParseConsistency(c.Query.Consistency)
+		consistency, err := parseConsistency(c.Query.Consistency)
+		if err != nil {
+			return nil, err
+		}
+		cluster.Consistency = consistency
 	}
 
 	fallbackHostSelectionPolicy := gocql.RoundRobinHostPolicy()
@@ -241,6 +245,16 @@ func isValidTTL(duration time.Duration) bool {
 	return duration == 0 || duration >= time.Second
 }
 
+func parseConsistency(consistency string) (_ gocql.Consistency, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("invalid query consistency %q: %v", consistency, recovered)
+		}
+	}()
+
+	return gocql.ParseConsistency(consistency), nil
+}
+
 func (c *Configuration) Validate() error {
 	_, err := govalidator.ValidateStruct(c)
 	if err != nil {
@@ -257,6 +271,12 @@ func (c *Configuration) Validate() error {
 
 	if c.Schema.CompactionWindow < time.Minute {
 		return errors.New("compaction_window should at least be 1 minute")
+	}
+
+	if c.Query.Consistency != "" {
+		if _, err := parseConsistency(c.Query.Consistency); err != nil {
+			return err
+		}
 	}
 
 	return nil
