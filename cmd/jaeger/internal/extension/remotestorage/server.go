@@ -46,7 +46,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	df, ok := tf.(depstore.Factory)
 	if !ok {
-		return fmt.Errorf("cannot find factory for dependency storage %s: %w", s.config.Storage, err)
+		return fmt.Errorf("cannot find factory for dependency storage %s", s.config.Storage)
 	}
 
 	tm := tenancy.NewManager(&s.config.Tenancy)
