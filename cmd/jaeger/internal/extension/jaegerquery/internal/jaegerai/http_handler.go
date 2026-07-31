@@ -57,9 +57,8 @@ type HandlerParams struct {
 	TenancyMgr   *tenancy.Manager
 	Telset       telemetry.Settings
 	// MCPConfig configures the MCP server behind the turn-scoped endpoint. The
-	// caller builds it and passes the same value it uses for the shared endpoint,
-	// so an agent sees an identical tool set whichever one it dials. Read only
-	// when EnableMCP is set.
+	// caller passes the same value it gives the shared endpoint, so the two
+	// cannot drift. Read only when EnableMCP is set.
 	MCPConfig mcptools.Config
 }
 

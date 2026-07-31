@@ -236,9 +236,7 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				// One MCP config for both endpoints: the shared one mounted below
-				// and the turn-scoped one jaegerai mounts, so an agent sees the
-				// same tools whichever it dials.
+				// One config for both MCP endpoints so they cannot drift.
 				mcpCfg := mcptools.DefaultConfig()
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
