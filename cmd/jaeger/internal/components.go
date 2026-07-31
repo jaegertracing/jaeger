@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/collector/processor"
 	"go.opentelemetry.io/collector/receiver"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/connectors/storagedeadletterconnector"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/connectors/storagewriterconnector"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/components/exporter/storageexporter"
 	"github.com/jaegertracing/jaeger/components/ext/connector/forwardconnector"
@@ -140,7 +140,7 @@ func (b builders) build() (otelcol.Factories, error) {
 		forwardconnector.NewFactory(),
 		// add-ons
 		spanmetricsconnector.NewFactory(),
-		storagedeadletterconnector.NewFactory(),
+		storagewriterconnector.NewFactory(),
 	)
 	if err != nil {
 		return otelcol.Factories{}, err

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package storagedeadletterconnector
+package storagewriterconnector
 
 import (
 	"github.com/asaskevich/govalidator"
@@ -14,7 +14,7 @@ var (
 	_ xconfmap.Validator = (*Config)(nil)
 )
 
-// Config configures the storage dead-letter connector. It writes each batch to the
+// Config configures the jaeger_storage_writer connector. It writes each batch to the
 // named trace storage exactly as jaeger_storage_exporter does, and taps the
 // terminally-rejected ("poison") spans onto its connector output pipeline
 // (RFC 0007 §4.8).

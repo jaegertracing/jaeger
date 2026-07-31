@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-package storagedeadletterconnector
+package storagewriterconnector
 
 import (
 	"context"
@@ -12,12 +12,12 @@ import (
 )
 
 // componentType is the name of this connector in configuration.
-var componentType = component.MustNewType("jaeger_storage_dead_letter")
+var componentType = component.MustNewType("jaeger_storage_writer")
 
 // ID is the identifier of this connector.
 var ID = component.NewID(componentType)
 
-// NewFactory creates a factory for the storage dead-letter connector.
+// NewFactory creates a factory for the jaeger_storage_writer connector.
 func NewFactory() connector.Factory {
 	return connector.NewFactory(
 		componentType,
