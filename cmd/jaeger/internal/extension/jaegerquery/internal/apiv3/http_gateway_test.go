@@ -85,6 +85,18 @@ func TestHTTPGateway(t *testing.T) {
 	runGatewayTests(t, "/", func(_ *http.Request) {})
 }
 
+func TestHTTPGatewayBasePath(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "/jaeger")
+	gw.reader.On("GetServices", matchContext).Return([]string{"foo"}, nil).Once()
+
+	r := httptest.NewRequest(http.MethodGet, "/jaeger/api/v3/services", http.NoBody)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}
+
 func TestHTTPGatewayTryHandleError(t *testing.T) {
 	gw := new(HTTPGateway)
 	assert.False(t, gw.tryHandleError(nil, nil, 0), "returns false if no error")
@@ -139,6 +151,13 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				End:     time.Date(2000, time.April, 5, 13, 55, 16, 999999992, time.UTC),
 			},
 		},
+		{
+			name:   "raw traces",
+			params: map[string]string{"rawTraces": "true"},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
+		},
 	}
 
 	testUri := "/api/v3/traces/1"
@@ -165,6 +184,7 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusOK, w.Code)
 			gw.reader.AssertCalled(t, "GetTraces", matchContext, []tracestore.GetTraceParams{tc.expectedQuery})
 		})
 	}
@@ -609,6 +629,17 @@ func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	r := httptest.NewRequest(http.MethodGet, "/api/v3/trace-summaries", http.NoBody)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
 }
 
 func TestTraceIDFromString(t *testing.T) {

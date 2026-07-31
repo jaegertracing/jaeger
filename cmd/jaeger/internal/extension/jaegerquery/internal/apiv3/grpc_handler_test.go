@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"net"
 	"testing"
@@ -54,6 +55,18 @@ type testServerClient struct {
 	reader     *tracestoremocks.Reader
 	depsReader *dependencystoremocks.Reader
 	client     api_v3.QueryServiceClient
+}
+
+type sendErrorTraceSummariesStream struct {
+	grpc.ServerStream
+}
+
+func (*sendErrorTraceSummariesStream) Context() context.Context {
+	return context.Background()
+}
+
+func (*sendErrorTraceSummariesStream) Send(*api_v3.FindTraceSummariesResponse) error {
+	return assert.AnError
 }
 
 func newTestServerClient(t *testing.T) *testServerClient {
@@ -135,22 +148,56 @@ func TestGetTrace(t *testing.T) {
 			require.Equal(t, 1, td.SpanCount())
 			assert.Equal(t, "foobar",
 				td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Name())
+			recv, err = getTraceStream.Recv()
+			require.ErrorIs(t, err, io.EOF)
+			assert.Nil(t, recv)
 		})
 	}
 }
 
 func TestGetTraceNotFound(t *testing.T) {
+	tests := []struct {
+		name    string
+		batches [][]ptrace.Traces
+	}{
+		{name: "empty iterator"},
+		{name: "empty batch", batches: [][]ptrace.Traces{{}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tsc := newTestServerClient(t)
+			tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
+				Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+					for _, batch := range test.batches {
+						yield(batch, nil)
+					}
+				})).Once()
+
+			getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{TraceId: "1"})
+			require.NoError(t, err)
+			recv, err := getTraceStream.Recv()
+			require.Equal(t, codes.NotFound, status.Code(err))
+			require.ErrorContains(t, err, "trace not found")
+			assert.Nil(t, recv)
+		})
+	}
+}
+
+func TestGetTraceEmptyBatchBeforeTrace(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.reader.On("GetTraces", matchContext, []tracestore.GetTraceParams{{TraceID: traceID}}).
 		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 			yield([]ptrace.Traces{}, nil)
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
 		})).Once()
 
 	getTraceStream, err := tsc.client.GetTrace(context.Background(), &api_v3.GetTraceRequest{TraceId: "1"})
 	require.NoError(t, err)
 	recv, err := getTraceStream.Recv()
-	require.Equal(t, codes.NotFound, status.Code(err))
-	require.ErrorContains(t, err, "trace not found")
+	require.NoError(t, err)
+	require.NotNil(t, recv)
+	recv, err = getTraceStream.Recv()
+	require.ErrorIs(t, err, io.EOF)
 	assert.Nil(t, recv)
 }
 
@@ -379,6 +426,30 @@ func TestFindTraceSummariesStorageError(t *testing.T) {
 	recv, err := responseStream.Recv()
 	require.ErrorContains(t, err, assert.AnError.Error())
 	assert.Nil(t, recv)
+}
+
+func TestFindTraceSummariesSendError(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield([]tracestore.TraceSummary{{TraceID: traceID}}, nil)
+		})).Once()
+	h := &Handler{
+		QueryService: querysvc.NewQueryService(
+			reader,
+			new(dependencystoremocks.Reader),
+			querysvc.QueryServiceOptions{},
+		),
+	}
+	err := h.FindTraceSummaries(&api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	}, &sendErrorTraceSummariesStream{})
+	require.ErrorContains(t, err, "failed to send response stream chunk")
+	require.ErrorContains(t, err, assert.AnError.Error())
+	reader.AssertExpectations(t)
 }
 
 func TestGetOperationsStorageError(t *testing.T) {
