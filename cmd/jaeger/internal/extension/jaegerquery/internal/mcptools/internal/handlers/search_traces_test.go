@@ -475,6 +475,81 @@ func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
 	assert.Contains(t, err.Error(), "duration_max must be greater than duration_min")
 }
 
+func TestSearchTracesHandler_Handle_DurationValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		durationMin string
+		durationMax string
+		wantErr     string
+	}{
+		{
+			name:        "negative duration_min",
+			durationMin: "-5s",
+			wantErr:     "invalid duration_min: duration cannot be negative",
+		},
+		{
+			name:        "negative duration_max",
+			durationMax: "-10s",
+			wantErr:     "invalid duration_max: duration cannot be negative",
+		},
+		{
+			name:        "both negative",
+			durationMin: "-5s",
+			durationMax: "-10s",
+			wantErr:     "invalid duration_min: duration cannot be negative",
+		},
+		{
+			name:        "max less than min",
+			durationMin: "10s",
+			durationMax: "5s",
+			wantErr:     "duration_max must be greater than duration_min",
+		},
+		{
+			name:        "only min provided",
+			durationMin: "5s",
+		},
+		{
+			name:        "only max provided",
+			durationMax: "10s",
+		},
+		{
+			name:        "valid range",
+			durationMin: "2s",
+			durationMax: "10s",
+		},
+		{
+			name:        "zero durations",
+			durationMin: "0s",
+			durationMax: "0s",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockQueryService{
+				findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+					return func(yield func([]tracestore.TraceSummary, error) bool) {
+						yield(nil, nil)
+					}
+				},
+			}
+			handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+			input := types.SearchTracesInput{
+				StartTimeMin: "-1h",
+				ServiceName:  "test",
+				DurationMin:  tt.durationMin,
+				DurationMax:  tt.durationMax,
+			}
+			_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestParseTimeParam(t *testing.T) {
 	tests := []struct {
 		name      string
