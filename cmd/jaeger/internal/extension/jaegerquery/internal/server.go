@@ -250,6 +250,7 @@ func initRouter(
 						AgentURL:           aiCfg.AgentURL,
 						BasePath:           queryOpts.BasePath,
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
+						ModelContextLimit:  aiCfg.ModelContextLimit,
 						EnableMCP:          aiCfg.EnableMCP,
 						MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
 						QueryService:       querySvc,

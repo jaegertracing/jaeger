@@ -42,6 +42,7 @@ type chatEndpoint struct {
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
+	modelContextLimit  int
 }
 
 // mcpServerName is the human-readable name the gateway gives its MCP server in the
@@ -77,7 +78,7 @@ func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string
 // for consistency with sibling handlers even though ServeHTTP does not currently
 // read it. mcpBaseURL defaults to the zero value — the announcement stays off until
 // NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
-func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
+func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64, modelContextLimit int) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
 		ctxTools:           ctxTools,
@@ -85,6 +86,7 @@ func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *
 		sidecarWSURL:       sidecarWSURL,
 		basePath:           normalizeBasePath(basePath),
 		maxRequestBodySize: maxRequestBodySize,
+		modelContextLimit:  modelContextLimit,
 	}
 }
 
@@ -111,6 +113,12 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	prompt, err := latestUserMessageText(req.Messages)
 	if err != nil {
 		http.Error(w, "messages must include a user message with text content", http.StatusBadRequest)
+		return
+	}
+
+	req.Context, err = enforceModelContextLimit(prompt, req.Context, h.modelContextLimit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
