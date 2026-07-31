@@ -6,7 +6,12 @@ Proposals that have not been decided yet belong in [`docs/rfc/`](../rfc/) instea
 
 ## Lifecycle
 
-An ADR is a record, not living documentation. It is written once — when the decision is taken, or when an existing design is being written down — and is not maintained afterwards as the code evolves. When a decision is revisited, write a new ADR stating the new decision and mark the old one superseded rather than editing the old record.
+An ADR is a record, not living documentation: it states a decision and the design that followed from it, and it is not maintained as a running commentary on the code.
+
+That does not make it immutable. When later work changes part of what an ADR describes, the choice between editing and superseding is a matter of proportion:
+
+- **Small change, no decision reversed → edit the ADR in place.** Extend the affected sections, date the addition in the `Status` or `Date` line, and leave the original Context and Decision prose alone. Splitting one subject across two documents costs the reader more than the edit costs the record. [ADR-004](004-migrating-coverage-gating-to-github-actions.md) is the example: its decision and requirements stood, so later work extended it.
+- **The decision or the architecture is replaced → write a new ADR** stating the new decision and mark the old one superseded. The two point at each other through their `Status` fields.
 
 An ADR can also arrive by [graduation from an RFC](../rfc/README.md#graduating-into-an-adr): once an RFC's work is fully delivered and the resulting architecture is worth an enduring reference, the outcome is captured in a fresh ADR stating the resulting design, while the RFC stays as the record of how it was arrived at. The two point at each other through their `Status` fields. [ADR-012](012-unified-elasticsearch-client.md), graduated from [RFC 0006](../rfc/0006-unified-elasticsearch-client.md), is the example.
 

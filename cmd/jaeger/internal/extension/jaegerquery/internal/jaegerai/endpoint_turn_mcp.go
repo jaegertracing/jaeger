@@ -5,9 +5,12 @@ package jaegerai
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
@@ -16,8 +19,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
-// routeTurnMCP and routeTurnMCPNoSlash are the turn-scoped MCP
-// patterns. Both are strictly more specific than the shared
+// routeMCPPrefix is the single source of truth for the endpoint's path: the mux
+// patterns, the prefix ServeHTTP strips, and the URL announced to the sidecar
+// (see chatEndpoint.announceMCP) all derive from it, so they cannot drift.
+//
+// routeTurnMCP and routeTurnMCPNoSlash are strictly more specific than the shared
 // "/api/ai/mcp/" pattern jaeger-query mounts, so all three coexist on one mux:
 //
 //	/api/ai/mcp/           → shared handler (jaeger-query)
@@ -25,12 +31,12 @@ import (
 //	/api/ai/mcp/<id>/...   → turn-scoped (this handler)
 //
 // Registering both the slash and no-slash forms is deliberate: without the
-// no-slash pattern, a client dialing "/api/ai/mcp/<id>" (no trailing slash)
-// would fall through to the shared subtree pattern instead of reaching
-// the turn-scoped handler.
+// no-slash pattern, a client dialing "/api/ai/mcp/<id>" (no trailing slash) would
+// fall through to the shared subtree pattern instead of the turn-scoped handler.
 const (
-	routeTurnMCP        = "/api/ai/mcp/{mcpRouteID}/"
-	routeTurnMCPNoSlash = "/api/ai/mcp/{mcpRouteID}"
+	routeMCPPrefix      = "/api/ai/mcp/"
+	routeTurnMCPNoSlash = routeMCPPrefix + "{mcpRouteID}"
+	routeTurnMCP        = routeTurnMCPNoSlash + "/"
 )
 
 // mcpRouteIDContextKey carries the URL route id from ServeHTTP into the
@@ -58,9 +64,12 @@ type turnScopedEndpoint struct {
 	// on by the uiToolsMiddleware registered on that server, keyed by the
 	// route id carried in the request context.
 	streamable http.Handler
-	turns      *turnRegistry
-	basePath   string
-	logger     *zap.Logger
+	// server is the shared MCP server behind streamable. It is retained so this
+	// endpoint can reap the sessions still bound to it at shutdown (see Close).
+	server   *mcp.Server
+	turns    *turnRegistry
+	basePath string
+	logger   *zap.Logger
 }
 
 // newTurnScopedEndpoint builds the turn-scoped handler around a single shared
@@ -74,6 +83,7 @@ func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QuerySe
 	srv.AddReceivingMiddleware(uiToolsMiddleware(turns, logger))
 	return &turnScopedEndpoint{
 		streamable: mcptools.WrapHTTP(srv, tenancyMgr, telset),
+		server:     srv,
 		turns:      turns,
 		basePath:   basePath,
 		logger:     logger,
@@ -86,6 +96,24 @@ func newTurnScopedEndpoint(telset telemetry.Settings, queryAPI *querysvc.QuerySe
 func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
 	router.Handle(h.basePath+routeTurnMCP, h)
 	router.Handle(h.basePath+routeTurnMCPNoSlash, h)
+}
+
+var _ io.Closer = (*turnScopedEndpoint)(nil)
+
+// Close tears down the MCP sessions still bound to this endpoint's server so they do
+// not outlive it. The go-sdk reaps a session only once it goes idle (see
+// StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
+// disconnected would otherwise linger after shutdown.
+//
+// ServerSession.Close is the only teardown the SDK exposes — there is no
+// server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
+// closing each one mid-iteration, which deregisters it, is safe.
+func (h *turnScopedEndpoint) Close() error {
+	var errs []error
+	for session := range h.server.Sessions() {
+		errs = append(errs, session.Close())
+	}
+	return errors.Join(errs...)
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -102,7 +130,7 @@ func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// middleware. The no-slash form strips to "", which we normalize to "/". Our
 	// routes carry no percent-encoding past the UUID, so Path is canonical and
 	// RawPath cleared.
-	prefix := h.basePath + "/api/ai/mcp/" + mcpRouteID
+	prefix := h.basePath + routeMCPPrefix + mcpRouteID
 	rest := strings.TrimPrefix(r.URL.Path, prefix)
 	if rest == "" {
 		rest = "/"
