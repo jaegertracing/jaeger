@@ -296,3 +296,81 @@ func TestSanitizeOverFlowingChildren_MultipleChildren(t *testing.T) {
 	_, ok4 := result[[8]byte{4}]
 	assert.False(t, ok4)
 }
+
+// TestSanitizeOverFlowingChildren_GrandchildCascade is a regression test for
+// a non-deterministic bug where a grandchild could survive sanitization if its
+// intermediate parent (which overflows the grandparent) happened to be iterated
+// after the grandchild in the old random-order map pass.
+//
+// Scenario:
+//
+//	Root A [0..200]
+//	  └─ B [210..300]   overflows A → must be dropped
+//	       └─ C [220..280]  grandchild via B → must also be dropped
+//
+// With the old implementation, if C was visited before B, C's parent (B) was
+// still present in the map at that moment, so C survived the single pass. B was
+// then deleted, leaving C as an orphan. The test is run many times to detect
+// non-determinism: even a single failure proves the bug.
+func TestSanitizeOverFlowingChildren_GrandchildCascade(t *testing.T) {
+	// spA, spB, spC use distinct byte values so the map has three different keys.
+	spA := pcommon.SpanID([8]byte{0xA})
+	spB := pcommon.SpanID([8]byte{0xB})
+	spC := pcommon.SpanID([8]byte{0xC})
+
+	buildInput := func() map[pcommon.SpanID]CPSpan {
+		return map[pcommon.SpanID]CPSpan{
+			spA: {
+				SpanID:       spA,
+				StartTime:    0,
+				Duration:     200, // [0..200]
+				ChildSpanIDs: []pcommon.SpanID{spB},
+			},
+			spB: {
+				SpanID:       spB,
+				ParentSpanID: spA,
+				StartTime:    210, // starts after A ends → overflows
+				Duration:     90,  // [210..300]
+				ChildSpanIDs: []pcommon.SpanID{spC},
+			},
+			spC: {
+				SpanID:       spC,
+				ParentSpanID: spB,
+				StartTime:    220, // grandchild of A via overflowing B
+				Duration:     60,  // [220..280]
+			},
+		}
+	}
+
+	// Run many times: Go map iteration is randomized per run, so a bug in the
+	// old single-pass implementation would surface on a fraction of iterations.
+	// 100 runs is enough to make a flaky pass astronomically unlikely.
+	const iterations = 100
+	for i := range iterations {
+		result := removeOverflowingChildren(buildInput())
+
+		// A must survive with an empty ChildSpanIDs list (B was removed from it).
+		a, ok := result[spA]
+		assert.True(t, ok, "iteration %d: root A must survive", i)
+		assert.Empty(t, a.ChildSpanIDs,
+			"iteration %d: A's ChildSpanIDs must be empty after B is dropped", i)
+
+		// B overflows A and must be dropped.
+		_, ok = result[spB]
+		assert.False(t, ok, "iteration %d: overflowing B must be dropped", i)
+
+		// C is a descendant of dropped B and must also be dropped.
+		_, ok = result[spC]
+		assert.False(t, ok, "iteration %d: grandchild C must be dropped with B", i)
+
+		// No span in the result may reference B or C in its ChildSpanIDs.
+		for id, span := range result {
+			for _, childID := range span.ChildSpanIDs {
+				assert.NotEqual(t, spB, childID,
+					"iteration %d: span %v still references dropped B", i, id)
+				assert.NotEqual(t, spC, childID,
+					"iteration %d: span %v still references dropped C", i, id)
+			}
+		}
+	}
+}
