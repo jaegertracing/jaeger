@@ -236,6 +236,10 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
+				// One MCP config for both endpoints: the shared one mounted below
+				// and the turn-scoped one jaegerai mounts, so an agent sees the
+				// same tools whichever it dials.
+				mcpCfg := mcptools.DefaultConfig()
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the turn-scoped MCP endpoint
@@ -255,13 +259,14 @@ func initRouter(
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
 						Telset:             telset,
+						MCPConfig:          mcpCfg,
 					})
 					aiGateway.RegisterRoutes(r)
 				}
 				if aiCfg.EnableMCP {
 					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the
 					// wildcard turn-scoped pattern above.
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, telset)
+					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset)
 				}
 			}
 		}
@@ -319,8 +324,8 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, mcptools.DefaultConfig())
+func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, cfg mcptools.Config, telset telemetry.Settings) {
+	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
