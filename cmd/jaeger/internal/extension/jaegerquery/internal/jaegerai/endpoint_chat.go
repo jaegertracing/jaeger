@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/tenancy"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -39,6 +40,7 @@ type chatEndpoint struct {
 	// endpoint. NewHandler sets it only when that endpoint is actually mounted and
 	// a reachable address is known, so empty means announce nothing.
 	mcpBaseURL         string
+	tenancyMgr         *tenancy.Manager
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
@@ -57,16 +59,24 @@ const mcpServerName = "jaeger"
 // requires an agent to opt into each McpServer variant, and announcing one it cannot
 // consume would make it fail the session. Streamable HTTP is the only variant the
 // gateway offers today.
-func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
+func (h *chatEndpoint) announceMCP(ctx context.Context, caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
 	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
 		return []acp.McpServer{}
+	}
+	headers := []acp.HttpHeader{}
+	if h.tenancyMgr != nil && h.tenancyMgr.Enabled {
+		tenant := tenancy.GetTenant(ctx)
+		if tenant == "" {
+			return []acp.McpServer{}
+		}
+		headers = append(headers, acp.HttpHeader{Name: h.tenancyMgr.Header, Value: tenant})
 	}
 	return []acp.McpServer{{
 		Http: &acp.McpServerHttpInline{
 			Type:    "http",
 			Name:    mcpServerName,
 			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
-			Headers: []acp.HttpHeader{},
+			Headers: headers,
 		},
 	}}
 }
@@ -206,7 +216,7 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Cwd: "/",
 		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
 		// transports it advertised support for in Initialize.
-		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
+		McpServers: h.announceMCP(ctx, init.AgentCapabilities, mcpRouteID),
 	}
 	if len(prefixedTools) > 0 {
 		newSessionReq.Meta = map[string]any{
