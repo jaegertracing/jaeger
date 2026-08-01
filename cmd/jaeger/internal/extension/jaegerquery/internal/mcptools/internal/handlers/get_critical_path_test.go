@@ -67,7 +67,7 @@ func createCriticalPathTestTrace() ptrace.Traces {
 
 func TestNewGetCriticalPathHandler(t *testing.T) {
 	// We can pass nil because we only check if it returns a handler function
-	handler := NewGetCriticalPathHandler(nil)
+	handler := NewGetCriticalPathHandler(nil, 20)
 	assert.NotNil(t, handler)
 }
 
@@ -78,6 +78,7 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 	}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -91,6 +92,7 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 	assert.Positive(t, output.TotalDurationUs)
 	assert.Positive(t, output.CriticalPathDurationUs)
 	assert.NotEmpty(t, output.Segments)
+	assert.Equal(t, len(output.Segments), output.TotalSegmentCount)
 
 	// Verify path contains span information
 	for _, span := range output.Segments {
@@ -104,6 +106,7 @@ func TestGetCriticalPathHandler_Handle_EmptyTraceID(t *testing.T) {
 	mockQS := &mockGetCriticalPathQueryService{}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -119,6 +122,7 @@ func TestGetCriticalPathHandler_Handle_InvalidTraceID(t *testing.T) {
 	mockQS := &mockGetCriticalPathQueryService{}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -136,6 +140,7 @@ func TestGetCriticalPathHandler_Handle_QueryServiceError(t *testing.T) {
 	}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -153,6 +158,7 @@ func TestGetCriticalPathHandler_Handle_TraceNotFound(t *testing.T) {
 	}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -183,6 +189,7 @@ func TestGetCriticalPathHandler_Handle_InvalidTrace(t *testing.T) {
 	}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -227,6 +234,7 @@ func TestGetCriticalPathHandler_Handle_MultipleServices(t *testing.T) {
 	}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -262,6 +270,7 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 	}
 	handler := &getCriticalPathHandler{
 		queryService: mockQS,
+		maxSegments:  20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -275,6 +284,78 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 	for _, span := range output.Segments {
 		assert.Equal(t, "unknown", span.Service)
 	}
+}
+
+func TestGetCriticalPathHandler_BuildOutput_Truncation(t *testing.T) {
+	handler := &getCriticalPathHandler{maxSegments: 2}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	// Create 3 spans with different self times
+	span1 := ss.Spans().AppendEmpty()
+	span1.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 1})
+	span1.SetTraceID([16]byte{1})
+	span1.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span1.SetEndTimestamp(pcommon.Timestamp(100100 * 1000)) // 100ms self time
+	span1.SetName("span-100ms")
+
+	span2 := ss.Spans().AppendEmpty()
+	span2.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 2})
+	span2.SetTraceID([16]byte{1})
+	span2.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span2.SetEndTimestamp(pcommon.Timestamp(10001 * 1000)) // ~10ms self time
+	span2.SetName("span-10ms")
+
+	span3 := ss.Spans().AppendEmpty()
+	span3.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 3})
+	span3.SetTraceID([16]byte{1})
+	span3.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span3.SetEndTimestamp(pcommon.Timestamp(1002 * 1000)) // ~2ms self time
+	span3.SetName("span-2ms")
+
+	traceID := span1.TraceID().String()
+
+	sections := []criticalpath.Section{
+		{SpanID: span1.SpanID().String(), SectionStart: 1000, SectionEnd: 100100},
+		{SpanID: span2.SpanID().String(), SectionStart: 1000, SectionEnd: 10001},
+		{SpanID: span3.SpanID().String(), SectionStart: 1000, SectionEnd: 1002},
+	}
+
+	output := handler.buildOutput(traceID, traces, sections, types.GetCriticalPathInput{MaxSegments: 2})
+
+	assert.Equal(t, 3, output.TotalSegmentCount, "total before truncation")
+	assert.Len(t, output.Segments, 2, "should be truncated to 2")
+	// The top 2 by self_time should be span1 (100ms) and span2 (10ms)
+	assert.Equal(t, "span-100ms", output.Segments[0].SpanName, "first by self_time")
+	assert.Equal(t, "span-10ms", output.Segments[1].SpanName, "second by self_time")
+}
+
+func TestGetCriticalPathHandler_BuildOutput_NoTruncation(t *testing.T) {
+	handler := &getCriticalPathHandler{maxSegments: 20}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	span := ss.Spans().AppendEmpty()
+	span.SetSpanID([8]byte{1})
+	span.SetTraceID([16]byte{1})
+	span.SetStartTimestamp(pcommon.Timestamp(1000 * 1000))
+	span.SetEndTimestamp(pcommon.Timestamp(2000 * 1000))
+	span.SetName("single-span")
+
+	sections := []criticalpath.Section{
+		{SpanID: span.SpanID().String(), SectionStart: 1000, SectionEnd: 2000},
+	}
+
+	output := handler.buildOutput(span.TraceID().String(), traces, sections, types.GetCriticalPathInput{})
+
+	assert.Equal(t, 1, output.TotalSegmentCount)
+	assert.Len(t, output.Segments, 1)
 }
 
 func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
@@ -309,7 +390,7 @@ func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 		},
 	}
 
-	output := handler.buildOutput(traceID, traces, sections)
+	output := handler.buildOutput(traceID, traces, sections, types.GetCriticalPathInput{})
 
 	// Should only have 1 segment for the existing span
 	assert.Len(t, output.Segments, 1)

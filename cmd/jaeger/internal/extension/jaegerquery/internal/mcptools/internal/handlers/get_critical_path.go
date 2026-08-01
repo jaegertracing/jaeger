@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"sort"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -29,14 +30,17 @@ type queryServiceGetCriticalPathInterface interface {
 // (the blocking execution path) in a distributed trace.
 type getCriticalPathHandler struct {
 	queryService queryServiceGetCriticalPathInterface
+	maxSegments  int
 }
 
 // NewGetCriticalPathHandler creates a new get_critical_path handler and returns the handler function.
 func NewGetCriticalPathHandler(
 	queryService *querysvc.QueryService,
+	maxSegments int,
 ) mcp.ToolHandlerFor[types.GetCriticalPathInput, types.GetCriticalPathOutput] {
 	h := &getCriticalPathHandler{
 		queryService: queryService,
+		maxSegments:  maxSegments,
 	}
 	return h.handle
 }
@@ -82,7 +86,7 @@ func (h *getCriticalPathHandler) handle(
 	}
 
 	// Build output
-	output := h.buildOutput(input.TraceID, trace, criticalPathSections)
+	output := h.buildOutput(input.TraceID, trace, criticalPathSections, input)
 
 	return nil, output, nil
 }
@@ -108,10 +112,11 @@ func (*getCriticalPathHandler) buildQuery(input types.GetCriticalPathInput) (que
 }
 
 // buildOutput constructs the GetCriticalPathOutput from the trace and critical path sections.
-func (*getCriticalPathHandler) buildOutput(
+func (h *getCriticalPathHandler) buildOutput(
 	traceIDStr string,
 	trace ptrace.Traces,
 	criticalPathSections []criticalpath.Section,
+	input types.GetCriticalPathInput,
 ) types.GetCriticalPathOutput {
 	// Build a map of spans for quick lookup
 	spanMap := jptrace.SpanMap(trace, func(span ptrace.Span) string {
@@ -176,10 +181,27 @@ func (*getCriticalPathHandler) buildOutput(
 		})
 	}
 
+	totalCount := len(segments)
+
+	// Determine the cap: prefer caller-provided MaxSegments, fall back to server default
+	// When both are zero or negative, no cap is applied.
+	limit := h.maxSegments
+	if input.MaxSegments > 0 {
+		limit = input.MaxSegments
+	}
+	if limit > 0 && len(segments) > limit {
+		// Sort by self_time descending so we keep the most impactful segments
+		sort.Slice(segments, func(i, j int) bool {
+			return segments[i].SelfTimeUs > segments[j].SelfTimeUs
+		})
+		segments = segments[:limit]
+	}
+
 	return types.GetCriticalPathOutput{
 		TraceID:                traceIDStr,
 		TotalDurationUs:        traceEndTime - traceStartTime,
 		CriticalPathDurationUs: criticalPathDuration,
 		Segments:               segments,
+		TotalSegmentCount:      totalCount,
 	}
 }

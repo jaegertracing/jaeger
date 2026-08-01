@@ -163,7 +163,7 @@ func registerTools(server *mcp.Server, queryAPI *querysvc.QueryService, cfg Conf
 		Description: "Identify the critical latency path through a trace: the chain of spans " +
 			"that determined end-to-end duration. " +
 			"Higher self_time_us values indicate where time is concentrated on the critical path.",
-	}, handlers.NewGetCriticalPathHandler(s.queryAPI))
+	}, handlers.NewGetCriticalPathHandler(s.queryAPI, s.config.MaxSpanDetailsPerRequest))
 
 	mcp.AddTool(s.mcpServer, &mcp.Tool{
 		Name: "get_service_dependencies",
