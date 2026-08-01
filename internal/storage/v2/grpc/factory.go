@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configgrpc"
@@ -130,6 +131,14 @@ func (f *Factory) initializeConnections(
 	unaryInterceptors := []grpc.UnaryClientInterceptor{bearertoken.NewUnaryClientInterceptor()}
 	streamInterceptors := []grpc.StreamClientInterceptor{bearertoken.NewStreamClientInterceptor()}
 
+	// Timeout interceptor wraps the context with the configured timeout so that
+	// gRPC calls fail fast with a deadline-exceeded error instead of blocking
+	// indefinitely when the backend is slow or unresponsive.
+	if f.config.Timeout > 0 {
+		unaryInterceptors = append(unaryInterceptors, timeoutUnaryInterceptor(f.config.Timeout))
+		streamInterceptors = append(streamInterceptors, timeoutStreamInterceptor(f.config.Timeout))
+	}
+
 	if tenancyMgr := tenancy.NewManager(&f.config.Tenancy); tenancyMgr.Enabled {
 		unaryInterceptors = append(unaryInterceptors, tenancy.NewClientUnaryInterceptor(tenancyMgr))
 		streamInterceptors = append(streamInterceptors, tenancy.NewClientStreamInterceptor(tenancyMgr))
@@ -176,4 +185,65 @@ func (f *Factory) initializeConnections(
 	f.readerConn, f.writerConn = readerConn, writerConn
 
 	return nil
+}
+
+// timeoutUnaryInterceptor returns a gRPC unary client interceptor that wraps
+// the context with a timeout. If the backend does not respond within the
+// configured duration, the call fails with a deadline-exceeded error.
+func timeoutUnaryInterceptor(timeout time.Duration) grpc.UnaryClientInterceptor {
+	return func(
+		ctx context.Context,
+		method string,
+		req, reply any,
+		cc *grpc.ClientConn,
+		invoker grpc.UnaryInvoker,
+		opts ...grpc.CallOption,
+	) error {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
+
+// timeoutStreamInterceptor returns a gRPC stream client interceptor that wraps
+// the context with a timeout for the initial stream operation. The timeout
+// context is propagated to the server via gRPC deadline metadata, and the
+// underlying stream's RecvMsg calls are bounded by the timeout.
+func timeoutStreamInterceptor(timeout time.Duration) grpc.StreamClientInterceptor {
+	return func(
+		ctx context.Context,
+		desc *grpc.StreamDesc,
+		cc *grpc.ClientConn,
+		method string,
+		streamer grpc.Streamer,
+		opts ...grpc.CallOption,
+	) (grpc.ClientStream, error) {
+		ctx, cancel := context.WithTimeout(ctx, timeout)
+		stream, err := streamer(ctx, desc, cc, method, opts...)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		return &timeoutClientStream{ClientStream: stream, cancel: cancel}, nil
+	}
+}
+
+// timeoutClientStream wraps a grpc.ClientStream and ensures the timeout
+// context's cancel function is called when the stream is fully consumed.
+type timeoutClientStream struct {
+	grpc.ClientStream
+	cancel context.CancelFunc
+}
+
+func (s *timeoutClientStream) CloseSend() error {
+	defer s.cancel()
+	return s.ClientStream.CloseSend()
+}
+
+func (s *timeoutClientStream) RecvMsg(m any) error {
+	err := s.ClientStream.RecvMsg(m)
+	if err != nil {
+		s.cancel()
+	}
+	return err
 }
