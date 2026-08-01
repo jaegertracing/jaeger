@@ -32,8 +32,8 @@ Its contents are served under `custom/`, beside the built-in skills:
 SKILL.md                       # built-in entry point
 detect-n-plus-one/SKILL.md     # built-in skill
 error-root-cause/SKILL.md      # built-in skill
-custom/SKILL.md                # your entry point   ← <skills_dir>/SKILL.md
-custom/your-skill/SKILL.md     # your skill         ← <skills_dir>/your-skill/SKILL.md
+custom/SKILL.md                # your entry point, mounts <skills_dir>/SKILL.md
+custom/your-skill/SKILL.md     # your skill      , mounts <skills_dir>/your-skill/SKILL.md
 ```
 
 `<skills_dir>/SKILL.md` is required: an agent reads it first, and without it
