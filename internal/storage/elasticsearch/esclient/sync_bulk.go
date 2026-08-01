@@ -198,30 +198,37 @@ func (w *SyncBulkWriter) sendChunk(ctx context.Context, body []byte, count int) 
 	// a malformed or proxied response could report errors:false while an item still
 	// carries a failing status, and silently succeeding there would advance the
 	// Kafka offset over lost data — exactly what this synchronous writer prevents.
-	terminal, transient, sample := resp.classify()
-	failed := terminal + transient
+	out := resp.classify()
+	if out.conflicts > 0 {
+		// Counted in the durable total returned below, mirroring the async indexer's
+		// onItemConflict: an already-present document achieved the write's goal.
+		w.logger.Debug("bulk items already present (idempotent write)",
+			zap.Int("conflicts", out.conflicts), zap.Int("total", count),
+			zap.Int("status", http.StatusConflict))
+	}
+	failed := out.failed()
 	if failed == 0 {
 		return count, nil
 	}
-	msg := strings.Join(sample, "; ")
-	if failed > len(sample) {
-		msg += fmt.Sprintf("; …and %d more", failed-len(sample))
+	msg := strings.Join(out.sample, "; ")
+	if failed > len(out.sample) {
+		msg += fmt.Sprintf("; …and %d more", failed-len(out.sample))
 	}
 	// Drop mode: discard poison (terminal) items so the batch can complete. If the
 	// only failures are terminal, the chunk succeeds (offset advances) with the
 	// poison logged out-of-band. Transient failures — or fail mode — still error and
 	// retry the whole batch; any terminal items ride along and are re-dropped each
 	// retry until the transient ones clear.
-	if w.dropPoison && terminal > 0 {
+	if w.dropPoison && out.terminal > 0 {
 		w.logger.Warn("dropping poison-pill documents the backend rejected terminally",
-			zap.Int("dropped", terminal), zap.Int("total", count), zap.String("sample", msg))
+			zap.Int("dropped", out.terminal), zap.Int("total", count), zap.String("sample", msg))
 	}
-	if w.dropPoison && transient == 0 {
-		return count - terminal, nil
+	if w.dropPoison && out.transient == 0 {
+		return count - out.terminal, nil
 	}
 	rejected := failed
 	if w.dropPoison {
-		rejected = transient // terminal items were dropped above, not retried
+		rejected = out.transient // terminal items were dropped above, not retried
 	}
 	w.logger.Error("synchronous bulk write had rejected items",
 		zap.Int("rejected", rejected), zap.Int("total", count))
@@ -270,42 +277,70 @@ type bulkItemState struct {
 	Error  json.RawMessage `json:"error"`
 }
 
+// bulkOutcome tallies the non-durable items of one _bulk response. terminal and
+// transient are the two kinds of failure; conflicts are already-durable documents and
+// are not failures, so failed excludes them.
+type bulkOutcome struct {
+	terminal  int
+	transient int
+	conflicts int
+	sample    []string
+}
+
+// failed reports how many items were genuinely rejected.
+func (o bulkOutcome) failed() int { return o.terminal + o.transient }
+
 // classify splits the rejected items into terminal (a poison pill — a status the
-// backend will reject identically on replay, e.g. a 4xx mapping/validation error)
-// and transient (429 / 5xx / a malformed item result — worth retrying), and returns
-// a bounded, human-readable sample of their reasons (at most maxReportedFailures
-// entries, each payload truncated to maxErrorPayloadBytes) so the error stays small
-// even when an entire large batch is rejected.
+// backend will reject identically on replay, e.g. a 4xx mapping/validation error),
+// transient (429 / 5xx / a malformed item result — worth retrying), and conflicts
+// (409 — already durable, see below), and returns a bounded, human-readable sample of
+// the failures' reasons (at most maxReportedFailures entries, each payload truncated
+// to maxErrorPayloadBytes) so the error stays small even when an entire large batch is
+// rejected. Conflicts are not failures, so they contribute no sample entry.
 //
-// Durability is positively confirmed, not merely assumed from the absence of an
-// error: an item counts as durable only when it has exactly one action result with
+// A 409 is neither transient nor terminal: it means the document is already stored, so
+// retrying is pointless and dropping it as poison would discard a durable write. Jaeger
+// sends op_type: create only from the span writer, whose _id is a content hash of the
+// document, so a conflicting document is byte-identical to the one being written and
+// the write has already achieved its goal — the expected outcome of an at-least-once
+// retry rather than a failure (RFC 0007 §4.7). This matches the async indexer, whose
+// OnFailure routes 409 to onItemConflict.
+//
+// Durability is otherwise positively confirmed, not merely assumed from the absence of
+// an error: an item counts as durable only when it has exactly one action result with
 // a 2xx status and no error object. Anything else is a failure — a non-2xx status, a
 // present error, an empty item ({}), a missing status (0), or multiple action
 // entries — because none of those is an acknowledgement, and treating them as
 // success would let the writer return nil without the backend having stored the doc.
-func (r bulkResponse) classify() (terminal, transient int, sample []string) {
+func (r bulkResponse) classify() bulkOutcome {
+	var out bulkOutcome
 	for _, item := range r.Items {
 		state, durable := itemResult(item)
 		if durable {
 			continue
 		}
-		if isTransientStatus(state.Status) {
-			transient++
-		} else {
-			terminal++
+		if state.Status == http.StatusConflict {
+			out.conflicts++
+			continue
 		}
-		if len(sample) < maxReportedFailures {
-			sample = append(sample, rejectionReason(item, state))
+		if isTransientStatus(state.Status) {
+			out.transient++
+		} else {
+			out.terminal++
+		}
+		if len(out.sample) < maxReportedFailures {
+			out.sample = append(out.sample, rejectionReason(item, state))
 		}
 	}
-	return terminal, transient, sample
+	return out
 }
 
 // isTransientStatus reports whether a rejected item's status is worth retrying:
 // backpressure (429), server-side/gateway errors (5xx), and the zero value used for
 // a malformed item result (retry rather than risk dropping a real write). Any other
 // failing status is terminal — a 4xx the backend rejects identically on replay
-// (mapping conflict, malformed field, oversized field).
+// (mapping conflict, malformed field, oversized field). 409 never reaches here:
+// classify takes it as an already-durable conflict before consulting this.
 func isTransientStatus(status int) bool {
 	switch status {
 	case 0, // malformed/unparsed item — conservatively retry rather than drop
