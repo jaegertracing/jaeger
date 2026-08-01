@@ -72,3 +72,28 @@ description: >-
 A `skills_dir` that cannot be opened, or whose `SKILL.md` cannot be read, is
 broken configuration, and Jaeger refuses to start rather than quietly serving an
 incomplete skill set.
+
+### Frontmatter rules
+
+| Key | Rule |
+| --- | --- |
+| `name` | Required. Lowercase letters, digits and single hyphens (no leading, trailing or doubled hyphen), at most 64 characters, and **equal to the skill's directory name**. |
+| `description` | Required, at most 1024 characters. |
+| `license` | Optional. |
+| `metadata` | Optional map of string to string. |
+| `compatibility` | Optional, at most 500 characters. |
+| `allowed-tools` | Optional, space-separated. Advisory: Jaeger records it but does not enforce it. |
+
+Anything else is an error rather than an ignored field, so a misspelled key is
+reported instead of silently doing nothing.
+
+The rules apply to `<skill>/SKILL.md`. The tree's own `SKILL.md` has no
+directory to be named after, and a `SKILL.md` nested deeper is reference
+material inside a skill rather than a skill of its own; neither is name-checked.
+
+A skill that breaks these rules fails the `read_skill` call that asks for it,
+with a message naming what is wrong. Every other skill keeps serving — one
+malformed file does not take down the tree, and it never stops Jaeger booting.
+
+Files are read from disk per request, so editing a skill takes effect on the
+next call. There is no restart and no cache to invalidate.

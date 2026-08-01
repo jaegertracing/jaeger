@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"path"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -19,6 +20,9 @@ import (
 // customSkillsDir is the path prefix under which the operator's skills are
 // addressed, e.g. custom/<skill-name>/SKILL.md.
 const customSkillsDir = "custom"
+
+// skillFile is the name every skill's playbook goes by.
+const skillFile = "SKILL.md"
 
 type readSkillHandler struct {
 	builtins fs.FS
@@ -57,6 +61,14 @@ func (h *readSkillHandler) handle(
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
 	content := string(buf[:n])
+	// Frontmatter is validated against what was actually read, before the
+	// truncation notice is appended; it sits at the head of the file, so a body
+	// long enough to be truncated does not affect the check.
+	if dir, ok := skillDirName(input.Path); ok {
+		if err := validateSkillFrontmatter(buf[:n], dir); err != nil {
+			return nil, types.ReadSkillOutput{}, fmt.Errorf("invalid skill %q: %w", input.Path, err)
+		}
+	}
 	if n > int(h.maxFileSize) {
 		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
 	}
@@ -64,6 +76,21 @@ func (h *readSkillHandler) handle(
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: content}},
 	}, types.ReadSkillOutput{Instructions: content}, nil
+}
+
+// skillDirName returns the directory a skill at p is named after, and whether p
+// names a skill at all. Only <dir>/SKILL.md is one: a tree's root SKILL.md has
+// no directory to take its name from, and a SKILL.md nested deeper is
+// documentation inside a skill rather than a skill of its own. The custom/
+// prefix is stripped first so operator and built-in skills are judged alike.
+func skillDirName(p string) (string, bool) {
+	rest, _ := strings.CutPrefix(p, customSkillsDir+"/")
+	dir, file := path.Split(rest)
+	dir = strings.TrimSuffix(dir, "/")
+	if file != skillFile || dir == "" || strings.Contains(dir, "/") {
+		return "", false
+	}
+	return dir, true
 }
 
 // open routes p to the custom tree when it names the custom/ prefix and to the
