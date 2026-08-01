@@ -51,21 +51,23 @@ func TestOpenCustomSkillsDir_HardFailsOnUnusablePath(t *testing.T) {
 		require.ErrorContains(t, err, "cannot open skills_dir")
 	})
 
-	t.Run("directory is not listable", func(t *testing.T) {
+	t.Run("no entry-point skill", func(t *testing.T) {
+		_, err := OpenCustomSkillsDir(t.TempDir())
+		require.ErrorContains(t, err, "cannot read SKILL.md in skills_dir")
+	})
+
+	t.Run("entry-point skill is unreadable", func(t *testing.T) {
 		if runtime.GOOS == "windows" {
 			t.Skip("permission bits are not enforced the same way on Windows")
 		}
 		if os.Geteuid() == 0 {
-			t.Skip("running as root ignores directory permission bits")
+			t.Skip("running as root ignores permission bits")
 		}
-		// Read without execute: os.OpenRoot succeeds (it can stat the
-		// directory) but its entries cannot be listed.
 		dir := t.TempDir()
-		require.NoError(t, os.Chmod(dir, 0o400))
-		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("x"), 0o000))
 
 		_, err := OpenCustomSkillsDir(dir)
-		require.ErrorContains(t, err, "cannot list skills_dir")
+		require.ErrorContains(t, err, "cannot read SKILL.md in skills_dir")
 	})
 }
 
@@ -77,6 +79,7 @@ func TestOpenCustomSkillsDir_BlocksSymlinkEscape(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o600))
 
 	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("catalog"), 0o600))
 	require.NoError(t, os.Symlink(outside, filepath.Join(dir, "evil")))
 
 	custom, err := OpenCustomSkillsDir(dir)

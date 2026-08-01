@@ -129,7 +129,7 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 		assert.Equal(t, "# Slow DB Call", out.Instructions)
 	})
 
-	t.Run("custom catalog is served", func(t *testing.T) {
+	t.Run("custom entry point is served", func(t *testing.T) {
 		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
 		require.NoError(t, err)
 		assert.Equal(t, "# Operator catalog", out.Instructions)
