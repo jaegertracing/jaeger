@@ -237,20 +237,24 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
+				mcpEnabled := aiCfg.MCP.HasValue()
 				// One config for both MCP endpoints so they cannot drift. The
 				// skills directory is opened once here, so both share the handle
 				// and a broken path is reported once, at startup.
 				mcpCfg := mcptools.DefaultConfig()
-				customSkills, err := mcptools.OpenCustomSkillsDir(aiCfg.SkillsDir)
-				if err != nil {
-					return nil, nil, err
+				if mcpEnabled {
+					customSkills, err := mcptools.OpenCustomSkillsDir(aiCfg.MCP.Get().SkillsDir)
+					if err != nil {
+						return nil, nil, err
+					}
+					if customSkills != nil {
+						// It holds skills_dir open for as long as it serves, so
+						// it is released with the server rather than at process
+						// exit.
+						cs = append(cs, customSkills)
+					}
+					mcpCfg.CustomSkillsFS = customSkills
 				}
-				if customSkills != nil {
-					// It holds skills_dir open for as long as it serves, so it
-					// is released with the server rather than at process exit.
-					cs = append(cs, customSkills)
-				}
-				mcpCfg.CustomSkillsFS = customSkills
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the turn-scoped MCP endpoint
@@ -265,7 +269,7 @@ func initRouter(
 						AgentURL:           aiCfg.AgentURL,
 						BasePath:           queryOpts.BasePath,
 						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
-						EnableMCP:          aiCfg.EnableMCP,
+						EnableMCP:          mcpEnabled,
 						MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
 						QueryService:       querySvc,
 						TenancyMgr:         tenancyMgr,
@@ -274,7 +278,7 @@ func initRouter(
 					})
 					aiGateway.RegisterRoutes(r)
 				}
-				if aiCfg.EnableMCP {
+				if mcpEnabled {
 					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the
 					// wildcard turn-scoped pattern above.
 					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset)

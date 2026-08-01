@@ -51,14 +51,31 @@ type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
-	// Optional: leave empty (and set EnableMCP) to expose the telemetry MCP
+	// Optional: leave empty (and set the mcp block) to expose the telemetry MCP
 	// endpoint without the AI chat surface.
 	AgentURL string `mapstructure:"agent_url" valid:"optional"`
-	// EnableMCP exposes the Jaeger telemetry MCP server at
-	// <basePath>/api/ai/mcp/ on the query port. Off by default. It replaces the
-	// retired standalone jaeger_mcp extension (which served :16687); point
-	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
-	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
+	// MCP exposes the Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
+	// the query port. Present enables it, absent disables it — an empty block
+	// (`mcp: {}`) is enough. It replaces the retired standalone jaeger_mcp
+	// extension (which served :16687); point Cursor/IDE MCP clients at the query
+	// port instead. Independent of AgentURL.
+	MCP configoptional.Optional[MCPConfig] `mapstructure:"mcp"`
+	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
+	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
+	// HealthCheckInterval controls how often the AI health checker contacts
+	// the sidecar to determine if the chat surface should be advertised to
+	// the UI. Set to 0 to disable the health checker (advertised capability
+	// stays at false); negative values are rejected.
+	HealthCheckInterval time.Duration `mapstructure:"health_check_interval" valid:"optional"`
+	// HealthCheckTimeout is the per-check timeout. Must be positive when
+	// HealthCheckInterval > 0; ignored when the checker is disabled.
+	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
+}
+
+// MCPConfig configures the telemetry MCP endpoint. Its presence on AIConfig is
+// what enables the endpoint, so both fields are optional and an empty block is
+// the common case.
+type MCPConfig struct {
 	// MCPBaseURL is the externally-reachable scheme+authority a sidecar uses to
 	// dial the turn-scoped MCP endpoint, e.g. "https://jaeger.example.com:16686".
 	// The gateway announces "<MCPBaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
@@ -71,24 +88,29 @@ type AIConfig struct {
 	// resolveMCPBaseURL). Set this whenever the sidecar reaches the gateway at
 	// some other address — behind a proxy, in another network namespace, with TLS
 	// terminated elsewhere, or forwarded into a container — none of which the
-	// query server can infer. Ignored unless both AgentURL and EnableMCP are set.
+	// query server can infer. Ignored unless AgentURL is also set.
 	MCPBaseURL string `mapstructure:"mcp_base_url" valid:"optional"`
 	// SkillsDir is a directory of operator-supplied skill playbooks on the query
 	// server's disk, served by the read_skill MCP tool under custom/ beside the
 	// built-in skills, so an installation can add its own without rebuilding
-	// Jaeger. See mcptools/README.md for the layout it expects. Requires
-	// EnableMCP. Empty (the default) serves the built-in skills only.
+	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
+	// default) serves the built-in skills only.
 	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
-	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
-	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
-	// HealthCheckInterval controls how often the AI health checker contacts
-	// the sidecar to determine if the chat surface should be advertised to
-	// the UI. Set to 0 to disable the health checker (advertised capability
-	// stays at false); negative values are rejected.
-	HealthCheckInterval time.Duration `mapstructure:"health_check_interval" valid:"optional"`
-	// HealthCheckTimeout is the per-check timeout. Must be positive when
-	// HealthCheckInterval > 0; ignored when the checker is disabled.
-	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
+}
+
+func (c *MCPConfig) Validate() error {
+	if c.MCPBaseURL == "" {
+		return nil
+	}
+	// Reject anything we cannot turn into a dialable absolute URL. A relative
+	// or scheme-less value would be announced verbatim and fail at the
+	// sidecar, which is exactly the mid-turn failure this field exists to
+	// avoid — so fail fast at config load instead.
+	u, err := url.Parse(c.MCPBaseURL)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return errors.New("ai.mcp.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
+	}
+	return nil
 }
 
 // DefaultOTLPProxyTarget is the loopback endpoint of the bundled OTel-collector
@@ -115,11 +137,8 @@ func (c *OTLPProxyConfig) Validate() error {
 // (see the AIConfig type-level comment) so by the time Validate runs the
 // caller's struct already has sensible values for any field they omitted.
 func (c *AIConfig) Validate() error {
-	if c.AgentURL == "" && !c.EnableMCP {
-		return errors.New("ai requires agent_url (AI chat) or enable_mcp (telemetry MCP tools)")
-	}
-	if c.SkillsDir != "" && !c.EnableMCP {
-		return errors.New("ai.skills_dir requires ai.enable_mcp to be true")
+	if c.AgentURL == "" && !c.MCP.HasValue() {
+		return errors.New("ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")
@@ -130,15 +149,10 @@ func (c *AIConfig) Validate() error {
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
-	if c.MCPBaseURL != "" {
-		// Reject anything we cannot turn into a dialable absolute URL. A relative
-		// or scheme-less value would be announced verbatim and fail at the
-		// sidecar, which is exactly the mid-turn failure this field exists to
-		// avoid — so fail fast at config load instead.
-		u, err := url.Parse(c.MCPBaseURL)
-		if err != nil || !u.IsAbs() || u.Host == "" {
-			return errors.New("ai.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
-		}
+	// Reached through the collector's config walk as well, but AI config is also
+	// validated directly (see initRouter), so delegate rather than rely on that.
+	if mcp := c.MCP.Get(); mcp != nil {
+		return mcp.Validate()
 	}
 	return nil
 }
@@ -171,8 +185,12 @@ func (c *AIConfig) Validate() error {
 // httpEndpoint is the query server's own HTTP host:port and tlsEnabled its own TLS
 // setting; neither is derived from AgentURL, which only gates the inference.
 func (c *AIConfig) resolveMCPBaseURL(ctx context.Context, httpEndpoint string, tlsEnabled bool) string {
-	if c.MCPBaseURL != "" {
-		return c.MCPBaseURL
+	mcp := c.MCP.Get()
+	if mcp == nil {
+		return "" // MCP is off, so there is no endpoint to announce
+	}
+	if mcp.MCPBaseURL != "" {
+		return mcp.MCPBaseURL
 	}
 	if tlsEnabled {
 		return ""
