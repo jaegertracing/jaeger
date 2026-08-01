@@ -94,6 +94,13 @@ func (h *getTraceTopologyHandler) handle(
 		return nil, types.GetTraceTopologyOutput{}, errors.New("trace not found")
 	}
 
+	// When the span limit was reached, remove orphan spans whose parent
+	// was truncated. This prevents structurally misleading topology output
+	// where a child span appears without its parent.
+	if h.maxSpanDetailsPerRequest > 0 && len(spans) >= h.maxSpanDetailsPerRequest {
+		spans = h.removeOrphanedSpans(spans)
+	}
+
 	// Build the flat topology list from the collected spans
 	output := types.GetTraceTopologyOutput{
 		TraceID: input.TraceID,
@@ -150,6 +157,33 @@ func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
 		status:     span.Status().Code().String(),
 		startNano:  span.StartTimestamp().AsTime().UnixNano(),
 	}
+}
+
+// removeOrphanedSpans removes spans whose parent was truncated by the span limit.
+// When the span limit (maxSpanDetailsPerRequest) causes a parent to be excluded
+// while its child is retained, the child becomes an orphan. Removing these orphans
+// prevents structurally misleading topology output.
+func (h *getTraceTopologyHandler) removeOrphanedSpans(spans []rawSpan) []rawSpan {
+	if len(spans) == 0 {
+		return spans
+	}
+
+	// Build a set of collected span IDs
+	byID := make(map[string]bool, len(spans))
+	for _, s := range spans {
+		byID[s.spanID] = true
+	}
+
+	// Remove spans whose parent is not in the collected set
+	result := make([]rawSpan, 0, len(spans))
+	for _, s := range spans {
+		if s.parentID != "" && !byID[s.parentID] {
+			// This span's parent was truncated by the limit, skip it
+			continue
+		}
+		result = append(result, s)
+	}
+	return result
 }
 
 // buildFlatTopology converts a flat slice of rawSpans into a depth-first ordered
