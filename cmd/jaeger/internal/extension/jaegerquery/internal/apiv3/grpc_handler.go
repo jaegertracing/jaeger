@@ -4,9 +4,11 @@
 package apiv3
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
+	"slices"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc/codes"
@@ -216,6 +218,14 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 			CallCount: dep.CallCount,
 		}
 	}
+	// Sort by parent then child for deterministic ordering,
+	// matching the HTTP and MCP handlers.
+	slices.SortFunc(links, func(a, b *api_v3.Dependency) int {
+		if c := cmp.Compare(a.Parent, b.Parent); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Child, b.Child)
+	})
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
