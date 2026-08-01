@@ -223,6 +223,87 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	assert.True(t, output.Traces[0].HasErrors)
 }
 
+func TestSearchTracesHandler_Handle_WithErrorsFilter_ConflictWithAttributes(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes map[string]string
+		withErrors bool
+		wantErr    bool
+		errMsg     string
+	}{
+		{
+			name:       "with_errors=true + error=false conflicts",
+			attributes: map[string]string{"error": "false"},
+			withErrors: true,
+			wantErr:    true,
+			errMsg:     "conflicts",
+		},
+		{
+			name:       "with_errors=true + error=FALSE (case insensitive) conflicts",
+			attributes: map[string]string{"error": "FALSE"},
+			withErrors: true,
+			wantErr:    true,
+			errMsg:     "conflicts",
+		},
+		{
+			name:       "with_errors=true + error=true is fine",
+			attributes: map[string]string{"error": "true"},
+			withErrors: true,
+			wantErr:    false,
+		},
+		{
+			name:       "with_errors=false + error=false is fine",
+			attributes: map[string]string{"error": "false"},
+			withErrors: false,
+			wantErr:    false,
+		},
+		{
+			name:       "with_errors=true + no error attribute is fine",
+			attributes: map[string]string{"http.status_code": "500"},
+			withErrors: true,
+			wantErr:    false,
+		},
+		{
+			name:       "with_errors=true + error=INVALID conflicts",
+			attributes: map[string]string{"error": "INVALID"},
+			withErrors: true,
+			wantErr:    true,
+			errMsg:     "conflicts",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			want := makeTraceSummary("test", "/test", tt.withErrors)
+			mock := &mockQueryService{
+				findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+					return func(yield func([]tracestore.TraceSummary, error) bool) {
+						yield([]tracestore.TraceSummary{want}, nil)
+					}
+				},
+			}
+
+			handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+			input := types.SearchTracesInput{
+				StartTimeMin: "-1h",
+				ServiceName:  "test",
+				Attributes:   tt.attributes,
+				WithErrors:   tt.withErrors,
+			}
+
+			_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
