@@ -27,8 +27,8 @@ func findLastFinishingChildSpan(
 		childEndTime := childSpan.StartTime + childSpan.Duration
 
 		if returningChildStartTime != nil {
-			// Find child that finishes just before the returning child's start time
-			if childEndTime < *returningChildStartTime {
+			// Find the child span that finished immediately before this span started.
+			if childEndTime <= *returningChildStartTime {
 				if childEndTime > maxEndTime {
 					maxEndTime = childEndTime
 					childSpanCopy := childSpan
