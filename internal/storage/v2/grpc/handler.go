@@ -119,6 +119,9 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
+	if req.Query == nil {
+		return status.Error(codes.InvalidArgument, "missing query")
+	}
 	for traces, err := range h.traceReader.FindTraces(srv.Context(), toTraceQueryParams(req.Query)) {
 		if err != nil {
 			return err
@@ -138,6 +141,9 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
+	if req.Query == nil {
+		return status.Error(codes.InvalidArgument, "missing query")
+	}
 	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
 		if err != nil {
 			// A backend that cannot compute summaries natively signals this with
@@ -182,6 +188,9 @@ func (h *Handler) FindTraceIDs(
 	ctx context.Context,
 	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
+	if req.Query == nil {
+		return nil, status.Error(codes.InvalidArgument, "missing query")
+	}
 	foundTraceIDs := []*storage.FoundTraceID{}
 	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {
 		if err != nil {

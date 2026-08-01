@@ -753,6 +753,30 @@ func (s *summaryStream) Send(r *storage.FindTraceSummariesResponse) error {
 	return nil
 }
 
+func TestHandler_FindTraces_NilQuery(t *testing.T) {
+	handler := NewHandler(new(tracestoremocks.Reader), new(tracestoremocks.Writer), new(depstoremocks.Reader))
+	err := handler.FindTraces(&storage.FindTracesRequest{}, &testStream{})
+	require.Error(t, err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, err.Error(), "missing query")
+}
+
+func TestHandler_FindTraceIDs_NilQuery(t *testing.T) {
+	handler := NewHandler(new(tracestoremocks.Reader), new(tracestoremocks.Writer), new(depstoremocks.Reader))
+	_, err := handler.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{})
+	require.Error(t, err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, err.Error(), "missing query")
+}
+
+func TestHandler_FindTraceSummaries_NilQuery(t *testing.T) {
+	handler := NewHandler(new(tracestoremocks.Reader), new(tracestoremocks.Writer), new(depstoremocks.Reader))
+	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{}, &summaryStream{})
+	require.Error(t, err)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Contains(t, err.Error(), "missing query")
+}
+
 func TestHandler_FindTraceSummaries_NotImplemented(t *testing.T) {
 	// A backend that cannot compute summaries natively yields errors.ErrUnsupported;
 	// the handler must translate that into gRPC Unimplemented.
