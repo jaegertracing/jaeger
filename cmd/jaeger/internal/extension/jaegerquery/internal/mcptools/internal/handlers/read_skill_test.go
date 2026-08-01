@@ -5,6 +5,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -82,6 +84,31 @@ func TestReadSkillHandler_FileTooLarge(t *testing.T) {
 	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
 	require.NoError(t, err)
 	assert.Contains(t, output.Instructions, "truncated after")
+
+	body, _, found := strings.Cut(output.Instructions, "\n\nfile content truncated after")
+	require.True(t, found)
+	assert.Len(t, body, testMaxFileSize)
+}
+
+func TestReadSkillHandler_SizeLimitBoundary(t *testing.T) {
+	notice := fmt.Sprintf("\n\nfile content truncated after %d bytes\n", testMaxFileSize)
+	tests := []struct {
+		name string
+		size int
+		want string
+	}{
+		{"exactly at limit is not truncated", testMaxFileSize, strings.Repeat("x", testMaxFileSize)},
+		{"one byte over limit is truncated to the limit", testMaxFileSize + 1, strings.Repeat("x", testMaxFileSize) + notice},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsys := fstest.MapFS{"f.md": &fstest.MapFile{Data: []byte(strings.Repeat("x", tt.size))}}
+			h := &readSkillHandler{skillsFS: fsys, maxFileSize: testMaxFileSize}
+			_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "f.md"})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, output.Instructions)
+		})
+	}
 }
 
 func TestReadSkillHandler_RawTextInContent(t *testing.T) {
