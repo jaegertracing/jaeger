@@ -185,6 +185,41 @@ func buildAttributeConditions(q *strings.Builder, args []any, attributes pcommon
 	for key, attr := range attributes.All() {
 		appendAnd(q, "(")
 
+		// Special handling for the "error" attribute: it should match the span's
+		// status_code column, not a literal attribute. OTLP spans carry error state
+		// in span status, not in a literal "error" attribute. The error=true filter
+		// is the existing Jaeger convention that works across storage backends.
+		if key == "error" {
+			var errorVal bool
+			switch attr.Type() {
+			case pcommon.ValueTypeBool:
+				errorVal = attr.Bool()
+			case pcommon.ValueTypeStr:
+				var parseErr error
+				errorVal, parseErr = strconv.ParseBool(attr.Str())
+				if parseErr != nil {
+					// Could not parse as boolean, fall through to normal attribute matching
+					goto normalAttribute
+				}
+			default:
+				// Not a bool or string, fall through to normal attribute matching
+				goto normalAttribute
+			}
+			if errorVal {
+				appendNewlineAndIndent(q, 2)
+				q.WriteString("s.status_code = ?")
+				args = append(args, "Error")
+			} else {
+				appendNewlineAndIndent(q, 2)
+				q.WriteString("s.status_code != ?")
+				args = append(args, "Error")
+			}
+			appendNewlineAndIndent(q, 1)
+			q.WriteString(")")
+			continue
+		}
+
+	normalAttribute:
 		var err error
 		switch attr.Type() {
 		case pcommon.ValueTypeBool:

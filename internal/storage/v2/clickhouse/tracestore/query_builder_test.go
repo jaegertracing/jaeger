@@ -190,3 +190,97 @@ func TestBuildStringAttributeCondition_MultipleTypes(t *testing.T) {
 	assert.Contains(t, query, "str_attributes")
 	assert.Len(t, args, 4)
 }
+
+func TestBuildAttributeConditions_ErrorAttribute(t *testing.T) {
+	tests := []struct {
+		name          string
+		setupAttr     func() pcommon.Value
+		expectStatus  *bool // true = expect status_code =, false = expect status_code !=, nil = expect normal attribute matching
+		expectArgs    int
+	}{
+		{
+			name: "error=true bool",
+			setupAttr: func() pcommon.Value {
+				return pcommon.NewValueBool(true)
+			},
+			expectStatus: ptr(true),
+			expectArgs:   1,
+		},
+		{
+			name: "error=false bool",
+			setupAttr: func() pcommon.Value {
+				return pcommon.NewValueBool(false)
+			},
+			expectStatus: ptr(false),
+			expectArgs:   1,
+		},
+		{
+			name: "error=true string",
+			setupAttr: func() pcommon.Value {
+				return pcommon.NewValueStr("true")
+			},
+			expectStatus: ptr(true),
+			expectArgs:   1,
+		},
+		{
+			name: "error=false string",
+			setupAttr: func() pcommon.Value {
+				return pcommon.NewValueStr("false")
+			},
+			expectStatus: ptr(false),
+			expectArgs:   1,
+		},
+		{
+			name: "error=not-a-bool string falls through to normal attribute matching",
+			setupAttr: func() pcommon.Value {
+				return pcommon.NewValueStr("not-a-bool")
+			},
+			expectStatus: nil,
+			expectArgs:   10, // 5 key-value pairs from appendStringAttributeFallback
+		},
+		{
+			name: "error=int falls through to normal attribute matching",
+			setupAttr: func() pcommon.Value {
+				return pcommon.NewValueInt(42)
+			},
+			expectStatus: nil,
+			expectArgs:   10, // 5 key-value pairs from buildSimpleAttributeCondition
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			attrs := pcommon.NewMap()
+			attr := tc.setupAttr()
+			attr.CopyTo(attrs.PutEmpty("error"))
+
+			var q strings.Builder
+			var args []any
+			metadata := attributeMetadata{}
+
+			args, err := buildAttributeConditions(&q, args, attrs, metadata)
+			require.NoError(t, err)
+			require.Len(t, args, tc.expectArgs)
+
+			query := q.String()
+
+			if tc.expectStatus != nil {
+				// Error attribute was handled specially via status_code
+				if *tc.expectStatus {
+					assert.Contains(t, query, "s.status_code = ?")
+				} else {
+					assert.Contains(t, query, "s.status_code != ?")
+				}
+				assert.Equal(t, "Error", args[0])
+			} else {
+				// Error attribute fell through to normal attribute matching
+				assert.NotContains(t, query, "s.status_code = ?")
+				assert.NotContains(t, query, "s.status_code != ?")
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T {
+	return &v
+}
