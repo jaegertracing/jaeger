@@ -599,3 +599,42 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
 }
+
+func TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans(t *testing.T) {
+	traceID := testTraceID
+
+	// Spans sorted by spanID in OTLP iteration order: grandchild, root, child.
+	// With limit=2, the first 2 spans are grandchild and root. The intermediate
+	// child span (parent of grandchild) is excluded by the limit.
+	// Without the fix, the output would contain an orphan grandchild span
+	// whose parent (child) is not present.
+	spanConfigs := []spanConfig{
+		{spanID: "grand01", parentSpanID: "child01", operation: "grandchild"},
+		{spanID: "root001", operation: "root"},
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 2,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+
+	// Only the root span should be returned. The grandchild's parent (child)
+	// was truncated, so the grandchild should also be removed.
+	root := findSpanByName(output.Spans, "root")
+	require.NotNil(t, root)
+
+	grandchild := findSpanByName(output.Spans, "grandchild")
+	require.Nil(t, grandchild, "grandchild should be removed since its parent was truncated")
+
+	child := findSpanByName(output.Spans, "child")
+	require.Nil(t, child, "child should be truncated by the limit")
+}
