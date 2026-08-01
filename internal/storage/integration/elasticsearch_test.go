@@ -298,23 +298,30 @@ func (s *ESStorageIntegration) testSyncBulkWriter(t *testing.T) {
 		return err == nil && len(resp.Hits.Hits) == 2
 	}, 10*time.Second, 100*time.Millisecond, "both documents should be durably readable")
 
-	// Item-level error propagation with a partial batch: one new document (sb-3)
-	// succeeds while re-creating an existing _id (sb-1) is rejected with a 409
-	// version conflict. The sync writer surfaces the rejection as a real error —
-	// the whole point of RFC 0007 — even though the sibling item was written.
-	err := writer.WriteBatch(ctx, []esclient.BulkItem{
+	// A retried document is an idempotent success, not a rejection: re-creating an
+	// existing _id (sb-1) under op_type: create returns a live 409, which counts as
+	// durable because the stored document is the one being written (RFC 0007 §4.7).
+	// The new sibling (sb-3) is written normally in the same batch.
+	require.NoError(t, writer.WriteBatch(ctx, []esclient.BulkItem{
 		{Index: index, ID: "sb-3", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "three"}},
 		{Index: index, ID: "sb-1", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": "one"}},
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "1 of 2 bulk items rejected")
-	assert.Contains(t, err.Error(), "id=sb-1", "the rejected item's _id aids debugging")
+	}))
 
-	// The non-conflicting item was still durably written (now three documents).
+	// The new document is durable and the conflict added no duplicate.
 	require.Eventually(t, func() bool {
 		resp, err := searcher.Search(ctx, []string{index}, esclient.SearchRequest{Size: 10})
 		return err == nil && len(resp.Hits.Hits) == 3
-	}, 10*time.Second, 100*time.Millisecond, "the non-conflicting document should be durably written")
+	}, 10*time.Second, 100*time.Millisecond, "the new document should be durably written")
+
+	// Item-level error propagation still surfaces a genuine terminal rejection: the
+	// documents above map "name" as a string, so an object value for it is a mapping
+	// conflict the backend rejects with a 400 on every attempt.
+	err := writer.WriteBatch(ctx, []esclient.BulkItem{
+		{Index: index, ID: "sb-4", OpType: esstorage.WriteOpCreate, Body: map[string]any{"name": map[string]any{"nested": "x"}}},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "1 of 1 bulk items rejected")
+	assert.Contains(t, err.Error(), "id=sb-4", "the rejected item's _id aids debugging")
 }
 
 // testArchiveTrace validates that a trace with a start time older than maxSpanAge
