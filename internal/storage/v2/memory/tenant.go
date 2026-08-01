@@ -183,6 +183,9 @@ func (t *Tenant) getDependencies(query depstore.QueryParameters) ([]model.Depend
 					if !found {
 						continue
 					}
+					if parentSpanServiceName == spanServiceName {
+						continue
+					}
 					depKey := parentSpanServiceName + "&&&" + spanServiceName
 					if _, ok := deps[depKey]; !ok {
 						deps[depKey] = &model.DependencyLink{

@@ -901,6 +901,36 @@ func TestGetDependencies_WrongSpanId(t *testing.T) {
 	assert.Empty(t, deps)
 }
 
+func TestGetDependencies_SameService(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr(conventions.ServiceNameKey, "service-x")
+	span1 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span1.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span1.SetSpanID(spanIdFromString(t, "0000000000000001"))
+	span1.SetParentSpanID(spanIdFromString(t, "0000000000000002"))
+	startTime := time.Now()
+	span1.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime))
+	span1.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(1 * time.Second)))
+	span2 := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span2.SetTraceID(fromString(t, "00000000000000010000000000000000"))
+	span2.SetSpanID(spanIdFromString(t, "0000000000000002"))
+	span2.SetStartTimestamp(pcommon.NewTimestampFromTime(startTime.Add(-1 * time.Second)))
+	span2.SetEndTimestamp(pcommon.NewTimestampFromTime(startTime.Add(2 * time.Second)))
+	err = store.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+	deps, err := store.GetDependencies(context.Background(), depstore.QueryParameters{
+		StartTime: startTime.Add(-2 * time.Second),
+		EndTime:   startTime.Add(3 * time.Second),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, deps, "same-service parent/child should not produce a dependency link")
+}
+
 func writeTenTraces(t *testing.T, store *Store) {
 	for i := 1; i < 10; i++ {
 		traceID := fromString(t, fmt.Sprintf("000000000000000%d0000000000000000", i))
