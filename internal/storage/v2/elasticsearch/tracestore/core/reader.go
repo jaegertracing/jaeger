@@ -115,6 +115,7 @@ type SpanReader struct {
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
+	allTagsAsFields         bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -125,6 +126,7 @@ type SpanReaderParams struct {
 	MaxSpanAge        time.Duration
 	MaxTraceDuration  time.Duration
 	MaxDocCount       int
+	AllTagsAsFields   bool
 	TagDotReplacement string
 	Logger            *zap.Logger
 	Tracer            trace.Tracer
@@ -145,6 +147,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
+		allTagsAsFields:         p.AllTagsAsFields,
 	}
 }
 
@@ -573,13 +576,17 @@ func (s *SpanReader) buildTagQuery(k string, v string) esquery.Query {
 	return esquery.NewBoolQuery().Should(queries...)
 }
 
-func (*SpanReader) buildNestedQuery(field string, k string, v string) esquery.Query {
+func (s *SpanReader) buildNestedQuery(field string, k string, v string) esquery.Query {
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := esquery.NewMatchQuery(keyField, k)
 	valueQuery := esquery.NewRegexpQuery(valueField, v)
 	tagBoolQuery := esquery.NewBoolQuery().Must(keyQuery, valueQuery)
-	return esquery.NewNestedQuery(field, tagBoolQuery)
+	nestedQuery := esquery.NewNestedQuery(field, tagBoolQuery)
+	if s.allTagsAsFields {
+		nestedQuery.IgnoreUnmapped(true)
+	}
+	return nestedQuery
 }
 
 func (*SpanReader) buildObjectQuery(field string, k string, v string) esquery.Query {
