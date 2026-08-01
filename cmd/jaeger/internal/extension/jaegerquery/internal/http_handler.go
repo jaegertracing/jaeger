@@ -5,6 +5,7 @@
 package app
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"time"
 
@@ -406,6 +408,14 @@ func (*APIHandler) deduplicateDependencies(dependencies []model.DependencyLink) 
 	for k, v := range links {
 		result = append(result, ui.DependencyLink{Parent: k.parent, Child: k.child, CallCount: v})
 	}
+
+	// Sort by parent then child for deterministic ordering.
+	slices.SortFunc(result, func(a, b ui.DependencyLink) int {
+		if c := cmp.Compare(a.Parent, b.Parent); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.Child, b.Child)
+	})
 
 	return result
 }
