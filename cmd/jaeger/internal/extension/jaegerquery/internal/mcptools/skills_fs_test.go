@@ -38,6 +38,18 @@ func TestOpenCustomSkillsDir_ServesDirectoryContents(t *testing.T) {
 	assert.Equal(t, "skill body", string(skill))
 }
 
+func TestOpenCustomSkillsDir_CloseReleasesTheRoot(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("catalog"), 0o600))
+
+	custom, err := OpenCustomSkillsDir(dir)
+	require.NoError(t, err)
+	require.NoError(t, custom.Close())
+
+	_, err = fs.ReadFile(custom, "SKILL.md")
+	require.Error(t, err, "the tree must not still be readable once closed")
+}
+
 func TestOpenCustomSkillsDir_HardFailsOnUnusablePath(t *testing.T) {
 	t.Run("nonexistent directory", func(t *testing.T) {
 		_, err := OpenCustomSkillsDir(filepath.Join(t.TempDir(), "no-such-dir"))
