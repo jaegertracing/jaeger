@@ -8,7 +8,7 @@ a timestamp on 2017/04/21 will be stored in an index named `jaeger-2017-04-21`.
 
 It is common to only keep observability data for a limited time.
 However, Elasticsearch does not support expiring of old data via TTL.
-To purge old Jaeger indices, use [jaeger-es-index-cleaner](../../../cmd/es-index-cleaner/).
+To purge old Jaeger indices, use [jaeger-es-index-cleaner](../../../../cmd/es-index-cleaner/).
 
 ### Timestamps
 Because ElasticSearch's `Date` datatype has only millisecond granularity and Jaeger
@@ -39,7 +39,7 @@ the document will not be retrieved.
 ## Testing
 To locally test the ElasticSearch storage plugin,
 * have [ElasticSearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/setup.html) running on port 9200
-* run `STORAGE=es make storage-integration-test` in the top folder.
+* run `STORAGE=elasticsearch make storage-integration-test` in the top folder.
 
 All integration tests also run on pull request via GitHub Actions. This integration test is against ElasticSearch v7.x and v8.x.
 
@@ -48,6 +48,6 @@ and that script be run from the top folder to integration test ElasticSearch as 
 This script requires Docker to be running.
 
 ### Adding tests
-Integration test framework for storage lie under `../integration`.
-Add to `../integration/fixtures/traces/*.json` and `../integration/fixtures/queries.json` to add more
+Integration test framework for storage lie under `../../integration`.
+Add to `../../integration/fixtures/traces/*.json` and `../../integration/fixtures/queries.json` to add more
 trace cases.
