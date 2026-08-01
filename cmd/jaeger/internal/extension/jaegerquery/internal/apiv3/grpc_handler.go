@@ -90,12 +90,16 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
+	searchDepth := int(query.GetSearchDepth())
+	if searchDepth <= 0 {
+		searchDepth = defaultSearchDepth
+	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
 			OperationName: query.GetOperationName(),
 			Attributes:    jptrace.PlainMapToPcommonMap(query.GetAttributes()),
-			SearchDepth:   int(query.GetSearchDepth()),
+			SearchDepth:   searchDepth,
 			StartTimeMin:  query.GetStartTimeMin(),
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
