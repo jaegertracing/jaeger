@@ -86,7 +86,9 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 		},
 	}
 	resp, _ := json.Marshal(&errorResponse)
-	http.Error(w, string(resp), statusCode)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	w.Write(resp)
 	return true
 }
 
@@ -118,7 +120,9 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 			},
 		}
 		resp, _ := json.Marshal(&errorResponse)
-		http.Error(w, string(resp), http.StatusNotFound)
+		w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write(resp)
 		return
 	}
 	// TODO: the response should be streamed back to the client
