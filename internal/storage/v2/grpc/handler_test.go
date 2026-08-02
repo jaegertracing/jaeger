@@ -329,6 +329,16 @@ func TestHandler_FindTraces(t *testing.T) {
 	}
 }
 
+func TestHandler_FindTraces_NilQuery(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	server := NewHandler(reader, writer, depReader)
+	stream := &testStream{}
+	err := server.FindTraces(&storage.FindTracesRequest{Query: nil}, stream)
+	require.ErrorIs(t, err, status.Errorf(codes.InvalidArgument, "missing query"))
+}
+
 func TestHandler_FindTraceIDs(t *testing.T) {
 	query := tracestore.TraceQueryParams{
 		ServiceName:   "service",
@@ -407,6 +417,15 @@ func TestHandler_FindTraceIDs(t *testing.T) {
 			require.Equal(t, test.expectedTraceIDs, response.TraceIds)
 		}
 	}
+}
+
+func TestHandler_FindTraceIDs_NilQuery(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	server := NewHandler(reader, writer, depReader)
+	_, err := server.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: nil})
+	require.ErrorIs(t, err, status.Errorf(codes.InvalidArgument, "missing query"))
 }
 
 func TestHandler_Export(t *testing.T) {
@@ -843,4 +862,13 @@ func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
 		Query: &storage.TraceQueryParameters{},
 	}, &summaryStream{sendErr: assert.AnError})
 	require.ErrorIs(t, err, assert.AnError)
+}
+
+func TestHandler_FindTraceSummaries_NilQuery(t *testing.T) {
+	reader := new(tracestoremocks.Reader)
+	writer := new(tracestoremocks.Writer)
+	depReader := new(depstoremocks.Reader)
+	handler := NewHandler(reader, writer, depReader)
+	err := handler.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: nil}, &summaryStream{})
+	require.ErrorIs(t, err, status.Errorf(codes.InvalidArgument, "missing query"))
 }
