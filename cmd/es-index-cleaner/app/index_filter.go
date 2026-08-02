@@ -41,7 +41,7 @@ func (i *IndexFilter) filterByPattern(indices []esclient.Index) []esclient.Index
 	case i.Rollover:
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{6}", i.IndexPrefix))
 	default:
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
+		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, regexp.QuoteMeta(i.IndexDateSeparator), regexp.QuoteMeta(i.IndexDateSeparator)))
 	}
 
 	var filtered []esclient.Index
