@@ -97,7 +97,7 @@ func TestAIConfigValidateAcceptsAbsentOrAbsoluteMCPBaseURL(t *testing.T) {
 		"https://jaeger.example.com",
 	} {
 		cfg := validAIConfig()
-		cfg.MCP = configoptional.Some(MCPConfig{MCPBaseURL: u})
+		cfg.MCP = configoptional.Some(MCPConfig{BaseURL: u})
 		require.NoError(t, cfg.Validate(), "absolute URL %q must be accepted", u)
 	}
 }
@@ -106,7 +106,7 @@ func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
 	// A scheme-less or relative value would be announced verbatim and fail at the
 	// sidecar mid-turn — exactly what this field exists to prevent — so it must
 	// fail at config load instead.
-	const want = "ai.mcp.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686"
+	const want = "ai.mcp.base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686"
 	for _, u := range []string{
 		"jaeger.example.com:16686", // no scheme
 		"/api/ai/mcp",              // path only
@@ -114,7 +114,7 @@ func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
 		"://nonsense",              // unparseable
 	} {
 		cfg := validAIConfig()
-		cfg.MCP = configoptional.Some(MCPConfig{MCPBaseURL: u})
+		cfg.MCP = configoptional.Some(MCPConfig{BaseURL: u})
 		require.EqualError(t, cfg.Validate(), want, "relative/invalid URL %q must be rejected", u)
 	}
 }
@@ -264,7 +264,7 @@ func TestAIConfigResolveMCPBaseURL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := AIConfig{
 				AgentURL: tc.agentURL,
-				MCP:      configoptional.Some(MCPConfig{MCPBaseURL: tc.mcpBaseURL}),
+				MCP:      configoptional.Some(MCPConfig{BaseURL: tc.mcpBaseURL}),
 			}
 			assert.Equal(t, tc.want, cfg.resolveMCPBaseURL(context.Background(), tc.endpoint, tc.tls))
 		})

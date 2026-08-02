@@ -76,9 +76,9 @@ type AIConfig struct {
 // what enables the endpoint, so both fields are optional and an empty block is
 // the common case.
 type MCPConfig struct {
-	// MCPBaseURL is the externally-reachable scheme+authority a sidecar uses to
+	// BaseURL is the externally-reachable scheme+authority a sidecar uses to
 	// dial the turn-scoped MCP endpoint, e.g. "https://jaeger.example.com:16686".
-	// The gateway announces "<MCPBaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
+	// The gateway announces "<BaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
 	// the sidecar in the session/new request.
 	//
 	// Optional override. If left empty, the gateway infers its own loopback address
@@ -89,7 +89,7 @@ type MCPConfig struct {
 	// some other address — behind a proxy, in another network namespace, with TLS
 	// terminated elsewhere, or forwarded into a container — none of which the
 	// query server can infer. Ignored unless AgentURL is also set.
-	MCPBaseURL string `mapstructure:"mcp_base_url" valid:"optional"`
+	BaseURL string `mapstructure:"base_url" valid:"optional"`
 	// SkillsDir is a directory of operator-supplied skill playbooks on the query
 	// server's disk, served by the read_skill MCP tool under custom/ beside the
 	// built-in skills, so an installation can add its own without rebuilding
@@ -99,16 +99,16 @@ type MCPConfig struct {
 }
 
 func (c *MCPConfig) Validate() error {
-	if c.MCPBaseURL == "" {
+	if c.BaseURL == "" {
 		return nil
 	}
 	// Reject anything we cannot turn into a dialable absolute URL. A relative
 	// or scheme-less value would be announced verbatim and fail at the
 	// sidecar, which is exactly the mid-turn failure this field exists to
 	// avoid — so fail fast at config load instead.
-	u, err := url.Parse(c.MCPBaseURL)
+	u, err := url.Parse(c.BaseURL)
 	if err != nil || !u.IsAbs() || u.Host == "" {
-		return errors.New("ai.mcp.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
+		return errors.New("ai.mcp.base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
 	}
 	return nil
 }
@@ -158,7 +158,7 @@ func (c *AIConfig) Validate() error {
 }
 
 // resolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped
-// MCP endpoint, or "" to announce no HTTP transport. An explicit MCPBaseURL always
+// MCP endpoint, or "" to announce no HTTP transport. An explicit base_url always
 // wins. Otherwise the gateway infers its own loopback address, which requires every
 // leg of the round trip to hold:
 //
@@ -171,7 +171,7 @@ func (c *AIConfig) Validate() error {
 //     dial the gateway by, essentially never for an inferred loopback host, so an
 //     inferred https:// URL fails certificate verification at the sidecar.
 //
-// If any leg is unmet, nothing is announced until an operator sets MCPBaseURL. The
+// If any leg is unmet, nothing is announced until an operator sets base_url. The
 // gateway declines rather than guessing: a specific-interface bind or TLS is positive
 // evidence that an inferred loopback URL is wrong, and there is nothing else here to
 // derive a correct one from.
@@ -180,7 +180,7 @@ func (c *AIConfig) Validate() error {
 // container published with "-p 127.0.0.1:16688:16688", or "kubectl port-forward").
 // The gateway reaches the sidecar over loopback, but the sidecar's loopback is its
 // own namespace, where the gateway is not listening. That is indistinguishable from
-// genuine co-location here, and needs an explicit MCPBaseURL.
+// genuine co-location here, and needs an explicit base_url.
 //
 // httpEndpoint is the query server's own HTTP host:port and tlsEnabled its own TLS
 // setting; neither is derived from AgentURL, which only gates the inference.
@@ -189,8 +189,8 @@ func (c *AIConfig) resolveMCPBaseURL(ctx context.Context, httpEndpoint string, t
 	if mcp == nil {
 		return "" // MCP is off, so there is no endpoint to announce
 	}
-	if mcp.MCPBaseURL != "" {
-		return mcp.MCPBaseURL
+	if mcp.BaseURL != "" {
+		return mcp.BaseURL
 	}
 	if tlsEnabled {
 		return ""
