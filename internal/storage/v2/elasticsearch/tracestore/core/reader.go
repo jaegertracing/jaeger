@@ -526,6 +526,15 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	}
 
 	for k, v := range traceQuery.Tags {
+		// error=false is the complement of error=true. Since non-error spans
+		// (Ok and Unset status) carry no "error" tag stored in ES, searching
+		// for error=false as a literal tag value matches nothing. Instead,
+		// error=false should exclude spans that have error=true tag.
+		if k == "error" && v == "false" {
+			errorTrueQuery := s.buildTagQuery("error", "true")
+			boolQuery.MustNot(errorTrueQuery)
+			continue
+		}
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
