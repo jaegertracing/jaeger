@@ -19,7 +19,7 @@ Point `ai.mcp.skills_dir` at a directory on the query server's disk:
 extensions:
   jaeger_query:
     ai:
-      mcp:                      # skills are served over MCP
+      mcp:                      # skills served over MCP
         skills_dir: /etc/jaeger/skills
 ```
 
