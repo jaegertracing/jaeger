@@ -47,6 +47,11 @@ const (
 
 	defaultAPIPrefix  = "api"
 	prettyPrintIndent = "    "
+
+	// maxRequestBodyBytes caps incoming HTTP body size to prevent OOM via
+	// malicious oversized POST requests. 20 MB matches common reverse-proxy
+	// defaults and is well above any realistic OTLP trace batch size.
+	maxRequestBodyBytes = 20 * 1024 * 1024
 )
 
 // HTTPHandler handles http requests
@@ -184,8 +189,15 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 }
 
 func (aH *APIHandler) transformOTLP(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
 	body, err := io.ReadAll(r.Body)
-	if aH.handleError(w, err, http.StatusBadRequest) {
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+		aH.handleError(w, err, http.StatusBadRequest)
 		return
 	}
 

@@ -862,6 +862,16 @@ func TestBadOTLPReturns400(t *testing.T) {
 	}, querysvc.QueryServiceOptions{})
 }
 
+func TestTransformOTLP_BodyTooLarge(t *testing.T) {
+	withTestServer(t, func(ts *testServer) {
+		oversizedBody := bytes.NewReader(bytes.Repeat([]byte{0}, maxRequestBodyBytes+1))
+		resp, err := ts.server.Client().Post(ts.server.URL+"/api/transform", "application/json", oversizedBody)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		assert.Equal(t, http.StatusRequestEntityTooLarge, resp.StatusCode)
+	}, querysvc.QueryServiceOptions{})
+}
+
 func TestGetMetricsSuccess(t *testing.T) {
 	mr := &metricsmocks.Reader{}
 	apiHandlerOptions := []HandlerOption{
