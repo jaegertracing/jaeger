@@ -275,14 +275,20 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 	}
 
 	if statusAttr, ok := query.Attributes.Get("span.status"); ok {
-		expectedStatus := spanStatusFromString(statusAttr.AsString())
+		expectedStatus, valid := spanStatusFromString(statusAttr.AsString())
+		if !valid {
+			return false
+		}
 		if expectedStatus != span.Status().Code() {
 			return false
 		}
 	}
 
 	if kindAttr, ok := query.Attributes.Get("span.kind"); ok {
-		expectedKind := spanKindFromString(kindAttr.AsString())
+		expectedKind, valid := spanKindFromString(kindAttr.AsString())
+		if !valid {
+			return false
+		}
 		if expectedKind != span.Kind() {
 			return false
 		}
@@ -371,30 +377,34 @@ func errorQueryValue(attr pcommon.Value) (value bool, valid bool) {
 	}
 }
 
-func spanStatusFromString(statusStr string) ptrace.StatusCode {
+func spanStatusFromString(statusStr string) (ptrace.StatusCode, bool) {
 	switch strings.ToUpper(statusStr) {
 	case "OK":
-		return ptrace.StatusCodeOk
+		return ptrace.StatusCodeOk, true
 	case "ERROR":
-		return ptrace.StatusCodeError
+		return ptrace.StatusCodeError, true
+	case "UNSET":
+		return ptrace.StatusCodeUnset, true
 	default:
-		return ptrace.StatusCodeUnset
+		return ptrace.StatusCodeUnset, false
 	}
 }
 
-func spanKindFromString(kindStr string) ptrace.SpanKind {
+func spanKindFromString(kindStr string) (ptrace.SpanKind, bool) {
 	switch strings.ToUpper(kindStr) {
 	case "CLIENT":
-		return ptrace.SpanKindClient
+		return ptrace.SpanKindClient, true
 	case "SERVER":
-		return ptrace.SpanKindServer
+		return ptrace.SpanKindServer, true
 	case "PRODUCER":
-		return ptrace.SpanKindProducer
+		return ptrace.SpanKindProducer, true
 	case "CONSUMER":
-		return ptrace.SpanKindConsumer
+		return ptrace.SpanKindConsumer, true
 	case "INTERNAL":
-		return ptrace.SpanKindInternal
+		return ptrace.SpanKindInternal, true
+	case "UNSPECIFIED":
+		return ptrace.SpanKindUnspecified, true
 	default:
-		return ptrace.SpanKindUnspecified
+		return ptrace.SpanKindUnspecified, false
 	}
 }
