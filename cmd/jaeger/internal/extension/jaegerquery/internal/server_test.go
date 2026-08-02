@@ -10,6 +10,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +41,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -1147,6 +1150,37 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		require.Equal(t, http.StatusBadGateway, rr.Code)
 	})
 
+	// An unusable skills_dir is broken configuration, so it has to stop the
+	// server coming up rather than degrade to serving no custom skills.
+	t.Run("unusable skills_dir aborts startup", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{
+			EnableMCP:          true,
+			SkillsDir:          filepath.Join(t.TempDir(), "no-such-dir"),
+			MaxRequestBodySize: 1 << 20,
+		})
+
+		_, _, err := initRouter(context.Background(), querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.ErrorContains(t, err, "cannot open skills_dir")
+	})
+
+	// skills_dir stays open for as long as it is served, so the server has to
+	// hand it back as a closer rather than leave it to process exit.
+	t.Run("skills_dir is closed with the server", func(t *testing.T) {
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("catalog"), 0o600))
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{
+			EnableMCP:          true,
+			SkillsDir:          dir,
+			MaxRequestBodySize: 1 << 20,
+		})
+
+		_, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, querysvc.StorageCapabilities{}, nil, tenancyMgr, telset)
+		require.NoError(t, err)
+		require.NoError(t, cs.Close())
+	})
+
 	t.Run("mcp endpoint mounted in MCP-only mode", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{EnableMCP: true, MaxRequestBodySize: 1 << 20})
@@ -1234,7 +1268,7 @@ func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, telset)
+				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, mcptools.DefaultConfig(), telset)
 			})
 
 			want := "/api/ai/mcp/"
