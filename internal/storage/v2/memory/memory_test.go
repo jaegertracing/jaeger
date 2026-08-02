@@ -1088,6 +1088,12 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			expectedIDs:    []pcommon.TraceID{traceID5, traceID4, traceID3},
 		},
 		{
+			name:           "Filter by span.status=INVALID (default/unknown)",
+			queryAttrs:     map[string]string{"span.status": "INVALID"},
+			expectedTraces: 0,
+			expectedIDs:    []pcommon.TraceID{},
+		},
+		{
 			name:           "Filter by span.kind=SERVER",
 			queryAttrs:     map[string]string{"span.kind": "SERVER"},
 			expectedTraces: 1,
