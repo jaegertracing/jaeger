@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"sort"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -28,15 +29,18 @@ type queryServiceGetCriticalPathInterface interface {
 // This tool identifies the sequence of spans forming the critical latency path
 // (the blocking execution path) in a distributed trace.
 type getCriticalPathHandler struct {
-	queryService queryServiceGetCriticalPathInterface
+	queryService             queryServiceGetCriticalPathInterface
+	maxCriticalPathSegments  int
 }
 
 // NewGetCriticalPathHandler creates a new get_critical_path handler and returns the handler function.
 func NewGetCriticalPathHandler(
 	queryService *querysvc.QueryService,
+	maxCriticalPathSegments int,
 ) mcp.ToolHandlerFor[types.GetCriticalPathInput, types.GetCriticalPathOutput] {
 	h := &getCriticalPathHandler{
-		queryService: queryService,
+		queryService:            queryService,
+		maxCriticalPathSegments: maxCriticalPathSegments,
 	}
 	return h.handle
 }
@@ -75,16 +79,25 @@ func (h *getCriticalPathHandler) handle(
 		return nil, types.GetCriticalPathOutput{}, errors.New("trace not found")
 	}
 
-	// Compute critical path
+	// Compute critical path over the full trace
 	criticalPathSections, err := criticalpath.ComputeCriticalPathFromTraces(trace)
 	if err != nil {
 		return nil, types.GetCriticalPathOutput{}, fmt.Errorf("failed to compute critical path: %w", err)
 	}
 
 	// Build output
-	output := h.buildOutput(input.TraceID, trace, criticalPathSections)
+	output := h.buildOutput(input.TraceID, trace, criticalPathSections, h.effectiveMaxSegments(input))
 
 	return nil, output, nil
+}
+
+// effectiveMaxSegments returns the max segments to use, preferring the
+// caller-provided value over the server default.
+func (h *getCriticalPathHandler) effectiveMaxSegments(input types.GetCriticalPathInput) int {
+	if input.MaxSegments != nil && *input.MaxSegments > 0 {
+		return *input.MaxSegments
+	}
+	return h.maxCriticalPathSegments
 }
 
 // buildQuery converts GetCriticalPathInput to querysvc.GetTraceParams.
@@ -112,6 +125,7 @@ func (*getCriticalPathHandler) buildOutput(
 	traceIDStr string,
 	trace ptrace.Traces,
 	criticalPathSections []criticalpath.Section,
+	maxSegments int,
 ) types.GetCriticalPathOutput {
 	// Build a map of spans for quick lookup
 	spanMap := jptrace.SpanMap(trace, func(span ptrace.Span) string {
@@ -176,10 +190,28 @@ func (*getCriticalPathHandler) buildOutput(
 		})
 	}
 
+	totalSegmentCount := len(segments)
+
+	// Cap segments to the configured limit, keeping the ones with the largest
+	// self_time_us. This follows the same pattern as get_trace_errors which
+	// computes over the full trace and caps the returned list.
+	if maxSegments > 0 && len(segments) > maxSegments {
+		// Sort by SelfTimeUs descending so we keep the most meaningful segments
+		sort.Slice(segments, func(i, j int) bool {
+			return segments[i].SelfTimeUs > segments[j].SelfTimeUs
+		})
+		segments = segments[:maxSegments]
+		// Re-sort by StartOffsetUs to maintain chronological order
+		sort.Slice(segments, func(i, j int) bool {
+			return segments[i].StartOffsetUs < segments[j].StartOffsetUs
+		})
+	}
+
 	return types.GetCriticalPathOutput{
 		TraceID:                traceIDStr,
 		TotalDurationUs:        traceEndTime - traceStartTime,
 		CriticalPathDurationUs: criticalPathDuration,
 		Segments:               segments,
+		TotalSegmentCount:      totalSegmentCount,
 	}
 }
