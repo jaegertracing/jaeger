@@ -13,10 +13,11 @@ import (
 // Default tunables for the telemetry MCP server, preserved from the retired
 // jaeger_mcp extension.
 const (
-	DefaultServerName               = "jaeger"
-	DefaultMaxSpanDetailsPerRequest = 20
-	DefaultMaxSearchResults         = 100
-	DefaultMaxReadFileSize          = 512 * 1024
+	DefaultServerName                   = "jaeger"
+	DefaultMaxSpanDetailsPerRequest     = 20
+	DefaultMaxSearchResults             = 100
+	DefaultMaxCriticalPathSegments      = 20
+	DefaultMaxReadFileSize              = 512 * 1024
 
 	// mcpSessionTimeout caps an idle MCP session. The streamable handler keeps
 	// per-MCP-session state for SSE resumption and stream-id correlation.
@@ -27,17 +28,21 @@ const (
 // non-transport slice of the retired jaeger_mcp extension's config — the HTTP
 // listener is gone because the handler now mounts on jaeger-query's own mux.
 type Config struct {
-	ServerName               string
-	ServerVersion            string
-	MaxSpanDetailsPerRequest int
-	MaxSearchResults         int
+	ServerName                   string
+	ServerVersion                string
+	MaxSpanDetailsPerRequest     int
+	MaxSearchResults             int
+	// MaxCriticalPathSegments bounds the number of segments returned by
+	// get_critical_path. The critical path is computed over the full trace,
+	// and only the top-N segments with the largest self_time_us are returned.
+	MaxCriticalPathSegments      int
 	// MaxReadFileSize bounds the size (bytes) of a file served by read_skill.
-	MaxReadFileSize int64
+	MaxReadFileSize              int64
 	// CustomSkillsFS is the operator's skills directory (ai.skills_dir),
 	// already opened by the caller, served by read_skill under custom/ beside
 	// the built-in skills. Nil means none is configured, and only the built-ins
 	// are served.
-	CustomSkillsFS fs.FS
+	CustomSkillsFS               fs.FS
 }
 
 // DefaultConfig returns the Config the standalone jaeger_mcp extension used, so
@@ -48,10 +53,11 @@ func DefaultConfig() Config {
 		ver = "dev"
 	}
 	return Config{
-		ServerName:               DefaultServerName,
-		ServerVersion:            ver,
-		MaxSpanDetailsPerRequest: DefaultMaxSpanDetailsPerRequest,
-		MaxSearchResults:         DefaultMaxSearchResults,
-		MaxReadFileSize:          DefaultMaxReadFileSize,
+		ServerName:                DefaultServerName,
+		ServerVersion:             ver,
+		MaxSpanDetailsPerRequest:  DefaultMaxSpanDetailsPerRequest,
+		MaxSearchResults:          DefaultMaxSearchResults,
+		MaxCriticalPathSegments:   DefaultMaxCriticalPathSegments,
+		MaxReadFileSize:           DefaultMaxReadFileSize,
 	}
 }
