@@ -67,7 +67,7 @@ func createCriticalPathTestTrace() ptrace.Traces {
 
 func TestNewGetCriticalPathHandler(t *testing.T) {
 	// We can pass nil because we only check if it returns a handler function
-	handler := NewGetCriticalPathHandler(nil)
+	handler := NewGetCriticalPathHandler(nil, 20)
 	assert.NotNil(t, handler)
 }
 
@@ -77,7 +77,8 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 		traces: []ptrace.Traces{traces},
 	}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -91,6 +92,7 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 	assert.Positive(t, output.TotalDurationUs)
 	assert.Positive(t, output.CriticalPathDurationUs)
 	assert.NotEmpty(t, output.Segments)
+	assert.Equal(t, len(output.Segments), output.TotalSegmentCount)
 
 	// Verify path contains span information
 	for _, span := range output.Segments {
@@ -103,7 +105,8 @@ func TestGetCriticalPathHandler_Handle_Success(t *testing.T) {
 func TestGetCriticalPathHandler_Handle_EmptyTraceID(t *testing.T) {
 	mockQS := &mockGetCriticalPathQueryService{}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -118,7 +121,8 @@ func TestGetCriticalPathHandler_Handle_EmptyTraceID(t *testing.T) {
 func TestGetCriticalPathHandler_Handle_InvalidTraceID(t *testing.T) {
 	mockQS := &mockGetCriticalPathQueryService{}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -135,7 +139,8 @@ func TestGetCriticalPathHandler_Handle_QueryServiceError(t *testing.T) {
 		err: errors.New("query service error"),
 	}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -152,7 +157,8 @@ func TestGetCriticalPathHandler_Handle_TraceNotFound(t *testing.T) {
 		traces: []ptrace.Traces{}, // empty traces
 	}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -182,7 +188,8 @@ func TestGetCriticalPathHandler_Handle_InvalidTrace(t *testing.T) {
 		traces: []ptrace.Traces{traces},
 	}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -226,7 +233,8 @@ func TestGetCriticalPathHandler_Handle_MultipleServices(t *testing.T) {
 		traces: []ptrace.Traces{traces},
 	}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -261,7 +269,8 @@ func TestGetCriticalPathHandler_Handle_UnknownService(t *testing.T) {
 		traces: []ptrace.Traces{traces},
 	}
 	handler := &getCriticalPathHandler{
-		queryService: mockQS,
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
 	}
 
 	input := types.GetCriticalPathInput{
@@ -309,9 +318,90 @@ func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 		},
 	}
 
-	output := handler.buildOutput(traceID, traces, sections)
+	output := handler.buildOutput(traceID, traces, sections, 20)
 
 	// Should only have 1 segment for the existing span
 	assert.Len(t, output.Segments, 1)
 	assert.Equal(t, span.SpanID().String(), output.Segments[0].SpanID)
+	assert.Equal(t, 1, output.TotalSegmentCount)
+}
+
+func TestGetCriticalPathHandler_SegmentCap(t *testing.T) {
+	// Test that the segment cap correctly limits the number of returned segments
+	// and sets TotalSegmentCount to the full count.
+	handler := &getCriticalPathHandler{}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	// Create 5 spans with different self times
+	for i := 0; i < 5; i++ {
+		sp := ss.Spans().AppendEmpty()
+		sp.SetSpanID([8]byte{byte(i + 1)})
+		sp.SetTraceID([16]byte{1})
+		sp.SetStartTimestamp(pcommon.Timestamp(uint64(1000+i*100) * 1000))
+		sp.SetEndTimestamp(pcommon.Timestamp(uint64(2000+i*100) * 1000))
+		sp.SetName("span")
+	}
+
+	traceID := "00000000000000000000000000000001"
+
+	sections := make([]criticalpath.Section, 5)
+	for i := 0; i < 5; i++ {
+		spanID := [8]byte{byte(i + 1)}
+		sections[i] = criticalpath.Section{
+			SpanID:       spanID.String(),
+			SectionStart: uint64(1000 + i*100),
+			SectionEnd:   uint64(2000 + i*100),
+		}
+	}
+
+	// Cap to 3 segments
+	output := handler.buildOutput(traceID, traces, sections, 3)
+
+	assert.Len(t, output.Segments, 3)
+	assert.Equal(t, 5, output.TotalSegmentCount)
+}
+
+func TestGetCriticalPathHandler_Handle_WithMaxSegmentsInput(t *testing.T) {
+	traces := createCriticalPathTestTrace()
+	mockQS := &mockGetCriticalPathQueryService{
+		traces: []ptrace.Traces{traces},
+	}
+	handler := &getCriticalPathHandler{
+		queryService:            mockQS,
+		maxCriticalPathSegments: 20,
+	}
+
+	maxSeg := 1
+	input := types.GetCriticalPathInput{
+		TraceID:     "00000000000000000000000000000001",
+		MaxSegments: &maxSeg,
+	}
+
+	_, output, err := handler.handle(context.Background(), nil, input)
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(output.Segments), 1)
+	assert.Equal(t, len(output.Segments), output.TotalSegmentCount)
+}
+
+func TestGetCriticalPathHandler_EffectiveMaxSegments(t *testing.T) {
+	handler := &getCriticalPathHandler{
+		maxCriticalPathSegments: 20,
+	}
+
+	// No input override -> server default
+	input := types.GetCriticalPathInput{}
+	assert.Equal(t, 20, handler.effectiveMaxSegments(input))
+
+	// With input override
+	maxSeg := 5
+	input.MaxSegments = &maxSeg
+	assert.Equal(t, 5, handler.effectiveMaxSegments(input))
+
+	// Zero input override -> server default
+	zero := 0
+	input.MaxSegments = &zero
+	assert.Equal(t, 20, handler.effectiveMaxSegments(input))
 }
