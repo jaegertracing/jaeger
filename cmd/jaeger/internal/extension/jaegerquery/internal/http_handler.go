@@ -556,7 +556,9 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 		},
 	}
 	resp, _ := json.Marshal(&structuredResp)
-	http.Error(w, string(resp), statusCode)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	w.Write(resp)
 	return true
 }
 
