@@ -589,3 +589,81 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, output.Traces, 3)
 }
+
+func TestSearchTracesHandler_Handle_WithErrorsConflict(t *testing.T) {
+	tests := []struct {
+		name      string
+		errorVal  string
+		wantError string
+	}{
+		{
+			name:      "error=false conflicts with with_errors=true",
+			errorVal:  "false",
+			wantError: `with_errors=true conflicts with attributes.error="false"`,
+		},
+		{
+			name:      "error=0 conflicts with with_errors=true",
+			errorVal:  "0",
+			wantError: `with_errors=true conflicts with attributes.error="0"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &searchTracesHandler{queryService: nil, maxResults: 100}
+			_, err := handler.buildQuery(types.SearchTracesInput{
+				StartTimeMin: "-1h",
+				ServiceName:  "test",
+				Attributes:   map[string]string{"error": tt.errorVal},
+				WithErrors:   true,
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantError)
+		})
+	}
+}
+
+func TestSearchTracesHandler_Handle_WithErrorsNoConflict(t *testing.T) {
+	tests := []struct {
+		name     string
+		errorVal string
+	}{
+		{
+			name:     "error=true with with_errors=true is allowed",
+			errorVal: "true",
+		},
+		{
+			name:     "no error attribute with with_errors=true is allowed",
+			errorVal: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockQueryService{
+				findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+					errorAttr, ok := query.Attributes.Get("error")
+					require.True(t, ok)
+					assert.Equal(t, "true", errorAttr.Str())
+					return func(yield func([]tracestore.TraceSummary, error) bool) {
+						yield([]tracestore.TraceSummary{makeTraceSummary("test", "/op", true)}, nil)
+					}
+				},
+			}
+
+			handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+			input := types.SearchTracesInput{
+				StartTimeMin: "-1h",
+				ServiceName:  "test",
+				WithErrors:   true,
+			}
+			if tt.errorVal != "" {
+				input.Attributes = map[string]string{"error": tt.errorVal}
+			}
+
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+			require.NoError(t, err)
+			require.Len(t, output.Traces, 1)
+		})
+	}
+}

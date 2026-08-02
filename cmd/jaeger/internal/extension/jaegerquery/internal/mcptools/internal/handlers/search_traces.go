@@ -170,6 +170,10 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		attributes.PutStr(key, value)
 	}
 	if input.WithErrors {
+		if v, ok := input.Attributes["error"]; ok && v != "true" {
+			return querysvc.TraceQueryParams{}, fmt.Errorf(
+				"with_errors=true conflicts with attributes.error=%q: set attributes.error=\"true\" or remove with_errors", v)
+		}
 		attributes.PutStr("error", "true")
 	}
 
