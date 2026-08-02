@@ -73,6 +73,7 @@ jobs:
       uses: oracle-actions/configure-kubectl-oke@77a733d79446dabe7bf0e58eb56197d33ce4dc58 # v1.5.0
       with:
         cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+        region: ${{ secrets.OCI_CLI_REGION }}
         enablePrivateEndpoint: false
 
     - name: Install Helm
