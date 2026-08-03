@@ -15,7 +15,7 @@ type GetCriticalPathOutput struct {
 	TotalDurationUs        uint64                `json:"total_duration_us" jsonschema:"Total trace duration in microseconds"`
 	CriticalPathDurationUs uint64                `json:"critical_path_duration_us" jsonschema:"Total duration of critical path in microseconds"`
 	TotalSegmentCount      int                   `json:"total_segment_count" jsonschema:"Total number of segments on the critical path (may exceed the size of the segments list due to per-request limits)"`
-	Segments               []CriticalPathSegment `json:"segments" jsonschema:"Span segments on the critical path, ordered chronologically unless truncated, in which case the highest self_time_us segments are kept (possibly truncated to server-configured limit)"`
+	Segments               []CriticalPathSegment `json:"segments" jsonschema:"Span segments on the critical path, ordered chronologically unless truncated to the server-configured limit, in which case the highest self_time_us segments are kept and returned in descending self_time_us order"`
 }
 
 // CriticalPathSegment represents a span segment on the critical path.

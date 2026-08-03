@@ -200,15 +200,15 @@ func (h *getCriticalPathHandler) buildOutput(
 // path. When capping is needed, the segments with the highest self_time_us are
 // kept, since those are the ones the tool description tells callers to look at
 // first, and a stable sort preserves their original chronological order among
-// ties and within the kept set.
+// ties. segments is freshly built by the caller for this response and held
+// nowhere else, so it is safe to sort in place instead of cloning.
 func (h *getCriticalPathHandler) capSegments(segments []types.CriticalPathSegment) []types.CriticalPathSegment {
 	if h.maxSpanDetailsPerRequest <= 0 || len(segments) <= h.maxSpanDetailsPerRequest {
 		return segments
 	}
 
-	kept := slices.Clone(segments)
-	slices.SortStableFunc(kept, func(a, b types.CriticalPathSegment) int {
+	slices.SortStableFunc(segments, func(a, b types.CriticalPathSegment) int {
 		return cmp.Compare(b.SelfTimeUs, a.SelfTimeUs) // descending
 	})
-	return kept[:h.maxSpanDetailsPerRequest]
+	return segments[:h.maxSpanDetailsPerRequest]
 }
