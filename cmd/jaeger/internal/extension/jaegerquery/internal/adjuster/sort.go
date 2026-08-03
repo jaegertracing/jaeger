@@ -4,11 +4,11 @@
 package adjuster
 
 import (
-	"cmp"
-	"slices"
+ 	"cmp"
+	 "slices"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
-	"go.opentelemetry.io/collector/pdata/ptrace"
+	 "opentelemetry.io/collector/pdata/pcommon"
+	 "opentelemetry.io/collector/pdata/ptrace"
 )
 
 var _ Adjuster = (*SortAttributesAndEventsAdjuster)(nil)
@@ -17,7 +17,7 @@ var _ Adjuster = (*SortAttributesAndEventsAdjuster)(nil)
 // - Resource attributes are sorted lexicographically by their keys.
 // - Scope attributes are sorted lexicographically by their keys.
 // - Span attributes are sorted lexicographically by their keys.
-// - Span events are sorted lexicographically by their names.
+// - Span events are sorted chronologically by their timestamps.
 // - Attributes within each span event are sorted lexicographically by their keys.
 // - Attributes within each span link are sorted lexicographically by their keys.
 func SortCollections() SortAttributesAndEventsAdjuster {
@@ -79,7 +79,7 @@ func (SortAttributesAndEventsAdjuster) sortAttributes(attributes pcommon.Map) {
 
 func (s SortAttributesAndEventsAdjuster) sortEvents(events ptrace.SpanEventSlice) {
 	events.Sort(func(a, b ptrace.SpanEvent) bool {
-		return a.Name() < b.Name()
+		return a.Timestamp() < b.Timestamp()
 	})
 	for i := 0; i < events.Len(); i++ {
 		event := events.At(i)
