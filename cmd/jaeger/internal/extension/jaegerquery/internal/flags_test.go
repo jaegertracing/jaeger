@@ -85,24 +85,21 @@ func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 	}
 }
 
-func TestAIConfigValidateAcceptsAbsentOrAbsoluteMCPBaseURL(t *testing.T) {
+func TestMCPConfigValidateAcceptsAbsentOrAbsoluteBaseURL(t *testing.T) {
 	// Empty is valid — the announced URL is then resolved from AgentURL
 	// (see resolveMCPBaseURL); only an explicit override is validated here.
-	cfg := validAIConfig()
-	require.NoError(t, cfg.Validate())
+	require.NoError(t, (&MCPConfig{}).Validate())
 
 	for _, u := range []string{
 		"http://127.0.0.1:16686",
 		"https://jaeger.example.com:16686",
 		"https://jaeger.example.com",
 	} {
-		cfg := validAIConfig()
-		cfg.MCP = configoptional.Some(MCPConfig{BaseURL: u})
-		require.NoError(t, cfg.Validate(), "absolute URL %q must be accepted", u)
+		require.NoError(t, (&MCPConfig{BaseURL: u}).Validate(), "absolute URL %q must be accepted", u)
 	}
 }
 
-func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
+func TestMCPConfigValidateRejectsRelativeBaseURL(t *testing.T) {
 	// A scheme-less or relative value would be announced verbatim and fail at the
 	// sidecar mid-turn — exactly what this field exists to prevent — so it must
 	// fail at config load instead.
@@ -113,9 +110,7 @@ func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
 		"http://",                  // no host
 		"://nonsense",              // unparseable
 	} {
-		cfg := validAIConfig()
-		cfg.MCP = configoptional.Some(MCPConfig{BaseURL: u})
-		require.EqualError(t, cfg.Validate(), want, "relative/invalid URL %q must be rejected", u)
+		require.EqualError(t, (&MCPConfig{BaseURL: u}).Validate(), want, "relative/invalid URL %q must be rejected", u)
 	}
 }
 

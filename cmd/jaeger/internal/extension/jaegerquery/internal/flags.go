@@ -149,11 +149,9 @@ func (c *AIConfig) Validate() error {
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
-	// Reached through the collector's config walk as well, but AI config is also
-	// validated directly (see initRouter), so delegate rather than rely on that.
-	if mcp := c.MCP.Get(); mcp != nil {
-		return mcp.Validate()
-	}
+	// MCPConfig.Validate is reached by the collector's config walk on its own,
+	// the same way OTLPProxyConfig's is; delegating to it here would only
+	// duplicate the check and drop the "mcp:" path segment from the message.
 	return nil
 }
 
