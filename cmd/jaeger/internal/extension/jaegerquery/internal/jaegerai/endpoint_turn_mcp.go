@@ -53,11 +53,11 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 	return id
 }
 
-// turnScopedEndpoint serves the turn-scoped MCP endpoint. It advertises the
-// built-in telemetry tools plus the UI tools the frontend declared for that
-// turn, and dispatches UI-tool calls back to the browser over the turn's
-// SSE stream. Access is gated to route ids that belong to an active chat turn
-// (present in turnRegistry).
+// turnScopedEndpoint serves the turn-scoped MCP endpoint. It advertises the UI
+// tools the frontend declared for that turn — plus, when the operator enabled the
+// telemetry MCP server, the built-in telemetry tools — and dispatches UI-tool calls
+// back to the browser over the turn's SSE stream. Access is gated to route ids that
+// belong to an active chat turn (present in turnRegistry).
 type turnScopedEndpoint struct {
 	// streamable is the MCP streamable-HTTP handler (from mcptools.WrapHTTP)
 	// serving a single shared telemetry server. Per-turn UI tools are layered
@@ -82,14 +82,23 @@ type turnScopedEndpointBuilder struct {
 	turns      *turnRegistry
 	basePath   string
 	mcpConfig  mcptools.Config
+	// enableMCP layers the built-in telemetry tools onto the server. When false,
+	// the endpoint serves the turn's UI tools alone, so UI-tool dispatch does not
+	// depend on ai.enable_mcp.
+	enableMCP bool
 }
 
-// build assembles the turn-scoped handler around a single shared MCP server:
-// the telemetry tools are a fixed capability registered once, and each turn's
-// UI tools are layered on per-request by uiToolsMiddleware, so no server has to
-// be stood up per turn.
+// build assembles the turn-scoped handler around a single shared MCP server. The
+// per-turn UI tools are layered on per-request by uiToolsMiddleware, so no server
+// has to be stood up per turn. Whether the server also carries the built-in
+// telemetry tools is gated by enableMCP; without them it serves UI tools alone.
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
-	srv := mcptools.NewServer(b.telset, b.queryAPI, b.mcpConfig)
+	var srv *mcp.Server
+	if b.enableMCP {
+		srv = mcptools.NewServer(b.telset, b.queryAPI, b.mcpConfig)
+	} else {
+		srv = mcptools.NewServerWithoutTools(b.telset, b.mcpConfig)
+	}
 	srv.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.telset.Logger))
 	return &turnScopedEndpoint{
 		streamable: mcptools.WrapHTTP(srv, b.tenancyMgr, b.telset),

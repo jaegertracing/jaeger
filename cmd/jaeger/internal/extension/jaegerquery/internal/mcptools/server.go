@@ -49,7 +49,29 @@ var skillsEmbedFS embed.FS
 // middleware) build a server here, add their middleware, and serve it with
 // WrapHTTP.
 func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
-	server := mcp.NewServer(
+	server := newBareServer(cfg)
+	registerTools(server, queryAPI, cfg)
+	addObservabilityMiddleware(server, telset)
+	return server
+}
+
+// NewServerWithoutTools builds an *mcp.Server with the same identity and
+// tracing/metrics middleware as NewServer but no telemetry tools registered. It
+// backs a turn-scoped endpoint that serves only a turn's UI tools (layered on via
+// receiving middleware) when the operator has not enabled the telemetry MCP server
+// — so UI-tool dispatch does not depend on ai.enable_mcp. It needs no
+// QueryService, since it registers no query-backed tools.
+func NewServerWithoutTools(telset telemetry.Settings, cfg Config) *mcp.Server {
+	server := newBareServer(cfg)
+	addObservabilityMiddleware(server, telset)
+	return server
+}
+
+// newBareServer builds the server shell — identity and instructions — with neither
+// tools nor middleware, so NewServer and NewServerWithoutTools share one definition
+// of what the Jaeger MCP server *is*.
+func newBareServer(cfg Config) *mcp.Server {
+	return mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
 			Version: cfg.ServerVersion,
@@ -58,8 +80,12 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 			Instructions: serverInstructions,
 		},
 	)
-	registerTools(server, queryAPI, cfg)
+}
 
+// addObservabilityMiddleware installs the tracing and (best-effort) metrics
+// receiving middleware, so every request the server dispatches — a telemetry tool
+// call or a middleware-layered UI tool call — is traced and metered the same way.
+func addObservabilityMiddleware(server *mcp.Server, telset telemetry.Settings) {
 	mw := []mcp.Middleware{
 		createTracingMiddleware(telset.TracerProvider),
 	}
@@ -70,7 +96,6 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 		mw = append(mw, metricsMiddleware)
 	}
 	server.AddReceivingMiddleware(mw...)
-	return server
 }
 
 // WrapHTTP serves an *mcp.Server as an http.Handler over streamable HTTP, with

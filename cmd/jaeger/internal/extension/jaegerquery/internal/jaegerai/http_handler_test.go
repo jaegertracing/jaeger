@@ -24,10 +24,10 @@ import (
 )
 
 func TestNewHandlerBuildsEndpoints(t *testing.T) {
-	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
-	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when EnableMCP is false")
+	assert.NotNil(t, h.mcp, "the turn-scoped endpoint is built for a chat gateway even when EnableMCP is false (it carries the turn's UI tools)")
 }
 
 func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
@@ -62,7 +62,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: tc.basePath, MaxRequestBodySize: 1 << 20})
+			h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: tc.basePath, MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
 			mux := http.NewServeMux()
 			h.RegisterRoutes(mux)
 
@@ -79,7 +79,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 }
 
 func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
-	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "/jaeger/", MaxRequestBodySize: 1 << 20})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "/jaeger/", MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
 	assert.Equal(t, "/jaeger", h.basePath, "NewHandler must trim the trailing slash")
 }
 
@@ -147,16 +147,36 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	})
 }
 
-func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
-	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
+// TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry is the M7.2 behavior at the
+// route level: even with the telemetry MCP server disabled (enable_mcp: false), a
+// chat gateway still mounts the turn-scoped endpoint so the turn's UI tools can
+// dispatch over MCP. A registered turn is served; an unknown one is still 404.
+func TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry(t *testing.T) {
+	h := NewHandler(HandlerParams{
+		Logger:             zap.NewNop(),
+		AgentURL:           "ws://127.0.0.1:1",
+		BasePath:           "",
+		MaxRequestBodySize: 1 << 20,
+		EnableMCP:          false,
+		Telset:             telemetry.NoopSettings(),
+		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
+	})
+	require.NotNil(t, h.mcp, "turn-scoped endpoint must be mounted for a chat gateway even without enable_mcp")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
+	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
 
-	// With MCP disabled the route is never mounted, so any turn URL is a 404
-	// regardless of whether a turn is active.
-	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any-id/mcp", http.NoBody))
-	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
+	t.Run("active turn is served", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID+"/mcp", http.NoBody))
+		assert.NotEqual(t, http.StatusNotFound, rr.Code, "a registered turn must reach the endpoint even without telemetry")
+	})
+
+	t.Run("unknown route id is rejected", func(t *testing.T) {
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/ghost/mcp", http.NoBody))
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+	})
 }
 
 // TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
@@ -180,10 +200,10 @@ func TestHandlerCloseReapsMCPSessions(t *testing.T) {
 		"Close must reap every session left on the shared server")
 }
 
-// TestHandlerCloseIsNoOpWhenNothingToClose covers the two shapes jaeger-query holds
-// when the gateway is not fully enabled: a nil Handler (no AI at all) and a Handler
-// with no MCP server (chat only). Both must close to nothing, because
-// httpServer.Close calls straight through without a guard.
+// TestHandlerCloseIsNoOpWhenNothingToClose covers the shapes jaeger-query holds
+// when the gateway is not fully enabled: a nil Handler (no AI at all), and a
+// chat-only Handler whose turn-scoped endpoint has no bound sessions. Both must
+// close to nothing, because httpServer.Close calls straight through without a guard.
 func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
 	var nilHandler *Handler
 	require.NoError(t, nilHandler.Close(), "a nil gateway must be closable")
@@ -193,7 +213,9 @@ func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
 		AgentURL:           "ws://127.0.0.1:1",
 		MaxRequestBodySize: 1 << 20,
 		Telset:             telemetry.NoopSettings(),
+		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
 	})
-	require.Nil(t, chatOnly.mcp)
-	require.NoError(t, chatOnly.Close())
+	require.NotNil(t, chatOnly.mcp, "chat mounts the turn-scoped endpoint for UI tools")
+	require.Empty(t, slices.Collect(chatOnly.mcp.server.Sessions()), "no sessions bound yet")
+	require.NoError(t, chatOnly.Close(), "closing with no bound sessions is a no-op")
 }

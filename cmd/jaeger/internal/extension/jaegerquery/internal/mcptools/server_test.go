@@ -97,6 +97,19 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 	require.NotNil(t, srv)
 }
 
+// TestNewServerWithoutTools verifies the server carries no telemetry tools — it
+// backs the turn-scoped endpoint's UI-tools-only mode (enable_mcp off), where the
+// built-in telemetry query tools must not be advertised.
+func TestNewServerWithoutTools(t *testing.T) {
+	srv := NewServerWithoutTools(telemetry.NoopSettings(), DefaultConfig())
+	handler := WrapHTTP(srv, tenancy.NewManager(&tenancy.Options{}), telemetry.NoopSettings())
+
+	session := connectTestClient(t, handler)
+	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	assert.Empty(t, listed.Tools, "a server built without tools must advertise none")
+}
+
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
 // bare server (in-memory transport, no HTTP stack). Registration only, so the
 // QueryService is backed by empty mocks that are never invoked.
