@@ -59,18 +59,14 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // belong to an active chat turn (present in turnRegistry).
 type turnScopedEndpoint struct {
 	// streamable is the closeable MCP streamable-HTTP handler (from
-	// mcptools.WrapHTTP) serving a single shared server. Per-turn UI tools are
-	// layered on by the uiToolsMiddleware registered on that server, keyed by the
-	// route id carried in the request context. Its Close reaps the server's
-	// sessions, so this endpoint's Close simply delegates to it.
+	// mcptools.WrapHTTP) serving a single shared server, which it also owns and
+	// reaps on Close. Per-turn UI tools are layered on by the uiToolsMiddleware
+	// registered on that server, keyed by the route id carried in the request
+	// context. This endpoint's Close simply delegates to streamable.
 	streamable *mcptools.Handler
-	// server is the shared MCP server behind streamable. It is retained only so the
-	// chat endpoint can gate its announcement on MCP being wired (see
-	// chatEndpoint.announceMCP); teardown is delegated to streamable, not done here.
-	server   *mcp.Server
-	turns    *turnRegistry
-	basePath string
-	logger   *zap.Logger
+	turns      *turnRegistry
+	basePath   string
+	logger     *zap.Logger
 }
 
 // turnScopedEndpointBuilder collects the endpoint's dependencies. mcpConfig
@@ -103,7 +99,6 @@ func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	srv.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.telset.Logger))
 	return &turnScopedEndpoint{
 		streamable: mcptools.WrapHTTP(srv, b.tenancyMgr, b.telset),
-		server:     srv,
 		turns:      b.turns,
 		basePath:   b.basePath,
 		logger:     b.telset.Logger,
