@@ -5,8 +5,10 @@ package adjuster
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
@@ -33,11 +35,13 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 
 		event2 := span.Events().AppendEmpty()
 		event2.SetName("event2")
+		event2.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, 100)))
 		event2.Attributes().PutStr("attributeU", "valE")
 		event2.Attributes().PutStr("attributeT", "valF")
 
 		event1 := span.Events().AppendEmpty()
 		event1.SetName("event1")
+		event1.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, 200)))
 		event1.Attributes().PutStr("attributeR", "valE")
 		event1.Attributes().PutStr("attributeS", "valF")
 
@@ -72,6 +76,7 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 
 		event1 := span.Events().AppendEmpty()
 		event1.SetName("event1")
+		event1.SetTimestamp(pcommon.NewTimestampFromTime(time.Unix(0, 200)))
 		event1.Attributes().PutStr("attributeR", "valE")
 		event1.Attributes().PutStr("attributeS", "valF")
 
