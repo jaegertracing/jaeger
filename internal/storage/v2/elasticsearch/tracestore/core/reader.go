@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -43,6 +44,7 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
+	errorTag               = "error"
 
 	defaultSearchDepth = 100
 
@@ -526,6 +528,21 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	}
 
 	for k, v := range traceQuery.Tags {
+		// The error tag is only written for error spans (error=true; see
+		// getTagFromStatusCode in to_dbmodel.go). A non-error span carries no error
+		// tag at all, so a literal error=false tag match returns nothing. Treat
+		// error=false as the complement of error=true — every non-error span — by
+		// excluding error=true instead, mirroring the in-memory store (#9096).
+		if k == errorTag {
+			if isError, parseErr := strconv.ParseBool(v); parseErr == nil {
+				if isError {
+					boolQuery.Must(s.buildTagQuery(errorTag, "true"))
+				} else {
+					boolQuery.MustNot(s.buildTagQuery(errorTag, "true"))
+				}
+				continue
+			}
+		}
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
