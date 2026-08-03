@@ -129,6 +129,17 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 	}
 }
 
+// SharedMCPHandler returns a handler that serves this gateway's MCP server as the
+// shared (turn-less) telemetry endpoint — the very server that backs the turn-scoped
+// endpoint. The uiToolsMiddleware degrades to telemetry-only when a request carries
+// no turn (external clients on the shared mount never get a route id stamped), so one
+// server serves both mounts. The query server mounts this at /api/ai/mcp/ instead of
+// standing up a second server (M7); it is reaped by this Handler's Close. The
+// turn-scoped endpoint is always built for a chat gateway, so h.mcp is non-nil here.
+func (h *Handler) SharedMCPHandler() http.Handler {
+	return h.mcp.streamable
+}
+
 var _ io.Closer = (*Handler)(nil)
 
 // Close shuts down the endpoints that hold resources past the request that opened

@@ -89,6 +89,26 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
 }
 
+// TestSharedMCPHandlerServesTelemetryOnly is the M7 collapse: the shared mount
+// reuses the gateway's turn-scoped server, and with no turn in the request the
+// uiToolsMiddleware degrades to telemetry-only — so an external client on the shared
+// handler sees the built-in telemetry tools (one server backs both mounts).
+func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
+	h := mcpEnabledHandler(t, "")
+	ts := httptest.NewServer(h.SharedMCPHandler())
+	t.Cleanup(ts.Close)
+
+	session := connectTurnMCP(t, ts, "")
+	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+
+	got := make([]string, 0, len(listed.Tools))
+	for _, tool := range listed.Tools {
+		got = append(got, tool.Name)
+	}
+	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools via the gateway's server")
+}
+
 // TestTurnScopedEndpointWithoutTelemetryServesUIToolsOnly is the M7.2 contract:
 // with the telemetry MCP server disabled (enable_mcp: false) but chat on, the
 // turn-scoped endpoint still serves the turn's UI tools — so UI-tool dispatch does

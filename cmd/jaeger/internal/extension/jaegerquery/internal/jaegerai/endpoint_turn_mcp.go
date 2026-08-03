@@ -5,7 +5,6 @@ package jaegerai
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -59,13 +58,15 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 // back to the browser over the turn's SSE stream. Access is gated to route ids that
 // belong to an active chat turn (present in turnRegistry).
 type turnScopedEndpoint struct {
-	// streamable is the MCP streamable-HTTP handler (from mcptools.WrapHTTP)
-	// serving a single shared telemetry server. Per-turn UI tools are layered
-	// on by the uiToolsMiddleware registered on that server, keyed by the
-	// route id carried in the request context.
-	streamable http.Handler
-	// server is the shared MCP server behind streamable. It is retained so this
-	// endpoint can reap the sessions still bound to it at shutdown (see Close).
+	// streamable is the closeable MCP streamable-HTTP handler (from
+	// mcptools.WrapHTTP) serving a single shared server. Per-turn UI tools are
+	// layered on by the uiToolsMiddleware registered on that server, keyed by the
+	// route id carried in the request context. Its Close reaps the server's
+	// sessions, so this endpoint's Close simply delegates to it.
+	streamable *mcptools.Handler
+	// server is the shared MCP server behind streamable. It is retained only so the
+	// chat endpoint can gate its announcement on MCP being wired (see
+	// chatEndpoint.announceMCP); teardown is delegated to streamable, not done here.
 	server   *mcp.Server
 	turns    *turnRegistry
 	basePath string
@@ -119,20 +120,11 @@ func (h *turnScopedEndpoint) registerRoutes(router *http.ServeMux) {
 
 var _ io.Closer = (*turnScopedEndpoint)(nil)
 
-// Close tears down the MCP sessions still bound to this endpoint's server so they do
-// not outlive it. The go-sdk reaps a session only once it goes idle (see
-// StreamableHTTPOptions.SessionTimeout), so a turn whose sidecar has not
-// disconnected would otherwise linger after shutdown.
-//
-// ServerSession.Close is the only teardown the SDK exposes — there is no
-// server-level Shutdown. Sessions() yields a snapshot (it clones under lock), so
-// closing each one mid-iteration, which deregisters it, is safe.
+// Close reaps the MCP sessions still bound to this endpoint's server so they do not
+// outlive it, delegating to the shared mcptools teardown (see mcptools.Handler.Close)
+// so the shared and turn-scoped mounts tear down the same way.
 func (h *turnScopedEndpoint) Close() error {
-	var errs []error
-	for session := range h.server.Sessions() {
-		errs = append(errs, session.Close())
-	}
-	return errors.Join(errs...)
+	return h.streamable.Close()
 }
 
 func (h *turnScopedEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
