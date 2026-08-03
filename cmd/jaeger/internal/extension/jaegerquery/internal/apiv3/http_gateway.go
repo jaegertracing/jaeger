@@ -29,11 +29,12 @@ import (
 )
 
 const (
-	routeGetTrace      = "/api/v3/traces/{" + paramTraceID + "}"
-	routeFindTraces    = "/api/v3/traces"
-	routeFindSummaries = "/api/v3/trace-summaries"
-	routeGetServices   = "/api/v3/services"
-	routeGetOperations = "/api/v3/operations"
+	routeGetTrace        = "/api/v3/traces/{" + paramTraceID + "}"
+	routeFindTraces      = "/api/v3/traces"
+	routeFindSummaries   = "/api/v3/trace-summaries"
+	routeGetServices     = "/api/v3/services"
+	routeGetOperations   = "/api/v3/operations"
+	routeGetDependencies = "/api/v3/dependencies"
 )
 
 // HTTPGateway exposes APIv3 HTTP endpoints.
@@ -51,6 +52,7 @@ func (h *HTTPGateway) RegisterRoutes(router *http.ServeMux) {
 	h.addRoute(router, h.findTraceSummaries, routeFindSummaries, http.MethodGet)
 	h.addRoute(router, h.getServices, routeGetServices, http.MethodGet)
 	h.addRoute(router, h.getOperations, routeGetOperations, http.MethodGet)
+	h.addRoute(router, h.getDependencies, routeGetDependencies, http.MethodGet)
 }
 
 // addRoute adds a new endpoint to the router with given path and handler function.
@@ -245,6 +247,7 @@ func (h *HTTPGateway) getOperations(w http.ResponseWriter, r *http.Request) {
 	h.marshalResponse(&api_v3.GetOperationsResponse{Operations: apiOperations}, w)
 }
 
+
 // TraceIDFromString parses a trace ID from either a hex string or a base64 string.
 // It supports both standard and URL-safe base64, with or without padding.
 func TraceIDFromString(s string) (model.TraceID, error) {
@@ -268,4 +271,52 @@ func TraceIDFromString(s string) (model.TraceID, error) {
 		}
 	}
 	return model.TraceID{}, err
+
+func (h *HTTPGateway) getDependencies(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	startTimeStr := q.Get(paramStartTime)
+	endTimeStr := q.Get(paramEndTime)
+
+	if startTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("missing required parameter: %s", paramStartTime), http.StatusBadRequest)
+		return
+	}
+	if endTimeStr == "" {
+		h.tryHandleError(w, fmt.Errorf("missing required parameter: %s", paramEndTime), http.StatusBadRequest)
+		return
+	}
+
+	startTime, err := time.Parse(time.RFC3339Nano, startTimeStr)
+	if h.tryParamError(w, err, paramStartTime) {
+		return
+	}
+
+	endTime, err := time.Parse(time.RFC3339Nano, endTimeStr)
+	if h.tryParamError(w, err, paramEndTime) {
+		return
+	}
+
+	if !endTime.After(startTime) {
+		h.tryHandleError(w, fmt.Errorf("%s must be after %s", paramEndTime, paramStartTime), http.StatusBadRequest)
+		return
+	}
+
+	lookback := endTime.Sub(startTime)
+	dependencies, err := h.QueryService.GetDependencies(r.Context(), endTime, lookback)
+	if h.tryHandleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+
+	response := &api_v3.DependenciesResponse{
+		Dependencies: make([]*api_v3.Dependency, 0, len(dependencies)),
+	}
+	for _, dep := range dependencies {
+		response.Dependencies = append(response.Dependencies, &api_v3.Dependency{
+			Parent:    dep.Parent,
+			Child:     dep.Child,
+			CallCount: dep.CallCount,
+		})
+	}
+	h.marshalResponse(response, w)
+
 }
