@@ -599,3 +599,48 @@ func TestGetTraceTopologyHandler_Handle_LimitEnforced(t *testing.T) {
 	// Exactly 3 spans returned — 6-span trace with limit=3 must truncate to exactly 3
 	assert.Len(t, output.Spans, 3)
 }
+
+func TestGetTraceTopologyHandler_Handle_LimitOutOfOrderSpans(t *testing.T) {
+	traceID := testTraceID
+
+	// Create a 3-span chain: root → child → grandchild
+	// The config order puts grandchild first, then root, then child.
+	// With maxSpanDetailsPerRequest=2, AggregateTracesWithLimit truncates
+	// to the first 2 spans in iteration order (grandchild, root), dropping
+	// the intermediate child span. This tests that:
+	// 1. Orphan spans (grandchild) have their path fixed to exclude the
+	//    missing parent ID
+	// 2. TruncatedChildren is correctly incremented on the root span
+	spanConfigs := []spanConfig{
+		{spanID: "grand01", parentSpanID: "child01", operation: "grandchild"},
+		{spanID: "root001", operation: "root"},
+		{spanID: "child01", parentSpanID: "root001", operation: "child"},
+	}
+
+	testTrace := createTestTraceWithSpans(traceID, spanConfigs)
+	mock := newMockYieldingTraces(testTrace)
+
+	handler := &getTraceTopologyHandler{
+		queryService:             mock,
+		maxSpanDetailsPerRequest: 2,
+	}
+
+	input := types.GetTraceTopologyInput{TraceID: traceID}
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+	require.NoError(t, err)
+
+	root := findSpanByName(output.Spans, "root")
+	child := findSpanByName(output.Spans, "child")
+	grandchild := findSpanByName(output.Spans, "grandchild")
+
+	require.NotNil(t, root)
+	require.Nil(t, child) // intermediate child was truncated
+	require.NotNil(t, grandchild)
+
+	// Root should have its TruncatedChildren incremented for the missing child
+	require.Greater(t, root.TruncatedChildren, 0, "root.TruncatedChildren should account for the truncated child span")
+
+	// Grandchild's path should not contain the missing parent ID
+	childHex := spanIDToHex("child01")
+	assert.NotContains(t, grandchild.Path, childHex, "orphan path should not include truncated parent ID")
+}
