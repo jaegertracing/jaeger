@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -84,9 +85,6 @@ func (h *getTraceTopologyHandler) handle(
 		// Iterate through all spans in the trace and collect them
 		for pos, span := range jptrace.SpanIter(trace) {
 			spans = append(spans, extractRawSpan(pos, span))
-			if h.maxSpanDetailsPerRequest > 0 && len(spans) >= h.maxSpanDetailsPerRequest {
-				break
-			}
 		}
 	}
 
@@ -97,7 +95,7 @@ func (h *getTraceTopologyHandler) handle(
 	// Build the flat topology list from the collected spans
 	output := types.GetTraceTopologyOutput{
 		TraceID: input.TraceID,
-		Spans:   h.buildFlatTopology(spans, input.Depth),
+		Spans:   h.buildFlatTopology(spans, input.Depth, h.maxSpanDetailsPerRequest),
 	}
 
 	return nil, output, nil
@@ -159,7 +157,7 @@ func extractRawSpan(pos jptrace.SpanIterPos, span ptrace.Span) rawSpan {
 // prepended to the path so the caller can identify the attachment point.
 // When maxDepth > 0, spans beyond that depth are omitted and the last included
 // ancestor records the count of excluded direct children in TruncatedChildren.
-func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth int) []types.TopologySpan {
+func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth int, maxSpanDetailsPerRequest int) []types.TopologySpan {
 	// Create a map of span ID to span pointer for quick lookup
 	byID := make(map[string]*rawSpan, len(spans))
 	for i := range spans {
@@ -196,6 +194,77 @@ func (h *getTraceTopologyHandler) buildFlatTopology(spans []rawSpan, maxDepth in
 			rootPath = root.spanID
 		}
 		h.dfs(root, rootPath, 1, maxDepth, childrenOf, &result)
+	}
+
+	// Post-processing: fix orphan spans caused by span-count truncation.
+	// When maxSpanDetailsPerRequest truncates the span collection, intermediate
+	// parent spans may be excluded while their descendants are retained, creating
+	// orphan spans with missing parent IDs in the path and incorrect TruncatedChildren.
+	if maxSpanDetailsPerRequest > 0 {
+		result = fixTruncationOrphans(result)
+	}
+
+	return result
+}
+
+// fixTruncationOrphans fixes orphan spans caused by span-count truncation.
+// When span-count truncation removes intermediate parent spans, the surviving
+// descendant spans may have paths that include missing parent IDs. This function:
+// 1. Removes missing parent IDs from orphan paths
+// 2. Increments TruncatedChildren on the nearest surviving ancestor
+func fixTruncationOrphans(result []types.TopologySpan) []types.TopologySpan {
+	// Build a map of span ID → result index for quick lookup
+	resultByID := make(map[string]int, len(result))
+	for i := range result {
+		parts := strings.Split(result[i].Path, "/")
+		resultByID[parts[len(parts)-1]] = i
+	}
+
+	// Post-processing: fix orphan spans
+	for i := range result {
+		parts := strings.Split(result[i].Path, "/")
+		if len(parts) <= 1 {
+			continue
+		}
+		// Check if any intermediate part of the path (except the leaf span's own ID)
+		// is missing from the result. If so, that span was truncated.
+		hasMissing := false
+		for j := 0; j < len(parts)-1; j++ {
+			if _, ok := resultByID[parts[j]]; !ok {
+				// This span ID is missing from the result — it was truncated.
+				// Find the nearest surviving ancestor and increment TruncatedChildren.
+				hasMissing = true
+				found := false
+				for k := j - 1; k >= 0; k-- {
+					if idx, ok := resultByID[parts[k]]; ok {
+						result[idx].TruncatedChildren++
+						found = true
+						break
+					}
+				}
+				if !found {
+					// The missing span is at the root of the path. Its parent
+					// is the trace root. Increment the root's TruncatedChildren.
+					for k := range result {
+						rParts := strings.Split(result[k].Path, "/")
+						if len(rParts) == 1 {
+							result[k].TruncatedChildren++
+							break
+						}
+					}
+				}
+			}
+		}
+		// Clean the path: remove span IDs that are no longer in the result
+		if hasMissing {
+			cleanParts := make([]string, 0, len(parts))
+			for _, p := range parts {
+				if _, ok := resultByID[p]; ok {
+					cleanParts = append(cleanParts, p)
+				}
+			}
+			result[i].Path = strings.Join(cleanParts, "/")
+		}
 	}
 	return result
 }
