@@ -10,6 +10,8 @@ import (
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 func TestLatestUserMessageTextPicksMostRecentUser(t *testing.T) {
@@ -298,4 +300,85 @@ func TestValidateContextualToolNamesReportsFirstOffendingIndex(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tools[2].name",
 		"the index of the first invalid tool must be in the error so frontend devs can locate it")
+}
+
+func TestEstimateTokens(t *testing.T) {
+	assert.Equal(t, 0, estimateTokens(""))
+	assert.Equal(t, 1, estimateTokens("a"))
+	assert.Equal(t, 1, estimateTokens("abcd"))
+	assert.Equal(t, 2, estimateTokens("abcde"))
+	assert.Equal(t, 2, estimateTokens("abcdefgh"))
+}
+
+func TestIsLowValueSpan(t *testing.T) {
+	rootSpan := uimodel.Span{SpanID: "root"}
+	assert.False(t, isLowValueSpan(rootSpan))
+
+	longSpan := uimodel.Span{SpanID: "child", ParentSpanID: "root", Duration: 1000}
+	assert.False(t, isLowValueSpan(longSpan))
+
+	shortSpan := uimodel.Span{SpanID: "child", ParentSpanID: "root", Duration: 500}
+	assert.True(t, isLowValueSpan(shortSpan))
+
+	errSpanBool := uimodel.Span{
+		SpanID: "child", ParentSpanID: "root", Duration: 500,
+		Tags: []uimodel.KeyValue{{Key: "error", Value: true}},
+	}
+	assert.False(t, isLowValueSpan(errSpanBool))
+
+	errSpanStr := uimodel.Span{
+		SpanID: "child", ParentSpanID: "root", Duration: 500,
+		Tags: []uimodel.KeyValue{{Key: "error", Value: "true"}},
+	}
+	assert.False(t, isLowValueSpan(errSpanStr))
+
+	httpErrSpan := uimodel.Span{
+		SpanID: "child", ParentSpanID: "root", Duration: 500,
+		Tags: []uimodel.KeyValue{{Key: "http.status_code", Value: int64(500)}},
+	}
+	assert.False(t, isLowValueSpan(httpErrSpan))
+}
+
+func TestTryPruneTraceContext(t *testing.T) {
+	trace := uimodel.Trace{
+		TraceID: "t1",
+		Spans: []uimodel.Span{
+			{SpanID: "root"},
+			{SpanID: "child", ParentSpanID: "root", Duration: 100},
+			{SpanID: "err", ParentSpanID: "root", Duration: 100, Tags: []uimodel.KeyValue{{Key: "error", Value: true}}},
+		},
+	}
+	traceBytes, err := json.Marshal(trace)
+	require.NoError(t, err)
+
+	pruned, ok := tryPruneTraceContext(string(traceBytes))
+	require.True(t, ok)
+
+	var result uimodel.Trace
+	require.NoError(t, json.Unmarshal([]byte(pruned), &result))
+	require.Len(t, result.Spans, 2)
+	assert.Equal(t, uimodel.SpanID("root"), result.Spans[0].SpanID)
+	assert.Equal(t, uimodel.SpanID("err"), result.Spans[1].SpanID)
+}
+
+func TestEnforceModelContextLimitRejectsOversizedPrompt(t *testing.T) {
+	_, err := enforceModelContextLimit("this prompt is definitely longer than ten tokens", nil, 10)
+	require.ErrorIs(t, err, ErrModelContextExceeded)
+}
+
+func TestEnforceModelContextLimitPrunesTraceContext(t *testing.T) {
+	trace := uimodel.Trace{
+		TraceID: "t1",
+		Spans: []uimodel.Span{
+			{SpanID: "root"},
+			{SpanID: "child", ParentSpanID: "root", Duration: 100},
+		},
+	}
+	traceBytes, err := json.Marshal(trace)
+	require.NoError(t, err)
+
+	context := []aguitypes.Context{{Value: string(traceBytes)}}
+	pruned, err := enforceModelContextLimit("short", context, 70)
+	require.NoError(t, err)
+	require.NotEqual(t, context[0].Value, pruned[0].Value)
 }

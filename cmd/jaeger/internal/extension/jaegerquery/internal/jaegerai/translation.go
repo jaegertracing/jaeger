@@ -11,6 +11,8 @@ import (
 
 	aguitypes "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/coder/acp-go-sdk"
+
+	"github.com/jaegertracing/jaeger/internal/uimodel"
 )
 
 // latestUserMessageText returns the text content of the most recent user
@@ -288,4 +290,152 @@ func flattenToolResultContent(raw any) string {
 		return fmt.Sprintf("%v", raw)
 	}
 	return string(payload)
+}
+
+// DefaultModelContextLimit is the fallback token budget when the gateway is not
+// configured with ai.model_context_limit. It matches DefaultAIModelContextLimit in
+// the query flags package.
+const DefaultModelContextLimit = 8192
+
+// ErrModelContextExceeded is returned when the estimated prompt plus AG-UI context
+// still exceeds the configured model context limit after trace pruning.
+var ErrModelContextExceeded = errors.New("trace too large for local model. Please filter or prune spans first")
+
+// estimateTokens returns an estimated token count using a 1 token ≈ 4 characters heuristic.
+func estimateTokens(text string) int {
+	return (len(text) + 3) / 4
+}
+
+// enforceModelContextLimit estimates prompt and context size against limit. When the
+// estimate exceeds limit it prunes low-value spans from trace-shaped context entries
+// and re-estimates; if still over limit it returns ErrModelContextExceeded.
+func enforceModelContextLimit(prompt string, context []aguitypes.Context, limit int) ([]aguitypes.Context, error) {
+	if limit <= 0 {
+		limit = DefaultModelContextLimit
+	}
+	total := estimatedPromptTokens(prompt, context)
+	if total <= limit {
+		return context, nil
+	}
+
+	prunedContext := make([]aguitypes.Context, len(context))
+	copy(prunedContext, context)
+	anyPruned := false
+	for i, entry := range prunedContext {
+		if newVal, pruned := tryPruneTraceContext(entry.Value); pruned {
+			prunedContext[i].Value = newVal
+			anyPruned = true
+		}
+	}
+	if anyPruned && estimatedPromptTokens(prompt, prunedContext) <= limit {
+		return prunedContext, nil
+	}
+	return nil, ErrModelContextExceeded
+}
+
+func estimatedPromptTokens(prompt string, context []aguitypes.Context) int {
+	total := estimateTokens(prompt)
+	for _, ctxText := range contextTextEntries(context) {
+		total += estimateTokens(ctxText)
+	}
+	return total
+}
+
+// isLowValueSpan reports whether a span can be dropped when shrinking trace context.
+// Root spans, spans at or above 1ms, and spans with error signals are kept.
+func isLowValueSpan(span uimodel.Span) bool {
+	if span.ParentSpanID == "" && len(span.References) == 0 {
+		return false
+	}
+	if span.Duration >= 1000 {
+		return false
+	}
+	for _, kv := range span.Tags {
+		if kv.Key == "error" {
+			if b, ok := kv.Value.(bool); ok && b {
+				return false
+			}
+			if s, ok := kv.Value.(string); ok && (s == "true" || s == "1") {
+				return false
+			}
+			if i, ok := kv.Value.(int64); ok && i != 0 {
+				return false
+			}
+			if f, ok := kv.Value.(float64); ok && f != 0 {
+				return false
+			}
+		}
+		if kv.Key == "http.status_code" {
+			if i, ok := kv.Value.(int64); ok && i >= 400 {
+				return false
+			}
+			if f, ok := kv.Value.(float64); ok && f >= 400 {
+				return false
+			}
+			if s, ok := kv.Value.(string); ok {
+				var code int
+				if n, err := fmt.Sscanf(s, "%d", &code); err == nil && n == 1 && code >= 400 {
+					return false
+				}
+			}
+		}
+	}
+	for _, log := range span.Logs {
+		for _, kv := range log.Fields {
+			if kv.Key == "error" {
+				return false
+			}
+			if kv.Key == "event" && kv.Value == "error" {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// tryPruneTraceContext unmarshals a context value as trace JSON, drops low-value spans,
+// and returns the updated JSON when anything was removed.
+func tryPruneTraceContext(contextValue string) (string, bool) {
+	var trace uimodel.Trace
+	if err := json.Unmarshal([]byte(contextValue), &trace); err == nil && len(trace.Spans) > 0 {
+		prunedSpans := make([]uimodel.Span, 0, len(trace.Spans))
+		for _, span := range trace.Spans {
+			if !isLowValueSpan(span) {
+				prunedSpans = append(prunedSpans, span)
+			}
+		}
+		if len(prunedSpans) < len(trace.Spans) {
+			trace.Spans = prunedSpans
+			if updatedBytes, err := json.Marshal(trace); err == nil {
+				return string(updatedBytes), true
+			}
+		}
+		return contextValue, false
+	}
+
+	type envelope struct {
+		Data []uimodel.Trace `json:"data"`
+	}
+	var env envelope
+	if err := json.Unmarshal([]byte(contextValue), &env); err == nil && len(env.Data) > 0 {
+		prunedAny := false
+		for i, t := range env.Data {
+			prunedSpans := make([]uimodel.Span, 0, len(t.Spans))
+			for _, span := range t.Spans {
+				if !isLowValueSpan(span) {
+					prunedSpans = append(prunedSpans, span)
+				}
+			}
+			if len(prunedSpans) < len(t.Spans) {
+				env.Data[i].Spans = prunedSpans
+				prunedAny = true
+			}
+		}
+		if prunedAny {
+			if updatedBytes, err := json.Marshal(env); err == nil {
+				return string(updatedBytes), true
+			}
+		}
+	}
+	return contextValue, false
 }

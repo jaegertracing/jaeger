@@ -45,6 +45,7 @@ type HandlerParams struct {
 	AgentURL           string
 	BasePath           string
 	MaxRequestBodySize int64
+	ModelContextLimit  int
 	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
 	// chat endpoint is registered.
 	EnableMCP bool
@@ -71,7 +72,7 @@ type HandlerParams struct {
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
-	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
+	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize, p.ModelContextLimit)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
 		h.mcp = turnScopedEndpointBuilder{
