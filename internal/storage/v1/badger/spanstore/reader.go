@@ -264,7 +264,7 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 		indexSearchKey := make([]byte, 0, 64) // 64 is a magic guess
 		tagQueryUsed := false
 		for k, v := range query.Tags {
-			tagSearch := []byte(query.ServiceName + k + v)
+			tagSearch := makeIndexKeyValue(query.ServiceName, k, v)
 			tagSearchKey := make([]byte, 0, len(tagSearch)+1)
 			tagSearchKey = append(tagSearchKey, tagIndexKey)
 			tagSearchKey = append(tagSearchKey, tagSearch...)
@@ -274,7 +274,7 @@ func serviceQueries(query *spanstore.TraceQueryParameters, indexSeeks [][]byte) 
 
 		if query.OperationName != "" {
 			indexSearchKey = append(indexSearchKey, operationNameIndexKey)
-			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName+query.OperationName)...)
+			indexSearchKey = append(indexSearchKey, makeIndexKeyValue(query.ServiceName, query.OperationName)...)
 		} else if !tagQueryUsed { // Tag query already reduces the search set with a serviceName
 			indexSearchKey = append(indexSearchKey, serviceNameIndexKey)
 			indexSearchKey = append(indexSearchKey, []byte(query.ServiceName)...)
@@ -662,3 +662,4 @@ func (r *TraceReader) preloadOperations(service string) {
 		return nil
 	})
 }
+
