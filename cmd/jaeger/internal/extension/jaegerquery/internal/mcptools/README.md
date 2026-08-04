@@ -13,18 +13,18 @@ Jaeger binary. Operators can add their own without rebuilding, via
 
 ## Adding installation-specific skills
 
-Point `ai.skills_dir` at a directory on the query server's disk:
+Point `ai.mcp.skills_dir` at a directory on the query server's disk:
 
 ```yaml
 extensions:
   jaeger_query:
     ai:
-      enable_mcp: true          # required — skills are served over MCP
-      skills_dir: /etc/jaeger/skills
+      mcp:                      # skills served over MCP
+        skills_dir: /etc/jaeger/skills
 ```
 
 The all-in-one config is not externally configurable, but the field can still be
-set on it with `--set extensions.jaeger_query.ai.skills_dir={path}`.
+set on it with `--set extensions.jaeger_query.ai.mcp.skills_dir={path}`.
 
 Its contents are served under `custom/`, beside the built-in skills:
 
