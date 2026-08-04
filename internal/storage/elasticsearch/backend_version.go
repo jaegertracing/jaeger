@@ -46,6 +46,33 @@ func IsSupportedVersion(v uint) bool {
 	return slices.Contains(AllVersions, BackendVersion(v))
 }
 
+// ParseBackendVersion resolves a human-friendly, distribution-prefixed token
+// (case-insensitive) to a BackendVersion: "es7"/"es8"/"es9" for Elasticsearch
+// and "os1"/"os2"/"os3" for OpenSearch. It hides the internal numeric encoding
+// (OpenSearch major N is stored as 100+N) so callers can select a backend
+// without knowing it. Unknown or unsupported tokens return an error.
+func ParseBackendVersion(s string) (BackendVersion, error) {
+	lower := strings.ToLower(s)
+	if len(lower) > 2 {
+		prefix, digits := lower[:2], lower[2:]
+		if major, err := strconv.Atoi(digits); err == nil {
+			var v BackendVersion
+			switch prefix {
+			case "es":
+				v = BackendVersion(major)
+			case "os":
+				v = BackendVersion(100 + major)
+			default:
+				v = 0
+			}
+			if v != 0 && IsSupportedVersion(uint(v)) {
+				return v, nil
+			}
+		}
+	}
+	return 0, fmt.Errorf("invalid version %q: expected one of es7, es8, es9, os1, os2, os3", s)
+}
+
 func (v BackendVersion) String() string {
 	switch v {
 	case ElasticV7:

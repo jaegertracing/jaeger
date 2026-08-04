@@ -5,8 +5,7 @@ package query
 
 // TermQuery matches documents where field exactly equals value. Without a boost
 // it renders to the shorthand form {"term": {field: value}}; with one it renders
-// to the expanded {"term": {field: {"value": value, "boost": boost}}} — both
-// matching what the storage layer previously produced via olivere's TermQuery.
+// to the expanded {"term": {field: {"value": value, "boost": boost}}}.
 type TermQuery struct {
 	field string
 	value any

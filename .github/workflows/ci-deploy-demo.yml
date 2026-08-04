@@ -65,6 +65,8 @@ jobs:
       JAEGER_DEMO_STACK: ${{ github.event.inputs.demo_stack || 'oci' }}
       JAEGER_OTEL_DEMO_DEPLOY_SCOPE: ${{ github.event.inputs.otel_deploy_scope || 'jaeger' }}
       RUN_PUBLIC_SMOKE_TESTS: "true"
+      MAIN_SHA: ${{ github.sha }}
+      GITHUB_EVENT_NAME: ${{ github.event_name }}
 
     steps:
     - name: Configure kubectl with OKE
@@ -78,6 +80,9 @@ jobs:
 
     - name: Checkout jaeger repository
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+    - name: Resolve and verify snapshot image tags
+      run: bash scripts/utils/resolve-demo-snapshot-tags.sh
 
     - name: Deploy using appropriate script
       run: |

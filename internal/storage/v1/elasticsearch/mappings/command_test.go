@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -80,7 +81,7 @@ func TestGenerateMappings(t *testing.T) {
 			name: "valid jaeger-span mapping",
 			options: Options{
 				Mapping:       config.SpanIndexName,
-				EsVersion:     7,
+				Version:       es.ElasticV7,
 				Shards:        5,
 				Replicas:      new(int64(1)),
 				IndexPrefix:   "jaeger-index",
@@ -93,7 +94,7 @@ func TestGenerateMappings(t *testing.T) {
 			name: "valid jaeger-service mapping",
 			options: Options{
 				Mapping:       config.ServiceIndexName,
-				EsVersion:     7,
+				Version:       es.ElasticV7,
 				Shards:        5,
 				Replicas:      new(int64(1)),
 				IndexPrefix:   "jaeger-service-index",
@@ -136,6 +137,28 @@ func TestGenerateMappings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGenerateMappingsOpenSearchISM(t *testing.T) {
+	result, err := generateMappings(Options{
+		Mapping:       config.SpanIndexName,
+		Version:       es.OpenSearch3,
+		Shards:        5,
+		Replicas:      new(int64(1)),
+		UseILM:        "true",
+		ILMPolicyName: "jaeger-ilm-policy",
+	})
+	require.NoError(t, err)
+
+	var parsed map[string]any
+	require.NoError(t, json.Unmarshal([]byte(result), &parsed))
+
+	settings, ok := parsed["settings"].(map[string]any)
+	require.True(t, ok, "settings block should be present")
+	// OpenSearch renders the ISM rollover alias; Elasticsearch would emit a
+	// "lifecycle" block instead.
+	assert.Contains(t, settings, "plugins.index_state_management.rollover_alias")
+	assert.NotContains(t, settings, "lifecycle")
 }
 
 func TestMain(m *testing.M) {

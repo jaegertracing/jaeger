@@ -302,7 +302,7 @@ func (rt *getBodyRecordingRoundTripper) RoundTrip(req *http.Request) (*http.Resp
 
 // TestGetHTTPRoundTripper_AuthSeesGetBody verifies that an HTTP
 // authenticator sees a populated req.GetBody at signing time for requests
-// where the client set req.Body without GetBody (as olivere/elastic does).
+// where the client set req.Body without GetBody.
 // If getBodyFixRoundTripper is wrapped inside the authenticator instead of
 // outside, the authenticator hashes an empty payload and AWS-managed
 // OpenSearch rejects every body-bearing request with HTTP 403.
@@ -318,7 +318,7 @@ func TestGetHTTPRoundTripper_AuthSeesGetBody(t *testing.T) {
 	rt, err := GetHTTPRoundTripper(context.Background(), c, zap.NewNop(), recordingAuth)
 	require.NoError(t, err)
 
-	// Mimic olivere/elastic: Body set directly, GetBody left nil.
+	// Mimic a client that sets Body directly with GetBody left nil.
 	req, err := http.NewRequest(http.MethodPut, "http://localhost:9200/_index_template/test", http.NoBody)
 	require.NoError(t, err)
 	req.Body = io.NopCloser(bytes.NewReader([]byte(`{"index_patterns":["jaeger-*"]}`)))

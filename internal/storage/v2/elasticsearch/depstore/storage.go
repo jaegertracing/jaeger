@@ -30,7 +30,7 @@ type CoreDependencyStore interface {
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
 	searcher    esclient.Searcher
-	bulkWriter  esclient.BulkWriter
+	batchWriter esclient.BatchWriter
 	logger      *zap.Logger
 	maxDocCount int
 	rotation    indices.Rotation
@@ -39,7 +39,7 @@ type DependencyStore struct {
 // Params holds constructor parameters for NewDependencyStore
 type Params struct {
 	Searcher    esclient.Searcher
-	BulkWriter  esclient.BulkWriter
+	BatchWriter esclient.BatchWriter
 	Logger      *zap.Logger
 	MaxDocCount int
 	Rotation    indices.Rotation
@@ -49,7 +49,7 @@ type Params struct {
 func NewDependencyStore(p Params) *DependencyStore {
 	return &DependencyStore{
 		searcher:    p.Searcher,
-		bulkWriter:  p.BulkWriter,
+		batchWriter: p.BatchWriter,
 		logger:      p.Logger,
 		maxDocCount: p.MaxDocCount,
 		rotation:    p.Rotation,
@@ -59,18 +59,15 @@ func NewDependencyStore(p Params) *DependencyStore {
 // WriteDependencies write dependencies to Elasticsearch
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []dbmodel.DependencyLink) error {
 	writeIndexName := s.rotation.WriteTarget(ts)
-	s.writeDependenciesToIndex(writeIndexName, ts, dependencies)
-	return nil
-}
-
-func (s *DependencyStore) writeDependenciesToIndex(indexName string, ts time.Time, dependencies []dbmodel.DependencyLink) {
-	s.bulkWriter.Add(esclient.BulkItem{
-		Index: indexName,
+	// context.Background: dependency writes are not request-scoped, and the async
+	// indexer this uses ignores the context anyway (see BulkIndexer.WriteBatch).
+	return s.batchWriter.WriteBatch(context.Background(), []esclient.BulkItem{{
+		Index: writeIndexName,
 		Body: &dbmodel.TimeDependencies{
 			Timestamp:    ts,
 			Dependencies: dependencies,
 		},
-	})
+	}})
 }
 
 // GetDependencies returns all interservice dependencies

@@ -3,11 +3,10 @@
 
 package query
 
-// BoolQuery composes other queries under must / should / must_not clauses. To
-// reproduce the wire format the storage layer previously produced via olivere's
-// BoolQuery, a clause holding a single query renders as that query's object and a
-// clause holding several renders as an array; an empty clause is omitted. No
-// boost or adjust_pure_negative is emitted unless a caller needs it (none do).
+// BoolQuery composes other queries under must / should / must_not clauses. A
+// clause holding a single query renders as that query's object and a clause
+// holding several renders as an array; an empty clause is omitted. No boost or
+// adjust_pure_negative is emitted unless a caller needs it (none do).
 type BoolQuery struct {
 	must    []Query
 	filter  []Query
@@ -66,7 +65,7 @@ func (q *BoolQuery) Source() (any, error) {
 	return map[string]any{"bool": boolClause}, nil
 }
 
-// clauseSource renders a bool clause the way olivere did: nil when empty, the
+// clauseSource renders a bool clause: nil when empty, the
 // single query's source when there is one, an array otherwise.
 func clauseSource(clauses []Query) (any, error) {
 	switch len(clauses) {
