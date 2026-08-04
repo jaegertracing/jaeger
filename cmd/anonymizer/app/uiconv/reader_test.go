@@ -4,6 +4,8 @@
 package uiconv
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -51,6 +53,35 @@ func TestReaderTraceEmpty(t *testing.T) {
 	require.ErrorContains(t, err, "cannot read file")
 	assert.Equal(t, 0, r.spansRead)
 	assert.True(t, r.eofReached)
+}
+
+func TestReaderTraceNoSpans(t *testing.T) {
+	inputFile := filepath.Join(t.TempDir(), "trace.json")
+	require.NoError(t, os.WriteFile(inputFile, []byte("[\n]\n"), 0o600))
+
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+	defer r.capturedFile.Close()
+
+	_, err = r.NextSpan()
+	require.Equal(t, errNoMoreSpans, err)
+	assert.Equal(t, 0, r.spansRead)
+	assert.True(t, r.eofReached)
+}
+
+func TestReaderTraceBlankLine(t *testing.T) {
+	inputFile := filepath.Join(t.TempDir(), "trace.json")
+	require.NoError(t, os.WriteFile(inputFile, []byte("[{},\n\n]\n"), 0o600))
+
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+	defer r.capturedFile.Close()
+
+	_, err = r.NextSpan()
+	require.NoError(t, err)
+
+	_, err = r.NextSpan()
+	require.EqualError(t, err, "unexpected empty line in captured file")
 }
 
 func TestReaderTraceWrongFormat(t *testing.T) {
