@@ -33,6 +33,7 @@ const (
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
+	indexKeyDelimiter     byte = 0x00 // Delimiter between concatenated index key fields to prevent collisions
 )
 
 // SpanWriter for writing spans to badger
@@ -71,7 +72,7 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 		entriesToStore,
 		trace,
 		w.createBadgerEntry(createIndexKey(serviceNameIndexKey, []byte(span.Process.ServiceName), startTime, span.TraceID), nil, expireTime),
-		w.createBadgerEntry(createIndexKey(operationNameIndexKey, []byte(span.Process.ServiceName+span.OperationName), startTime, span.TraceID), nil, expireTime),
+		w.createBadgerEntry(createIndexKey(operationNameIndexKey, makeIndexKeyValue(span.Process.ServiceName, span.OperationName), startTime, span.TraceID), nil, expireTime),
 	)
 
 	// It doesn't matter if we overwrite Duration index keys, everything is read at Trace level in any case
@@ -82,16 +83,16 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also
 		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, makeIndexKeyValue(span.Process.ServiceName, kv.Key, kv.AsString()), startTime, span.TraceID), nil, expireTime))
 	}
 
 	for _, kv := range span.Process.Tags {
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, makeIndexKeyValue(span.Process.ServiceName, kv.Key, kv.AsString()), startTime, span.TraceID), nil, expireTime))
 	}
 
 	for _, log := range span.Logs {
 		for _, kv := range log.Fields {
-			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, makeIndexKeyValue(span.Process.ServiceName, kv.Key, kv.AsString()), startTime, span.TraceID), nil, expireTime))
 		}
 	}
 
@@ -115,6 +116,28 @@ func (w *SpanWriter) WriteSpan(_ context.Context, span *model.Span) error {
 	w.cache.Update(span.Process.ServiceName, span.OperationName, expireTime)
 
 	return err
+}
+
+// makeIndexKeyValue joins multiple parts with a delimiter byte to prevent
+// index key collisions between different field combinations.
+// For example, without a delimiter, service="A"+"Bc" and service="AB"+"c"
+// both produce the same key "ABc". With the delimiter, they produce "A\x00Bc" and "AB\x00c".
+func makeIndexKeyValue(parts ...string) []byte {
+	var totalLen int
+	for i, p := range parts {
+		totalLen += len(p)
+		if i > 0 {
+			totalLen++ // delimiter byte between parts
+		}
+	}
+	buf := make([]byte, 0, totalLen)
+	for i, p := range parts {
+		if i > 0 {
+			buf = append(buf, indexKeyDelimiter)
+		}
+		buf = append(buf, []byte(p)...)
+	}
+	return buf
 }
 
 func createIndexKey(indexPrefixKey byte, value []byte, startTime uint64, traceID model.TraceID) []byte {
