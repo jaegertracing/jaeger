@@ -92,12 +92,14 @@ class ConvertJson:
         )
 
         filtered_v1_metrics = {
+       "jaeger_collector_spans_received_total": {"debug": "false", "format": "", "svc": "", "transport": ""},
        "jaeger_collector_spans_rejected_total": {"debug": "false", "format": "","svc": "","transport":""},
        "jaeger_build_info": {"build_date": "","revision": ""," version": ""}  # Add more metrics as needed
        }
 
         # Hardcoding filtered v2 metrics
         filtered_v2_metrics = {
+       "receiver_accepted_spans": {"receiver": "", "service_instance_id": "", "service_name": "", "service_version": "", "transport": ""},
        "receiver_refused_spans": {"receiver": "","service_instance_id": "","service_name": "","service_version": "","transport": ""},
        "target_info": {"service_instance_id": "","service_name": "","service_version": ""}  # Add more metrics as needed
         }
