@@ -212,6 +212,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
+	var cs closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
@@ -236,8 +237,20 @@ func initRouter(
 			if err := aiCfg.Validate(); err != nil {
 				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
 			} else {
-				// One config for both MCP endpoints so they cannot drift.
+				// One config for both MCP endpoints so they cannot drift. The
+				// skills directory is opened once here, so both share the handle
+				// and a broken path is reported once, at startup.
 				mcpCfg := mcptools.DefaultConfig()
+				customSkills, err := mcptools.OpenCustomSkillsDir(aiCfg.SkillsDir)
+				if err != nil {
+					return nil, nil, err
+				}
+				if customSkills != nil {
+					// It holds skills_dir open for as long as it serves, so it
+					// is released with the server rather than at process exit.
+					cs = append(cs, customSkills)
+				}
+				mcpCfg.CustomSkillsFS = customSkills
 				if aiCfg.AgentURL != "" {
 					// When AI chat is enabled, jaegerai owns the chat endpoint and,
 					// if MCP is also enabled, the turn-scoped MCP endpoint
@@ -273,7 +286,7 @@ func initRouter(
 
 	if queryOpts.OTLPProxy.HasValue() {
 		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Join(err, cs.Close())
 		}
 	}
 
@@ -281,7 +294,7 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	cs := closers{RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)}
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck))
 	if aiGateway != nil {
 		cs = append(cs, aiGateway)
 	}

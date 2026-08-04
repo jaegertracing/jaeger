@@ -72,6 +72,19 @@ func TestAIConfigValidateAcceptsMCPOnly(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
+func TestAIConfigValidateRejectsSkillsDirWithoutMCP(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.SkillsDir = "/etc/jaeger/skills"
+	require.EqualError(t, cfg.Validate(), "ai.skills_dir requires ai.enable_mcp to be true")
+}
+
+func TestAIConfigValidateAcceptsSkillsDirWithMCP(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.EnableMCP = true
+	cfg.SkillsDir = "/etc/jaeger/skills"
+	require.NoError(t, cfg.Validate())
+}
+
 func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 	for _, size := range []int64{0, -1} {
 		cfg := validAIConfig()
