@@ -54,7 +54,7 @@ type AIConfig struct {
 	// Optional: leave empty (and set the mcp block) to expose the telemetry MCP
 	// endpoint without the AI chat surface.
 	AgentURL string `mapstructure:"agent_url" valid:"optional"`
-	// MCP exposes the Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
+	// MCP exposes Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
 	// the query port. Present enables it, absent disables it — an empty block
 	// (`mcp: {}`) is enough. It replaces the retired standalone jaeger_mcp
 	// extension (which served :16687); point Cursor/IDE MCP clients at the query
