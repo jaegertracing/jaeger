@@ -117,6 +117,54 @@ func TestLRUWithTTL(t *testing.T) {
 	assert.Equal(t, 0, cache.Size())
 }
 
+// TestCompareAndSwapWithExpiredEntry verifies that CompareAndSwap treats an
+// expired TTL entry as absent, consistent with Get(). Before the fix,
+// CompareAndSwap would find the stale map entry and compare without checking
+// the expiration time, so CompareAndSwap(key, nil, newValue) would
+// incorrectly fail even though Get(key) returned nil.
+func TestCompareAndSwapWithExpiredEntry(t *testing.T) {
+	evictions := 0
+	clk := &simulatedClock{}
+	c := NewLRUWithOptions(5, &Options{
+		TTL:     time.Millisecond * 100,
+		TimeNow: clk.Now,
+		OnEvict: func(_ string, _ any) {
+			evictions++
+		},
+	})
+
+	// Put an entry and let it expire.
+	c.Put("A", "Foo")
+	assert.Equal(t, "Foo", c.Get("A"))
+	evictions = 0 // reset: Get does not evict (not expired yet)
+
+	clk.Elapse(time.Millisecond * 200) // well past TTL
+
+	// Get should now report the key as absent.
+	assert.Nil(t, c.Get("A"))
+	assert.Equal(t, 1, evictions)
+	evictions = 0
+
+	// Re-insert so we can test CAS on an expired-but-still-in-map entry.
+	c.Put("B", "Bar")
+	clk.Elapse(time.Millisecond * 200) // expire "B" without an intervening Get
+
+	// CompareAndSwap(key, nil, newValue) must succeed: the expired entry
+	// should be treated as absent (oldValue == nil).
+	item, ok := c.CompareAndSwap("B", nil, "Bar2")
+	assert.True(t, ok, "CAS should succeed because expired entry is treated as absent")
+	assert.Equal(t, "Bar2", item)
+	assert.Equal(t, "Bar2", c.Get("B"))
+	// The eviction callback must have fired exactly once for the expired entry.
+	assert.Equal(t, 1, evictions)
+
+	// A CAS with the wrong old value must still fail.
+	item, ok = c.CompareAndSwap("B", "wrong", "Bar3")
+	assert.False(t, ok)
+	assert.Equal(t, "Bar2", item)
+	assert.Equal(t, "Bar2", c.Get("B"))
+}
+
 func TestDefaultClock(t *testing.T) {
 	cache := NewLRUWithOptions(5, &Options{
 		TTL: time.Millisecond * 1,
