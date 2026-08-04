@@ -194,7 +194,7 @@ func TestOldReads(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		timeNow := model.TimeAsEpochMicroseconds(time.Now())
 		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
-		s1o1Key := createIndexKey(operationNameIndexKey, []byte("service1operation1"), timeNow, model.TraceID{High: 0, Low: 0})
+		s1o1Key := createIndexKey(operationNameIndexKey, makeIndexKeyValue("service1", "operation1"), timeNow, model.TraceID{High: 0, Low: 0})
 
 		tid := time.Now().Add(1 * time.Minute)
 
@@ -229,3 +229,18 @@ func TestOldReads(t *testing.T) {
 		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"]["operation1"])
 	})
 }
+
+func TestIndexKeyCollisionPrevention(t *testing.T) {
+	// Verify that different field combinations produce different index keys
+	// service="A" + operation="Bc" should NOT collide with service="AB" + operation="c"
+	key1 := makeIndexKeyValue("A", "Bc")
+	key2 := makeIndexKeyValue("AB", "c")
+	assert.NotEqual(t, key1, key2, "A\\x00Bc should not equal AB\\x00c")
+
+	// service="checkout" + tag key="id" + value="123" should NOT collide with
+	// service="checkout" + tag key="id1" + value="23"
+	key3 := makeIndexKeyValue("checkout", "id", "123")
+	key4 := makeIndexKeyValue("checkout", "id1", "23")
+	assert.NotEqual(t, key3, key4, "checkout\\x00id\\x00123 should not equal checkout\\x00id1\\x0023")
+}
+
