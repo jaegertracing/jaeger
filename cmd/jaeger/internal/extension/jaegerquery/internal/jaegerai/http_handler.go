@@ -31,9 +31,9 @@ type Handler struct {
 	basePath string
 	// chat is the chat endpoint (/api/ai/chat), always present.
 	chat *chatEndpoint
-	// mcp is the turn-scoped MCP endpoint. Always built for a chat gateway (it
-	// carries the turn's UI tools); HandlerParams.EnableMCP only controls whether it
-	// also serves the built-in telemetry tools.
+	// mcp is the turn-scoped MCP endpoint. Non-nil only when the operator enabled MCP
+	// (HandlerParams.EnableMCP); otherwise the endpoint is not mounted and the gateway
+	// advertises AI chat only.
 	mcp *turnScopedEndpoint
 }
 
@@ -45,15 +45,14 @@ type HandlerParams struct {
 	AgentURL           string
 	BasePath           string
 	MaxRequestBodySize int64
-	// EnableMCP layers the built-in telemetry tools onto the turn-scoped endpoint
-	// (and, via the query server, mounts the external shared endpoint). It does not
-	// gate the turn-scoped endpoint itself, which always mounts for a chat gateway to
-	// carry the turn's UI tools.
+	// EnableMCP mounts the turn-scoped MCP endpoint (telemetry tools plus the turn's
+	// UI tools). It mirrors the presence of the ai.mcp config block. When false, only
+	// the chat endpoint is registered.
 	EnableMCP bool
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
-	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Announced
-	// whenever set, since the turn-scoped endpoint exists regardless of EnableMCP.
+	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
+	// EnableMCP is false.
 	MCPBaseURL   string
 	QueryService *querysvc.QueryService
 	TenancyMgr   *tenancy.Manager
@@ -69,38 +68,36 @@ type HandlerParams struct {
 // canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
 // so a chat turn and its MCP callbacks resolve to the same turn.
 //
-// The turn-scoped MCP endpoint is always built: it carries the turn's UI tools,
-// which the sidecar dispatches over MCP independently of the ai.mcp config block.
-// p.EnableMCP only decides whether the built-in telemetry tools are layered onto it
-// too (see turnScopedEndpointBuilder.build).
+// The turn-scoped MCP endpoint is mounted only when p.EnableMCP is set (the ai.mcp
+// config block is present); it serves the built-in telemetry tools plus the turn's
+// UI tools (see turnScopedEndpointBuilder.build).
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
-	// The turn-scoped endpoint always mounts for a chat gateway: it carries the
-	// turn's UI tools, which the sidecar dispatches over MCP independently of the
-	// ai.mcp config block. enableMCP only decides whether the built-in telemetry
-	// tools are layered onto it too (see turnScopedEndpointBuilder.build).
-	h.mcp = turnScopedEndpointBuilder{
-		telset:     p.Telset,
-		queryAPI:   p.QueryService,
-		tenancyMgr: p.TenancyMgr,
-		turns:      turns,
-		basePath:   basePath,
-		mcpConfig:  p.MCPConfig,
-		enableMCP:  p.EnableMCP,
-	}.build()
-	// Hand the chat endpoint the endpoint's reachable base URL so each turn
-	// announces it to the sidecar (see chatEndpoint.announceMCP). The endpoint
-	// always exists now, so announcement is gated only by the base URL resolving to
-	// a non-empty value, not by the ai.mcp block.
-	//
-	// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a value
-	// like "http://host:16686//" is legal, and TrimSuffix would leave one slash on.
-	// A doubled slash still reaches the endpoint — ServeMux redirects to the cleaned
-	// path — but at the cost of a redirect on every MCP call.
-	chat.mcpBaseURL = strings.TrimRight(p.MCPBaseURL, "/")
+	if p.EnableMCP {
+		// The turn-scoped MCP endpoint is mounted only when MCP is enabled (the
+		// ai.mcp block is present); it serves the built-in telemetry tools plus the
+		// turn's UI tools.
+		h.mcp = turnScopedEndpointBuilder{
+			telset:     p.Telset,
+			queryAPI:   p.QueryService,
+			tenancyMgr: p.TenancyMgr,
+			turns:      turns,
+			basePath:   basePath,
+			mcpConfig:  p.MCPConfig,
+		}.build()
+		// Hand the chat endpoint the endpoint's reachable base URL so each turn
+		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
+		// here keeps the announcement off when no endpoint is mounted.
+		//
+		// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a value
+		// like "http://host:16686//" is legal, and TrimSuffix would leave one slash on.
+		// A doubled slash still reaches the endpoint — ServeMux redirects to the cleaned
+		// path — but at the cost of a redirect on every MCP call.
+		chat.mcpBaseURL = strings.TrimRight(p.MCPBaseURL, "/")
+	}
 	return h
 }
 
@@ -134,9 +131,13 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 // endpoint. The uiToolsMiddleware degrades to telemetry-only when a request carries
 // no turn (external clients on the shared mount never get a route id stamped), so one
 // server serves both mounts. The query server mounts this at /api/ai/mcp/ instead of
-// standing up a second server (M7); it is reaped by this Handler's Close. The
-// turn-scoped endpoint is always built for a chat gateway, so h.mcp is non-nil here.
+// standing up a second server (M7); it is reaped by this Handler's Close. Returns nil
+// when MCP is disabled (the turn-scoped endpoint was not built) — the query server
+// only calls this when the ai.mcp block is present, so h.mcp is non-nil then.
 func (h *Handler) SharedMCPHandler() http.Handler {
+	if h.mcp == nil {
+		return nil
+	}
 	return h.mcp.streamable
 }
 

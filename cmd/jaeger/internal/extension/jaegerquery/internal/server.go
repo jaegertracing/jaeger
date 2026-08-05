@@ -283,15 +283,14 @@ func registerAIRoutes(
 	}
 
 	var cs closers
-	// One config for both MCP endpoints so they cannot drift. Built unconditionally,
-	// not just when the ai.mcp block is present, so the turn-scoped endpoint's server
-	// has a proper identity even when it serves the turn's UI tools alone (no ai.mcp
-	// block, so no telemetry tools); the block only adds the custom skills FS. The
-	// skills directory is opened once here, so both endpoints share the handle and a
-	// broken path is reported once, at startup; it stays open for as long as it
-	// serves, so it is released with the server rather than at process exit.
-	mcpCfg := mcptools.DefaultConfig()
+	// One config for both MCP endpoints so they cannot drift, and the zero value when
+	// MCP is off — no MCP endpoint is mounted then. The skills directory is opened once
+	// here, so both endpoints share the handle and a broken path is reported once, at
+	// startup; it stays open for as long as it serves, so it is released with the
+	// server rather than at process exit.
+	var mcpCfg mcptools.Config
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
+		mcpCfg = mcptools.DefaultConfig()
 		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
 		if err != nil {
 			return nil, err

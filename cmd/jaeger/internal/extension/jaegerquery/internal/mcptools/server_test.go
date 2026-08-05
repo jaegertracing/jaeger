@@ -64,8 +64,6 @@ func TestNewHandler_ListTools(t *testing.T) {
 		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
 		"read_skill",
 	}, got)
-	assert.NotEmpty(t, session.InitializeResult().Instructions,
-		"the full server advertises the telemetry-tool instructions")
 }
 
 // TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,
@@ -116,21 +114,6 @@ func TestHandlerCloseReapsSessions(t *testing.T) {
 
 	require.NoError(t, h.Close())
 	assert.Empty(t, slices.Collect(h.server.Sessions()), "Close must reap the shared endpoint's sessions")
-}
-
-// TestNewServerWithoutTools verifies the server carries no telemetry tools — it
-// backs the turn-scoped endpoint's UI-tools-only mode (no ai.mcp block), where the
-// built-in telemetry query tools must not be advertised.
-func TestNewServerWithoutTools(t *testing.T) {
-	srv := NewServerWithoutTools(telemetry.NoopSettings(), DefaultConfig())
-	handler := WrapHTTP(srv, tenancy.NewManager(&tenancy.Options{}), telemetry.NoopSettings())
-
-	session := connectTestClient(t, handler)
-	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.NoError(t, err)
-	assert.Empty(t, listed.Tools, "a server built without tools must advertise none")
-	assert.Empty(t, session.InitializeResult().Instructions,
-		"a tool-less server must not advertise the telemetry-tool instructions")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a

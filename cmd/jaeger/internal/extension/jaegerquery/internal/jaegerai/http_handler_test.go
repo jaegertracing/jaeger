@@ -26,7 +26,7 @@ func TestNewHandlerBuildsEndpoints(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
-	assert.NotNil(t, h.mcp, "the turn-scoped endpoint is built for a chat gateway even when EnableMCP is false (it carries the turn's UI tools)")
+	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when EnableMCP is false")
 }
 
 func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
@@ -146,11 +146,10 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	})
 }
 
-// TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry is the M7.2 behavior at the
-// route level: even with the telemetry MCP server disabled (no ai.mcp block), a
-// chat gateway still mounts the turn-scoped endpoint so the turn's UI tools can
-// dispatch over MCP. A registered turn is served; an unknown one is still 404.
-func TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry(t *testing.T) {
+// TestRegisterRoutesOmitsMCPEndpointWhenDisabled pins the chat-only shape: with
+// EnableMCP false (no ai.mcp block) the turn-scoped endpoint is not built, so its
+// route is never mounted and a request for it falls through to 404.
+func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	h := NewHandler(HandlerParams{
 		Logger:             zap.NewNop(),
 		AgentURL:           "ws://127.0.0.1:1",
@@ -160,22 +159,14 @@ func TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry(t *testing.T) {
 		Telset:             telemetry.NoopSettings(),
 		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
 	})
-	require.NotNil(t, h.mcp, "turn-scoped endpoint must be mounted for a chat gateway even without an ai.mcp block")
+	require.Nil(t, h.mcp, "turn-scoped endpoint must not be built when EnableMCP is false")
+	assert.Nil(t, h.SharedMCPHandler(), "there is no server to share when MCP is disabled")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
-	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
 
-	t.Run("active turn is served", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/"+routeID+"/mcp", http.NoBody))
-		assert.NotEqual(t, http.StatusNotFound, rr.Code, "a registered turn must reach the endpoint even without telemetry")
-	})
-
-	t.Run("unknown route id is rejected", func(t *testing.T) {
-		rr := httptest.NewRecorder()
-		mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/ghost/mcp", http.NoBody))
-		assert.Equal(t, http.StatusNotFound, rr.Code)
-	})
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any/mcp", http.NoBody))
+	assert.Equal(t, http.StatusNotFound, rr.Code, "the turn-scoped MCP route must not be mounted when MCP is disabled")
 }
 
 // TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
@@ -220,6 +211,6 @@ func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
 		Telset:             telemetry.NoopSettings(),
 		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
 	})
-	require.NotNil(t, chatOnly.mcp, "chat mounts the turn-scoped endpoint for UI tools")
-	require.NoError(t, chatOnly.Close(), "closing with no bound sessions is a no-op")
+	require.Nil(t, chatOnly.mcp, "a chat-only gateway builds no turn-scoped endpoint")
+	require.NoError(t, chatOnly.Close(), "closing with nothing to close is a no-op")
 }

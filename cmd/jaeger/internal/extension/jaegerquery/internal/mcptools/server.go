@@ -57,40 +57,17 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	return server
 }
 
-// NewServerWithoutTools builds an *mcp.Server with the same identity and
-// tracing/metrics middleware as NewServer but no telemetry tools registered. It
-// backs a turn-scoped endpoint that serves only a turn's UI tools (layered on via
-// receiving middleware) when the operator has not enabled the telemetry MCP server
-// — so UI-tool dispatch does not depend on the ai.mcp block. It needs no
-// QueryService, since it registers no query-backed tools.
-func NewServerWithoutTools(telset telemetry.Settings, cfg Config) *mcp.Server {
-	// Override instructions with "" rather than inherit serverInstructions: this
-	// server registers no telemetry tools, so those instructions would describe tools
-	// that are not here. The per-turn UI tools are layered on by the caller's
-	// middleware and are not mcptools' to describe.
-	server := newBareServer(cfg, "")
-	addObservabilityMiddleware(server, telset)
-	return server
-}
-
 // newBareServer builds the server shell — identity and instructions — with neither
-// tools nor middleware, so NewServer and NewServerWithoutTools share one definition
-// of what the Jaeger MCP server *is*. Instructions default to serverInstructions
-// (which describe the built-in telemetry tools); a caller that registers no
-// telemetry tools passes an override so an agent is not told about tools the server
-// does not have.
-func newBareServer(cfg Config, instructions ...string) *mcp.Server {
-	instruction := serverInstructions
-	if len(instructions) > 0 {
-		instruction = instructions[0]
-	}
+// tools nor middleware, so it stays one definition of what the Jaeger MCP server
+// *is*, separate from what tools/middleware NewServer layers on.
+func newBareServer(cfg Config) *mcp.Server {
 	return mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
 			Version: cfg.ServerVersion,
 		},
 		&mcp.ServerOptions{
-			Instructions: instruction,
+			Instructions: serverInstructions,
 		},
 	)
 }

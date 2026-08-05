@@ -37,7 +37,7 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 // turnMCPServer mounts a real turn-scoped handler with one active turn
 // ("sess-1") holding the given UI tools, and returns the test HTTP server plus
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
-func turnMCPServer(t *testing.T, uiTools []json.RawMessage, enableMCP bool) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
+func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
 	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	turns := newTurnRegistry()
@@ -50,7 +50,6 @@ func turnMCPServer(t *testing.T, uiTools []json.RawMessage, enableMCP bool) (ts 
 		tenancyMgr: tenancy.NewManager(&tenancy.Options{}),
 		turns:      turns,
 		mcpConfig:  mcptools.DefaultConfig(),
-		enableMCP:  enableMCP,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
@@ -75,7 +74,7 @@ func connectTurnMCP(t *testing.T, ts *httptest.Server, path string) *mcp.ClientS
 }
 
 func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
-	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")}, true)
+	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
@@ -109,28 +108,8 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 	assert.Contains(t, got, "get_services", "the shared mount serves the telemetry tools via the gateway's server")
 }
 
-// TestTurnScopedEndpointWithoutTelemetryServesUIToolsOnly is the M7.2 contract:
-// with the telemetry MCP server disabled (no ai.mcp block) but chat on, the
-// turn-scoped endpoint still serves the turn's UI tools — so UI-tool dispatch does
-// not depend on the ai.mcp block — while advertising none of the built-in telemetry
-// tools the ai.mcp block gates.
-func TestTurnScopedEndpointWithoutTelemetryServesUIToolsOnly(t *testing.T) {
-	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")}, false)
-	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
-
-	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
-	require.NoError(t, err)
-
-	got := make([]string, 0, len(listed.Tools))
-	for _, tool := range listed.Tools {
-		got = append(got, tool.Name)
-	}
-	assert.Equal(t, []string{"show_chart"}, got,
-		"only the turn's UI tools may be advertised when the telemetry server is off")
-}
-
 func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
-	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")}, true)
+	ts, rec, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")})
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
 
 	result, err := session.CallTool(context.Background(), &mcp.CallToolParams{
@@ -163,7 +142,6 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 		tenancyMgr: tenancy.NewManager(&tenancy.Options{}),
 		turns:      turns,
 		mcpConfig:  mcptools.DefaultConfig(),
-		enableMCP:  true,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
@@ -193,7 +171,7 @@ func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
 }
 
 func TestTurnScopedEndpointRejectsUnknownTurn(t *testing.T) {
-	ts, _, _ := turnMCPServer(t, nil, true)
+	ts, _, _ := turnMCPServer(t, nil)
 	for _, p := range []string{"/api/ai/mcp/ghost/mcp", "/api/ai/mcp/ghost"} {
 		t.Run(p, func(t *testing.T) {
 			resp, err := ts.Client().Get(ts.URL + p)
