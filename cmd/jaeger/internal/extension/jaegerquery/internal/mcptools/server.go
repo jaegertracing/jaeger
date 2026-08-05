@@ -61,25 +61,36 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 // tracing/metrics middleware as NewServer but no telemetry tools registered. It
 // backs a turn-scoped endpoint that serves only a turn's UI tools (layered on via
 // receiving middleware) when the operator has not enabled the telemetry MCP server
-// — so UI-tool dispatch does not depend on ai.enable_mcp. It needs no
+// — so UI-tool dispatch does not depend on the ai.mcp block. It needs no
 // QueryService, since it registers no query-backed tools.
 func NewServerWithoutTools(telset telemetry.Settings, cfg Config) *mcp.Server {
-	server := newBareServer(cfg)
+	// Override instructions with "" rather than inherit serverInstructions: this
+	// server registers no telemetry tools, so those instructions would describe tools
+	// that are not here. The per-turn UI tools are layered on by the caller's
+	// middleware and are not mcptools' to describe.
+	server := newBareServer(cfg, "")
 	addObservabilityMiddleware(server, telset)
 	return server
 }
 
 // newBareServer builds the server shell — identity and instructions — with neither
 // tools nor middleware, so NewServer and NewServerWithoutTools share one definition
-// of what the Jaeger MCP server *is*.
-func newBareServer(cfg Config) *mcp.Server {
+// of what the Jaeger MCP server *is*. Instructions default to serverInstructions
+// (which describe the built-in telemetry tools); a caller that registers no
+// telemetry tools passes an override so an agent is not told about tools the server
+// does not have.
+func newBareServer(cfg Config, instructions ...string) *mcp.Server {
+	instruction := serverInstructions
+	if len(instructions) > 0 {
+		instruction = instructions[0]
+	}
 	return mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
 			Version: cfg.ServerVersion,
 		},
 		&mcp.ServerOptions{
-			Instructions: serverInstructions,
+			Instructions: instruction,
 		},
 	)
 }

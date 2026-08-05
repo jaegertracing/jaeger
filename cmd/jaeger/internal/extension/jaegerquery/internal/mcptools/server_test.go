@@ -64,6 +64,8 @@ func TestNewHandler_ListTools(t *testing.T) {
 		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
 		"read_skill",
 	}, got)
+	assert.NotEmpty(t, session.InitializeResult().Instructions,
+		"the full server advertises the telemetry-tool instructions")
 }
 
 // TestNewHandler_CallTool exercises a tool end-to-end through the HTTP stack,
@@ -127,6 +129,8 @@ func TestNewServerWithoutTools(t *testing.T) {
 	listed, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
 	assert.Empty(t, listed.Tools, "a server built without tools must advertise none")
+	assert.Empty(t, session.InitializeResult().Instructions,
+		"a tool-less server must not advertise the telemetry-tool instructions")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
