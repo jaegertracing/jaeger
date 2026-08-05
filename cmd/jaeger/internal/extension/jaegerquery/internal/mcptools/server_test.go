@@ -119,7 +119,7 @@ func TestHandlerCloseReapsSessions(t *testing.T) {
 }
 
 // TestNewServerWithoutTools verifies the server carries no telemetry tools — it
-// backs the turn-scoped endpoint's UI-tools-only mode (enable_mcp off), where the
+// backs the turn-scoped endpoint's UI-tools-only mode (no ai.mcp block), where the
 // built-in telemetry query tools must not be advertised.
 func TestNewServerWithoutTools(t *testing.T) {
 	srv := NewServerWithoutTools(telemetry.NoopSettings(), DefaultConfig())

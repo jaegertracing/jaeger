@@ -81,7 +81,7 @@ type turnScopedEndpointBuilder struct {
 	mcpConfig  mcptools.Config
 	// enableMCP layers the built-in telemetry tools onto the server. When false,
 	// the endpoint serves the turn's UI tools alone, so UI-tool dispatch does not
-	// depend on ai.enable_mcp.
+	// depend on the ai.mcp config block.
 	enableMCP bool
 }
 

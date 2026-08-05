@@ -70,18 +70,18 @@ type HandlerParams struct {
 // so a chat turn and its MCP callbacks resolve to the same turn.
 //
 // The turn-scoped MCP endpoint is always built: it carries the turn's UI tools,
-// which the sidecar dispatches over MCP independently of ai.enable_mcp. p.EnableMCP
-// only decides whether the built-in telemetry tools are layered onto it too (see
-// newTurnScopedEndpoint).
+// which the sidecar dispatches over MCP independently of the ai.mcp config block.
+// p.EnableMCP only decides whether the built-in telemetry tools are layered onto it
+// too (see turnScopedEndpointBuilder.build).
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
 	// The turn-scoped endpoint always mounts for a chat gateway: it carries the
-	// turn's UI tools, which the sidecar dispatches over MCP independently of
-	// ai.enable_mcp. enableMCP only decides whether the built-in telemetry tools are
-	// layered onto it too (see turnScopedEndpointBuilder.build).
+	// turn's UI tools, which the sidecar dispatches over MCP independently of the
+	// ai.mcp config block. enableMCP only decides whether the built-in telemetry
+	// tools are layered onto it too (see turnScopedEndpointBuilder.build).
 	h.mcp = turnScopedEndpointBuilder{
 		telset:     p.Telset,
 		queryAPI:   p.QueryService,
@@ -94,7 +94,7 @@ func NewHandler(p HandlerParams) *Handler {
 	// Hand the chat endpoint the endpoint's reachable base URL so each turn
 	// announces it to the sidecar (see chatEndpoint.announceMCP). The endpoint
 	// always exists now, so announcement is gated only by the base URL resolving to
-	// a non-empty value, not by enable_mcp.
+	// a non-empty value, not by the ai.mcp block.
 	//
 	// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a value
 	// like "http://host:16686//" is legal, and TrimSuffix would leave one slash on.

@@ -147,7 +147,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 }
 
 // TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry is the M7.2 behavior at the
-// route level: even with the telemetry MCP server disabled (enable_mcp: false), a
+// route level: even with the telemetry MCP server disabled (no ai.mcp block), a
 // chat gateway still mounts the turn-scoped endpoint so the turn's UI tools can
 // dispatch over MCP. A registered turn is served; an unknown one is still 404.
 func TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry(t *testing.T) {
@@ -160,7 +160,7 @@ func TestRegisterRoutesMountsTurnScopedMCPWithoutTelemetry(t *testing.T) {
 		Telset:             telemetry.NoopSettings(),
 		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
 	})
-	require.NotNil(t, h.mcp, "turn-scoped endpoint must be mounted for a chat gateway even without enable_mcp")
+	require.NotNil(t, h.mcp, "turn-scoped endpoint must be mounted for a chat gateway even without an ai.mcp block")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)

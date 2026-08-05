@@ -110,10 +110,10 @@ func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
 }
 
 // TestTurnScopedEndpointWithoutTelemetryServesUIToolsOnly is the M7.2 contract:
-// with the telemetry MCP server disabled (enable_mcp: false) but chat on, the
+// with the telemetry MCP server disabled (no ai.mcp block) but chat on, the
 // turn-scoped endpoint still serves the turn's UI tools — so UI-tool dispatch does
-// not depend on enable_mcp — while advertising none of the built-in telemetry tools
-// that enable_mcp gates.
+// not depend on the ai.mcp block — while advertising none of the built-in telemetry
+// tools the ai.mcp block gates.
 func TestTurnScopedEndpointWithoutTelemetryServesUIToolsOnly(t *testing.T) {
 	ts, _, routeID := turnMCPServer(t, []json.RawMessage{rawUITool(t, "show_chart")}, false)
 	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
