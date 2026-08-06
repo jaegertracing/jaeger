@@ -19,6 +19,10 @@ RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}"
 # renovate: datasource=helm depName=opentelemetry-demo registryUrl=https://open-telemetry.github.io/opentelemetry-helm-charts
 OTEL_DEMO_CHART_VERSION="0.40.9"
+# renovate: datasource=helm depName=opensearch registryUrl=https://opensearch-project.github.io/helm-charts
+OPENSEARCH_CHART_VERSION="2.38.0"
+# renovate: datasource=helm depName=opensearch-dashboards registryUrl=https://opensearch-project.github.io/helm-charts
+OPENSEARCH_DASHBOARDS_CHART_VERSION="2.34.0"
 
 log() { echo "[$(date +"%F %T")] $*"; }
 err() { echo "[$(date +"%F %T")] ERROR: $*" >&2; exit 1; }
@@ -36,11 +40,11 @@ validate_options() {
   esac
 
   case "$DEPLOY_SCOPE" in
-    jaeger|otel-demo|all)
+    jaeger|otel-demo|opensearch|all)
       ;;
     *)
       echo "Error: Invalid deploy scope '$DEPLOY_SCOPE'" >&2
-      echo "Expected JAEGER_OTEL_DEMO_DEPLOY_SCOPE to be 'jaeger', 'otel-demo', or 'all'" >&2
+      echo "Expected JAEGER_OTEL_DEMO_DEPLOY_SCOPE to be 'jaeger', 'otel-demo', 'opensearch', or 'all'" >&2
       return 1
       ;;
   esac
@@ -260,6 +264,10 @@ deploy_full_stack() {
   [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "all" ]]
 }
 
+deploy_opensearch_stack() {
+  deploy_full_stack || [[ "$DEPLOY_SCOPE" == "opensearch" ]]
+}
+
 deploy_jaeger_stack() {
   [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "jaeger" || "$DEPLOY_SCOPE" == "all" ]]
 }
@@ -269,7 +277,25 @@ deploy_otel_demo() {
 }
 
 reconcile_ingress() {
-  [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" != "otel-demo" ]]
+  [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "jaeger" || "$DEPLOY_SCOPE" == "all" ]]
+}
+
+deploy_opensearch_releases() {
+  log "Deploying OpenSearch chart $OPENSEARCH_CHART_VERSION"
+  helm upgrade --install opensearch opensearch/opensearch \
+    --namespace opensearch --create-namespace \
+    --version "$OPENSEARCH_CHART_VERSION" \
+    -f "$SCRIPT_DIR/opensearch-values.yaml" \
+    --wait --timeout 10m
+  wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
+
+  log "Deploying OpenSearch Dashboards chart $OPENSEARCH_DASHBOARDS_CHART_VERSION"
+  helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
+    --namespace opensearch \
+    --version "$OPENSEARCH_DASHBOARDS_CHART_VERSION" \
+    -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
+    --wait --timeout 10m
+  wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
 }
 
 cleanup() {
@@ -422,22 +448,8 @@ main() {
     log "Skipping Jaeger Helm chart preparation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
   fi
 
-  if deploy_full_stack; then
-    log "Deploying OpenSearch"
-    helm upgrade --install opensearch opensearch/opensearch \
-      --namespace opensearch --create-namespace \
-      --version 2.19.0 \
-      --set image.tag=2.11.0 \
-      -f "$SCRIPT_DIR/opensearch-values.yaml" \
-      --wait --timeout 10m
-    wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
-
-    log "Deploying OpenSearch Dashboards"
-    helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
-      --namespace opensearch \
-      -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
-      --wait --timeout 10m
-    wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
+  if deploy_opensearch_stack; then
+    deploy_opensearch_releases
   else
     log "Skipping OpenSearch refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
   fi
