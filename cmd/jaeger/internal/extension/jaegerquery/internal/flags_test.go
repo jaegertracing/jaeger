@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config/configoptional"
 )
 
 func TestDefaultQueryOptions(t *testing.T) {
@@ -60,13 +61,19 @@ func TestAIConfigValidateAcceptsDefaults(t *testing.T) {
 func TestAIConfigValidateRejectsEmptyAgentURLWithoutMCP(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.AgentURL = ""
-	require.EqualError(t, cfg.Validate(), "ai requires agent_url (AI chat) or enable_mcp (telemetry MCP tools)")
+	require.EqualError(t, cfg.Validate(), "ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
 }
 
 func TestAIConfigValidateAcceptsMCPOnly(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.AgentURL = ""
-	cfg.EnableMCP = true
+	cfg.MCP = configoptional.Some(MCPConfig{})
+	require.NoError(t, cfg.Validate())
+}
+
+func TestAIConfigValidateAcceptsSkillsDir(t *testing.T) {
+	cfg := validAIConfig()
+	cfg.MCP = configoptional.Some(MCPConfig{SkillsDir: "/etc/jaeger/skills"})
 	require.NoError(t, cfg.Validate())
 }
 
@@ -78,37 +85,32 @@ func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 	}
 }
 
-func TestAIConfigValidateAcceptsAbsentOrAbsoluteMCPBaseURL(t *testing.T) {
+func TestMCPConfigValidateAcceptsAbsentOrAbsoluteBaseURL(t *testing.T) {
 	// Empty is valid — the announced URL is then resolved from AgentURL
 	// (see resolveMCPBaseURL); only an explicit override is validated here.
-	cfg := validAIConfig()
-	require.NoError(t, cfg.Validate())
+	require.NoError(t, (&MCPConfig{}).Validate())
 
 	for _, u := range []string{
 		"http://127.0.0.1:16686",
 		"https://jaeger.example.com:16686",
 		"https://jaeger.example.com",
 	} {
-		cfg := validAIConfig()
-		cfg.MCPBaseURL = u
-		require.NoError(t, cfg.Validate(), "absolute URL %q must be accepted", u)
+		require.NoError(t, (&MCPConfig{BaseURL: u}).Validate(), "absolute URL %q must be accepted", u)
 	}
 }
 
-func TestAIConfigValidateRejectsRelativeMCPBaseURL(t *testing.T) {
+func TestMCPConfigValidateRejectsRelativeBaseURL(t *testing.T) {
 	// A scheme-less or relative value would be announced verbatim and fail at the
 	// sidecar mid-turn — exactly what this field exists to prevent — so it must
 	// fail at config load instead.
-	const want = "ai.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686"
+	const want = "ai.mcp.base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686"
 	for _, u := range []string{
 		"jaeger.example.com:16686", // no scheme
 		"/api/ai/mcp",              // path only
 		"http://",                  // no host
 		"://nonsense",              // unparseable
 	} {
-		cfg := validAIConfig()
-		cfg.MCPBaseURL = u
-		require.EqualError(t, cfg.Validate(), want, "relative/invalid URL %q must be rejected", u)
+		require.EqualError(t, (&MCPConfig{BaseURL: u}).Validate(), want, "relative/invalid URL %q must be rejected", u)
 	}
 }
 
@@ -255,7 +257,10 @@ func TestAIConfigResolveMCPBaseURL(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := AIConfig{AgentURL: tc.agentURL, MCPBaseURL: tc.mcpBaseURL}
+			cfg := AIConfig{
+				AgentURL: tc.agentURL,
+				MCP:      configoptional.Some(MCPConfig{BaseURL: tc.mcpBaseURL}),
+			}
 			assert.Equal(t, tc.want, cfg.resolveMCPBaseURL(context.Background(), tc.endpoint, tc.tls))
 		})
 	}

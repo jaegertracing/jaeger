@@ -962,6 +962,61 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 	})
 }
 
+// TestSpanReader_buildFindTraceIDsQuery_errorTag covers the error tag special
+// case. Non-error spans carry no error tag (only error spans get error=true), so a
+// literal error=false match finds nothing; error=false must instead exclude
+// error=true. The value is parsed with strconv.ParseBool so every boolean form is
+// accepted, matching the in-memory store's error handling exactly (#9096, which
+// also uses strconv.ParseBool). A non-boolean value keeps the previous literal
+// tag match.
+func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		start := time.Time{}
+		end := time.Time{}.Add(time.Second)
+		base := func() *esquery.BoolQuery {
+			return esquery.NewBoolQuery().Must(r.reader.buildStartTimeQuery(start, end))
+		}
+		wantSource := func(q *esquery.BoolQuery) any {
+			src, err := q.Source()
+			require.NoError(t, err)
+			return src
+		}
+		errorTrueMatch := wantSource(base().Must(r.reader.buildTagQuery("error", "true")))
+		errorTrueExcluded := wantSource(base().MustNot(r.reader.buildTagQuery("error", "true")))
+
+		for _, tt := range []struct {
+			value string
+			want  any
+		}{
+			// Truthy forms match error=true.
+			{"true", errorTrueMatch},
+			{"True", errorTrueMatch},
+			{"TRUE", errorTrueMatch},
+			{"1", errorTrueMatch},
+			{"t", errorTrueMatch},
+			// Falsy forms exclude error=true (the complement).
+			{"false", errorTrueExcluded},
+			{"False", errorTrueExcluded},
+			{"FALSE", errorTrueExcluded},
+			{"0", errorTrueExcluded},
+			{"f", errorTrueExcluded},
+			// Non-boolean values keep the literal tag match.
+			{"oops", wantSource(base().Must(r.reader.buildTagQuery("error", "oops")))},
+			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
+		} {
+			t.Run("error="+tt.value, func(t *testing.T) {
+				got, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+					StartTimeMin: start,
+					StartTimeMax: end,
+					Tags:         map[string]string{"error": tt.value},
+				}).Source()
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			})
+		}
+	})
+}
+
 func TestSpanReader_buildDurationQuery(t *testing.T) {
 	expectedStr := `{ "range":
 			{ "duration": {
