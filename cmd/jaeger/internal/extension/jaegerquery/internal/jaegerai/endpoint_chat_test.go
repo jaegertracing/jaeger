@@ -533,7 +533,7 @@ func TestChatEndpointAnnouncesNothingWithoutBaseURL(t *testing.T) {
 	defer cleanup()
 
 	handler := newChatEndpoint(zap.NewNop(), nil, newTurnRegistry(), wsURL, "", 1<<20)
-	// mcpBaseURL deliberately left empty — an ai.mcp block with no mcp_base_url set.
+	// mcpBaseURL deliberately left empty — enable_mcp without ai.mcp_base_url.
 
 	reqBody, err := json.Marshal(newAGUIRequest("hello"))
 	require.NoError(t, err)

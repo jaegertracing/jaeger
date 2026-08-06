@@ -283,14 +283,14 @@ func registerAIRoutes(
 	}
 
 	var cs closers
-	// One config for both MCP endpoints so they cannot drift, and the zero value when
-	// MCP is off — no MCP endpoint is mounted then. The skills directory is opened once
-	// here, so both endpoints share the handle and a broken path is reported once, at
-	// startup; it stays open for as long as it serves, so it is released with the
-	// server rather than at process exit.
+	// One config for both MCP endpoints so they cannot drift, and the zero value
+	// when MCP is off — the gateway ignores it then.
 	var mcpCfg mcptools.Config
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
 		mcpCfg = mcptools.DefaultConfig()
+		// Opened once, so both endpoints share the handle and a broken path is
+		// reported once, at startup. It stays open for as long as it serves, so
+		// it is released with the server rather than at process exit.
 		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
 		if err != nil {
 			return nil, err
@@ -306,12 +306,13 @@ func registerAIRoutes(
 	var aiGateway *jaegerai.Handler
 	if aiCfg.AgentURL != "" {
 		// jaegerai owns the chat endpoint and, when MCP is on, the turn-scoped
-		// endpoint (/api/ai/mcp/<id>/). It holds MCP sessions past the request that
-		// opened them, so it joins the closers.
+		// endpoint (/api/ai/mcp/<id>/) — which is why mcpCfg is built above
+		// rather than inside this branch. It holds MCP sessions past the request
+		// that opened them, so it joins the closers.
 		//
-		// The announced base URL is resolved here because inferring the gateway's
-		// own localhost address needs the query HTTP endpoint and TLS setting, which
-		// live on QueryOptions, not AIConfig.
+		// The announced base URL is resolved here because inferring the
+		// gateway's own localhost address needs the query HTTP endpoint and TLS
+		// setting, which live on QueryOptions, not AIConfig.
 		aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
 			Logger:             telset.Logger,
 			AgentURL:           aiCfg.AgentURL,

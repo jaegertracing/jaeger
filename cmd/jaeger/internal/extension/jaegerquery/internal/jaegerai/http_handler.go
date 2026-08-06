@@ -31,9 +31,9 @@ type Handler struct {
 	basePath string
 	// chat is the chat endpoint (/api/ai/chat), always present.
 	chat *chatEndpoint
-	// mcp is the turn-scoped MCP endpoint. Non-nil only when the operator enabled MCP
-	// (HandlerParams.EnableMCP); otherwise the endpoint is not mounted and the gateway
-	// advertises AI chat only.
+	// mcp is the turn-scoped MCP endpoint. Non-nil only when the operator enabled
+	// MCP (HandlerParams.EnableMCP); otherwise the endpoint is not mounted and the
+	// gateway advertises AI chat only.
 	mcp *turnScopedEndpoint
 }
 
@@ -45,9 +45,8 @@ type HandlerParams struct {
 	AgentURL           string
 	BasePath           string
 	MaxRequestBodySize int64
-	// EnableMCP mounts the turn-scoped MCP endpoint (telemetry tools plus the turn's
-	// UI tools). It mirrors the presence of the ai.mcp config block. When false, only
-	// the chat endpoint is registered.
+	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
+	// chat endpoint is registered.
 	EnableMCP bool
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
@@ -66,20 +65,15 @@ type HandlerParams struct {
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
 // basePath is normalized once so the registered mux patterns use a single
 // canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
-// so a chat turn and its MCP callbacks resolve to the same turn.
-//
-// The turn-scoped MCP endpoint is mounted only when p.EnableMCP is set (the ai.mcp
-// config block is present); it serves the built-in telemetry tools plus the turn's
-// UI tools (see turnScopedEndpointBuilder.build).
+// so a chat turn and its MCP callbacks resolve to the same turn. When p.EnableMCP
+// is set, the turn-scoped MCP endpoint is built from the supplied query service,
+// tenancy manager, and telemetry settings.
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
 	if p.EnableMCP {
-		// The turn-scoped MCP endpoint is mounted only when MCP is enabled (the
-		// ai.mcp block is present); it serves the built-in telemetry tools plus the
-		// turn's UI tools.
 		h.mcp = turnScopedEndpointBuilder{
 			telset:     p.Telset,
 			queryAPI:   p.QueryService,
@@ -90,12 +84,12 @@ func NewHandler(p HandlerParams) *Handler {
 		}.build()
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
-		// here keeps the announcement off when no endpoint is mounted.
+		// here is what keeps the announcement off when no endpoint is mounted.
 		//
-		// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a value
-		// like "http://host:16686//" is legal, and TrimSuffix would leave one slash on.
-		// A doubled slash still reaches the endpoint — ServeMux redirects to the cleaned
-		// path — but at the cost of a redirect on every MCP call.
+		// TrimRight, not TrimSuffix: config only has to be an absolute URL, so a
+		// value like "http://host:16686//" is legal, and TrimSuffix would leave one
+		// slash on. A doubled slash still reaches the endpoint — ServeMux redirects
+		// to the cleaned path — but at the cost of a redirect on every MCP call.
 		chat.mcpBaseURL = strings.TrimRight(p.MCPBaseURL, "/")
 	}
 	return h
@@ -148,8 +142,9 @@ var _ io.Closer = (*Handler)(nil)
 // httpServer.Close → closers.Close → here), so the gateway's MCP sessions do not
 // outlive the server that served them.
 //
-// A nil Handler is what jaeger-query holds when the AI gateway is disabled — it
-// closes to nothing, so callers need no guard.
+// A nil Handler is what jaeger-query holds when the AI gateway is disabled, and a
+// Handler with no turn-scoped endpoint is what it holds when only chat is enabled —
+// both close to nothing, so callers need no guard.
 func (h *Handler) Close() error {
 	if h == nil || h.mcp == nil {
 		return nil

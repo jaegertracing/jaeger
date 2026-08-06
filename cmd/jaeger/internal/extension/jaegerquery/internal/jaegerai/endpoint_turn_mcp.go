@@ -51,10 +51,11 @@ func mcpRouteIDFromContext(ctx context.Context) string {
 	return id
 }
 
-// turnScopedEndpoint serves the turn-scoped MCP endpoint. It advertises the built-in
-// telemetry tools plus the UI tools the frontend declared for that turn, and
-// dispatches UI-tool calls back to the browser over the turn's SSE stream. Access is
-// gated to route ids that belong to an active chat turn (present in turnRegistry).
+// turnScopedEndpoint serves the turn-scoped MCP endpoint. It advertises the
+// built-in telemetry tools plus the UI tools the frontend declared for that
+// turn, and dispatches UI-tool calls back to the browser over the turn's
+// SSE stream. Access is gated to route ids that belong to an active chat turn
+// (present in turnRegistry).
 type turnScopedEndpoint struct {
 	// streamable is the closeable MCP streamable-HTTP handler (from
 	// mcptools.WrapHTTP) serving a single shared server, which it also owns and
@@ -79,10 +80,10 @@ type turnScopedEndpointBuilder struct {
 	mcpConfig  mcptools.Config
 }
 
-// build assembles the turn-scoped handler around a single shared MCP server: the
-// built-in telemetry tools are a fixed capability registered once, and each turn's
-// UI tools are layered on per-request by uiToolsMiddleware, so no server has to be
-// stood up per turn.
+// build assembles the turn-scoped handler around a single shared MCP server:
+// the telemetry tools are a fixed capability registered once, and each turn's
+// UI tools are layered on per-request by uiToolsMiddleware, so no server has to
+// be stood up per turn.
 func (b turnScopedEndpointBuilder) build() *turnScopedEndpoint {
 	srv := mcptools.NewServer(b.telset, b.queryAPI, b.mcpConfig)
 	srv.AddReceivingMiddleware(uiToolsMiddleware(b.turns, b.telset.Logger))

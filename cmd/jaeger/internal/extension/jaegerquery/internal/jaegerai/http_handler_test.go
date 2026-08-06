@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewHandlerBuildsEndpoints(t *testing.T) {
-	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://example", BasePath: "/jaeger", MaxRequestBodySize: 1 << 20})
 	require.NotNil(t, h.chat, "NewHandler must build the chat endpoint")
 	assert.Equal(t, "/jaeger", h.basePath)
 	assert.Nil(t, h.mcp, "the MCP endpoint must be nil when EnableMCP is false")
@@ -61,7 +61,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: tc.basePath, MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
+			h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: tc.basePath, MaxRequestBodySize: 1 << 20})
 			mux := http.NewServeMux()
 			h.RegisterRoutes(mux)
 
@@ -78,7 +78,7 @@ func TestRegisterRoutesMountsChatEndpoint(t *testing.T) {
 }
 
 func TestNewHandlerNormalizesTrailingSlash(t *testing.T) {
-	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "/jaeger/", MaxRequestBodySize: 1 << 20, Telset: telemetry.NoopSettings(), TenancyMgr: tenancy.NewManager(&tenancy.Options{})})
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "/jaeger/", MaxRequestBodySize: 1 << 20})
 	assert.Equal(t, "/jaeger", h.basePath, "NewHandler must trim the trailing slash")
 }
 
@@ -146,27 +146,17 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 	})
 }
 
-// TestRegisterRoutesOmitsMCPEndpointWhenDisabled pins the chat-only shape: with
-// EnableMCP false (no ai.mcp block) the turn-scoped endpoint is not built, so its
-// route is never mounted and a request for it falls through to 404.
 func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
-	h := NewHandler(HandlerParams{
-		Logger:             zap.NewNop(),
-		AgentURL:           "ws://127.0.0.1:1",
-		BasePath:           "",
-		MaxRequestBodySize: 1 << 20,
-		EnableMCP:          false,
-		Telset:             telemetry.NoopSettings(),
-		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
-	})
-	require.Nil(t, h.mcp, "turn-scoped endpoint must not be built when EnableMCP is false")
+	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
 	assert.Nil(t, h.SharedMCPHandler(), "there is no server to share when MCP is disabled")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
+	// With MCP disabled the route is never mounted, so any turn URL is a 404
+	// regardless of whether a turn is active.
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any/mcp", http.NoBody))
-	assert.Equal(t, http.StatusNotFound, rr.Code, "the turn-scoped MCP route must not be mounted when MCP is disabled")
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/ai/mcp/any-id/mcp", http.NoBody))
+	assert.Equal(t, http.StatusNotFound, rr.Code, "turn-scoped MCP endpoint must not be mounted when disabled")
 }
 
 // TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
@@ -196,10 +186,10 @@ func TestHandlerCloseReapsMCPSessions(t *testing.T) {
 	require.Error(t, err, "after Close the session is reaped, so a further call fails")
 }
 
-// TestHandlerCloseIsNoOpWhenNothingToClose covers the shapes jaeger-query holds
-// when the gateway is not fully enabled: a nil Handler (no AI at all), and a
-// chat-only Handler whose turn-scoped endpoint has no bound sessions. Both must
-// close to nothing, because httpServer.Close calls straight through without a guard.
+// TestHandlerCloseIsNoOpWhenNothingToClose covers the two shapes jaeger-query holds
+// when the gateway is not fully enabled: a nil Handler (no AI at all) and a Handler
+// with no MCP server (chat only). Both must close to nothing, because
+// httpServer.Close calls straight through without a guard.
 func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
 	var nilHandler *Handler
 	require.NoError(t, nilHandler.Close(), "a nil gateway must be closable")
@@ -209,8 +199,7 @@ func TestHandlerCloseIsNoOpWhenNothingToClose(t *testing.T) {
 		AgentURL:           "ws://127.0.0.1:1",
 		MaxRequestBodySize: 1 << 20,
 		Telset:             telemetry.NoopSettings(),
-		TenancyMgr:         tenancy.NewManager(&tenancy.Options{}),
 	})
-	require.Nil(t, chatOnly.mcp, "a chat-only gateway builds no turn-scoped endpoint")
-	require.NoError(t, chatOnly.Close(), "closing with nothing to close is a no-op")
+	require.Nil(t, chatOnly.mcp)
+	require.NoError(t, chatOnly.Close())
 }

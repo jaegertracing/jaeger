@@ -51,17 +51,7 @@ var skillsEmbedFS embed.FS
 // middleware) build a server here, add their middleware, and serve it with
 // WrapHTTP.
 func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg Config) *mcp.Server {
-	server := newBareServer(cfg)
-	registerTools(server, queryAPI, cfg)
-	addObservabilityMiddleware(server, telset)
-	return server
-}
-
-// newBareServer builds the server shell — identity and instructions — with neither
-// tools nor middleware, so it stays one definition of what the Jaeger MCP server
-// *is*, separate from what tools/middleware NewServer layers on.
-func newBareServer(cfg Config) *mcp.Server {
-	return mcp.NewServer(
+	server := mcp.NewServer(
 		&mcp.Implementation{
 			Name:    cfg.ServerName,
 			Version: cfg.ServerVersion,
@@ -70,12 +60,8 @@ func newBareServer(cfg Config) *mcp.Server {
 			Instructions: serverInstructions,
 		},
 	)
-}
+	registerTools(server, queryAPI, cfg)
 
-// addObservabilityMiddleware installs the tracing and (best-effort) metrics
-// receiving middleware, so every request the server dispatches — a telemetry tool
-// call or a middleware-layered UI tool call — is traced and metered the same way.
-func addObservabilityMiddleware(server *mcp.Server, telset telemetry.Settings) {
 	mw := []mcp.Middleware{
 		createTracingMiddleware(telset.TracerProvider),
 	}
@@ -86,6 +72,7 @@ func addObservabilityMiddleware(server *mcp.Server, telset telemetry.Settings) {
 		mw = append(mw, metricsMiddleware)
 	}
 	server.AddReceivingMiddleware(mw...)
+	return server
 }
 
 // Handler serves an *mcp.Server over HTTP and reaps that server's sessions on
@@ -115,13 +102,12 @@ func (h *Handler) Close() error {
 
 // WrapHTTP serves an *mcp.Server as a closeable Handler over streamable HTTP, with
 // tenancy extraction and OTel HTTP instrumentation. It is the transport shell
-// shared by the shared endpoint and the turn-scoped endpoint (which layers per-turn
-// UI tools onto the server via receiving middleware before wrapping it). The same
-// server instance is reused for every session — with Stateless: false the SDK
-// builds one ServerSession per MCP session and reuses it for that session's
-// requests. It binds no listener of its own — the caller mounts the returned
-// handler on an existing mux, and closes it (or a closer set holding it) at
-// shutdown.
+// shared by the session-free endpoint and the session-scoped endpoint (which
+// layers per-session UI tools onto the server via receiving middleware before
+// wrapping it). The same server instance is reused for every session — with
+// Stateless: false the SDK builds one ServerSession per MCP session and reuses
+// it for that session's requests. It binds no listener of its own — the caller
+// mounts the returned handler on an existing mux, and closes it at shutdown.
 func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.Settings) *Handler {
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
@@ -143,10 +129,10 @@ func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.
 }
 
 // NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
-// over streamable HTTP, backed by the given QueryService — the shared endpoint
-// (e.g. jaeger-query at /api/ai/mcp/). It is a thin composition of NewServer and
-// WrapHTTP around a single shared server. The caller must Close it at shutdown so
-// its MCP sessions are reaped.
+// over streamable HTTP, backed by the given QueryService — the session-free
+// endpoint (e.g. jaeger-query at /api/ai/mcp/). It is a thin composition of
+// NewServer and WrapHTTP around a single shared server. The caller must Close it at
+// shutdown so its MCP sessions are reaped.
 func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
 	return WrapHTTP(NewServer(telset, queryAPI, cfg), tenancyMgr, telset)
 }
