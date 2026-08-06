@@ -58,17 +58,18 @@ func TestAIConfigValidateAcceptsDefaults(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
-func TestAIConfigValidateRejectsEmptyAgentURLWithoutMCP(t *testing.T) {
+func TestAIConfigValidateRejectsEmptyAgentURL(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.AgentURL = ""
-	require.EqualError(t, cfg.Validate(), "ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
+	require.EqualError(t, cfg.Validate(), "ai requires agent_url")
 }
 
-func TestAIConfigValidateAcceptsMCPOnly(t *testing.T) {
+func TestAIConfigValidateRejectsMCPWithoutAgentURL(t *testing.T) {
 	cfg := validAIConfig()
 	cfg.AgentURL = ""
 	cfg.MCP = configoptional.Some(MCPConfig{})
-	require.NoError(t, cfg.Validate())
+	require.EqualError(t, cfg.Validate(),
+		"ai.mcp requires agent_url: the telemetry MCP endpoint is served by the AI gateway")
 }
 
 func TestAIConfigValidateAcceptsSkillsDir(t *testing.T) {

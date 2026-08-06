@@ -331,17 +331,11 @@ func registerAIRoutes(
 
 	if aiCfg.MCP.HasValue() {
 		// Shared telemetry endpoint (/api/ai/mcp/), turn-less; coexists with the
-		// wildcard turn-scoped pattern the gateway registers.
-		if aiGateway != nil {
-			// A chat gateway already runs an MCP server that serves telemetry when
-			// no turn is present, so reuse it for the shared mount rather than
-			// standing up a second server (M7). It is reaped by aiGateway.Close.
-			mountSharedMCP(r, aiGateway.SharedMCPHandler(), queryOpts.BasePath, telset)
-		} else {
-			// No chat gateway: stand up a standalone shared server. It holds MCP
-			// sessions past the request that opened them, so it joins the closers.
-			cs = append(cs, registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset))
-		}
+		// wildcard turn-scoped pattern the gateway registers. Validate guarantees
+		// agent_url is set whenever mcp is, so the gateway always exists here —
+		// there is no standalone MCP. Mount the shared endpoint on the gateway's own
+		// server (M7) rather than a second one; it is reaped by aiGateway.Close.
+		mountSharedMCP(r, aiGateway.SharedMCPHandler(), queryOpts.BasePath, telset)
 	}
 	return cs, nil
 }
@@ -375,16 +369,6 @@ func mountSharedMCP(r *http.ServeMux, handler http.Handler, basePath string, tel
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
-}
-
-// registerMCPTools stands up a standalone shared telemetry MCP server, mounts it,
-// and returns its closer so the caller can reap the endpoint's MCP sessions at
-// shutdown (see mcptools.Handler.Close); the sessions would otherwise outlive the
-// query server. Used when no chat gateway exists to share a server with.
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, cfg mcptools.Config, telset telemetry.Settings) io.Closer {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
-	mountSharedMCP(r, handler, basePath, telset)
-	return handler
 }
 
 // per-route wrap is the only instrumentation layer.

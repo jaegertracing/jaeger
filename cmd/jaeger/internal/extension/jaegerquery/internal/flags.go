@@ -51,14 +51,14 @@ type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
-	// Optional: leave empty (and set the mcp block) to expose the telemetry MCP
-	// endpoint without the AI chat surface.
+	// Required whenever AI is enabled: it configures the gateway that also hosts
+	// the telemetry MCP endpoint, so mcp cannot be set without it.
 	AgentURL string `mapstructure:"agent_url" valid:"optional"`
 	// MCP exposes Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
 	// the query port. Present enables it, absent disables it — an empty block
 	// (`mcp: {}`) is enough. It replaces the retired standalone jaeger_mcp
 	// extension (which served :16687); point Cursor/IDE MCP clients at the query
-	// port instead. Independent of AgentURL.
+	// port instead. Requires agent_url — the endpoint is served by the AI gateway.
 	MCP configoptional.Optional[MCPConfig] `mapstructure:"mcp"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
@@ -137,8 +137,14 @@ func (c *OTLPProxyConfig) Validate() error {
 // (see the AIConfig type-level comment) so by the time Validate runs the
 // caller's struct already has sensible values for any field they omitted.
 func (c *AIConfig) Validate() error {
-	if c.AgentURL == "" && !c.MCP.HasValue() {
-		return errors.New("ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
+	if c.AgentURL == "" {
+		if c.MCP.HasValue() {
+			// The telemetry MCP endpoint is served by the AI gateway, so it cannot
+			// run on its own — there is no standalone MCP mode. agent_url is what
+			// configures the gateway that hosts it.
+			return errors.New("ai.mcp requires agent_url: the telemetry MCP endpoint is served by the AI gateway")
+		}
+		return errors.New("ai requires agent_url")
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")
