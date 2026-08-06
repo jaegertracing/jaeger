@@ -51,8 +51,10 @@ func TestElasticsearchStorage_DataStream(t *testing.T) {
 
 func TestElasticSearch_BackwardCompatibility(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
+	fastBulkFlush := map[string]string{"ES_BULK_FLUSH_INTERVAL": "1ms"}
 	s := E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch.yaml",
+		ConfigFile:      "../../config-elasticsearch.yaml",
+		EnvVarOverrides: fastBulkFlush,
 		StorageIntegration: integration.StorageIntegration{
 			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
 		},
