@@ -64,6 +64,17 @@ func TestReaderTraceWrongFormat(t *testing.T) {
 	assert.True(t, r.eofReached)
 }
 
+func TestReaderTraceEmptyTrace(t *testing.T) {
+	inputFile := "fixtures/trace_empty_trace.json"
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	_, err = r.NextSpan()
+	require.Equal(t, errNoMoreSpans, err)
+	assert.Equal(t, 0, r.spansRead)
+	assert.True(t, r.eofReached)
+}
+
 func TestReaderTraceInvalidJson(t *testing.T) {
 	inputFile := "fixtures/trace_invalid_json.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())

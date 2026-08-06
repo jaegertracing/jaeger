@@ -62,6 +62,13 @@ func (r *spanReader) NextSpan() (*uimodel.Span, error) {
 		r.eofReached = true
 		return nil, fmt.Errorf("cannot read file: %w", err)
 	}
+	// If the file contains no spans, the writer writes [\n]\n, so after
+	// reading the opening '[' the next line is just "\n" (the closing bracket
+	// line).  Treat this as an empty trace.
+	if len(s) < 2 {
+		r.eofReached = true
+		return nil, errNoMoreSpans
+	}
 	if s[len(s)-2] == ',' { // all but last span lines end with ,\n
 		s = s[0 : len(s)-2]
 	} else {
