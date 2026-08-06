@@ -53,6 +53,19 @@ func TestReaderTraceEmpty(t *testing.T) {
 	assert.True(t, r.eofReached)
 }
 
+func TestReaderTraceEmptyWriterOutput(t *testing.T) {
+	// The writer writes "[\n]\n" for an empty trace. The reader previously
+	// panicked with "index out of range [-1]" on such input.
+	inputFile := "fixtures/trace_empty_writer.json"
+	r, err := newSpanReader(inputFile, zap.NewNop())
+	require.NoError(t, err)
+
+	_, err = r.NextSpan()
+	require.Equal(t, errNoMoreSpans, err)
+	assert.Equal(t, 0, r.spansRead)
+	assert.True(t, r.eofReached)
+}
+
 func TestReaderTraceWrongFormat(t *testing.T) {
 	inputFile := "fixtures/trace_wrong_format.json"
 	r, err := newSpanReader(inputFile, zap.NewNop())
