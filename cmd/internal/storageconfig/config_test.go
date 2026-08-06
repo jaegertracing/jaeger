@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/badger"
@@ -168,16 +169,26 @@ func TestTraceBackendUnmarshal(t *testing.T) {
 			},
 		},
 		{
-			name: "grpc backend with defaults",
+			name: "grpc backend with defaults and case-insensitive balancer names",
 			configMap: map[string]any{
 				"grpc": map[string]any{
-					"endpoint": "localhost:17271",
+					"endpoint":      "localhost:17271",
+					"balancer_name": "ROUND_ROBIN",
+					"writer": map[string]any{
+						"endpoint":      "localhost:17272",
+						"balancer_name": "PICK_FIRST",
+					},
 				},
 			},
 			expectError: false,
 			validateFunc: func(t *testing.T, tb *TraceBackend) {
 				require.NotNil(t, tb.GRPC)
 				assert.Equal(t, "localhost:17271", tb.GRPC.ClientConfig.Endpoint)
+				assert.Equal(t, "localhost:17272", tb.GRPC.Writer.Endpoint)
+				assert.Equal(t, "round_robin", tb.GRPC.BalancerName)
+				assert.Equal(t, "pick_first", tb.GRPC.Writer.BalancerName)
+				require.NotEmpty(t, tb.GRPC.Timeout)
+				require.NoError(t, xconfmap.Validate(tb))
 			},
 		},
 		{
