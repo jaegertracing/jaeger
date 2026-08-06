@@ -7,13 +7,14 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"math"
 	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
@@ -23,33 +24,46 @@ import (
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
-	esclientmocks "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
+// fakeBatchWriter records every batch handed to WriteBatch (flattened into items)
+// and returns a configurable error, standing in for the esclient bulk writers in
+// unit tests.
+type fakeBatchWriter struct {
+	items   []esclient.BulkItem
+	batches int
+	err     error
+}
+
+func (f *fakeBatchWriter) WriteBatch(_ context.Context, items []esclient.BulkItem) error {
+	f.batches++
+	f.items = append(f.items, items...)
+	return f.err
+}
+
 type spanWriterTest struct {
-	bulkWriter *esclientmocks.BulkWriter
-	added      *[]esclient.BulkItem
-	logger     *zap.Logger
-	logBuffer  *testutils.Buffer
-	writer     *SpanWriter
+	batchWriter *fakeBatchWriter
+	added       *[]esclient.BulkItem
+	logger      *zap.Logger
+	logBuffer   *testutils.Buffer
+	writer      *SpanWriter
 }
 
 func withSpanWriter(fn func(w *spanWriterTest)) {
-	bulkWriter := &esclientmocks.BulkWriter{}
-	added := captureBulk(bulkWriter)
+	batchWriter := &fakeBatchWriter{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
-		bulkWriter: bulkWriter,
-		added:      added,
-		logger:     logger,
-		logBuffer:  logBuffer,
+		batchWriter: batchWriter,
+		added:       &batchWriter.items,
+		logger:      logger,
+		logBuffer:   logBuffer,
 		writer: NewSpanWriter(SpanWriterParams{
-			BulkWriter:      bulkWriter,
+			BatchWriter:     batchWriter,
 			Logger:          logger,
 			MetricsFactory:  metricsFactory,
 			SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
@@ -57,16 +71,6 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		}),
 	}
 	fn(w)
-}
-
-// captureBulk programs a BulkWriter mock to record every Add, returning a
-// pointer to the growing slice of items the writer enqueued.
-func captureBulk(m *esclientmocks.BulkWriter) *[]esclient.BulkItem {
-	items := &[]esclient.BulkItem{}
-	m.On("Add", mock.AnythingOfType("esclient.BulkItem")).Run(func(args mock.Arguments) {
-		*items = append(*items, args.Get(0).(esclient.BulkItem))
-	}).Return()
-	return items
 }
 
 func TestSpanWriterRotations(t *testing.T) {
@@ -118,62 +122,44 @@ func TestSpanWriterClose(t *testing.T) {
 	})
 }
 
-// This test behaves as a large test that checks WriteSpan's behavior as a whole.
-// Extra tests for individual functions are below.
+// TestSpanWriter_WriteSpan checks WriteSpans's behavior as a whole: it assembles a
+// new service:operation document and the span document for the batch and writes them
+// through the batch writer. Extra tests for individual functions are below.
 func TestSpanWriter_WriteSpan(t *testing.T) {
-	testCases := []struct {
-		caption            string
-		serviceIndexExists bool
-		expectedError      string
-		expectedLogs       []string
-	}{
-		{
-			caption:            "span insertion error",
-			serviceIndexExists: false,
-			expectedError:      "",
-			expectedLogs:       []string{"Wrote span to ES index"},
-		},
-	}
-	for _, tc := range testCases {
-		testCase := tc
-		t.Run(testCase.caption, func(t *testing.T) {
-			withSpanWriter(func(w *spanWriterTest) {
-				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
-				require.NoError(t, err)
+	withSpanWriter(func(w *spanWriterTest) {
+		date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
+		require.NoError(t, err)
 
-				span := &dbmodel.Span{
-					TraceID:       "testing-traceid",
-					SpanID:        "testing-spanid",
-					OperationName: "operation",
-					Process: dbmodel.Process{
-						ServiceName: "service",
-					},
-					StartTime: model.TimeAsEpochMicroseconds(date),
-				}
+		span := dbmodel.Span{
+			TraceID:       "testing-traceid",
+			SpanID:        "testing-spanid",
+			OperationName: "operation",
+			Process:       dbmodel.Process{ServiceName: "service"},
+			StartTime:     model.TimeAsEpochMicroseconds(date),
+		}
 
-				spanIndexName := "jaeger-span-1995-04-21"
-				serviceIndexName := "jaeger-service-1995-04-21"
-				serviceHash := "de3b5a8f1a79989d"
+		require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
 
-				w.writer.writeSpan(date, span)
+		// One new service:operation doc, then the span doc.
+		require.Len(t, *w.added, 2)
+		service, spanItem := (*w.added)[0], (*w.added)[1]
+		assert.Equal(t, "jaeger-service-1995-04-21", service.Index)
+		assert.Equal(t, "de3b5a8f1a79989d", service.ID)
+		assert.IsType(t, dbmodel.Service{}, service.Body)
+		assert.Equal(t, "jaeger-span-1995-04-21", spanItem.Index)
+		assert.Equal(t, es.WriteOpIndex, spanItem.OpType)
+		// The span carries a deterministic _id (RFC 0007 §4.7) — the trace and span
+		// IDs plus a content hash — so a re-sent identical span upserts.
+		assert.Contains(t, spanItem.ID, "testing-traceid_testing-spanid_")
+		// The span body is handed to the batch writer pre-encoded (marshaled once).
+		assert.IsType(t, json.RawMessage{}, spanItem.Body)
+		assert.Empty(t, w.logBuffer.String())
 
-				require.Len(t, *w.added, 2)
-				service, spanItem := (*w.added)[0], (*w.added)[1]
-				assert.Equal(t, serviceIndexName, service.Index)
-				assert.Equal(t, serviceHash, service.ID)
-				assert.IsType(t, dbmodel.Service{}, service.Body)
-				assert.Equal(t, spanIndexName, spanItem.Index)
-				assert.Equal(t, es.WriteOpIndex, spanItem.OpType)
-
-				for _, expectedLog := range testCase.expectedLogs {
-					assert.Contains(t, w.logBuffer.String(), expectedLog, "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
-				}
-				if len(testCase.expectedLogs) == 0 {
-					assert.Empty(t, w.logBuffer.String())
-				}
-			})
-		})
-	}
+		// The service:operation pair is cached after the durable flush, so a repeat
+		// batch re-sends only the span doc, not the service doc.
+		require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+		require.Len(t, *w.added, 3)
+	})
 }
 
 // TestSpanWriter_WriteSpans covers the batch entry point: every span (and its
@@ -212,6 +198,26 @@ func TestSpanWriter_WriteSpans(t *testing.T) {
 	})
 }
 
+// TestSpanWriter_WriteSpansDedupsService pins that spans sharing a (service,
+// operation) within one batch produce a single service:operation document — the
+// service cache is confirmed only after the batch write, so the dedup must happen
+// within the batch, not rely on the cache.
+func TestSpanWriter_WriteSpansDedupsService(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		startTime := model.TimeAsEpochMicroseconds(time.Now())
+		spans := []dbmodel.Span{
+			{TraceID: "t", SpanID: "a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}, StartTime: startTime},
+			{TraceID: "t", SpanID: "b", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}, StartTime: startTime},
+			{TraceID: "t", SpanID: "c", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}, StartTime: startTime},
+		}
+		require.NoError(t, w.writer.WriteSpans(context.Background(), spans))
+
+		// Three span docs, but only one service:operation doc for the shared pair.
+		assert.Equal(t, 1, countServiceDocs(*w.added), "the shared service doc is written once")
+		assert.Len(t, *w.added, 4)
+	})
+}
+
 // TestSpanWriter_WriteSpansEmpty pins that an empty batch is a no-op that still
 // reports success.
 func TestSpanWriter_WriteSpansEmpty(t *testing.T) {
@@ -219,6 +225,68 @@ func TestSpanWriter_WriteSpansEmpty(t *testing.T) {
 		require.NoError(t, w.writer.WriteSpans(context.Background(), nil))
 		assert.Empty(t, *w.added)
 	})
+}
+
+func newSpanWriterWith(bw esclient.BatchWriter) *SpanWriter {
+	logger, _ := testutils.NewLogger()
+	return NewSpanWriter(SpanWriterParams{
+		BatchWriter:     bw,
+		Logger:          logger,
+		MetricsFactory:  metricstest.NewFactory(0),
+		SpanRotation:    indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+		ServiceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+	})
+}
+
+// TestSpanWriter_BatchWrite covers the WriteSpans contract independent of write mode:
+// the whole batch is handed to the batch writer in one call, its error propagates,
+// and the service cache is updated only after a successful (durable) write — so a
+// failed-and-retried batch re-sends the service doc (RFC 0007 §4.3).
+func TestSpanWriter_BatchWrite(t *testing.T) {
+	spanA := dbmodel.Span{TraceID: "1", SpanID: "a", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}}
+	spanB := dbmodel.Span{TraceID: "1", SpanID: "b", OperationName: "op2", Process: dbmodel.Process{ServiceName: "svc"}}
+
+	t.Run("one batch write, all items", func(t *testing.T) {
+		fake := &fakeBatchWriter{}
+		writer := newSpanWriterWith(fake)
+		require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{spanA, spanB}))
+		assert.Equal(t, 1, fake.batches, "the whole batch is one WriteBatch call")
+		// two new service:operation docs + two span docs
+		assert.Len(t, fake.items, 4)
+	})
+
+	t.Run("error propagates", func(t *testing.T) {
+		fake := &fakeBatchWriter{err: errors.New("bulk rejected")}
+		writer := newSpanWriterWith(fake)
+		err := writer.WriteSpans(context.Background(), []dbmodel.Span{spanA})
+		require.ErrorContains(t, err, "bulk rejected")
+	})
+
+	t.Run("service cache updated only after durable write", func(t *testing.T) {
+		fake := &fakeBatchWriter{err: errors.New("boom")}
+		writer := newSpanWriterWith(fake)
+
+		// First write fails, so the service doc must NOT be cached.
+		require.Error(t, writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+		firstBatchItems := len(fake.items)
+		fake.err = nil
+		require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{spanA}))
+
+		// The retry re-sends the service doc precisely because the first write was
+		// not durable (RFC 0007 §4.3) — it was not cached.
+		assert.Equal(t, 1, countServiceDocs(fake.items[firstBatchItems:]),
+			"service doc re-sent after a failed write")
+	})
+}
+
+func countServiceDocs(items []esclient.BulkItem) int {
+	n := 0
+	for _, item := range items {
+		if _, ok := item.Body.(dbmodel.Service); ok {
+			n++
+		}
+	}
+	return n
 }
 
 func TestSpanIndexName(t *testing.T) {
@@ -233,86 +301,133 @@ func TestSpanIndexName(t *testing.T) {
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
 
-func TestWriteSpanInternal(t *testing.T) {
+func TestBuildSpanItem(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
-		indexName := "jaeger-1995-04-21"
-		jsonSpan := &dbmodel.Span{}
+		item, err := w.writer.buildSpanItem("jaeger-1995-04-21", &dbmodel.Span{})
 
-		w.writer.writeSpanToIndex(indexName, jsonSpan)
-
-		require.Len(t, *w.added, 1)
-		item := (*w.added)[0]
-		assert.Equal(t, indexName, item.Index)
+		require.NoError(t, err)
+		assert.Equal(t, "jaeger-1995-04-21", item.Index)
 		assert.Equal(t, es.WriteOpIndex, item.OpType)
-		assert.Empty(t, w.logBuffer.String())
+		assert.IsType(t, json.RawMessage{}, item.Body)
 	})
 }
 
-func TestWriteSpanInternalError(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		indexName := "jaeger-1995-04-21"
-		jsonSpan := &dbmodel.Span{
-			TraceID: dbmodel.TraceID("1"),
-			SpanID:  dbmodel.SpanID("0"),
-		}
-
-		w.writer.writeSpanToIndex(indexName, jsonSpan)
-		require.Len(t, *w.added, 1)
-	})
-}
-
-func TestWriteSpanToIndex_DataStreamOpType(t *testing.T) {
+func TestBuildSpanItem_DataStreamOpType(t *testing.T) {
 	// A data stream rotation must drive the bulk op type to "create" (append-only)
 	// rather than the legacy "index".
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metricstest.NewFactory(0)
-	bulkWriter := &esclientmocks.BulkWriter{}
-	added := captureBulk(bulkWriter)
 	writer := NewSpanWriter(SpanWriterParams{
-		BulkWriter:      bulkWriter,
 		Logger:          logger,
-		MetricsFactory:  metricsFactory,
+		MetricsFactory:  metricstest.NewFactory(0),
 		SpanRotation:    indices.NewDataStreamRotation("jaeger.spans", ""),
 		ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 	})
 
-	writer.writeSpanToIndex("jaeger.spans", &dbmodel.Span{})
+	item, err := writer.buildSpanItem("jaeger.spans", &dbmodel.Span{})
 
-	require.Len(t, *added, 1)
-	assert.Equal(t, es.WriteOpCreate, (*added)[0].OpType)
-	assert.Equal(t, "jaeger.spans", (*added)[0].Index)
+	require.NoError(t, err)
+	assert.Equal(t, es.WriteOpCreate, item.OpType)
+	assert.Equal(t, "jaeger.spans", item.Index)
 }
 
-// noWriteRotation is a stub whose WriteTarget is empty, so WriteSpan skips the
-// service write and we can assert on the span write in isolation.
-type noWriteRotation struct{}
+func TestBuildSpanItem_EncodeError(t *testing.T) {
+	writer := NewSpanWriter(SpanWriterParams{
+		Logger:          zap.NewNop(),
+		MetricsFactory:  metricstest.NewFactory(0),
+		SpanRotation:    indices.NewAliasedRotation("jaeger-span-write", "jaeger-span-read"),
+		ServiceRotation: indices.NewAliasedRotation("jaeger-service-write", "jaeger-service-read"),
+	})
 
-func (noWriteRotation) WriteTarget(time.Time) string              { return "" }
-func (noWriteRotation) ReadTargets(time.Time, time.Time) []string { return nil }
-func (noWriteRotation) WriteOpType() es.WriteOpType               { return es.WriteOpIndex }
-func (noWriteRotation) RequiresDocumentTimestamp() bool           { return false }
+	// A NaN float tag value cannot be JSON-encoded, so buildSpanItem returns an error
+	// (the caller decides to drop the span — see TestSpanWriter_WriteSpansEncodeError).
+	span := &dbmodel.Span{TraceID: "a", SpanID: "b", Tag: map[string]any{"bad": math.NaN()}}
+	item, err := writer.buildSpanItem("jaeger-span-write", span)
+
+	require.Error(t, err)
+	assert.Empty(t, item.ID)
+}
+
+// TestSpanWriter_WriteSpansEncodeError pins that WriteSpans drops an unencodable span
+// (logging the error) instead of failing the whole batch.
+func TestSpanWriter_WriteSpansEncodeError(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		startTime := model.TimeAsEpochMicroseconds(time.Now())
+		good := dbmodel.Span{TraceID: "t", SpanID: "ok", OperationName: "op", Process: dbmodel.Process{ServiceName: "svc"}, StartTime: startTime}
+		// A NaN tag value (kept in Tags, so it survives tag elevation) makes this
+		// span fail to JSON-encode. It shares (service, op) with the good span so the
+		// service doc is deduped.
+		bad := dbmodel.Span{
+			TraceID: "t", SpanID: "bad", OperationName: "op",
+			Process:   dbmodel.Process{ServiceName: "svc"},
+			Tags:      []dbmodel.KeyValue{{Key: "x", Type: dbmodel.Float64Type, Value: math.NaN()}},
+			StartTime: startTime,
+		}
+
+		require.NoError(t, w.writer.WriteSpans(context.Background(), []dbmodel.Span{good, bad}))
+		assert.Contains(t, w.logBuffer.String(), "failed to encode span document")
+		// The shared service doc and the good span's doc are written; the bad span is
+		// dropped (its service doc was deduped against the good span's).
+		assert.Len(t, *w.added, 2)
+	})
+}
+
+func TestSpanDocID(t *testing.T) {
+	// id marshals the span the way the writer does, then derives the _id, so the
+	// test exercises the real (marshal → hash) path.
+	id := func(s *dbmodel.Span) string {
+		body, err := json.Marshal(s)
+		require.NoError(t, err)
+		return spanDocID(s, body)
+	}
+	base := &dbmodel.Span{
+		TraceID:       "1234567890abcdef",
+		SpanID:        "abcdef1234567890",
+		OperationName: "op",
+		StartTime:     100,
+	}
+
+	// Deterministic: an identical span always hashes to the same id, so a re-sent
+	// span upserts rather than duplicating.
+	sameContent := *base
+	assert.Equal(t, id(base), id(&sameContent))
+
+	// Content-sensitive: a different field yields a different id.
+	other := *base
+	other.OperationName = "other-op"
+	assert.NotEqual(t, id(base), id(&other), "differing content must not collide")
+
+	// Shared-span model: a client and server span may legitimately share
+	// (traceID, spanID) but differ in content; the content hash keeps them distinct
+	// (a traceID+spanID key would wrongly collapse them).
+	sharedID := *base
+	sharedID.Tags = []dbmodel.KeyValue{{Key: "span.kind", Type: dbmodel.StringType, Value: "server"}}
+	assert.NotEqual(t, id(base), id(&sharedID))
+
+	// The id is scoped by trace and span id (delimited so it stays injective even
+	// for empty ids): distinct (traceID, spanID) never collide, so a hash collision
+	// can only ever affect spans that share them.
+	assert.Contains(t, id(base), string(base.TraceID)+"_"+string(base.SpanID)+"_")
+}
 
 func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	date := time.Date(2024, time.June, 18, 10, 0, 0, 0, time.UTC)
 
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
-	bulkWriter := &esclientmocks.BulkWriter{}
-	captureBulk(bulkWriter)
 	writer := NewSpanWriter(SpanWriterParams{
-		BulkWriter:      bulkWriter,
+		BatchWriter:     &fakeBatchWriter{},
 		Logger:          logger,
 		MetricsFactory:  metricsFactory,
 		SpanRotation:    indices.NewDataStreamRotation("jaeger.spans", ""),
-		ServiceRotation: noWriteRotation{},
+		ServiceRotation: indices.NewDataStreamRotation("jaeger.services", ""),
 	})
 
-	span := &dbmodel.Span{TraceID: "abc", SpanID: "def"}
-	writer.writeSpan(date, span)
+	spans := []dbmodel.Span{{TraceID: "abc", SpanID: "def", StartTime: model.TimeAsEpochMicroseconds(date)}}
+	require.NoError(t, writer.WriteSpans(context.Background(), spans))
 
 	// The data stream write path stamps @timestamp as epoch nanoseconds.
-	assert.Equal(t, strconv.FormatInt(date.UnixNano(), 10), span.Timestamp)
-	out, err := json.Marshal(span)
+	assert.Equal(t, strconv.FormatInt(date.UnixNano(), 10), spans[0].Timestamp)
+	out, err := json.Marshal(spans[0])
 	require.NoError(t, err)
 	assert.Contains(t, string(out), `"@timestamp":"`+strconv.FormatInt(date.UnixNano(), 10)+`"`)
 }
@@ -348,28 +463,36 @@ func TestSpanWriterParamsTTL(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			bulkWriter := &esclientmocks.BulkWriter{}
-			added := captureBulk(bulkWriter)
+			batchWriter := &fakeBatchWriter{}
+			added := &batchWriter.items
 			params := SpanWriterParams{
-				BulkWriter:      bulkWriter,
+				BatchWriter:     batchWriter,
 				Logger:          logger,
 				MetricsFactory:  metricsFactory,
 				ServiceCacheTTL: test.serviceTTL,
+				SpanRotation:    indices.NewPeriodicRotation(config.SpanIndexName, "2006-01-02", 24*time.Hour),
+				ServiceRotation: indices.NewPeriodicRotation(config.ServiceIndexName, "2006-01-02", 24*time.Hour),
 			}
 			w := NewSpanWriter(params)
 
-			serviceIndexName := "jaeger-service-1995-04-21"
-			jsonSpan := &dbmodel.Span{
+			span := dbmodel.Span{
 				Process:       dbmodel.Process{ServiceName: "foo"},
 				OperationName: "bar",
 			}
 
-			w.writeService(serviceIndexName, jsonSpan)
-			time.Sleep(1 * time.Nanosecond)
-			w.writeService(serviceIndexName, jsonSpan)
-			time.Sleep(1 * time.Nanosecond)
-			w.writeService(serviceIndexName, jsonSpan)
-			assert.Len(t, *added, test.expectedAddCalls)
+			// Each WriteSpans also enqueues a span doc; the service doc is written only
+			// when the (service, operation) pair is not cached, which the TTL governs.
+			for range 3 {
+				require.NoError(t, w.WriteSpans(context.Background(), []dbmodel.Span{span}))
+				time.Sleep(1 * time.Nanosecond)
+			}
+			serviceDocs := 0
+			for _, item := range *added {
+				if _, ok := item.Body.(dbmodel.Service); ok {
+					serviceDocs++
+				}
+			}
+			assert.Equal(t, test.expectedAddCalls, serviceDocs)
 		})
 	}
 }
@@ -513,7 +636,7 @@ func TestWriterRequestSnapshots(t *testing.T) {
 		bulkWriter, err := esclient.NewBulkIndexer(esClient, esclient.BulkIndexerConfig{}, metrics.NullFactory, zap.NewNop())
 		require.NoError(t, err)
 		writer := NewSpanWriter(SpanWriterParams{
-			BulkWriter:      bulkWriter,
+			BatchWriter:     bulkWriter,
 			Logger:          zap.NewNop(),
 			MetricsFactory:  metrics.NullFactory,
 			SpanRotation:    indices.NewAliasedRotation(writeIndex, "jaeger-span-read"),
@@ -521,7 +644,9 @@ func TestWriterRequestSnapshots(t *testing.T) {
 		})
 
 		rec.Reset()
-		writer.writeSpanToIndex(writeIndex, span)
+		item, err := writer.buildSpanItem(writeIndex, span)
+		require.NoError(t, err)
+		bulkWriter.Add(item)
 		require.NoError(t, bulkWriter.Close()) // flushes the bulk request
 		writeSpan[version] = rec.Marshal(t)
 	}

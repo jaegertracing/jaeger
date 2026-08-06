@@ -36,25 +36,22 @@ var errNoSearcher = errors.New("service/operation reads require a searcher, but 
 // ServiceOperationStorage stores service to operation pairs.
 type ServiceOperationStorage struct {
 	searcher     esclient.Searcher
-	bulkWriter   esclient.BulkWriter
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }
 
 // NewServiceOperationStorage returns a new ServiceOperationStorage. searcher is
-// used only by the read methods (getServices/getOperations) and bulkWriter only
-// by Write; a read-only instance may pass a nil bulkWriter and a write-only
-// instance a nil searcher.
+// used only by the read methods (getServices/getOperations); a write-only instance
+// (the SpanWriter) may pass a nil searcher. The write side builds documents via
+// toUpsertItem and commits the cache via commitToCache — it does not write directly.
 func NewServiceOperationStorage(
 	searcher esclient.Searcher,
-	bulkWriter esclient.BulkWriter,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
-		searcher:   searcher,
-		bulkWriter: bulkWriter,
-		logger:     logger,
+		searcher: searcher,
+		logger:   logger,
 		serviceCache: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -64,28 +61,64 @@ func NewServiceOperationStorage(
 	}
 }
 
-// Write saves a service to operation pair. It is a no-op on a read-only
-// instance (nil bulk writer, see NewServiceOperationStorage), since the same
-// type backs both the read and write paths.
-func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
-	if s.bulkWriter == nil {
-		s.logger.Error("cannot write service:operation pair: storage was constructed for read-only use")
-		return
-	}
-	// Insert serviceName:operationName document
+// toUpsertItem returns the service:operation document to upsert for a span and its
+// cache key, or ok=false if the pair is already cached (nothing to write). The
+// caller writes the item through its bulk sink and calls commitToCache only after
+// the write is durable (RFC 0007 §4.3): marking the cache before durability would
+// let a failed-then-retried batch skip the service document and leave a gap. The
+// document's _id is a deterministic hash, so a re-sent service doc upserts.
+func (s *ServiceOperationStorage) toUpsertItem(indexName string, jsonSpan *dbmodel.Span) (esclient.BulkItem, string, bool) {
 	service := dbmodel.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
-
 	cacheKey := hashCode(service)
-	if !keyInCache(cacheKey, s.serviceCache) {
-		s.bulkWriter.Add(esclient.BulkItem{
-			Index: indexName,
-			ID:    cacheKey,
-			Body:  service,
-		})
-		writeCache(cacheKey, s.serviceCache)
+	if s.serviceCache.Get(cacheKey) != nil {
+		return esclient.BulkItem{}, "", false
+	}
+	return esclient.BulkItem{Index: indexName, ID: cacheKey, Body: service}, cacheKey, true
+}
+
+// commitToCache records that a service:operation document is durably written, so it
+// is not re-sent until the cache entry expires. Called only after a successful flush.
+func (s *ServiceOperationStorage) commitToCache(cacheKey string) {
+	s.serviceCache.Put(cacheKey, cacheKey)
+}
+
+// serviceOperationBatch accumulates the new service:operation documents for one write
+// batch. It dedups within the batch — the global cache is committed only after a
+// durable write (§4.3), so without this many spans sharing a service:operation pair
+// would each append the same doc and bloat the request — and, once the batch is
+// durable, commits those docs to the cache so later batches skip them.
+type serviceOperationBatch struct {
+	store *ServiceOperationStorage
+	keys  map[string]struct{}
+}
+
+func newServiceOperationBatch(store *ServiceOperationStorage) serviceOperationBatch {
+	return serviceOperationBatch{store: store, keys: make(map[string]struct{})}
+}
+
+// toUpsertItem returns the service:operation document to upsert for a span, or
+// ok=false if the pair is already cached globally or was already added earlier in
+// this batch.
+func (b serviceOperationBatch) toUpsertItem(indexName string, jsonSpan *dbmodel.Span) (esclient.BulkItem, bool) {
+	item, cacheKey, ok := b.store.toUpsertItem(indexName, jsonSpan)
+	if !ok {
+		return esclient.BulkItem{}, false
+	}
+	if _, seen := b.keys[cacheKey]; seen {
+		return esclient.BulkItem{}, false
+	}
+	b.keys[cacheKey] = struct{}{}
+	return item, true
+}
+
+// commitToCache marks every service:operation added in this batch as durably
+// written. Call it only after the batch write succeeds.
+func (b serviceOperationBatch) commitToCache() {
+	for key := range b.keys {
+		b.store.commitToCache(key)
 	}
 }
 

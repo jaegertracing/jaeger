@@ -262,10 +262,14 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 		if !valid {
 			return false
 		}
+		// error=true matches only Error spans; error=false is its complement — every
+		// span that is not an error, i.e. Ok *and* the default Unset status. Requiring
+		// Ok here would drop Unset spans, which are the common case, so error=false
+		// would return almost nothing.
 		if errorVal && span.Status().Code() != ptrace.StatusCodeError {
 			return false
 		}
-		if !errorVal && span.Status().Code() != ptrace.StatusCodeOk {
+		if !errorVal && span.Status().Code() == ptrace.StatusCodeError {
 			return false
 		}
 	}
