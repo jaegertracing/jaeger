@@ -69,3 +69,48 @@ func TestKafkaStorage(t *testing.T) {
 		})
 	}
 }
+
+// TestKafkaStorage_SyncElasticsearch exercises the RFC 0007 at-least-once ingest
+// path end-to-end: Collector -> Kafka -> Ingester -> Elasticsearch with the
+// ingester in synchronous write mode (write_mode: sync, poison_pill_handling: drop,
+// a blocking sending queue, and message_marking.after). Unlike TestKafkaStorage,
+// which writes to an in-process memory store, this drives the real synchronous ES
+// write path over Kafka. It requires both Kafka and Elasticsearch to be running
+// (scripts/e2e/kafka.sh starts both).
+func TestKafkaStorage_SyncElasticsearch(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageKafka)
+
+	uniqueTopic := fmt.Sprintf("jaeger-spans-sync-es-%d", time.Now().UnixNano())
+	t.Logf("Using unique Kafka topic: %s", uniqueTopic)
+	envVarOverrides := map[string]string{
+		"KAFKA_TOPIC":    uniqueTopic,
+		"KAFKA_ENCODING": "otlp_proto",
+	}
+
+	collector := &E2EStorageIntegration{
+		BinaryName:         "jaeger-v2-collector",
+		ConfigFile:         "../../config-kafka-collector.yaml",
+		SkipStorageCleaner: true,
+		EnvVarOverrides:    envVarOverrides,
+	}
+	collector.e2eInitialize(t, "kafka")
+	t.Log("Collector initialized")
+
+	ingester := &E2EStorageIntegration{
+		BinaryName:      "jaeger-v2-ingester",
+		ConfigFile:      "../../config-kafka-ingester-sync.yaml",
+		HealthCheckPort: 14133,
+		StorageIntegration: integration.StorageIntegration{
+			CleanUp:      purge,
+			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities: capabilities.Elasticsearch(),
+		},
+		EnvVarOverrides: envVarOverrides,
+	}
+	// storage "elasticsearch" makes the storage cleaner purge ES between runs and
+	// shrink the service-cache TTL so freshly-written services are queryable.
+	ingester.e2eInitialize(t, "elasticsearch")
+	t.Log("Ingester initialized")
+
+	ingester.RunSpanStoreTests(t)
+}
