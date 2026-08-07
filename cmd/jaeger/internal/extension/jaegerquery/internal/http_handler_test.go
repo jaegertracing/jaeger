@@ -661,8 +661,8 @@ func TestSearchFailures(t *testing.T) {
 		errMsg string
 	}{
 		{
-			// The parser no longer rejects a missing service name; the query service does,
-			// from the backend's declared capability, and the handler maps it to 400.
+			// A missing service name is rejected by the query service, from the backend's
+			// declared capability, and the handler maps that to 400.
 			`/api/traces?start=0&end=0&operation=operation&limit=200&minDuration=20ms`,
 			parsedError(400, "this storage backend requires a service name to search; searching all services is not supported"),
 		},
