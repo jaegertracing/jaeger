@@ -25,8 +25,8 @@ type TraceReader struct {
 
 // SearchCapabilities reports that every query field is required: every Cassandra index
 // is keyed by service name, so a search cannot omit it.
-func (*TraceReader) SearchCapabilities() tracestore.SearchCapabilities {
-	return tracestore.SearchCapabilities{}
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, nil
 }
 
 func NewTraceReader(reader spanstore.CoreSpanReader) *TraceReader {

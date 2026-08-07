@@ -28,9 +28,9 @@ import (
 // query adds its process.serviceName clause only when the query carries a service
 // name, so Elasticsearch/OpenSearch answers a query that omits it (RFC 0013).
 func TestTraceReader_SearchCapabilities(t *testing.T) {
-	assert.Equal(t,
-		tracestore.SearchCapabilities{WithoutServiceName: true},
-		(&TraceReader{}).SearchCapabilities())
+	caps, err := (&TraceReader{}).SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, caps)
 }
 
 func TestTraceReader_GetServices(t *testing.T) {

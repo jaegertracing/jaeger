@@ -118,12 +118,22 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
+	// Asked of the reader after it is wrapped: each decorator forwards the call, so what
+	// reaches the UI is the backend's own declaration. A reader that cannot answer leaves
+	// every capability off — the UI then offers only what every backend can do, which is
+	// how jaeger-query behaved before it asked at all.
+	searchCaps, err := traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		telset.Logger.Info(
+			"Storage did not report its search capabilities; assuming none",
+			zap.Error(err),
+		)
+	}
+
 	caps := querysvc.StorageCapabilities{
-		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage: s.config.Storage.Metrics != "",
-		// Asked of the reader after it is wrapped: each decorator forwards the call, so
-		// what reaches the UI is the backend's own declaration.
-		SearchWithoutServiceName: traceReader.SearchCapabilities().WithoutServiceName,
+		ArchiveStorage:           opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
+		MetricsStorage:           s.config.Storage.Metrics != "",
+		SearchWithoutServiceName: searchCaps.WithoutServiceName,
 	}
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)

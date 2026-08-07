@@ -81,10 +81,15 @@ type Reader interface {
 	// asked — the query service passes it to the UI, which offers "All Services" only
 	// where a service name may be omitted (RFC 0013).
 	//
-	// A reader that supports none of them returns the zero value. A Reader that wraps
-	// another must forward the call, or it reports the wrapper's capabilities instead of
-	// the backend's.
-	SearchCapabilities() SearchCapabilities
+	// A reader that supports none of them returns the zero value with a nil error. A
+	// reader that cannot determine its own capabilities — one whose backend is behind an
+	// API that cannot be asked — returns errors.ErrUnsupported (wrapped with %w) rather
+	// than a fabricated value, so a caller can tell "no capabilities" from "no answer".
+	// It takes a context because the answer may come over the wire.
+	//
+	// A Reader that wraps another must forward the call, or it reports the wrapper's
+	// capabilities instead of the backend's.
+	SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
 }
 
 // SearchCapabilities describes how a Reader's search methods behave where backends

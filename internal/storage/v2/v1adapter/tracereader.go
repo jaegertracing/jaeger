@@ -29,8 +29,8 @@ type TraceReader struct {
 
 // SearchCapabilities reports that every query field is required: the v1 readers reject
 // a query with no service name, since Cassandra and Badger both index by it.
-func (*TraceReader) SearchCapabilities() tracestore.SearchCapabilities {
-	return tracestore.SearchCapabilities{}
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, nil
 }
 
 func NewTraceReader(spanReader spanstore.Reader) *TraceReader {

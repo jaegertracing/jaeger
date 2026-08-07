@@ -668,7 +668,9 @@ func TestGetOperationsWithKind(t *testing.T) {
 func TestFindTracesWithoutServiceName(t *testing.T) {
 	store, err := NewStore(Configuration{MaxTraces: 10})
 	require.NoError(t, err)
-	assert.True(t, store.SearchCapabilities().WithoutServiceName)
+	caps, err := store.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.True(t, caps.WithoutServiceName)
 
 	for i, service := range []string{"service-a", "service-b"} {
 		td := ptrace.NewTraces()

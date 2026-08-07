@@ -13,6 +13,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -61,8 +62,8 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 		return nil, errors.New("test-error")
 	}
 	reader := &tracestoremocks.Reader{}
-	reader.On("SearchCapabilities").
-		Return(tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName}).
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName}, nil).
 		Maybe()
 	return reader, nil
 }

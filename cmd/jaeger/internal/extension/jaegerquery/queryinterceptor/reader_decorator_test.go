@@ -35,10 +35,11 @@ type fakeReader struct {
 	summaries       []tracestore.TraceSummary
 	summaryErr      error
 	capabilities    tracestore.SearchCapabilities
+	capabilitiesErr error
 }
 
-func (f *fakeReader) SearchCapabilities() tracestore.SearchCapabilities {
-	return f.capabilities
+func (f *fakeReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return f.capabilities, f.capabilitiesErr
 }
 
 func (f *fakeReader) FindTraces(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -558,7 +559,20 @@ func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			r := NewReaderDecorator(&fakeReader{capabilities: caps}, fakeInterceptor{})
 
-			assert.Equal(t, caps, r.SearchCapabilities())
+			got, err := r.SearchCapabilities(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, caps, got)
 		})
 	}
+}
+
+// TestReader_SearchCapabilities_ForwardsFailure pins that "cannot answer" survives the
+// wrapper too: a decorator that swallowed the error would turn it into "no capabilities",
+// which is a different claim.
+func TestReader_SearchCapabilities_ForwardsFailure(t *testing.T) {
+	sentinel := errors.New("cannot ask the backend")
+	r := NewReaderDecorator(&fakeReader{capabilitiesErr: sentinel}, fakeInterceptor{})
+
+	_, err := r.SearchCapabilities(t.Context())
+	require.ErrorIs(t, err, sentinel)
 }

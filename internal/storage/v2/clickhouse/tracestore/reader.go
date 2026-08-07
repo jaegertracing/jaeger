@@ -62,8 +62,8 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 // appends its service clause conditionally, so a service-less search is likely already
 // answerable; declaring it waits on an integration test against a real backend
 // (RFC 0013 Milestone 5).
-func (*Reader) SearchCapabilities() tracestore.SearchCapabilities {
-	return tracestore.SearchCapabilities{}
+func (*Reader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, nil
 }
 
 func (r *Reader) GetTraces(

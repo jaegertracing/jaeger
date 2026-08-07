@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
@@ -267,11 +268,13 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			inner := &mocks.Reader{}
-			inner.On("SearchCapabilities").Return(caps)
+			inner.On("SearchCapabilities", mock.Anything).Return(caps, nil)
 
 			d := NewReaderDecorator(inner, metricstest.NewFactory(0))
 
-			assert.Equal(t, caps, d.SearchCapabilities())
+			got, err := d.SearchCapabilities(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, caps, got)
 		})
 	}
 }

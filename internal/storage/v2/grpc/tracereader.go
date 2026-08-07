@@ -41,8 +41,8 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 // nothing can be declared on its behalf, and reporting none keeps every existing remote
 // deployment behaving as it does today. An operator-set override follows in RFC 0013
 // Milestone 5.
-func (*TraceReader) SearchCapabilities() tracestore.SearchCapabilities {
-	return tracestore.SearchCapabilities{}
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, nil
 }
 
 func (tr *TraceReader) GetTraces(

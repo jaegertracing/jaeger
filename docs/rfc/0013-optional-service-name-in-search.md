@@ -73,7 +73,12 @@ The shape follows `FindTraceSummaries`: a method on `Reader`, returning a struct
 type SearchCapabilities struct {
     WithoutServiceName bool
 }
+
+// on Reader, in the shape its other methods take
+SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
 ```
+
+The method is fallible and takes a context, like every other method on `Reader`, because "declares nothing" and "cannot say" are different answers and a reader that conflates them forces its callers to trust a fabricated value. A reader that knows returns the zero value with a nil error; one whose backend sits behind an API that cannot be asked returns `errors.ErrUnsupported`, and the query service treats that as no capabilities while logging why. The context is there because the answer may arrive over the wire — both §3.6 and §3.7 propose exactly that.
 
 A struct return rather than one boolean method per capability, because the divergences worth reporting go well beyond this one and are not all of the same shape. Two that exist today: `SearchDepth` is an exact limit on some backends and a hint on others — the API contract already warns that "some implementations might not support precise limits" — and Cassandra cannot intersect a duration filter with tags, since it serves durations from a separate `duration_index` whose partition key does not compose ([ADR-001](../adr/001-cassandra-find-traces-duration.md), [#1047](https://github.com/jaegertracing/jaeger/issues/1047), [#1015](https://github.com/jaegertracing/jaeger/issues/1015)). Each of those becomes a field that every existing implementation inherits as `false`, rather than an interface method all of them must grow.
 
@@ -166,7 +171,7 @@ Two things follow, on different timescales. Until the API exists, an integration
 
 🟢 good · 🟡 partial · 🔴 poor · ⚪ not applicable
 
-**Recommendation: A.** What a deployment can do is not a property of trace reading, and the same endpoint should be able to report the archive, metrics and AI capabilities the UI blob already carries — which makes a service of its own the right home rather than a method bolted onto `QueryService`. The gRPC gateway gives the HTTP form of option C for free. A client that gets `Unimplemented` treats the deployment as declaring nothing, which is the same conservative default the storage layer uses.
+**Recommendation: A.** Until it exists, Jaeger's own e2e client returns `errors.ErrUnsupported` from `SearchCapabilities` — the honest answer for a client that cannot ask — and the storage interface's fallible signature is what lets it say so. What a deployment can do is not a property of trace reading, and the same endpoint should be able to report the archive, metrics and AI capabilities the UI blob already carries — which makes a service of its own the right home rather than a method bolted onto `QueryService`. The gRPC gateway gives the HTTP form of option C for free. A client that gets `Unimplemented` treats the deployment as declaring nothing, which is the same conservative default the storage layer uses.
 
 This is a `jaeger-idl` change and its own milestone; §3.6's storage-side `Capabilities` RPC is the mirror of it one layer down, and the two are independent.
 

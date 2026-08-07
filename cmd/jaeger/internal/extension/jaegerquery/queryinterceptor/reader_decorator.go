@@ -166,8 +166,8 @@ func (r *reader) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 
 // SearchCapabilities forwards the wrapped reader's declaration: an interceptor gates
 // and sanitizes queries, it does not change which query shapes the backend accepts.
-func (r *reader) SearchCapabilities() tracestore.SearchCapabilities {
-	return r.next.SearchCapabilities()
+func (r *reader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	return r.next.SearchCapabilities(ctx)
 }
 
 func (r *reader) GetServices(ctx context.Context) ([]string, error) {

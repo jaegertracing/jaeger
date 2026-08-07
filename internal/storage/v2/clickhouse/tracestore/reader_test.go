@@ -1235,5 +1235,7 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 // ClickHouse has not been assessed for a service-less search yet, so the reader declares
 // that every query field is required (RFC 0013 Milestone 5).
 func TestReader_SearchCapabilities(t *testing.T) {
-	assert.Equal(t, tracestore.SearchCapabilities{}, (&Reader{}).SearchCapabilities())
+	caps, err := (&Reader{}).SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
 }

@@ -41,18 +41,14 @@ type traceReader struct {
 	client     api_v3.QueryServiceClient
 }
 
-// SearchCapabilities is a stub, and a test must not gate on it: api_v3 has no capability
-// discovery, so this client cannot ask the query service what the storage behind it
-// supports, and answering "supported" here would be a guess. Reporting the zero value is
-// the safe direction but not a true answer — a test gated on this would skip even where
-// the backend does support the query, which is worse than no test at all.
-//
-// Integration tests that depend on a capability gate on the per-backend
-// integration/capabilities.Capabilities, which CI populates from the STORAGE under test.
-// RFC 0013 §3.7 covers giving api_v3 real capability discovery, after which this can
-// report what the query service reports.
-func (*traceReader) SearchCapabilities() tracestore.SearchCapabilities {
-	return tracestore.SearchCapabilities{}
+// SearchCapabilities cannot be answered: api_v3 has no capability discovery, so this
+// client has no way to ask the query service what the storage behind it supports
+// (RFC 0013 §3.7 proposes the API that would let it). Reporting ErrUnsupported says
+// exactly that, where any concrete value would be a guess a caller might trust.
+func (*traceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, fmt.Errorf(
+		"api_v3 does not expose the backend's search capabilities: %w", errors.ErrUnsupported,
+	)
 }
 
 func createTraceReader(logger *zap.Logger, port int) (*traceReader, error) {
