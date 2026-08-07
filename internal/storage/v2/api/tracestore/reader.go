@@ -76,15 +76,41 @@ type Reader interface {
 	// results first.
 	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 
-	// SearchCapabilities reports which normally-required TraceQueryParams fields the
-	// search methods above accept as empty. Callers consult it before offering a query
-	// shape the backend cannot answer — the query service passes it to the UI, which
-	// offers "All Services" only where a service name may be omitted (RFC 0013).
+	// SearchCapabilities reports how faithfully this reader can serve the search methods
+	// above. Callers consult it before offering a query the backend cannot answer as
+	// asked — the query service passes it to the UI, which offers "All Services" only
+	// where a service name may be omitted (RFC 0013).
 	//
-	// A reader that requires every field returns the zero value. A Reader that wraps
+	// A reader that supports none of them returns the zero value. A Reader that wraps
 	// another must forward the call, or it reports the wrapper's capabilities instead of
 	// the backend's.
 	SearchCapabilities() SearchCapabilities
+}
+
+// SearchCapabilities describes how a Reader's search methods behave where backends
+// differ: which TraceQueryParams fields may be omitted, which are honored exactly
+// rather than approximated, and which combinations a backend cannot serve. Its zero
+// value is the least capable reader, so a field added here leaves every existing
+// implementation declaring the new capability unsupported.
+//
+// Fields to expect over time, each of which is a real divergence today:
+//
+//   - Whether SearchDepth is an exact limit or a hint. The API contract already warns
+//     that "some implementations might not support precise limits" (`search_depth` in
+//     jaeger.api_v3's TraceQueryParameters), which leaves callers unable to tell
+//     whether a short result set means "no more matches".
+//   - Which duration-query combinations hold. Cassandra serves DurationMin/DurationMax
+//     from a separate duration_index whose partition key it cannot intersect with tags
+//     (docs/adr/001-cassandra-find-traces-duration.md), and it rejects the combination
+//     outright; the restriction was lifted at the API layer in
+//     https://github.com/jaegertracing/jaeger/issues/1047 without the storage
+//     limitation going away. What a duration filter means at all is itself contested:
+//     https://github.com/jaegertracing/jaeger/issues/1015.
+type SearchCapabilities struct {
+	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
+	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
+	// service", rather than as an error or an empty result.
+	WithoutServiceName bool
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.

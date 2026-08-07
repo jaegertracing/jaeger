@@ -64,18 +64,18 @@ B is the cheaper change and the wrong trade. `tracestore.Reader` implementations
 The shape follows `FindTraceSummaries`: a method on `Reader`, returning a struct.
 
 ```go
-// in internal/storage/v2/api/tracestore
+// in internal/storage/v2/api/tracestore, beside the Reader it belongs to
 
-// SearchCapabilities reports which normally-required TraceQueryParams fields a
-// Reader's search methods accept as empty. Its zero value declares that every field
-// is required, so a reader that gains no capability needs no change when a field is
-// added here.
+// SearchCapabilities describes how a Reader's search methods behave where backends
+// differ: which TraceQueryParams fields may be omitted, which are honored exactly
+// rather than approximated, and which combinations a backend cannot serve. Its zero
+// value is the least capable reader.
 type SearchCapabilities struct {
     WithoutServiceName bool
 }
 ```
 
-A struct return rather than one boolean method per capability: §3.1's future extensions (regex, tag filters) then add a field, which every existing implementation inherits as `false`, instead of a new interface method that all of them must grow.
+A struct return rather than one boolean method per capability, because the divergences worth reporting go well beyond this one and are not all of the same shape. Two that exist today: `SearchDepth` is an exact limit on some backends and a hint on others — the API contract already warns that "some implementations might not support precise limits" — and Cassandra cannot intersect a duration filter with tags, since it serves durations from a separate `duration_index` whose partition key does not compose ([ADR-001](../adr/001-cassandra-find-traces-duration.md), [#1047](https://github.com/jaegertracing/jaeger/issues/1047), [#1015](https://github.com/jaegertracing/jaeger/issues/1015)). Each of those becomes a field that every existing implementation inherits as `false`, rather than an interface method all of them must grow.
 
 Each reader implements the method itself, including the ones that declare nothing — no embeddable default. An embeddable that returns the zero value would have to be named either for one field, which misdescribes what embedding it declares, or for the whole set, which reads as an assertion about capabilities the backend was never assessed for. Three lines per reader, stating in place why that backend requires the field, is worth more than the line the embed would save.
 
