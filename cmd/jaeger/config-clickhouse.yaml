@@ -47,6 +47,9 @@ extensions:
               username: default
               password: password
           create_schema: true
+          # Short TTL so integration test retries observe the fully populated
+          # attribute_metadata table instead of a stale partial cache snapshot.
+          attribute_metadata_cache_ttl: 5s
     metric_backends:
       some-metrics:
         clickhouse:

@@ -6,6 +6,7 @@ package integration
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,9 @@ func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
 		Addresses:    []string{"127.0.0.1:9000"},
 		Database:     "jaeger",
 		CreateSchema: true,
+		// Short TTL so test retries observe the fully populated
+		// attribute_metadata table instead of a stale partial cache snapshot.
+		AttributeMetadataCacheTTL: 5 * time.Second,
 		Auth: ch.Authentication{
 			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
 				Username: "default",
