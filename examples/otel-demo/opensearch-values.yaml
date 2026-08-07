@@ -14,7 +14,14 @@ persistence:
   size: "10Gi"
   storageClass: "oci-bv" # Using Oracle Cloud Block Volume storage class
 
-opensearchJavaOpts: "-Xmx1g -Xms1g"
+opensearchJavaOpts: "-Xms3g -Xmx3g"
+
+resources:
+  requests:
+    cpu: "1000m"
+    memory: "6Gi"
+  limits:
+    memory: "6Gi"
 
 securityConfig:
   enabled: false
@@ -37,4 +44,3 @@ config:
 service:
   type: ClusterIP
   port: 9200
-
