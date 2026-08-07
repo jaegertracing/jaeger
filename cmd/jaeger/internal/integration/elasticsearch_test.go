@@ -12,7 +12,6 @@ import (
 
 func TestElasticsearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
-
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-elasticsearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
@@ -48,4 +47,17 @@ func TestElasticsearchStorage_DataStream(t *testing.T) {
 	// once the composable template is in place.
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 	runRotationSmokeTest(t, "../../config-elasticsearch-data-stream.yaml", "elasticsearch", func(*testing.T) {})
+}
+
+func TestElasticSearch_BackwardCompatibility(t *testing.T) {
+	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
+	fastBulkFlush := map[string]string{"ES_BULK_FLUSH_INTERVAL": "1ms"}
+	s := E2EStorageIntegration{
+		ConfigFile:      "../../config-elasticsearch.yaml",
+		EnvVarOverrides: fastBulkFlush,
+		StorageIntegration: integration.StorageIntegration{
+			Fixtures: integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+		},
+	}
+	runBackwardCompatibilityTests(t, "elasticsearch", s, capabilities.Elasticsearch(), capabilities.Elasticsearch())
 }

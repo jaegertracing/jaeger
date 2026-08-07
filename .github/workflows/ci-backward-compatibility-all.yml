@@ -1,0 +1,26 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Backward Compatibility Tests
+on:
+  workflow_call:
+    inputs:
+      storage:
+        type: string
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  elasticsearch:
+    if: ${{ inputs.storage == 'es/os' }}
+    uses: ./.github/workflows/ci-e2e-elasticsearch.yml
+    with:
+      backward_compatibility_env: true
+  opensearch:
+    if: ${{ inputs.storage == 'es/os' }}
+    uses: ./.github/workflows/ci-e2e-opensearch.yml
+    with:
+      backward_compatibility_env: true
