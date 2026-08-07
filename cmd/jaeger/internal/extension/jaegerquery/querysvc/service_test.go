@@ -66,7 +66,7 @@ func initializeTestService(opts ...testOption) *testQueryService {
 	traceReader := &tracestoremocks.Reader{}
 	dependencyStorage := &depstoremocks.Reader{}
 
-	options := QueryServiceOptions{}
+	options := QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}}
 
 	tqs := testQueryService{
 		traceReader: traceReader,
@@ -852,7 +852,7 @@ func TestQueryServiceGetServicesReturnsEmptySlice(t *testing.T) {
 		On("GetServices", mock.Anything).
 		Return(nil, nil).Once()
 
-	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+	qs := NewQueryService(reader, nil, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
 
 	services, err := qs.GetServices(context.Background())
 
@@ -886,7 +886,7 @@ func TestFindTraceSummaries_NativePath(t *testing.T) {
 	nativeReader := &mockSummaryReader{summaries: want}
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
+	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
 
 	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
@@ -904,7 +904,7 @@ func TestFindTraceSummaries_NativeError(t *testing.T) {
 		err: assert.AnError,
 	}
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{})
+	qs := NewQueryService(errReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
 
 	_, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
@@ -927,7 +927,7 @@ func TestFindTraceSummaries_ErrUnsupported(t *testing.T) {
 		})).Once()
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
+	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
 
 	got, err := jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
@@ -943,7 +943,7 @@ func TestFindTraceSummaries_NativePath_YieldStopsIteration(t *testing.T) {
 	nativeReader := &mockSummaryReader{summaries: want}
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{})
+	qs := NewQueryService(nativeReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
 
 	var count int
 	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
@@ -967,7 +967,7 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 		})).Once()
 
 	depsMock := initializeTestService().depsReader
-	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{})
+	qs := NewQueryService(unsupportedReader, depsMock, QueryServiceOptions{SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true}})
 
 	var count int
 	for _, err := range qs.FindTraceSummaries(context.Background(), TraceQueryParams{
@@ -978,4 +978,54 @@ func TestFindTraceSummaries_ErrUnsupported_YieldStopsIteration(t *testing.T) {
 		break
 	}
 	assert.Equal(t, 1, count)
+}
+
+// TestFindTraces_ServiceNameRequired covers the boundary RFC 0013 §3.3 puts here: a search
+// that omits the service name is rejected unless the reader declared it can serve one, and
+// the rejection happens before storage is touched — the reader has no expectation set, so
+// a call to it would fail the test.
+func TestFindTraces_ServiceNameRequired(t *testing.T) {
+	serviceless := TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+	}
+
+	t.Run("rejected when the backend requires a service name", func(t *testing.T) {
+		qs := NewQueryService(new(tracestoremocks.Reader), nil, QueryServiceOptions{})
+
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
+		require.ErrorIs(t, err, ErrServiceNameRequired)
+
+		_, err = jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), serviceless))
+		require.ErrorIs(t, err, ErrServiceNameRequired)
+	})
+
+	t.Run("forwarded when the backend accepts it", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeTestTrace()}, nil)
+			})).Once()
+		qs := NewQueryService(reader, nil, QueryServiceOptions{
+			SearchCapabilities: tracestore.SearchCapabilities{WithoutServiceName: true},
+		})
+
+		got, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), serviceless))
+		require.NoError(t, err)
+		assert.NotEmpty(t, got)
+		reader.AssertExpectations(t)
+	})
+
+	t.Run("a named service is accepted either way", func(t *testing.T) {
+		reader := new(tracestoremocks.Reader)
+		reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+			Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+				yield([]ptrace.Traces{makeTestTrace()}, nil)
+			})).Once()
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+		named := serviceless
+		named.ServiceName = "svc"
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), named))
+		require.NoError(t, err)
+	})
 }

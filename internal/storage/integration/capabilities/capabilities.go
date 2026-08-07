@@ -15,8 +15,18 @@ type Capabilities struct {
 	getOperationsMissingSpanKind bool
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesMissingSource bool
+	// searchWithoutServiceName is true for a backend whose reader accepts a search that
+	// omits the service name (RFC 0013). The suite gates the cross-service search test on
+	// it, rather than on the e2e client's own declaration, which is a stub.
+	searchWithoutServiceName bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+}
+
+// SearchWithoutServiceName returns true if the storage backend accepts a search that omits
+// the service name.
+func (c Capabilities) SearchWithoutServiceName() bool {
+	return c.searchWithoutServiceName
 }
 
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
@@ -37,7 +47,8 @@ func (c Capabilities) SkipList() []string {
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		searchWithoutServiceName: true,
+		skipList:                 []string{FindTraceSummariesTest},
 	}
 }
 
@@ -71,7 +82,8 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
+		searchWithoutServiceName: true,
+		skipList:                 []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
 	}
 }
 
@@ -87,6 +99,7 @@ func Badger() Capabilities {
 // Elasticsearch defines the capabilities for the Elasticsearch storage backend.
 func Elasticsearch() Capabilities {
 	return Capabilities{
+		searchWithoutServiceName: true,
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
@@ -98,6 +111,7 @@ func Elasticsearch() Capabilities {
 // validation tests that skip expensive subtests (large traces, duplicates).
 func ElasticsearchSmokeTest() Capabilities {
 	return Capabilities{
+		searchWithoutServiceName:     true,
 		getOperationsMissingSpanKind: true,
 		skipList: []string{
 			scopeAttributesTest,
@@ -111,6 +125,7 @@ func ElasticsearchSmokeTest() Capabilities {
 // OpenSearch defines the capabilities for the OpenSearch storage backend.
 func OpenSearch() Capabilities {
 	return Capabilities{
+		searchWithoutServiceName:     true,
 		getOperationsMissingSpanKind: true,
 		skipList:                     []string{scopeAttributesTest, linkAttributesTest},
 	}

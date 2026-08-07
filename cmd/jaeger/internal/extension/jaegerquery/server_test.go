@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"net/http"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	noopmetric "go.opentelemetry.io/otel/metric/noop"
 	nooptrace "go.opentelemetry.io/otel/trace/noop"
@@ -32,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerstorage"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
+	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore"
 	metricstoremocks "github.com/jaegertracing/jaeger/internal/storage/v1/api/metricstore/mocks"
@@ -45,9 +48,11 @@ import (
 
 type fakeFactory struct {
 	name string
-	// searchWithoutServiceName is what the reader this factory builds declares, so a
-	// test can drive what server.Start advertises to the UI.
+	// searchWithoutServiceName is what the reader this factory builds declares, and
+	// capabilitiesErr makes that reader unable to answer, so a test can drive both inputs
+	// server.Start takes from storage.
 	searchWithoutServiceName bool
+	capabilitiesErr          error
 }
 
 func (ff fakeFactory) CreateDependencyReader() (depstore.Reader, error) {
@@ -63,7 +68,13 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	}
 	reader := &tracestoremocks.Reader{}
 	reader.On("SearchCapabilities", mock.Anything).
-		Return(tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName}, nil).
+		Return(
+			tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName},
+			ff.capabilitiesErr,
+		).
+		Maybe()
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(func([]ptrace.Traces, error) bool) {})).
 		Maybe()
 	return reader, nil
 }
@@ -99,10 +110,14 @@ type fakeStorageExt struct{}
 var _ jaegerstorage.Extension = (*fakeStorageExt)(nil)
 
 func (fakeStorageExt) TraceStorageFactory(name string) (tracestore.Factory, error) {
-	if name == "need-factory-error" {
+	switch name {
+	case "need-factory-error":
 		return nil, errors.New("test-error")
+	case "serviceless-search-store":
+		return fakeFactory{name: name, searchWithoutServiceName: true}, nil
+	case "unknowable-capabilities-store":
+		return fakeFactory{name: name, capabilitiesErr: errors.New("cannot ask the backend")}, nil
 	}
-
 	return fakeFactory{name: name}, nil
 }
 
@@ -567,6 +582,116 @@ func TestBuildAIHealthChecker(t *testing.T) {
 			require.Equal(t, 2*time.Second, got.Timeout)
 			require.NotNil(t, got.Check)
 			require.NotNil(t, got.Logger)
+		})
+	}
+}
+
+// TestSearchCapabilities covers what server.Start does with the reader's answer. A reader
+// that reports an error gets the baseline: the struct returned alongside an error is not
+// trustworthy, so a reader claiming a capability *and* failing must not have the claim
+// believed — otherwise the UI would advertise a feature nobody vouched for.
+func TestSearchCapabilities(t *testing.T) {
+	sentinel := errors.New("cannot reach the backend")
+	tests := []struct {
+		name     string
+		reader   tracestore.Reader
+		expected tracestore.SearchCapabilities
+	}{
+		{
+			name:     "declared capability is taken",
+			reader:   capabilityReader{caps: tracestore.SearchCapabilities{WithoutServiceName: true}},
+			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+		},
+		{
+			name:     "declared absence is taken",
+			reader:   capabilityReader{},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name: "a value returned with an error is discarded",
+			reader: capabilityReader{
+				caps: tracestore.SearchCapabilities{WithoutServiceName: true},
+				err:  sentinel,
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+
+			got := searchCapabilities(context.Background(), test.reader, logger)
+
+			assert.Equal(t, test.expected, got)
+			if test.reader.(capabilityReader).err != nil {
+				assert.Contains(t, buf.String(), "assuming baseline")
+			}
+		})
+	}
+}
+
+// capabilityReader answers SearchCapabilities and panics on anything else, so a test that
+// accidentally exercises another method fails loudly rather than silently.
+type capabilityReader struct {
+	tracestore.Reader
+	caps tracestore.SearchCapabilities
+	err  error
+}
+
+func (r capabilityReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return r.caps, r.err
+}
+
+// TestServerStartWiresSearchCapability follows the capability from storage through Start
+// into the query service, where it decides whether a search may omit the service name.
+// The three cases are the three answers a reader can give.
+func TestServerStartWiresSearchCapability(t *testing.T) {
+	tests := []struct {
+		name        string
+		store       string
+		expectError error
+	}{
+		{name: "capable backend forwards the query", store: "serviceless-search-store"},
+		{
+			name:        "backend requiring a service name rejects it",
+			store:       "some_store",
+			expectError: querysvc.ErrServiceNameRequired,
+		},
+		{
+			name:        "backend that cannot answer is treated as requiring one",
+			store:       "unknowable-capabilities-store",
+			expectError: querysvc.ErrServiceNameRequired,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+			srv := newServer(&Config{
+				QueryOptions: app.QueryOptions{
+					HTTP: confighttp.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+					GRPC: configgrpc.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+				},
+				Storage: Storage{TracesPrimary: test.store},
+			}, component.TelemetrySettings{
+				Logger:         zaptest.NewLogger(t),
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+			})
+			require.NoError(t, srv.Start(t.Context(), host))
+			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
+
+			_, err := jiter.FlattenWithErrors(srv.QueryService().FindTraces(t.Context(), querysvc.TraceQueryParams{
+				TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},
+			}))
+			if test.expectError != nil {
+				require.ErrorIs(t, err, test.expectError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

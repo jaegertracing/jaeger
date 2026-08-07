@@ -456,8 +456,15 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 		ServiceName: "",
 		Attributes:  attr,
 	}
+	// A service-less query is refused rather than run against an empty partition key, and
+	// is marked unsupported so a caller can tell it apart from a malformed query.
 	err := validateQuery(tsp)
-	require.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.ErrorIs(t, err, ErrServiceNameNotSet)
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+
+	// Attributes are not what makes it invalid: the service name alone is.
+	noAttrs := &tracestore.TraceQueryParams{Attributes: pcommon.NewMap()}
+	require.ErrorIs(t, validateQuery(noAttrs), errors.ErrUnsupported)
 
 	tsp.ServiceName = "serviceName"
 	tsp.StartTimeMin = time.Now()
