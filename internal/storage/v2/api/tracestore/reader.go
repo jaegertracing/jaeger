@@ -76,16 +76,13 @@ type Reader interface {
 	// results first.
 	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
 
-	// SearchCapabilities reports how faithfully this reader can serve the search methods
-	// above. Callers consult it before offering a query the backend cannot answer as
-	// asked — the query service passes it to the UI, which offers "All Services" only
-	// where a service name may be omitted (RFC 0013).
+	// SearchCapabilities reports how this reader's search methods behave; see
+	// SearchCapabilities for what it describes.
 	//
-	// A reader that supports none of them returns the zero value with a nil error. A
-	// reader that cannot determine its own capabilities — one whose backend is behind an
-	// API that cannot be asked — returns errors.ErrUnsupported (wrapped with %w) rather
-	// than a fabricated value, so a caller can tell "no capabilities" from "no answer".
-	// It takes a context because the answer may come over the wire.
+	// A reader that cannot determine its own — one whose backend sits behind an API that
+	// cannot be asked — returns errors.ErrUnsupported (wrapped with %w) rather than a
+	// value a caller might trust, which is also why the method takes a context: the
+	// answer may arrive over the wire.
 	//
 	// A Reader that wraps another must forward the call, or it reports the wrapper's
 	// capabilities instead of the backend's.
