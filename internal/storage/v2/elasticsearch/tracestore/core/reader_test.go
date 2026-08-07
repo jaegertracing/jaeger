@@ -734,10 +734,12 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
+// TestSpanReader_FindTracesRejectsQueryBeforeSearching covers the FindTraces side of
+// validation: a query that validateQuery rejects — here an unset time range — returns
+// the validation error without a round trip to the cluster. TestTraceQueryParameterValidation
+// covers which queries are rejected; this covers that rejection short-circuits the search.
+func TestSpanReader_FindTracesRejectsQueryBeforeSearching(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// An unset time range fails validation before any search runs. A missing
-		// service name does not: that is a cross-service search (RFC 0013).
 		traceQuery := dbmodel.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
@@ -746,9 +748,10 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrStartAndEndTimeNotSet)
 		assert.Nil(t, traces)
+		r.searcher.AssertNotCalled(t, "Search")
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "the attempt is still traced")
 	})
 }
 
