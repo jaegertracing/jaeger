@@ -125,7 +125,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	searchCaps, err := traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		telset.Logger.Info(
-			"Storage did not report its search capabilities; assuming none",
+			"Storage did not report its search capabilities; assuming baseline",
 			zap.Error(err),
 		)
 	}
