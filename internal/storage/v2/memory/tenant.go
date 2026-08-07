@@ -275,15 +275,15 @@ func validSpan(resourceAttributes pcommon.Map, scope pcommon.InstrumentationScop
 	}
 
 	if statusAttr, ok := query.Attributes.Get("span.status"); ok {
-		expectedStatus := spanStatusFromString(statusAttr.AsString())
-		if expectedStatus != span.Status().Code() {
+		expectedStatus, valid := spanStatusFromString(statusAttr.AsString())
+		if !valid || expectedStatus != span.Status().Code() {
 			return false
 		}
 	}
 
 	if kindAttr, ok := query.Attributes.Get("span.kind"); ok {
-		expectedKind := spanKindFromString(kindAttr.AsString())
-		if expectedKind != span.Kind() {
+		expectedKind, valid := spanKindFromString(kindAttr.AsString())
+		if !valid || expectedKind != span.Kind() {
 			return false
 		}
 	}
@@ -371,30 +371,42 @@ func errorQueryValue(attr pcommon.Value) (value bool, valid bool) {
 	}
 }
 
-func spanStatusFromString(statusStr string) ptrace.StatusCode {
+// spanStatusFromString parses a span.status filter value. The second return
+// value reports whether the string is a recognized status. An unrecognized
+// value must not be reported as Unset, otherwise the filter would match every
+// span carrying the default status.
+func spanStatusFromString(statusStr string) (ptrace.StatusCode, bool) {
 	switch strings.ToUpper(statusStr) {
+	case "UNSET":
+		return ptrace.StatusCodeUnset, true
 	case "OK":
-		return ptrace.StatusCodeOk
+		return ptrace.StatusCodeOk, true
 	case "ERROR":
-		return ptrace.StatusCodeError
+		return ptrace.StatusCodeError, true
 	default:
-		return ptrace.StatusCodeUnset
+		return ptrace.StatusCodeUnset, false
 	}
 }
 
-func spanKindFromString(kindStr string) ptrace.SpanKind {
+// spanKindFromString parses a span.kind filter value. As with
+// spanStatusFromString, the second return value distinguishes a recognized
+// kind from an unrecognized one, so that an unrecognized value does not match
+// every span with the default Unspecified kind.
+func spanKindFromString(kindStr string) (ptrace.SpanKind, bool) {
 	switch strings.ToUpper(kindStr) {
+	case "UNSPECIFIED":
+		return ptrace.SpanKindUnspecified, true
 	case "CLIENT":
-		return ptrace.SpanKindClient
+		return ptrace.SpanKindClient, true
 	case "SERVER":
-		return ptrace.SpanKindServer
+		return ptrace.SpanKindServer, true
 	case "PRODUCER":
-		return ptrace.SpanKindProducer
+		return ptrace.SpanKindProducer, true
 	case "CONSUMER":
-		return ptrace.SpanKindConsumer
+		return ptrace.SpanKindConsumer, true
 	case "INTERNAL":
-		return ptrace.SpanKindInternal
+		return ptrace.SpanKindInternal, true
 	default:
-		return ptrace.SpanKindUnspecified
+		return ptrace.SpanKindUnspecified, false
 	}
 }
