@@ -253,8 +253,12 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 				w.Write([]byte("{}"))
 				return
 			}
+			// Assertions belong on the test goroutine, not in a handler, so a
+			// failed hijack just returns: the ErrorContains below is what fails.
 			conn, _, err := w.(http.Hijacker).Hijack()
-			require.NoError(t, err)
+			if err != nil {
+				return
+			}
 			conn.Close()
 		}))
 		defer srv.Close()
