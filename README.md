@@ -94,6 +94,34 @@ Starting with the release of Go 1.21, support for Go versions will be updated as
 
 Note: All importable code has been moved to internal packages, so there is no need to maintain backward compatibility with older compilers (previously version `N-1` was used).
 
+## Storage Backend Version Support Policy
+
+This policy covers storage backend versions only while they are reasonable for the project to test, maintain, and recommend for production use. Policy coverage is distinct from versions that may remain technically compatible with Jaeger.
+
+For backends with a published upstream lifecycle, Jaeger bases its policy on the backend project's or vendor's supported-version or end-of-life policy, with the exact coverage defined below. Once upstream support ends, Jaeger may remove CI coverage, stop proactively fixing backend-specific issues for that version, and require users to upgrade before troubleshooting.
+
+For backends without a clear upstream lifecycle, Jaeger supports the current stable major version and the immediately preceding major version. Older versions are best-effort only and may be removed when they block development, security fixes, dependency updates, or CI reliability.
+
+Backend-specific policy:
+
+* Elasticsearch: follow Elastic's [Product and Version End of Life Policy](https://www.elastic.co/support/eol).
+* OpenSearch: follow the OpenSearch [Release Schedule and Maintenance Policy](https://opensearch.org/releases/). In practice, this means the current major version and the previous major version while they remain maintained.
+* Cassandra: follow Apache Cassandra's maintained release lines, as published on the [Cassandra download page](https://cassandra.apache.org/_/download.html), with the Jaeger support target being the current major version and the previous major version.
+* ClickHouse: follow ClickHouse's [release and backport policy](https://clickhouse.com/docs/development/backports) and production guidance for [stable and LTS releases](https://clickhouse.com/docs/faq/operations/production). Jaeger treats LTS releases as its support lines and covers the current and previous LTS releases, which ClickHouse supports simultaneously for at least 12 months. Monthly stable releases may remain compatible or appear in CI but are not covered by this policy.
+
+Support means backend versions are in scope for proactive compatibility fixes. CI coverage is not the definitive support matrix: it may test only a subset of supported versions and may retain older versions on a best-effort basis. CI coverage alone does not make a backend version supported. Jaeger does not provide support for the backend product itself, vendor-specific distributions, or versions outside the upstream maintenance window.
+
+As of July 6, 2026, this policy means:
+
+| Backend | Jaeger policy basis | Versions covered by policy | Versions not covered |
+| --- | --- | --- | --- |
+| Elasticsearch | Elastic EOL policy | `9.x`; `8.19.x` until Elastic's published 8.x maintenance window ends | `8.18.x` and earlier |
+| OpenSearch | OpenSearch maintenance policy | `3.x`; `2.x`, with `2.19.x` as the currently maintained 2.x line | `1.x` and earlier |
+| Cassandra | Current major plus previous major, using maintained Apache release lines | `5.0.x`; maintained `4.x` lines, currently `4.1.x` and `4.0.x` | `3.x` and earlier |
+| ClickHouse | Current and previous ClickHouse LTS releases | `26.3 LTS` and `25.8 LTS` | Monthly stable releases and older LTS branches |
+
+This table is informational and should be refreshed when upstream policies or release lines change. Versions listed as not covered may still appear in CI on a best-effort basis; their presence in CI does not extend the support policy.
+
 ## Related Repositories
 
 ### Components
