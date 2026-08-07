@@ -15,7 +15,6 @@ import (
 	"os"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ import (
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	otelsemconv "github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 //go:embed fixtures
@@ -527,7 +526,7 @@ func (s *StorageIntegration) testFindTracesWithoutServiceName(t *testing.T) {
 			}
 		}
 	}
-	sort.Strings(services)
+	slices.Sort(services)
 	assert.Equal(t, []string{"cross-service-a", "cross-service-b"}, services,
 		"a search with no service name must return the traces of both services")
 }
