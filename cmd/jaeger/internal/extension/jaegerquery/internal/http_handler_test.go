@@ -668,6 +668,19 @@ func TestSearchFailures(t *testing.T) {
 			`/api/traces?service=service&start=0&end=0&operation=operation&maxDuration=10ms&limit=200&minDuration=20ms`,
 			parsedError(400, "'maxDuration' should be greater than 'minDuration'"),
 		},
+		{
+			`/api/traces?service=service&start=0&end=0&operation=operation&limit=0`,
+			parsedError(400, "parameter 'limit' must be greater than 0"),
+		},
+		{
+			`/api/traces?service=service&start=0&end=0&operation=operation&limit=-1`,
+			parsedError(400, "parameter 'limit' must be greater than 0"),
+		},
+		{
+			// start=1000 microseconds after epoch is after end=0 (epoch)
+			`/api/traces?service=service&start=1000&end=0&operation=operation&limit=200`,
+			parsedError(400, "'start' must not be later than 'end'"),
+		},
 	}
 	for _, test := range tests {
 		testIndividualSearchFailures(t, test.urlStr, test.errMsg)
