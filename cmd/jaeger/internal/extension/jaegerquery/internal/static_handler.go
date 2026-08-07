@@ -182,8 +182,8 @@ func (h *staticAssetsHandler) deriveIndexHTML() []byte {
 	capsJSON, _ := json.Marshal(BackendCapabilities{
 		ArchiveStorage:           h.storageCaps.ArchiveStorage,
 		MetricsStorage:           h.storageCaps.MetricsStorage,
-		AIAssistant:              aiAvailable,
 		SearchWithoutServiceName: h.storageCaps.SearchWithoutServiceName,
+		AIAssistant:              aiAvailable,
 	})
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
