@@ -126,6 +126,40 @@ type innerParams struct {
 	IsOpenSearch  bool
 }
 
+// renderNeutralBody renders a mapping type's neutral body and decodes its
+// top-level fields (settings, mappings, and optional aliases). It is the step
+// RenderIndexTemplate and the span data-stream components share: the same replica
+// check, the same template execution and the same JSON decode, so both paths fail
+// identically on the same input.
+//
+// Shards and Replicas are always taken from the mapping type's own index options;
+// the caller supplies only the fields that differ between the two paths, which is
+// how the data stream renders the body with the rotation path's lifecycle settings
+// left off.
+func renderNeutralBody(m MappingType, indices config.Indices, params innerParams) (map[string]json.RawMessage, error) {
+	file := m.file()
+	if file == "" {
+		return nil, fmt.Errorf("unknown index template mapping type %d", m)
+	}
+	opts := m.options(indices)
+	if opts.Replicas == nil {
+		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
+	}
+	params.Shards = opts.Shards
+	params.Replicas = *opts.Replicas
+
+	var buf bytes.Buffer
+	if err := indexTemplates.ExecuteTemplate(&buf, file, params); err != nil {
+		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
+	}
+
+	var inner map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
+		return nil, fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	}
+	return inner, nil
+}
+
 // RenderIndexTemplate renders the full index template body for a mapping type,
 // wrapping the neutral inner object in the envelope required by the backend
 // version: the legacy top-level `_template` shape (ES7/OpenSearch) or the
@@ -136,36 +170,20 @@ type innerParams struct {
 // offline `esmapping-generator` CLI, which has no cluster to probe and renders a
 // template for an explicitly-requested version.
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
-	file := m.file()
-	if file == "" {
-		return "", fmt.Errorf("unknown index template mapping type %d", m)
-	}
-	opts := m.options(indices)
-	if opts.Replicas == nil {
-		return "", fmt.Errorf("index options for %s have no replica count configured", m)
-	}
 	prefix := indices.IndexPrefix.Apply("")
-
-	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
+	inner, err := renderNeutralBody(m, indices, innerParams{
 		IndexPrefix:   prefix,
-		Shards:        opts.Shards,
-		Replicas:      *opts.Replicas,
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),
-	}); err != nil {
-		return "", fmt.Errorf("failed to render %s index template: %w", m, err)
-	}
-
-	var inner map[string]json.RawMessage
-	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
-		return "", fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	})
+	if err != nil {
+		return "", err
 	}
 
 	if version.UsesV8API() {
 		body, err := json.Marshal(map[string]any{
-			"priority":       opts.Priority,
+			"priority":       m.options(indices).Priority,
 			"index_patterns": prefix + m.indexBase() + "-*",
 			"template":       inner,
 		})

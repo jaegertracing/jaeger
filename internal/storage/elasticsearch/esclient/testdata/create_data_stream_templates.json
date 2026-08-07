@@ -1,5 +1,18 @@
 [
   {
+    "method": "GET",
+    "path": "/_component_template/test.jaeger.spans@custom"
+  },
+  {
+    "method": "PUT",
+    "path": "/_component_template/test.jaeger.spans@custom",
+    "body": {
+      "template": {
+        "settings": {}
+      }
+    }
+  },
+  {
     "method": "PUT",
     "path": "/_component_template/test.jaeger.spans@mappings",
     "body": {
@@ -237,9 +250,6 @@
         "test.jaeger.spans@custom"
       ],
       "data_stream": {},
-      "ignore_missing_component_templates": [
-        "test.jaeger.spans@custom"
-      ],
       "index_patterns": [
         "test.jaeger.spans"
       ],

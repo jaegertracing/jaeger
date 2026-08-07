@@ -193,6 +193,81 @@ func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string
 	s.client.cleanTemplates(t, prefix)
 }
 
+// TestElasticsearchStorage_DataStreamTemplates exercises the RFC 0004 §3.2
+// data-stream templates against a live backend: it installs the two Jaeger
+// components plus the composable index template, then writes a document through the
+// data stream and reads it back.
+//
+// Running in the ES/OS matrix job is what makes this meaningful. The esclient
+// snapshot pins the bytes Jaeger sends but cannot tell whether a backend accepts
+// them, and this slice spans versions that disagree on exactly that:
+// ignore_missing_component_templates is ES 8.7+ and exists on no OpenSearch version,
+// while OpenSearch rejects a composed_of naming a template that does not exist. It
+// also proves the mapping accepts what Jaeger writes, which creating the templates
+// alone does not.
+func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+	s := &ESStorageIntegration{}
+	s.initializeES(t, true)
+	s.testDataStreamTemplates(t)
+}
+
+func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
+	ctx := context.Background()
+	replicas := int64(0)
+	indicesCfg := escfg.Indices{
+		IndexPrefix: escfg.IndexPrefix(indexPrefix),
+		Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+	}
+	indices := esclient.IndicesClient{
+		Client:                 s.client.client,
+		IgnoreUnavailableIndex: true,
+		Indices:                indicesCfg,
+	}
+	dataStream := indicesCfg.IndexPrefix.DataStreamName("jaeger.spans")
+
+	// A data stream's backing indices are hidden, so the suite's DeleteAllIndices("*")
+	// teardown does not reclaim them: this test owns both ends of its own cleanup.
+	require.NoError(t, indices.TestsOnlyDeleteDataStreamObjects(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, indices.TestsOnlyDeleteDataStreamObjects(context.Background()))
+	})
+
+	require.NoError(t, indices.CreateDataStreamTemplates(ctx))
+
+	// The write is the assertion that matters: installing the templates only proves
+	// the cluster parsed them. op_type: create is what a data stream forces, and
+	// "@timestamp" is an RFC 3339 nanosecond string because date_nanos reads a bare
+	// number as epoch milliseconds, which would put epoch nanoseconds past the type's
+	// 2262 ceiling and get the document rejected.
+	start := time.Now().UTC()
+	writer := esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop())
+	require.NoError(t, writer.WriteBatch(ctx, []esclient.BulkItem{{
+		Index:  dataStream,
+		ID:     "ds-1",
+		OpType: esstorage.WriteOpCreate,
+		Body: map[string]any{
+			"@timestamp":    start.Format(time.RFC3339Nano),
+			"traceID":       "ds-trace",
+			"spanID":        "ds-span",
+			"operationName": "data-stream-write",
+			"startTime":     start.UnixMicro(),
+		},
+	}}))
+
+	searcher := esclient.SearchClient{Client: s.client.client}
+	require.Eventually(t, func() bool {
+		resp, err := searcher.Search(ctx, []string{dataStream}, esclient.SearchRequest{Size: 10})
+		return err == nil && len(resp.Hits.Hits) == 1
+	}, 10*time.Second, 100*time.Millisecond,
+		"the document must be durably readable through the data stream")
+}
+
 // TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk
 // primitive against a live backend: it durably writes documents in one blocking
 // _bulk round-trip, reads them back to prove durability, and forces a real

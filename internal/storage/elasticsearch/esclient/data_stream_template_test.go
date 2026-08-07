@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,25 @@ func decodeComponentTemplate(t *testing.T, body string) map[string]any {
 	return decoded.Template
 }
 
+// freshClusterServer answers as a cluster that has no "@custom" component yet: the
+// existence probe 404s and everything else succeeds. That is the fresh-install path,
+// where Jaeger creates the component before composing it.
+func freshClusterServer(t *testing.T) (*snapshottest.Recorder, string) {
+	t.Helper()
+	rec := snapshottest.NewRecorder(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.Contains(r.URL.Path, componentCustomSuffix) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"status":404}`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("{}"))
+	})
+	server := httptest.NewServer(rec)
+	t.Cleanup(server.Close)
+	return rec, server.URL
+}
+
 // TestSpanDataStreamComponentsMatchRotationTemplate is the drift guard. Both
 // component bodies are derived from jaeger-span.json rather than restated, and this
 // pins that derivation: "@settings" must carry the span rotation template's settings
@@ -38,9 +58,7 @@ func decodeComponentTemplate(t *testing.T, body string) map[string]any {
 // component but not to the index it derives from.
 func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 	indices := testIndices()
-	body, err := renderSpanIndexTemplateBody(indices)
-	require.NoError(t, err)
-	templates, err := spanDataStreamTemplates("jaeger.spans", body)
+	templates, err := renderSpanDataStreamTemplates(indices)
 	require.NoError(t, err)
 	require.Len(t, templates, 3)
 
@@ -69,43 +87,88 @@ func TestSpanDataStreamComponentsMatchRotationTemplate(t *testing.T) {
 		"@mappings must equal the span rotation template's mappings plus @timestamp")
 }
 
-func TestParseSpanIndexTemplateBodyErrors(t *testing.T) {
-	t.Run("invalid json", func(t *testing.T) {
-		_, err := parseSpanIndexTemplateBody([]byte("not-json"))
-		require.ErrorContains(t, err, "failed to parse span index template")
+// TestRenderMappingsComponentDoesNotMutateInput pins that adding "@timestamp" stays
+// inside the component body. renderNeutralBody is now shared with the rotation path,
+// so a component built by mutating the rendered mappings in place would leak a
+// data-stream-only field into whatever else reads that body.
+func TestRenderMappingsComponentDoesNotMutateInput(t *testing.T) {
+	raw := json.RawMessage(`{"properties":{"traceID":{"type":"keyword"}}}`)
+	before := string(raw)
+
+	body, err := renderMappingsComponent(raw)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, before, string(raw), "the caller's rendered mappings must be untouched")
+	assert.Contains(t, body, "@timestamp", "the component itself still carries the field")
+}
+
+func TestSpanDataStreamIndexTemplatePriority(t *testing.T) {
+	decodePriority := func(t *testing.T, body string) int64 {
+		t.Helper()
+		var decoded struct {
+			Priority int64 `json:"priority"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(body), &decoded))
+		return decoded.Priority
+	}
+
+	t.Run("defaults when unset", func(t *testing.T) {
+		body, err := renderSpanDataStreamIndexTemplate("jaeger.spans", 0)
+		require.NoError(t, err)
+		assert.Equal(t, int64(defaultDataStreamPriority), decodePriority(t, body))
 	})
 
-	t.Run("no settings", func(t *testing.T) {
-		_, err := parseSpanIndexTemplateBody([]byte(`{"mappings":{}}`))
-		require.ErrorContains(t, err, "no settings object")
+	t.Run("honors a configured priority", func(t *testing.T) {
+		indices := testIndices()
+		indices.Spans.Priority = 42
+		templates, err := renderSpanDataStreamTemplates(indices)
+		require.NoError(t, err)
+		assert.Equal(t, int64(42), decodePriority(t, templates[2].body),
+			"indices.spans.priority must reach the data stream template, as it does on ES8")
 	})
 }
 
+// TestSpanDataStreamIndexTemplateComposesCustom pins the composed_of contract that
+// the backend matrix forced: "@custom" is composed unconditionally and
+// ignore_missing_component_templates is never emitted, because that field exists on
+// no OpenSearch version and both parsers reject unknown fields.
+func TestSpanDataStreamIndexTemplateComposesCustom(t *testing.T) {
+	body, err := renderSpanDataStreamIndexTemplate("jaeger.spans", 0)
+	require.NoError(t, err)
+	assert.NotContains(t, body, "ignore_missing_component_templates")
+
+	var decoded struct {
+		ComposedOf []string `json:"composed_of"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &decoded))
+	assert.Equal(t, []string{
+		"jaeger.spans@mappings",
+		"jaeger.spans@settings",
+		"jaeger.spans@custom",
+	}, decoded.ComposedOf)
+}
+
 func TestSpanDataStreamTemplatesErrors(t *testing.T) {
-	settings := json.RawMessage(`{}`)
+	t.Run("mappings that are not valid JSON", func(t *testing.T) {
+		_, err := spanDataStreamTemplates("jaeger.spans", 0, map[string]json.RawMessage{
+			"mappings": json.RawMessage("not-json"),
+		})
+		require.ErrorContains(t, err, "failed to parse span index template mappings")
+	})
 
 	t.Run("mappings without properties", func(t *testing.T) {
-		_, err := spanDataStreamTemplates("jaeger.spans", spanIndexTemplateBody{
-			Settings: settings,
-			Mappings: map[string]any{},
+		_, err := spanDataStreamTemplates("jaeger.spans", 0, map[string]json.RawMessage{
+			"mappings": json.RawMessage(`{}`),
 		})
 		require.ErrorContains(t, err, "no properties object")
 	})
 
-	t.Run("mappings that cannot be marshaled", func(t *testing.T) {
-		// A channel has no JSON representation, so the component body fails to
-		// marshal rather than silently emitting a truncated template.
-		_, err := spanDataStreamTemplates("jaeger.spans", spanIndexTemplateBody{
-			Settings: settings,
-			Mappings: map[string]any{"properties": map[string]any{"bad": make(chan int)}},
-		})
-		require.ErrorContains(t, err, "failed to marshal span data stream mappings")
-	})
-
 	t.Run("settings that cannot be marshaled", func(t *testing.T) {
-		_, err := spanDataStreamTemplates("jaeger.spans", spanIndexTemplateBody{
-			Settings: json.RawMessage("{not-json"),
-			Mappings: map[string]any{"properties": map[string]any{}},
+		// json.RawMessage marshals its bytes verbatim, so a malformed body fails the
+		// call rather than PUTting an invalid settings component.
+		_, err := spanDataStreamTemplates("jaeger.spans", 0, map[string]json.RawMessage{
+			"mappings": json.RawMessage(`{"properties":{}}`),
+			"settings": json.RawMessage("{not-json"),
 		})
 		require.ErrorContains(t, err, "failed to marshal span data stream settings")
 	})
@@ -120,8 +183,51 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 		assert.Empty(t, rec.Requests(), "a render failure must not issue any request")
 	})
 
-	t.Run("server error", func(t *testing.T) {
+	t.Run("an existing @custom is left untouched", func(t *testing.T) {
+		rec, url := okServer(t)
+		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
+		require.NoError(t, c.CreateDataStreamTemplates(context.Background()))
+		for _, r := range rec.Requests() {
+			if strings.Contains(r.Path, componentCustomSuffix) {
+				assert.Equal(t, http.MethodGet, r.Method,
+					"@custom is user-owned: probe it, never overwrite it")
+			}
+		}
+	})
+
+	t.Run("a missing @custom is created empty", func(t *testing.T) {
+		rec, url := freshClusterServer(t)
+		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
+		require.NoError(t, c.CreateDataStreamTemplates(context.Background()))
+		var created bool
+		for _, r := range rec.Requests() {
+			if r.Method == http.MethodPut && strings.Contains(r.Path, componentCustomSuffix) {
+				created = true
+				assert.JSONEq(t, emptyComponentBody, string(r.Body),
+					"Jaeger declares @custom and leaves its contents to the user")
+			}
+		}
+		assert.True(t, created, "a missing @custom must be created before it is composed")
+	})
+
+	t.Run("component probe error", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(esErrResponse))
+		}))
+		defer srv.Close()
+		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
+		err := c.CreateDataStreamTemplates(context.Background())
+		require.ErrorContains(t, err, "failed to check if component template")
+	})
+
+	t.Run("server error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("{}"))
+				return
+			}
 			w.WriteHeader(http.StatusBadRequest)
 			w.Write([]byte(esErrResponse))
 		}))
@@ -131,23 +237,86 @@ func TestCreateDataStreamTemplates(t *testing.T) {
 		require.ErrorContains(t, err, `failed to create data stream template "jaeger.spans@mappings"`)
 	})
 
-	t.Run("transport error", func(t *testing.T) {
+	t.Run("transport error on the probe", func(t *testing.T) {
 		c := IndicesClient{Client: makeClient(t, "http://localhost:1", "", ""), Indices: testIndices()}
+		err := c.CreateDataStreamTemplates(context.Background())
+		require.ErrorContains(t, err, "failed to check if component template")
+	})
+
+	t.Run("transport error on a template PUT", func(t *testing.T) {
+		// The probe succeeds and the connection is then dropped mid-PUT, so the
+		// failure arrives as a transport error rather than an HTTP status — the one
+		// path that does not carry a ResponseError to prefix.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet {
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("{}"))
+				return
+			}
+			conn, _, err := w.(http.Hijacker).Hijack()
+			require.NoError(t, err)
+			conn.Close()
+		}))
+		defer srv.Close()
+		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
 		err := c.CreateDataStreamTemplates(context.Background())
 		require.ErrorContains(t, err, `failed to create data stream template "jaeger.spans@mappings"`)
 	})
 }
 
-// TestCreateDataStreamTemplatesRequestSnapshot freezes the exact bytes of the three
-// PUTs that back the span data stream, in the order they are issued (ADR-012
-// §Wire-format stability). Recording every backend version and letting
-// AssertByVersion collapse them also asserts that this path is version-invariant:
-// unlike CreateTemplate it must not branch on UsesV8API, so a single all-versions
-// snapshot is the expected outcome and a per-version split would fail the test.
+func TestTestsOnlyDeleteDataStreamObjects(t *testing.T) {
+	t.Run("deletes the stream before the templates it composes", func(t *testing.T) {
+		rec, url := okServer(t)
+		c := IndicesClient{Client: makeClient(t, url, "", ""), Indices: testIndices()}
+		require.NoError(t, c.TestsOnlyDeleteDataStreamObjects(context.Background()))
+
+		paths := make([]string, 0, len(rec.Requests()))
+		for _, r := range rec.Requests() {
+			assert.Equal(t, http.MethodDelete, r.Method)
+			paths = append(paths, r.Path)
+		}
+		assert.Equal(t, []string{
+			"/_data_stream/jaeger.spans",
+			"/_index_template/jaeger.spans",
+			"/_component_template/jaeger.spans@mappings",
+			"/_component_template/jaeger.spans@settings",
+			"/_component_template/jaeger.spans@custom",
+		}, paths, "a template cannot be dropped while a stream composed from it exists")
+	})
+
+	t.Run("tolerates objects that are already absent", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"status":404}`))
+		}))
+		defer srv.Close()
+		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
+		require.NoError(t, c.TestsOnlyDeleteDataStreamObjects(context.Background()))
+	})
+
+	t.Run("surfaces a real failure", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write([]byte(esErrResponse))
+		}))
+		defer srv.Close()
+		c := IndicesClient{Client: makeClient(t, srv.URL, "", ""), Indices: testIndices()}
+		err := c.TestsOnlyDeleteDataStreamObjects(context.Background())
+		require.ErrorContains(t, err, "failed to delete _data_stream/jaeger.spans")
+	})
+}
+
+// TestCreateDataStreamTemplatesRequestSnapshot freezes the exact bytes of the PUTs
+// that back the span data stream, in the order they are issued (ADR-012 §Wire-format
+// stability), against a cluster that does not yet have an "@custom" component — the
+// fresh-install path. Recording every backend version and letting AssertByVersion
+// collapse them also asserts that this path is version-invariant: unlike
+// CreateTemplate it must not branch on UsesV8API, so a single all-versions snapshot
+// is the expected outcome and a per-version split would fail the test.
 func TestCreateDataStreamTemplatesRequestSnapshot(t *testing.T) {
 	content := map[es.BackendVersion]string{}
 	for _, version := range es.AllVersions {
-		rec, url := okServer(t)
+		rec, url := freshClusterServer(t)
 		// UseILM is deliberately left unset: the data-stream templates never render
 		// the rotation path's lifecycle settings, whatever the client is configured
 		// with. templateSnapshotIndices carries the "test-" prefix, so the snapshot
