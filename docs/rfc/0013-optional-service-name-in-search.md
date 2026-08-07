@@ -201,7 +201,7 @@ Each milestone is independently shippable and leaves the product in a working st
 
 **Milestone 3 — MCP `search_traces`.** Make `service_name` optional in the handler and the tool schema, with the schema noting the cross-service semantics, and add the empty-service test path. Closes the substance of [jaeger#8492](https://github.com/jaegertracing/jaeger/issues/8492).
 
-**Milestone 4 — UI.** In `jaeger-ui`: the reserved "All Services" option gated on `backendCapabilities.searchWithoutServiceName`, the operation field disabled in that mode, URL and `lastSearch` round-tripping, and the fallback for a sentinel-valued URL against a backend without the capability. Closes [jaeger-ui#180](https://github.com/jaegertracing/jaeger-ui/issues/180).
+**Milestone 4 — UI.** ✅ [jaeger-ui#4342](https://github.com/jaegertracing/jaeger-ui/pull/4342) In `jaeger-ui`: the reserved "All Services" option gated on `backendCapabilities.searchWithoutServiceName`, the operation field disabled in that mode, URL and `lastSearch` round-tripping, and the fallback for a sentinel-valued URL against a backend without the capability. Closes [jaeger-ui#180](https://github.com/jaegertracing/jaeger-ui/issues/180).
 
 **Milestone 5 — gRPC remote storage.** Add the `search_without_service_name` config field to the gRPC storage backend, defaulting to unset, so an operator who knows the remote backend can declare on its behalf what the reader cannot introspect.
 
