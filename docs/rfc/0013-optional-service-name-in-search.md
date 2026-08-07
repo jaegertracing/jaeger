@@ -122,7 +122,7 @@ The two callers that carry their own requirement lose it: `errServiceParameterRe
 | --- | --- | --- |
 | Elasticsearch / OpenSearch | `true` | Remove the vestigial attribute guard; integration test in the existing ES/OS matrix |
 | In-memory | `true` | None beyond the declaration and a test |
-| ClickHouse | `true` | Confirm with an integration test; no query changes expected |
+| ClickHouse | `true` | None beyond the declaration and a test; the search SQL appends every predicate conditionally |
 | Badger | `false` initially | A truthful `true` requires applying tag and operation filters during the time-range scan; until then the honest answer is `false` |
 | Cassandra | `false` | Replace the silent empty result with `ErrUnsupported` |
 | gRPC remote storage | From config, default `false` | New config field (§3.6) |
@@ -203,7 +203,7 @@ Each milestone is independently shippable and leaves the product in a working st
 
 **Milestone 4 — UI.** In `jaeger-ui`: the reserved "All Services" option gated on `backendCapabilities.searchWithoutServiceName`, the operation field disabled in that mode, URL and `lastSearch` round-tripping, and the fallback for a sentinel-valued URL against a backend without the capability. Closes [jaeger-ui#180](https://github.com/jaegertracing/jaeger-ui/issues/180).
 
-**Milestone 5 — ClickHouse and gRPC remote storage.** Declare the capability for ClickHouse with an integration test; add the `search_without_service_name` config field to the gRPC storage backend, defaulting to `false`.
+**Milestone 5 — gRPC remote storage.** Add the `search_without_service_name` config field to the gRPC storage backend, defaulting to unset, so an operator who knows the remote backend can declare on its behalf what the reader cannot introspect.
 
 **Milestone 6 — Capability discovery in api_v3 (§3.7).** A `Capabilities` service in `jaeger-idl`, served by jaeger-query, reporting what the deployment supports; the e2e test client then reports what the query service reports instead of a stub, and the UI can read the same source it queries rather than a blob injected at boot. Independent of the milestones above and of §3.6's storage-side RPC.
 

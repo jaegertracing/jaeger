@@ -1232,10 +1232,10 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	require.ErrorContains(t, err, "failed to build query")
 }
 
-// ClickHouse has not been assessed for a service-less search yet, so the reader declares
-// that every query field is required (RFC 0013 Milestone 5).
+// The search SQL appends every predicate conditionally, so ClickHouse answers a query
+// that omits the service name (RFC 0013).
 func TestReader_SearchCapabilities(t *testing.T) {
 	caps, err := (&Reader{}).SearchCapabilities(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
+	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, caps)
 }
