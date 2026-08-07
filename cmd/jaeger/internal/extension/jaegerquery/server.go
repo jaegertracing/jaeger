@@ -118,10 +118,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
-	// The reader is asked after wrapping, and each decorator forwards the call, so what
-	// reaches the UI is the backend's own declaration. A reader that cannot answer leaves
-	// every capability off — the UI then offers only what every backend can do, which is
-	// how jaeger-query behaved before it asked at all.
 	searchCaps, err := traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		telset.Logger.Info(
