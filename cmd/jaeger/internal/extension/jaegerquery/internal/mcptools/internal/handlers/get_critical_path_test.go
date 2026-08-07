@@ -67,7 +67,7 @@ func createCriticalPathTestTrace() ptrace.Traces {
 
 func TestNewGetCriticalPathHandler(t *testing.T) {
 	// We can pass nil because we only check if it returns a handler function
-	handler := NewGetCriticalPathHandler(nil)
+	handler := NewGetCriticalPathHandler(nil, 20)
 	assert.NotNil(t, handler)
 }
 
@@ -314,4 +314,82 @@ func TestGetCriticalPathHandler_BuildOutput_MissingSpan(t *testing.T) {
 	// Should only have 1 segment for the existing span
 	assert.Len(t, output.Segments, 1)
 	assert.Equal(t, span.SpanID().String(), output.Segments[0].SpanID)
+}
+
+func TestGetCriticalPathHandler_BuildOutput_SegmentsCappedByLargestSelfTime(t *testing.T) {
+	// buildOutput must cap the returned segments to the configured limit while
+	// TotalSegmentCount still reflects every segment on the full critical path,
+	// and critical_path_duration_us (summed before capping, in the handle method)
+	// is unaffected by which segments get truncated here.
+	handler := &getCriticalPathHandler{maxSpanDetailsPerRequest: 2}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr("service.name", "test-service")
+	ss := rs.ScopeSpans().AppendEmpty()
+
+	small := ss.Spans().AppendEmpty()
+	small.SetSpanID([8]byte{1})
+	small.SetTraceID([16]byte{1})
+	small.SetName("small")
+	small.SetStartTimestamp(pcommon.Timestamp(0))
+	small.SetEndTimestamp(pcommon.Timestamp(1000))
+
+	medium := ss.Spans().AppendEmpty()
+	medium.SetSpanID([8]byte{2})
+	medium.SetTraceID([16]byte{1})
+	medium.SetName("medium")
+	medium.SetStartTimestamp(pcommon.Timestamp(0))
+	medium.SetEndTimestamp(pcommon.Timestamp(1000))
+
+	large := ss.Spans().AppendEmpty()
+	large.SetSpanID([8]byte{3})
+	large.SetTraceID([16]byte{1})
+	large.SetName("large")
+	large.SetStartTimestamp(pcommon.Timestamp(0))
+	large.SetEndTimestamp(pcommon.Timestamp(1000))
+
+	traceID := small.TraceID().String()
+
+	// Three sections with distinct self times: 10us, 30us, 20us.
+	sections := []criticalpath.Section{
+		{SpanID: small.SpanID().String(), SectionStart: 0, SectionEnd: 10},
+		{SpanID: medium.SpanID().String(), SectionStart: 10, SectionEnd: 40}, // self time 30
+		{SpanID: large.SpanID().String(), SectionStart: 40, SectionEnd: 60},  // self time 20
+	}
+
+	output := handler.buildOutput(traceID, traces, sections)
+
+	assert.Equal(t, 3, output.TotalSegmentCount, "total should reflect every computed segment")
+	require.Len(t, output.Segments, 2, "segments should be capped to the configured limit")
+
+	// The two largest self times (30, 20) must be kept; the smallest (10) dropped,
+	// and the kept segments returned with the largest self time first.
+	require.Equal(t, uint64(30), output.Segments[0].SelfTimeUs)
+	require.Equal(t, uint64(20), output.Segments[1].SelfTimeUs)
+}
+
+func TestGetCriticalPathHandler_BuildOutput_SegmentsNotCappedWhenUnderLimit(t *testing.T) {
+	// A limit of 0 means unlimited, matching the convention used by the other MCP tools.
+	handler := &getCriticalPathHandler{maxSpanDetailsPerRequest: 0}
+
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+	span.SetSpanID([8]byte{1})
+	span.SetTraceID([16]byte{1})
+	span.SetName("only-span")
+	span.SetStartTimestamp(pcommon.Timestamp(0))
+	span.SetEndTimestamp(pcommon.Timestamp(1000))
+
+	traceID := span.TraceID().String()
+	sections := []criticalpath.Section{
+		{SpanID: span.SpanID().String(), SectionStart: 0, SectionEnd: 10},
+	}
+
+	output := handler.buildOutput(traceID, traces, sections)
+
+	assert.Equal(t, 1, output.TotalSegmentCount)
+	assert.Len(t, output.Segments, 1)
 }
