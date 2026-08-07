@@ -815,3 +815,9 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 	}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
+
+// A remote backend's abilities cannot be introspected over jaeger.storage.v2, so the
+// reader declares that every query field is required (RFC 0013 Milestone 5).
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	assert.Equal(t, tracestore.SearchCapabilities{}, (&TraceReader{}).SearchCapabilities())
+}

@@ -234,3 +234,9 @@ func mockIter(traces []cassdbmodel.Trace, err error) iter.Seq2[cassdbmodel.Trace
 		}
 	}
 }
+
+// Every Cassandra index is keyed by service name, so the reader declares that a search
+// cannot omit any query field (RFC 0013).
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	assert.Equal(t, tracestore.SearchCapabilities{}, (&TraceReader{}).SearchCapabilities())
+}

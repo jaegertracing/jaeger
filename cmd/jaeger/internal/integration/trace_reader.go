@@ -36,13 +36,16 @@ var (
 
 // traceReader retrieves trace data from the jaeger-v2 query service through the api_v2.QueryServiceClient.
 type traceReader struct {
-	// The query service reports the backend's search capabilities over its own API, not
-	// through this test client, so nothing is declared here.
-	tracestore.NoSearchCapabilities
-
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
 	client     api_v3.QueryServiceClient
+}
+
+// SearchCapabilities reports that every query field is required. The real backend's
+// capabilities reach clients through the query service's own API, not through this test
+// client, so nothing is declared on its behalf here.
+func (*traceReader) SearchCapabilities() tracestore.SearchCapabilities {
+	return tracestore.SearchCapabilities{}
 }
 
 func createTraceReader(logger *zap.Logger, port int) (*traceReader, error) {

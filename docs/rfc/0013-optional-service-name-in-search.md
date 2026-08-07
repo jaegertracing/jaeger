@@ -50,18 +50,18 @@ The UI must know whether service-less search is possible *before* the user submi
 | Survives wrapping | 🟢 compiler rejects a decorator that does not forward | 🔴 a wrapper silently downgrades the capability | 🟢 | 🟢 |
 | No storage-specific knowledge in the query layer | 🟢 | 🟢 | 🟢 | 🟢 |
 | Works for gRPC remote storage | 🟡 config-backed answer¹ | 🟡 config-backed answer¹ | 🟢 | 🟢 |
-| Follows an existing pattern in the codebase | 🟢 `FindTraceSummaries` + `UnsupportedTraceSummaries` | 🟢 `SyncBulkWriteConfig` | 🟢 `UnsupportedTraceSummaries` | 🟡 |
+| Follows an existing pattern in the codebase | 🟢 `FindTraceSummaries` | 🟢 `SyncBulkWriteConfig` | 🟢 `UnsupportedTraceSummaries` | 🟡 |
 | Cost of adding it | 🟡 every Reader and decorator must answer² | 🟢 only the backends that opt in | 🟢 | 🟢 |
 
 🟢 good · 🟡 partial · 🔴 poor
 ¹ The remote backend's abilities cannot be introspected over the current `jaeger.storage.v2` API, so the gRPC reader answers from its own configuration until the IDL grows a capability RPC (§3.6).
-² Around eight implementations plus the generated mocks — the same blast radius `FindTraceSummaries` had, and the compiler enumerates it.
+² Around eight implementations plus the generated mocks, each stating in place why that backend requires the field — the same blast radius `FindTraceSummaries` had, and the compiler enumerates it.
 
 **Recommendation: A, with C retained as the enforcement backstop.** The declaration is what the UI needs; `ErrUnsupported` from the reader is what protects a direct API caller that ignores the declaration, and the two do not conflict.
 
 B is the cheaper change and the wrong trade. `tracestore.Reader` implementations are wrapped routinely — the metrics decorator wraps every reader a factory builds, and `queryinterceptor.NewReaderDecorator` wraps that again — and a type assertion against a wrapper silently answers "no capability" instead of failing. Declaring the capability on the factory rather than the reader only moves the hazard: lazy factory initialization (ADR-003) would wrap factories the same way. A method on the interface makes a decorator that forgets to forward a compile error, which is the only version of this that stays correct as wrappers accumulate.
 
-The shape mirrors `FindTraceSummaries`: a method on `Reader`, plus an embeddable default for backends that cannot:
+The shape follows `FindTraceSummaries`: a method on `Reader`, returning a struct.
 
 ```go
 // in internal/storage/v2/api/tracestore
@@ -73,15 +73,11 @@ The shape mirrors `FindTraceSummaries`: a method on `Reader`, plus an embeddable
 type SearchCapabilities struct {
     WithoutServiceName bool
 }
-
-// NoSearchCapabilities provides the Reader.SearchCapabilities implementation that
-// declares the zero value: every optional query field is required. It is named for the
-// whole set rather than any one field, because a capability added later is reported as
-// unsupported here too.
-type NoSearchCapabilities struct{}
 ```
 
 A struct return rather than one boolean method per capability: §3.1's future extensions (regex, tag filters) then add a field, which every existing implementation inherits as `false`, instead of a new interface method that all of them must grow.
+
+Each reader implements the method itself, including the ones that declare nothing — no embeddable default. An embeddable that returns the zero value would have to be named either for one field, which misdescribes what embedding it declares, or for the whole set, which reads as an assertion about capabilities the backend was never assessed for. Three lines per reader, stating in place why that backend requires the field, is worth more than the line the embed would save.
 
 From there the value travels the path `archiveStorage` already travels:
 
@@ -173,7 +169,7 @@ Two risks are worth naming rather than mitigating in code. Users can now aim a w
 
 Each milestone is independently shippable and leaves the product in a working state. The UI change lands only after a backend can advertise the capability.
 
-**Milestone 1 — Capability declaration, backend side.** ✅ [#9256](https://github.com/jaegertracing/jaeger/pull/9256) Add `SearchCapabilities` to `tracestore.Reader` with the `NoSearchCapabilities` default, implement it on the Elasticsearch/OpenSearch and in-memory readers, forward it through both reader decorators, and extend `querysvc.StorageCapabilities` and `internal.BackendCapabilities`. Remove the vestigial `ServiceName == "" && attributes > 0` guard from the ES/OS reader. No user-visible change yet; the blob gains a field nothing reads, which the UI ignores rather than rejects (§3.1), so this milestone does not depend on the UI work landing first.
+**Milestone 1 — Capability declaration, backend side.** ✅ [#9256](https://github.com/jaegertracing/jaeger/pull/9256) Add `SearchCapabilities` to `tracestore.Reader`, implement it on the Elasticsearch/OpenSearch and in-memory readers, forward it through both reader decorators, and extend `querysvc.StorageCapabilities` and `internal.BackendCapabilities`. Remove the vestigial `ServiceName == "" && attributes > 0` guard from the ES/OS reader. No user-visible change yet; the blob gains a field nothing reads, which the UI ignores rather than rejects (§3.1), so this milestone does not depend on the UI work landing first.
 
 **Milestone 2 — Enforcement at one boundary.** Move the requirement into the query service as a typed error, map it in the API v3 HTTP and gRPC layers, drop `errServiceParameterRequired` from the legacy parser, and make Cassandra return `ErrUnsupported` instead of an empty result. Integration test in the ES/OS matrix: write spans for two services, search by tag with no service name, and assert traces from both come back.
 

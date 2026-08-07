@@ -40,10 +40,6 @@ type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
-	// The query builder appends its service clause conditionally, so a service-less
-	// search is likely already answerable here; declaring it waits on an integration
-	// test against a real backend (RFC 0013 Milestone 5).
-	tracestore.NoSearchCapabilities
 
 	conn          driver.Conn
 	config        ReaderConfig
@@ -60,6 +56,14 @@ func NewReader(conn driver.Conn, cfg ReaderConfig) *Reader {
 		TTL: cfg.AttributeMetadataCacheTTL,
 	})
 	return &Reader{conn: conn, config: cfg, attrMetaCache: attrMetaCache}
+}
+
+// SearchCapabilities reports that every query field is required. The query builder
+// appends its service clause conditionally, so a service-less search is likely already
+// answerable; declaring it waits on an integration test against a real backend
+// (RFC 0013 Milestone 5).
+func (*Reader) SearchCapabilities() tracestore.SearchCapabilities {
+	return tracestore.SearchCapabilities{}
 }
 
 func (r *Reader) GetTraces(

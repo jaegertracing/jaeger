@@ -1231,3 +1231,9 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(iter)
 	require.ErrorContains(t, err, "failed to build query")
 }
+
+// ClickHouse has not been assessed for a service-less search yet, so the reader declares
+// that every query field is required (RFC 0013 Milestone 5).
+func TestReader_SearchCapabilities(t *testing.T) {
+	assert.Equal(t, tracestore.SearchCapabilities{}, (&Reader{}).SearchCapabilities())
+}

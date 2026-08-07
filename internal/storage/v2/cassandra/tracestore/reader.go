@@ -19,11 +19,14 @@ type TraceReader struct {
 	// Cassandra does not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
-	// Every Cassandra index is keyed by service name, so a search cannot omit it, and
-	// no other optional query shape has been assessed here either.
-	tracestore.NoSearchCapabilities
 
 	reader spanstore.CoreSpanReader
+}
+
+// SearchCapabilities reports that every query field is required: every Cassandra index
+// is keyed by service name, so a search cannot omit it.
+func (*TraceReader) SearchCapabilities() tracestore.SearchCapabilities {
+	return tracestore.SearchCapabilities{}
 }
 
 func NewTraceReader(reader spanstore.CoreSpanReader) *TraceReader {

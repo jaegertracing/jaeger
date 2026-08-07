@@ -497,3 +497,9 @@ func TestTraceReader_FindTraceIDsDelegatesResponse(t *testing.T) {
 		})
 	}
 }
+
+// The v1 readers reject a query with no service name, so the adapter declares that every
+// query field is required (RFC 0013).
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	assert.Equal(t, tracestore.SearchCapabilities{}, (&TraceReader{}).SearchCapabilities())
+}
