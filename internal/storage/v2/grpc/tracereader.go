@@ -36,13 +36,17 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-// SearchCapabilities reports that every query field is required. A remote backend's
-// abilities are invisible from here — jaeger.storage.v2 has no capability RPC — so
-// nothing can be declared on its behalf, and reporting none keeps every existing remote
-// deployment behaving as it does today. An operator-set override follows in RFC 0013
-// Milestone 5.
+// SearchCapabilities cannot be answered: jaeger.storage.v2 has no capability RPC, so a
+// remote backend's abilities are invisible from here and any value would be a guess.
+// Callers treat ErrUnsupported as no capabilities, which keeps every existing remote
+// deployment behaving as it does today, while leaving "unknown" distinguishable from a
+// backend that declared nothing. RFC 0013 Milestone 5 adds the operator-set override that
+// lets a deployment answer for its own remote backend.
 func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return tracestore.SearchCapabilities{}, nil
+	return tracestore.SearchCapabilities{}, fmt.Errorf(
+		"jaeger.storage.v2 does not expose the remote backend's search capabilities: %w",
+		errors.ErrUnsupported,
+	)
 }
 
 func (tr *TraceReader) GetTraces(

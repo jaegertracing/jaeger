@@ -125,7 +125,7 @@ The two callers that carry their own requirement lose it: `errServiceParameterRe
 | ClickHouse | `true` | None beyond the declaration and a test; the search SQL appends every predicate conditionally |
 | Badger | `false` initially | A truthful `true` requires applying tag and operation filters during the time-range scan; until then the honest answer is `false` |
 | Cassandra | `false` | Replace the silent empty result with `ErrUnsupported` |
-| gRPC remote storage | From config, default `false` | New config field (§3.6) |
+| gRPC remote storage | Cannot answer (`ErrUnsupported`) | New config field so an operator can answer for it (§3.6) |
 
 Badger is the case that shows why the capability must stay a single honest boolean rather than a partial one. Badger can scan a time range without a service name, but it cannot apply tags or an operation name that way, so declaring `true` would advertise a search the UI offers with filters Badger would silently drop. Reporting `false` until the scan path filters properly is the smaller lie — none.
 
@@ -150,7 +150,7 @@ The stored `lastSearch` and the URL both carry the sentinel like any other servi
 
 A remote backend's abilities are invisible to Jaeger: `jaeger.storage.v2`'s `TraceReader` service has no capability RPC, and `FindTracesRequest` carries no hint about which fields are optional. Two ways forward, and they compose:
 
-Near term, the gRPC storage reader answers from its own configuration — a field such as `search_without_service_name: true` on the remote storage backend — defaulting to `false`. The operator running a remote backend knows whether it can serve the query; the default keeps every existing deployment behaving exactly as it does today.
+Near term, the reader reports `ErrUnsupported` — it genuinely cannot tell — and the gRPC storage backend gains a field such as `search_without_service_name: true` for an operator who can, defaulting to unset. The operator running a remote backend knows whether it can serve the query; the default keeps every existing deployment behaving exactly as it does today.
 
 Longer term, a `Capabilities` RPC on `TraceReader` in `jaeger-idl` would let the remote backend answer for itself, at which point the config field becomes an override for backends that predate the RPC. That is a separate proposal against `jaeger-idl` and is deliberately not a prerequisite here.
 

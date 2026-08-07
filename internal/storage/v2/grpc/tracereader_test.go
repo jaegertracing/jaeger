@@ -817,9 +817,9 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 }
 
 // A remote backend's abilities cannot be introspected over jaeger.storage.v2, so the
-// reader declares that every query field is required (RFC 0013 Milestone 5).
+// reader says it cannot answer rather than reporting a value a caller might trust
+// (RFC 0013 §3.1). Milestone 5 adds the operator-set override.
 func TestTraceReader_SearchCapabilities(t *testing.T) {
-	caps, err := (&TraceReader{}).SearchCapabilities(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, tracestore.SearchCapabilities{}, caps)
+	_, err := (&TraceReader{}).SearchCapabilities(context.Background())
+	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
