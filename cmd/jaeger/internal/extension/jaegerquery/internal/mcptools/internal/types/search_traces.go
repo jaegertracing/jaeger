@@ -43,6 +43,7 @@ type SearchTracesInput struct {
 type SearchTracesOutput struct {
 	Traces []TraceSummary `json:"traces,omitempty" jsonschema:"List of trace summaries matching the search criteria"`
 	Error  string         `json:"error,omitempty" jsonschema:"Error message if partial results were returned"`
+	Truncated bool        `json:"truncated,omitempty" jsonschema:"True if more matching traces exist beyond the returned results (result count hit the server-configured limit)"`
 }
 
 // TraceSummary contains lightweight metadata about a single trace.

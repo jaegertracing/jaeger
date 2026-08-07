@@ -58,6 +58,7 @@ func (h *searchTracesHandler) handle(
 
 	var summaries []types.TraceSummary
 	var processErrs []error
+	var truncated bool
 
 outer:
 	for batch, err := range h.queryService.FindTraceSummaries(ctx, query) {
@@ -68,12 +69,13 @@ outer:
 		for i := range batch {
 			summaries = append(summaries, toMCPTraceSummary(batch[i]))
 			if h.maxResults > 0 && len(summaries) >= h.maxResults {
+				truncated = true
 				break outer
 			}
 		}
 	}
 
-	output := types.SearchTracesOutput{Traces: summaries}
+	output := types.SearchTracesOutput{Traces: summaries, Truncated: truncated}
 	if len(processErrs) > 0 {
 		output.Error = fmt.Sprintf("partial results returned due to error: %v", errors.Join(processErrs...))
 	}
