@@ -101,11 +101,12 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	return retMe, nil
 }
 
-// SearchCapabilities reports that a search may omit the service name: the span matcher
-// treats an empty query service name as "match any", so an omitted name spans every
-// service in the store.
 func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return tracestore.SearchCapabilities{WithoutServiceName: true}, nil
+	return tracestore.SearchCapabilities{
+		// The span matcher treats an empty query service name as "match any", so an
+		// omitted name spans every service in the store.
+		WithoutServiceName: true,
+	}, nil
 }
 
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
