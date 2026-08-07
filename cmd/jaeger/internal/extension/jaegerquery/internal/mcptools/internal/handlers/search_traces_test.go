@@ -372,6 +372,42 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 	assert.Contains(t, output.Error, "temporary failure")
 }
 
+func TestSearchTracesHandler_Handle_WithErrorsConflict(t *testing.T) {
+	handler := NewSearchTracesHandler(nil, 100)
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		WithErrors:   true,
+		Attributes:   map[string]string{"error": "false"},
+	}
+
+	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `with_errors=true conflicts with attributes["error"]`)
+}
+
+func TestSearchTracesHandler_Handle_WithErrorsAndMatchingAttribute(t *testing.T) {
+	want := makeTraceSummary("error-service", "/error", true)
+	mock := newMockFindTraceSummaries(want)
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	// with_errors=true and attributes["error"]="true" is not a conflict — should succeed.
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "error-service",
+		WithErrors:   true,
+		Attributes:   map[string]string{"error": "true"},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+}
+
 func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
 	handler := NewSearchTracesHandler(nil, 100)
 
