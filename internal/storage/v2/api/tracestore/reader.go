@@ -81,8 +81,7 @@ type Reader interface {
 	//
 	// A reader that cannot determine its own — one whose backend sits behind an API that
 	// cannot be asked — returns errors.ErrUnsupported (wrapped with %w) rather than a
-	// value a caller might trust, which is also why the method takes a context: the
-	// answer may arrive over the wire.
+	// value a caller might trust.
 	//
 	// A Reader that wraps another must forward the call, or it reports the wrapper's
 	// capabilities instead of the backend's.
