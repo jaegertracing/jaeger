@@ -40,6 +40,10 @@ type Reader struct {
 	// ClickHouse does not compute trace summaries natively yet; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// The query builder appends its service clause conditionally, so a service-less
+	// search is likely already answerable here; declaring it waits on an integration
+	// test against a real backend (RFC 0013 Milestone 5).
+	tracestore.RequiresServiceName
 
 	conn          driver.Conn
 	config        ReaderConfig

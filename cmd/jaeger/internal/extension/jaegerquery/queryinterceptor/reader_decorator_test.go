@@ -33,6 +33,11 @@ type fakeReader struct {
 	gotSummaryQuery tracestore.TraceQueryParams
 	summaries       []tracestore.TraceSummary
 	summaryErr      error
+	capabilities    tracestore.SearchCapabilities
+}
+
+func (f *fakeReader) SearchCapabilities() tracestore.SearchCapabilities {
+	return f.capabilities
 }
 
 func (f *fakeReader) FindTraces(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -533,4 +538,20 @@ func TestReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
 		err = e
 	}
 	require.ErrorIs(t, err, sentinel)
+}
+
+// TestReader_SearchCapabilities_ForwardsBackendDeclaration pins that wrapping does not
+// change which query shapes the backend accepts. An interceptor gates and sanitizes
+// queries; if the decorator answered for itself, a capability the backend has would be
+// lost to every caller that consults it (RFC 0013 §3.1).
+func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
+	next := &fakeReader{capabilities: tracestore.SearchCapabilities{WithoutServiceName: true}}
+	r := NewReaderDecorator(next, fakeInterceptor{})
+
+	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, r.SearchCapabilities())
+
+	plain := &fakeReader{}
+	assert.Equal(t,
+		tracestore.SearchCapabilities{},
+		NewReaderDecorator(plain, fakeInterceptor{}).SearchCapabilities())
 }

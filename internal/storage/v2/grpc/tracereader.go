@@ -24,6 +24,12 @@ import (
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
+	// A remote backend's abilities are invisible from here: jaeger.storage.v2 has no
+	// capability RPC, so nothing can be declared on its behalf. Reporting no optional
+	// query shapes keeps every existing remote deployment behaving as it does today; an
+	// operator-set override follows in RFC 0013 Milestone 5.
+	tracestore.RequiresServiceName
+
 	client storage.TraceReaderClient
 }
 

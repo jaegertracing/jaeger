@@ -23,6 +23,9 @@ type TraceReader struct {
 	// v1 storage backends do not compute trace summaries natively; fall back to
 	// FindTraces + client-side aggregation.
 	tracestore.UnsupportedTraceSummaries
+	// The v1 readers reject a query with no service name (Cassandra and Badger both
+	// index by it), so the adapter declares none of the optional query shapes.
+	tracestore.RequiresServiceName
 
 	spanReader spanstore.Reader
 }

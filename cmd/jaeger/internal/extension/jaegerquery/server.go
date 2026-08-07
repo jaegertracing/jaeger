@@ -121,6 +121,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	caps := querysvc.StorageCapabilities{
 		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
 		MetricsStorage: s.config.Storage.Metrics != "",
+		// Asked of the reader after it is wrapped: each decorator forwards the call, so
+		// what reaches the UI is the backend's own declaration.
+		SearchWithoutServiceName: traceReader.SearchCapabilities().WithoutServiceName,
 	}
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)

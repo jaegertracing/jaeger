@@ -662,6 +662,41 @@ func TestGetOperationsWithKind(t *testing.T) {
 	}
 }
 
+// TestFindTracesWithoutServiceName is the behavior behind the store's
+// SearchCapabilities declaration (RFC 0013): a query that omits the service name
+// matches spans from every service, not none.
+func TestFindTracesWithoutServiceName(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	assert.True(t, store.SearchCapabilities().WithoutServiceName)
+
+	for i, service := range []string{"service-a", "service-b"} {
+		td := ptrace.NewTraces()
+		resourceSpan := td.ResourceSpans().AppendEmpty()
+		resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, service)
+		span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, fmt.Sprintf("0000000000000%03d0000000000000000", i+1)))
+		span.SetName("span")
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+
+	query := tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), SearchDepth: 10}
+	var found int
+	for traces, err := range store.FindTraces(context.Background(), query) {
+		require.NoError(t, err)
+		found += len(traces)
+	}
+	assert.Equal(t, 2, found, "a search with no service name must span both services")
+
+	query.ServiceName = "service-a"
+	found = 0
+	for traces, err := range store.FindTraces(context.Background(), query) {
+		require.NoError(t, err)
+		found += len(traces)
+	}
+	assert.Equal(t, 1, found, "a search naming one service still filters to it")
+}
+
 func TestGetTraces_IterBreak(t *testing.T) {
 	store, err := NewStore(Configuration{
 		MaxTraces: 10,

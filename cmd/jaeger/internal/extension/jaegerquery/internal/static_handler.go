@@ -42,9 +42,10 @@ var uiConfigReloadInterval = 10 * time.Second
 // BackendCapabilities is the JSON shape injected into index.html via the
 // JAEGER_BACKEND_CAPABILITIES search-replace pattern.
 type BackendCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-	AIAssistant    bool `json:"aiAssistant"`
+	ArchiveStorage           bool `json:"archiveStorage"`
+	MetricsStorage           bool `json:"metricsStorage"`
+	AIAssistant              bool `json:"aiAssistant"`
+	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
 }
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
@@ -172,9 +173,10 @@ func (h *staticAssetsHandler) deriveIndexHTML() []byte {
 		aiAvailable = h.aiHealthCheck()
 	}
 	capsJSON, _ := json.Marshal(BackendCapabilities{
-		ArchiveStorage: h.storageCaps.ArchiveStorage,
-		MetricsStorage: h.storageCaps.MetricsStorage,
-		AIAssistant:    aiAvailable,
+		ArchiveStorage:           h.storageCaps.ArchiveStorage,
+		MetricsStorage:           h.storageCaps.MetricsStorage,
+		AIAssistant:              aiAvailable,
+		SearchWithoutServiceName: h.storageCaps.SearchWithoutServiceName,
 	})
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out

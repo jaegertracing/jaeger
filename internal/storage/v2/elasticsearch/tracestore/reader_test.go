@@ -24,6 +24,15 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/mocks"
 )
 
+// TestTraceReader_SearchCapabilities pins the declaration the UI reads: the search
+// query adds its process.serviceName clause only when the query carries a service
+// name, so Elasticsearch/OpenSearch answers a query that omits it (RFC 0013).
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	assert.Equal(t,
+		tracestore.SearchCapabilities{WithoutServiceName: true},
+		(&TraceReader{}).SearchCapabilities())
+}
+
 func TestTraceReader_GetServices(t *testing.T) {
 	coreReader := &mocks.Reader{}
 	reader := TraceReader{spanReader: coreReader}

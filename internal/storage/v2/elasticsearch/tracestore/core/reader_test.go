@@ -736,14 +736,13 @@ func TestSpanReader_FindTraces(t *testing.T) {
 
 func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// Missing service name with tags fails validation before any search runs.
+		// An unset time range fails validation before any search runs. A missing
+		// service name does not: that is a cross-service search (RFC 0013).
 		traceQuery := dbmodel.TraceQueryParameters{
-			ServiceName: "",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
 			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
@@ -875,20 +874,23 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
+	// A tag search with no service name is a valid cross-service query (RFC 0013):
+	// the tag clauses do not reference the service, so only the time range is required.
 	tqp := dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
 		},
+		StartTimeMin: time.Now().Add(-1 * time.Hour),
+		StartTimeMax: time.Now(),
 	}
-	err := validateQuery(tqp)
-	require.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.NoError(t, validateQuery(tqp))
 
 	tqp.ServiceName = serviceName
 
 	tqp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tqp.StartTimeMax = time.Time{}
-	err = validateQuery(tqp)
+	err := validateQuery(tqp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 
 	tqp.StartTimeMin = time.Now()
@@ -957,6 +959,32 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 				r.reader.buildTagQuery("hello", "world"),
 			)
 		expected, err := expectedQuery.Source()
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
+// TestSpanReader_buildFindTraceIDsQueryWithoutServiceName pins the cross-service
+// search RFC 0013 relies on: with no service name the query carries every other
+// clause and simply omits the process.serviceName term, so it matches spans from all
+// services rather than none.
+func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceQuery := dbmodel.TraceQueryParameters{
+			StartTimeMin: time.Time{},
+			StartTimeMax: time.Time{}.Add(time.Second),
+			Tags: map[string]string{
+				"hello": "world",
+			},
+		}
+
+		actual, err := r.reader.buildFindTraceIDsQuery(traceQuery).Source()
+		require.NoError(t, err)
+		expected, err := esquery.NewBoolQuery().
+			Must(
+				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+				r.reader.buildTagQuery("hello", "world"),
+			).Source()
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})

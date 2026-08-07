@@ -249,3 +249,17 @@ func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 	assert.Equal(t, int64(1), counters["requests|operation=find_trace_summaries|result=ok"])
 	assert.Equal(t, int64(2), counters["responses|operation=find_trace_summaries"])
 }
+
+// TestReadMetricsDecorator_SearchCapabilities pins that the decorator forwards the
+// backend's declaration rather than answering for itself. This decorator wraps every
+// reader the factories build, so answering here would hide a capability the backend
+// has from everything downstream (RFC 0013 §3.1).
+func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
+	inner := &mocks.Reader{}
+	inner.On("SearchCapabilities").
+		Return(tracestore.SearchCapabilities{WithoutServiceName: true})
+
+	d := NewReaderDecorator(inner, metricstest.NewFactory(0))
+
+	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, d.SearchCapabilities())
+}
