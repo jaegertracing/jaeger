@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRequiresServiceName_SearchCapabilities(t *testing.T) {
+func TestNoSearchCapabilities_SearchCapabilities(t *testing.T) {
 	// The embeddable default declares no optional query shapes, so a backend that
 	// gains one has to say so explicitly rather than inherit it.
-	assert.Equal(t, SearchCapabilities{}, RequiresServiceName{}.SearchCapabilities())
-	assert.False(t, RequiresServiceName{}.SearchCapabilities().WithoutServiceName)
+	assert.Equal(t, SearchCapabilities{}, NoSearchCapabilities{}.SearchCapabilities())
+	assert.False(t, NoSearchCapabilities{}.SearchCapabilities().WithoutServiceName)
 }

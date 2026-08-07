@@ -25,7 +25,7 @@ type TraceReader struct {
 	tracestore.UnsupportedTraceSummaries
 	// The v1 readers reject a query with no service name (Cassandra and Badger both
 	// index by it), so the adapter declares none of the optional query shapes.
-	tracestore.RequiresServiceName
+	tracestore.NoSearchCapabilities
 
 	spanReader spanstore.Reader
 }

@@ -28,7 +28,7 @@ type TraceReader struct {
 	// capability RPC, so nothing can be declared on its behalf. Reporting no optional
 	// query shapes keeps every existing remote deployment behaving as it does today; an
 	// operator-set override follows in RFC 0013 Milestone 5.
-	tracestore.RequiresServiceName
+	tracestore.NoSearchCapabilities
 
 	client storage.TraceReaderClient
 }

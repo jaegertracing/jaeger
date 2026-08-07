@@ -43,7 +43,7 @@ type Reader struct {
 	// The query builder appends its service clause conditionally, so a service-less
 	// search is likely already answerable here; declaring it waits on an integration
 	// test against a real backend (RFC 0013 Milestone 5).
-	tracestore.RequiresServiceName
+	tracestore.NoSearchCapabilities
 
 	conn          driver.Conn
 	config        ReaderConfig

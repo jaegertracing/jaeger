@@ -81,7 +81,7 @@ type Reader interface {
 	// shape the backend cannot answer — the query service passes it to the UI, which
 	// offers "All Services" only where a service name may be omitted (RFC 0013).
 	//
-	// Readers that require every field can embed RequiresServiceName to get this for
+	// Readers that require every field can embed NoSearchCapabilities to get this for
 	// free. A Reader that wraps another must forward the call, or it reports the
 	// wrapper's capabilities instead of the backend's.
 	SearchCapabilities() SearchCapabilities

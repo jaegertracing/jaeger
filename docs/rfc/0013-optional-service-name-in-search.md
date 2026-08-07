@@ -74,10 +74,11 @@ type SearchCapabilities struct {
     WithoutServiceName bool
 }
 
-// RequiresServiceName provides the Reader.SearchCapabilities implementation for a
-// backend whose search cannot omit any query field. Embed it to declare that without
-// writing the method by hand.
-type RequiresServiceName struct{}
+// NoSearchCapabilities provides the Reader.SearchCapabilities implementation that
+// declares the zero value: every optional query field is required. It is named for the
+// whole set rather than any one field, because a capability added later is reported as
+// unsupported here too.
+type NoSearchCapabilities struct{}
 ```
 
 A struct return rather than one boolean method per capability: §3.1's future extensions (regex, tag filters) then add a field, which every existing implementation inherits as `false`, instead of a new interface method that all of them must grow.
@@ -172,7 +173,7 @@ Two risks are worth naming rather than mitigating in code. Users can now aim a w
 
 Each milestone is independently shippable and leaves the product in a working state. The UI change lands only after a backend can advertise the capability.
 
-**Milestone 1 — Capability declaration, backend side.** ✅ [#9256](https://github.com/jaegertracing/jaeger/pull/9256) Add `SearchCapabilities` to `tracestore.Reader` with the `RequiresServiceName` default, implement it on the Elasticsearch/OpenSearch and in-memory readers, forward it through both reader decorators, and extend `querysvc.StorageCapabilities` and `internal.BackendCapabilities`. Remove the vestigial `ServiceName == "" && attributes > 0` guard from the ES/OS reader. No user-visible change yet; the blob gains a field nothing reads, which the UI ignores rather than rejects (§3.1), so this milestone does not depend on the UI work landing first.
+**Milestone 1 — Capability declaration, backend side.** ✅ [#9256](https://github.com/jaegertracing/jaeger/pull/9256) Add `SearchCapabilities` to `tracestore.Reader` with the `NoSearchCapabilities` default, implement it on the Elasticsearch/OpenSearch and in-memory readers, forward it through both reader decorators, and extend `querysvc.StorageCapabilities` and `internal.BackendCapabilities`. Remove the vestigial `ServiceName == "" && attributes > 0` guard from the ES/OS reader. No user-visible change yet; the blob gains a field nothing reads, which the UI ignores rather than rejects (§3.1), so this milestone does not depend on the UI work landing first.
 
 **Milestone 2 — Enforcement at one boundary.** Move the requirement into the query service as a typed error, map it in the API v3 HTTP and gRPC layers, drop `errServiceParameterRequired` from the legacy parser, and make Cassandra return `ErrUnsupported` instead of an empty result. Integration test in the ES/OS matrix: write spans for two services, search by tag with no service name, and assert traces from both come back.
 

@@ -38,7 +38,7 @@ var (
 type traceReader struct {
 	// The query service reports the backend's search capabilities over its own API, not
 	// through this test client, so nothing is declared here.
-	tracestore.RequiresServiceName
+	tracestore.NoSearchCapabilities
 
 	logger     *zap.Logger
 	clientConn *grpc.ClientConn
