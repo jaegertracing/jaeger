@@ -36,8 +36,9 @@ jobs:
       - name: Process PR Quota
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
-          # Use custom PAT if available (not available for fork PRs), otherwise use default token
-          github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT || github.token }}
+          # Use the default GITHUB_TOKEN: the pull_request_target trigger runs in the
+          # base repo context, so the job-level issues/pull-requests write permissions
+          # above cover labelling and commenting even on fork PRs.
           script: |
             const handler = require('./.github/scripts/pr-quota-manager.js')
             // For PR events, use PR author; for manual runs, use input. Fail if no username can be determined.
