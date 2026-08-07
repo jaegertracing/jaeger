@@ -6,6 +6,7 @@ package queryinterceptor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"testing"
 
@@ -544,14 +545,20 @@ func TestReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
 // change which query shapes the backend accepts. An interceptor gates and sanitizes
 // queries; if the decorator answered for itself, a capability the backend has would be
 // lost to every caller that consults it (RFC 0013 §3.1).
+//
+// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
+// per field rather than for one value that happens to pass;
+// TestSearchCapabilities_FieldCount fails when a field is added without extending this
+// table.
 func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
-	next := &fakeReader{capabilities: tracestore.SearchCapabilities{WithoutServiceName: true}}
-	r := NewReaderDecorator(next, fakeInterceptor{})
+	for _, caps := range []tracestore.SearchCapabilities{
+		{WithoutServiceName: false},
+		{WithoutServiceName: true},
+	} {
+		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
+			r := NewReaderDecorator(&fakeReader{capabilities: caps}, fakeInterceptor{})
 
-	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, r.SearchCapabilities())
-
-	plain := &fakeReader{}
-	assert.Equal(t,
-		tracestore.SearchCapabilities{},
-		NewReaderDecorator(plain, fakeInterceptor{}).SearchCapabilities())
+			assert.Equal(t, caps, r.SearchCapabilities())
+		})
+	}
 }

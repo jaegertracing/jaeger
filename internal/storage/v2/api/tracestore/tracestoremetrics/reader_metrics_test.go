@@ -5,6 +5,7 @@ package tracestoremetrics
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"testing"
 
@@ -252,14 +253,25 @@ func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 
 // TestReadMetricsDecorator_SearchCapabilities pins that the decorator forwards the
 // backend's declaration rather than answering for itself. This decorator wraps every
-// reader the factories build, so answering here would hide a capability the backend
-// has from everything downstream (RFC 0013 §3.1).
+// reader the factories build, so answering here would hide a capability the backend has
+// from everything downstream (RFC 0013 §3.1).
+//
+// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
+// per field rather than for one value that happens to pass;
+// TestSearchCapabilities_FieldCount fails when a field is added without extending this
+// table.
 func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
-	inner := &mocks.Reader{}
-	inner.On("SearchCapabilities").
-		Return(tracestore.SearchCapabilities{WithoutServiceName: true})
+	for _, caps := range []tracestore.SearchCapabilities{
+		{WithoutServiceName: false},
+		{WithoutServiceName: true},
+	} {
+		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
+			inner := &mocks.Reader{}
+			inner.On("SearchCapabilities").Return(caps)
 
-	d := NewReaderDecorator(inner, metricstest.NewFactory(0))
+			d := NewReaderDecorator(inner, metricstest.NewFactory(0))
 
-	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, d.SearchCapabilities())
+			assert.Equal(t, caps, d.SearchCapabilities())
+		})
+	}
 }
