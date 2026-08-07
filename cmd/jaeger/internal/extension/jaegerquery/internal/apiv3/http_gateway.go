@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -19,6 +18,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/httpjson"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -85,9 +85,14 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 			Message:  err.Error(),
 		},
 	}
-	resp, _ := json.Marshal(&errorResponse)
-	http.Error(w, string(resp), statusCode)
+	h.writeError(w, statusCode, &errorResponse)
 	return true
+}
+
+func (h *HTTPGateway) writeError(w http.ResponseWriter, statusCode int, response any) {
+	if err := httpjson.WriteError(w, statusCode, response); err != nil {
+		h.Logger.Error("Failed to write HTTP error response", zap.Error(err))
+	}
 }
 
 // tryParamError is similar to tryHandleError but specifically for reporting malformed params.
@@ -117,8 +122,7 @@ func (h *HTTPGateway) returnTraces(traces []ptrace.Traces, err error, w http.Res
 				Message:  "No traces found",
 			},
 		}
-		resp, _ := json.Marshal(&errorResponse)
-		http.Error(w, string(resp), http.StatusNotFound)
+		h.writeError(w, http.StatusNotFound, &errorResponse)
 		return
 	}
 	// TODO: the response should be streamed back to the client
