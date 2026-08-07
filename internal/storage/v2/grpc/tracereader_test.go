@@ -815,3 +815,11 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 	}))
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
+
+// A remote backend's abilities cannot be introspected over jaeger.storage.v2, so the
+// reader says it cannot answer rather than reporting a value a caller might trust
+// (RFC 0013 §3.1). Milestone 5 adds the operator-set override.
+func TestTraceReader_SearchCapabilities(t *testing.T) {
+	_, err := (&TraceReader{}).SearchCapabilities(context.Background())
+	require.ErrorIs(t, err, errors.ErrUnsupported)
+}

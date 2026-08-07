@@ -39,6 +39,10 @@ type QueryServiceOptions struct {
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
 	MetricsStorage bool `json:"metricsStorage"`
+	// SearchWithoutServiceName reports whether the trace storage backend accepts a
+	// search that omits the service name and reads it as "any service" (RFC 0013).
+	// The UI offers its "All Services" option only when this is true.
+	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
 	// Potential future extensions:
 	// SupportRegex     bool
 	// SupportTagFilter bool

@@ -36,6 +36,19 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	}
 }
 
+// SearchCapabilities cannot be answered: jaeger.storage.v2 has no capability RPC, so a
+// remote backend's abilities are invisible from here and any value would be a guess.
+// Callers treat ErrUnsupported as no capabilities, which keeps every existing remote
+// deployment behaving as it does today, while leaving "unknown" distinguishable from a
+// backend that declared nothing. RFC 0013 Milestone 5 adds the operator-set override that
+// lets a deployment answer for its own remote backend.
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, fmt.Errorf(
+		"jaeger.storage.v2 does not expose the remote backend's search capabilities: %w",
+		errors.ErrUnsupported,
+	)
+}
+
 func (tr *TraceReader) GetTraces(
 	ctx context.Context,
 	traceIDs ...tracestore.GetTraceParams,

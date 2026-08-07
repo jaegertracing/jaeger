@@ -101,6 +101,14 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	return retMe, nil
 }
 
+func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{
+		// The span matcher treats an empty query service name as "match any", so an
+		// omitted name spans every service in the store.
+		WithoutServiceName: true,
+	}, nil
+}
+
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {

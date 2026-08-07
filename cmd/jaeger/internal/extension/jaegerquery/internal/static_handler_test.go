@@ -78,7 +78,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			logAccess:                   true,
 			UIConfigPath:                "",
 			expectedUIConfig:            "JAEGER_CONFIG=DEFAULT_CONFIG;",
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/",
@@ -86,7 +86,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              false,
 			UIConfigPath:                "fixture/ui-config.json",
 			expectedUIConfig:            `JAEGER_CONFIG = {"x":"y"};`,
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/jaeger",
@@ -95,7 +95,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			archiveStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":true,"metricsStorage":false,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 		{
 			basePath:                    "/metrics",
@@ -104,7 +104,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			metricsStorage:              true,
 			UIConfigPath:                "fixture/ui-config.js",
 			expectedUIConfig:            "function UIConfig(){",
-			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true,"aiAssistant":false};`,
+			expectedBackendCapabilities: `JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":false,"metricsStorage":true,"searchWithoutServiceName":false,"aiAssistant":false};`,
 		},
 	}
 	httpClient = &http.Client{
@@ -167,11 +167,12 @@ func TestRegisterStaticHandler(t *testing.T) {
 
 func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	tests := []struct {
-		name              string
-		archiveStorage    bool
-		metricsStorage    bool
-		aiHealthCheck     func() bool
-		expectAIAssistant bool
+		name                     string
+		archiveStorage           bool
+		metricsStorage           bool
+		searchWithoutServiceName bool
+		aiHealthCheck            func() bool
+		expectAIAssistant        bool
 	}{
 		{
 			name:              "no AI health check injects aiAssistant=false",
@@ -195,6 +196,10 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 			aiHealthCheck:     func() bool { return true },
 			expectAIAssistant: true,
 		},
+		{
+			name:                     "search without service name is advertised when the backend supports it",
+			searchWithoutServiceName: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -203,8 +208,9 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 				r, zap.NewNop(),
 				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
 				querysvc.StorageCapabilities{
-					ArchiveStorage: tt.archiveStorage,
-					MetricsStorage: tt.metricsStorage,
+					ArchiveStorage:           tt.archiveStorage,
+					MetricsStorage:           tt.metricsStorage,
+					SearchWithoutServiceName: tt.searchWithoutServiceName,
 				},
 				tt.aiHealthCheck,
 			)
@@ -215,8 +221,8 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 			body := rr.Body.String()
 
 			expected := fmt.Sprintf(
-				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"aiAssistant":%t};`,
-				tt.archiveStorage, tt.metricsStorage, tt.expectAIAssistant,
+				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"searchWithoutServiceName":%t,"aiAssistant":%t};`,
+				tt.archiveStorage, tt.metricsStorage, tt.searchWithoutServiceName, tt.expectAIAssistant,
 			)
 			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
 		})

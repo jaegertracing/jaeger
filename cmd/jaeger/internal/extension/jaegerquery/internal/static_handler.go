@@ -42,9 +42,17 @@ var uiConfigReloadInterval = 10 * time.Second
 // BackendCapabilities is the JSON shape injected into index.html via the
 // JAEGER_BACKEND_CAPABILITIES search-replace pattern.
 type BackendCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-	AIAssistant    bool `json:"aiAssistant"`
+	// Storage capabilities, mirrored from querysvc.StorageCapabilities: what the
+	// configured storage backends can do. Fixed for the process lifetime, since they
+	// follow from the storage configuration.
+	ArchiveStorage           bool `json:"archiveStorage"`
+	MetricsStorage           bool `json:"metricsStorage"`
+	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
+
+	// AIAssistant is not a storage property: it tracks whether a live AI sidecar is
+	// reachable, so it can flip while the process runs and is re-evaluated on every
+	// SPA serve.
+	AIAssistant bool `json:"aiAssistant"`
 }
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
@@ -172,9 +180,10 @@ func (h *staticAssetsHandler) deriveIndexHTML() []byte {
 		aiAvailable = h.aiHealthCheck()
 	}
 	capsJSON, _ := json.Marshal(BackendCapabilities{
-		ArchiveStorage: h.storageCaps.ArchiveStorage,
-		MetricsStorage: h.storageCaps.MetricsStorage,
-		AIAssistant:    aiAvailable,
+		ArchiveStorage:           h.storageCaps.ArchiveStorage,
+		MetricsStorage:           h.storageCaps.MetricsStorage,
+		SearchWithoutServiceName: h.storageCaps.SearchWithoutServiceName,
+		AIAssistant:              aiAvailable,
 	})
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out

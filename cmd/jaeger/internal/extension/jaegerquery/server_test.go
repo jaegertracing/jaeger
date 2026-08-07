@@ -13,6 +13,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/storagetest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -44,6 +45,9 @@ import (
 
 type fakeFactory struct {
 	name string
+	// searchWithoutServiceName is what the reader this factory builds declares, so a
+	// test can drive what server.Start advertises to the UI.
+	searchWithoutServiceName bool
 }
 
 func (ff fakeFactory) CreateDependencyReader() (depstore.Reader, error) {
@@ -57,7 +61,11 @@ func (ff fakeFactory) CreateTraceReader() (tracestore.Reader, error) {
 	if ff.name == "need-span-reader-error" {
 		return nil, errors.New("test-error")
 	}
-	return &tracestoremocks.Reader{}, nil
+	reader := &tracestoremocks.Reader{}
+	reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{WithoutServiceName: ff.searchWithoutServiceName}, nil).
+		Maybe()
+	return reader, nil
 }
 
 func (ff fakeFactory) CreateTraceWriter() (tracestore.Writer, error) {

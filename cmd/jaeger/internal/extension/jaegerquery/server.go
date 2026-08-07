@@ -118,9 +118,18 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
+	searchCaps, err := traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		telset.Logger.Info(
+			"Storage did not report its search capabilities; assuming baseline",
+			zap.Error(err),
+		)
+	}
+
 	caps := querysvc.StorageCapabilities{
-		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage: s.config.Storage.Metrics != "",
+		ArchiveStorage:           opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
+		MetricsStorage:           s.config.Storage.Metrics != "",
+		SearchWithoutServiceName: searchCaps.WithoutServiceName,
 	}
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
