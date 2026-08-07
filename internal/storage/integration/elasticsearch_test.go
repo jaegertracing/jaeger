@@ -24,11 +24,14 @@ import (
 	esstorage "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	esindices "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -241,23 +244,27 @@ func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
 	require.NoError(t, indices.CreateDataStreamTemplates(ctx))
 
 	// The write is the assertion that matters: installing the templates only proves
-	// the cluster parsed them. op_type: create is what a data stream forces, and
-	// "@timestamp" is an RFC 3339 nanosecond string because date_nanos reads a bare
-	// number as epoch milliseconds, which would put epoch nanoseconds past the type's
-	// 2262 ceiling and get the document rejected.
+	// the cluster parsed them. It goes through the real SpanWriter, not a hand-built
+	// document, so the "@timestamp" and op_type the cluster validates are the ones
+	// the write path produces — reverting the writer to epoch nanoseconds fails here
+	// rather than passing against a value the test formatted for itself.
+	//
+	// Only spans carry an "@timestamp", so the service:operation rotation targets an
+	// ordinary index; a data stream would reject those documents.
 	start := time.Now().UTC()
-	writer := esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, writer.WriteBatch(ctx, []esclient.BulkItem{{
-		Index:  dataStream,
-		ID:     "ds-1",
-		OpType: esstorage.WriteOpCreate,
-		Body: map[string]any{
-			"@timestamp":    start.Format(time.RFC3339Nano),
-			"traceID":       "ds-trace",
-			"spanID":        "ds-span",
-			"operationName": "data-stream-write",
-			"startTime":     start.UnixMicro(),
-		},
+	writer := core.NewSpanWriter(core.SpanWriterParams{
+		BatchWriter:     esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop()),
+		Logger:          zap.NewNop(),
+		MetricsFactory:  metrics.NullFactory,
+		SpanRotation:    esindices.NewDataStreamRotation(dataStream, ""),
+		ServiceRotation: esindices.NewAliasedRotation(indicesCfg.IndexPrefix.Apply(escfg.ServiceIndexName), ""),
+	})
+	require.NoError(t, writer.WriteSpans(ctx, []dbmodel.Span{{
+		TraceID:       "ds-trace",
+		SpanID:        "ds-span",
+		OperationName: "data-stream-write",
+		StartTime:     uint64(start.UnixMicro()),
+		Process:       dbmodel.Process{ServiceName: "data-stream-service"},
 	}}))
 
 	searcher := esclient.SearchClient{Client: s.client.client}

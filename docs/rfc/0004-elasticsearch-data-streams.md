@@ -216,7 +216,7 @@ The field is added to the mapping component template:
 
 The `date_nanos` type accepts both epoch nanoseconds (what Jaeger writes) and ISO-8601 strings by default. No explicit `format` restriction is needed — keeping the default allows users to index documents manually or query with human-readable timestamps in Kibana/Grafana.
 
-> **Correction** ([#8991](https://github.com/jaegertracing/jaeger/pull/8991)): `date_nanos` does **not** accept epoch nanoseconds by default. Its default format is `strict_date_optional_time||epoch_millis`, so a bare number is parsed as epoch *milliseconds*; an epoch-nanosecond value therefore lands far past the type's 2262 upper bound and the document is rejected. The write path emits an **RFC 3339 nanosecond string** instead, which the default format accepts and which keeps full nanosecond precision — so the `format`-free mapping above still stands, but the Go snippet does not.
+> **Correction** ([#8991](https://github.com/jaegertracing/jaeger/pull/8991)): `date_nanos` does **not** accept epoch nanoseconds by default. Its default format is `strict_date_optional_time_nanos||epoch_millis` on Elasticsearch and `strict_date_optional_time||epoch_millis` on OpenSearch. Both parse a bare number as epoch *milliseconds*, so an epoch-nanosecond value lands far past the type's 2262 upper bound and the document is rejected. The write path emits an **RFC 3339 nanosecond string** instead, which both defaults accept at full nanosecond precision — so the `format`-free mapping above still stands, but the Go snippet does not.
 
 Note: The existing `startTime` (microseconds) and `startTimeMillis` fields remain for backward compatibility with queries. `@timestamp` is used exclusively by the data stream machinery for rollover and time-based partitioning.
 
@@ -881,7 +881,7 @@ PR: [#8823](https://github.com/jaegertracing/jaeger/pull/8823)
 Make data streams functional for writes. Reads still go to the data stream name directly (no migration alias yet).
 
 8. Add `@timestamp` field (date_nanos) to span document at write time
-9. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2) ✅ [#8991](https://github.com/jaegertracing/jaeger/pull/8991)
+9. Implement `DataStreamStrategy.CreateTemplates()`: composable index template + component templates (§3.2) — partially delivered by [#8991](https://github.com/jaegertracing/jaeger/pull/8991), which renders and creates them as `esclient.IndicesClient.CreateDataStreamTemplates`; the rotation-side entry point that calls it on startup is still open
 10. Implement `DataStreamStrategy.WriteTarget()`: return data stream name
 11. Implement `DataStreamStrategy.OpType()`: return `"create"`
 12. Implement ISM policy creation for OpenSearch, ILM for Elasticsearch (§3.6)

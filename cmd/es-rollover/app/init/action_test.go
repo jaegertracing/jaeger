@@ -38,8 +38,8 @@ func applyTestDefaults(cfg *Config) {
 		if idx.Replicas == nil {
 			idx.Replicas = new(int64(1))
 		}
-		if idx.Priority == 0 {
-			idx.Priority = 10
+		if idx.Priority == nil {
+			idx.Priority = new(int64(10))
 		}
 	}
 }

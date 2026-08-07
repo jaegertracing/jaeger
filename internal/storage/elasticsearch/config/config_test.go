@@ -42,17 +42,17 @@ func TestApplyDefaults(t *testing.T) {
 			Spans: IndexOptions{
 				Shards:   5,
 				Replicas: new(int64(1)),
-				Priority: 10,
+				Priority: new(int64(10)),
 			},
 			Services: IndexOptions{
 				Shards:   5,
 				Replicas: new(int64(1)),
-				Priority: 20,
+				Priority: new(int64(20)),
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
 				Replicas: new(int64(1)),
-				Priority: 30,
+				Priority: new(int64(30)),
 			},
 			Sampling: IndexOptions{},
 		},
@@ -76,7 +76,7 @@ func TestApplyDefaults(t *testing.T) {
 			target: &Configuration{
 				Indices: Indices{
 					Dependencies: IndexOptions{
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 			}, // All fields are empty
@@ -91,13 +91,13 @@ func TestApplyDefaults(t *testing.T) {
 				},
 				Indices: Indices{
 					Spans: IndexOptions{
-						Priority: 10,
+						Priority: new(int64(10)),
 					},
 					Services: IndexOptions{
-						Priority: 20,
+						Priority: new(int64(20)),
 					},
 					Dependencies: IndexOptions{
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 				// Other fields left default
@@ -117,17 +117,17 @@ func TestApplyDefaults(t *testing.T) {
 					Spans: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 10,
+						Priority: new(int64(10)),
 					},
 					Services: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 20,
+						Priority: new(int64(20)),
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 				BulkProcessing: BulkProcessing{
@@ -157,17 +157,17 @@ func TestApplyDefaults(t *testing.T) {
 					Spans: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 10,
+						Priority: new(int64(10)),
 					},
 					Services: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 20,
+						Priority: new(int64(20)),
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 				BulkProcessing: BulkProcessing{

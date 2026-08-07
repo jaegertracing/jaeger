@@ -62,8 +62,10 @@ const (
 
 // IndexOptions describes the index format and rollover frequency
 type IndexOptions struct {
-	// Priority contains the priority of index template (ESv8 only).
-	Priority int64 `mapstructure:"priority"`
+	// Priority contains the priority of index template (ESv8 only). It is a
+	// pointer, like Replicas, so an explicitly configured priority of 0 stays
+	// distinguishable from an unset one.
+	Priority *int64 `mapstructure:"priority"`
 	// DateLayout contains the format string used to format current time to part of the index name.
 	// For example, "2006-01-02" layout will result in "jaeger-spans-yyyy-mm-dd".
 	// If not specified, the default value is "2006-01-02".
@@ -379,7 +381,7 @@ func setDefaultIndexOptions(target, source *IndexOptions) {
 		target.Replicas = source.Replicas
 	}
 
-	if target.Priority == 0 {
+	if target.Priority == nil {
 		target.Priority = source.Priority
 	}
 

@@ -175,18 +175,17 @@ func (i IndicesClient) deleteIfPresent(ctx context.Context, api, name string) er
 }
 
 // renderSpanDataStreamTemplates renders the span data-stream objects Jaeger owns.
-//
-// The neutral body is rendered with lifecycle off: the read alias and the ILM/ISM
-// settings are the only fields that consume IndexPrefix, and both carry rotation-path
-// names a data stream must not inherit. The data stream's own lifecycle policy is
-// attached separately.
+// The neutral body is rendered with lifecycle off (see lifecycleParams): those
+// settings carry rotation-path alias names a data stream must not inherit, and the
+// stream's own lifecycle policy is attached separately.
 func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate, error) {
-	inner, err := renderNeutralBody(SpanMapping, indices, innerParams{})
+	inner, err := renderNeutralBody(SpanMapping, indices, lifecycleParams{})
 	if err != nil {
 		return nil, err
 	}
 	base := indices.IndexPrefix.DataStreamName(spanDataStreamBase)
-	return spanDataStreamTemplates(base, indices.Spans.Priority, inner)
+	priority := resolvePriority(indices.Spans.Priority, defaultDataStreamPriority)
+	return spanDataStreamTemplates(base, priority, inner)
 }
 
 // spanDataStreamTemplates builds the objects in the order they must be created. It
@@ -194,6 +193,15 @@ func renderSpanDataStreamTemplates(indices config.Indices) ([]dataStreamTemplate
 // body whose mappings or settings cannot become a component — are directly
 // unit-testable rather than unreachable behind the embedded template.
 func spanDataStreamTemplates(base string, priority int64, inner map[string]json.RawMessage) ([]dataStreamTemplate, error) {
+	// json.RawMessage marshals an absent key as null, so a neutral body missing
+	// either half would be PUT as "mappings": null / "settings": null instead of
+	// failing here with the missing field named.
+	if _, ok := inner["mappings"]; !ok {
+		return nil, errors.New("span index template has no mappings object")
+	}
+	if _, ok := inner["settings"]; !ok {
+		return nil, errors.New("span index template has no settings object")
+	}
 	mappings, err := renderMappingsComponent(inner["mappings"])
 	if err != nil {
 		return nil, err
@@ -249,9 +257,6 @@ func renderSpanDataStreamIndexTemplate(base string, priority int64) (string, err
 		DataStream    struct{} `json:"data_stream"`
 		ComposedOf    []string `json:"composed_of"`
 		Priority      int64    `json:"priority"`
-	}
-	if priority == 0 {
-		priority = defaultDataStreamPriority
 	}
 	return marshalTemplateBody("span data stream index template", composableTemplate{
 		IndexPatterns: []string{base},

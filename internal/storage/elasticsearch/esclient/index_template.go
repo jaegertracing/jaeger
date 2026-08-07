@@ -114,9 +114,10 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 	}
 }
 
-// innerParams are the version-independent values rendered into a neutral body.
-// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
-// resolved version, so it never crosses the API boundary.
+// innerParams are the version-independent values the embedded templates render.
+// It is the templates' view of the data rather than an argument type: Shards and
+// Replicas are always the mapping type's own, so renderNeutralBody fills them
+// instead of accepting them from a caller.
 type innerParams struct {
 	IndexPrefix   string
 	Shards        int64
@@ -126,17 +127,35 @@ type innerParams struct {
 	IsOpenSearch  bool
 }
 
+// lifecycleParams are the fields that differ between renderNeutralBody's callers.
+// Every template consumes IndexPrefix only inside a UseILM branch — the read alias
+// and the ISM/ILM rollover alias — so these four are the rotation path's lifecycle
+// wiring, and the data-stream path, which owns none of it, passes the zero value.
+// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
+// resolved version, so it never crosses the API boundary.
+type lifecycleParams struct {
+	IndexPrefix   string
+	UseILM        bool
+	ILMPolicyName string
+	IsOpenSearch  bool
+}
+
+// resolvePriority returns the configured composable index template priority, or
+// fallback when none is set. Priority is a pointer for the same reason Replicas
+// is: zero is a legal priority, so it has to stay distinguishable from unset.
+func resolvePriority(configured *int64, fallback int64) int64 {
+	if configured == nil {
+		return fallback
+	}
+	return *configured
+}
+
 // renderNeutralBody renders a mapping type's neutral body and decodes its
 // top-level fields (settings, mappings, and optional aliases). It is the step
 // RenderIndexTemplate and the span data-stream components share: the same replica
 // check, the same template execution and the same JSON decode, so both paths fail
 // identically on the same input.
-//
-// Shards and Replicas are always taken from the mapping type's own index options;
-// the caller supplies only the fields that differ between the two paths, which is
-// how the data stream renders the body with the rotation path's lifecycle settings
-// left off.
-func renderNeutralBody(m MappingType, indices config.Indices, params innerParams) (map[string]json.RawMessage, error) {
+func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
 	file := m.file()
 	if file == "" {
 		return nil, fmt.Errorf("unknown index template mapping type %d", m)
@@ -145,11 +164,16 @@ func renderNeutralBody(m MappingType, indices config.Indices, params innerParams
 	if opts.Replicas == nil {
 		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
 	}
-	params.Shards = opts.Shards
-	params.Replicas = *opts.Replicas
 
 	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, params); err != nil {
+	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
+		IndexPrefix:   lifecycle.IndexPrefix,
+		Shards:        opts.Shards,
+		Replicas:      *opts.Replicas,
+		UseILM:        lifecycle.UseILM,
+		ILMPolicyName: lifecycle.ILMPolicyName,
+		IsOpenSearch:  lifecycle.IsOpenSearch,
+	}); err != nil {
 		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
 
@@ -171,7 +195,7 @@ func renderNeutralBody(m MappingType, indices config.Indices, params innerParams
 // template for an explicitly-requested version.
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
 	prefix := indices.IndexPrefix.Apply("")
-	inner, err := renderNeutralBody(m, indices, innerParams{
+	inner, err := renderNeutralBody(m, indices, lifecycleParams{
 		IndexPrefix:   prefix,
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
@@ -182,8 +206,10 @@ func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilm
 	}
 
 	if version.UsesV8API() {
+		// An unconfigured priority renders 0, which is how Elasticsearch itself
+		// treats a composable template that declares none.
 		body, err := json.Marshal(map[string]any{
-			"priority":       m.options(indices).Priority,
+			"priority":       resolvePriority(m.options(indices).Priority, 0),
 			"index_patterns": prefix + m.indexBase() + "-*",
 			"template":       inner,
 		})

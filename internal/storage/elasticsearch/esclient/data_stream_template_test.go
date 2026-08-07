@@ -113,18 +113,22 @@ func TestSpanDataStreamIndexTemplatePriority(t *testing.T) {
 	}
 
 	t.Run("defaults when unset", func(t *testing.T) {
-		body, err := renderSpanDataStreamIndexTemplate("jaeger.spans", 0)
+		templates, err := renderSpanDataStreamTemplates(testIndices())
 		require.NoError(t, err)
-		assert.Equal(t, int64(defaultDataStreamPriority), decodePriority(t, body))
+		assert.Equal(t, int64(defaultDataStreamPriority), decodePriority(t, templates[2].body))
 	})
 
 	t.Run("honors a configured priority", func(t *testing.T) {
-		indices := testIndices()
-		indices.Spans.Priority = 42
-		templates, err := renderSpanDataStreamTemplates(indices)
-		require.NoError(t, err)
-		assert.Equal(t, int64(42), decodePriority(t, templates[2].body),
-			"indices.spans.priority must reach the data stream template, as it does on ES8")
+		// Zero is a legal priority, so it must survive rather than fall back to the
+		// default the way an unset one does.
+		for _, priority := range []int64{0, 42} {
+			indices := testIndices()
+			indices.Spans.Priority = &priority
+			templates, err := renderSpanDataStreamTemplates(indices)
+			require.NoError(t, err)
+			assert.Equal(t, priority, decodePriority(t, templates[2].body),
+				"indices.spans.priority must reach the data stream template, as it does on ES8")
+		}
 	})
 }
 
@@ -149,9 +153,25 @@ func TestSpanDataStreamIndexTemplateComposesCustom(t *testing.T) {
 }
 
 func TestSpanDataStreamTemplatesErrors(t *testing.T) {
+	// A neutral body is decoded from a rendered template, so a missing half means
+	// that template lost a field. Catching it here names the field, instead of
+	// PUTting a component whose body is literally null.
+	t.Run("neutral body missing a half", func(t *testing.T) {
+		for _, field := range []string{"mappings", "settings"} {
+			inner := map[string]json.RawMessage{
+				"mappings": json.RawMessage(`{"properties":{}}`),
+				"settings": json.RawMessage(`{}`),
+			}
+			delete(inner, field)
+			_, err := spanDataStreamTemplates("jaeger.spans", 0, inner)
+			require.ErrorContains(t, err, "span index template has no "+field+" object")
+		}
+	})
+
 	t.Run("mappings that are not valid JSON", func(t *testing.T) {
 		_, err := spanDataStreamTemplates("jaeger.spans", 0, map[string]json.RawMessage{
 			"mappings": json.RawMessage("not-json"),
+			"settings": json.RawMessage(`{}`),
 		})
 		require.ErrorContains(t, err, "failed to parse span index template mappings")
 	})
@@ -159,6 +179,7 @@ func TestSpanDataStreamTemplatesErrors(t *testing.T) {
 	t.Run("mappings without properties", func(t *testing.T) {
 		_, err := spanDataStreamTemplates("jaeger.spans", 0, map[string]json.RawMessage{
 			"mappings": json.RawMessage(`{}`),
+			"settings": json.RawMessage(`{}`),
 		})
 		require.ErrorContains(t, err, "no properties object")
 	})
