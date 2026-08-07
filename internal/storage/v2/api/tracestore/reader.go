@@ -106,8 +106,7 @@ type Reader interface {
 //     (docs/adr/001-cassandra-find-traces-duration.md), and it rejects the combination
 //     outright; the restriction was lifted at the API layer in
 //     https://github.com/jaegertracing/jaeger/issues/1047 without the storage
-//     limitation going away. What a duration filter means at all is itself contested:
-//     https://github.com/jaegertracing/jaeger/issues/1015.
+//     limitation going away.
 type SearchCapabilities struct {
 	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
 	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
