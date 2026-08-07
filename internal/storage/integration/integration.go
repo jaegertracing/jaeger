@@ -478,13 +478,13 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 // attribute and a time range returns both. It is the assertion the httptest snapshots
 // cannot make — that the backend really reads an absent service name as "any service".
 //
-// The gate is the suite's per-backend capability, which CI populates from the STORAGE under
+// The gate is the suite's per-backend opt-out, which CI populates from the STORAGE under
 // test, not the reader's own SearchCapabilities: in the e2e configuration that reader talks
 // to a query service over api_v3, which cannot report capabilities, so gating on it would
 // skip everywhere (RFC 0013 §3.7).
 func (s *StorageIntegration) testFindTracesWithoutServiceName(t *testing.T) {
 	s.skipIfNeeded(t)
-	if !s.Capabilities.SearchWithoutServiceName() {
+	if s.Capabilities.SearchRequiresServiceName() {
 		t.Skip("this storage backend requires a service name to search")
 	}
 	defer s.cleanUp(t)
