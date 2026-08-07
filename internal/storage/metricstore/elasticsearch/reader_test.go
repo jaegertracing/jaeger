@@ -245,6 +245,17 @@ func Test_ErrorCases(t *testing.T) {
 			},
 			wantErr: "invalid parameters",
 		},
+		{
+			name: "nil RatePer",
+			params: func() metricstore.BaseQueryParameters {
+				lookback := time.Hour
+				return metricstore.BaseQueryParameters{
+					EndTime:  &endTime,
+					Lookback: &lookback,
+				}
+			}(),
+			wantErr: "invalid parameters",
+		},
 	}
 
 	for _, tc := range tests {
