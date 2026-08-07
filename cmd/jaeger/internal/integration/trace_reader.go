@@ -41,9 +41,16 @@ type traceReader struct {
 	client     api_v3.QueryServiceClient
 }
 
-// SearchCapabilities reports that every query field is required. The real backend's
-// capabilities reach clients through the query service's own API, not through this test
-// client, so nothing is declared on its behalf here.
+// SearchCapabilities is a stub, and a test must not gate on it: api_v3 has no capability
+// discovery, so this client cannot ask the query service what the storage behind it
+// supports, and answering "supported" here would be a guess. Reporting the zero value is
+// the safe direction but not a true answer — a test gated on this would skip even where
+// the backend does support the query, which is worse than no test at all.
+//
+// Integration tests that depend on a capability gate on the per-backend
+// integration/capabilities.Capabilities, which CI populates from the STORAGE under test.
+// RFC 0013 §3.7 covers giving api_v3 real capability discovery, after which this can
+// report what the query service reports.
 func (*traceReader) SearchCapabilities() tracestore.SearchCapabilities {
 	return tracestore.SearchCapabilities{}
 }
