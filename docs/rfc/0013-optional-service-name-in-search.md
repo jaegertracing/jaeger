@@ -1,9 +1,9 @@
 # RFC 0013: Optional Service Name in Trace Search
 
-- **Status:** Partially Implemented
+- **Status:** Implemented — the capability mechanism is recorded in [ADR-013](../adr/013-storage-capability-declaration.md)
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-07
-- **Last Updated:** 2026-08-07
+- **Last Updated:** 2026-08-08
 - **Issues:** [jaeger#423](https://github.com/jaegertracing/jaeger/issues/423) (backend), [jaeger-ui#180](https://github.com/jaegertracing/jaeger-ui/issues/180) (UI), [jaeger#8492](https://github.com/jaegertracing/jaeger/issues/8492) (MCP `search_traces`)
 
 ---
@@ -171,9 +171,13 @@ Two things follow, on different timescales. Until the API exists, an integration
 
 🟢 good · 🟡 partial · 🔴 poor · ⚪ not applicable
 
-**Recommendation: A.** Until it exists, Jaeger's own e2e client returns `errors.ErrUnsupported` from `SearchCapabilities` — the honest answer for a client that cannot ask — and the storage interface's fallible signature is what lets it say so. What a deployment can do is not a property of trace reading, and the same endpoint should be able to report the archive, metrics and AI capabilities the UI blob already carries — which makes a service of its own the right home rather than a method bolted onto `QueryService`. The gRPC gateway gives the HTTP form of option C for free. A client that gets `Unimplemented` treats the deployment as declaring nothing, which is the same conservative default the storage layer uses.
+**Outcome: rejected, and not built.** Option A was the right shape of the four, but neither client it was meant to serve turned out to need it.
 
-This is a `jaeger-idl` change and its own milestone; §3.6's storage-side `Capabilities` RPC is the mirror of it one layer down, and the two are independent.
+The UI does not. The capability blob is assembled on every SPA serve rather than captured when jaeger-query starts, so the UI already reads a live answer. Querying an endpoint instead would only let it observe a change without a page reload, and it cannot act on one mid-session: the Service dropdown is built at page load.
+
+The e2e test client does not, and would be worse for it. Gating an integration test on what the deployment reports about itself is weaker than gating on what the harness knows it started, for the reason given above — a backend that misreports its own capability makes the test skip, and a silently-skipped test reads like a passing one. The suite keeps gating on `integration/capabilities.Capabilities`, and Jaeger's e2e client keeps returning `errors.ErrUnsupported`, which is the honest answer for a client that cannot ask.
+
+What remains is letting a third-party client ask instead of trying: today it discovers the limit by receiving `ErrServiceNameRequired` as `InvalidArgument`. That is a general deployment-capability-discovery feature — archive, metrics and AI storage are equally undiscoverable — and belongs to whoever wants that feature, not to this RFC. §3.6's storage-side `Capabilities` RPC was built and is unaffected; the two were always independent.
 
 ### 3.8 Cost and safety
 
@@ -206,10 +210,6 @@ Each milestone is independently shippable and leaves the product in a working st
 **Milestone 5 — gRPC remote storage.** ✅ [#9268](https://github.com/jaegertracing/jaeger/pull/9268), [#9269](https://github.com/jaegertracing/jaeger/pull/9269) A `Capabilities` service on `jaeger.storage.v2` in `jaeger-idl` ([jaeger-idl#211](https://github.com/jaegertracing/jaeger-idl/pull/211)), kept separate from `TraceReader` so that a backend can serve one without the other. The remote-storage server answers from the reader it fronts, and the client maps `Unimplemented` to `ErrUnsupported` — the same reading this reader already gives a backend without `FindTraceSummaries`, so backends predating the service keep working. Nothing captures the answer at startup, because jaeger-query can come up before its remote backend is reachable; the gRPC reader caches what its backend said, and every other reader answers from a constant. That is what lets the remote-storage integration suite and the `grpc` and `query` end-to-end suites run the cross-service search instead of opting out of it.
 
 §3.6 also floated an operator-set config field as a stopgap. It was not built: it would add a config surface to deprecate once the RPC existed, and it would not have helped CI, because the end-to-end suites cannot set it.
-
-**Milestone 6 — Capability discovery in api_v3 (§3.7).** A `Capabilities` service in `jaeger-idl`, served by jaeger-query, reporting what the deployment supports; the e2e test client then reports what the query service reports instead of a stub, and the UI can read the same source it queries rather than a blob injected at boot. Independent of the milestones above and of §3.6's storage-side RPC.
-
-**Milestone 7 — Documentation.** Document the capability in the storage backend comparison, state which backends support it, and describe the "All Services" option in the search documentation. Closes [jaeger#423](https://github.com/jaegertracing/jaeger/issues/423).
 
 Badger is deliberately not on this list. It stays at `false`, and graduating it — by applying tag and operation filters inside the time-range scan — is a separate piece of work that this design does not block.
 
