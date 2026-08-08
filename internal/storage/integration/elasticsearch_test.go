@@ -44,6 +44,7 @@ const (
 	maxSpanAge         = time.Hour * 72
 	defaultMaxDocCount = 10_000
 	archiveAliasSuffix = "archive"
+	noNestedTagsPrefix = "tags-as-fields-no-nested"
 )
 
 type ESStorageIntegration struct {
@@ -161,6 +162,70 @@ func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
 		testutils.VerifyGoLeaksOnce(t)
 	})
 	runElasticsearchTest(t, true, escfg.WriteModeAsync)
+}
+
+func TestElasticsearchStorage_AllTagsAsFieldsWithoutNestedMappings(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+
+	client := newESTestClient(t)
+	t.Cleanup(func() {
+		require.NoError(t, client.indices.DeleteIndices(context.Background(), []esclient.Index{{Index: noNestedTagsPrefix + "-*"}}))
+	})
+
+	cfg := es.DefaultConfig()
+	cfg.CreateIndexTemplates = false
+	cfg.WriteMode = escfg.WriteModeSync
+	cfg.Tags.AllAsFields = true
+	cfg.Indices.IndexPrefix = noNestedTagsPrefix
+	factory, err := esv2.NewFactory(context.Background(), cfg, telemetry.NoopSettings(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, factory.Close())
+	})
+	writer, err := factory.CreateTraceWriter()
+	require.NoError(t, err)
+	reader, err := factory.CreateTraceReader()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	start := time.Now().UTC().Truncate(time.Microsecond)
+	traceID := pcommon.TraceID([16]byte{0, 0, 0, 0, 0, 0, 0, 77, 0, 0, 0, 0, 0, 0, 0, 88})
+	trace := ptrace.NewTraces()
+	resourceSpans := trace.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr("service.name", "all-tags-as-fields")
+	span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("all-tags-as-fields")
+	span.SetTraceID(traceID)
+	span.SetSpanID([8]byte{0, 0, 0, 0, 0, 0, 0, 99})
+	span.SetStartTimestamp(pcommon.NewTimestampFromTime(start))
+	span.SetEndTimestamp(pcommon.NewTimestampFromTime(start.Add(time.Millisecond)))
+	span.Attributes().PutStr("http.method", "GET")
+	require.NoError(t, writer.WriteTraces(ctx, trace))
+
+	attributes := pcommon.NewMap()
+	attributes.PutStr("http.method", "GET")
+	query := tracestore.TraceQueryParams{
+		ServiceName:  "all-tags-as-fields",
+		Attributes:   attributes,
+		StartTimeMin: start.Add(-time.Minute),
+		StartTimeMax: start.Add(time.Minute),
+		SearchDepth:  1,
+	}
+	var traces []ptrace.Traces
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		var err error
+		traces, err = jiter.CollectWithErrors(jptrace.AggregateTraces(reader.FindTraces(ctx, query)))
+		if !assert.NoError(collectT, err) {
+			return
+		}
+		assert.Len(collectT, traces, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+	assert.Equal(t, traceID, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
 }
 
 // TestElasticsearchStorage_Sync runs the full trace-storage suite with

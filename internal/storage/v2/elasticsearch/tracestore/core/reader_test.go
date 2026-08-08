@@ -1139,6 +1139,24 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	})
 }
 
+func TestSpanReader_buildTagQuery_AllTagsAsFields(t *testing.T) {
+	inStr, err := os.ReadFile("fixtures/query_04_all_tags_as_fields.json")
+	require.NoError(t, err)
+	reader := NewSpanReader(SpanReaderParams{
+		AllTagsAsFields:   true,
+		TagDotReplacement: "@",
+		Logger:            zap.NewNop(),
+	})
+	tagQuery := reader.buildTagQuery("bat.foo", "spook")
+	actual, err := tagQuery.Source()
+	require.NoError(t, err)
+
+	expected := make(map[string]any)
+	json.Unmarshal(inStr, &expected)
+
+	assert.EqualValues(t, expected, actual)
+}
+
 func TestSpanReader_buildTagRegexQuery(t *testing.T) {
 	inStr, err := os.ReadFile("fixtures/query_02.json")
 	require.NoError(t, err)

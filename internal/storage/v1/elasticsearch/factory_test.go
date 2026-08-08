@@ -830,6 +830,14 @@ func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
 	assert.Equal(t, 2*time.Hour, params.MaxTraceDuration)
 }
 
+func TestGetSpanReaderParams_AllTagsAsFields(t *testing.T) {
+	cfg := escfg.Configuration{
+		Tags: escfg.TagsAsFields{AllAsFields: true},
+	}
+	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
+	assert.True(t, f.GetSpanReaderParams().AllTagsAsFields)
+}
+
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
 type mockHTTPAuthenticator struct{}
 
