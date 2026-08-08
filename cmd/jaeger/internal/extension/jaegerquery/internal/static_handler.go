@@ -63,18 +63,26 @@ type BackendCapabilities struct {
 	AIAssistant bool `json:"aiAssistant"`
 }
 
+// searchCapabilityReporter answers what the trace storage backend accepts. The handler
+// asks it on every SPA serve rather than being told once at startup, because a remote
+// backend reports for itself and may not have been reachable when jaeger-query started.
+// *querysvc.QueryService satisfies it.
+type searchCapabilityReporter interface {
+	SearchWithoutServiceName(ctx context.Context) bool
+}
+
 // RegisterStaticHandler builds and registers the static-assets handler on r.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is. Likewise
-// searchWithoutServiceName may be nil, which hides the "All Services" option.
+// aiHealthCheck may be nil; the chat surface stays hidden when it is. Likewise querySvc
+// may be nil, which hides the "All Services" option.
 func RegisterStaticHandler(
 	r *http.ServeMux,
 	logger *zap.Logger,
 	qOpts *QueryOptions,
 	qCapabilities querysvc.StorageCapabilities,
-	searchWithoutServiceName func(context.Context) bool,
+	querySvc searchCapabilityReporter,
 	aiHealthCheck func() bool,
 ) io.Closer {
-	h, err := newStaticAssetsHandler(qOpts, qCapabilities, searchWithoutServiceName, aiHealthCheck, logger)
+	h, err := newStaticAssetsHandler(qOpts, qCapabilities, querySvc, aiHealthCheck, logger)
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
@@ -87,13 +95,13 @@ func RegisterStaticHandler(
 // which flips at runtime — are always current. The raw bytes are cached;
 // the UI config is cached with a TTL and re-read from disk on demand.
 type staticAssetsHandler struct {
-	assetsFS                 http.FileSystem
-	basePath                 string
-	logAccess                bool
-	storageCaps              querysvc.StorageCapabilities
-	searchWithoutServiceName func(context.Context) bool
-	aiHealthCheck            func() bool
-	logger                   *zap.Logger
+	assetsFS      http.FileSystem
+	basePath      string
+	logAccess     bool
+	storageCaps   querysvc.StorageCapabilities
+	querySvc      searchCapabilityReporter
+	aiHealthCheck func() bool
+	logger        *zap.Logger
 
 	indexHTMLRaw []byte // read once from disk at boot
 	uiConfigFile string // immutable after construction
@@ -113,7 +121,7 @@ type loadedConfig struct {
 func newStaticAssetsHandler(
 	qOpts *QueryOptions,
 	storageCaps querysvc.StorageCapabilities,
-	searchWithoutServiceName func(context.Context) bool,
+	querySvc searchCapabilityReporter,
 	aiHealthCheck func() bool,
 	logger *zap.Logger,
 ) (*staticAssetsHandler, error) {
@@ -126,15 +134,15 @@ func newStaticAssetsHandler(
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	h := &staticAssetsHandler{
-		assetsFS:                 assetsFS,
-		basePath:                 qOpts.BasePath,
-		logAccess:                qOpts.UIConfig.LogAccess,
-		storageCaps:              storageCaps,
-		searchWithoutServiceName: searchWithoutServiceName,
-		aiHealthCheck:            aiHealthCheck,
-		logger:                   logger,
-		indexHTMLRaw:             raw,
-		uiConfigFile:             qOpts.UIConfig.ConfigFile,
+		assetsFS:      assetsFS,
+		basePath:      qOpts.BasePath,
+		logAccess:     qOpts.UIConfig.LogAccess,
+		storageCaps:   storageCaps,
+		querySvc:      querySvc,
+		aiHealthCheck: aiHealthCheck,
+		logger:        logger,
+		indexHTMLRaw:  raw,
+		uiConfigFile:  qOpts.UIConfig.ConfigFile,
 	}
 	if h.uiConfigFile != "" {
 		// Eager initial load: surface UI-config syntax errors at startup
@@ -204,8 +212,8 @@ func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 		aiAvailable = h.aiHealthCheck()
 	}
 	searchWithoutServiceName := false
-	if h.searchWithoutServiceName != nil {
-		searchWithoutServiceName = h.searchWithoutServiceName(ctx)
+	if h.querySvc != nil {
+		searchWithoutServiceName = h.querySvc.SearchWithoutServiceName(ctx)
 	}
 	capsJSON, _ := json.Marshal(BackendCapabilities{
 		ArchiveStorage:           h.storageCaps.ArchiveStorage,

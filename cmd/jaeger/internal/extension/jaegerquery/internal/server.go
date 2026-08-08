@@ -248,9 +248,7 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	cs = append(cs, RegisterStaticHandler(
-		r, telset.Logger, queryOpts, caps, querySvc.SearchWithoutServiceName, aiHealthCheck,
-	))
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, caps, querySvc, aiHealthCheck))
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {

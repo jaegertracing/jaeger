@@ -29,6 +29,19 @@ import (
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
+// searchCapabilityFunc adapts a function to searchCapabilityReporter so a test can vary
+// the answer between requests.
+type searchCapabilityFunc func(context.Context) bool
+
+func (f searchCapabilityFunc) SearchWithoutServiceName(ctx context.Context) bool {
+	return f(ctx)
+}
+
+// staticSearchCapability is a reporter that always gives the same answer.
+func staticSearchCapability(supported bool) searchCapabilityFunc {
+	return func(context.Context) bool { return supported }
+}
+
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
@@ -215,7 +228,7 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 					ArchiveStorage: tt.archiveStorage,
 					MetricsStorage: tt.metricsStorage,
 				},
-				func(context.Context) bool { return tt.searchWithoutServiceName },
+				staticSearchCapability(tt.searchWithoutServiceName),
 				tt.aiHealthCheck,
 			)
 			defer closer.Close()
@@ -273,7 +286,7 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
 		querysvc.StorageCapabilities{},
-		func(context.Context) bool { return supported.Load() },
+		searchCapabilityFunc(func(context.Context) bool { return supported.Load() }),
 		nil,
 	)
 	defer closer.Close()
