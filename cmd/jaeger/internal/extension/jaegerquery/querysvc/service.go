@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"iter"
-	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -42,28 +41,15 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
-	// SearchCapabilities is what the trace reader said at startup about the query shapes it
-	// accepts (RFC 0013 §3.3). Nil means it could not say — a remote backend may not have
-	// been reachable yet — and the query service asks again the next time the answer
-	// matters, so an unlucky startup does not write the backend off for good.
-	SearchCapabilities *tracestore.SearchCapabilities
 }
 
-// searchCapabilityCache holds the reader's answer, which never changes once given. It is
-// separate from QueryService so that copying the service (its methods take it by value)
-// does not copy an atomic.
-type searchCapabilityCache struct {
-	value atomic.Pointer[tracestore.SearchCapabilities]
-}
-
-// StorageCapabilities is a feature flag for query service
+// StorageCapabilities is a feature flag for query service. It carries what follows from
+// the storage configuration and is therefore fixed for the process lifetime; what the
+// backend itself reports is asked of the reader when it matters, not copied here (see
+// SearchWithoutServiceName).
 type StorageCapabilities struct {
 	ArchiveStorage bool `json:"archiveStorage"`
 	MetricsStorage bool `json:"metricsStorage"`
-	// SearchWithoutServiceName reports whether the trace storage backend accepts a
-	// search that omits the service name and reads it as "any service" (RFC 0013).
-	// The UI offers its "All Services" option only when this is true.
-	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
 	// Potential future extensions:
 	// SupportRegex     bool
 	// SupportTagFilter bool
@@ -75,7 +61,6 @@ type QueryService struct {
 	dependencyReader depstore.Reader
 	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
-	searchCaps       *searchCapabilityCache
 }
 
 // GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
@@ -106,11 +91,7 @@ func NewQueryService(
 		adjuster: adjuster.Sequence(
 			adjuster.StandardAdjusters(options.MaxClockSkewAdjust)...,
 		),
-		options:    options,
-		searchCaps: &searchCapabilityCache{},
-	}
-	if options.SearchCapabilities != nil {
-		qsvc.searchCaps.value.Store(options.SearchCapabilities)
+		options: options,
 	}
 
 	return qsvc
@@ -192,31 +173,28 @@ func (qs QueryService) FindTraces(
 	}
 }
 
+// SearchWithoutServiceName reports whether the trace reader accepts a search that omits
+// the service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked
+// every time, because it is the only thing that knows: a remote backend answers for
+// itself, and jaeger-query can start before that backend is reachable, so no caller may
+// pin the answer to whatever was true at startup. The readers that can answer without
+// I/O return a constant, and the one that cannot — gRPC remote storage — remembers the
+// backend's answer itself, so asking costs an atomic load once the backend has spoken.
+//
+// A reader that cannot say — errors.ErrUnsupported, or a backend not reachable right
+// now — is read as the least capable one.
+func (qs QueryService) SearchWithoutServiceName(ctx context.Context) bool {
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	return err == nil && caps.WithoutServiceName
+}
+
 // validateSearchQuery rejects a query whose shape the backend cannot serve. Storage
 // readers guard themselves too, but they answer differently — Cassandra returned an empty
 // result for a service-less search until RFC 0013 — so the single answer callers see is
-// decided here, where the capability is known.
-//
-// The answer normally comes from startup and costs an atomic load. Storage is asked here
-// only if startup could not get an answer at all, which for a remote backend means it was
-// not reachable yet; asking again is what stops one unlucky moment from making the backend
-// look like the least capable one until jaeger-query restarts. A reader that still cannot
-// say — errors.ErrUnsupported, or an unreachable backend — is treated as the least capable
-// one, which keeps the query from reaching storage and coming back silently wrong.
+// decided here. Rejecting here also keeps the query from reaching storage and coming back
+// silently wrong.
 func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
-	if query.ServiceName != "" {
-		return nil
-	}
-	caps := qs.searchCaps.value.Load()
-	if caps == nil {
-		answer, err := qs.traceReader.SearchCapabilities(ctx)
-		if err != nil {
-			return ErrServiceNameRequired
-		}
-		qs.searchCaps.value.Store(&answer)
-		caps = &answer
-	}
-	if !caps.WithoutServiceName {
+	if query.ServiceName == "" && !qs.SearchWithoutServiceName(ctx) {
 		return ErrServiceNameRequired
 	}
 	return nil

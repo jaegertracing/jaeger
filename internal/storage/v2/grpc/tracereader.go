@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -26,6 +27,16 @@ var _ tracestore.Reader = (*TraceReader)(nil)
 type TraceReader struct {
 	client       storage.TraceReaderClient
 	capabilities storage.CapabilitiesClient
+
+	// cachedCaps holds the backend's answer once it has given one. The proto contract says
+	// capabilities are stable for the lifetime of a connection, so the answer is asked for
+	// once and every later caller reads it without touching the wire. A failure is
+	// deliberately not cached: a backend that is not up yet — jaeger-query can start before
+	// its remote storage is ready — must not be mistaken for one that has answered.
+	//
+	// Racing first callers may each ask, which is harmless: the answer is idempotent, and
+	// they all store the same one. That is the trade for keeping the read path lock-free.
+	cachedCaps atomic.Pointer[tracestore.SearchCapabilities]
 }
 
 // NewTraceReader creates a TraceReader that communicates with a remote gRPC storage server.
@@ -38,12 +49,20 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	}
 }
 
-// SearchCapabilities asks the remote backend what it supports. A backend that does not
-// serve the Capabilities service answers UNIMPLEMENTED, which becomes ErrUnsupported —
-// "nobody has said", which the caller treats as the least capable backend. That is what
-// keeps a backend predating the service working unchanged, and it stays distinguishable
-// from a backend that answered and declared nothing (RFC 0013 §3.6).
+// SearchCapabilities asks the remote backend what it supports, once, and remembers the
+// answer. A backend that does not serve the Capabilities service answers UNIMPLEMENTED,
+// which becomes ErrUnsupported — "nobody has said", which the caller treats as the least
+// capable backend. That is what keeps a backend predating the service working unchanged,
+// and it stays distinguishable from a backend that answered and declared nothing
+// (RFC 0013 §3.6).
+//
+// This is the only reader whose answer costs anything, so it is the only one that caches;
+// callers can ask as often as the answer matters rather than holding a copy of their own.
 func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	if caps := tr.cachedCaps.Load(); caps != nil {
+		return *caps, nil
+	}
+
 	resp, err := tr.capabilities.GetCapabilities(ctx, &storage.GetCapabilitiesRequest{})
 	if err != nil {
 		if status.Code(err) == codes.Unimplemented {
@@ -53,9 +72,11 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		}
 		return tracestore.SearchCapabilities{}, err
 	}
-	return tracestore.SearchCapabilities{
+	caps := tracestore.SearchCapabilities{
 		WithoutServiceName: resp.GetSearch().GetWithoutServiceName(),
-	}, nil
+	}
+	tr.cachedCaps.Store(&caps)
+	return caps, nil
 }
 
 func (tr *TraceReader) GetTraces(

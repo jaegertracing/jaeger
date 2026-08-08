@@ -115,12 +115,12 @@ STORAGE_V2_PATCHED_TRACE=$(STORAGE_V2_PATCHED_DIR)/trace_storage.proto
 STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
 STORAGE_V2_PATCHED_CAPABILITIES=$(STORAGE_V2_PATCHED_DIR)/capabilities.proto
 
+# sed reads each source directly rather than through `cat file | sed`: in a pipeline the
+# exit status is sed's, so a missing or unreadable source produced an empty patched file
+# and a .pb.go with nothing in it, while make reported success.
 .PHONY: patch-storage-v2
 patch-storage-v2:
 	mkdir -p $(STORAGE_V2_PATCHED_DIR)
-	# sed reads the source directly rather than through `cat file | sed`: in a pipeline the
-	# exit status is sed's, so a missing or unreadable source produced an empty patched
-	# file and a .pb.go with nothing in it, while make reported success.
 	$(SED) -f ./$(PROTO_GEN)/patch.sed \
 		idl/proto/storage/v2/trace_storage.proto \
 		> $(STORAGE_V2_PATCHED_TRACE)

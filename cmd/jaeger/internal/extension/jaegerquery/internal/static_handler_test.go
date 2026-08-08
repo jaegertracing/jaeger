@@ -6,6 +6,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ func TestNotExistingUiConfig(t *testing.T) {
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
 		querysvc.StorageCapabilities{},
 		nil,
+		nil,
 		zap.NewNop(),
 	)
 	require.ErrorContains(t, err, "no such file or directory")
@@ -51,6 +53,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 				},
 			},
 			querysvc.StorageCapabilities{ArchiveStorage: false},
+			nil,
 			nil,
 		)
 		defer closer.Close()
@@ -124,6 +127,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 					BasePath: testCase.basePath,
 				},
 				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
+				nil,
 				nil,
 			)
 			defer closer.Close()
@@ -208,10 +212,10 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 				r, zap.NewNop(),
 				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
 				querysvc.StorageCapabilities{
-					ArchiveStorage:           tt.archiveStorage,
-					MetricsStorage:           tt.metricsStorage,
-					SearchWithoutServiceName: tt.searchWithoutServiceName,
+					ArchiveStorage: tt.archiveStorage,
+					MetricsStorage: tt.metricsStorage,
 				},
+				func(context.Context) bool { return tt.searchWithoutServiceName },
 				tt.aiHealthCheck,
 			)
 			defer closer.Close()
@@ -236,6 +240,7 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
 		querysvc.StorageCapabilities{},
+		nil,
 		available.Load,
 	)
 	defer closer.Close()
@@ -257,10 +262,40 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 		"next response must reflect the new AI health check value")
 }
 
+// TestStaticHandlerReflectsSearchCapabilityPerRequest is the reason the search capability is
+// a probe rather than a value: jaeger-query can serve the UI before its remote backend is
+// reachable, and the page loaded after the backend comes up must offer "All Services"
+// without the process being restarted (RFC 0013 §3.6).
+func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
+	var supported atomic.Bool
+	r := http.NewServeMux()
+	closer := RegisterStaticHandler(
+		r, zap.NewNop(),
+		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
+		querysvc.StorageCapabilities{},
+		func(context.Context) bool { return supported.Load() },
+		nil,
+	)
+	defer closer.Close()
+
+	getBody := func() string {
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/", http.NoBody))
+		return rr.Body.String()
+	}
+
+	require.Contains(t, getBody(), `"searchWithoutServiceName":false`)
+
+	supported.Store(true)
+	require.Contains(t, getBody(), `"searchWithoutServiceName":true`,
+		"a backend that has since answered must be reflected without a restart")
+}
+
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: "fixture/invalid-config"}},
 		querysvc.StorageCapabilities{},
+		nil,
 		nil,
 		zap.NewNop(),
 	)
@@ -294,12 +329,13 @@ func TestHotReloadUIConfig(t *testing.T) {
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
 		querysvc.StorageCapabilities{},
 		nil,
+		nil,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
 	defer h.Close()
 
-	assert.Contains(t, string(h.deriveIndexHTML()), "About Jaeger")
+	assert.Contains(t, string(h.deriveIndexHTML(context.Background())), "About Jaeger")
 
 	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
 	err = syncWrite(cfgFile, tmpFile, []byte(newContent))
@@ -308,7 +344,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 	// The TTL on the cached UI config is 10ms; deriveIndexHTML re-reads from
 	// disk after that. Poll until the new content is picked up.
 	require.Eventually(t, func() bool {
-		return strings.Contains(string(h.deriveIndexHTML()), "About a new Jaeger")
+		return strings.Contains(string(h.deriveIndexHTML(context.Background())), "About a new Jaeger")
 	}, time.Second, 5*time.Millisecond, "TTL-based reload did not pick up the new UI config content")
 }
 
@@ -336,6 +372,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
 		querysvc.StorageCapabilities{},
 		nil,
+		nil,
 		zap.New(zcore),
 	)
 	require.NoError(t, err)
@@ -349,7 +386,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 		// Force a reload attempt by calling deriveIndexHTML; the malformed
 		// file should produce a logged error while leaving the previously
 		// cached "About Jaeger" content intact.
-		body := string(h.deriveIndexHTML())
+		body := string(h.deriveIndexHTML(context.Background()))
 		if !strings.Contains(body, "About Jaeger") {
 			return false
 		}
@@ -387,11 +424,12 @@ func TestLoadUIConfig(t *testing.T) {
 					&QueryOptions{UIConfig: UIConfig{ConfigFile: testCase.configFile}},
 					querysvc.StorageCapabilities{},
 					nil,
+					nil,
 					zap.NewNop(),
 				)
 				require.NoError(t, err)
 				defer h.Close()
-				assert.Contains(t, string(h.deriveIndexHTML()), testCase.expectedContent)
+				assert.Contains(t, string(h.deriveIndexHTML(context.Background())), testCase.expectedContent)
 			}
 		})
 	}

@@ -19,8 +19,7 @@ type Capabilities struct {
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesMissingSource bool
 	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
-	// the service name — Cassandra keys every index by it, and remote storage cannot say
-	// (RFC 0013).
+	// the service name — Cassandra and Badger key every index by it (RFC 0013).
 	searchRequiresServiceName bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string

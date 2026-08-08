@@ -100,11 +100,9 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create dependencies reader: %w", err)
 	}
 
-	searchCaps := searchCapabilities(ctx, traceReader, telset.Logger)
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 		MaxTraceSize:       s.config.MaxTraceSize,
-		SearchCapabilities: searchCaps,
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
@@ -121,9 +119,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	s.tenancyManager = tm
 
 	caps := querysvc.StorageCapabilities{
-		ArchiveStorage:           opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage:           s.config.Storage.Metrics != "",
-		SearchWithoutServiceName: searchCaps != nil && searchCaps.WithoutServiceName,
+		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
+		MetricsStorage: s.config.Storage.Metrics != "",
 	}
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
@@ -230,30 +227,6 @@ func (s *server) initArchiveStorage(f tracestore.Factory) (tracestore.Reader, tr
 		return nil, nil
 	}
 	return reader, writer
-}
-
-// searchCapabilities asks the reader which query shapes it accepts. Nil means it did not
-// say, which is not the same as saying it supports nothing: the struct returned alongside
-// an error is not trustworthy, so it is discarded rather than half-believed — otherwise a
-// reader answering ({WithoutServiceName: true}, err) would advertise a capability nobody
-// vouched for — and the query service asks again when the answer next matters.
-//
-// The capability blob served to the UI is built from this one answer, so a remote backend
-// unreachable at this moment leaves the UI without its "All Services" option until
-// jaeger-query restarts. Serving the blob from the live answer needs the reader plumbed
-// into the static handler (RFC 0013 M6).
-func searchCapabilities(
-	ctx context.Context,
-	reader tracestore.Reader,
-	logger *zap.Logger,
-) *tracestore.SearchCapabilities {
-	caps, err := reader.SearchCapabilities(ctx)
-	if err != nil {
-		logger.Info("Storage did not report its search capabilities; will ask again when it matters",
-			zap.Error(err))
-		return nil
-	}
-	return &caps
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {
