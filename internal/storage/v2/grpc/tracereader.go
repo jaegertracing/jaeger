@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"sync"
+	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -28,13 +28,15 @@ type TraceReader struct {
 	client       storage.TraceReaderClient
 	capabilities storage.CapabilitiesClient
 
-	// capsMu guards cachedCaps. The proto contract says capabilities are stable for the
-	// lifetime of a connection, so a successful answer is cached and asked for once. A
-	// failure is deliberately not cached: a backend that is not up yet — jaeger-query can
-	// start before its remote storage is ready — must not be mistaken for one that has
-	// answered.
-	capsMu     sync.Mutex
-	cachedCaps *tracestore.SearchCapabilities
+	// cachedCaps holds the backend's answer once it has given one. The proto contract says
+	// capabilities are stable for the lifetime of a connection, so the answer is asked for
+	// once and every later search reads it without touching the wire. A failure is
+	// deliberately not cached: a backend that is not up yet — jaeger-query can start before
+	// its remote storage is ready — must not be mistaken for one that has answered.
+	//
+	// Racing first searches may each ask, which is harmless: the answer is idempotent, and
+	// they all store the same one. That is the trade for keeping the read path lock-free.
+	cachedCaps atomic.Pointer[tracestore.SearchCapabilities]
 }
 
 // NewTraceReader creates a TraceReader that communicates with a remote gRPC storage server.
@@ -53,10 +55,8 @@ func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 // keeps a backend predating the service working unchanged, and it stays distinguishable
 // from a backend that answered and declared nothing (RFC 0013 §3.6).
 func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
-	tr.capsMu.Lock()
-	defer tr.capsMu.Unlock()
-	if tr.cachedCaps != nil {
-		return *tr.cachedCaps, nil
+	if caps := tr.cachedCaps.Load(); caps != nil {
+		return *caps, nil
 	}
 
 	resp, err := tr.capabilities.GetCapabilities(ctx, &storage.GetCapabilitiesRequest{})
@@ -71,7 +71,7 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 	caps := tracestore.SearchCapabilities{
 		WithoutServiceName: resp.GetSearch().GetWithoutServiceName(),
 	}
-	tr.cachedCaps = &caps
+	tr.cachedCaps.Store(&caps)
 	return caps, nil
 }
 
