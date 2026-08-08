@@ -366,6 +366,10 @@ func makeQuerySvc() *fakeQueryService {
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
 	traceReader.On("GetServices", mock.Anything).Return(expectedServices, nil)
+	// Serving the SPA asks what to inject into the backend-capabilities blob, so any test
+	// that fetches index.html reaches this.
+	traceReader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 	qs := querysvc.NewQueryService(traceReader, dependencyReader, querysvc.QueryServiceOptions{})
 	return &fakeQueryService{
 		qs:               qs,

@@ -6,6 +6,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,8 +46,15 @@ type BackendCapabilities struct {
 	// Storage capabilities, mirrored from querysvc.StorageCapabilities: what the
 	// configured storage backends can do. Fixed for the process lifetime, since they
 	// follow from the storage configuration.
-	ArchiveStorage           bool `json:"archiveStorage"`
-	MetricsStorage           bool `json:"metricsStorage"`
+	ArchiveStorage bool `json:"archiveStorage"`
+	MetricsStorage bool `json:"metricsStorage"`
+
+	// SearchWithoutServiceName reports whether the trace storage backend accepts a search
+	// that omits the service name and reads it as "any service" (RFC 0013). The UI offers
+	// its "All Services" option only when this is true. Unlike the two above it does not
+	// follow from configuration — a remote backend reports it for itself, and may not have
+	// been reachable when jaeger-query started — so it is asked of the query service on
+	// every SPA serve rather than fixed at boot.
 	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
 
 	// AIAssistant is not a storage property: it tracks whether a live AI sidecar is
@@ -55,10 +63,26 @@ type BackendCapabilities struct {
 	AIAssistant bool `json:"aiAssistant"`
 }
 
+// searchCapabilityReporter answers what the trace storage backend accepts. The handler
+// asks it on every SPA serve rather than being told once at startup, because a remote
+// backend reports for itself and may not have been reachable when jaeger-query started.
+// *querysvc.QueryService satisfies it.
+type searchCapabilityReporter interface {
+	SearchWithoutServiceName(ctx context.Context) bool
+}
+
 // RegisterStaticHandler builds and registers the static-assets handler on r.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is.
-func RegisterStaticHandler(r *http.ServeMux, logger *zap.Logger, qOpts *QueryOptions, qCapabilities querysvc.StorageCapabilities, aiHealthCheck func() bool) io.Closer {
-	h, err := newStaticAssetsHandler(qOpts, qCapabilities, aiHealthCheck, logger)
+// aiHealthCheck may be nil; the chat surface stays hidden when it is. Likewise querySvc
+// may be nil, which hides the "All Services" option.
+func RegisterStaticHandler(
+	r *http.ServeMux,
+	logger *zap.Logger,
+	qOpts *QueryOptions,
+	qCapabilities querysvc.StorageCapabilities,
+	querySvc searchCapabilityReporter,
+	aiHealthCheck func() bool,
+) io.Closer {
+	h, err := newStaticAssetsHandler(qOpts, qCapabilities, querySvc, aiHealthCheck, logger)
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
@@ -75,6 +99,7 @@ type staticAssetsHandler struct {
 	basePath      string
 	logAccess     bool
 	storageCaps   querysvc.StorageCapabilities
+	querySvc      searchCapabilityReporter
 	aiHealthCheck func() bool
 	logger        *zap.Logger
 
@@ -93,7 +118,13 @@ type loadedConfig struct {
 	config []byte
 }
 
-func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCapabilities, aiHealthCheck func() bool, logger *zap.Logger) (*staticAssetsHandler, error) {
+func newStaticAssetsHandler(
+	qOpts *QueryOptions,
+	storageCaps querysvc.StorageCapabilities,
+	querySvc searchCapabilityReporter,
+	aiHealthCheck func() bool,
+	logger *zap.Logger,
+) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
 	if qOpts.UIConfig.AssetsPath != "" {
 		assetsFS = http.Dir(qOpts.UIConfig.AssetsPath)
@@ -107,6 +138,7 @@ func newStaticAssetsHandler(qOpts *QueryOptions, storageCaps querysvc.StorageCap
 		basePath:      qOpts.BasePath,
 		logAccess:     qOpts.UIConfig.LogAccess,
 		storageCaps:   storageCaps,
+		querySvc:      querySvc,
 		aiHealthCheck: aiHealthCheck,
 		logger:        logger,
 		indexHTMLRaw:  raw,
@@ -168,7 +200,7 @@ func (h *staticAssetsHandler) getUIConfig() *loadedConfig {
 //
 // The <base href> is not injected here. The UI detects its own mount-point
 // prefix at page-load time via an inline script in index.html (see ADR-009).
-func (h *staticAssetsHandler) deriveIndexHTML() []byte {
+func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 	out := h.indexHTMLRaw
 	if cfg := h.getUIConfig(); cfg != nil {
 		out = cfg.regexp.ReplaceAll(out, cfg.config)
@@ -179,10 +211,14 @@ func (h *staticAssetsHandler) deriveIndexHTML() []byte {
 	if h.aiHealthCheck != nil {
 		aiAvailable = h.aiHealthCheck()
 	}
+	searchWithoutServiceName := false
+	if h.querySvc != nil {
+		searchWithoutServiceName = h.querySvc.SearchWithoutServiceName(ctx)
+	}
 	capsJSON, _ := json.Marshal(BackendCapabilities{
 		ArchiveStorage:           h.storageCaps.ArchiveStorage,
 		MetricsStorage:           h.storageCaps.MetricsStorage,
-		SearchWithoutServiceName: h.storageCaps.SearchWithoutServiceName,
+		SearchWithoutServiceName: searchWithoutServiceName,
 		AIAssistant:              aiAvailable,
 	})
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
@@ -284,9 +320,9 @@ func (h *staticAssetsHandler) registerRoutes(router *http.ServeMux) {
 	router.Handle(catchAllPattern, h.loggingHandler(http.HandlerFunc(h.serveSPA)))
 }
 
-func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, _ *http.Request) {
+func (h *staticAssetsHandler) serveSPA(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(h.deriveIndexHTML())
+	w.Write(h.deriveIndexHTML(r.Context()))
 }
 
 // Close is a no-op; the handler holds no resources that need explicit

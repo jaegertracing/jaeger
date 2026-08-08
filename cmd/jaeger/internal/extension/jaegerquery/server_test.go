@@ -586,62 +586,6 @@ func TestBuildAIHealthChecker(t *testing.T) {
 	}
 }
 
-// TestSearchCapabilities covers what server.Start does with the reader's answer. A reader
-// that reports an error gets the baseline: the struct returned alongside an error is not
-// trustworthy, so a reader claiming a capability *and* failing must not have the claim
-// believed — otherwise the UI would advertise a feature nobody vouched for.
-func TestSearchCapabilities(t *testing.T) {
-	sentinel := errors.New("cannot reach the backend")
-	tests := []struct {
-		name     string
-		reader   tracestore.Reader
-		expected tracestore.SearchCapabilities
-	}{
-		{
-			name:     "declared capability is taken",
-			reader:   capabilityReader{caps: tracestore.SearchCapabilities{WithoutServiceName: true}},
-			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
-		},
-		{
-			name:     "declared absence is taken",
-			reader:   capabilityReader{},
-			expected: tracestore.SearchCapabilities{},
-		},
-		{
-			name: "a value returned with an error is discarded",
-			reader: capabilityReader{
-				caps: tracestore.SearchCapabilities{WithoutServiceName: true},
-				err:  sentinel,
-			},
-			expected: tracestore.SearchCapabilities{},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			logger, buf := testutils.NewLogger()
-
-			got := searchCapabilities(context.Background(), test.reader, logger)
-
-			assert.Equal(t, test.expected, got)
-			if test.reader.(capabilityReader).err != nil {
-				assert.Contains(t, buf.String(), "assuming baseline")
-			}
-		})
-	}
-}
-
-// capabilityReader answers SearchCapabilities and panics on anything else, so a test that
-// accidentally exercises another method fails loudly rather than silently.
-type capabilityReader struct {
-	tracestore.Reader
-	caps tracestore.SearchCapabilities
-	err  error
-}
-
-func (r capabilityReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return r.caps, r.err
-}
-
 // TestServerStartWiresSearchCapability follows the capability from storage through Start
 // into the query service, where it decides whether a search may omit the service name.
 // The three cases are the three answers a reader can give.
