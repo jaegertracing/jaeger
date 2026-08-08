@@ -16,7 +16,7 @@
 
 # Jaeger - a Distributed Tracing System
 
-💥💥💥 Jaeger v2 is out! Read the [blog post](https://medium.com/jaegertracing/jaeger-v2-released-09a6033d1b10) and [try it out](https://www.jaegertracing.io/docs/latest/getting-started/).
+?????? Jaeger v2 is out! Read the [blog post](https://medium.com/jaegertracing/jaeger-v2-released-09a6033d1b10) and [try it out](https://www.jaegertracing.io/docs/latest/getting-started/).
 
 ## Quick Start
 
@@ -217,3 +217,15 @@ Copyright (c) The Jaeger Authors. [Apache 2.0 License](./LICENSE).
 [slack]: https://cloud-native.slack.com/archives/CGG7NFUJ3
 [slack-join]: https://slack.cncf.io
 [slack-img]: https://img.shields.io/badge/slack-join%20chat%20%E2%86%92-brightgreen?logo=slack
+
+## Getting Help
+
+- **GitHub Issues**: [jaegertracing/jaeger/issues](https://github.com/jaegertracing/jaeger/issues)
+- **Slack**: [CNCF Slack](https://slack.cncf.io/) #jaeger channel
+- **Documentation**: [jaegertracing.io](https://www.jaegertracing.io/docs/)
+- **Mailing List**: [jaeger-tracing](https://groups.google.com/g/jaeger-tracing)
+
+## Acknowledgements
+
+Jaeger is inspired by Google's Dapper paper and was originally developed by Uber Technologies.
+It is now a [CNCF](https://www.cncf.io/) incubating project.
