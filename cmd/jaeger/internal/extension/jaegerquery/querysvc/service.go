@@ -41,11 +41,6 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
-	// SearchCapabilities is what the trace reader reported about the query shapes it
-	// accepts. It is read once at startup rather than per query, so a backend that has to
-	// fetch it does so once; the query service rejects a query the backend cannot serve
-	// instead of letting it reach storage and come back wrong (RFC 0013 §3.3).
-	SearchCapabilities tracestore.SearchCapabilities
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -170,7 +165,7 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		if err := qs.validateSearchQuery(query); err != nil {
+		if err := qs.validateSearchQuery(ctx, query); err != nil {
 			yield(nil, err)
 			return
 		}
@@ -183,8 +178,20 @@ func (qs QueryService) FindTraces(
 // readers guard themselves too, but they answer differently — Cassandra returned an empty
 // result for a service-less search until RFC 0013 — so the single answer callers see is
 // decided here, where the capability is known.
-func (qs QueryService) validateSearchQuery(query TraceQueryParams) error {
-	if query.ServiceName == "" && !qs.options.SearchCapabilities.WithoutServiceName {
+//
+// The reader is asked per query rather than once at startup: a remote backend answers over
+// the network, and jaeger-query can come up before that backend is reachable, so a single
+// early answer would pin the process to the least capable behaviour for its whole life.
+// Readers that pay to fetch the capability cache it themselves. A reader that cannot say
+// what it supports — errors.ErrUnsupported, or an unreachable backend — is treated as the
+// least capable one, which is what keeps the query from reaching storage and coming back
+// silently wrong.
+func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
+	if query.ServiceName != "" {
+		return nil
+	}
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil || !caps.WithoutServiceName {
 		return ErrServiceNameRequired
 	}
 	return nil
@@ -202,7 +209,7 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if err := qs.validateSearchQuery(query); err != nil {
+		if err := qs.validateSearchQuery(ctx, query); err != nil {
 			yield(nil, err)
 			return
 		}

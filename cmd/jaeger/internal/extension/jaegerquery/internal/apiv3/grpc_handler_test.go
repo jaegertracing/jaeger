@@ -80,6 +80,10 @@ func newTestServerClient(t *testing.T) *testServerClient {
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
+	// The mock reader models a backend that requires a service name, which is the
+	// baseline every reader is held to until it declares otherwise.
+	tsc.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 
 	q := querysvc.NewQueryService(
 		tsc.reader,
@@ -548,8 +552,6 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 // the Unknown a bare error would produce (RFC 0013 §3.3).
 func TestFindTracesServiceNameRequired(t *testing.T) {
 	tsc := newTestServerClient(t)
-	tsc.reader.On("SearchCapabilities", mock.Anything).
-		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
 		Query: &api_v3.TraceQueryParameters{

@@ -46,6 +46,10 @@ func setupHTTPGatewayNoServer(
 		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
+	// The mock reader models a backend that requires a service name, which is the
+	// baseline every reader is held to until it declares otherwise.
+	gw.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 
 	q := querysvc.NewQueryService(
 		gw.reader,

@@ -103,7 +103,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 		MaxTraceSize:       s.config.MaxTraceSize,
-		SearchCapabilities: searchCapabilities(ctx, traceReader, telset.Logger),
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
@@ -122,7 +121,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	caps := querysvc.StorageCapabilities{
 		ArchiveStorage:           opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
 		MetricsStorage:           s.config.Storage.Metrics != "",
-		SearchWithoutServiceName: opts.SearchCapabilities.WithoutServiceName,
+		SearchWithoutServiceName: searchCapabilities(ctx, traceReader, telset.Logger).WithoutServiceName,
 	}
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
@@ -231,10 +230,15 @@ func (s *server) initArchiveStorage(f tracestore.Factory) (tracestore.Reader, tr
 	return reader, writer
 }
 
-// searchCapabilities asks the reader which query shapes it accepts. A reader that cannot
-// answer yields the baseline: the struct returned alongside an error is not trustworthy,
-// so it is discarded rather than half-believed — otherwise a reader answering
-// ({WithoutServiceName: true}, err) would advertise a capability nobody vouched for.
+// searchCapabilities asks the reader which query shapes it accepts, for the capability
+// blob served to the UI. A reader that cannot answer yields the baseline: the struct
+// returned alongside an error is not trustworthy, so it is discarded rather than
+// half-believed — otherwise a reader answering ({WithoutServiceName: true}, err) would
+// advertise a capability nobody vouched for.
+//
+// The blob is built once here, so a remote backend that is unreachable at startup leaves
+// the UI without its "All Services" option until jaeger-query restarts. Query enforcement
+// does not share that limitation: querysvc asks the reader per search.
 func searchCapabilities(
 	ctx context.Context,
 	reader tracestore.Reader,
