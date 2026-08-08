@@ -154,7 +154,7 @@ fmt: $(GOFUMPT)
 	@./scripts/lint/check-line-endings.py -u
 
 .PHONY: lint
-lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings
+lint: lint-fmt lint-license lint-imports lint-semconv lint-goversion lint-goleak lint-go lint-monitoring lint-line-endings lint-mocks
 
 .PHONY: lint-monitoring
 lint-monitoring:
@@ -264,6 +264,36 @@ generate-dashboards:
 generate-mocks: $(MOCKERY)
 	find . -path '*/mocks/*' -name '*.go' -type f -delete
 	$(MOCKERY) | tee .mockery.log
+
+.PHONY: lint-mocks
+lint-mocks:
+	@echo "Checking if mocks are up to date..."
+	@if ! git diff --quiet HEAD -- '**/mocks/*.go' || git status --porcelain -- '**/mocks/*.go' | grep -q '??'; then \
+		echo "Error: Working directory has uncommitted mock modifications or untracked mock files. Commit, stash, or clean them before running lint-mocks."; \
+		exit 1; \
+	fi
+	@($(MAKE) generate-mocks) || (echo "Mock generation failed. Restoring mocks..." && git checkout -- '**/mocks/*.go' 2>/dev/null && git clean -fd -- '**/mocks/*.go' 2>/dev/null && exit 1)
+	@if ! git diff --quiet HEAD -- '**/mocks/*.go' || git status --porcelain -- '**/mocks/*.go' | grep -q '??'; then \
+		echo "Mocks are out of date. Run 'make generate-mocks' and commit the changes."; \
+		git status --porcelain -- '**/mocks/*.go'; \
+		git checkout -- '**/mocks/*.go' 2>/dev/null; \
+		git clean -fd -- '**/mocks/*.go' 2>/dev/null; \
+		exit 1; \
+	fi
+	@echo "OK: Mocks are up to date."
+
+GOCOVDIFF := $(TOOLS_BIN_DIR)/gocovdiff
+$(GOCOVDIFF):
+	cd internal/tools && GOBIN=$(abspath $(TOOLS_BIN_DIR)) $(GO) install -trimpath github.com/vearutop/gocovdiff
+
+TARGET_BRANCH      ?= origin/main
+COVER_PROFILE      ?= cover.out
+COVERAGE_THRESHOLD ?= 75
+.PHONY: check-coverage
+check-coverage: $(GOCOVDIFF)
+	@echo "Checking coverage of changed files relative to $(TARGET_BRANCH) using $(COVER_PROFILE) (threshold: $(COVERAGE_THRESHOLD)%)..."
+	@git rev-parse --verify $(TARGET_BRANCH) >/dev/null 2>&1 || (git fetch origin $$(echo $(TARGET_BRANCH) | sed 's|^origin/||') && git rev-parse --verify $(TARGET_BRANCH) >/dev/null 2>&1)
+	@$(GOCOVDIFF) -cov $(COVER_PROFILE) -target-branch $(TARGET_BRANCH) -threshold $(COVERAGE_THRESHOLD)
 
 .PHONY: certs
 certs:
