@@ -21,7 +21,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/ui"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/version"
 )
 
@@ -41,48 +40,32 @@ var (
 var uiConfigReloadInterval = 10 * time.Second
 
 // BackendCapabilities is the JSON shape injected into index.html via the
-// JAEGER_BACKEND_CAPABILITIES search-replace pattern.
+// JAEGER_BACKEND_CAPABILITIES search-replace pattern. It tells the UI which surfaces to
+// offer: the archive and metrics screens, the "All Services" search option (RFC 0013),
+// and the AI chat panel.
 type BackendCapabilities struct {
-	// Storage capabilities, mirrored from querysvc.StorageCapabilities: what the
-	// configured storage backends can do. Fixed for the process lifetime, since they
-	// follow from the storage configuration.
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-
-	// SearchWithoutServiceName reports whether the trace storage backend accepts a search
-	// that omits the service name and reads it as "any service" (RFC 0013). The UI offers
-	// its "All Services" option only when this is true. Unlike the two above it does not
-	// follow from configuration — a remote backend reports it for itself, and may not have
-	// been reachable when jaeger-query started — so it is asked of the query service on
-	// every SPA serve rather than fixed at boot.
+	ArchiveStorage           bool `json:"archiveStorage"`
+	MetricsStorage           bool `json:"metricsStorage"`
 	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
-
-	// AIAssistant is not a storage property: it tracks whether a live AI sidecar is
-	// reachable, so it can flip while the process runs and is re-evaluated on every
-	// SPA serve.
-	AIAssistant bool `json:"aiAssistant"`
+	AIAssistant              bool `json:"aiAssistant"`
 }
 
-// searchCapabilityReporter answers what the trace storage backend accepts. The handler
-// asks it on every SPA serve rather than being told once at startup, because a remote
-// backend reports for itself and may not have been reachable when jaeger-query started.
-// *querysvc.QueryService satisfies it.
-type searchCapabilityReporter interface {
-	SearchWithoutServiceName(ctx context.Context) bool
-}
+// BackendCapabilityProvider reports what the deployment can currently do. The handler calls
+// it on every SPA serve rather than being told once at startup, because not every field is
+// settled by then: the AI sidecar's reachability flips while the process runs, and a remote
+// storage backend reports for itself and may not have answered yet. The fields that do
+// follow from configuration are simply constant within the provider.
+type BackendCapabilityProvider func(context.Context) BackendCapabilities
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is. Likewise querySvc
-// may be nil, which hides the "All Services" option.
+// backendCaps may be nil, which offers the UI nothing beyond the bundle itself.
 func RegisterStaticHandler(
 	r *http.ServeMux,
 	logger *zap.Logger,
 	qOpts *QueryOptions,
-	qCapabilities querysvc.StorageCapabilities,
-	querySvc searchCapabilityReporter,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 ) io.Closer {
-	h, err := newStaticAssetsHandler(qOpts, qCapabilities, querySvc, aiHealthCheck, logger)
+	h, err := newStaticAssetsHandler(qOpts, backendCaps, logger)
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
@@ -91,17 +74,15 @@ func RegisterStaticHandler(
 }
 
 // staticAssetsHandler serves the Jaeger UI bundle. index.html is derived on
-// every SPA serve so all injected values — including the AI capability,
-// which flips at runtime — are always current. The raw bytes are cached;
+// every SPA serve so all injected values — including the backend capabilities,
+// which change at runtime — are always current. The raw bytes are cached;
 // the UI config is cached with a TTL and re-read from disk on demand.
 type staticAssetsHandler struct {
-	assetsFS      http.FileSystem
-	basePath      string
-	logAccess     bool
-	storageCaps   querysvc.StorageCapabilities
-	querySvc      searchCapabilityReporter
-	aiHealthCheck func() bool
-	logger        *zap.Logger
+	assetsFS    http.FileSystem
+	basePath    string
+	logAccess   bool
+	backendCaps BackendCapabilityProvider
+	logger      *zap.Logger
 
 	indexHTMLRaw []byte // read once from disk at boot
 	uiConfigFile string // immutable after construction
@@ -120,9 +101,7 @@ type loadedConfig struct {
 
 func newStaticAssetsHandler(
 	qOpts *QueryOptions,
-	storageCaps querysvc.StorageCapabilities,
-	querySvc searchCapabilityReporter,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	logger *zap.Logger,
 ) (*staticAssetsHandler, error) {
 	assetsFS := ui.GetStaticFiles(logger)
@@ -134,15 +113,13 @@ func newStaticAssetsHandler(
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	h := &staticAssetsHandler{
-		assetsFS:      assetsFS,
-		basePath:      qOpts.BasePath,
-		logAccess:     qOpts.UIConfig.LogAccess,
-		storageCaps:   storageCaps,
-		querySvc:      querySvc,
-		aiHealthCheck: aiHealthCheck,
-		logger:        logger,
-		indexHTMLRaw:  raw,
-		uiConfigFile:  qOpts.UIConfig.ConfigFile,
+		assetsFS:     assetsFS,
+		basePath:     qOpts.BasePath,
+		logAccess:    qOpts.UIConfig.LogAccess,
+		backendCaps:  backendCaps,
+		logger:       logger,
+		indexHTMLRaw: raw,
+		uiConfigFile: qOpts.UIConfig.ConfigFile,
 	}
 	if h.uiConfigFile != "" {
 		// Eager initial load: surface UI-config syntax errors at startup
@@ -207,20 +184,11 @@ func (h *staticAssetsHandler) deriveIndexHTML(ctx context.Context) []byte {
 	}
 	versionJSON, _ := json.Marshal(version.Get())
 	out = versionPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_VERSION = %s;", versionJSON))
-	aiAvailable := false
-	if h.aiHealthCheck != nil {
-		aiAvailable = h.aiHealthCheck()
+	var caps BackendCapabilities
+	if h.backendCaps != nil {
+		caps = h.backendCaps(ctx)
 	}
-	searchWithoutServiceName := false
-	if h.querySvc != nil {
-		searchWithoutServiceName = h.querySvc.SearchWithoutServiceName(ctx)
-	}
-	capsJSON, _ := json.Marshal(BackendCapabilities{
-		ArchiveStorage:           h.storageCaps.ArchiveStorage,
-		MetricsStorage:           h.storageCaps.MetricsStorage,
-		SearchWithoutServiceName: searchWithoutServiceName,
-		AIAssistant:              aiAvailable,
-	})
+	capsJSON, _ := json.Marshal(caps)
 	out = capabilitiesPattern.ReplaceAll(out, fmt.Appendf(nil, "JAEGER_BACKEND_CAPABILITIES = %s;", capsJSON))
 	return out
 }

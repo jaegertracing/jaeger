@@ -25,29 +25,18 @@ import (
 	"go.uber.org/zap/zapcore"
 	"go.uber.org/zap/zaptest/observer"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
 
-// searchCapabilityFunc adapts a function to searchCapabilityReporter so a test can vary
-// the answer between requests.
-type searchCapabilityFunc func(context.Context) bool
-
-func (f searchCapabilityFunc) SearchWithoutServiceName(ctx context.Context) bool {
-	return f(ctx)
-}
-
-// staticSearchCapability is a reporter that always gives the same answer.
-func staticSearchCapability(supported bool) searchCapabilityFunc {
-	return func(context.Context) bool { return supported }
+// withCaps builds a provider that always reports caps.
+func withCaps(caps BackendCapabilities) BackendCapabilityProvider {
+	return func(context.Context) BackendCapabilities { return caps }
 }
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "/foo/bar"}},
-		querysvc.StorageCapabilities{},
-		nil,
-		nil,
+		nilBackendCaps,
 		zap.NewNop(),
 	)
 	require.ErrorContains(t, err, "no such file or directory")
@@ -65,9 +54,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 					AssetsPath: "/foo/bar",
 				},
 			},
-			querysvc.StorageCapabilities{ArchiveStorage: false},
-			nil,
-			nil,
+			nilBackendCaps,
 		)
 		defer closer.Close()
 	})
@@ -139,9 +126,10 @@ func TestRegisterStaticHandler(t *testing.T) {
 					},
 					BasePath: testCase.basePath,
 				},
-				querysvc.StorageCapabilities{ArchiveStorage: testCase.archiveStorage, MetricsStorage: testCase.metricsStorage},
-				nil,
-				nil,
+				withCaps(BackendCapabilities{
+					ArchiveStorage: testCase.archiveStorage,
+					MetricsStorage: testCase.metricsStorage,
+				}),
 			)
 			defer closer.Close()
 
@@ -182,40 +170,31 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 }
 
+// TestStaticHandlerInjectsBackendCapabilities covers the handler's whole part in this:
+// serialize what the provider reports, under the key names and in the order the UI bundle
+// expects, into the JAEGER_BACKEND_CAPABILITIES slot. Whether any given flag is true is the
+// provider's decision, made where the capability is known and tested there.
 func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	tests := []struct {
-		name                     string
-		archiveStorage           bool
-		metricsStorage           bool
-		searchWithoutServiceName bool
-		aiHealthCheck            func() bool
-		expectAIAssistant        bool
+		name string
+		caps BackendCapabilities
 	}{
 		{
-			name:              "no AI health check injects aiAssistant=false",
-			aiHealthCheck:     nil,
-			expectAIAssistant: false,
+			name: "nothing supported",
+			caps: BackendCapabilities{},
 		},
 		{
-			name:              "AI reachable injects aiAssistant=true",
-			aiHealthCheck:     func() bool { return true },
-			expectAIAssistant: true,
+			name: "everything supported",
+			caps: BackendCapabilities{
+				ArchiveStorage:           true,
+				MetricsStorage:           true,
+				SearchWithoutServiceName: true,
+				AIAssistant:              true,
+			},
 		},
 		{
-			name:              "AI unreachable injects aiAssistant=false",
-			aiHealthCheck:     func() bool { return false },
-			expectAIAssistant: false,
-		},
-		{
-			name:              "storage flags mirrored alongside AI",
-			archiveStorage:    true,
-			metricsStorage:    true,
-			aiHealthCheck:     func() bool { return true },
-			expectAIAssistant: true,
-		},
-		{
-			name:                     "search without service name is advertised when the backend supports it",
-			searchWithoutServiceName: true,
+			name: "one flag does not imply another",
+			caps: BackendCapabilities{SearchWithoutServiceName: true},
 		},
 	}
 	for _, tt := range tests {
@@ -224,12 +203,7 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 			closer := RegisterStaticHandler(
 				r, zap.NewNop(),
 				&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-				querysvc.StorageCapabilities{
-					ArchiveStorage: tt.archiveStorage,
-					MetricsStorage: tt.metricsStorage,
-				},
-				staticSearchCapability(tt.searchWithoutServiceName),
-				tt.aiHealthCheck,
+				withCaps(tt.caps),
 			)
 			defer closer.Close()
 
@@ -239,7 +213,8 @@ func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 
 			expected := fmt.Sprintf(
 				`JAEGER_BACKEND_CAPABILITIES = {"archiveStorage":%t,"metricsStorage":%t,"searchWithoutServiceName":%t,"aiAssistant":%t};`,
-				tt.archiveStorage, tt.metricsStorage, tt.searchWithoutServiceName, tt.expectAIAssistant,
+				tt.caps.ArchiveStorage, tt.caps.MetricsStorage,
+				tt.caps.SearchWithoutServiceName, tt.caps.AIAssistant,
 			)
 			assert.Contains(t, body, expected, "backend capabilities injection mismatch")
 		})
@@ -252,9 +227,9 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-		querysvc.StorageCapabilities{},
-		nil,
-		available.Load,
+		func(context.Context) BackendCapabilities {
+			return BackendCapabilities{AIAssistant: available.Load()}
+		},
 	)
 	defer closer.Close()
 
@@ -285,9 +260,9 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 	closer := RegisterStaticHandler(
 		r, zap.NewNop(),
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture"}, BasePath: ""},
-		querysvc.StorageCapabilities{},
-		searchCapabilityFunc(func(context.Context) bool { return supported.Load() }),
-		nil,
+		func(context.Context) BackendCapabilities {
+			return BackendCapabilities{SearchWithoutServiceName: supported.Load()}
+		},
 	)
 	defer closer.Close()
 
@@ -307,9 +282,7 @@ func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: "fixture/invalid-config"}},
-		querysvc.StorageCapabilities{},
-		nil,
-		nil,
+		nilBackendCaps,
 		zap.NewNop(),
 	)
 	require.Error(t, err)
@@ -340,9 +313,7 @@ func TestHotReloadUIConfig(t *testing.T) {
 
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
-		querysvc.StorageCapabilities{},
-		nil,
-		nil,
+		nilBackendCaps,
 		zap.NewNop(),
 	)
 	require.NoError(t, err)
@@ -383,9 +354,7 @@ func TestUIConfigReloadErrorKeepsCachedValue(t *testing.T) {
 	zcore, logObserver := observer.New(zapcore.ErrorLevel)
 	h, err := newStaticAssetsHandler(
 		&QueryOptions{UIConfig: UIConfig{AssetsPath: "fixture", ConfigFile: cfgFileName}},
-		querysvc.StorageCapabilities{},
-		nil,
-		nil,
+		nilBackendCaps,
 		zap.New(zcore),
 	)
 	require.NoError(t, err)
@@ -435,9 +404,7 @@ func TestLoadUIConfig(t *testing.T) {
 			if testCase.expectedContent != "" {
 				h, err := newStaticAssetsHandler(
 					&QueryOptions{UIConfig: UIConfig{ConfigFile: testCase.configFile}},
-					querysvc.StorageCapabilities{},
-					nil,
-					nil,
+					nilBackendCaps,
 					zap.NewNop(),
 				)
 				require.NoError(t, err)

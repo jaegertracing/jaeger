@@ -43,18 +43,6 @@ type QueryServiceOptions struct {
 	MaxTraceSize int
 }
 
-// StorageCapabilities is a feature flag for query service. It carries what follows from
-// the storage configuration and is therefore fixed for the process lifetime; what the
-// backend itself reports is asked of the reader when it matters, not copied here (see
-// SearchWithoutServiceName).
-type StorageCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-	// Potential future extensions:
-	// SupportRegex     bool
-	// SupportTagFilter bool
-}
-
 // QueryService provides methods to query data from the storage.
 type QueryService struct {
 	traceReader      tracestore.Reader

@@ -118,16 +118,21 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
-	caps := querysvc.StorageCapabilities{
-		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage: s.config.Storage.Metrics != "",
-	}
-
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
-	var aiHealthCheck func() bool
-	if s.aiHealth != nil {
-		aiHealthCheck = s.aiHealth.Current
+	// Assembled here, where every source is in scope, and evaluated per SPA serve rather
+	// than now: the AI sidecar's reachability flips while the process runs, and the storage
+	// backend answers for itself and may not be reachable yet. Archive and metrics follow
+	// from configuration, so they are settled by this point.
+	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
+	metricsStorage := s.config.Storage.Metrics != ""
+	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
+		return queryapp.BackendCapabilities{
+			ArchiveStorage:           archiveStorage,
+			MetricsStorage:           metricsStorage,
+			SearchWithoutServiceName: qs.SearchWithoutServiceName(ctx),
+			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
+		}
 	}
 
 	s.server, err = queryapp.NewServer(
@@ -136,8 +141,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		qs,
 		mqs,
 		&s.config.QueryOptions,
-		caps,
-		aiHealthCheck,
+		backendCaps,
 		tm,
 		telset,
 	)
