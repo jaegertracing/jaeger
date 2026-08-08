@@ -54,14 +54,12 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-// aiHealthCheck may be nil; the chat surface stays hidden when it is.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	options *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*Server, error) {
@@ -84,7 +82,7 @@ func NewServer(
 		return nil, err
 	}
 	registerGRPCHandlers(grpcServer, querySvc, telset)
-	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, caps, aiHealthCheck, tm, telset)
+	httpServer, err := createHTTPServer(ctx, querySvc, metricsQuerySvc, options, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +193,7 @@ func initRouter(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tenancyMgr *tenancy.Manager,
 	telset telemetry.Settings,
 ) (http.Handler, closers, error) {
@@ -212,6 +209,7 @@ func initRouter(
 		apiHandlerOptions...,
 	)
 	r := http.NewServeMux()
+	var cs closers
 
 	(&apiv3.HTTPGateway{
 		QueryService: querySvc,
@@ -229,50 +227,17 @@ func initRouter(
 		apiNotFoundPattern = queryOpts.BasePath + apiNotFoundPattern
 	}
 
-	// AI Gateway Endpoints
-	var aiGateway *jaegerai.Handler
 	if queryOpts.AI.HasValue() {
-		if aiCfg := queryOpts.AI.Get(); aiCfg != nil {
-			if err := aiCfg.Validate(); err != nil {
-				telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
-			} else {
-				// One config for both MCP endpoints so they cannot drift.
-				mcpCfg := mcptools.DefaultConfig()
-				if aiCfg.AgentURL != "" {
-					// When AI chat is enabled, jaegerai owns the chat endpoint and,
-					// if MCP is also enabled, the turn-scoped MCP endpoint
-					// (/api/ai/mcp/<id>/). It holds MCP sessions past the request
-					// that opened them, so it joins the closers returned below.
-					//
-					// The announced base URL is resolved here because inferring the
-					// gateway's own localhost address needs the query HTTP endpoint
-					// and TLS setting, which live on QueryOptions, not AIConfig.
-					aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
-						Logger:             telset.Logger,
-						AgentURL:           aiCfg.AgentURL,
-						BasePath:           queryOpts.BasePath,
-						MaxRequestBodySize: aiCfg.MaxRequestBodySize,
-						EnableMCP:          aiCfg.EnableMCP,
-						MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
-						QueryService:       querySvc,
-						TenancyMgr:         tenancyMgr,
-						Telset:             telset,
-						MCPConfig:          mcpCfg,
-					})
-					aiGateway.RegisterRoutes(r)
-				}
-				if aiCfg.EnableMCP {
-					// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the
-					// wildcard turn-scoped pattern above.
-					registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset)
-				}
-			}
+		aiClosers, err := registerAIRoutes(ctx, r, queryOpts, querySvc, tenancyMgr, telset)
+		if err != nil {
+			return nil, nil, errors.Join(err, cs.Close())
 		}
+		cs = append(cs, aiClosers...)
 	}
 
 	if queryOpts.OTLPProxy.HasValue() {
 		if err := registerOTLPProxy(r, queryOpts, telset); err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Join(err, cs.Close())
 		}
 	}
 
@@ -280,10 +245,7 @@ func initRouter(
 		http.Error(w, "404 page not found", http.StatusNotFound)
 	})
 
-	cs := closers{RegisterStaticHandler(r, telset.Logger, queryOpts, caps, aiHealthCheck)}
-	if aiGateway != nil {
-		cs = append(cs, aiGateway)
-	}
+	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
 	var handler http.Handler = r
 	if queryOpts.BearerTokenPropagation {
@@ -297,6 +259,73 @@ func initRouter(
 	}
 	handler = traceResponseHandler(handler)
 	return handler, cs, nil
+}
+
+// registerAIRoutes mounts the AI chat gateway and the telemetry MCP endpoint,
+// and returns the closers for whatever it mounted. Invalid AI config disables
+// the AI surface rather than stopping the query server, which also serves the
+// UI and the trace APIs.
+func registerAIRoutes(
+	ctx context.Context,
+	r *http.ServeMux,
+	queryOpts *QueryOptions,
+	querySvc *querysvc.QueryService,
+	tenancyMgr *tenancy.Manager,
+	telset telemetry.Settings,
+) (closers, error) {
+	aiCfg := queryOpts.AI.Get()
+	if err := aiCfg.Validate(); err != nil {
+		telset.Logger.Error("Invalid AI config, AI handler disabled", zap.Error(err))
+		return nil, nil
+	}
+
+	var cs closers
+	// One config for both MCP endpoints so they cannot drift, and the zero value
+	// when MCP is off — the gateway ignores it then.
+	var mcpCfg mcptools.Config
+	if mcp := aiCfg.MCP.Get(); mcp != nil {
+		mcpCfg = mcptools.DefaultConfig()
+		// Opened once, so both endpoints share the handle and a broken path is
+		// reported once, at startup. It stays open for as long as it serves, so
+		// it is released with the server rather than at process exit.
+		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
+		if err != nil {
+			return nil, err
+		}
+		if customSkills != nil {
+			cs = append(cs, customSkills)
+		}
+		mcpCfg.CustomSkillsFS = customSkills
+		// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the wildcard
+		// turn-scoped pattern the gateway registers below.
+		registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset)
+	}
+
+	if aiCfg.AgentURL != "" {
+		// jaegerai owns the chat endpoint and, when MCP is on, the turn-scoped
+		// endpoint (/api/ai/mcp/<id>/) — which is why mcpCfg is built above
+		// rather than inside this branch. It holds MCP sessions past the request
+		// that opened them, so it joins the closers.
+		//
+		// The announced base URL is resolved here because inferring the
+		// gateway's own localhost address needs the query HTTP endpoint and TLS
+		// setting, which live on QueryOptions, not AIConfig.
+		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
+			Logger:             telset.Logger,
+			AgentURL:           aiCfg.AgentURL,
+			BasePath:           queryOpts.BasePath,
+			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
+			EnableMCP:          aiCfg.MCP.HasValue(),
+			MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
+			QueryService:       querySvc,
+			TenancyMgr:         tenancyMgr,
+			Telset:             telset,
+			MCPConfig:          mcpCfg,
+		})
+		aiGateway.RegisterRoutes(r)
+		cs = append(cs, aiGateway)
+	}
+	return cs, nil
 }
 
 func otlpProxyPathPrefix(basePath string) string {
@@ -356,12 +385,11 @@ func createHTTPServer(
 	querySvc *querysvc.QueryService,
 	metricsQuerySvc metricstore.Reader,
 	queryOpts *QueryOptions,
-	caps querysvc.StorageCapabilities,
-	aiHealthCheck func() bool,
+	backendCaps BackendCapabilityProvider,
 	tm *tenancy.Manager,
 	telset telemetry.Settings,
 ) (*httpServer, error) {
-	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, caps, aiHealthCheck, tm, telset)
+	handler, cs, err := initRouter(ctx, querySvc, metricsQuerySvc, queryOpts, backendCaps, tm, telset)
 	if err != nil {
 		return nil, err
 	}

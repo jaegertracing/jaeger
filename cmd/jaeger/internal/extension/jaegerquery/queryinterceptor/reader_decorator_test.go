@@ -6,6 +6,7 @@ package queryinterceptor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"testing"
 
@@ -33,6 +34,12 @@ type fakeReader struct {
 	gotSummaryQuery tracestore.TraceQueryParams
 	summaries       []tracestore.TraceSummary
 	summaryErr      error
+	capabilities    tracestore.SearchCapabilities
+	capabilitiesErr error
+}
+
+func (f *fakeReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return f.capabilities, f.capabilitiesErr
 }
 
 func (f *fakeReader) FindTraces(ctx context.Context, q tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
@@ -532,5 +539,40 @@ func TestReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
 	for _, e := range r.FindTraceSummaries(t.Context(), tracestore.TraceQueryParams{}) {
 		err = e
 	}
+	require.ErrorIs(t, err, sentinel)
+}
+
+// TestReader_SearchCapabilities_ForwardsBackendDeclaration pins that wrapping does not
+// change which query shapes the backend accepts. An interceptor gates and sanitizes
+// queries; if the decorator answered for itself, a capability the backend has would be
+// lost to every caller that consults it (RFC 0013 §3.1).
+//
+// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
+// per field rather than for one value that happens to pass;
+// TestSearchCapabilities_FieldCount fails when a field is added without extending this
+// table.
+func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
+	for _, caps := range []tracestore.SearchCapabilities{
+		{WithoutServiceName: false},
+		{WithoutServiceName: true},
+	} {
+		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
+			r := NewReaderDecorator(&fakeReader{capabilities: caps}, fakeInterceptor{})
+
+			got, err := r.SearchCapabilities(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, caps, got)
+		})
+	}
+}
+
+// TestReader_SearchCapabilities_ForwardsFailure pins that "cannot answer" survives the
+// wrapper too: a decorator that swallowed the error would turn it into "no capabilities",
+// which is a different claim.
+func TestReader_SearchCapabilities_ForwardsFailure(t *testing.T) {
+	sentinel := errors.New("cannot ask the backend")
+	r := NewReaderDecorator(&fakeReader{capabilitiesErr: sentinel}, fakeInterceptor{})
+
+	_, err := r.SearchCapabilities(t.Context())
 	require.ErrorIs(t, err, sentinel)
 }
