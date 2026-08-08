@@ -19,8 +19,7 @@ type Capabilities struct {
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesMissingSource bool
 	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
-	// the service name — Cassandra keys every index by it, and remote storage cannot say
-	// (RFC 0013).
+	// the service name — Cassandra and Badger key every index by it (RFC 0013).
 	searchRequiresServiceName bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
@@ -59,20 +58,7 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		searchRequiresServiceName: true,
-		skipList:                  []string{FindTraceSummariesTest},
-	}
-}
-
-// RemoteStorageE2E returns the opt-outs for an end-to-end deployment whose jaeger-query
-// reads through gRPC remote storage. Whatever the store behind the remote can do,
-// jaeger.storage.v2 cannot report it, so jaeger-query assumes the baseline and refuses a
-// search that omits the service name (RFC 0013 §3.6). It excuses nothing else: unlike
-// GRPC(), which describes the remote store itself, these deployments back the remote with
-// an in-memory store whose other behavior is fully exercised.
-func RemoteStorageE2E() Capabilities {
-	return Capabilities{
-		searchRequiresServiceName: true,
+		skipList: []string{FindTraceSummariesTest},
 	}
 }
 
