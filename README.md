@@ -14,7 +14,10 @@
 
 <img src="https://raw.githubusercontent.com/cncf/artwork/main/other/cncf-member/graduated/color/cncf-graduated-color.svg" width="250">
 
-# Jaeger - a Distributed Tracing System
+# Jaeger
+
+[![Docker Pulls](https://img.shields.io/docker/pulls/jaegertracing/all-in-one?style=flat-square)](https://hub.docker.com/r/jaegertracing/all-in-one)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jaegertracing/jaeger?style=flat-square)](https://goreportcard.com/report/github.com/jaegertracing/jaeger) - a Distributed Tracing System
 
 💥💥💥 Jaeger v2 is out! Read the [blog post](https://medium.com/jaegertracing/jaeger-v2-released-09a6033d1b10) and [try it out](https://www.jaegertracing.io/docs/latest/getting-started/).
 
