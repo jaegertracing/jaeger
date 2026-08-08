@@ -647,10 +647,6 @@ func initializeTenantedTestServerGRPC(t *testing.T, tm *tenancy.Manager) *grpcSe
 
 	traceReader := &tracestoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
-	// The mock reader models a backend that requires a service name, which is the
-	// baseline every reader is held to until it declares otherwise.
-	traceReader.On("SearchCapabilities", mock.Anything).
-		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 
 	q := querysvc.NewQueryService(
 		traceReader,
@@ -658,6 +654,9 @@ func initializeTenantedTestServerGRPC(t *testing.T, tm *tenancy.Manager) *grpcSe
 		querysvc.QueryServiceOptions{
 			ArchiveTraceReader: archiveTraceReader,
 			ArchiveTraceWriter: archiveTraceWriter,
+			// A backend that requires a service name, which is the baseline every
+			// reader is held to until it declares otherwise.
+			SearchCapabilities: &tracestore.SearchCapabilities{},
 		},
 	)
 

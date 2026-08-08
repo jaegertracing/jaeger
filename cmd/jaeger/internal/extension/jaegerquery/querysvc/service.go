@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -41,6 +42,18 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
+	// SearchCapabilities is what the trace reader said at startup about the query shapes it
+	// accepts (RFC 0013 §3.3). Nil means it could not say — a remote backend may not have
+	// been reachable yet — and the query service asks again the next time the answer
+	// matters, so an unlucky startup does not write the backend off for good.
+	SearchCapabilities *tracestore.SearchCapabilities
+}
+
+// searchCapabilityCache holds the reader's answer, which never changes once given. It is
+// separate from QueryService so that copying the service (its methods take it by value)
+// does not copy an atomic.
+type searchCapabilityCache struct {
+	value atomic.Pointer[tracestore.SearchCapabilities]
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -62,6 +75,7 @@ type QueryService struct {
 	dependencyReader depstore.Reader
 	adjuster         adjuster.Adjuster
 	options          QueryServiceOptions
+	searchCaps       *searchCapabilityCache
 }
 
 // GetTraceParams defines the parameters for retrieving traces using the GetTraces function.
@@ -92,7 +106,11 @@ func NewQueryService(
 		adjuster: adjuster.Sequence(
 			adjuster.StandardAdjusters(options.MaxClockSkewAdjust)...,
 		),
-		options: options,
+		options:    options,
+		searchCaps: &searchCapabilityCache{},
+	}
+	if options.SearchCapabilities != nil {
+		qsvc.searchCaps.value.Store(options.SearchCapabilities)
 	}
 
 	return qsvc
@@ -179,19 +197,26 @@ func (qs QueryService) FindTraces(
 // result for a service-less search until RFC 0013 — so the single answer callers see is
 // decided here, where the capability is known.
 //
-// The reader is asked per query rather than once at startup: a remote backend answers over
-// the network, and jaeger-query can come up before that backend is reachable, so a single
-// early answer would pin the process to the least capable behaviour for its whole life.
-// Readers that pay to fetch the capability cache it themselves. A reader that cannot say
-// what it supports — errors.ErrUnsupported, or an unreachable backend — is treated as the
-// least capable one, which is what keeps the query from reaching storage and coming back
-// silently wrong.
+// The answer normally comes from startup and costs an atomic load. Storage is asked here
+// only if startup could not get an answer at all, which for a remote backend means it was
+// not reachable yet; asking again is what stops one unlucky moment from making the backend
+// look like the least capable one until jaeger-query restarts. A reader that still cannot
+// say — errors.ErrUnsupported, or an unreachable backend — is treated as the least capable
+// one, which keeps the query from reaching storage and coming back silently wrong.
 func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
 	if query.ServiceName != "" {
 		return nil
 	}
-	caps, err := qs.traceReader.SearchCapabilities(ctx)
-	if err != nil || !caps.WithoutServiceName {
+	caps := qs.searchCaps.value.Load()
+	if caps == nil {
+		answer, err := qs.traceReader.SearchCapabilities(ctx)
+		if err != nil {
+			return ErrServiceNameRequired
+		}
+		qs.searchCaps.value.Store(&answer)
+		caps = &answer
+	}
+	if !caps.WithoutServiceName {
 		return ErrServiceNameRequired
 	}
 	return nil

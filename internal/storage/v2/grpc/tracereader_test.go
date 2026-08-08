@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"net"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -825,18 +824,12 @@ type capabilitiesServer struct {
 	storage.UnimplementedCapabilitiesServer
 	resp *storage.GetCapabilitiesResponse
 	err  error
-	// failFirst makes the first call fail, standing in for a backend that is not up yet.
-	failFirst bool
-	calls     atomic.Int32
 }
 
 func (cs *capabilitiesServer) GetCapabilities(
 	context.Context,
 	*storage.GetCapabilitiesRequest,
 ) (*storage.GetCapabilitiesResponse, error) {
-	if cs.calls.Add(1) == 1 && cs.failFirst {
-		return nil, status.Error(codes.Unavailable, "not ready")
-	}
 	return cs.resp, cs.err
 }
 
@@ -928,48 +921,4 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestTraceReader_SearchCapabilities_Caching pins which answers the reader is allowed to
-// remember. A successful one is asked for once, because capabilities do not change for the
-// lifetime of a connection. A failure is not remembered at all: jaeger-query can start
-// before its remote backend is reachable, and caching that failure would leave the process
-// treating a capable backend as the least capable one until it restarts.
-func TestTraceReader_SearchCapabilities_Caching(t *testing.T) {
-	declared := tracestore.SearchCapabilities{WithoutServiceName: true}
-	resp := &storage.GetCapabilitiesResponse{
-		Search: &storage.SearchCapabilities{WithoutServiceName: true},
-	}
-
-	t.Run("a successful answer is asked for once", func(t *testing.T) {
-		caps := &capabilitiesServer{resp: resp}
-		reader := newReaderWithCapabilities(t, caps)
-
-		for range 3 {
-			got, err := reader.SearchCapabilities(context.Background())
-			require.NoError(t, err)
-			assert.Equal(t, declared, got)
-		}
-		assert.Equal(t, int32(1), caps.calls.Load())
-	})
-
-	t.Run("a failure is not cached", func(t *testing.T) {
-		caps := &capabilitiesServer{resp: resp, failFirst: true}
-		reader := newReaderWithCapabilities(t, caps)
-
-		_, err := reader.SearchCapabilities(context.Background())
-		require.ErrorContains(t, err, "not ready")
-
-		got, err := reader.SearchCapabilities(context.Background())
-		require.NoError(t, err)
-		assert.Equal(t, declared, got, "the backend became reachable and its answer must be used")
-	})
-}
-
-func newReaderWithCapabilities(t *testing.T, caps storage.CapabilitiesServer) *TraceReader {
-	listener, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	server := grpc.NewServer()
-	storage.RegisterCapabilitiesServer(server, caps)
-	return NewTraceReader(startServer(t, server, listener))
 }

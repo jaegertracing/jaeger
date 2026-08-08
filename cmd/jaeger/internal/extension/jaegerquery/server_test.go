@@ -595,25 +595,27 @@ func TestSearchCapabilities(t *testing.T) {
 	tests := []struct {
 		name     string
 		reader   tracestore.Reader
-		expected tracestore.SearchCapabilities
+		expected *tracestore.SearchCapabilities
 	}{
 		{
 			name:     "declared capability is taken",
 			reader:   capabilityReader{caps: tracestore.SearchCapabilities{WithoutServiceName: true}},
-			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+			expected: &tracestore.SearchCapabilities{WithoutServiceName: true},
 		},
 		{
 			name:     "declared absence is taken",
 			reader:   capabilityReader{},
-			expected: tracestore.SearchCapabilities{},
+			expected: &tracestore.SearchCapabilities{},
 		},
 		{
+			// Nil rather than a baseline value: the reader said nothing, so the query
+			// service asks again when the answer matters instead of assuming.
 			name: "a value returned with an error is discarded",
 			reader: capabilityReader{
 				caps: tracestore.SearchCapabilities{WithoutServiceName: true},
 				err:  sentinel,
 			},
-			expected: tracestore.SearchCapabilities{},
+			expected: nil,
 		},
 	}
 	for _, test := range tests {
@@ -624,7 +626,7 @@ func TestSearchCapabilities(t *testing.T) {
 
 			assert.Equal(t, test.expected, got)
 			if test.reader.(capabilityReader).err != nil {
-				assert.Contains(t, buf.String(), "assuming baseline")
+				assert.Contains(t, buf.String(), "will ask again when it matters")
 			}
 		})
 	}
