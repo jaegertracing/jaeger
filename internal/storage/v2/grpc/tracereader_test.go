@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,7 +16,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -816,10 +819,157 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
-// A remote backend's abilities cannot be introspected over jaeger.storage.v2, so the
-// reader says it cannot answer rather than reporting a value a caller might trust
-// (RFC 0013 §3.1). Milestone 5 adds the operator-set override.
+// capabilitiesServer serves the Capabilities service with a configured answer, standing in
+// for a remote backend that reports what the store behind it can do.
+type capabilitiesServer struct {
+	storage.UnimplementedCapabilitiesServer
+	resp *storage.GetCapabilitiesResponse
+	err  error
+	// failFirst makes the first call fail, standing in for a backend that is not up yet.
+	failFirst bool
+	calls     atomic.Int32
+}
+
+func (cs *capabilitiesServer) GetCapabilities(
+	context.Context,
+	*storage.GetCapabilitiesRequest,
+) (*storage.GetCapabilitiesResponse, error) {
+	if cs.calls.Add(1) == 1 && cs.failFirst {
+		return nil, status.Error(codes.Unavailable, "not ready")
+	}
+	return cs.resp, cs.err
+}
+
+// TestTraceReader_SearchCapabilities covers what the reader makes of each answer a remote
+// backend can give (RFC 0013 §3.6). The UNIMPLEMENTED case is the one that matters for
+// compatibility: a backend predating the service must read as "unknown", which the caller
+// treats as the least capable backend, rather than as a backend declaring nothing.
 func TestTraceReader_SearchCapabilities(t *testing.T) {
-	_, err := (&TraceReader{}).SearchCapabilities(context.Background())
-	require.ErrorIs(t, err, errors.ErrUnsupported)
+	tests := []struct {
+		name         string
+		register     func(*grpc.Server)
+		expected     tracestore.SearchCapabilities
+		expectErrIs  error
+		expectErrMsg string
+	}{
+		{
+			name: "backend reports the capability",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{
+						Search: &storage.SearchCapabilities{WithoutServiceName: true},
+					},
+				})
+			},
+			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+		},
+		{
+			name: "backend reports its absence",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{Search: &storage.SearchCapabilities{}},
+				})
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name: "backend answers without a search group",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{},
+				})
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name:        "backend does not serve the service",
+			register:    func(*grpc.Server) {},
+			expectErrIs: errors.ErrUnsupported,
+		},
+		{
+			name: "backend serves it but does not override the method",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &storage.UnimplementedCapabilitiesServer{})
+			},
+			expectErrIs: errors.ErrUnsupported,
+		},
+		{
+			// A failure that is not UNIMPLEMENTED is a real error, not "unknown": reporting
+			// it as ErrUnsupported would let a broken backend look like an old one.
+			name: "backend fails for another reason",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					err: status.Error(codes.Internal, "boom"),
+				})
+			},
+			expectErrMsg: "boom",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			listener, netErr := net.Listen("tcp", ":0")
+			require.NoError(t, netErr)
+			server := grpc.NewServer()
+			storage.RegisterTraceReaderServer(server, &testServer{})
+			test.register(server)
+			reader := NewTraceReader(startServer(t, server, listener))
+
+			caps, err := reader.SearchCapabilities(context.Background())
+
+			switch {
+			case test.expectErrIs != nil:
+				require.ErrorIs(t, err, test.expectErrIs)
+			case test.expectErrMsg != "":
+				require.ErrorContains(t, err, test.expectErrMsg)
+				require.NotErrorIs(t, err, errors.ErrUnsupported)
+			default:
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, caps)
+			}
+		})
+	}
+}
+
+// TestTraceReader_SearchCapabilities_Caching pins which answers the reader is allowed to
+// remember. A successful one is asked for once, because capabilities do not change for the
+// lifetime of a connection. A failure is not remembered at all: jaeger-query can start
+// before its remote backend is reachable, and caching that failure would leave the process
+// treating a capable backend as the least capable one until it restarts.
+func TestTraceReader_SearchCapabilities_Caching(t *testing.T) {
+	declared := tracestore.SearchCapabilities{WithoutServiceName: true}
+	resp := &storage.GetCapabilitiesResponse{
+		Search: &storage.SearchCapabilities{WithoutServiceName: true},
+	}
+
+	t.Run("a successful answer is asked for once", func(t *testing.T) {
+		caps := &capabilitiesServer{resp: resp}
+		reader := newReaderWithCapabilities(t, caps)
+
+		for range 3 {
+			got, err := reader.SearchCapabilities(context.Background())
+			require.NoError(t, err)
+			assert.Equal(t, declared, got)
+		}
+		assert.Equal(t, int32(1), caps.calls.Load())
+	})
+
+	t.Run("a failure is not cached", func(t *testing.T) {
+		caps := &capabilitiesServer{resp: resp, failFirst: true}
+		reader := newReaderWithCapabilities(t, caps)
+
+		_, err := reader.SearchCapabilities(context.Background())
+		require.ErrorContains(t, err, "not ready")
+
+		got, err := reader.SearchCapabilities(context.Background())
+		require.NoError(t, err)
+		assert.Equal(t, declared, got, "the backend became reachable and its answer must be used")
+	})
+}
+
+func newReaderWithCapabilities(t *testing.T, caps storage.CapabilitiesServer) *TraceReader {
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	server := grpc.NewServer()
+	storage.RegisterCapabilitiesServer(server, caps)
+	return NewTraceReader(startServer(t, server, listener))
 }

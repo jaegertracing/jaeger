@@ -24,12 +24,14 @@ import (
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
 	_ storage.DependencyReaderServer = (*Handler)(nil)
+	_ storage.CapabilitiesServer     = (*Handler)(nil)
 	_ ptraceotlp.GRPCServer          = (*Handler)(nil)
 )
 
 type Handler struct {
 	storage.UnimplementedTraceReaderServer
 	storage.UnimplementedDependencyReaderServer
+	storage.UnimplementedCapabilitiesServer
 	ptraceotlp.UnimplementedGRPCServer
 
 	traceReader tracestore.Reader
@@ -239,11 +241,36 @@ func (h *Handler) GetDependencies(
 func (h *Handler) Register(ss *grpc.Server, hs *health.Server) {
 	storage.RegisterTraceReaderServer(ss, h)
 	storage.RegisterDependencyReaderServer(ss, h)
+	storage.RegisterCapabilitiesServer(ss, h)
 	ptraceotlp.RegisterGRPCServer(ss, h)
 
 	hs.SetServingStatus("jaeger.storage.v2.TraceReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.DependencyReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.TraceWriter", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v2.Capabilities", grpc_health_v1.HealthCheckResponse_SERVING)
+}
+
+// GetCapabilities answers for the reader this handler fronts, so a client learns what the
+// store behind the remote can do instead of assuming the least capable backend. A reader
+// that cannot determine its own capabilities is reported as UNIMPLEMENTED, which is what a
+// client already treats as "unknown" — the alternative, reporting the zero value, would
+// claim the backend declares nothing when in truth nobody asked it.
+func (h *Handler) GetCapabilities(
+	ctx context.Context,
+	_ *storage.GetCapabilitiesRequest,
+) (*storage.GetCapabilitiesResponse, error) {
+	caps, err := h.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		if errors.Is(err, errors.ErrUnsupported) {
+			return nil, status.Error(codes.Unimplemented, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &storage.GetCapabilitiesResponse{
+		Search: &storage.SearchCapabilities{
+			WithoutServiceName: caps.WithoutServiceName,
+		},
+	}, nil
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {

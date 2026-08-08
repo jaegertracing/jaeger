@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"sync"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -24,7 +25,16 @@ import (
 var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
-	client storage.TraceReaderClient
+	client       storage.TraceReaderClient
+	capabilities storage.CapabilitiesClient
+
+	// capsMu guards cachedCaps. The proto contract says capabilities are stable for the
+	// lifetime of a connection, so a successful answer is cached and asked for once. A
+	// failure is deliberately not cached: a backend that is not up yet — jaeger-query can
+	// start before its remote storage is ready — must not be mistaken for one that has
+	// answered.
+	capsMu     sync.Mutex
+	cachedCaps *tracestore.SearchCapabilities
 }
 
 // NewTraceReader creates a TraceReader that communicates with a remote gRPC storage server.
@@ -32,21 +42,37 @@ type TraceReader struct {
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	return &TraceReader{
-		client: storage.NewTraceReaderClient(conn),
+		client:       storage.NewTraceReaderClient(conn),
+		capabilities: storage.NewCapabilitiesClient(conn),
 	}
 }
 
-// SearchCapabilities cannot be answered: jaeger.storage.v2 has no capability RPC, so a
-// remote backend's abilities are invisible from here and any value would be a guess.
-// Callers treat ErrUnsupported as no capabilities, which keeps every existing remote
-// deployment behaving as it does today, while leaving "unknown" distinguishable from a
-// backend that declared nothing. RFC 0013 Milestone 5 adds the operator-set override that
-// lets a deployment answer for its own remote backend.
-func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return tracestore.SearchCapabilities{}, fmt.Errorf(
-		"jaeger.storage.v2 does not expose the remote backend's search capabilities: %w",
-		errors.ErrUnsupported,
-	)
+// SearchCapabilities asks the remote backend what it supports. A backend that does not
+// serve the Capabilities service answers UNIMPLEMENTED, which becomes ErrUnsupported —
+// "nobody has said", which the caller treats as the least capable backend. That is what
+// keeps a backend predating the service working unchanged, and it stays distinguishable
+// from a backend that answered and declared nothing (RFC 0013 §3.6).
+func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	tr.capsMu.Lock()
+	defer tr.capsMu.Unlock()
+	if tr.cachedCaps != nil {
+		return *tr.cachedCaps, nil
+	}
+
+	resp, err := tr.capabilities.GetCapabilities(ctx, &storage.GetCapabilitiesRequest{})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return tracestore.SearchCapabilities{}, fmt.Errorf(
+				"remote storage does not report its capabilities: %w", errors.ErrUnsupported,
+			)
+		}
+		return tracestore.SearchCapabilities{}, err
+	}
+	caps := tracestore.SearchCapabilities{
+		WithoutServiceName: resp.GetSearch().GetWithoutServiceName(),
+	}
+	tr.cachedCaps = &caps
+	return caps, nil
 }
 
 func (tr *TraceReader) GetTraces(
