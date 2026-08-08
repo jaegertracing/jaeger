@@ -4,6 +4,7 @@
 import json
 from typing import Any, cast
 
+# pyrefly: ignore [missing-import]
 from google.genai import types
 
 
@@ -14,24 +15,45 @@ from google.genai import types
 CONTEXTUAL_TOOLS_META_KEY = "jaegertracing.io/contextual-tools"
 
 
-def _validate_function_call(tool_name: str, args: Any, tool_call_id: str) -> None:
-    """Validate that a Gemini-emitted function_call is dispatchable.
+def _validate_function_call(tool_name: str, args: Any, tool_call_id: str) -> dict[str, Any]:
+    """Validate and normalize a Gemini-emitted function_call so it can be dispatched.
 
-    Raises ValueError when ``tool_name`` is empty or ``args`` is not a dict.
+    Returns the argument dictionary. Converts stringified JSON arguments (if string)
+    or None/empty arguments into a proper dict.
+
+    Raises ValueError when ``tool_name`` is empty or ``args`` cannot be parsed into a dict.
     Both execute paths call this on entry so a malformed function_call from
     Gemini cannot dispatch an empty name into MCP / the ext_method, or feed
     non-dict args into a tool — either would mask real integration bugs as
     silent successes.
     """
-    if not tool_name:
+    if not tool_name or not isinstance(tool_name, str) or not tool_name.strip():
         raise ValueError(
             f"function_call has no name (call_id={tool_call_id})"
         )
+
+    if args is None:
+        return {}
+
+    if isinstance(args, str):
+        args_str = args.strip()
+        if not args_str:
+            return {}
+        try:
+            args = json.loads(args_str)
+        except Exception as err:
+            raise ValueError(
+                f"function_call '{tool_name}' has string args that failed JSON decoding: {err} "
+                f"(call_id={tool_call_id})"
+            ) from err
+
     if not isinstance(args, dict):
         raise ValueError(
             f"function_call '{tool_name}' has non-dict args "
             f"(type={type(args).__name__}, call_id={tool_call_id})"
         )
+
+    return args
 
 
 def _extract_contextual_tools(meta: Any) -> list[dict[str, Any]]:

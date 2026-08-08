@@ -235,7 +235,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
         }) as span:
             try:
-                _validate_function_call(tool_name, args, tool_call_id)
+                args = _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
                 # raw_input carries the LLM-generated arguments onto the
                 # AG-UI wire as TOOL_CALL_ARGS so the browser knows what
@@ -284,7 +284,7 @@ class JaegerSidecarAgent(Agent):
             GEN_AI_TOOL_CALL_ARGUMENTS: _truncate_for_span(_to_tool_text(args)),
         }) as span:
             try:
-                _validate_function_call(tool_name, args, tool_call_id)
+                args = _validate_function_call(tool_name, args, tool_call_id)
                 conn = self._require_conn()
                 await conn.session_update(
                     session_id,
