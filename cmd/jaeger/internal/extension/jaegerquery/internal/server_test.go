@@ -55,6 +55,12 @@ import (
 
 var testCertKeyLocation = "../../../../../../internal/config/tlscfg/testdata"
 
+// findTracesQueryString is a well-formed search request against the api_v3 HTTP
+// gateway, used by the tests below that exercise TLS and tenancy plumbing
+// through the real HTTP server rather than the search behavior itself.
+const findTracesQueryString = "/api/v3/traces?query.serviceName=service" +
+	"&query.startTimeMin=1970-01-01T00:00:00Z&query.startTimeMax=1970-01-02T00:00:00Z"
+
 func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider) telemetry.Settings {
 	telset := telemetry.NoopSettings()
 	telset.Logger = logger
@@ -467,7 +473,7 @@ func TestServerHTTPTLS(t *testing.T) {
 					Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
 						yield([]ptrace.Traces{makeMockPTrace()}, nil)
 					})).Once()
-				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
+				queryString := findTracesQueryString
 				req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s/%s", server.HTTPAddr(), queryString), http.NoBody)
 				require.NoError(t, err)
 				req.Header.Add("Accept", "application/json")
@@ -832,7 +838,7 @@ func TestServerHTTPTenancy(t *testing.T) {
 			conn, clientError := net.DialTimeout("tcp", server.HTTPAddr(), 2*time.Second)
 			require.NoError(t, clientError)
 
-			queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
+			queryString := findTracesQueryString
 			req, err := http.NewRequest(http.MethodGet, "http://"+server.HTTPAddr()+queryString, http.NoBody)
 			if test.tenant != "" {
 				req.Header.Add(tenancyMgr.Header, test.tenant)
@@ -982,7 +988,7 @@ func TestServerAPINotFound(t *testing.T) {
 			}{
 				{
 					name:           "existing API endpoint returns 200",
-					path:           basePath + "/api/services",
+					path:           basePath + "/api/v3/services",
 					expectedStatus: http.StatusOK,
 				},
 				{
@@ -1079,7 +1085,7 @@ func TestInitRouter_HeaderForwarding(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, cs.Close()) })
 
-	req := httptest.NewRequest(http.MethodGet, "/api/services", http.NoBody)
+	req := httptest.NewRequest(http.MethodGet, "/api/v3/services", http.NoBody)
 	req.Header.Set("x-user", "alice")
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 
@@ -1293,7 +1299,7 @@ func TestOtelFilterFunc(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"/api/services", true},
+		{"/api/v3/services", true},
 		{"/static/bundle.js", false},
 		{"/api/otlp/v1/traces", false},
 	}

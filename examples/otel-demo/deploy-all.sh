@@ -526,7 +526,7 @@ main() {
       diagnose_otel_demo_failure
       err "Public Jaeger UI smoke check failed"
     fi
-    if ! smoke_expect "${PUBLIC_JAEGER_URL}/api/services" '"checkout"' /tmp/otel-jaeger-services.json; then
+    if ! smoke_expect "${PUBLIC_JAEGER_URL}/api/v3/services" '"checkout"' /tmp/otel-jaeger-services.json; then
       diagnose_otel_demo_failure
       err "Public Jaeger services smoke check failed"
     fi
