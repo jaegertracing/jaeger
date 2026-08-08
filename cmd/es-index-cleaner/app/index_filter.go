@@ -6,6 +6,7 @@ package app
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
@@ -41,7 +42,18 @@ func (i *IndexFilter) filterByPattern(indices []esclient.Index) []esclient.Index
 	case i.Rollover:
 		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{6}", i.IndexPrefix))
 	default:
-		reg, _ = regexp.Compile(fmt.Sprintf("^%sjaeger-(span|service|dependencies|sampling)-\\d{4}%s\\d{2}%s\\d{2}", i.IndexPrefix, i.IndexDateSeparator, i.IndexDateSeparator))
+		sep := regexp.QuoteMeta(i.IndexDateSeparator)
+		hourly := fmt.Sprintf(`\d{4}%s\d{2}%s\d{2}%s\d{2}`, sep, sep, sep)
+		daily := fmt.Sprintf(`\d{4}%s\d{2}%s\d{2}`, sep, sep)
+		monthly := fmt.Sprintf(`\d{4}%s\d{2}`, sep)
+		yearly := `\d{4}`
+		datePattern := strings.Join([]string{hourly, daily, monthly, yearly}, "|")
+		// With an empty IndexDateSeparator, a monthly index's 6 digits collide
+		// with a 6-digit rollover-alias ID; see TestIndexFilter_EmptySeparatorMonthAmbiguity.
+		reg, _ = regexp.Compile(fmt.Sprintf(
+			`^%sjaeger-(span|service|dependencies|sampling)-(%s)$`,
+			regexp.QuoteMeta(i.IndexPrefix), datePattern,
+		))
 	}
 
 	var filtered []esclient.Index

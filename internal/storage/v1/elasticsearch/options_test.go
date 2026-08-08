@@ -827,6 +827,25 @@ func TestIndexRollover(t *testing.T) {
 			wantServiceIndexRolloverFrequency: -1 * time.Hour,
 		},
 		{
+			name: "monthly spans, yearly services",
+			config: escfg.Configuration{
+				Indices: escfg.Indices{
+					Spans: escfg.IndexOptions{
+						DateLayout:        configoptional.Some("2006-01"),
+						RolloverFrequency: configoptional.Some("month"),
+					},
+					Services: escfg.IndexOptions{
+						DateLayout:        configoptional.Some("2006"),
+						RolloverFrequency: configoptional.Some("year"),
+					},
+				},
+			},
+			wantSpanDateLayout:                "2006-01",
+			wantServiceDateLayout:             "2006",
+			wantSpanIndexRolloverFrequency:    -28 * 24 * time.Hour,
+			wantServiceIndexRolloverFrequency: -365 * 24 * time.Hour,
+		},
+		{
 			name: "invalid rollover frequency defaults to day",
 			config: escfg.Configuration{
 				Indices: escfg.Indices{
