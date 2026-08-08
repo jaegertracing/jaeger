@@ -167,11 +167,14 @@ func (qs QueryService) FindTraces(
 // reachable when jaeger-query started; a reader for which that costs a round trip caches its
 // own answer.
 //
-// A reader that cannot say — errors.ErrUnsupported, or a backend unreachable right now — is
-// read as the least capable one.
-func (qs QueryService) SearchWithoutServiceName(ctx context.Context) bool {
+// A reader that cannot say returns an error, which callers read as the least capable
+// backend.
+func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, error) {
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
-	return err == nil && caps.WithoutServiceName
+	if err != nil {
+		return false, err
+	}
+	return caps.WithoutServiceName, nil
 }
 
 // validateSearchQuery rejects a query whose shape the backend cannot serve. Storage
@@ -180,7 +183,10 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) bool {
 // decided here. Rejecting here also keeps the query from reaching storage and coming back
 // silently wrong.
 func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
-	if query.ServiceName == "" && !qs.SearchWithoutServiceName(ctx) {
+	if query.ServiceName != "" {
+		return nil
+	}
+	if withoutServiceName, err := qs.SearchWithoutServiceName(ctx); err != nil || !withoutServiceName {
 		return ErrServiceNameRequired
 	}
 	return nil

@@ -68,12 +68,9 @@ func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider) tele
 	return telset
 }
 
-// nilBackendCaps names the absent capability provider, since a bare nil in these long
-// argument lists says nothing about which parameter it fills.
 var nilBackendCaps BackendCapabilityProvider
 
-// noopTenancyMgr returns a manager with multi-tenancy disabled. Tests that exercise tenancy
-// build one from the server's own options instead.
+// noopTenancyMgr returns a manager with multi-tenancy disabled.
 func noopTenancyMgr() *tenancy.Manager {
 	return tenancy.NewManager(&tenancy.Options{})
 }

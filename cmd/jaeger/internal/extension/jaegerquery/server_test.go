@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"net/http"
 	"testing"
@@ -582,6 +583,83 @@ func TestBuildAIHealthChecker(t *testing.T) {
 			require.Equal(t, 2*time.Second, got.Timeout)
 			require.NotNil(t, got.Check)
 			require.NotNil(t, got.Logger)
+		})
+	}
+}
+
+// TestServerReportsSearchCapabilityToUI covers the other half of the wiring: what the SPA is
+// told. A backend that declares the capability has it injected; one that cannot be asked is
+// reported as the least capable, and says why in the log, which is the only place an operator
+// can find out that the missing "All Services" option is a reachability problem rather than a
+// backend limitation.
+func TestServerReportsSearchCapabilityToUI(t *testing.T) {
+	tests := []struct {
+		name        string
+		store       string
+		expected    string
+		expectedLog string
+	}{
+		{
+			name:     "declared capability reaches the UI",
+			store:    "serviceless-search-store",
+			expected: `"searchWithoutServiceName":true`,
+		},
+		{
+			name:     "declared absence reaches the UI",
+			store:    "some_store",
+			expected: `"searchWithoutServiceName":false`,
+		},
+		{
+			name:        "a backend that cannot be asked is reported as the least capable",
+			store:       "unknowable-capabilities-store",
+			expected:    `"searchWithoutServiceName":false`,
+			expectedLog: "Storage did not report its search capabilities",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			logger, logBuf := testutils.NewLogger()
+			host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+			srv := newServer(&Config{
+				QueryOptions: app.QueryOptions{
+					HTTP: confighttp.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+					GRPC: configgrpc.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+				},
+				Storage: Storage{TracesPrimary: test.store},
+			}, component.TelemetrySettings{
+				Logger:         logger,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+			})
+			require.NoError(t, srv.Start(t.Context(), host))
+			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
+
+			var body string
+			require.Eventually(t, func() bool {
+				resp, err := http.Get(fmt.Sprintf("http://%s/", srv.server.HTTPAddr()))
+				if err != nil {
+					return false
+				}
+				defer resp.Body.Close()
+				b, err := io.ReadAll(resp.Body)
+				if err != nil || resp.StatusCode != http.StatusOK {
+					return false
+				}
+				body = string(b)
+				return true
+			}, 10*time.Second, 100*time.Millisecond, "server not started")
+
+			assert.Contains(t, body, test.expected)
+			if test.expectedLog != "" {
+				assert.Contains(t, logBuf.String(), test.expectedLog)
+				assert.Contains(t, logBuf.String(), "cannot ask the backend", "the reader's reason must survive")
+			} else {
+				assert.NotContains(t, logBuf.String(), "Storage did not report")
+			}
 		})
 	}
 }

@@ -120,15 +120,19 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
-	// The one place every source is in scope. See queryapp.BackendCapabilityProvider for
-	// why this is a function rather than a value.
 	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 	metricsStorage := s.config.Storage.Metrics != ""
 	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
+		searchWithoutServiceName, err := qs.SearchWithoutServiceName(ctx)
+		if err != nil {
+			searchWithoutServiceName = false
+			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",
+				zap.Error(err))
+		}
 		return queryapp.BackendCapabilities{
 			ArchiveStorage:           archiveStorage,
 			MetricsStorage:           metricsStorage,
-			SearchWithoutServiceName: qs.SearchWithoutServiceName(ctx),
+			SearchWithoutServiceName: searchWithoutServiceName,
 			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
 		}
 	}
