@@ -161,16 +161,14 @@ func (qs QueryService) FindTraces(
 	}
 }
 
-// SearchWithoutServiceName reports whether the trace reader accepts a search that omits
-// the service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked
-// every time, because it is the only thing that knows: a remote backend answers for
-// itself, and jaeger-query can start before that backend is reachable, so no caller may
-// pin the answer to whatever was true at startup. The readers that can answer without
-// I/O return a constant, and the one that cannot — gRPC remote storage — remembers the
-// backend's answer itself, so asking costs an atomic load once the backend has spoken.
+// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
+// service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked every time
+// rather than once, because a remote backend answers for itself and may not have been
+// reachable when jaeger-query started; a reader for which that costs a round trip caches its
+// own answer.
 //
-// A reader that cannot say — errors.ErrUnsupported, or a backend not reachable right
-// now — is read as the least capable one.
+// A reader that cannot say — errors.ErrUnsupported, or a backend unreachable right now — is
+// read as the least capable one.
 func (qs QueryService) SearchWithoutServiceName(ctx context.Context) bool {
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	return err == nil && caps.WithoutServiceName

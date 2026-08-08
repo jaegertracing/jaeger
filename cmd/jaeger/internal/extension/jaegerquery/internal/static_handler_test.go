@@ -171,9 +171,8 @@ func TestRegisterStaticHandler(t *testing.T) {
 }
 
 // TestStaticHandlerInjectsBackendCapabilities covers the handler's whole part in this:
-// serialize what the provider reports, under the key names and in the order the UI bundle
-// expects, into the JAEGER_BACKEND_CAPABILITIES slot. Whether any given flag is true is the
-// provider's decision, made where the capability is known and tested there.
+// serialize what the provider reports into the JAEGER_BACKEND_CAPABILITIES slot, under the
+// key names and in the order the UI bundle expects.
 func TestStaticHandlerInjectsBackendCapabilities(t *testing.T) {
 	tests := []struct {
 		name string
@@ -250,10 +249,8 @@ func TestStaticHandlerReflectsLatestAIHealthCheckPerRequest(t *testing.T) {
 		"next response must reflect the new AI health check value")
 }
 
-// TestStaticHandlerReflectsSearchCapabilityPerRequest is the reason the search capability is
-// a probe rather than a value: jaeger-query can serve the UI before its remote backend is
-// reachable, and the page loaded after the backend comes up must offer "All Services"
-// without the process being restarted (RFC 0013 §3.6).
+// TestStaticHandlerReflectsSearchCapabilityPerRequest: a page loaded after the backend
+// becomes reachable must offer "All Services" without a restart (RFC 0013 §3.6).
 func TestStaticHandlerReflectsSearchCapabilityPerRequest(t *testing.T) {
 	var supported atomic.Bool
 	r := http.NewServeMux()

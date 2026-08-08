@@ -54,7 +54,6 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server.
-// backendCaps may be nil; the UI is then offered nothing beyond the bundle itself.
 func NewServer(
 	ctx context.Context,
 	querySvc *querysvc.QueryService,

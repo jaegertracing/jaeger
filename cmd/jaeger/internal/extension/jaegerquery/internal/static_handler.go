@@ -50,11 +50,11 @@ type BackendCapabilities struct {
 	AIAssistant              bool `json:"aiAssistant"`
 }
 
-// BackendCapabilityProvider reports what the deployment can currently do. The handler calls
-// it on every SPA serve rather than being told once at startup, because not every field is
-// settled by then: the AI sidecar's reachability flips while the process runs, and a remote
-// storage backend reports for itself and may not have answered yet. The fields that do
-// follow from configuration are simply constant within the provider.
+// BackendCapabilityProvider reports what the deployment can currently do. It is called on
+// every SPA serve rather than evaluated once at startup, because not every flag is settled by
+// then: the AI sidecar's reachability changes while the process runs, and a storage backend
+// that answers for itself may not have been reachable when jaeger-query started. Flags that
+// do follow from configuration are simply constant within a provider.
 type BackendCapabilityProvider func(context.Context) BackendCapabilities
 
 // RegisterStaticHandler builds and registers the static-assets handler on r.
@@ -74,9 +74,8 @@ func RegisterStaticHandler(
 }
 
 // staticAssetsHandler serves the Jaeger UI bundle. index.html is derived on
-// every SPA serve so all injected values — including the backend capabilities,
-// which change at runtime — are always current. The raw bytes are cached;
-// the UI config is cached with a TTL and re-read from disk on demand.
+// every SPA serve, so every injected value is current. The raw bytes are
+// cached; the UI config is cached with a TTL and re-read from disk on demand.
 type staticAssetsHandler struct {
 	assetsFS    http.FileSystem
 	basePath    string

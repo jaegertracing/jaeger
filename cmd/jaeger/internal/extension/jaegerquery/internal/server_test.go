@@ -68,13 +68,12 @@ func initTelSet(logger *zap.Logger, tracerProvider traceapi.TracerProvider) tele
 	return telset
 }
 
-// nilBackendCaps names the absent capability provider. NewServer and initRouter take a
-// long argument list, in which a bare nil says nothing about which parameter it fills.
+// nilBackendCaps names the absent capability provider, since a bare nil in these long
+// argument lists says nothing about which parameter it fills.
 var nilBackendCaps BackendCapabilityProvider
 
-// noopTenancyMgr returns a manager with multi-tenancy disabled, which is what these tests
-// want unless they are exercising tenancy itself — those build one from the server's own
-// options instead.
+// noopTenancyMgr returns a manager with multi-tenancy disabled. Tests that exercise tenancy
+// build one from the server's own options instead.
 func noopTenancyMgr() *tenancy.Manager {
 	return tenancy.NewManager(&tenancy.Options{})
 }
@@ -374,8 +373,7 @@ func makeQuerySvc() *fakeQueryService {
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
 	traceReader.On("GetServices", mock.Anything).Return(expectedServices, nil)
-	// Serving the SPA asks what to inject into the backend-capabilities blob, so any test
-	// that fetches index.html reaches this.
+	// Serving index.html asks what to inject into the capability blob.
 	traceReader.On("SearchCapabilities", mock.Anything).
 		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 	qs := querysvc.NewQueryService(traceReader, dependencyReader, querysvc.QueryServiceOptions{})

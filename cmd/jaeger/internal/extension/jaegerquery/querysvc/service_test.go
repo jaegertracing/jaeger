@@ -62,9 +62,8 @@ func withArchiveTraceWriter() testOption {
 	}
 }
 
-// declaresSearchWithoutServiceName sets the answer a reader gives when the query service
-// asks whether it can serve a search with no service name. Only service-less searches ask,
-// so the expectation is optional.
+// declaresSearchWithoutServiceName sets the answer a reader gives when asked whether it can
+// serve a search with no service name. Only service-less searches ask, so it is optional.
 func declaresSearchWithoutServiceName(reader *tracestoremocks.Reader, withoutServiceName bool) *tracestoremocks.Reader {
 	reader.On("SearchCapabilities", mock.Anything).
 		Return(tracestore.SearchCapabilities{WithoutServiceName: withoutServiceName}, nil).Maybe()
@@ -1056,11 +1055,9 @@ func TestFindTraces_ServiceNameRequired(t *testing.T) {
 	})
 }
 
-// TestFindTraces_ServiceNameCapabilityAskedEveryTime pins that the query service holds no
-// copy of the answer: it asks the reader on every service-less search, so a backend that
-// was unreachable when jaeger-query started is not written off for the life of the process.
-// Which readers make that cheap is the readers' business — the gRPC one remembers what its
-// backend said (see internal/storage/v2/grpc.TraceReader).
+// TestFindTraces_ServiceNameCapabilityAskedEveryTime pins that the query service keeps no
+// copy of the answer: every service-less search asks the reader again, so a backend that was
+// unreachable at startup is not written off for the life of the process.
 func TestFindTraces_ServiceNameCapabilityAskedEveryTime(t *testing.T) {
 	serviceless := TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap()},

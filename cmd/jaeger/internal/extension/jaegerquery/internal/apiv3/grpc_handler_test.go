@@ -81,8 +81,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
-	// A backend that requires a service name, which is the baseline every reader is held
-	// to until it declares otherwise. Only the service-less searches consult it.
+	// The baseline: a backend that requires a service name. Only service-less searches ask.
 	tsc.reader.On("SearchCapabilities", mock.Anything).
 		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 	q := querysvc.NewQueryService(

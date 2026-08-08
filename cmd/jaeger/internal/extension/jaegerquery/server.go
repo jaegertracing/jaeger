@@ -120,10 +120,8 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
-	// Assembled here, where every source is in scope, and evaluated per SPA serve rather
-	// than now: the AI sidecar's reachability flips while the process runs, and the storage
-	// backend answers for itself and may not be reachable yet. Archive and metrics follow
-	// from configuration, so they are settled by this point.
+	// The one place every source is in scope. See queryapp.BackendCapabilityProvider for
+	// why this is a function rather than a value.
 	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
 	metricsStorage := s.config.Storage.Metrics != ""
 	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
