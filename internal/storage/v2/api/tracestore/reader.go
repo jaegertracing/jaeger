@@ -104,16 +104,16 @@ type Reader interface {
 //
 // Fields to expect over time, each of which is a real divergence today:
 //
-//   - Whether SearchDepth is an exact limit or a hint. The API contract already warns
-//     that "some implementations might not support precise limits" (`search_depth` in
-//     jaeger.api_v3's TraceQueryParameters), which leaves callers unable to tell
-//     whether a short result set means "no more matches".
-//   - Which duration-query combinations hold. Cassandra serves DurationMin/DurationMax
-//     from a separate duration_index whose partition key it cannot intersect with tags
-//     (docs/adr/001-cassandra-find-traces-duration.md), and it rejects the combination
-//     outright; the restriction was lifted at the API layer in
-//     https://github.com/jaegertracing/jaeger/issues/1047 without the storage
-//     limitation going away.
+//   - Whether SearchDepth is an exact limit or a hint. jaeger.api_v3's
+//     TraceQueryParameters warns of search_depth that "some implementations might not
+//     support precise limits", so a caller cannot tell whether a short result set means
+//     that there are no more matches or that the backend stopped early.
+//   - Which duration-query combinations hold. Cassandra reads DurationMin/DurationMax
+//     from a separate duration_index table, and it cannot combine that table with the
+//     tag index in one query, so it rejects a search that uses both
+//     (docs/adr/001-cassandra-find-traces-duration.md). The API layer stopped rejecting
+//     the combination in https://github.com/jaegertracing/jaeger/issues/1047, which did
+//     not remove the storage limitation.
 type SearchCapabilities struct {
 	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
 	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
