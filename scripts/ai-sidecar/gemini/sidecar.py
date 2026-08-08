@@ -17,7 +17,7 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import (
     GEN_AI_TOOL_NAME,
 )
 from opentelemetry.trace import Status, StatusCode
-from ws_commands import ws_to_client_writer, client_reader_to_ws
+from shared.ws_commands import ws_to_client_writer, client_reader_to_ws
 from mcp_bridge import JaegerMCPBridge
 from sidecar_config import SidecarConfig
 from sidecar_helpers import (

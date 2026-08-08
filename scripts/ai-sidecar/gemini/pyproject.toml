@@ -21,3 +21,8 @@ dev = [
     "pyright>=1.1.408",
     "pytest>=8.3.4",
 ]
+
+[tool.pyright]
+# scripts/ai-sidecar holds the `shared` package; main.py and conftest.py put it
+# on sys.path at runtime, and this tells pyright where to find it.
+extraPaths = [".."]
