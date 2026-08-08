@@ -41,24 +41,6 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
-	// SearchCapabilities is what the trace reader reported about the query shapes it
-	// accepts. It is read once at startup rather than per query, so a backend that has to
-	// fetch it does so once; the query service rejects a query the backend cannot serve
-	// instead of letting it reach storage and come back wrong (RFC 0013 §3.3).
-	SearchCapabilities tracestore.SearchCapabilities
-}
-
-// StorageCapabilities is a feature flag for query service
-type StorageCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-	// SearchWithoutServiceName reports whether the trace storage backend accepts a
-	// search that omits the service name and reads it as "any service" (RFC 0013).
-	// The UI offers its "All Services" option only when this is true.
-	SearchWithoutServiceName bool `json:"searchWithoutServiceName"`
-	// Potential future extensions:
-	// SupportRegex     bool
-	// SupportTagFilter bool
 }
 
 // QueryService provides methods to query data from the storage.
@@ -170,7 +152,7 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		if err := qs.validateSearchQuery(query); err != nil {
+		if err := qs.validateSearchQuery(ctx, query); err != nil {
 			yield(nil, err)
 			return
 		}
@@ -179,12 +161,32 @@ func (qs QueryService) FindTraces(
 	}
 }
 
+// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
+// service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked every time
+// rather than once, because a remote backend answers for itself and may not have been
+// reachable when jaeger-query started; a reader for which that costs a round trip caches its
+// own answer.
+//
+// A reader that cannot say returns an error, which callers read as the least capable
+// backend.
+func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, error) {
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		return false, err
+	}
+	return caps.WithoutServiceName, nil
+}
+
 // validateSearchQuery rejects a query whose shape the backend cannot serve. Storage
 // readers guard themselves too, but they answer differently — Cassandra returned an empty
 // result for a service-less search until RFC 0013 — so the single answer callers see is
-// decided here, where the capability is known.
-func (qs QueryService) validateSearchQuery(query TraceQueryParams) error {
-	if query.ServiceName == "" && !qs.options.SearchCapabilities.WithoutServiceName {
+// decided here. Rejecting here also keeps the query from reaching storage and coming back
+// silently wrong.
+func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
+	if query.ServiceName != "" {
+		return nil
+	}
+	if withoutServiceName, err := qs.SearchWithoutServiceName(ctx); err != nil || !withoutServiceName {
 		return ErrServiceNameRequired
 	}
 	return nil
@@ -202,7 +204,7 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if err := qs.validateSearchQuery(query); err != nil {
+		if err := qs.validateSearchQuery(ctx, query); err != nil {
 			yield(nil, err)
 			return
 		}

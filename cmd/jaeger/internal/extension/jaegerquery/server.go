@@ -103,7 +103,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	opts := querysvc.QueryServiceOptions{
 		MaxClockSkewAdjust: s.config.MaxClockSkewAdjust,
 		MaxTraceSize:       s.config.MaxTraceSize,
-		SearchCapabilities: searchCapabilities(ctx, traceReader, telset.Logger),
 	}
 	if err := s.addArchiveStorage(&opts, host); err != nil {
 		return err
@@ -119,17 +118,23 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
-	caps := querysvc.StorageCapabilities{
-		ArchiveStorage:           opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage:           s.config.Storage.Metrics != "",
-		SearchWithoutServiceName: opts.SearchCapabilities.WithoutServiceName,
-	}
-
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
-	var aiHealthCheck func() bool
-	if s.aiHealth != nil {
-		aiHealthCheck = s.aiHealth.Current
+	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
+	metricsStorage := s.config.Storage.Metrics != ""
+	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
+		searchWithoutServiceName, err := qs.SearchWithoutServiceName(ctx)
+		if err != nil {
+			searchWithoutServiceName = false
+			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",
+				zap.Error(err))
+		}
+		return queryapp.BackendCapabilities{
+			ArchiveStorage:           archiveStorage,
+			MetricsStorage:           metricsStorage,
+			SearchWithoutServiceName: searchWithoutServiceName,
+			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
+		}
 	}
 
 	s.server, err = queryapp.NewServer(
@@ -138,8 +143,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		qs,
 		mqs,
 		&s.config.QueryOptions,
-		caps,
-		aiHealthCheck,
+		backendCaps,
 		tm,
 		telset,
 	)
@@ -229,23 +233,6 @@ func (s *server) initArchiveStorage(f tracestore.Factory) (tracestore.Reader, tr
 		return nil, nil
 	}
 	return reader, writer
-}
-
-// searchCapabilities asks the reader which query shapes it accepts. A reader that cannot
-// answer yields the baseline: the struct returned alongside an error is not trustworthy,
-// so it is discarded rather than half-believed — otherwise a reader answering
-// ({WithoutServiceName: true}, err) would advertise a capability nobody vouched for.
-func searchCapabilities(
-	ctx context.Context,
-	reader tracestore.Reader,
-	logger *zap.Logger,
-) tracestore.SearchCapabilities {
-	caps, err := reader.SearchCapabilities(ctx)
-	if err != nil {
-		logger.Info("Storage did not report its search capabilities; assuming baseline", zap.Error(err))
-		return tracestore.SearchCapabilities{}
-	}
-	return caps
 }
 
 func (s *server) createMetricReader(host component.Host) (metricstore.Reader, error) {
