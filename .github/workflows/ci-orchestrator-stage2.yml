@@ -17,3 +17,7 @@ jobs:
   ai-sidecar-gemini:
     uses: ./.github/workflows/ci-ai-sidecar-gemini.yml
     secrets: inherit
+
+  ai-sidecar-openrouter:
+    uses: ./.github/workflows/ci-ai-sidecar-openrouter.yml
+    secrets: inherit

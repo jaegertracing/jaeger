@@ -1,0 +1,33 @@
+[project]
+name = "jaeger-openrouter-sidecar"
+version = "0.1.0"
+description = "Thin ACP sidecar for Jaeger backed by any OpenRouter-hosted model."
+readme = "README.md"
+requires-python = ">=3.14"
+# Four runtime dependencies, and that is the point: no agent framework, no model
+# SDK. Adding a fifth should require an argument about why the sidecar cannot
+# stay transparent without it.
+dependencies = [
+    "agent-client-protocol>=0.12.0",
+    "mcp>=2.0.0",
+    # httpx2, not httpx: mcp>=2.0's streamable-HTTP transport is built on it, and
+    # the OpenRouter call uses the same client so the sidecar carries one HTTP
+    # stack instead of two.
+    "httpx2>=2.9.1",
+    "websockets>=15.0.1,<16.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.408",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.pyright]
+# scripts/ai-sidecar holds the `shared` package; main.py and conftest.py put it
+# on sys.path at runtime, and this tells pyright where to find it.
+extraPaths = [".."]
