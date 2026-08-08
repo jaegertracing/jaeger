@@ -13,6 +13,14 @@ import (
 )
 
 // Reader finds and loads traces and other data from storage.
+//
+// Ownership of returned traces: the caller owns every ptrace.Traces a Reader
+// yields and may modify it in place — query-time adjusters do, and so does any
+// query-interceptor extension that rewrites spans on the return path. An
+// implementation that keeps its own copy of the data (an in-memory backend, or
+// any backend with a read cache) MUST therefore yield a deep copy rather than a
+// reference to what it holds, or a single reader will corrupt the stored trace
+// for every later one.
 type Reader interface {
 	// GetTraces returns an iterator that retrieves all traces with given IDs.
 	// The iterator is single-use: once consumed, it cannot be used again.
