@@ -42,7 +42,7 @@ func TestInsertThroughtput(t *testing.T) {
 			{Service: "our-svc", Operation: "op2"},
 		}
 		require.NoError(t, samplingStore.InsertThroughput(throughputs))
-		ret, _ := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
+		ret, _ := samplingStore.GetThroughput(start.Add(-time.Second), start.Add(time.Second*time.Duration(1)))
 		assert.Len(t, ret, 2)
 
 		for i := range 10 {
