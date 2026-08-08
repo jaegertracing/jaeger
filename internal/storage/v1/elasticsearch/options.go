@@ -15,7 +15,8 @@ import (
 var defaultIndexOptions = config.IndexOptions{
 	Shards:   5,
 	Replicas: new(int64(1)),
-	Priority: 0,
+	// Priority is intentionally absent: nil lets each template path apply its own
+	// default, and an explicit 0 here would override the data stream's.
 	Rotation: config.RotationConfig{
 		Periodic: configoptional.Default(config.PeriodicRotation{
 			DateLayout:        initDateLayout("day", "-"),

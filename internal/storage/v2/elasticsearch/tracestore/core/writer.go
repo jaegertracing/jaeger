@@ -114,7 +114,7 @@ func (s *SpanWriter) WriteSpans(ctx context.Context, spans []dbmodel.Span) error
 		// Span doc.
 		s.convertNestedTagsToFieldTags(span)
 		if s.spanRotation.RequiresDocumentTimestamp() {
-			span.Timestamp = strconv.FormatInt(spanStartTime.UnixNano(), 10)
+			span.Timestamp = spanStartTime.UTC().Format(time.RFC3339Nano)
 		}
 		item, err := s.buildSpanItem(s.spanRotation.WriteTarget(spanStartTime), span)
 		if err != nil {
