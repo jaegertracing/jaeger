@@ -299,11 +299,11 @@ func registerAIRoutes(
 			cs = append(cs, customSkills)
 		}
 		mcpCfg.CustomSkillsFS = customSkills
-		// Shared telemetry endpoint (/api/ai/mcp/). Coexists with the wildcard
-		// turn-scoped pattern the gateway registers below.
-		registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset)
 	}
 
+	// The chat gateway is built first so the shared MCP mount can reuse its server
+	// (see below) instead of standing up a second one.
+	var aiGateway *jaegerai.Handler
 	if aiCfg.AgentURL != "" {
 		// jaegerai owns the chat endpoint and, when MCP is on, the turn-scoped
 		// endpoint (/api/ai/mcp/<id>/) — which is why mcpCfg is built above
@@ -313,7 +313,7 @@ func registerAIRoutes(
 		// The announced base URL is resolved here because inferring the
 		// gateway's own localhost address needs the query HTTP endpoint and TLS
 		// setting, which live on QueryOptions, not AIConfig.
-		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
+		aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
 			Logger:             telset.Logger,
 			AgentURL:           aiCfg.AgentURL,
 			BasePath:           queryOpts.BasePath,
@@ -327,6 +327,15 @@ func registerAIRoutes(
 		})
 		aiGateway.RegisterRoutes(r)
 		cs = append(cs, aiGateway)
+	}
+
+	if aiCfg.MCP.HasValue() {
+		// Shared telemetry endpoint (/api/ai/mcp/), turn-less; coexists with the
+		// wildcard turn-scoped pattern the gateway registers. Validate guarantees
+		// agent_url is set whenever mcp is, so the gateway always exists here —
+		// there is no standalone MCP. Mount the shared endpoint on the gateway's own
+		// server (M7) rather than a second one; it is reaped by aiGateway.Close.
+		mountSharedMCP(r, aiGateway.SharedMCPHandler(), queryOpts.BasePath, telset)
 	}
 	return cs, nil
 }
@@ -354,8 +363,9 @@ func otelFilterFunc(basePath string) func(*http.Request) bool {
 	}
 }
 
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, cfg mcptools.Config, telset telemetry.Settings) {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
+// mountSharedMCP mounts handler as the shared telemetry MCP endpoint at
+// <basePath>/api/ai/mcp/, stripping that prefix so the handler sees its own root.
+func mountSharedMCP(r *http.ServeMux, handler http.Handler, basePath string, telset telemetry.Settings) {
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))

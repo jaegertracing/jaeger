@@ -13,6 +13,8 @@ package mcptools
 
 import (
 	"embed"
+	"errors"
+	"io"
 	"io/fs"
 	"net/http"
 
@@ -73,15 +75,40 @@ func NewServer(telset telemetry.Settings, queryAPI *querysvc.QueryService, cfg C
 	return server
 }
 
-// WrapHTTP serves an *mcp.Server as an http.Handler over streamable HTTP, with
+// Handler serves an *mcp.Server over HTTP and reaps that server's sessions on
+// Close, so a mount's MCP sessions are torn down with the query server rather than
+// left to process exit. WrapHTTP and NewHandler return it, so every mount gets the
+// teardown from construction instead of from whoever remembers to reach for the
+// server. It embeds the http.Handler, so it is usable anywhere an http.Handler is.
+type Handler struct {
+	http.Handler
+	server *mcp.Server
+}
+
+var _ io.Closer = (*Handler)(nil)
+
+// Close reaps every session still bound to the server. The SDK reaps a session
+// only when it goes idle (see StreamableHTTPOptions.SessionTimeout), so without
+// this a live session would outlive the server. Sessions() yields a snapshot (it
+// clones under lock), so closing each one mid-iteration — which deregisters it —
+// is safe.
+func (h *Handler) Close() error {
+	var errs []error
+	for session := range h.server.Sessions() {
+		errs = append(errs, session.Close())
+	}
+	return errors.Join(errs...)
+}
+
+// WrapHTTP serves an *mcp.Server as a closeable Handler over streamable HTTP, with
 // tenancy extraction and OTel HTTP instrumentation. It is the transport shell
 // shared by the session-free endpoint and the session-scoped endpoint (which
 // layers per-session UI tools onto the server via receiving middleware before
 // wrapping it). The same server instance is reused for every session — with
 // Stateless: false the SDK builds one ServerSession per MCP session and reuses
 // it for that session's requests. It binds no listener of its own — the caller
-// mounts the returned handler on an existing mux.
-func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.Settings) http.Handler {
+// mounts the returned handler on an existing mux, and closes it at shutdown.
+func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.Settings) *Handler {
 	mcpHandler := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{
@@ -91,18 +118,22 @@ func WrapHTTP(server *mcp.Server, tenancyMgr *tenancy.Manager, telset telemetry.
 		},
 	)
 	tenantHandler := tenancy.ExtractTenantHTTPHandler(tenancyMgr, mcpHandler)
-	return otelhttp.NewHandler(
-		tenantHandler,
-		"jaeger_mcp",
-		otelhttp.WithTracerProvider(telset.TracerProvider),
-	)
+	return &Handler{
+		Handler: otelhttp.NewHandler(
+			tenantHandler,
+			"jaeger_mcp",
+			otelhttp.WithTracerProvider(telset.TracerProvider),
+		),
+		server: server,
+	}
 }
 
-// NewHandler builds an http.Handler that serves the Jaeger telemetry MCP tools
+// NewHandler builds a closeable Handler that serves the Jaeger telemetry MCP tools
 // over streamable HTTP, backed by the given QueryService — the session-free
 // endpoint (e.g. jaeger-query at /api/ai/mcp/). It is a thin composition of
-// NewServer and WrapHTTP around a single shared server.
-func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) http.Handler {
+// NewServer and WrapHTTP around a single shared server. The caller must Close it at
+// shutdown so its MCP sessions are reaped.
+func NewHandler(telset telemetry.Settings, queryAPI *querysvc.QueryService, tenancyMgr *tenancy.Manager, cfg Config) *Handler {
 	return WrapHTTP(NewServer(telset, queryAPI, cfg), tenancyMgr, telset)
 }
 

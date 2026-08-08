@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -95,6 +96,24 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 
 	srv := NewServer(telset, svc, DefaultConfig())
 	require.NotNil(t, srv)
+}
+
+// TestHandlerCloseReapsSessions pins the shared endpoint into the query server's
+// teardown (M7.1): NewHandler's server holds a session until it goes idle, so Close
+// must reap it or it outlives the server that served it.
+func TestHandlerCloseReapsSessions(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+
+	// Bind a session the way an MCP client on the HTTP transport does; nothing else
+	// owns it, so nothing else would ever reap it.
+	serverTransport, _ := mcp.NewInMemoryTransports()
+	_, err := h.server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, slices.Collect(h.server.Sessions()), "precondition: a session is bound")
+
+	require.NoError(t, h.Close())
+	assert.Empty(t, slices.Collect(h.server.Sessions()), "Close must reap the shared endpoint's sessions")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a

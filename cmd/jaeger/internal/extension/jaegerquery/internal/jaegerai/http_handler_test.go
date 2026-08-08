@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -149,6 +148,7 @@ func TestRegisterRoutesMountsSessionScopedMCPWhenEnabled(t *testing.T) {
 
 func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 	h := NewHandler(HandlerParams{Logger: zap.NewNop(), AgentURL: "ws://127.0.0.1:1", BasePath: "", MaxRequestBodySize: 1 << 20})
+	assert.Nil(t, h.SharedMCPHandler(), "there is no server to share when MCP is disabled")
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -162,22 +162,28 @@ func TestRegisterRoutesOmitsMCPEndpointWhenDisabled(t *testing.T) {
 // TestHandlerCloseReapsMCPSessions pins the gateway into jaeger-query's teardown
 // chain (Server.Close → httpServer.Close → closers.Close → here). The MCP SDK reaps a
 // session only when it goes idle, so without this a live session would outlive the
-// server that served it.
+// server that served it. It binds a real client session over the turn-scoped endpoint,
+// then asserts Close tears it down — a call afterward fails. (The reaping mechanism
+// itself is unit-tested in mcptools.TestHandlerCloseReapsSessions; this pins the
+// gateway's Close through to it.)
 func TestHandlerCloseReapsMCPSessions(t *testing.T) {
 	h := mcpEnabledHandler(t, "")
 	require.Implements(t, (*io.Closer)(nil), h, "the gateway must be closable by the server's teardown chain")
-	require.NotNil(t, h.mcp)
 
-	// Bind a session the way an MCP client on the HTTP transport does: nothing else
-	// owns it, so nothing else would ever reap it.
-	serverTransport, _ := mcp.NewInMemoryTransports()
-	_, err := h.mcp.server.Connect(context.Background(), serverTransport, nil)
-	require.NoError(t, err)
-	require.NotEmpty(t, slices.Collect(h.mcp.server.Sessions()), "precondition: a session is bound")
+	mux := http.NewServeMux()
+	h.RegisterRoutes(mux)
+	routeID := registerTurn(h.mcp.turns, testStreamingClient(), nil)
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	session := connectTurnMCP(t, ts, "/api/ai/mcp/"+routeID+"/")
+	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err, "the session works before Close")
 
 	require.NoError(t, h.Close())
-	assert.Empty(t, slices.Collect(h.mcp.server.Sessions()),
-		"Close must reap every session left on the shared server")
+
+	_, err = session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.Error(t, err, "after Close the session is reaped, so a further call fails")
 }
 
 // TestHandlerCloseIsNoOpWhenNothingToClose covers the two shapes jaeger-query holds
