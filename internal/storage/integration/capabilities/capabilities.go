@@ -59,20 +59,7 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		searchRequiresServiceName: true,
-		skipList:                  []string{FindTraceSummariesTest},
-	}
-}
-
-// RemoteStorageE2E returns the opt-outs for an end-to-end deployment whose jaeger-query
-// reads through gRPC remote storage. Whatever the store behind the remote can do,
-// jaeger.storage.v2 cannot report it, so jaeger-query assumes the baseline and refuses a
-// search that omits the service name (RFC 0013 §3.6). It excuses nothing else: unlike
-// GRPC(), which describes the remote store itself, these deployments back the remote with
-// an in-memory store whose other behavior is fully exercised.
-func RemoteStorageE2E() Capabilities {
-	return Capabilities{
-		searchRequiresServiceName: true,
+		skipList: []string{FindTraceSummariesTest},
 	}
 }
 
