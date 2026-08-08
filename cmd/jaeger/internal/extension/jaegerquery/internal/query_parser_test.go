@@ -31,7 +31,6 @@ func TestParseTraceQuery(t *testing.T) {
 		errMsg        string
 		expectedQuery *traceQueryParameters
 	}{
-		{"", "parameter 'service' is required", nil},
 		{"x?service=service&start=string", errParseInt, nil},
 		{"x?service=service&end=string", errParseInt, nil},
 		{"x?service=service&limit=string", errParseInt, nil},

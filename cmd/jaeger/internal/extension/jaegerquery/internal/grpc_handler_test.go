@@ -926,3 +926,24 @@ func traceIterator(trace *model.Trace, err error) iter.Seq2[[]ptrace.Traces, err
 		}
 	}
 }
+
+// TestFindTracesServiceNameRequired_GRPC pins the status code api_v2 reports for a query
+// this deployment's storage cannot serve. Every other error from the search iterator is
+// wrapped as Internal here, which would make a well-formed request look like a server
+// fault; the API v3 and HTTP layers already answer InvalidArgument / 400 (RFC 0013 §3.3).
+func TestFindTracesServiceNameRequired_GRPC(t *testing.T) {
+	withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: &api_v2.TraceQueryParameters{
+				StartTimeMin: time.Now().Add(-10 * time.Minute),
+				StartTimeMax: time.Now(),
+			},
+		})
+		require.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+		require.ErrorContains(t, err, "requires a service name")
+		assert.Equal(t, codes.InvalidArgument, status.Code(err))
+		assert.Nil(t, spanResChunk)
+	})
+}

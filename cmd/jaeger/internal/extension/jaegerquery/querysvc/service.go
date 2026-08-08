@@ -22,6 +22,14 @@ import (
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
+// ErrServiceNameRequired is returned for a search that omits the service name against a
+// backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
+// limitation rather than the missing field, because the same query is valid elsewhere.
+// The API layers map it to InvalidArgument / HTTP 400.
+var ErrServiceNameRequired = errors.New(
+	"this storage backend requires a service name to search; searching all services is not supported",
+)
+
 // QueryServiceOptions holds the configuration options for the query service.
 type QueryServiceOptions struct {
 	// ArchiveTraceReader is used to read archived traces from the storage.
@@ -33,6 +41,11 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
+	// SearchCapabilities is what the trace reader reported about the query shapes it
+	// accepts. It is read once at startup rather than per query, so a backend that has to
+	// fetch it does so once; the query service rejects a query the backend cannot serve
+	// instead of letting it reach storage and come back wrong (RFC 0013 §3.3).
+	SearchCapabilities tracestore.SearchCapabilities
 }
 
 // StorageCapabilities is a feature flag for query service
@@ -157,9 +170,24 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if err := qs.validateSearchQuery(query); err != nil {
+			yield(nil, err)
+			return
+		}
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
+}
+
+// validateSearchQuery rejects a query whose shape the backend cannot serve. Storage
+// readers guard themselves too, but they answer differently — Cassandra returned an empty
+// result for a service-less search until RFC 0013 — so the single answer callers see is
+// decided here, where the capability is known.
+func (qs QueryService) validateSearchQuery(query TraceQueryParams) error {
+	if query.ServiceName == "" && !qs.options.SearchCapabilities.WithoutServiceName {
+		return ErrServiceNameRequired
+	}
+	return nil
 }
 
 // FindTraceSummaries searches for traces matching the query and returns an iterator
@@ -174,6 +202,10 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		if err := qs.validateSearchQuery(query); err != nil {
+			yield(nil, err)
+			return
+		}
 		for batch, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {

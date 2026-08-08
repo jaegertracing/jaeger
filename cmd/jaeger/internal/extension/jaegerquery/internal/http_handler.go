@@ -544,6 +544,10 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	if errors.Is(err, disabled.ErrDisabled) {
 		statusCode = http.StatusNotImplemented
 	}
+	if errors.Is(err, querysvc.ErrServiceNameRequired) {
+		// The request is well-formed; this deployment's storage cannot serve it.
+		statusCode = http.StatusBadRequest
+	}
 	if statusCode == http.StatusInternalServerError {
 		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
 	}

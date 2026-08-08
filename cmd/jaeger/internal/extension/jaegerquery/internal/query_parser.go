@@ -358,10 +358,10 @@ func mapSpanKindsToOpenTelemetry(spanKinds []string) ([]string, error) {
 	return otelSpanKinds, nil
 }
 
+// validateQuery checks what the parser can decide from the request alone. Whether a search
+// may omit the service name depends on the storage backend, so the query service decides
+// that, from the capability the reader declares (RFC 0013 §3.3).
 func (*queryParser) validateQuery(traceQuery *traceQueryParameters) error {
-	if len(traceQuery.TraceIDs) == 0 && traceQuery.ServiceName == "" {
-		return errServiceParameterRequired
-	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
 		if traceQuery.DurationMax < traceQuery.DurationMin {
 			return errMaxDurationGreaterThanMin
