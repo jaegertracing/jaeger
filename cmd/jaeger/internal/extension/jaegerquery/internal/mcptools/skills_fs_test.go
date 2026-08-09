@@ -28,6 +28,10 @@ func TestOpenCustomSkillsDir_ServesDirectoryContents(t *testing.T) {
 
 	custom, err := OpenCustomSkillsDir(dir)
 	require.NoError(t, err)
+	// The tree holds an open OS handle. Leaving it open makes t.TempDir's
+	// cleanup fail on Windows, which cannot remove a directory that is still
+	// in use; on Linux the unlink succeeds and the leak goes unnoticed.
+	t.Cleanup(func() { require.NoError(t, custom.Close()) })
 
 	catalog, err := fs.ReadFile(custom, "SKILL.md")
 	require.NoError(t, err)
@@ -96,6 +100,7 @@ func TestOpenCustomSkillsDir_BlocksSymlinkEscape(t *testing.T) {
 
 	custom, err := OpenCustomSkillsDir(dir)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, custom.Close()) })
 
 	// os.OpenRoot refuses to follow a symlink out of skills_dir.
 	_, err = custom.Open("evil/secret.txt")
