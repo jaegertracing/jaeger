@@ -919,3 +919,39 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 		})
 	}
 }
+
+func TestConvertMapToKeyValueList_SkipsEmptyValueType(t *testing.T) {
+	m := pcommon.NewMap()
+	m.PutStr("valid_key", "hello")
+	// PutEmpty inserts an attribute whose Type() == pcommon.ValueTypeEmpty.
+	m.PutEmpty("empty_key")
+
+	kvList := convertMapToKeyValueList(m)
+
+	// Only the well-formed string attribute should survive; the empty-typed one
+	// must not appear as a KeyValue with a nil Value field.
+	require.Len(t, kvList, 1, "empty-typed attribute must be skipped, not emitted with nil Value")
+	assert.Equal(t, "valid_key", kvList[0].Key)
+	assert.NotNil(t, kvList[0].Value, "surviving KeyValue must have a non-nil Value")
+}
+
+func TestConvertMapToKeyValueList_NoNilValues(t *testing.T) {
+	m := pcommon.NewMap()
+	m.PutStr("s", "str")
+	m.PutBool("b", true)
+	m.PutInt("i", 42)
+	m.PutDouble("d", 3.14)
+	m.PutEmptyBytes("by").FromRaw([]byte{1, 2, 3})
+	m.PutEmptySlice("arr")
+	m.PutEmptyMap("nested")
+	// Also insert an empty-typed value that must be filtered out.
+	m.PutEmpty("empty_typed")
+
+	kvList := convertMapToKeyValueList(m)
+
+	// Seven well-typed entries should survive; the empty-typed one must be absent.
+	assert.Len(t, kvList, 7, "empty-typed entry must not appear in the output")
+	for _, kv := range kvList {
+		assert.NotNil(t, kv.Value, "every KeyValue in the output must have a non-nil Value (key: %s)", kv.Key)
+	}
+}
