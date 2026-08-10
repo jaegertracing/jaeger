@@ -26,7 +26,7 @@ DEFAULT_OTLP_INSECURE = True
 # google-genai's chats.create()/generate_content() require an explicit model
 # name; the SDK itself has no implicit default. gemini-2.5-flash is Jaeger's
 # own recommended default because it's available on Gemini's free tier.
-DEFAULT_GEMINI_MODEL_NAME = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL_NAME = "gemini-flash-latest"
 
 
 def parse_args() -> argparse.Namespace:
