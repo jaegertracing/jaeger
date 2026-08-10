@@ -9,7 +9,7 @@
 
 ## Abstract
 
-Jaeger's trace-search API filters spans by unqualified key-value tag pairs, implicitly ANDed, matched against every attribute location in the span. This RFC defines a **structured query-filter model** for trace search that (1) lets a predicate reference a specific attribute *level* (span / resource / instrumentation / event / link) or a built-in *property* (duration, name, status, …), (2) composes predicates with **boolean operators** (`AND`/`OR`/`NOT`), and (3) keeps the existing unqualified tag filter working unchanged.
+Jaeger's trace-search API filters spans by unqualified key-value tag pairs, implicitly ANDed, matched against the span's attribute locations without distinguishing among them (how many locations, and which, is backend-dependent). This RFC defines a **structured query-filter model** for trace search that (1) lets a predicate reference a specific attribute *level* (span / resource / instrumentation / event / link) or a built-in *property* (duration, name, status, …), (2) composes predicates with **boolean operators** (`AND`/`OR`/`NOT`), and (3) keeps the existing unqualified tag filter working unchanged.
 
 The model is a **fully structured AST** (proto/JSON), *not* a free-text query language, and its reach is deliberately bounded by what Jaeger's storage backends (Elasticsearch/OpenSearch, ClickHouse, Cassandra, Badger) can implement — it covers filtering and stops short of result shaping, aggregation, and trace-tree/structural queries.
 
@@ -37,7 +37,7 @@ OTLP spans carry attributes at five distinct levels:
 
 ### 1.3 The performance problem
 
-When a user queries `http.status_code=500`, an unqualified backend must search all five levels with OR logic. In ClickHouse this expands to five separate `arrayExists()` calls (three top-level columns, two nested within event/link arrays), each scanning a typed Map column. In Elasticsearch each unqualified tag expands to a `bool.should` across the field locations, increasing sub-query count and reducing cache effectiveness. The cost is paid on every attribute of every search, even though the user almost always knows which level they mean.
+When a user queries `http.status_code=500`, an unqualified backend must fan the query out across every attribute level it indexes with OR logic. In ClickHouse this expands to five separate `arrayExists()` calls (three top-level columns, two nested within event/link arrays), each scanning a typed Map column. In Elasticsearch each unqualified tag expands to a `bool.should` across the field locations, increasing sub-query count and reducing cache effectiveness. The cost is paid on every attribute of every search, even though the user almost always knows which level they mean.
 
 ### 1.4 The semantic problem
 
@@ -71,7 +71,7 @@ Feasibility is dominated by how each backend physically stores and indexes attri
 
 ### Goals
 
-- **G1 — Level-qualified attributes.** A predicate may target a single OTLP attribute level (span/resource/instrumentation/event/link) or leave it unqualified (search the default).
+- **G1 — Level-qualified attributes.** A predicate may target a single OTLP attribute level (span/resource/instrumentation/event/link) or leave it unqualified (search the default level set — span-or-resource; §5.1).
 - **G2 — Properties.** A predicate may target a built-in span/trace property (`duration`, `name`, `status`, `kind`, service, trace-level values) uniformly with attributes (§5).
 - **G3 — Richer operators.** Beyond equality: `ne`, `gt`, `lt`, `regex`, `exists` — extensible without a second API redesign.
 - **G4 — Boolean composition.** Predicates combine with `AND`/`OR`/`NOT` and nesting (§4 tier L2).
@@ -165,7 +165,7 @@ An attribute reference is a `(level, key)` pair. The level vocabulary follows th
 | `event` | `Span.events[].attributes` | |
 | `link` | `Span.links[].attributes` | |
 
-The empty default means span-or-resource rather than "all five" because that is what Jaeger indexes and searches by default today: span attributes and resource (process) attributes are the tags reliably indexed for search, whereas event (span-log) attributes generally are not. So span-or-resource is at once the high-coverage common case *and* the behavior existing unqualified queries already get — making it the default preserves today's semantics rather than silently widening the search or paying to scan levels that are not indexed. A backend that does index more, or that expands to all levels (as ClickHouse can, at the §1.3 cost), simply returns a superset (§1.6). A further level such as `parent.` (the parent span's attributes) could be added later — the vocabulary is an open string set (§6).
+The empty default means span-or-resource rather than "all five" as a deliberate choice for the new `filters` model: span and resource (process) attributes are the tags reliably indexed across every backend, so this default covers the high-value common case without paying to scan levels that are unindexed or costly. It is *not* a claim that span-or-resource matches today's unqualified behavior — that behavior is backend-dependent and generally searches *more*: ClickHouse ORs across all five levels (§1.3), and Elasticsearch across its indexed span/resource/event locations. The legacy `attributes` map keeps that existing behavior unchanged; the span-or-resource default applies only to an empty `level` in the new `filters` field. A backend that indexes or scans more simply returns a superset (§1.6). A further level such as `parent.` (the parent span's attributes) could be added later — the vocabulary is an open string set (§6).
 
 ### 5.2 Properties
 
