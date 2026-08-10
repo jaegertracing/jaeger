@@ -36,9 +36,26 @@ type testServer struct {
 	traceIDs   []*storage.FoundTraceID
 	summaries  []*storage.TraceSummary
 	err        error
+	// delay, if set, is how long GetServices and GetTraces sleep before
+	// responding, to simulate a slow/hung backend in timeout tests.
+	delay time.Duration
+}
+
+// sleep blocks for the configured delay, or until ctx is cancelled (e.g. the
+// caller's deadline expires and the client disconnects), whichever comes
+// first, so a timed-out test does not leave this goroutine sleeping behind.
+func (ts *testServer) sleep(ctx context.Context) {
+	if ts.delay <= 0 {
+		return
+	}
+	select {
+	case <-time.After(ts.delay):
+	case <-ctx.Done():
+	}
 }
 
 func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceReader_GetTracesServer) error {
+	ts.sleep(s.Context())
 	for _, trace := range ts.traces {
 		s.Send(trace)
 	}
@@ -46,9 +63,10 @@ func (ts *testServer) GetTraces(_ *storage.GetTracesRequest, s storage.TraceRead
 }
 
 func (ts *testServer) GetServices(
-	context.Context,
-	*storage.GetServicesRequest,
+	ctx context.Context,
+	_ *storage.GetServicesRequest,
 ) (*storage.GetServicesResponse, error) {
+	ts.sleep(ctx)
 	return &storage.GetServicesResponse{
 		Services: ts.services,
 	}, ts.err
