@@ -65,6 +65,26 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 	require.NoError(t, f.Close())
 }
 
+func TestFactoryBase_SpanBatchWriterForWriteMode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	// The writer always receives a batch writer; the factory picks the async or sync
+	// implementation from write_mode (sync behavior is asserted end-to-end in the v2
+	// factory's fault-injection test).
+	for _, mode := range []escfg.WriteMode{escfg.WriteModeAsync, escfg.WriteModeSync} {
+		t.Run(string(mode), func(t *testing.T) {
+			cfg := escfg.Configuration{Servers: []string{server.URL}, WriteMode: mode}
+			f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, f.Close()) })
+			assert.NotNil(t, f.GetSpanWriterParams().BatchWriter)
+		})
+	}
+}
+
 func TestFactoryBase_Purge(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -343,9 +363,8 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := escfg.Configuration{
-		Servers:            []string{server.URL},
-		DisableHealthCheck: true,
-		LogLevel:           "error",
+		Servers:  []string{server.URL},
+		LogLevel: "error",
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch data client")
@@ -366,7 +385,6 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 	cfg := escfg.Configuration{
 		Servers:              []string{server.URL},
 		CreateIndexTemplates: true,
-		DisableHealthCheck:   true,
 		LogLevel:             "error",
 		Indices: escfg.Indices{
 			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
@@ -462,7 +480,6 @@ func runPasswordFromFileTest(t *testing.T) {
 		},
 		BulkProcessing: escfg.BulkProcessing{
 			MaxBytes:      -1, // disable bulk size limit
-			MaxActions:    -1, // disable bulk action limit
 			FlushInterval: 10 * time.Millisecond,
 		},
 	}
@@ -527,8 +544,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 		BulkProcessing: escfg.BulkProcessing{
-			MaxBytes:   -1, // disable bulk
-			MaxActions: -1, // disable bulk; the test only validates authenticator setup
+			MaxBytes: -1, // disable bulk
 		},
 	}
 

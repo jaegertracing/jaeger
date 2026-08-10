@@ -1,7 +1,7 @@
 # Migrate Coverage Gating from Codecov to GitHub Actions
 
 * **Status**: Accepted (implemented)
-* **Date**: 2026-03-01
+* **Date**: 2026-03-01, extended 2026-07-29 (binary coverage, upload-invariant check, Codecov follow-up resolved)
 
 ## Context
 
@@ -43,15 +43,24 @@ Extend the existing `CI Summary Report` fan-in workflow to add coverage aggregat
 
 Each CI job uploads its coverage profile as a `coverage-<flag>` artifact (7-day retention) via `.github/actions/upload-codecov/action.yml`, alongside the existing Codecov upload.
 
+The e2e legs additionally contribute coverage of the jaeger binary they spawn. Those legs run jaeger as a separate OS process and drive it over the wire, so `go test -coverpkg` in the test process cannot observe it — before this was added, their profiles covered only `cmd/jaeger/internal/integration`, which `.codecov.yml` ignores, so 15 of the 27 uploads contributed nothing countable. The binary is built with `go build -cover -covermode=atomic`, writes counters into a directory passed as `JAEGER_BINARY_COVERDIR` and mapped onto `GOCOVERDIR` for the child only, and `go tool covdata textfmt` plus `gocovmerge` merge the result into the leg's `cover.out` (`scripts/makefiles/IntegrationTests.mk`). Three constraints are load-bearing:
+
+1. **The binary must exit normally.** Go flushes coverage counters from the runtime exit path, so `Binary.Stop` sends `SIGTERM` and escalates to `SIGKILL` only after a timeout. Under `SIGKILL` the directory gets a meta file and no counters.
+2. **The destination cannot be named `GOCOVERDIR`.** Under `go test -coverprofile` the toolchain sets `GOCOVERDIR` in the test process for its own use, so an inherited value is overwritten and the binary's counters land where the build discards them.
+3. **Both meta and counter files must exist before merging.** `covdata` converts a meta-only directory without error, emitting every instrumented statement at zero; merging that adds ~22k uncovered statements and collapses the reported total, so missing counters would surface as a coverage regression.
+
+Beyond coverage, this is the only source of per-leg package attribution: the `cassandra` leg's profile names 13 cassandra-specific packages the `memory_v2` leg's does not. Static analysis cannot make that distinction, because the single binary links every backend.
+
 ### Fan-in Workflow (`ci-summary-report.yml`)
 
 The single `summary-report` job:
 
 1. **Resolves the source run** — determines the CI Orchestrator run ID (from `workflow_run` event or `workflow_dispatch` input), validates it succeeded, and extracts PR metadata (number + head SHA) via the GitHub API.
 2. **Downloads all artifacts** — uses `gh run download` to fetch all artifacts from the source run.
-3. **Merges and gates coverage** — merges all `coverage-*/*.out` profiles with `gocovmerge`, filters excluded paths, and applies the two coverage gates.
-4. **Posts results** — creates `Metrics Comparison` and `Coverage Gate` check-runs on the PR. When no coverage data exists, `Coverage Gate` reports success with a "skipped" note to satisfy branch protection.
-5. **Saves baseline on `main`** — caches the coverage percentage for future PR comparisons.
+3. **Checks the upload invariant** — `scripts/e2e/check_coverage_uploads.py` verifies that `after_n_builds` in `.codecov.yml` equals the number of uploads carrying countable coverage, and fails the run when at least that many jobs uploaded yet fewer carry coverage. Codecov withholds *every* notification — including the required `codecov/patch` and `codecov/project` statuses — until the threshold is met, so drift in that number blocks all merges with no failing check to point at. The check verifies uploads *carry coverage* rather than counting upload call sites: when this last drifted, the number of call sites stayed at 27 and only the content of 15 of them changed.
+4. **Merges and gates coverage** — merges all `coverage-*/*.out` profiles with `gocovmerge`, filters excluded paths, and applies the two coverage gates.
+5. **Posts results** — creates `Metrics Comparison` and `Coverage Gate` check-runs on the PR. When no coverage data exists, `Coverage Gate` reports success with a "skipped" note to satisfy branch protection.
+6. **Saves baseline on `main`** — caches the coverage percentage for future PR comparisons.
 
 ### Key Files
 
@@ -62,7 +71,10 @@ The single `summary-report` job:
 | `.github/workflows/ci-orchestrator.yml` | Triggers the fan-in |
 | `scripts/e2e/filter_coverage.py` | Applies `.codecov.yml` exclusions |
 | `internal/tools/tools.go` | `gocovmerge` tool dependency |
-| `.codecov.yml` | Single source of truth for ignore patterns |
+| `.codecov.yml` | Single source of truth for ignore patterns, and the `after_n_builds` upload threshold |
+| `scripts/e2e/check_coverage_uploads.py` | Upload-invariant check |
+| `scripts/makefiles/IntegrationTests.mk` | Instrumented e2e binary build and coverage merge |
+| `cmd/jaeger/internal/integration/binary.go` | Graceful shutdown so coverage counters flush |
 
 ## Consequences
 
@@ -82,6 +94,18 @@ The single `summary-report` job:
 
 - Codecov remains active for long-term trending; removing it can be a follow-up decision.
 
+### Follow-up resolved: Codecov stays a required gate
+
+That follow-up decision is **declined**. `codecov/patch` enforces coverage on the changed lines, and the two gates above cannot approximate it: both derive from one project-wide percentage, and with the total near 97.4% against a 95% floor a pull request can leave a substantial diff uncovered without moving it measurably. The two systems are complements that fail in opposite directions — the project gates catch slow erosion across many pull requests, `codecov/patch` catches a single diff landing poorly covered code inside the headroom.
+
+### Known gaps
+
+Recorded so they are not mistaken for oversights:
+
+1. **No diff-level gate here.** The 95% patch target that `AGENTS.md` documents is enforced solely by `codecov/patch`. Until this workflow computes coverage over the changed lines, Codecov cannot be retired as a required check, and a Codecov outage removes diff-level enforcement entirely.
+2. **jaeger-v2 is compiled twice per e2e cell** — once as the instrumented binary the harness spawns, once as the test binary.
+3. **Merge-queue entries are sometimes evicted with all required checks green.** Observed where the `merge_group` run succeeded but eviction preceded the checks being reported; `checkResponseTimeout` (1800s) does not account for it. Cause unidentified.
+
 ## References
 
 - [CI Summary Report workflow](/.github/workflows/ci-summary-report.yml)
@@ -90,3 +114,4 @@ The single `summary-report` job:
 - [Coverage filter script](/scripts/e2e/filter_coverage.py)
 - [Tool registry](/internal/tools/tools.go)
 - [Coverage policy](/.codecov.yml)
+- Delivering PRs for the 2026-07-29 extension: [#9130](https://github.com/jaegertracing/jaeger/pull/9130) (upload threshold), [#9133](https://github.com/jaegertracing/jaeger/pull/9133) (upload-invariant check), [#9139](https://github.com/jaegertracing/jaeger/pull/9139) (graceful shutdown), [#9140](https://github.com/jaegertracing/jaeger/pull/9140) (binary coverage); analysis in [#9084](https://github.com/jaegertracing/jaeger/issues/9084) and [#9131](https://github.com/jaegertracing/jaeger/pull/9131)

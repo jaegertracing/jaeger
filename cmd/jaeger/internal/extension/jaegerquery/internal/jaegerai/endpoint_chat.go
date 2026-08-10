@@ -34,17 +34,49 @@ type chatEndpoint struct {
 	// turns registers each turn's SSE streaming client and UI tools so the
 	// turn-scoped MCP endpoint can resolve an active turn. Always non-nil (set by
 	// the constructor).
-	turns              *turnRegistry
+	turns *turnRegistry
+	// mcpBaseURL is the scheme+authority announced for the turn-scoped MCP
+	// endpoint. NewHandler sets it only when that endpoint is actually mounted and
+	// a reachable address is known, so empty means announce nothing.
+	mcpBaseURL         string
 	sidecarWSURL       string
 	basePath           string
 	maxRequestBodySize int64
+}
+
+// mcpServerName is the human-readable name the gateway gives its MCP server in the
+// session/new announcement. Agents surface it in logs and tool namespacing, so keep
+// it stable.
+const mcpServerName = "jaeger"
+
+// announceMCP builds this turn's NewSessionRequest.mcpServers, pointing the sidecar
+// at the turn-scoped MCP endpoint. Without it the endpoint is dormant: it serves the
+// telemetry tools and the turn's UI tools, but no agent knows the URL to dial.
+//
+// The announcement is capability-gated on the agent's InitializeResponse: ACP
+// requires an agent to opt into each McpServer variant, and announcing one it cannot
+// consume would make it fail the session. Streamable HTTP is the only variant the
+// gateway offers today.
+func (h *chatEndpoint) announceMCP(caps acp.AgentCapabilities, mcpRouteID string) []acp.McpServer {
+	if mcpRouteID == "" || h.mcpBaseURL == "" || !caps.McpCapabilities.Http {
+		return []acp.McpServer{}
+	}
+	return []acp.McpServer{{
+		Http: &acp.McpServerHttpInline{
+			Type:    "http",
+			Name:    mcpServerName,
+			Url:     h.mcpBaseURL + h.basePath + routeMCPPrefix + mcpRouteID + "/",
+			Headers: []acp.HttpHeader{},
+		},
+	}}
 }
 
 // newChatEndpoint wires the chat endpoint against a sidecar WebSocket URL.
 // ctxTools may be nil in tests that do not exercise contextual tooling. basePath
 // is the jaeger-query base path; it is normalized once and kept on the endpoint
 // for consistency with sibling handlers even though ServeHTTP does not currently
-// read it.
+// read it. mcpBaseURL defaults to the zero value — the announcement stays off until
+// NewHandler enables it — so tests that do not exercise MCP need no extra wiring.
 func newChatEndpoint(logger *zap.Logger, ctxTools *ContextualToolsStore, turns *turnRegistry, sidecarWSURL, basePath string, maxRequestBodySize int64) *chatEndpoint {
 	return &chatEndpoint{
 		Logger:             logger,
@@ -124,9 +156,9 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Register this turn's stream and UI tools so the turn-scoped MCP endpoint can
 	// confirm the turn is active, advertise its UI tools, and dispatch their calls
-	// onto the stream. The registry mints the route id and hands back a closer, so
-	// the chat endpoint never has to know how a turn is keyed.
-	_, closeTurn := h.turns.register(clientImpl, rawTools)
+	// onto the stream. The registry mints the route id, which we announce to the
+	// sidecar below as the turn's MCP URL, and hands back a closer.
+	mcpRouteID, closeTurn := h.turns.register(clientImpl, rawTools)
 	defer closeTurn()
 
 	// Build the ACP connection ourselves so the inbound dispatcher can
@@ -171,8 +203,10 @@ func (h *chatEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// "/" is a placeholder: the gateway advertises no fs capability in
 		// Initialize, so Cwd is never resolved against a real filesystem.
 		// ACP requires the field to be non-empty, hence this constant.
-		Cwd:        "/",
-		McpServers: []acp.McpServer{},
+		Cwd: "/",
+		// Point the sidecar at this turn's turn-scoped MCP endpoint, on the
+		// transports it advertised support for in Initialize.
+		McpServers: h.announceMCP(init.AgentCapabilities, mcpRouteID),
 	}
 	if len(prefixedTools) > 0 {
 		newSessionReq.Meta = map[string]any{
