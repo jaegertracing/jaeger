@@ -118,7 +118,7 @@ func TestHandlerCloseReapsSessions(t *testing.T) {
 }
 
 // TestHandlerAddReceivingMiddleware covers the hook the AI gateway uses to layer its
-// per-turn UI tools onto a server it did not build. WrapHTTP captures the server by
+// per-turn UI tools onto a server it did not build. NewHandler captures the server by
 // pointer, so middleware registered after the handler exists must still run for every
 // later request — otherwise a gateway attaching to the shared endpoint would silently
 // serve telemetry tools only.
@@ -140,7 +140,7 @@ func TestHandlerAddReceivingMiddleware(t *testing.T) {
 	session := connectTestClient(t, h)
 	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
 	require.NoError(t, err)
-	assert.True(t, saw.Load(), "middleware added after WrapHTTP must run for later requests")
+	assert.True(t, saw.Load(), "middleware added after the handler is built must run for later requests")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
