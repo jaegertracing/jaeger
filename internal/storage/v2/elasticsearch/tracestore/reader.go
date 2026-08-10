@@ -28,6 +28,15 @@ func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	}
 }
 
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{
+		// The query adds its process.serviceName clause only when the query carries a
+		// name, and no other clause depends on it, so an omitted name matches spans from
+		// every service.
+		WithoutServiceName: true,
+	}, nil
+}
+
 func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
