@@ -229,6 +229,7 @@ func TestNewFactory_Timeout(t *testing.T) {
 		_, err := reader.GetServices(context.Background())
 		elapsed := time.Since(start)
 		require.Error(t, err)
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
 		assert.Less(t, elapsed, configuredTimeout+slack)
 	})
 
@@ -237,6 +238,7 @@ func TestNewFactory_Timeout(t *testing.T) {
 		_, err := jiter.FlattenWithErrors(reader.GetTraces(context.Background(), tracestore.GetTraceParams{}))
 		elapsed := time.Since(start)
 		require.Error(t, err)
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
 		assert.Less(t, elapsed, configuredTimeout+slack)
 	})
 }
