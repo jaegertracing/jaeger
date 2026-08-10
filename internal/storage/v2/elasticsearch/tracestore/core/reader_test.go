@@ -297,23 +297,30 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			{Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: 2}, Hits: []esclient.SearchHit{{Source: spanBytesID1}}}},
 		}
 
-		// Every sub-request must page startTime-ascending, track total hits, and carry
-		// the expected search_after cursor: the padded window start on round 1, and
-		// the last span's startTime on the follow-up.
-		initialCursor := model.TimeAsEpochMicroseconds(date.Add(-24 * time.Hour))
-		paginates := func(req esclient.MultiSearchRequest, wantCursor uint64) bool {
-			s := req.Search
-			return len(s.Sort) == 1 &&
+		// Every sub-request must sort (startTime, spanID)-ascending and track total
+		// hits. The first page carries no search_after; the follow-up resumes from the
+		// last span's (startTime, spanID).
+		hasSort := func(s esclient.SearchRequest) bool {
+			return len(s.Sort) == 2 &&
 				s.Sort[0] == esclient.SortOrder{Field: startTimeField, Order: esquery.Ascending} &&
-				s.TrackTotalHits &&
-				len(s.SearchAfter) == 1 && s.SearchAfter[0] == any(wantCursor)
+				s.Sort[1] == esclient.SortOrder{Field: spanIDField, Order: esquery.Ascending} &&
+				s.TrackTotalHits
+		}
+		firstPage := func(req esclient.MultiSearchRequest) bool {
+			return hasSort(req.Search) && len(req.Search.SearchAfter) == 0
+		}
+		paginates := func(req esclient.MultiSearchRequest, wantTime uint64, wantSpanID string) bool {
+			s := req.Search
+			return hasSort(s) &&
+				len(s.SearchAfter) == 2 &&
+				s.SearchAfter[0] == any(wantTime) && s.SearchAfter[1] == any(wantSpanID)
 		}
 
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
-			return len(reqs) == 2 && paginates(reqs[0], initialCursor) && paginates(reqs[1], initialCursor)
+			return len(reqs) == 2 && firstPage(reqs[0]) && firstPage(reqs[1])
 		})).Return(firstRound, nil).Once()
 		r.searcher.On("MultiSearch", mock.Anything, mock.MatchedBy(func(reqs []esclient.MultiSearchRequest) bool {
-			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime)
+			return len(reqs) == 1 && paginates(reqs[0], spanID1.StartTime, string(spanID1.SpanID))
 		})).Return(secondRound, nil).Once()
 
 		traces, err := r.reader.multiRead(context.Background(), []dbmodel.TraceID{traceID1, traceID2}, date, date)
@@ -331,6 +338,101 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			assert.Equal(t, string(expectedData), string(actualData))
 		}
 	})
+}
+
+// searchAfterFake is a Searcher that implements Elasticsearch/OpenSearch
+// search_after paging over a fixed, pre-sorted span corpus, honoring exactly the
+// sort keys and cursor each request declares. It lets multiRead's real paging
+// loop run end-to-end: with the (startTime, spanID) tie-breaker the whole trace
+// is returned; paging on startTime alone skips spans that share the boundary
+// timestamp — the bug this reproduces.
+type searchAfterFake struct {
+	esclient.Searcher // only MultiSearch is exercised
+	corpus            []dbmodel.Span
+}
+
+func (f *searchAfterFake) MultiSearch(_ context.Context, reqs []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error) {
+	resps := make([]esclient.SearchResponse, len(reqs))
+	for i, req := range reqs {
+		resps[i] = f.page(req.Search)
+	}
+	return resps, nil
+}
+
+func (f *searchAfterFake) page(req esclient.SearchRequest) esclient.SearchResponse {
+	// The request declares whether spanID is a sort key; page accordingly so the
+	// fake models both the fixed and the pre-fix behavior faithfully. The first
+	// page carries no search_after, so it starts from the beginning of the corpus.
+	tieBreak := len(req.Sort) > 1 && req.Sort[1].Field == spanIDField
+	var afterTime uint64
+	afterSpanID := ""
+	if len(req.SearchAfter) > 0 {
+		afterTime, _ = req.SearchAfter[0].(uint64)
+		if tieBreak && len(req.SearchAfter) > 1 {
+			afterSpanID, _ = req.SearchAfter[1].(string)
+		}
+	}
+	var hits []esclient.SearchHit
+	for i := range f.corpus {
+		sp := &f.corpus[i]
+		after := sp.StartTime > afterTime
+		if !after && tieBreak {
+			after = sp.StartTime == afterTime && string(sp.SpanID) > afterSpanID
+		}
+		if !after {
+			continue
+		}
+		src, err := json.Marshal(sp)
+		if err != nil {
+			panic(err)
+		}
+		hits = append(hits, esclient.SearchHit{Source: src})
+		if len(hits) == req.Size {
+			break
+		}
+	}
+	return esclient.SearchResponse{
+		Hits: esclient.HitsResult{Total: esclient.TotalHits{Value: len(f.corpus)}, Hits: hits},
+	}
+}
+
+// TestSpanReader_multiRead_tieBreakerAvoidsSpanLoss is the regression test for the
+// search_after tie-breaker: a trace whose spans share a startTime across a page
+// boundary. The corpus has three spans at the same startTime and a page size of
+// two, so the second page begins inside the equal-timestamp run. With the
+// (startTime, spanID) tie-breaker all three spans are returned; paging on
+// startTime alone drops the third, because search_after excludes every span at
+// the boundary timestamp.
+func TestSpanReader_multiRead_tieBreakerAvoidsSpanLoss(t *testing.T) {
+	const traceID = dbmodel.TraceID("1234567890abcdef")
+	base := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	ts := model.TimeAsEpochMicroseconds(base)
+	corpus := []dbmodel.Span{
+		{TraceID: traceID, SpanID: "aa", StartTime: ts},
+		{TraceID: traceID, SpanID: "bb", StartTime: ts},
+		{TraceID: traceID, SpanID: "cc", StartTime: ts},
+	}
+	reader := NewSpanReader(SpanReaderParams{
+		Searcher:         &searchAfterFake{corpus: corpus},
+		MaxSpanAge:       72 * time.Hour,
+		MaxTraceDuration: 24 * time.Hour,
+		MaxDocCount:      2, // page size < corpus, so a page boundary falls inside the equal-timestamp run
+		Logger:           zap.NewNop(),
+		Tracer:           noop.NewTracerProvider().Tracer("test"),
+		SpanRotation:     indices.NewAliasedRotation("jaeger-span-write-000001", "jaeger-span-read"),
+		ServiceRotation:  indices.NewAliasedRotation("jaeger-service-write-000001", "jaeger-service-read"),
+	})
+
+	traces, err := reader.multiRead(context.Background(), []dbmodel.TraceID{traceID}, base, base.Add(time.Hour))
+	require.NoError(t, err)
+	require.Len(t, traces, 1)
+
+	gotSpanIDs := make([]string, 0, len(traces[0].Spans))
+	for _, sp := range traces[0].Spans {
+		gotSpanIDs = append(gotSpanIDs, string(sp.SpanID))
+	}
+	assert.ElementsMatch(t, []string{"aa", "bb", "cc"}, gotSpanIDs,
+		"all spans sharing the boundary startTime must be returned; a missing span means search_after paged without a tie-breaker")
 }
 
 func TestSpanReader_SearchAfter(t *testing.T) {
@@ -382,6 +484,28 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
 		require.Empty(t, trace)
+	})
+}
+
+// TestSpanReader_GetTraceMultiSearchItemError verifies that a failed _msearch
+// item (an error payload inside an overall HTTP 200) surfaces as an error
+// instead of being skipped like an empty result — which would silently report
+// an existing trace as not found, or return a truncated trace as complete when
+// a search_after continuation page fails.
+func TestSpanReader_GetTraceMultiSearchItemError(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		mockMultiSearchService(r).Return([]esclient.SearchResponse{
+			{
+				Error:  json.RawMessage(`{"type":"search_phase_execution_exception","reason":"all shards failed"}`),
+				Status: 503,
+			},
+		}, nil)
+
+		query := []dbmodel.TraceID{dbmodel.TraceID(testingTraceId)}
+		trace, err := r.reader.GetTraces(context.Background(), query)
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
+		require.ErrorContains(t, err, "status 503")
+		require.Nil(t, trace)
 	})
 }
 
@@ -610,22 +734,24 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
+// TestSpanReader_FindTracesRejectsQueryBeforeSearching covers the FindTraces side of
+// validation: a query that validateQuery rejects — here an unset time range — returns
+// the validation error without a round trip to the cluster. TestTraceQueryParameterValidation
+// covers which queries are rejected; this covers that rejection short-circuits the search.
+func TestSpanReader_FindTracesRejectsQueryBeforeSearching(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// Missing service name with tags fails validation before any search runs.
 		traceQuery := dbmodel.TraceQueryParameters{
-			ServiceName: "",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
 			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrStartAndEndTimeNotSet)
 		assert.Nil(t, traces)
+		r.searcher.AssertNotCalled(t, "Search")
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "the attempt is still traced")
 	})
 }
 
@@ -751,20 +877,23 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
+	// A tag search with no service name is a valid cross-service query (RFC 0013):
+	// the tag clauses do not reference the service, so only the time range is required.
 	tqp := dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
 		},
+		StartTimeMin: time.Now().Add(-1 * time.Hour),
+		StartTimeMax: time.Now(),
 	}
-	err := validateQuery(tqp)
-	require.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.NoError(t, validateQuery(tqp))
 
 	tqp.ServiceName = serviceName
 
 	tqp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tqp.StartTimeMax = time.Time{}
-	err = validateQuery(tqp)
+	err := validateQuery(tqp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 
 	tqp.StartTimeMin = time.Now()
@@ -835,6 +964,87 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 		expected, err := expectedQuery.Source()
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
+	})
+}
+
+// TestSpanReader_buildFindTraceIDsQueryWithoutServiceName pins the cross-service
+// search RFC 0013 relies on: with no service name the query carries every other
+// clause and simply omits the process.serviceName term, so it matches spans from all
+// services rather than none.
+func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceQuery := dbmodel.TraceQueryParameters{
+			StartTimeMin: time.Time{},
+			StartTimeMax: time.Time{}.Add(time.Second),
+			Tags: map[string]string{
+				"hello": "world",
+			},
+		}
+
+		actual, err := r.reader.buildFindTraceIDsQuery(traceQuery).Source()
+		require.NoError(t, err)
+		expected, err := esquery.NewBoolQuery().
+			Must(
+				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+				r.reader.buildTagQuery("hello", "world"),
+			).Source()
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
+// TestSpanReader_buildFindTraceIDsQuery_errorTag covers the error tag special
+// case. Non-error spans carry no error tag (only error spans get error=true), so a
+// literal error=false match finds nothing; error=false must instead exclude
+// error=true. The value is parsed with strconv.ParseBool so every boolean form is
+// accepted, matching the in-memory store's error handling exactly (#9096, which
+// also uses strconv.ParseBool). A non-boolean value keeps the previous literal
+// tag match.
+func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		start := time.Time{}
+		end := time.Time{}.Add(time.Second)
+		base := func() *esquery.BoolQuery {
+			return esquery.NewBoolQuery().Must(r.reader.buildStartTimeQuery(start, end))
+		}
+		wantSource := func(q *esquery.BoolQuery) any {
+			src, err := q.Source()
+			require.NoError(t, err)
+			return src
+		}
+		errorTrueMatch := wantSource(base().Must(r.reader.buildTagQuery("error", "true")))
+		errorTrueExcluded := wantSource(base().MustNot(r.reader.buildTagQuery("error", "true")))
+
+		for _, tt := range []struct {
+			value string
+			want  any
+		}{
+			// Truthy forms match error=true.
+			{"true", errorTrueMatch},
+			{"True", errorTrueMatch},
+			{"TRUE", errorTrueMatch},
+			{"1", errorTrueMatch},
+			{"t", errorTrueMatch},
+			// Falsy forms exclude error=true (the complement).
+			{"false", errorTrueExcluded},
+			{"False", errorTrueExcluded},
+			{"FALSE", errorTrueExcluded},
+			{"0", errorTrueExcluded},
+			{"f", errorTrueExcluded},
+			// Non-boolean values keep the literal tag match.
+			{"oops", wantSource(base().Must(r.reader.buildTagQuery("error", "oops")))},
+			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
+		} {
+			t.Run("error="+tt.value, func(t *testing.T) {
+				got, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+					StartTimeMin: start,
+					StartTimeMax: end,
+					Tags:         map[string]string{"error": tt.value},
+				}).Source()
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			})
+		}
 	})
 }
 

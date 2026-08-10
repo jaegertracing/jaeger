@@ -8,42 +8,43 @@ import (
 	"iter"
 	"time"
 
+	"go.opentelemetry.io/collector/featuregate"
+
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-var (
-	_ tracestore.Reader        = (*ReaderWithSummaries)(nil)
-	_ tracestore.SummaryReader = (*ReaderWithSummaries)(nil)
+// nativeTraceSummariesGate enables computing trace summaries (the metadata shown
+// on the search-results page) natively in Elasticsearch/OpenSearch via a single
+// aggregation query, instead of loading full traces and aggregating them in the
+// query service. Enabled by default; when disabled, FindTraceSummaries yields
+// errors.ErrUnsupported, so the query service transparently falls back to the
+// full-trace path.
+var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.nativeTraceSummaries",
+	featuregate.StageBeta,
+	featuregate.WithRegisterFromVersion("v2.20.0"),
+	featuregate.WithRegisterDescription(
+		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
+			"instead of loading full traces and aggregating in the query service. Requires "+
+			"inline (Painless) scripts to be enabled on the cluster.",
+	),
 )
 
-// ReaderWithSummaries augments TraceReader with native trace-summary support.
-// The factory wraps a TraceReader in this type only when native summaries are
-// enabled; when the feature is gated off it returns the bare TraceReader, which
-// does not implement tracestore.SummaryReader, so the query service falls back to
-// loading full traces and aggregating client-side.
-type ReaderWithSummaries struct {
-	TraceReader
-}
-
-// NewReaderWithSummaries builds a reader that exposes native trace summaries. It
-// owns the TraceReader construction so callers don't need to know summaries are
-// layered on top of it.
-func NewReaderWithSummaries(p core.SpanReaderParams) *ReaderWithSummaries {
-	return &ReaderWithSummaries{TraceReader: *NewTraceReader(p)}
-}
-
-// FindTraceSummaries implements tracestore.SummaryReader by delegating to the
-// core reader's native aggregation. When the backend cannot compute summaries
-// (e.g. Painless scripting is disabled) the core yields errors.ErrUnsupported,
-// and the query service falls back to client-side aggregation.
-func (t *ReaderWithSummaries) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+// FindTraceSummaries computes trace summaries via a storage-side aggregation when the
+// native-summaries feature gate is enabled. When it is disabled, or when the backend
+// cannot compute them (e.g. Painless scripting is disabled, which the core reader
+// surfaces as errors.ErrUnsupported), it yields errors.ErrUnsupported so the query
+// service falls back to loading full traces and aggregating client-side.
+func (r *TraceReader) FindTraceSummaries(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+	if !nativeTraceSummariesGate.IsEnabled() {
+		return tracestore.UnsupportedTraceSummaries{}.FindTraceSummaries(ctx, query)
+	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
 		// The aggregation returns all matching summaries in a single ES response,
 		// so they are materialized and yielded in one batch (allowed by the
-		// SummaryReader contract).
-		dbSummaries, err := t.spanReader.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
+		// FindTraceSummaries contract).
+		dbSummaries, err := r.spanReader.FindTraceSummaries(ctx, toDBTraceQueryParams(query))
 		if err != nil {
 			yield(nil, err)
 			return

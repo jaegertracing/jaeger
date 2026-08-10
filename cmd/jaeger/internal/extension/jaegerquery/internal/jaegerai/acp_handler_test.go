@@ -26,25 +26,25 @@ type dispatcherFixture struct {
 	logs  *observer.ObservedLogs
 }
 
-// freshDispatcher returns a dispatcher fixture with an empty store. Tests
+// freshACPHandler returns a dispatcher fixture with an empty store. Tests
 // that exercise contextual tool dispatches register the tool against
 // fixture.store before invoking fixture.d.
-func freshDispatcher(t *testing.T) dispatcherFixture {
+func freshACPHandler(t *testing.T) dispatcherFixture {
 	t.Helper()
 	rr := httptest.NewRecorder()
 	client := newStreamingClient(t.Context(), rr, "thread-test", "run-test")
 	store := NewContextualToolsStore()
 	core, logs := observer.New(zap.InfoLevel)
 	return dispatcherFixture{
-		d:     newDispatcher(client, store, zap.New(core)),
+		d:     newACPHandler(client, store, zap.New(core)),
 		store: store,
 		rr:    rr,
 		logs:  logs,
 	}
 }
 
-func TestDispatcherSessionUpdateForwardsToStreamingClient(t *testing.T) {
-	f := freshDispatcher(t)
+func TestACPHandlerSessionUpdateForwardsToStreamingClient(t *testing.T) {
+	f := freshACPHandler(t)
 	d, rr := f.d, f.rr
 
 	// Marshal a SessionNotification carrying an agent message chunk; the
@@ -63,16 +63,16 @@ func TestDispatcherSessionUpdateForwardsToStreamingClient(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "hello from agent")
 }
 
-func TestDispatcherSessionUpdateInvalidParamsErrors(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerSessionUpdateInvalidParamsErrors(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	_, reqErr := d(t.Context(), acp.ClientMethodSessionUpdate, json.RawMessage(`{not-json`))
 	require.NotNil(t, reqErr)
 	assert.Equal(t, -32602, reqErr.Code, "invalid JSON should yield InvalidParams")
 }
 
-func TestDispatcherToolCallStripsUIPrefixAndLogsBoth(t *testing.T) {
-	f := freshDispatcher(t)
+func TestACPHandlerToolCallStripsUIPrefixAndLogsBoth(t *testing.T) {
+	f := freshACPHandler(t)
 	d, store, logs := f.d, f.store, f.logs
 	store.SetForSession("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart"}`),
@@ -120,8 +120,8 @@ func TestDispatcherToolCallStripsUIPrefixAndLogsBoth(t *testing.T) {
 	require.Empty(t, logs.FilterMessage("contextual tool name missing UI prefix; passing through unchanged").All())
 }
 
-func TestDispatcherToolCallWarnsWhenPrefixMissing(t *testing.T) {
-	f := freshDispatcher(t)
+func TestACPHandlerToolCallWarnsWhenPrefixMissing(t *testing.T) {
+	f := freshACPHandler(t)
 	d, store, logs := f.d, f.store, f.logs
 	store.SetForSession("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart"}`),
@@ -141,11 +141,11 @@ func TestDispatcherToolCallWarnsWhenPrefixMissing(t *testing.T) {
 	assert.Equal(t, "render_chart", warnings[0].ContextMap()["tool"])
 }
 
-func TestDispatcherToolCallRejectsUnknownTool(t *testing.T) {
+func TestACPHandlerToolCallRejectsUnknownTool(t *testing.T) {
 	// The store has a tool, but the sidecar dispatches a different one.
 	// The dispatcher must reject so a misbehaving sidecar / LLM can't
 	// invoke a tool the frontend never declared.
-	f := freshDispatcher(t)
+	f := freshACPHandler(t)
 	d, store := f.d, f.store
 	store.SetForSession("sess-abc", []json.RawMessage{
 		json.RawMessage(`{"name":"render_chart"}`),
@@ -162,13 +162,13 @@ func TestDispatcherToolCallRejectsUnknownTool(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "unknown tool should yield InvalidParams")
 }
 
-func TestDispatcherToolCallSkipsNonObjectEntriesInSnapshot(t *testing.T) {
+func TestACPHandlerToolCallSkipsNonObjectEntriesInSnapshot(t *testing.T) {
 	// The store keeps tool snapshots as raw JSON and unmarshals them into
 	// any on lookup; a stored value that decodes to anything other than an
 	// object (string, number, etc.) cannot carry a "name" field and must
 	// be skipped silently. Pairing one bogus entry with one valid entry
 	// proves the loop continues past the bogus one and still matches.
-	f := freshDispatcher(t)
+	f := freshACPHandler(t)
 	d, store := f.d, f.store
 	store.SetForSession("sess-abc", []json.RawMessage{
 		json.RawMessage(`"naked-string"`),          // decodes to string, not map
@@ -189,11 +189,11 @@ func TestDispatcherToolCallSkipsNonObjectEntriesInSnapshot(t *testing.T) {
 	assert.False(t, resp.IsError)
 }
 
-func TestDispatcherToolCallRejectsUnknownSession(t *testing.T) {
+func TestACPHandlerToolCallRejectsUnknownSession(t *testing.T) {
 	// No SetForSession was called for this session id (e.g. the
 	// chat handler's defer Delete already ran, or this dispatch landed
 	// against a session that never registered any contextual tools).
-	d := freshDispatcher(t).d
+	d := freshACPHandler(t).d
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "sess-stale",
@@ -206,12 +206,12 @@ func TestDispatcherToolCallRejectsUnknownSession(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "unknown session should yield InvalidParams")
 }
 
-func TestDispatcherToolCallRejectsWhenStoreIsNil(t *testing.T) {
+func TestACPHandlerToolCallRejectsWhenStoreIsNil(t *testing.T) {
 	// nil store guards against a misconfigured handler — every contextual
 	// dispatch becomes a hard rejection rather than a silent ack.
 	rr := httptest.NewRecorder()
 	client := newStreamingClient(t.Context(), rr, "thread-test", "run-test")
-	d := newDispatcher(client, nil, zap.NewNop())
+	d := newACPHandler(client, nil, zap.NewNop())
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "sess-abc",
@@ -224,16 +224,16 @@ func TestDispatcherToolCallRejectsWhenStoreIsNil(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code)
 }
 
-func TestDispatcherToolCallInvalidParamsErrors(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerToolCallInvalidParamsErrors(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	_, reqErr := d(t.Context(), ExtMethodJaegerToolCall, json.RawMessage(`{not-json`))
 	require.NotNil(t, reqErr)
 	assert.Equal(t, -32602, reqErr.Code)
 }
 
-func TestDispatcherToolCallRejectsEmptySessionID(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerToolCallRejectsEmptySessionID(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "",
@@ -246,8 +246,8 @@ func TestDispatcherToolCallRejectsEmptySessionID(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "missing required field should yield InvalidParams")
 }
 
-func TestDispatcherToolCallRejectsEmptyName(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerToolCallRejectsEmptyName(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "sess-abc",
@@ -260,10 +260,10 @@ func TestDispatcherToolCallRejectsEmptyName(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "missing required field should yield InvalidParams")
 }
 
-func TestDispatcherToolCallRejectsPrefixOnlyName(t *testing.T) {
+func TestACPHandlerToolCallRejectsPrefixOnlyName(t *testing.T) {
 	// A name that is exactly UIToolPrefix would strip to "" — we must reject
 	// it instead of accepting a tool call with no actual name.
-	d := freshDispatcher(t).d
+	d := freshACPHandler(t).d
 
 	params, err := json.Marshal(extToolCallRequest{
 		SessionID: "sess-abc",
@@ -276,16 +276,16 @@ func TestDispatcherToolCallRejectsPrefixOnlyName(t *testing.T) {
 	assert.Equal(t, -32602, reqErr.Code, "prefix-only name should yield InvalidParams")
 }
 
-func TestDispatcherUnknownMethodReturnsMethodNotFound(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerUnknownMethodReturnsMethodNotFound(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	_, reqErr := d(t.Context(), "_meta/unknown/something", json.RawMessage(`{}`))
 	require.NotNil(t, reqErr)
 	assert.Equal(t, -32601, reqErr.Code, "unknown method should yield MethodNotFound")
 }
 
-func TestDispatcherRequestPermissionDelegatesToStreamingClient(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerRequestPermissionDelegatesToStreamingClient(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	params, err := json.Marshal(acp.RequestPermissionRequest{
 		SessionId: "sess-1",
@@ -304,8 +304,8 @@ func TestDispatcherRequestPermissionDelegatesToStreamingClient(t *testing.T) {
 		"streamingClient denies permissions because the gateway advertises no fs/terminal capability")
 }
 
-func TestDispatcherRequestPermissionInvalidParamsErrors(t *testing.T) {
-	d := freshDispatcher(t).d
+func TestACPHandlerRequestPermissionInvalidParamsErrors(t *testing.T) {
+	d := freshACPHandler(t).d
 
 	_, reqErr := d(t.Context(), acp.ClientMethodSessionRequestPermission, json.RawMessage(`{not-json`))
 	require.NotNil(t, reqErr)

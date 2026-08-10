@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
@@ -27,6 +28,29 @@ func TestTraceWriter_WriteTraces(t *testing.T) {
 	span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
 	span.SetName("op-1")
 	dbSpans := ToDBModel(td)
+	writer := TraceWriter{spanWriter: coreWriter}
+	coreWriter.On("WriteSpans", mock.Anything, dbSpans).Return(nil)
+	err := writer.WriteTraces(context.Background(), td)
+	require.NoError(t, err)
+}
+
+// TestTraceWriter_WriteTraces_OmitParentSpanIDReference pins that enabling the
+// omitParentSpanIDReference gate makes WriteTraces write spans whose parent span ID
+// is not also encoded as a synthetic CHILD_OF reference.
+func TestTraceWriter_WriteTraces_OmitParentSpanIDReference(t *testing.T) {
+	setOmitParentSpanIDReferenceGate(t, true)
+
+	// Use NewWriter(t) so the WriteSpans expectation is asserted on cleanup, proving
+	// WriteTraces actually forwards the omit-computed spans to the core writer.
+	coreWriter := mocks.NewWriter(t)
+	td := ptrace.NewTraces()
+	resourceSpans := td.ResourceSpans().AppendEmpty()
+	resourceSpans.Resource().Attributes().PutStr("service.name", "testing-service")
+	span := resourceSpans.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("op-1")
+	span.SetParentSpanID(pcommon.SpanID([8]byte{1, 2, 3, 4, 5, 6, 7, 8}))
+	dbSpans := ToDBModel(td)
+	require.Empty(t, dbSpans[0].References)
 	writer := TraceWriter{spanWriter: coreWriter}
 	coreWriter.On("WriteSpans", mock.Anything, dbSpans).Return(nil)
 	err := writer.WriteTraces(context.Background(), td)

@@ -1231,3 +1231,11 @@ func TestFindTraceIDs_BuildQueryError(t *testing.T) {
 	_, err := jiter.FlattenWithErrors(iter)
 	require.ErrorContains(t, err, "failed to build query")
 }
+
+// The search SQL appends every predicate conditionally, so ClickHouse answers a query
+// that omits the service name (RFC 0013).
+func TestReader_SearchCapabilities(t *testing.T) {
+	caps, err := (&Reader{}).SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, caps)
+}

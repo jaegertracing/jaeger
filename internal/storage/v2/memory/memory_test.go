@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -259,6 +260,50 @@ func TestFindTraces_ErrorAttributeStringCompatibility(t *testing.T) {
 			assert.Equal(t, 1, iterLength)
 		})
 	}
+}
+
+// TestFindTraces_ErrorFalseMatchesUnsetStatus verifies that error=false matches
+// spans with the default (Unset) OTEL status, not only spans explicitly set to
+// Ok. Unset is the common case, so excluding it would make error=false drop most
+// non-error traces. error=false is the complement of error=true: it must exclude
+// only Error spans.
+func TestFindTraces_ErrorFalseMatchesUnsetStatus(t *testing.T) {
+	store, err := NewStore(Configuration{
+		MaxTraces: 10,
+	})
+	require.NoError(t, err)
+
+	td := ptrace.NewTraces()
+	spans := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans()
+	traceIDUnset := fromString(t, "00000000000000010000000000000000")
+	traceIDError := fromString(t, "00000000000000020000000000000000")
+
+	spanUnset := spans.AppendEmpty()
+	spanUnset.SetTraceID(traceIDUnset)
+	spanUnset.Status().SetCode(ptrace.StatusCodeUnset)
+
+	spanError := spans.AppendEmpty()
+	spanError.SetTraceID(traceIDError)
+	spanError.Status().SetCode(ptrace.StatusCodeError)
+
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+
+	queryAttributes := pcommon.NewMap()
+	queryAttributes.PutBool(errorAttribute, false)
+	iter := store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+		Attributes:  queryAttributes,
+		SearchDepth: 10,
+	})
+
+	var gotTraceIDs []pcommon.TraceID
+	for traces, err := range iter {
+		require.NoError(t, err)
+		require.Len(t, traces, 1)
+		gotTraceIDs = append(gotTraceIDs, traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).TraceID())
+	}
+
+	// error=false returns the Unset-status trace and excludes the Error one.
+	assert.Equal(t, []pcommon.TraceID{traceIDUnset}, gotTraceIDs)
 }
 
 func TestFindTraces_ErrorAttributeInvalidType(t *testing.T) {
@@ -616,6 +661,43 @@ func TestGetOperationsWithKind(t *testing.T) {
 			assert.Equal(t, operations[0].SpanKind, string(test.expectedKind))
 		})
 	}
+}
+
+// TestFindTracesWithoutServiceName is the behavior behind the store's
+// SearchCapabilities declaration (RFC 0013): a query that omits the service name
+// matches spans from every service, not none.
+func TestFindTracesWithoutServiceName(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	caps, err := store.SearchCapabilities(context.Background())
+	require.NoError(t, err)
+	assert.True(t, caps.WithoutServiceName)
+
+	for i, service := range []string{"service-a", "service-b"} {
+		td := ptrace.NewTraces()
+		resourceSpan := td.ResourceSpans().AppendEmpty()
+		resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, service)
+		span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(fromString(t, fmt.Sprintf("0000000000000%03d0000000000000000", i+1)))
+		span.SetName("span")
+		require.NoError(t, store.WriteTraces(context.Background(), td))
+	}
+
+	query := tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), SearchDepth: 10}
+	var found int
+	for traces, err := range store.FindTraces(context.Background(), query) {
+		require.NoError(t, err)
+		found += len(traces)
+	}
+	assert.Equal(t, 2, found, "a search with no service name must span both services")
+
+	query.ServiceName = "service-a"
+	found = 0
+	for traces, err := range store.FindTraces(context.Background(), query) {
+		require.NoError(t, err)
+		found += len(traces)
+	}
+	assert.Equal(t, 1, found, "a search naming one service still filters to it")
 }
 
 func TestGetTraces_IterBreak(t *testing.T) {
@@ -1195,4 +1277,180 @@ func TestFindTraces_OTLPFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+// storeOneSpan writes a single span carrying attr=value and returns its trace ID.
+func storeOneSpan(t *testing.T, store *Store, attr, value string) pcommon.TraceID {
+	t.Helper()
+	traceID := fromString(t, "00000000000000010000000000000000")
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(traceID)
+	span.SetSpanID(pcommon.SpanID([8]byte{1}))
+	span.SetName("op")
+	span.Attributes().PutStr(attr, value)
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+	return traceID
+}
+
+// firstSpanAttr reads attr off the first span of the first yielded chunk. The
+// parameter is iter.Seq2[[]ptrace.Traces, error] written out, so that this file
+// does not import "iter" and shadow it with the local variables of that name in
+// the tests above.
+func firstSpanAttr(t *testing.T, seq func(func([]ptrace.Traces, error) bool), attr string) string {
+	t.Helper()
+	for traces, err := range seq {
+		require.NoError(t, err)
+		require.NotEmpty(t, traces)
+		v, ok := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).Attributes().Get(attr)
+		require.True(t, ok)
+		return v.Str()
+	}
+	t.Fatal("iterator yielded nothing")
+	return ""
+}
+
+// A reader that mutates what it received must not affect the stored trace. This
+// is the v2 equivalent of the v1 store's TestStoreGetAndMutateTrace, which was
+// removed together with the v1 implementation; adjusters and query interceptors
+// both modify traces in place, so the store has to hand out copies.
+func TestGetTraces_MutatingReaderDoesNotCorruptStore(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	traceID := storeOneSpan(t, store, "secret", "original")
+	query := tracestore.GetTraceParams{TraceID: traceID}
+
+	for traces, err := range store.GetTraces(context.Background(), query) {
+		require.NoError(t, err)
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).
+			Attributes().PutStr("secret", "mutated")
+	}
+
+	assert.Equal(t, "original",
+		firstSpanAttr(t, store.GetTraces(context.Background(), query), "secret"),
+		"GetTraces must yield a copy, not the stored trace")
+}
+
+// A failure to copy must surface as an iterator error rather than leaking a
+// reference to the stored trace.
+func TestCloneTraceFailurePropagates(t *testing.T) {
+	errCopy := errors.New("boom")
+	for _, tt := range []struct {
+		name  string
+		setup func(t *testing.T)
+	}{
+		{
+			name: "marshal fails",
+			setup: func(t *testing.T) {
+				orig := marshalTraces
+				marshalTraces = func(ptrace.Traces) ([]byte, error) { return nil, errCopy }
+				t.Cleanup(func() { marshalTraces = orig })
+			},
+		},
+		{
+			name: "unmarshal fails",
+			setup: func(t *testing.T) {
+				orig := unmarshalTraces
+				unmarshalTraces = func([]byte) (ptrace.Traces, error) {
+					return ptrace.Traces{}, errCopy
+				}
+				t.Cleanup(func() { unmarshalTraces = orig })
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store, err := NewStore(Configuration{MaxTraces: 10})
+			require.NoError(t, err)
+			traceID := storeOneSpan(t, store, "secret", "original")
+			tt.setup(t)
+
+			assertYieldsError := func(seq func(func([]ptrace.Traces, error) bool)) {
+				var got error
+				for traces, err := range seq {
+					got = err
+					assert.Nil(t, traces)
+				}
+				require.ErrorIs(t, got, errCopy)
+				require.ErrorContains(t, got, "cannot copy stored trace")
+			}
+
+			assertYieldsError(store.GetTraces(context.Background(),
+				tracestore.GetTraceParams{TraceID: traceID}))
+			assertYieldsError(store.FindTraces(context.Background(), tracestore.TraceQueryParams{
+				ServiceName: "svc",
+				SearchDepth: 10,
+				Attributes:  pcommon.NewMap(),
+			}))
+		})
+	}
+}
+
+// A bytes-valued attribute must be copied too, not merely handed over as a slice
+// sharing the store's backing array. ptrace.Traces.CopyTo does the latter, so
+// this is the case that rules it out as the copy mechanism.
+func TestGetTraces_MutatingBytesAttributeDoesNotCorruptStore(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	traceID := fromString(t, "00000000000000010000000000000000")
+	td := ptrace.NewTraces()
+	rs := td.ResourceSpans().AppendEmpty()
+	rs.Resource().Attributes().PutStr(string(conventions.ServiceNameKey), "svc")
+	span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetTraceID(traceID)
+	span.SetSpanID(pcommon.SpanID([8]byte{1}))
+	span.Attributes().PutEmptyBytes("blob").FromRaw([]byte{1, 2, 3})
+	require.NoError(t, store.WriteTraces(context.Background(), td))
+
+	query := tracestore.GetTraceParams{TraceID: traceID}
+	readBlob := func() []byte {
+		for traces, err := range store.GetTraces(context.Background(), query) {
+			require.NoError(t, err)
+			v, ok := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).
+				Attributes().Get("blob")
+			require.True(t, ok)
+			return v.Bytes().AsRaw()
+		}
+		t.Fatal("iterator yielded nothing")
+		return nil
+	}
+
+	require.Equal(t, []byte{1, 2, 3}, readBlob())
+
+	// Mutate the bytes in place through the public ByteSlice API.
+	for traces, err := range store.GetTraces(context.Background(), query) {
+		require.NoError(t, err)
+		v, ok := traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).
+			Attributes().Get("blob")
+		require.True(t, ok)
+		v.Bytes().SetAt(0, 99)
+	}
+
+	assert.Equal(t, []byte{1, 2, 3}, readBlob(),
+		"stored bytes must not share a backing array with what GetTraces yields")
+}
+
+func TestFindTraces_MutatingReaderDoesNotCorruptStore(t *testing.T) {
+	store, err := NewStore(Configuration{MaxTraces: 10})
+	require.NoError(t, err)
+	traceID := storeOneSpan(t, store, "secret", "original")
+	query := tracestore.TraceQueryParams{
+		ServiceName: "svc",
+		SearchDepth: 10,
+		Attributes:  pcommon.NewMap(),
+	}
+
+	for traces, err := range store.FindTraces(context.Background(), query) {
+		require.NoError(t, err)
+		traces[0].ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0).
+			Attributes().PutStr("secret", "mutated")
+	}
+
+	assert.Equal(t, "original",
+		firstSpanAttr(t, store.FindTraces(context.Background(), query), "secret"),
+		"FindTraces must yield a copy, not the stored trace")
+	// The stored trace is still findable by its original attribute value.
+	assert.Equal(t, "original", firstSpanAttr(t, store.GetTraces(context.Background(),
+		tracestore.GetTraceParams{TraceID: traceID}), "secret"))
 }

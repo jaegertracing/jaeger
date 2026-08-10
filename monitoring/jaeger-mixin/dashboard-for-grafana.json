@@ -280,7 +280,7 @@
       "id": 11,
       "targets": [
         {
-          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=\"/api/traces\"}[1m])) by (http_response_status_code)",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=\"/api/v3/trace-summaries\"}[1m])) by (http_response_status_code)",
           "legendFormat": "status {{http_response_status_code}}"
         }
       ],
@@ -316,7 +316,7 @@
       "id": 12,
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{http_route=\"/api/traces\"}[1m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_server_request_duration_seconds_bucket{http_route=\"/api/v3/trace-summaries\"}[1m])) by (le))",
           "legendFormat": "P99"
         }
       ],

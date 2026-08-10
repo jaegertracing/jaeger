@@ -9,14 +9,26 @@ const (
 	FindTraceSummariesTest = "FindTraceSummaries"
 )
 
-// Capabilities defines the capabilities of a storage backend for integration tests.
+// Capabilities records what a storage backend *cannot* do in the integration suite. Every
+// field is an opt-out: the zero value runs the whole battery, and a backend lists only the
+// tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
+// added later gets full coverage until someone deliberately excuses it from something.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
 	// TODO: remove this after all storage backends return Source column from GetDependencies
 	getDependenciesMissingSource bool
+	// searchRequiresServiceName excuses a backend whose reader rejects a search that omits
+	// the service name — Cassandra and Badger key every index by it (RFC 0013).
+	searchRequiresServiceName bool
 	// List of tests which to be skipped (exact name or substring)
 	skipList []string
+}
+
+// SearchRequiresServiceName returns true if the storage backend cannot serve a search that
+// omits the service name.
+func (c Capabilities) SearchRequiresServiceName() bool {
+	return c.searchRequiresServiceName
 }
 
 // GetOperationsMissingSpanKind returns true if the storage backend does not return spanKind from GetOperations.
@@ -42,8 +54,8 @@ func Memory() Capabilities {
 }
 
 // GRPC returns the capabilities for the gRPC remote storage backend.
-// FindTraceSummaries is skipped because it depends on the backing store
-// implementing tracestore.SummaryReader; the test backend (memory) does not yet.
+// FindTraceSummaries is skipped because it depends on the backing store computing
+// summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
 		skipList: []string{FindTraceSummariesTest},
@@ -53,6 +65,7 @@ func GRPC() Capabilities {
 // Cassandra returns the capabilities for the Cassandra storage backend.
 func Cassandra() Capabilities {
 	return Capabilities{
+		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList: []string{
 			"Tags_+_Operation_name_+_Duration_range",
@@ -78,6 +91,7 @@ func ClickHouse() Capabilities {
 // Badger defines the capabilities for the Badger storage backend.
 func Badger() Capabilities {
 	return Capabilities{
+		searchRequiresServiceName: true,
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
 		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
@@ -119,6 +133,7 @@ func OpenSearch() Capabilities {
 // Kafka defines the capabilities for the Kafka storage backend.
 func Kafka() Capabilities {
 	return Capabilities{
+		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
 		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
 	}

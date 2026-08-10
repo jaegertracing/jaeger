@@ -61,7 +61,11 @@ jobs:
         python-version: '3.x'
 
     - name: Run DCO check
-      if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' }}
+      # Sign-offs are enforced before the merge, so only the pull_request event matters:
+      # dco_check.py rejects the merge_group event outright, and on a push to main it
+      # inspects GitHub's squash commit, which GitHub authors as the PR author while the
+      # Signed-off-by trailer names the author of the commits that were squashed.
+      if: ${{ github.event.pull_request.user.login != 'dependabot' && github.event_name != 'merge_group' && github.event_name != 'push' }}
       run: python3 scripts/lint/dco_check.py -b main -v --exclude-pattern '@users\.noreply\.github\.com'
       env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -124,6 +128,9 @@ jobs:
       with:
         repository: kward/shunit2
         path: .tools/shunit2
+
+    - name: Install Helm
+      uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
 
     - name: Run unit tests for scripts
       run: |
