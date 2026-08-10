@@ -283,16 +283,16 @@ message TraceQueryParameters {
   // Legacy: unqualified AND-equality over the tag map. Retained unchanged.
   map<string, string> attributes = 3;
 
-  // Structured filter: a single boolean-valued Expression. It is an
-  // alternative to the legacy `attributes` map, not combined with it — a
-  // request sets one or the other, and `filter` is authoritative when set. A
-  // multi-predicate conjunction is an explicit `and` call; `or`/`not` nest the
-  // same way.
-  Expression filter = 10;
+  // Structured filter: a single boolean-valued Call (an operator over argument
+  // Expressions). It is an alternative to the legacy `attributes` map, not
+  // combined with it — a request sets one or the other, and `filter` is
+  // authoritative when set. A multi-predicate conjunction is an explicit `and`
+  // call; `or`/`not` nest the same way.
+  Call filter = 10;
 }
 ```
 
-The filter is a single `Expression`, so there is exactly one way to express a conjunction — an `and` call — rather than a second, implicit one (a top-level list). This is the canonical, uniform shape: the filter *is* an expression, `or`/`not` at the top read directly instead of as a one-element list, and it matches how the prior-art structured query languages (§4) carry their filter. The extra `and` wrapper for the common multi-predicate case is trivial for a machine API and is emitted by the builder (§6.3) or shorthand (§7), never hand-written. (A top-level implicit-AND list was the alternative; see §10.)
+The filter is a single `Call`, so there is exactly one way to express a conjunction — an `and` call — rather than a second, implicit one (a top-level list). It is typed `Call` rather than the more general `Expression` because a filter is always an operation: the top level then carries no `Expression` oneof envelope (`{"op":…}` on the wire, not `{"call":{"op":…}}`), so the everyday single-predicate query is that much shorter. A sub-expression composed elsewhere is lifted into a filter by wrapping it (`Expr(call)` in a typed builder), so nothing is lost. `or`/`not` at the top read directly, matching how the prior-art structured query languages (§4) carry their filter. The `and` wrapper for the common multi-predicate case is emitted by the builder (§6.3) or shorthand (§7), never hand-written. (A top-level implicit-AND list was the alternative; see §10.)
 
 ### 6.2 REST/JSON encoding, and why string enumerations
 
@@ -321,27 +321,27 @@ The only thing string constants give up is a generated enum *type* for strongly-
 The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`attr`/`prop`/`scalar`/`array`/`call`). That verbosity is the deliberate cost of one uniform node that expresses `attr op attr` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
 
 ```
-GET /api/v3/traces?query.filter={"call":{"op":"eq","args":[{"attr":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}}
+GET /api/v3/traces?query.filter={"op":"eq","args":[{"attr":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}
 ```
 ```json
 { "query": { "filter": {
-  "call": { "op": "and", "args": [
+  "op": "and", "args": [
     { "call": { "op": "gt", "args": [
         { "prop": "duration" },
         { "scalar": { "value": "2s" } } ] } },
     { "call": { "op": "in", "args": [
         { "attr": { "key": "http.status_code", "level": "span" } },
-        { "array": { "values": ["500", "503"], "type": "int" } } ] } } ] } } } }
+        { "array": { "values": ["500", "503"], "type": "int" } } ] } } ] } } }
 ```
 
-A single predicate is the filter directly (the first example); a conjunction wraps its predicates in an `and` call (the second). The membership test is a single `in` call over an array, and `or`/`not` nest the same way as `and`.
+The `filter` itself is a `Call`, written bare (`{"op":…}`); its `args` are `Expression`s, so a nested call carries the `{"call":…}` envelope. A single predicate is the filter directly (the first example); a conjunction is an `and` call over its predicates (the second). The membership test is a single `in` call over an array, and `or`/`not` nest the same way as `and`.
 
 Comparing two attributes is just another call with two `attr` args — "spans whose end-user id differs between the span and its resource":
 
 ```json
-{ "call": { "op": "ne", "args": [
+{ "op": "ne", "args": [
   { "attr": { "key": "enduser.id", "level": "span" } },
-  { "attr": { "key": "enduser.id", "level": "resource" } } ] } }
+  { "attr": { "key": "enduser.id", "level": "resource" } } ] }
 ```
 
 ### 6.3 Programmatic construction — a fluent builder
@@ -450,7 +450,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 
 ## 10. Open questions
 
-1. **Top-level shape (decided).** A single `Expression filter` (§6.1), not a top-level implicit-AND list. A single expression gives one canonical way to express a conjunction — an `and` call — consistent with the uniform recursive model and the prior-art query languages (§4); a list would add a second, implicit encoding of AND. The list's only edge, flat raw-JSON conjunctions, is absorbed by the builder (§6.3) and shorthand (§7).
+1. **Top-level shape (decided).** A single `Call filter` (§6.1), not a top-level implicit-AND list. A single node gives one canonical way to express a conjunction — an `and` call — consistent with the uniform recursive model and the prior-art query languages (§4); a list would add a second, implicit encoding of AND. Typed `Call` (not `Expression`), since a filter is always an operation, so the top level needs no oneof envelope; a sub-expression is lifted into a filter with a wrap. The list's only edge, flat raw-JSON conjunctions, is absorbed by the builder (§6.3) and shorthand (§7).
 2. **Attribute discovery (keys, types, values).** Add a discovery API so the UI can autocomplete valid keys per level *and their type(s)* — a key may have several (§5.4) — plus sample values, so the builder emits correctly-typed predicates. This is the load-bearing piece for typed UX (§5.4). ClickHouse's `attribute_metadata` supports it directly; ES/OS only partially and the flat backends not at all — so typed authoring assistance is ClickHouse-first, and other backends default to untyped.
 3. **Conjunction semantics across spans.** Must `resource.service.name=foo AND span.http.status_code=500` match the *same* span, or may they match different spans of the same trace? (The internal `TraceReader.FindTraces` contract currently leaves this implementation-dependent.)
 4. **Property phasing.** Which properties are required in the first implementation (`duration`/`name`/`service`/`status`/`kind`) vs deferred (trace-level, IDs)?
