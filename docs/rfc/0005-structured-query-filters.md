@@ -283,9 +283,11 @@ message TraceQueryParameters {
   // Legacy: unqualified AND-equality over the tag map. Retained unchanged.
   map<string, string> attributes = 3;
 
-  // Structured filter: a single boolean-valued Expression, ANDed with the
-  // legacy `attributes` field. A multi-predicate conjunction is an explicit
-  // `and` call; `or`/`not` nest the same way.
+  // Structured filter: a single boolean-valued Expression. It is an
+  // alternative to the legacy `attributes` map, not combined with it — a
+  // request sets one or the other, and `filter` is authoritative when set. A
+  // multi-predicate conjunction is an explicit `and` call; `or`/`not` nest the
+  // same way.
   Expression filter = 10;
 }
 ```
@@ -384,7 +386,7 @@ This is illustrative, not normative: the wire contract is the AST (§6.1), and e
 
 ## 7. Backward compatibility and degradation
 
-**Coexistence.** The legacy `attributes` map is untouched and keeps its exact semantics (unqualified AND-equality). `filter` is a new additive field that defaults to empty; old clients are byte-for-byte unaffected, and the two may be combined (all ANDed). This holds at all layers — public api_v3, internal storage API, and the remote-storage gRPC protocol.
+**Coexistence.** The legacy `attributes` map is untouched and keeps its exact semantics (unqualified AND-equality). `filter` is a new additive field that defaults to empty, so old clients are byte-for-byte unaffected. `attributes` and `filter` are **alternatives, not a combination**: a request uses the legacy `attributes` map or the new `filter` for attribute matching, not both, and when `filter` is set it is authoritative. The query service builds one effective filter per request — from `filter` when present, otherwise by normalizing `attributes` — so a backend only ever sees a single attribute-filter model. This holds at all layers — public api_v3, internal storage API, and the remote-storage gRPC protocol.
 
 **Normalizing legacy query parameters into `filter` (proposed architectural decision).** Most of today's top-level `TraceQueryParameters` fields are already properties (§5.2) — `service_name` → `service`, `operation_name` → `name`, `duration_min`/`duration_max` → a pair of `duration` range predicates — and `attributes` is a set of unqualified equality predicates. The query service should **normalize all of them into the single `filter` expression** before dispatching to a storage backend, so each backend implements exactly one filtering model (the AST) instead of the growing mix of scalar fields *plus* `attributes` *plus* `filter`. (`start_time_min`/`start_time_max` and `search_depth` stay as envelope parameters: they bound the scan window and the result count, they are not span predicates. Inclusive duration bounds imply `gte`/`lte`, which the extensible operator set can add — §5.3.)
 
