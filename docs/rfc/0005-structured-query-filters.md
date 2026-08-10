@@ -94,7 +94,7 @@ Feasibility is dominated by how each backend physically stores and indexes attri
 The model factors cleanly into two orthogonal axes, addressed in the next two sections:
 
 - **Composition (§4)** — *how predicates combine.* This is the "how expressive?" question, mapped as a continuum from today's flat conjunction up to a full trace query language, with an explicit decision on where Jaeger stops.
-- **Predicate anatomy (§5)** — *a single predicate's subject (a level-qualified attribute or a property), operator, and value type.*
+- **Predicate anatomy (§5)** — *a single predicate's operands (level-qualified attributes, properties, or constants), operator, and value typing.*
 
 They are independent: the composition tier could be chosen with or without properties, and vice versa. §6 combines the two into one proto/AST.
 
@@ -148,9 +148,9 @@ So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is
 
 ---
 
-## 5. Predicate anatomy — subject, operator, and value type
+## 5. Predicate anatomy — operands, operators, and value types
 
-A predicate has three parts. Its **subject** — what it filters on — is exactly one of a _level-qualified attribute_ (§5.1) or a _property_ (§5.2). Its **operator** (§5.3) compares that subject against a **value**, usually a constant (a scalar, or an array for `in`/`not_in`) but — because both sides are operands of the same kind — optionally another subject (`span.a > span.b`; §6.1). A constant also carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
+A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** expressions. Each operand is either a *reference* — a level-qualified attribute (§5.1) or a built-in property (§5.2) — or a *constant* (a scalar, or an array for `in`/`not_in`). The operands are the same kind of thing, so neither side is privileged: the everyday `reference op constant` shape (`span.http.status_code = 500`) and a `reference op reference` shape (`span.a > span.b`) are equally expressible. A constant carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
 
 ### 5.1 Attribute levels
 
@@ -317,7 +317,7 @@ Legend: 🟢 strong · 🟡 adequate · 🔴 weak
 
 The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
 
-The recursive `Call` shape makes the raw JSON more verbose than a fixed `subject op value` triple would — each call carries an `args` array whose entries name their kind (`attr`/`prop`/`scalar`/`array`/`call`). This is the deliberate cost of one uniform node that keeps `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
+The recursive `Call` shape makes the raw JSON more verbose than a fixed attribute-op-constant triple would — each call carries an `args` array whose entries name their kind (`attr`/`prop`/`scalar`/`array`/`call`). This is the deliberate cost of one uniform node that keeps `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
 
 ```
 GET /api/v3/traces?query.filters=[{"call":{"op":"eq","args":[{"attr":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}}]
@@ -334,7 +334,7 @@ GET /api/v3/traces?query.filters=[{"call":{"op":"eq","args":[{"attr":{"key":"htt
 
 The second filter reads as a single `in` call instead of an `or` of two `eq`s. Genuine disjunction nests via an `or`/`not` call whose args are themselves expressions.
 
-The subject-vs-subject case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is just another call with two `attr` args:
+The attribute-vs-attribute case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is just another call with two `attr` args:
 
 ```json
 { "call": { "op": "ne", "args": [
@@ -360,7 +360,7 @@ prop.duration > "2s"                                  # gt
 span("http.status_code") == 500                       # eq
 span("http.method").matches("GET|POST")               # regex
 resource("service.name").one_of(["cart", "checkout"]) # in   (also .not_one_of / .exists)
-span("a") > span("b")                                 # subject vs subject
+span("a") > span("b")                                 # attribute vs attribute
 
 # Composition — &, |, ~  (or and_(...), or_(...), not_(...))
 flt = (prop.duration > "2s") & span("http.status_code").one_of([500, 503])
