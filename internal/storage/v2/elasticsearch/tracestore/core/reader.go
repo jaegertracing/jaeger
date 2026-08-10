@@ -52,9 +52,6 @@ const (
 )
 
 var (
-	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("service Name must be set")
-
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
 	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
 
@@ -390,9 +387,6 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) esquery.Query {
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
-	if p.ServiceName == "" && len(p.Tags) > 0 {
-		return ErrServiceNameNotSet
-	}
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
 	}
