@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"iter"
 	"net/http"
 	"testing"
@@ -586,60 +587,81 @@ func TestBuildAIHealthChecker(t *testing.T) {
 	}
 }
 
-// TestSearchCapabilities covers what server.Start does with the reader's answer. A reader
-// that reports an error gets the baseline: the struct returned alongside an error is not
-// trustworthy, so a reader claiming a capability *and* failing must not have the claim
-// believed — otherwise the UI would advertise a feature nobody vouched for.
-func TestSearchCapabilities(t *testing.T) {
-	sentinel := errors.New("cannot reach the backend")
+// TestServerReportsSearchCapabilityToUI covers the other half of the wiring: what the SPA is
+// told. A backend that declares the capability has it injected; one that cannot be asked is
+// reported as the least capable, and says why in the log, which is the only place an operator
+// can find out that the missing "All Services" option is a reachability problem rather than a
+// backend limitation.
+func TestServerReportsSearchCapabilityToUI(t *testing.T) {
 	tests := []struct {
-		name     string
-		reader   tracestore.Reader
-		expected tracestore.SearchCapabilities
+		name        string
+		store       string
+		expected    string
+		expectedLog string
 	}{
 		{
-			name:     "declared capability is taken",
-			reader:   capabilityReader{caps: tracestore.SearchCapabilities{WithoutServiceName: true}},
-			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+			name:     "declared capability reaches the UI",
+			store:    "serviceless-search-store",
+			expected: `"searchWithoutServiceName":true`,
 		},
 		{
-			name:     "declared absence is taken",
-			reader:   capabilityReader{},
-			expected: tracestore.SearchCapabilities{},
+			name:     "declared absence reaches the UI",
+			store:    "some_store",
+			expected: `"searchWithoutServiceName":false`,
 		},
 		{
-			name: "a value returned with an error is discarded",
-			reader: capabilityReader{
-				caps: tracestore.SearchCapabilities{WithoutServiceName: true},
-				err:  sentinel,
-			},
-			expected: tracestore.SearchCapabilities{},
+			name:        "a backend that cannot be asked is reported as the least capable",
+			store:       "unknowable-capabilities-store",
+			expected:    `"searchWithoutServiceName":false`,
+			expectedLog: "Storage did not report its search capabilities",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logger, buf := testutils.NewLogger()
+			logger, logBuf := testutils.NewLogger()
+			host := storagetest.NewStorageHost().WithExtension(jaegerstorage.ID, fakeStorageExt{})
+			srv := newServer(&Config{
+				QueryOptions: app.QueryOptions{
+					HTTP: confighttp.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+					GRPC: configgrpc.ServerConfig{
+						NetAddr: confignet.AddrConfig{Endpoint: "localhost:0", Transport: confignet.TransportTypeTCP},
+					},
+				},
+				Storage: Storage{TracesPrimary: test.store},
+			}, component.TelemetrySettings{
+				Logger:         logger,
+				MeterProvider:  noopmetric.NewMeterProvider(),
+				TracerProvider: nooptrace.NewTracerProvider(),
+			})
+			require.NoError(t, srv.Start(t.Context(), host))
+			t.Cleanup(func() { require.NoError(t, srv.Shutdown(t.Context())) })
 
-			got := searchCapabilities(context.Background(), test.reader, logger)
+			var body string
+			require.Eventually(t, func() bool {
+				resp, err := http.Get(fmt.Sprintf("http://%s/", srv.server.HTTPAddr()))
+				if err != nil {
+					return false
+				}
+				defer resp.Body.Close()
+				b, err := io.ReadAll(resp.Body)
+				if err != nil || resp.StatusCode != http.StatusOK {
+					return false
+				}
+				body = string(b)
+				return true
+			}, 10*time.Second, 100*time.Millisecond, "server not started")
 
-			assert.Equal(t, test.expected, got)
-			if test.reader.(capabilityReader).err != nil {
-				assert.Contains(t, buf.String(), "assuming baseline")
+			assert.Contains(t, body, test.expected)
+			if test.expectedLog != "" {
+				assert.Contains(t, logBuf.String(), test.expectedLog)
+				assert.Contains(t, logBuf.String(), "cannot ask the backend", "the reader's reason must survive")
+			} else {
+				assert.NotContains(t, logBuf.String(), "Storage did not report")
 			}
 		})
 	}
-}
-
-// capabilityReader answers SearchCapabilities and panics on anything else, so a test that
-// accidentally exercises another method fails loudly rather than silently.
-type capabilityReader struct {
-	tracestore.Reader
-	caps tracestore.SearchCapabilities
-	err  error
-}
-
-func (r capabilityReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
-	return r.caps, r.err
 }
 
 // TestServerStartWiresSearchCapability follows the capability from storage through Start

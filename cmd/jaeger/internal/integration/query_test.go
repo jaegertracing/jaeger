@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
-	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 )
 
 func TestJaegerQueryService(t *testing.T) {
@@ -29,9 +28,6 @@ func TestJaegerQueryService(t *testing.T) {
 		MetricsPort:     8887,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp: purge,
-			// This deployment reads through gRPC remote storage, which cannot report what
-			// the store behind it supports (RFC 0013 §3.6).
-			Capabilities: capabilities.RemoteStorageE2E(),
 		},
 	}
 	collector.e2eInitialize(t, "memory")
