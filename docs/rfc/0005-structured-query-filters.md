@@ -317,7 +317,7 @@ Legend: 🟢 strong · 🟡 adequate · 🔴 weak
 
 The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
 
-The recursive `Call` shape makes the raw JSON more verbose than a fixed attribute-op-constant triple would — each call carries an `args` array whose entries name their kind (`attr`/`prop`/`scalar`/`array`/`call`). This is the deliberate cost of one uniform node that keeps `attr op attr` and future L3/L4 expressible; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
+The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`attr`/`prop`/`scalar`/`array`/`call`). That verbosity is the deliberate cost of one uniform node that expresses `attr op attr` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `duration > 2s AND http.status_code in [500,503]` are:
 
 ```
 GET /api/v3/traces?query.filters=[{"call":{"op":"eq","args":[{"attr":{"key":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}}]
@@ -334,7 +334,7 @@ GET /api/v3/traces?query.filters=[{"call":{"op":"eq","args":[{"attr":{"key":"htt
 
 The second filter reads as a single `in` call instead of an `or` of two `eq`s. Genuine disjunction nests via an `or`/`not` call whose args are themselves expressions.
 
-The attribute-vs-attribute case that the fixed-triple shape could not express — "spans whose end-user id differs between the span and its resource" — is just another call with two `attr` args:
+Comparing two attributes is just another call with two `attr` args — "spans whose end-user id differs between the span and its resource":
 
 ```json
 { "call": { "op": "ne", "args": [
