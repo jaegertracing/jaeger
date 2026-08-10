@@ -19,6 +19,8 @@ import (
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/jiter"
@@ -220,6 +222,7 @@ func TestNewFactory_Timeout(t *testing.T) {
 		_, err := reader.GetServices(context.Background())
 		elapsed := time.Since(start)
 		require.Error(t, err)
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
 		assert.Less(t, elapsed, configuredTimeout+slack)
 	})
 
@@ -228,6 +231,7 @@ func TestNewFactory_Timeout(t *testing.T) {
 		_, err := jiter.FlattenWithErrors(reader.GetTraces(context.Background(), tracestore.GetTraceParams{}))
 		elapsed := time.Since(start)
 		require.Error(t, err)
+		assert.Equal(t, codes.DeadlineExceeded, status.Code(err))
 		assert.Less(t, elapsed, configuredTimeout+slack)
 	})
 }
