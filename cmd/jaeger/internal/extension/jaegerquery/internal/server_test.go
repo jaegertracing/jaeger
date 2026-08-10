@@ -41,6 +41,7 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -1162,7 +1163,6 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	t.Run("unusable skills_dir aborts startup", func(t *testing.T) {
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{
-			AgentURL:           "ws://127.0.0.1:1",
 			MCP:                configoptional.Some(MCPConfig{SkillsDir: filepath.Join(t.TempDir(), "no-such-dir")}),
 			MaxRequestBodySize: 1 << 20,
 		})
@@ -1178,7 +1178,6 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte("catalog"), 0o600))
 		opts := DefaultQueryOptions()
 		opts.AI = configoptional.Some(AIConfig{
-			AgentURL:           "ws://127.0.0.1:1",
 			MCP:                configoptional.Some(MCPConfig{SkillsDir: dir}),
 			MaxRequestBodySize: 1 << 20,
 		})
@@ -1186,6 +1185,46 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 		_, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
 		require.NoError(t, err)
 		require.NoError(t, cs.Close())
+	})
+
+	t.Run("mcp endpoint mounted in MCP-only mode", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cs.Close())
+		})
+
+		// The telemetry MCP route is mounted (not 404); chat is not, since
+		// AgentURL is empty.
+		mcpReq := httptest.NewRequest(http.MethodGet, "/api/ai/mcp/", http.NoBody)
+		mcpRR := httptest.NewRecorder()
+		handler.ServeHTTP(mcpRR, mcpReq)
+		require.NotEqual(t, http.StatusNotFound, mcpRR.Code)
+
+		chatReq := httptest.NewRequest(http.MethodPost, "/api/ai/chat", strings.NewReader(`{}`))
+		chatRR := httptest.NewRecorder()
+		handler.ServeHTTP(chatRR, chatReq)
+		require.Equal(t, http.StatusNotFound, chatRR.Code)
+	})
+
+	t.Run("mcp endpoint mounted with base path", func(t *testing.T) {
+		opts := DefaultQueryOptions()
+		opts.BasePath = "/jaeger"
+		opts.AI = configoptional.Some(AIConfig{MCP: configoptional.Some(MCPConfig{}), MaxRequestBodySize: 1 << 20})
+
+		handler, cs, err := initRouter(context.Background(), querySvc.qs, nil, &opts, nilBackendCaps, tenancyMgr, telset)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, cs.Close())
+		})
+
+		req := httptest.NewRequest(http.MethodGet, "/jaeger/api/ai/mcp/", http.NoBody)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		require.NotEqual(t, http.StatusNotFound, rr.Code)
 	})
 
 	t.Run("chat and MCP both enabled: session-free and session-scoped endpoints coexist", func(t *testing.T) {
@@ -1221,19 +1260,21 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	})
 }
 
-// TestMountSharedMCP_BasePathNormalization checks the mount prefix directly
+// TestRegisterMCPTools_BasePathNormalization checks the mount prefix directly
 // (bypassing initRouter's other routes) so a trailing slash or bare "/" can't
 // produce a double-slash pattern. BasePath is normalized at config load, so
-// this guards the defensive normalization in mountSharedMCP.
-func TestMountSharedMCP_BasePathNormalization(t *testing.T) {
+// this guards the defensive normalization in registerMCPTools.
+func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
+	querySvc := makeQuerySvc()
+	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
 
 	for _, basePath := range []string{"", "/", "/jaeger", "/jaeger/"} {
 		t.Run("base path "+basePath, func(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				mountSharedMCP(r, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), basePath, telset)
+				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, mcptools.DefaultConfig(), telset)
 			})
 
 			want := "/api/ai/mcp/"
