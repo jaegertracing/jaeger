@@ -34,22 +34,29 @@ func rawUITool(t *testing.T, name string) json.RawMessage {
 	return b
 }
 
+// sharedMCPHandler builds the shared telemetry MCP endpoint the query server owns
+// and hands to the gateway — the same server both mounts are served from.
+func sharedMCPHandler(t *testing.T) *mcptools.Handler {
+	t.Helper()
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := mcptools.NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), mcptools.DefaultConfig())
+	t.Cleanup(func() { h.Close() })
+	return h
+}
+
 // turnMCPServer mounts a real turn-scoped handler with one active turn
 // ("sess-1") holding the given UI tools, and returns the test HTTP server plus
 // the recorder backing that turn's SSE stream (to observe UI-tool dispatch).
 func turnMCPServer(t *testing.T, uiTools []json.RawMessage) (ts *httptest.Server, rec *httptest.ResponseRecorder, routeID string) {
 	t.Helper()
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	turns := newTurnRegistry()
 	rec = httptest.NewRecorder()
 	routeID = registerTurn(turns, newStreamingClient(context.Background(), rec, "thread", "run"), uiTools)
 
 	h := turnScopedEndpointBuilder{
-		telset:     telemetry.NoopSettings(),
-		queryAPI:   svc,
-		tenancyMgr: tenancy.NewManager(&tenancy.Options{}),
-		turns:      turns,
-		mcpConfig:  mcptools.DefaultConfig(),
+		shared: sharedMCPHandler(t),
+		turns:  turns,
+		logger: telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)
@@ -88,13 +95,22 @@ func TestTurnScopedEndpointServesTelemetryPlusUITools(t *testing.T) {
 	assert.Contains(t, got, "show_chart", "the turn's UI tools must be advertised")
 }
 
-// TestSharedMCPHandlerServesTelemetryOnly is the M7 collapse: the shared mount
-// reuses the gateway's turn-scoped server, and with no turn in the request the
-// uiToolsMiddleware degrades to telemetry-only — so an external client on the shared
-// handler sees the built-in telemetry tools (one server backs both mounts).
+// TestSharedMCPHandlerServesTelemetryOnly pins the shared mount's contract while a
+// chat gateway runs on the same server: building the gateway layers uiToolsMiddleware
+// onto that server, and the middleware degrades to telemetry-only when a request
+// carries no turn — so an external MCP client on the shared mount still sees exactly
+// the built-in telemetry tools, never another turn's UI tools.
 func TestSharedMCPHandlerServesTelemetryOnly(t *testing.T) {
-	h := mcpEnabledHandler(t, "")
-	ts := httptest.NewServer(h.SharedMCPHandler())
+	shared := sharedMCPHandler(t)
+	// Constructing the gateway installs the UI-tool middleware on `shared`.
+	NewHandler(HandlerParams{
+		Logger:             telemetry.NoopSettings().Logger,
+		AgentURL:           "ws://127.0.0.1:1",
+		MaxRequestBodySize: 1 << 20,
+		MCP:                shared,
+		Telset:             telemetry.NoopSettings(),
+	})
+	ts := httptest.NewServer(shared)
 	t.Cleanup(ts.Close)
 
 	session := connectTurnMCP(t, ts, "")
@@ -130,18 +146,15 @@ func TestTurnScopedEndpointDispatchesUIToolToStream(t *testing.T) {
 // calling turn's stream. If the middleware ever resolved the wrong turn
 // from the request context, this would cross the wires.
 func TestTurnScopedEndpointIsolatesTurns(t *testing.T) {
-	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
 	turns := newTurnRegistry()
 	recA, recB := httptest.NewRecorder(), httptest.NewRecorder()
 	idA := registerTurn(turns, newStreamingClient(context.Background(), recA, "ta", "ra"), []json.RawMessage{rawUITool(t, "chart_a")})
 	idB := registerTurn(turns, newStreamingClient(context.Background(), recB, "tb", "rb"), []json.RawMessage{rawUITool(t, "chart_b")})
 
 	h := turnScopedEndpointBuilder{
-		telset:     telemetry.NoopSettings(),
-		queryAPI:   svc,
-		tenancyMgr: tenancy.NewManager(&tenancy.Options{}),
-		turns:      turns,
-		mcpConfig:  mcptools.DefaultConfig(),
+		shared: sharedMCPHandler(t),
+		turns:  turns,
+		logger: telemetry.NoopSettings().Logger,
 	}.build()
 	mux := http.NewServeMux()
 	h.registerRoutes(mux)

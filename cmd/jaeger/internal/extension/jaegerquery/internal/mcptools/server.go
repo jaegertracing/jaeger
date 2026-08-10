@@ -100,6 +100,16 @@ func (h *Handler) Close() error {
 	return errors.Join(errs...)
 }
 
+// AddReceivingMiddleware layers middleware onto the wrapped server after it has
+// been built, so a caller that did not construct the server can still extend what
+// it dispatches — the AI gateway uses this to add its per-turn UI tools to the
+// shared telemetry server. WrapHTTP captures the server by pointer, so middleware
+// added here applies to every later request; call it during startup, before the
+// HTTP server begins serving.
+func (h *Handler) AddReceivingMiddleware(middleware ...mcp.Middleware) {
+	h.server.AddReceivingMiddleware(middleware...)
+}
+
 // WrapHTTP serves an *mcp.Server as a closeable Handler over streamable HTTP, with
 // tenancy extraction and OTel HTTP instrumentation. It is the transport shell
 // shared by the session-free endpoint and the session-scoped endpoint (which

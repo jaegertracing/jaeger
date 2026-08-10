@@ -41,7 +41,6 @@ import (
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger-idl/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/grpctest"
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
@@ -1260,21 +1259,19 @@ func TestInitRouterAIHandlerRegistration(t *testing.T) {
 	})
 }
 
-// TestRegisterMCPTools_BasePathNormalization checks the mount prefix directly
+// TestMountSharedMCP_BasePathNormalization checks the mount prefix directly
 // (bypassing initRouter's other routes) so a trailing slash or bare "/" can't
 // produce a double-slash pattern. BasePath is normalized at config load, so
-// this guards the defensive normalization in registerMCPTools.
-func TestRegisterMCPTools_BasePathNormalization(t *testing.T) {
+// this guards the defensive normalization in mountSharedMCP.
+func TestMountSharedMCP_BasePathNormalization(t *testing.T) {
 	telset := initTelSet(zaptest.NewLogger(t), nooptrace.NewTracerProvider())
-	querySvc := makeQuerySvc()
-	tenancyMgr := tenancy.NewManager(&tenancy.Options{})
 
 	for _, basePath := range []string{"", "/", "/jaeger", "/jaeger/"} {
 		t.Run("base path "+basePath, func(t *testing.T) {
 			r := http.NewServeMux()
 			// Must not panic on a double-slash pattern.
 			require.NotPanics(t, func() {
-				registerMCPTools(r, querySvc.qs, tenancyMgr, basePath, mcptools.DefaultConfig(), telset)
+				mountSharedMCP(r, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), basePath, telset)
 			})
 
 			want := "/api/ai/mcp/"

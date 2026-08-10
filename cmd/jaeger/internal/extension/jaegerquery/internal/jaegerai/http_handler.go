@@ -4,16 +4,13 @@
 package jaegerai
 
 import (
-	"io"
 	"net/http"
 	"strings"
 
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/mcptools"
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
-	"github.com/jaegertracing/jaeger/internal/tenancy"
 )
 
 const routeChat = "/api/ai/chat"
@@ -31,56 +28,51 @@ type Handler struct {
 	basePath string
 	// chat is the chat endpoint (/api/ai/chat), always present.
 	chat *chatEndpoint
-	// mcp is the turn-scoped MCP endpoint. Non-nil only when the operator enabled
-	// MCP (HandlerParams.EnableMCP); otherwise the endpoint is not mounted and the
+	// mcp is the turn-scoped MCP endpoint. Non-nil only when the caller supplied an
+	// MCP handler (HandlerParams.MCP); otherwise the endpoint is not mounted and the
 	// gateway advertises AI chat only.
 	mcp *turnScopedEndpoint
 }
 
 // HandlerParams carries the dependencies for the AI gateway Handler. Grouping them
-// in a struct keeps the constructor readable as the gateway gains MCP wiring (query
-// service, tenancy, telemetry) on top of the chat parameters.
+// in a struct keeps the constructor readable as the gateway gains MCP wiring on top
+// of the chat parameters.
 type HandlerParams struct {
 	Logger             *zap.Logger
 	AgentURL           string
 	BasePath           string
 	MaxRequestBodySize int64
-	// EnableMCP mounts the turn-scoped telemetry MCP endpoint. When false, only the
-	// chat endpoint is registered.
-	EnableMCP bool
+	// MCP is the shared telemetry MCP endpoint, already built and mounted by the
+	// query server because it serves external MCP clients whether or not this gateway
+	// exists. Supplying it mounts the turn-scoped endpoint on the same *mcp.Server,
+	// with this gateway's per-turn UI tools layered on; nil means the operator did not
+	// configure ai.mcp, so only the chat endpoint is registered. The query server owns
+	// its teardown — this gateway only borrows it.
+	MCP *mcptools.Handler
 	// MCPBaseURL is the scheme+authority (e.g. "https://jaeger.example.com:16686")
 	// the gateway announces to the sidecar so it can dial the turn-scoped MCP
 	// endpoint. Empty announces nothing — see chatEndpoint.announceMCP. Ignored when
-	// EnableMCP is false.
-	MCPBaseURL   string
-	QueryService *querysvc.QueryService
-	TenancyMgr   *tenancy.Manager
-	Telset       telemetry.Settings
-	// MCPConfig configures the MCP server behind the turn-scoped endpoint. The
-	// caller passes the same value it gives the shared endpoint, so the two
-	// cannot drift. Read only when EnableMCP is set.
-	MCPConfig mcptools.Config
+	// MCP is nil.
+	MCPBaseURL string
+	Telset     telemetry.Settings
 }
 
 // NewHandler constructs a jaegerai.Handler, building the endpoints it will mount.
 // basePath is normalized once so the registered mux patterns use a single
 // canonical prefix. The chat and turn-scoped MCP endpoints share one turnRegistry
-// so a chat turn and its MCP callbacks resolve to the same turn. When p.EnableMCP
-// is set, the turn-scoped MCP endpoint is built from the supplied query service,
-// tenancy manager, and telemetry settings.
+// so a chat turn and its MCP callbacks resolve to the same turn. When p.MCP is
+// supplied, the turn-scoped MCP endpoint is layered onto that shared server.
 func NewHandler(p HandlerParams) *Handler {
 	basePath := normalizeBasePath(p.BasePath)
 	turns := newTurnRegistry()
 	chat := newChatEndpoint(p.Logger, NewContextualToolsStore(), turns, p.AgentURL, basePath, p.MaxRequestBodySize)
 	h := &Handler{basePath: basePath, chat: chat}
-	if p.EnableMCP {
+	if p.MCP != nil {
 		h.mcp = turnScopedEndpointBuilder{
-			telset:     p.Telset,
-			queryAPI:   p.QueryService,
-			tenancyMgr: p.TenancyMgr,
-			turns:      turns,
-			basePath:   basePath,
-			mcpConfig:  p.MCPConfig,
+			shared:   p.MCP,
+			turns:    turns,
+			basePath: basePath,
+			logger:   p.Telset.Logger,
 		}.build()
 		// Hand the chat endpoint the endpoint's reachable base URL so each turn
 		// announces it to the sidecar (see chatEndpoint.announceMCP). Setting it only
@@ -120,34 +112,6 @@ func (h *Handler) RegisterRoutes(router *http.ServeMux) {
 	}
 }
 
-// SharedMCPHandler returns a handler that serves this gateway's MCP server as the
-// shared (turn-less) telemetry endpoint — the very server that backs the turn-scoped
-// endpoint. The uiToolsMiddleware degrades to telemetry-only when a request carries
-// no turn (external clients on the shared mount never get a route id stamped), so one
-// server serves both mounts. The query server mounts this at /api/ai/mcp/ instead of
-// standing up a second server (M7); it is reaped by this Handler's Close. Returns nil
-// when MCP is disabled (the turn-scoped endpoint was not built) — the query server
-// only calls this when the ai.mcp block is present, so h.mcp is non-nil then.
-func (h *Handler) SharedMCPHandler() http.Handler {
-	if h.mcp == nil {
-		return nil
-	}
-	return h.mcp.streamable
-}
-
-var _ io.Closer = (*Handler)(nil)
-
-// Close shuts down the endpoints that hold resources past the request that opened
-// them. Called by the jaeger-query server's Close path (Server.Close →
-// httpServer.Close → closers.Close → here), so the gateway's MCP sessions do not
-// outlive the server that served them.
-//
-// A nil Handler is what jaeger-query holds when the AI gateway is disabled, and a
-// Handler with no turn-scoped endpoint is what it holds when only chat is enabled —
-// both close to nothing, so callers need no guard.
-func (h *Handler) Close() error {
-	if h == nil || h.mcp == nil {
-		return nil
-	}
-	return h.mcp.Close()
-}
+// The gateway holds nothing past the request that opened it: the MCP sessions its
+// turn-scoped endpoint binds live on the shared server the query server built and
+// closes (see mcptools.Handler.Close), so there is nothing here to tear down.

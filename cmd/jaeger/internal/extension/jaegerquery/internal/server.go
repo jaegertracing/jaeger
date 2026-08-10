@@ -280,14 +280,14 @@ func registerAIRoutes(
 	}
 
 	var cs closers
-	// One config for both MCP endpoints so they cannot drift, and the zero value
-	// when MCP is off — the gateway ignores it then.
+	// One server backs both MCP mounts, so there is one config; it stays the zero
+	// value when MCP is off, in which case nothing reads it.
 	var mcpCfg mcptools.Config
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
 		mcpCfg = mcptools.DefaultConfig()
-		// Opened once, so both endpoints share the handle and a broken path is
-		// reported once, at startup. It stays open for as long as it serves, so
-		// it is released with the server rather than at process exit.
+		// Opened once, so a broken path is reported once, at startup. It stays open
+		// for as long as it serves, so it is released with the server rather than at
+		// process exit.
 		customSkills, err := mcptools.OpenCustomSkillsDir(mcp.SkillsDir)
 		if err != nil {
 			return nil, err
@@ -298,47 +298,47 @@ func registerAIRoutes(
 		mcpCfg.CustomSkillsFS = customSkills
 	}
 
-	// The chat gateway is built first so the shared MCP mount can reuse its server
-	// (see below) instead of standing up a second one.
-	var aiGateway *jaegerai.Handler
+	// The telemetry MCP endpoint stands on its own: external MCP clients (Claude Code,
+	// Cursor, IDEs) use it with no chat sidecar involved, so it is built whenever
+	// ai.mcp is configured and never depends on ai.agent_url. Built before the gateway
+	// because the gateway layers its per-turn UI tools onto this same *mcp.Server
+	// rather than standing up a second one. It holds MCP sessions past the request
+	// that opened them, so it joins the closers.
+	var mcpHandler *mcptools.Handler
+	if aiCfg.MCP.HasValue() {
+		mcpHandler = mcptools.NewHandler(telset, querySvc, tenancyMgr, mcpCfg)
+		cs = append(cs, mcpHandler)
+	}
+
 	if aiCfg.AgentURL != "" {
-		// jaegerai owns the chat endpoint and, when MCP is on, the turn-scoped
-		// endpoint (/api/ai/mcp/<id>/) — which is why mcpCfg is built above
-		// rather than inside this branch. It holds MCP sessions past the request
-		// that opened them, so it joins the closers.
+		// jaegerai owns the chat endpoint and, when MCP is configured, the turn-scoped
+		// endpoint (/api/ai/mcp/<id>/) — which it serves off mcpHandler's server, with
+		// the turn's UI tools layered on. Passing nil leaves it chat-only: there is no
+		// point advertising UI tools with no telemetry tools behind them.
 		//
 		// The announced base URL is resolved here because inferring the
 		// gateway's own localhost address needs the query HTTP endpoint and TLS
-		// setting, which live on QueryOptions, not AIConfig.
-		aiGateway = jaegerai.NewHandler(jaegerai.HandlerParams{
+		// setting, which live on QueryOptions, not AIConfig. This is the only thing
+		// agent_url decides about MCP — which URL the sidecar is handed.
+		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
 			Logger:             telset.Logger,
 			AgentURL:           aiCfg.AgentURL,
 			BasePath:           queryOpts.BasePath,
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
-			EnableMCP:          aiCfg.MCP.HasValue(),
+			MCP:                mcpHandler,
 			MCPBaseURL:         aiCfg.resolveMCPBaseURL(ctx, queryOpts.HTTP.NetAddr.Endpoint, queryOpts.HTTP.TLS.HasValue()),
-			QueryService:       querySvc,
-			TenancyMgr:         tenancyMgr,
 			Telset:             telset,
-			MCPConfig:          mcpCfg,
 		})
 		aiGateway.RegisterRoutes(r)
-		cs = append(cs, aiGateway)
 	}
 
-	if aiCfg.MCP.HasValue() {
-		// Shared telemetry endpoint (/api/ai/mcp/), turn-less; coexists with the
-		// wildcard turn-scoped pattern the gateway registers.
-		if aiGateway != nil {
-			// A chat gateway already runs an MCP server that serves telemetry when
-			// no turn is present, so reuse it for the shared mount rather than
-			// standing up a second server (M7). It is reaped by aiGateway.Close.
-			mountSharedMCP(r, aiGateway.SharedMCPHandler(), queryOpts.BasePath, telset)
-		} else {
-			// No chat gateway: stand up a standalone shared server. It holds MCP
-			// sessions past the request that opened them, so it joins the closers.
-			cs = append(cs, registerMCPTools(r, querySvc, tenancyMgr, queryOpts.BasePath, mcpCfg, telset))
-		}
+	if mcpHandler != nil {
+		// Shared telemetry endpoint (/api/ai/mcp/) for external MCP clients. Mounted
+		// whenever MCP is configured, chat gateway or not — enabling chat must not take
+		// away the endpoint those clients dial. It coexists with the turn-scoped routes
+		// the gateway registers above because those patterns are strictly more specific,
+		// so ServeMux sends /api/ai/mcp/<id>/ there and everything else here.
+		mountSharedMCP(r, mcpHandler, queryOpts.BasePath, telset)
 	}
 	return cs, nil
 }
@@ -372,16 +372,6 @@ func mountSharedMCP(r *http.ServeMux, handler http.Handler, basePath string, tel
 	prefix := strings.TrimSuffix(basePath, "/") + "/api/ai/mcp"
 	r.Handle(prefix+"/", http.StripPrefix(prefix, handler))
 	telset.Logger.Info("Jaeger telemetry MCP endpoint enabled", zap.String("path", prefix+"/"))
-}
-
-// registerMCPTools stands up a standalone shared telemetry MCP server, mounts it,
-// and returns its closer so the caller can reap the endpoint's MCP sessions at
-// shutdown (see mcptools.Handler.Close); the sessions would otherwise outlive the
-// query server. Used when no chat gateway exists to share a server with.
-func registerMCPTools(r *http.ServeMux, querySvc *querysvc.QueryService, tenancyMgr *tenancy.Manager, basePath string, cfg mcptools.Config, telset telemetry.Settings) io.Closer {
-	handler := mcptools.NewHandler(telset, querySvc, tenancyMgr, cfg)
-	mountSharedMCP(r, handler, basePath, telset)
-	return handler
 }
 
 // per-route wrap is the only instrumentation layer.

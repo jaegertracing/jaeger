@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -114,6 +115,32 @@ func TestHandlerCloseReapsSessions(t *testing.T) {
 
 	require.NoError(t, h.Close())
 	assert.Empty(t, slices.Collect(h.server.Sessions()), "Close must reap the shared endpoint's sessions")
+}
+
+// TestHandlerAddReceivingMiddleware covers the hook the AI gateway uses to layer its
+// per-turn UI tools onto a server it did not build. WrapHTTP captures the server by
+// pointer, so middleware registered after the handler exists must still run for every
+// later request — otherwise a gateway attaching to the shared endpoint would silently
+// serve telemetry tools only.
+func TestHandlerAddReceivingMiddleware(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+
+	var saw atomic.Bool
+	h.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if method == "tools/list" {
+				saw.Store(true)
+			}
+			return next(ctx, method, req)
+		}
+	})
+
+	session := connectTestClient(t, h)
+	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	assert.True(t, saw.Load(), "middleware added after WrapHTTP must run for later requests")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a
