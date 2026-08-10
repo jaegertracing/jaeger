@@ -79,7 +79,7 @@ func (SortAttributesAndEventsAdjuster) sortAttributes(attributes pcommon.Map) {
 
 func (s SortAttributesAndEventsAdjuster) sortEvents(events ptrace.SpanEventSlice) {
 	events.Sort(func(a, b ptrace.SpanEvent) bool {
-		return a.Name() < b.Name()
+		return a.TimeUnixNano() < b.TimeUnixNano()
 	})
 	for i := 0; i < events.Len(); i++ {
 		event := events.At(i)
