@@ -295,7 +295,7 @@ The top-level `repeated Expression` is implicitly ANDed. This keeps the dominant
 
 ### 6.2 REST/JSON encoding, and why string enumerations
 
-Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defaults, so a proto *enum* would cross the wire as its full `CONSTANT_CASE` name (`"level":"ATTRIBUTE_LEVEL_SPAN"`) with no short-alias option, and proto3 enums are *open* (an unknown number is accepted, not rejected). Plain `string` fields avoid the verbosity, and the closed value set is still declared and validated in the generated OpenAPI schema via the gnostic `enum` annotation — a **closed** set (unknown values rejected, stricter than an open proto enum):
+Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defaults, so a proto *enum* would cross the wire as its full `CONSTANT_CASE` name (`"level":"ATTRIBUTE_LEVEL_SPAN"`) with no short-alias option, and proto3 enums are *open* (an unknown number is accepted, not rejected). Plain `string` fields avoid the verbosity, and the value set is still declared in the generated OpenAPI schema via the gnostic `enum` annotation, which validates it for generated clients and request validators (stricter there than an open proto enum). The closure is a schema-layer guarantee, not a proto one: the field stays a plain `string`, so at runtime an unknown `level`/`op` is caught by the backend rejecting it as *unsupported* (§7), not by the type system. That is deliberate — it is exactly what lets a backend treat an unrecognized value as "unsupported" rather than fail a type check.
 
 ```yaml
 level: { type: string, enum: [span, resource, instrumentation, event, link] }  # Attribute.level
