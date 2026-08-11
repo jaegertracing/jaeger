@@ -35,15 +35,16 @@ func TestReadSkillHandler_RootSkillMD(t *testing.T) {
 	h := newTestHandler()
 	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
 	require.NoError(t, err)
-	assert.Contains(t, output.Instructions, "# Skills")
-	assert.Contains(t, output.Instructions, "skill-a")
+	assert.Equal(t, "SKILL.md", output.Path)
+	assert.False(t, output.Truncated)
 }
 
 func TestReadSkillHandler_SubSkillMD(t *testing.T) {
 	h := newTestHandler()
 	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
 	require.NoError(t, err)
-	assert.Equal(t, "# Skill A\n\nContent here.", output.Instructions)
+	assert.Equal(t, "skill-a/SKILL.md", output.Path)
+	assert.False(t, output.Truncated)
 }
 
 func TestReadSkillHandler_InvalidPaths(t *testing.T) {
@@ -82,18 +83,17 @@ func TestReadSkillHandler_FileTooLarge(t *testing.T) {
 	h := newTestHandler()
 	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
 	require.NoError(t, err)
-	assert.Contains(t, output.Instructions, "truncated after")
+	assert.True(t, output.Truncated)
 }
 
 func TestReadSkillHandler_RawTextInContent(t *testing.T) {
 	h := newTestHandler()
-	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
+	result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	tc, ok := result.Content[0].(*mcp.TextContent)
 	require.True(t, ok)
 	assert.Contains(t, tc.Text, "# Skills")
-	assert.Equal(t, tc.Text, output.Instructions)
 }
 
 func TestNewReadSkillHandler(t *testing.T) {
@@ -124,21 +124,21 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 	h := &readSkillHandler{builtins: testSkillsFS(), custom: testCustomFS(), maxFileSize: testMaxFileSize}
 
 	t.Run("custom prefix reaches the custom tree", func(t *testing.T) {
-		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
+		result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
 		require.NoError(t, err)
-		assert.Equal(t, "# Slow DB Call", out.Instructions)
+		assert.Equal(t, "# Slow DB Call", result.Content[0].(*mcp.TextContent).Text)
 	})
 
 	t.Run("custom entry point is served", func(t *testing.T) {
-		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
+		result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
 		require.NoError(t, err)
-		assert.Equal(t, "# Operator catalog", out.Instructions)
+		assert.Equal(t, "# Operator catalog", result.Content[0].(*mcp.TextContent).Text)
 	})
 
 	t.Run("built-ins still reachable at the root", func(t *testing.T) {
-		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+		result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
 		require.NoError(t, err)
-		assert.Equal(t, "# Skill A\n\nContent here.", out.Instructions)
+		assert.Equal(t, "# Skill A\n\nContent here.", result.Content[0].(*mcp.TextContent).Text)
 	})
 
 	t.Run("traversal out of custom is rejected", func(t *testing.T) {
