@@ -129,6 +129,9 @@ jobs:
         repository: kward/shunit2
         path: .tools/shunit2
 
+    - name: Install Helm
+      uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5
+
     - name: Run unit tests for scripts
       run: |
         SHUNIT2=.tools/shunit2 bash scripts/utils/run-tests.sh

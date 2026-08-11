@@ -118,16 +118,23 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 	tm := tenancy.NewManager(&s.config.Tenancy)
 	s.tenancyManager = tm
 
-	caps := querysvc.StorageCapabilities{
-		ArchiveStorage: opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil,
-		MetricsStorage: s.config.Storage.Metrics != "",
-	}
-
 	s.aiHealth = buildAIHealthChecker(&s.config.QueryOptions, telset.Logger)
 
-	var aiHealthCheck func() bool
-	if s.aiHealth != nil {
-		aiHealthCheck = s.aiHealth.Current
+	archiveStorage := opts.ArchiveTraceReader != nil && opts.ArchiveTraceWriter != nil
+	metricsStorage := s.config.Storage.Metrics != ""
+	backendCaps := func(ctx context.Context) queryapp.BackendCapabilities {
+		searchWithoutServiceName, err := qs.SearchWithoutServiceName(ctx)
+		if err != nil {
+			searchWithoutServiceName = false
+			telset.Logger.Info("Storage did not report its search capabilities; assuming baseline",
+				zap.Error(err))
+		}
+		return queryapp.BackendCapabilities{
+			ArchiveStorage:           archiveStorage,
+			MetricsStorage:           metricsStorage,
+			SearchWithoutServiceName: searchWithoutServiceName,
+			AIAssistant:              s.aiHealth != nil && s.aiHealth.Current(),
+		}
 	}
 
 	s.server, err = queryapp.NewServer(
@@ -136,8 +143,7 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		qs,
 		mqs,
 		&s.config.QueryOptions,
-		caps,
-		aiHealthCheck,
+		backendCaps,
 		tm,
 		telset,
 	)
