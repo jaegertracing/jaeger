@@ -144,13 +144,13 @@ The central design question is *how expressive should the structured filter be?*
 
 So the committed filter API is the **L2 boolean expression tree** (§6). "L1" is retained only as a *capability tier* — the conjunctive subset that every backend, including the flat ones, supports. **L3 is deferred** (awkward against Jaeger's whole-trace result model, and inert until L4 exists). **L4 is excluded** (belongs to the metrics/SPM subsystem; a separate RFC). **L5 is excluded** — not for infeasibility (structural predicates can be evaluated post-fetch on any backend, assembling each candidate trace) but because it is a distinct fetch-then-filter execution model that cannot prune in storage, is inefficient at scale, and is a large surface; deferred as a separate effort. The one honest internal nuance is that a pure conjunction admits a fast all-predicates-pushdown path while a tree with `OR` needs fuller evaluation — an optimization inside the capable backends, not an API concern.
 
-**Why the excluded tiers are bounded, not dead ends.** This RFC's `Expression` is the *filter* layer — the per-span predicate. The deferred tiers (§4) extend it rather than replace it, which is why declining them now does not paint the design into a corner. L3 (projection) and L4 (aggregation/grouping) add sibling clauses over the same `Expression`: a projection is a list of expressions, a group key is an expression, an aggregate is a `Call`. L5 (structural / trace-tree queries) adds an *outer* layer — a query over relationships between sets of spans, whose per-set filter is an `Expression` — so structural queries would wrap this AST, not force a redesign of it. The only capabilities the current shape genuinely could not grow into are narrow: **set membership over a list** (already addressed via `in`/`not_in` + `Array`, §6.1) and a parent-scope modifier (a flag over a level, orthogonal to `level` itself; it belongs with the deferred structural tier). Everything else — richer operators (`>=`/`<=`, `!~`), arithmetic, aggregates, semantic literal types (duration/status/kind) — is a pure addition to the open `op`/`type` vocabularies or the `Call` node, with no new message types. (The fuller trace query languages surveyed in §4 occupy exactly these upper tiers.)
+**Why the excluded tiers are bounded, not dead ends.** This RFC's `Expression` is the *filter* layer — the per-span predicate. The deferred tiers (§4) extend it rather than replace it, which is why declining them now does not paint the design into a corner. L3 (projection) and L4 (aggregation/grouping) add sibling clauses over the same `Expression`: a projection is a list of expressions, a group key is an expression, an aggregate is a `Call`. L5 (structural / trace-tree queries) adds an *outer* layer — a query over relationships between sets of spans, whose per-set filter is an `Expression` — so structural queries would wrap this AST, not force a redesign of it. The only capabilities the current shape genuinely could not grow into are narrow: **set membership over a list** (already addressed via `in`/`not_in` + `List`, §6.1) and a parent-scope modifier (a flag over a level, orthogonal to `level` itself; it belongs with the deferred structural tier). Everything else — richer operators (`>=`/`<=`, `!~`), arithmetic, aggregates, semantic literal types (duration/status/kind) — is a pure addition to the open `op`/`type` vocabularies or the `Call` node, with no new message types. (The fuller trace query languages surveyed in §4 occupy exactly these upper tiers.)
 
 ---
 
 ## 5. Predicate anatomy — operands, operators, and value types
 
-A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** expressions. Each operand is either a *reference* — a value on the span or trace, identified by its level, name, and whether it is an attribute or a built-in field (§5.1–§5.2) — or a *constant* (a scalar, or an array for `in`/`not_in`). The operands are the same kind of thing, so neither side is privileged: the everyday `reference op constant` shape (`span.http.status_code = 500`) and a `reference op reference` shape (`span.a > span.b`) are equally expressible. A constant carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
+A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** expressions. Each operand is either a *reference* — a value on the span or trace, identified by its level, name, and whether it is an attribute or a built-in field (§5.1–§5.2) — or a *constant* (a scalar, or a list for `in`/`not_in`). The operands are the same kind of thing, so neither side is privileged: the everyday `reference op constant` shape (`span.http.status_code = 500`) and a `reference op reference` shape (`span.a > span.b`) are equally expressible. A constant carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
 
 ### 5.1 References: levels and the built-in flag
 
@@ -190,7 +190,7 @@ Built-in fields are references like any other, but the full set is not required 
 
 ### 5.3 Operators and value typing
 
-The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`, and set membership `in`/`not_in` (whose right operand is an `Array`, §6.1). A constant `value` is a string on the wire and carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it (on the `Scalar`/`Array` term, §6.1). Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
+The operator set is `eq` (default), `ne`, `gt`, `lt`, `regex`, `exists`, and set membership `in`/`not_in` (whose right operand is a `List`, §6.1). A constant `value` is a string on the wire and carries an **optional `type`** (`string` — the default — `int`, `double`, or `bool`) telling the backend how to interpret it (on the `Scalar`/`List` term, §6.1). Omit `type` and the backend resolves it as it does today, matching wherever the key actually lives; supply it and the backend can route straight to the correctly-typed storage with no metadata lookup. `type` is an *optimization hint, not an authority* — §5.4 works through why it must stay optional (multi-type keys, backends with no metadata, and the silent-mismatch hazard). Numeric operators (`gt`/`lt`) imply a numeric interpretation regardless. A backend that does not implement an operator rejects the predicate (§7) rather than guessing.
 
 **Units of numeric values (decision point).** For a value with an implied unit — chiefly `duration` — the wire value should carry the unit *explicitly*, in Go duration syntax (`2s`, `1h30m`), matching today's `duration_min`/`duration_max` fields, rather than a bare number in an assumed unit (which is ambiguous — nanoseconds? milliseconds?). A bare-number value (e.g. a numeric attribute like `http.response.size`) is compared numerically and carries no RFC-defined unit: the caller and the stored data share whatever unit the attribute was recorded in, exactly as today. See §10 Q7.
 
@@ -242,14 +242,14 @@ Correlated matching is a **declared capability** (ADR-013, §7): ClickHouse and 
 
 ## 6. Proposed API
 
-The two axes combine into one structured AST: a single, uniformly recursive **`Expression`**. An expression is either an *atom* — a reference (a level-qualified attribute or a property, §5) or a constant (a scalar, or a homogeneous array for `in`/`not_in`) — or a *call* applying an operator or function to argument expressions. Boolean combination (`and`/`or`/`not`), comparison (`eq`/`gt`/…), set membership, and future arithmetic/aggregation are all the same `Call` node, so `a AND b`, `span.a > span.b`, and `(a + b) > c` compose uniformly, and the expression is the one reusable term a future projection, grouping, or named function (§4 L3/L4) would operate on. The AST deliberately does **not** encode value types: a filter is an expression that *type-checks* to boolean, and `duration > "x"` is a type error but a valid graph — validated separately, as expression ASTs conventionally are (§6.1). `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
+The two axes combine into one structured AST: a single, uniformly recursive **`Expression`**. An expression is either an *atom* — a reference (a level-qualified attribute or a property, §5) or a constant (a scalar, or a homogeneous list for `in`/`not_in`) — or a *call* applying an operator or function to argument expressions. Boolean combination (`and`/`or`/`not`), comparison (`eq`/`gt`/…), set membership, and future arithmetic/aggregation are all the same `Call` node, so `a AND b`, `span.a > span.b`, and `(a + b) > c` compose uniformly, and the expression is the one reusable term a future projection, grouping, or named function (§4 L3/L4) would operate on. The AST deliberately does **not** encode value types: a filter is an expression that *type-checks* to boolean, and `duration > "x"` is a type error but a valid graph — validated separately, as expression ASTs conventionally are (§6.1). `level`, `op`, and the optional `type` (§5.4) are **typed string enumerations** (documented closed value sets) rather than proto enums — see §6.2 for why; `property` is an open documented vocabulary.
 
 ### 6.1 Proto
 
 ```protobuf
-// Expression is a node in the filter AST: either an atom — a reference (attr or
-// prop) or a constant (scalar or array) — or a Call applying an operator or
-// function to argument Expressions. The tree is uniformly recursive: a call's
+// Expression is a node in the filter AST: either an atom — a reference or a
+// constant (scalar or list) — or a Call applying an operator or function to
+// argument Expressions. The tree is uniformly recursive: a call's
 // args are themselves Expressions, so boolean combination, comparison, set
 // membership, and (later) arithmetic and aggregation are all the same shape,
 // and `(a + b) > c` composes as naturally as `a AND b`.
@@ -263,7 +263,7 @@ message Expression {
   oneof term {
     Reference ref    = 1;  // a value on the span/trace: attribute or built-in field
     Scalar    scalar = 2;  // constant: single typed value
-    Array     array  = 3;  // constant: homogeneous list (right arg of in / not_in)
+    List      list   = 3;  // constant: homogeneous list (right arg of in / not_in)
     Call      call   = 4;  // an operator/function applied to argument Expressions
   }
 }
@@ -279,7 +279,7 @@ message Scalar {
   string type  = 2;  // optional hint: string(default)|int|double|bool; empty = any type (§5.4)
 }
 
-message Array {
+message List {
   repeated string values = 1;
   string type = 2;          // optional hint applied to every element; empty = any type
 }
@@ -290,7 +290,7 @@ message Array {
 // `not`/`exists` are unary; `and`/`or` take two or more args; the comparisons
 // and `in`/`not_in` are binary ([left, right]). Because args are Expressions,
 // `span.a > span.b` and `(a + b) > c` are expressible, not only `ref op scalar`;
-// `in`/`not_in` take an Array as the right arg. `some` (§5.5) is the existential
+// `in`/`not_in` take a List as the right arg. `some` (§5.5) is the existential
 // quantifier over the event/link collections — args = [collection Reference,
 // predicate], with the predicate's same-level references bound to one element.
 // Named scalar functions and aggregates (avg, count, coalesce, …) are future
@@ -320,7 +320,7 @@ Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defa
 ```yaml
 level: { type: string, enum: [span, resource, instrumentation, event, link, trace] }        # Reference.level
 op:    { type: string, enum: [and, or, not, eq, ne, gt, lt, regex, exists, in, not_in, some] }  # Call.op
-type:  { type: string, enum: [string, int, double, bool] }                                   # Scalar.type / Array.type; optional, empty = any type
+type:  { type: string, enum: [string, int, double, bool] }                                   # Scalar.type / List.type; optional, empty = any type
 ```
 
 Legend: 🟢 strong · 🟡 adequate · 🔴 weak
@@ -337,7 +337,7 @@ Legend: 🟢 strong · 🟡 adequate · 🔴 weak
 
 The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
 
-The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`ref`/`scalar`/`array`/`call`). That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
+The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`ref`/`scalar`/`list`/`call`). That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `span.http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
 
 ```
 GET /api/v3/traces?query.filter={"op":"eq","args":[{"ref":{"name":"http.status_code","level":"span"}},{"scalar":{"value":"500"}}]}
@@ -350,10 +350,10 @@ GET /api/v3/traces?query.filter={"op":"eq","args":[{"ref":{"name":"http.status_c
         { "scalar": { "value": "2s" } } ] } },
     { "call": { "op": "in", "args": [
         { "ref": { "name": "http.status_code", "level": "span" } },
-        { "array": { "values": ["500", "503"], "type": "int" } } ] } } ] } } }
+        { "list": { "values": ["500", "503"], "type": "int" } } ] } } ] } } }
 ```
 
-The `filter` itself is a `Call`, written bare (`{"op":…}`); its `args` are `Expression`s, so a nested call carries the `{"call":…}` envelope. A single predicate is the filter directly (the first example); a conjunction is an `and` call over its predicates (the second). The `duration` operand is a built-in field (`builtin:true`); `http.status_code` is an attribute (`builtin` omitted). The membership test is a single `in` call over an array, and `or`/`not` nest the same way as `and`.
+The `filter` itself is a `Call`, written bare (`{"op":…}`); its `args` are `Expression`s, so a nested call carries the `{"call":…}` envelope. A single predicate is the filter directly (the first example); a conjunction is an `and` call over its predicates (the second). The `duration` operand is a built-in field (`builtin:true`); `http.status_code` is an attribute (`builtin` omitted). The membership test is a single `in` call over a list, and `or`/`not` nest the same way as `and`.
 
 Comparing two references is just another call with two `ref` args — "spans whose end-user id differs between the span and its resource":
 
@@ -410,7 +410,7 @@ q = (Query()
 
 Each fragment lowers directly to the AST — `prop.duration > "2s"` produces `{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span","builtin":true}},{"scalar":{"value":"2s"}}]}}` (the `span(...)`/`resource(...)` helpers emit attribute `ref`s, `prop.x` emits a built-in-field `ref`). Two builder conveniences carry their weight:
 
-- **Type-hint inference.** The builder derives the optional `type` (§5.4) from the Python value: `== 500` emits `{"scalar":{"value":"500","type":"int"}}`, `one_of([500,503])` emits an `int`-typed `array`, and a bare string stays untyped (any-type resolution). The caller opts out by passing an explicit string.
+- **Type-hint inference.** The builder derives the optional `type` (§5.4) from the Python value: `== 500` emits `{"scalar":{"value":"500","type":"int"}}`, `one_of([500,503])` emits an `int`-typed `list`, and a bare string stays untyped (any-type resolution). The caller opts out by passing an explicit string.
 - **Operator mapping.** `== != > < >= <=` map to `eq/ne/gt/lt/gte/lte`; `& | ~` to `and/or/not`; and the operators Python cannot overload get method forms — `.matches()` (regex), `.exists()`, `.one_of()`/`.not_one_of()` (in/not_in), since `x in [...]` and `and`/`or` keywords cannot be intercepted. Method aliases (`.eq()`, `.gt()`, …) exist for callers who prefer them or want to avoid overloading `==` (which, as in SQLAlchemy/pandas, returns a query fragment, not a bool).
 
 This is illustrative, not normative: the wire contract is the AST (§6.1), and each SDK is free to shape its builder idiomatically as long as it emits that AST.
@@ -452,7 +452,7 @@ Three alternative API shapes were considered and not adopted; the structured mod
 **AST node-shape decisions.** Four shape choices within the structured model were weighed against cleaner-looking alternatives and are recorded here.
 
 - **One `Reference{name, level, builtin}`, not separate `attr`/`prop` variants.** A built-in field and an attribute are both "a value read off the span/trace," so they are one node parameterized by level, with a `builtin` flag distinguishing a field from an attribute of the same name. *Rejected:* separate `attribute` and `property` oneof variants — the split saves no evaluator branch (a field and a map entry resolve differently regardless), and a bare `prop` string cannot carry a level, which is required once built-in fields exist at non-span levels (`event.name`, `link.traceID`, `trace.rootName`; §5.2). Unifying is what makes those expressible at all. The cost is that a built-in-field reference is wordier on the wire than a bare `prop` would have been — builder-absorbed (§6.3).
-- **`in`/`not_in` take an `Array` operand, not variadic scalar args.** The set is a first-class `Array` literal (one `type` for the homogeneous list), so `in`/`not_in` stay binary `[subject, set]` like every other operator. *Rejected:* `Call(op="in", args=[subject, s1, s2, …])` — a variadic form invents a "first arg is the subject, the rest are the set" convention unique to `in`, lets a `ref`/`call` slip into set positions, and carries a `type` per element (admitting a heterogeneous set validation must then reject). The concern that a first-class `Array` enables nonsensical ASTs is closed by `filter: Call` (an array cannot be the top-level filter) and by validation catching an array in a scalar position, the same class as any other type error.
+- **`in`/`not_in` take a `List` operand, not variadic scalar args.** The set is a first-class `List` literal (one `type` for the homogeneous list), so `in`/`not_in` stay binary `[subject, set]` like every other operator. *Rejected:* `Call(op="in", args=[subject, s1, s2, …])` — a variadic form invents a "first arg is the subject, the rest are the set" convention unique to `in`, lets a `ref`/`call` slip into set positions, and carries a `type` per element (admitting a heterogeneous set validation must then reject). The concern that a first-class `List` enables nonsensical ASTs is closed by `filter: Call` (a list cannot be the top-level filter) and by validation catching a list in a scalar position, the same class as any other type error.
 - **Top-level `filter` is a `Call`, not an `Expression` (nor an implicit-AND list).** A filter is always a boolean operation, so the field is a `Call`; the top level then carries no `Expression` oneof envelope — `{"op":…}` on the wire, not `{"call":{…}}` — so the common single-predicate query is shorter, and a single node gives one canonical encoding of conjunction (an `and` call) rather than a second, implicit one (a top-level list). *Rejected:* `Expression filter` — the composability it appeared to buy (a filter being the same type as any sub-expression) is a host-language concern, met by a one-line `Expr(call)` wrap in a typed builder, not a property the wire must carry, so the constant envelope on every request buys nothing. A top-level implicit-AND list (§10 Q1) was also rejected: it is a second way to spell AND, and forces a one-element list for a top-level `or`.
 - **Scalars carry a string `value` + optional `type` hint, not a typed `oneof`** (§5.4). A typed `oneof {int64|double|bool|string}` cannot express the default the tracing data model needs — *match any type* — because a key is legitimately multi-typed across services (`http.status_code` int in one, string in another) and the caller often has no type metadata with which to choose a variant (§5.4). Unit-bearing values (`duration` = `"2s"`, future timestamps) have no native proto scalar and revert to strings regardless. The stringify "tax" for a known-typed caller is paid once by the builder, which infers the type from the native value (§6.3); wire packing is immaterial at query-payload sizes. *Rejected:* a typed `oneof` — its strictness is illusory here, since it cannot represent "any type."
 
@@ -464,7 +464,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 
 **Stage A — API foundation (additive, no behavior change)**
 
-- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Reference`, `Scalar`, `Array`, and `Call` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema — §6.2) and the `filter` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the `ref` and `scalar` terms with span-level attributes and built-in fields, and phase in the `array` term, the non-span levels, and the `some` quantifier (§5.5), since the oneof and the `op` vocabulary are additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the recursive `Expression` + `Call` AST (the `ref`/`scalar`/`array`/`call` terms and the `level`/`op`/`type` string enumerations) per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
+- **M1 — Proto types in jaeger-idl.** Add `Expression`, `Reference`, `Scalar`, `List`, and `Call` (with `level`/`op`/`type` as string enumerations whose closed sets are declared in the OpenAPI schema — §6.2) and the `filter` field on `TraceQueryParameters`, in both the public api_v3 and the storage/v2 protos. Legacy `attributes` untouched. *Initial delivery may ship the `ref` and `scalar` terms with span-level attributes and built-in fields, and phase in the `list` term, the non-span levels, and the `some` quantifier (§5.5), since the oneof and the `op` vocabulary are additive.* **In flight — [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206), which encodes the recursive `Expression` + `Call` AST (the `ref`/`scalar`/`list`/`call` terms and the `level`/`op`/`type` string enumerations) per §6.1–§6.2.** *Exit:* generated types compile and vendor cleanly; existing api_v3 callers byte-for-byte unaffected.
 - **M2 — Plumb the filter through the query service to the storage interface.** Extend the internal `TraceQueryParams` ([`reader.go`](../../internal/storage/v2/api/tracestore/reader.go)) to carry the expression tree alongside the legacy `Attributes` map, and translate the proto field in the api_v3 handler. With no backend routing yet, a purely-conjunctive tree is treated as unqualified search-all (today's results); non-conjunctive trees and unsupported operators are refused at the edge — up front where the query service can read the backend's declared filter capabilities (`SearchCapabilities`, [ADR-013](../adr/013-storage-capability-declaration.md)), at query time otherwise. *Exit:* a conjunctive level-qualified filter reaches every backend as unqualified attributes and returns today's results; `OR`/`NOT` and unsupported operators are refused; plugins ignoring `filter` are unaffected.
 
 **Stage B — Backend routing (one PR per backend, parallelizable after M2)**
