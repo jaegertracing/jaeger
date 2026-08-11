@@ -347,7 +347,11 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     agent = _new_jaeger_sidecar_agent()
     conn = FakeConn()
     agent.on_connect(conn)  # pyright: ignore[reportArgumentType]
-    huge_output = {"text": "x" * (MAX_SPAN_ATTR_CHARS * 2)}
+    huge_output = {
+        "content": [{"type": "text", "text": "x" * (MAX_SPAN_ATTR_CHARS * 2)}],
+        "isError": False,
+        "structuredContent": {"traces": []},
+    }
     monkeypatch.setattr(agent._mcp, "call_tool", _fake_call_tool(huge_output))
 
     result = asyncio.run(agent._execute_tool("sess-1", "search_traces", {}, "call-3"))
@@ -355,7 +359,7 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     # The full, untruncated payload still reaches the AG-UI wire.
     assert result == huge_output
     completed_update = conn.session_updates[-1]
-    assert completed_update.raw_output == {"content": huge_output}
+    assert completed_update.raw_output == huge_output
 
     # Only the span attribute is capped, to protect OTLP export from
     # arbitrarily large tool payloads.
