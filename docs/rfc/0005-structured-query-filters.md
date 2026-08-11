@@ -304,7 +304,8 @@ message TraceQueryParameters {
   map<string, string> attributes = 3;
 
   // Structured filter: a single boolean-valued Call (an operator over argument
-  // Expressions), mutually exclusive with the legacy `attributes` map. A
+  // Expressions), mutually exclusive with the legacy predicate fields
+  // (service_name, operation_name, duration_min/max, attributes; §7). A
   // multi-predicate conjunction is an explicit `and` call.
   Call filter = 10;
 }
