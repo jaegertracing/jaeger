@@ -13,6 +13,13 @@ import (
 
 var _ Adjuster = (*SortAttributesAndEventsAdjuster)(nil)
 
+// SortCollections creates an adjuster that standardizes trace data by sorting elements:
+// - Resource attributes are sorted lexicographically by their keys.
+// - Scope attributes are sorted lexicographically by their keys.
+// - Span attributes are sorted lexicographically by their keys.
+// - Span events are sorted by timestamp.
+// - Attributes within each span event are sorted lexicographically by their keys.
+// - Attributes within each span link are sorted lexicographically by their keys.
 func SortCollections() SortAttributesAndEventsAdjuster {
 	return SortAttributesAndEventsAdjuster{}
 }
