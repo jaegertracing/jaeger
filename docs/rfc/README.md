@@ -46,7 +46,7 @@ Graduation is optional and not the only end state. An RFC may also be superseded
 - [0002: AI Gateway — Frontend-Driven Contextual Tools](./0002-ai-gateway-contextual-tools.md) - Per-turn UI tool registration via ACP extension method
 - [0003: Simplify Running Jaeger With the AI Sidecar](./0003-simplify-ai-sidecar-setup.md) - Reduce the setup steps needed for a first local run of Jaeger with an AI sidecar
 - [0004: Elasticsearch/OpenSearch Data Streams](./0004-elasticsearch-data-streams.md) - Data Streams as a new index management strategy for span storage
-- [0005: Structured Query Filters for Trace Search](./0005-structured-query-filters.md) - A structured query-filter model for trace search: level-qualified attributes, properties, and boolean composition
+- [0005: Structured Query Filters for Trace Search](./0005-structured-query-filters.md) - A structured query-filter model for trace search: level-qualified attributes, built-in fields, and boolean composition
 - [0006: Unified Elasticsearch/OpenSearch Client](./0006-unified-elasticsearch-client.md) - Collapse the data-plane and control-plane ES/OS clients into one Jaeger-owned client
 - [0007: Synchronous Elasticsearch/OpenSearch Writes](./0007-synchronous-elasticsearch-writes.md) - Per-batch synchronous bulk writes so failures propagate and Kafka offsets commit only after durable persistence
 - [0008: AI Gateway — Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md) - Consolidate telemetry and UI tool dispatch through one gateway-hosted MCP server; supersedes the tool-routing decision in RFC 0002
