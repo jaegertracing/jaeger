@@ -302,7 +302,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
-		SearchDepth:  200,
+		SearchDepth:  200, // capped at maxResults=100
 	}
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
