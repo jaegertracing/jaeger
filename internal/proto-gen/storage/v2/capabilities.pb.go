@@ -34,10 +34,22 @@ type SearchCapabilities struct {
 	// accept a query whose service_name is empty and read it as "any service", rather
 	// than as an error or an empty result. Backends that index by service name, such as
 	// Cassandra, cannot do this.
-	WithoutServiceName   bool     `protobuf:"varint,1,opt,name=without_service_name,json=withoutServiceName,proto3" json:"without_service_name,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
+	WithoutServiceName bool `protobuf:"varint,1,opt,name=without_service_name,json=withoutServiceName,proto3" json:"without_service_name,omitempty"`
+	// same_span_conjunction is true when a multi-predicate conjunction — the legacy
+	// attributes map, or an `and` in the RFC 0005 filter — is matched within a single
+	// span. false means the backend may satisfy different conjuncts from different spans
+	// of the same trace, as a flat inverted index intersecting at trace granularity does.
+	// It is reported, not enforced: the query service does not refuse a conjunction, it
+	// surfaces the looser scoping so a caller that needs strict single-span matching is
+	// not surprised by the result.
+	SameSpanConjunction bool `protobuf:"varint,2,opt,name=same_span_conjunction,json=sameSpanConjunction,proto3" json:"same_span_conjunction,omitempty"`
+	// filter describes structured-filter support (RFC 0005). Its zero value — an absent
+	// message — means the backend serves only the legacy predicate fields, so the query
+	// service down-converts any filter to service_name / attributes / duration for it.
+	Filter               *FilterCapabilities `protobuf:"bytes,3,opt,name=filter,proto3" json:"filter,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
+	XXX_unrecognized     []byte              `json:"-"`
+	XXX_sizecache        int32               `json:"-"`
 }
 
 func (m *SearchCapabilities) Reset()         { *m = SearchCapabilities{} }
@@ -71,6 +83,87 @@ func (m *SearchCapabilities) GetWithoutServiceName() bool {
 	return false
 }
 
+func (m *SearchCapabilities) GetSameSpanConjunction() bool {
+	if m != nil {
+		return m.SameSpanConjunction
+	}
+	return false
+}
+
+func (m *SearchCapabilities) GetFilter() *FilterCapabilities {
+	if m != nil {
+		return m.Filter
+	}
+	return nil
+}
+
+// FilterCapabilities declares how much of the RFC 0005 structured filter a backend can
+// serve. Every field's zero value is the least capable answer, so a backend that leaves
+// this message at its defaults accepts only a flat, unqualified conjunction. levels,
+// operators and boolean are refusal gates: the query service rejects a predicate that
+// names a level, operator or boolean structure not listed here.
+type FilterCapabilities struct {
+	// levels lists the attribute levels the backend can filter on
+	// (span|resource|instrumentation|event|link). Empty means it cannot serve a
+	// level-qualified predicate, so only unqualified (empty-level) filters reach it.
+	Levels []string `protobuf:"bytes,1,rep,name=levels,proto3" json:"levels,omitempty"`
+	// operators lists the op values the backend evaluates
+	// (eq|ne|gt|lt|gte|lte|regex|exists|in|not_in|some). A predicate whose op is not
+	// listed is refused.
+	Operators []string `protobuf:"bytes,2,rep,name=operators,proto3" json:"operators,omitempty"`
+	// boolean is true when the backend evaluates or/not and nested groups; false means it
+	// accepts only a flat conjunction, the subset the flat backends run.
+	Boolean              bool     `protobuf:"varint,3,opt,name=boolean,proto3" json:"boolean,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *FilterCapabilities) Reset()         { *m = FilterCapabilities{} }
+func (m *FilterCapabilities) String() string { return proto.CompactTextString(m) }
+func (*FilterCapabilities) ProtoMessage()    {}
+func (*FilterCapabilities) Descriptor() ([]byte, []int) {
+	return fileDescriptor_fe675a14405c9f77, []int{1}
+}
+func (m *FilterCapabilities) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_FilterCapabilities.Unmarshal(m, b)
+}
+func (m *FilterCapabilities) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_FilterCapabilities.Marshal(b, m, deterministic)
+}
+func (m *FilterCapabilities) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FilterCapabilities.Merge(m, src)
+}
+func (m *FilterCapabilities) XXX_Size() int {
+	return xxx_messageInfo_FilterCapabilities.Size(m)
+}
+func (m *FilterCapabilities) XXX_DiscardUnknown() {
+	xxx_messageInfo_FilterCapabilities.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FilterCapabilities proto.InternalMessageInfo
+
+func (m *FilterCapabilities) GetLevels() []string {
+	if m != nil {
+		return m.Levels
+	}
+	return nil
+}
+
+func (m *FilterCapabilities) GetOperators() []string {
+	if m != nil {
+		return m.Operators
+	}
+	return nil
+}
+
+func (m *FilterCapabilities) GetBoolean() bool {
+	if m != nil {
+		return m.Boolean
+	}
+	return false
+}
+
 // GetCapabilitiesRequest represents a request for the backend's capabilities.
 type GetCapabilitiesRequest struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -82,7 +175,7 @@ func (m *GetCapabilitiesRequest) Reset()         { *m = GetCapabilitiesRequest{}
 func (m *GetCapabilitiesRequest) String() string { return proto.CompactTextString(m) }
 func (*GetCapabilitiesRequest) ProtoMessage()    {}
 func (*GetCapabilitiesRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_fe675a14405c9f77, []int{1}
+	return fileDescriptor_fe675a14405c9f77, []int{2}
 }
 func (m *GetCapabilitiesRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetCapabilitiesRequest.Unmarshal(m, b)
@@ -116,7 +209,7 @@ func (m *GetCapabilitiesResponse) Reset()         { *m = GetCapabilitiesResponse
 func (m *GetCapabilitiesResponse) String() string { return proto.CompactTextString(m) }
 func (*GetCapabilitiesResponse) ProtoMessage()    {}
 func (*GetCapabilitiesResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_fe675a14405c9f77, []int{2}
+	return fileDescriptor_fe675a14405c9f77, []int{3}
 }
 func (m *GetCapabilitiesResponse) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetCapabilitiesResponse.Unmarshal(m, b)
@@ -145,6 +238,7 @@ func (m *GetCapabilitiesResponse) GetSearch() *SearchCapabilities {
 
 func init() {
 	proto.RegisterType((*SearchCapabilities)(nil), "jaeger.storage.v2.SearchCapabilities")
+	proto.RegisterType((*FilterCapabilities)(nil), "jaeger.storage.v2.FilterCapabilities")
 	proto.RegisterType((*GetCapabilitiesRequest)(nil), "jaeger.storage.v2.GetCapabilitiesRequest")
 	proto.RegisterType((*GetCapabilitiesResponse)(nil), "jaeger.storage.v2.GetCapabilitiesResponse")
 }
@@ -152,20 +246,27 @@ func init() {
 func init() { proto.RegisterFile("capabilities.proto", fileDescriptor_fe675a14405c9f77) }
 
 var fileDescriptor_fe675a14405c9f77 = []byte{
-	// 206 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x4a, 0x4e, 0x2c, 0x48,
-	0x4c, 0xca, 0xcc, 0xc9, 0x2c, 0xc9, 0x4c, 0x2d, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12,
-	0xcc, 0x4a, 0x4c, 0x4d, 0x4f, 0x2d, 0xd2, 0x2b, 0x2e, 0xc9, 0x2f, 0x4a, 0x4c, 0x4f, 0xd5, 0x2b,
-	0x33, 0x52, 0x72, 0xe3, 0x12, 0x0a, 0x4e, 0x4d, 0x2c, 0x4a, 0xce, 0x70, 0x46, 0x52, 0x2e, 0x64,
-	0xc0, 0x25, 0x52, 0x9e, 0x59, 0x92, 0x91, 0x5f, 0x5a, 0x12, 0x5f, 0x9c, 0x5a, 0x54, 0x96, 0x99,
-	0x9c, 0x1a, 0x9f, 0x97, 0x98, 0x9b, 0x2a, 0xc1, 0xa8, 0xc0, 0xa8, 0xc1, 0x11, 0x24, 0x04, 0x95,
-	0x0b, 0x86, 0x48, 0xf9, 0x25, 0xe6, 0xa6, 0x2a, 0x49, 0x70, 0x89, 0xb9, 0xa7, 0x96, 0x20, 0x1b,
-	0x12, 0x94, 0x5a, 0x58, 0x9a, 0x5a, 0x5c, 0xa2, 0x14, 0xc1, 0x25, 0x8e, 0x21, 0x53, 0x5c, 0x90,
-	0x9f, 0x57, 0x9c, 0x2a, 0x64, 0xcb, 0xc5, 0x56, 0x0c, 0xb6, 0x1c, 0x6c, 0x30, 0xb7, 0x91, 0xaa,
-	0x1e, 0x86, 0x03, 0xf5, 0x30, 0x5d, 0x17, 0x04, 0xd5, 0x64, 0x54, 0xc5, 0xc5, 0x83, 0xe2, 0xea,
-	0x2c, 0x2e, 0x7e, 0x34, 0x9b, 0x84, 0x34, 0xb1, 0x98, 0x88, 0xdd, 0x9d, 0x52, 0x5a, 0xc4, 0x28,
-	0x85, 0x38, 0x5c, 0x89, 0xc1, 0x89, 0x33, 0x8a, 0x1d, 0xaa, 0x2e, 0x89, 0x0d, 0x1c, 0xb8, 0xc6,
-	0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0xc2, 0x11, 0x49, 0x31, 0x72, 0x01, 0x00, 0x00,
+	// 312 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x8c, 0x92, 0x4f, 0x4b, 0x33, 0x31,
+	0x10, 0x87, 0xdf, 0x6d, 0xa1, 0x7f, 0xe6, 0x15, 0xc4, 0x51, 0x6b, 0x10, 0x0f, 0x65, 0x41, 0xa8,
+	0x1e, 0x16, 0x59, 0xcf, 0x5e, 0x2c, 0xe8, 0xcd, 0xc3, 0xf6, 0x22, 0x5e, 0x96, 0xe9, 0x3a, 0xb6,
+	0x29, 0xdb, 0x24, 0x26, 0x69, 0x05, 0xbf, 0x99, 0xdf, 0x4e, 0x9a, 0xae, 0xb4, 0x75, 0x7b, 0xf0,
+	0x38, 0x79, 0x7e, 0x93, 0x3c, 0x33, 0x04, 0xb0, 0x20, 0x43, 0x63, 0x59, 0x4a, 0x2f, 0xd9, 0x25,
+	0xc6, 0x6a, 0xaf, 0xf1, 0x68, 0x46, 0x3c, 0x61, 0x9b, 0x38, 0xaf, 0x2d, 0x4d, 0x38, 0x59, 0xa6,
+	0xf1, 0x57, 0x04, 0x38, 0x62, 0xb2, 0xc5, 0x74, 0xb8, 0x95, 0xc7, 0x1b, 0x38, 0xf9, 0x90, 0x7e,
+	0xaa, 0x17, 0x3e, 0x77, 0x6c, 0x97, 0xb2, 0xe0, 0x5c, 0xd1, 0x9c, 0x45, 0xd4, 0x8f, 0x06, 0x9d,
+	0x0c, 0x2b, 0x36, 0x5a, 0xa3, 0x27, 0x9a, 0x33, 0xa6, 0x70, 0xea, 0x68, 0xce, 0xb9, 0x33, 0xa4,
+	0xf2, 0x42, 0xab, 0xd9, 0x42, 0x15, 0x5e, 0x6a, 0x25, 0x1a, 0xa1, 0xe5, 0x78, 0x05, 0x47, 0x86,
+	0xd4, 0x70, 0x83, 0xf0, 0x0e, 0x5a, 0x6f, 0xb2, 0xf4, 0x6c, 0x45, 0xb3, 0x1f, 0x0d, 0xfe, 0xa7,
+	0x97, 0x49, 0x4d, 0x30, 0x79, 0x08, 0x81, 0x6d, 0xb9, 0xac, 0x6a, 0x8a, 0x5f, 0x01, 0xeb, 0x14,
+	0x7b, 0xd0, 0x2a, 0x79, 0xc9, 0xa5, 0x13, 0x51, 0xbf, 0x39, 0xe8, 0x66, 0x55, 0x85, 0x17, 0xd0,
+	0xd5, 0x86, 0x2d, 0x79, 0x6d, 0x9d, 0x68, 0x04, 0xb4, 0x39, 0x40, 0x01, 0xed, 0xb1, 0xd6, 0x25,
+	0x93, 0x0a, 0x2e, 0x9d, 0xec, 0xa7, 0x8c, 0x05, 0xf4, 0x1e, 0xd9, 0xef, 0x08, 0xf0, 0xfb, 0x82,
+	0x9d, 0x8f, 0x9f, 0xe1, 0xac, 0x46, 0x9c, 0xd1, 0xca, 0xf1, 0x6a, 0x32, 0x17, 0xb6, 0x1a, 0x36,
+	0xb6, 0x7f, 0xb2, 0xfa, 0xda, 0xb3, 0xaa, 0x29, 0xfd, 0x84, 0x83, 0x9d, 0x99, 0x66, 0x70, 0xf8,
+	0xeb, 0x25, 0xbc, 0xda, 0x73, 0xe3, 0x7e, 0xcf, 0xf3, 0xeb, 0xbf, 0x44, 0xd7, 0xe2, 0xf1, 0xbf,
+	0xfb, 0xee, 0x4b, 0xbb, 0xca, 0x8d, 0x5b, 0xe1, 0xdb, 0xdc, 0x7e, 0x07, 0x00, 0x00, 0xff, 0xff,
+	0x27, 0x2b, 0xc5, 0x5e, 0x4c, 0x02, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
