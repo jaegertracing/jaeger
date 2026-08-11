@@ -54,7 +54,7 @@ var legacyFilterLevels = tracestore.FilterCapabilities{
 // capability — gets the filter rewritten into the legacy predicate fields, which carry
 // the equalities and inclusive duration bounds and nothing else.
 func prepareFilter(query TraceQueryParams, caps tracestore.SearchCapabilities) (TraceQueryParams, error) {
-	if err := errFilterWithLegacyPredicates(query); err != nil {
+	if err := checkNoLegacyPredicates(query); err != nil {
 		return query, err
 	}
 	if caps.Filter == nil {
@@ -63,11 +63,11 @@ func prepareFilter(query TraceQueryParams, caps tracestore.SearchCapabilities) (
 	return query, checkFilterSupported(query.Filter, *caps.Filter)
 }
 
-// errFilterWithLegacyPredicates rejects a query that carries both a filter and one of the
+// checkNoLegacyPredicates rejects a query that carries both a filter and one of the
 // predicate fields the filter replaces. The two express the same things — a service, an
 // operation name, a duration bound, a tag — so honoring both would leave the caller
 // guessing which one applied.
-func errFilterWithLegacyPredicates(query TraceQueryParams) error {
+func checkNoLegacyPredicates(query TraceQueryParams) error {
 	var set []string
 	if query.ServiceName != "" {
 		set = append(set, "service_name")
