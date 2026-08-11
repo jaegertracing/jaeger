@@ -15,7 +15,9 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
@@ -816,10 +818,104 @@ func TestTraceReader_FindTraceSummaries_Unimplemented(t *testing.T) {
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }
 
-// A remote backend's abilities cannot be introspected over jaeger.storage.v2, so the
-// reader says it cannot answer rather than reporting a value a caller might trust
-// (RFC 0013 §3.1). Milestone 5 adds the operator-set override.
+// capabilitiesServer serves the Capabilities service with a configured answer.
+type capabilitiesServer struct {
+	storage.UnimplementedCapabilitiesServer
+	resp *storage.GetCapabilitiesResponse
+	err  error
+}
+
+func (cs *capabilitiesServer) GetCapabilities(
+	context.Context,
+	*storage.GetCapabilitiesRequest,
+) (*storage.GetCapabilitiesResponse, error) {
+	return cs.resp, cs.err
+}
+
+// TestTraceReader_SearchCapabilities covers what the reader makes of each answer a remote
+// backend can give, including the UNIMPLEMENTED case that keeps older backends working.
 func TestTraceReader_SearchCapabilities(t *testing.T) {
-	_, err := (&TraceReader{}).SearchCapabilities(context.Background())
-	require.ErrorIs(t, err, errors.ErrUnsupported)
+	tests := []struct {
+		name         string
+		register     func(*grpc.Server)
+		expected     tracestore.SearchCapabilities
+		expectErrIs  error
+		expectErrMsg string
+	}{
+		{
+			name: "backend reports the capability",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{
+						Search: &storage.SearchCapabilities{WithoutServiceName: true},
+					},
+				})
+			},
+			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+		},
+		{
+			name: "backend reports its absence",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{Search: &storage.SearchCapabilities{}},
+				})
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name: "backend answers without a search group",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{},
+				})
+			},
+			expected: tracestore.SearchCapabilities{},
+		},
+		{
+			name:        "backend does not serve the service",
+			register:    func(*grpc.Server) {},
+			expectErrIs: errors.ErrUnsupported,
+		},
+		{
+			name: "backend serves it but does not override the method",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &storage.UnimplementedCapabilitiesServer{})
+			},
+			expectErrIs: errors.ErrUnsupported,
+		},
+		{
+			// Not UNIMPLEMENTED, so a real error: reporting it as ErrUnsupported would let a
+			// broken backend look like an old one.
+			name: "backend fails for another reason",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					err: status.Error(codes.Internal, "boom"),
+				})
+			},
+			expectErrMsg: "boom",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			listener, netErr := net.Listen("tcp", ":0")
+			require.NoError(t, netErr)
+			server := grpc.NewServer()
+			storage.RegisterTraceReaderServer(server, &testServer{})
+			test.register(server)
+			reader := NewTraceReader(startServer(t, server, listener))
+
+			caps, err := reader.SearchCapabilities(context.Background())
+
+			switch {
+			case test.expectErrIs != nil:
+				require.ErrorIs(t, err, test.expectErrIs)
+			case test.expectErrMsg != "":
+				require.ErrorContains(t, err, test.expectErrMsg)
+				require.NotErrorIs(t, err, errors.ErrUnsupported)
+			default:
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, caps)
+			}
+		})
+	}
 }

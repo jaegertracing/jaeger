@@ -101,7 +101,9 @@ patch-api-v2:
 	mkdir -p $(API_V2_PATCHED_DIR)
 	cp idl/proto/api_v2/collector.proto $(API_V2_PATCHED_DIR)/
 	cp idl/proto/api_v2/sampling.proto $(API_V2_PATCHED_DIR)/
-	cat idl/proto/api_v2/query.proto | $(SED) 's|jaegertracing/jaeger-idl/model/v1.|jaegertracing/jaeger/model.|g' > $(API_V2_PATCHED_DIR)/query.proto
+	$(SED) 's|jaegertracing/jaeger-idl/model/v1.|jaegertracing/jaeger/model.|g' \
+		idl/proto/api_v2/query.proto \
+		> $(API_V2_PATCHED_DIR)/query.proto
 
 
 .PHONY: proto-openmetrics
@@ -113,21 +115,26 @@ STORAGE_V2_PATH=$(PROTO_GEN)/storage/v2
 STORAGE_V2_PATCHED_DIR=$(PROTO_GEN)/.patched/storage_v2
 STORAGE_V2_PATCHED_TRACE=$(STORAGE_V2_PATCHED_DIR)/trace_storage.proto
 STORAGE_V2_PATCHED_DEPENDENCY=$(STORAGE_V2_PATCHED_DIR)/dependency_storage.proto
+STORAGE_V2_PATCHED_CAPABILITIES=$(STORAGE_V2_PATCHED_DIR)/capabilities.proto
 
 .PHONY: patch-storage-v2
 patch-storage-v2:
 	mkdir -p $(STORAGE_V2_PATCHED_DIR)
-	cat idl/proto/storage/v2/trace_storage.proto | \
-		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+	$(SED) -f ./$(PROTO_GEN)/patch.sed \
+		idl/proto/storage/v2/trace_storage.proto \
 		> $(STORAGE_V2_PATCHED_TRACE)
-	cat idl/proto/storage/v2/dependency_storage.proto | \
-		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+	$(SED) -f ./$(PROTO_GEN)/patch.sed \
+		idl/proto/storage/v2/dependency_storage.proto \
 		> $(STORAGE_V2_PATCHED_DEPENDENCY)
+	$(SED) -f ./$(PROTO_GEN)/patch.sed \
+		idl/proto/storage/v2/capabilities.proto \
+		> $(STORAGE_V2_PATCHED_CAPABILITIES)
 
 .PHONY: proto-storage-v2
 proto-storage-v2: patch-storage-v2
 	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_TRACE), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
 	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_DEPENDENCY), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
+	$(call proto_compile, $(STORAGE_V2_PATH), $(STORAGE_V2_PATCHED_CAPABILITIES), -I$(STORAGE_V2_PATCHED_DIR) -Iinternal/storage/v2/grpc/)
 	@echo "🏗️  replace first instance of OTEL import with internal type"
 	$(SED) -i '0,/go.opentelemetry.io\/proto\/otlp\/trace\/v1/s|go.opentelemetry.io/proto/otlp/trace/v1|github.com/jaegertracing/jaeger/internal/jptrace|' $(STORAGE_V2_PATH)/*.pb.go
 	@echo "🏗️  remove all remaining OTEL imports because we're not using any other OTLP types"
@@ -153,8 +160,8 @@ API_V3_PATCHED=$(API_V3_PATCHED_DIR)/query_service.proto
 .PHONY: patch-api-v3
 patch-api-v3:
 	mkdir -p $(API_V3_PATCHED_DIR)
-	cat idl/proto/api_v3/query_service.proto | \
-		$(SED) -f ./$(PROTO_GEN)/patch.sed \
+	$(SED) -f ./$(PROTO_GEN)/patch.sed \
+		idl/proto/api_v3/query_service.proto \
 		> $(API_V3_PATCHED)
 
 .PHONY: proto-api-v3
