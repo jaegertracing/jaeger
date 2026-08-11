@@ -5,6 +5,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"testing"
 	"testing/fstest"
@@ -31,19 +32,35 @@ func newTestHandler() *readSkillHandler {
 	return &readSkillHandler{builtins: testSkillsFS(), maxFileSize: testMaxFileSize}
 }
 
+// skillText returns the markdown an agent actually receives: the result's
+// content block, which is the only place the skill body is carried.
+func skillText(t *testing.T, result *mcp.CallToolResult) string {
+	t.Helper()
+	require.NotNil(t, result)
+	require.Len(t, result.Content, 1)
+	tc, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	return tc.Text
+}
+
 func TestReadSkillHandler_RootSkillMD(t *testing.T) {
 	h := newTestHandler()
-	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
+	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
 	require.NoError(t, err)
-	assert.Contains(t, output.Instructions, "# Skills")
-	assert.Contains(t, output.Instructions, "skill-a")
+	body := skillText(t, result)
+	assert.Contains(t, body, "# Skills")
+	assert.Contains(t, body, "skill-a")
+	assert.Equal(t, "SKILL.md", output.Path)
+	assert.False(t, output.Truncated)
 }
 
 func TestReadSkillHandler_SubSkillMD(t *testing.T) {
 	h := newTestHandler()
-	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
 	require.NoError(t, err)
-	assert.Equal(t, "# Skill A\n\nContent here.", output.Instructions)
+	assert.Equal(t, "# Skill A\n\nContent here.", skillText(t, result))
+	assert.Equal(t, "skill-a/SKILL.md", output.Path)
+	assert.False(t, output.Truncated)
 }
 
 func TestReadSkillHandler_InvalidPaths(t *testing.T) {
@@ -80,20 +97,33 @@ func TestReadSkillHandler_Directory(t *testing.T) {
 
 func TestReadSkillHandler_FileTooLarge(t *testing.T) {
 	h := newTestHandler()
-	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
+	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "large.bin"})
 	require.NoError(t, err)
-	assert.Contains(t, output.Instructions, "truncated after")
+	assert.Contains(t, skillText(t, result), "truncated after")
+	assert.True(t, output.Truncated)
 }
 
 func TestReadSkillHandler_RawTextInContent(t *testing.T) {
 	h := newTestHandler()
-	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
+	result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "SKILL.md"})
 	require.NoError(t, err)
-	require.NotNil(t, result)
-	tc, ok := result.Content[0].(*mcp.TextContent)
-	require.True(t, ok)
-	assert.Contains(t, tc.Text, "# Skills")
-	assert.Equal(t, tc.Text, output.Instructions)
+	assert.Contains(t, skillText(t, result), "# Skills")
+}
+
+// Regression test for #9290. The SDK marshals the returned output into
+// StructuredContent verbatim, so a body carried there as well as in the content
+// block would travel twice — once as markdown, once JSON-escaped.
+func TestReadSkillHandler_BodyNotRepeatedInStructuredOutput(t *testing.T) {
+	h := newTestHandler()
+	result, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "# Skill A\n\nContent here.", skillText(t, result))
+
+	structured, err := json.Marshal(output)
+	require.NoError(t, err)
+	assert.NotContains(t, string(structured), "Content here.")
+	assert.JSONEq(t, `{"path":"skill-a/SKILL.md","truncated":false}`, string(structured))
 }
 
 func TestNewReadSkillHandler(t *testing.T) {
@@ -124,21 +154,22 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 	h := &readSkillHandler{builtins: testSkillsFS(), custom: testCustomFS(), maxFileSize: testMaxFileSize}
 
 	t.Run("custom prefix reaches the custom tree", func(t *testing.T) {
-		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
+		result, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/slow-db-call/SKILL.md"})
 		require.NoError(t, err)
-		assert.Equal(t, "# Slow DB Call", out.Instructions)
+		assert.Equal(t, "# Slow DB Call", skillText(t, result))
+		assert.Equal(t, "custom/slow-db-call/SKILL.md", out.Path)
 	})
 
 	t.Run("custom entry point is served", func(t *testing.T) {
-		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
+		result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "custom/SKILL.md"})
 		require.NoError(t, err)
-		assert.Equal(t, "# Operator catalog", out.Instructions)
+		assert.Equal(t, "# Operator catalog", skillText(t, result))
 	})
 
 	t.Run("built-ins still reachable at the root", func(t *testing.T) {
-		_, out, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
+		result, _, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-a/SKILL.md"})
 		require.NoError(t, err)
-		assert.Equal(t, "# Skill A\n\nContent here.", out.Instructions)
+		assert.Equal(t, "# Skill A\n\nContent here.", skillText(t, result))
 	})
 
 	t.Run("traversal out of custom is rejected", func(t *testing.T) {
