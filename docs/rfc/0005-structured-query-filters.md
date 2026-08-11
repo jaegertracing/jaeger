@@ -382,33 +382,35 @@ And the correlated event query of §5.5 — an event named `exception` that fire
 The verbose AST is comfortable for machines to *transport* but unpleasant to *assemble by hand*: a client SDK or automation that composes queries programmatically (as opposed to a human typing into a search box) should not be hand-building nested `call`/`args` dictionaries. The recommended ergonomics is a thin **fluent builder** in each client language that emits the §6.1 AST. It is the programmatic counterpart to the §7 prefix shorthand (the human on-ramp): a convenience layer over the same contract, not a second contract — a Go or TypeScript builder would compile to the identical AST. The builder is not a bespoke DSL: it follows the operator-overloading idiom well established across the Python ecosystem — SQLAlchemy, pandas, Django's `Q`, elasticsearch-dsl — so it reads as familiar to anyone who has composed queries in those libraries. A Python sketch:
 
 ```python
-from jaeger.query import span, resource, event, prop, attr, Query
+from jaeger.query import span, resource, event, link, attr, Query
 
-# References — level-qualified attributes and built-in properties
-span("http.status_code")          # attr at the span level
-resource("service.name")          # attr at the resource level
-prop.duration                     # a property; prop("traceDuration") for others
-attr("k8s.pod.name")              # unqualified (span-or-resource)
+# References — each level is callable for attributes and exposes its built-in
+# fields as members, so one object covers both `attr` cases of a Reference
+span("http.status_code")          # attribute at the span level      (attr:true)
+span.duration                     # built-in field of the span        (attr:false)
+resource("service.name")          # attribute at the resource level   (attr:true)
+event.name                        # built-in field of an event        (attr:false)
+attr("k8s.pod.name")              # unqualified attribute (span-or-resource)
 
 # Predicates — Python comparison operators build a `call`
-prop.duration > "2s"                                  # gt
+span.duration > "2s"                                  # gt
 span("http.status_code") == 500                       # eq
 span("http.method").matches("GET|POST")               # regex
 resource("service.name").one_of(["cart", "checkout"]) # in   (also .not_one_of / .exists)
 span("a") > span("b")                                 # attribute vs attribute
 
 # Composition — &, |, ~  (or and_(...), or_(...), not_(...))
-flt = (prop.duration > "2s") & span("http.status_code").one_of([500, 503])
+flt = (span.duration > "2s") & span("http.status_code").one_of([500, 503])
 flt = flt | ~resource("service.name").eq("healthcheck")
 
 # Terminal — multiple .where() calls are ANDed into one Expression
 q = (Query()
-     .where(prop.duration > "2s")
+     .where(span.duration > "2s")
      .where(span("http.status_code").one_of([500, 503]))
      .build())          # -> TraceQueryParameters.filter (an `and` of the two)
 ```
 
-Each fragment lowers directly to the AST — `prop.duration > "2s"` produces `{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}}` (`prop.x` emits a built-in-field `ref`, no flag; `span(...)`/`resource(...)` emit level-qualified attribute `ref`s with `attr:true`; a bare key emits an unqualified attribute). Two builder conveniences carry their weight:
+Each fragment lowers directly to the AST — `span.duration > "2s"` produces `{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}}` (`span.x` emits a built-in-field `ref` — level set, no `attr` flag; `span(...)`/`resource(...)` emit level-qualified attribute `ref`s with `attr:true`; `attr(...)` emits an unqualified attribute). Two builder conveniences carry their weight:
 
 - **Type-hint inference.** A specified `type` is authoritative (§5.4), so the builder sets it only where a numeric interpretation is required — a comparison like `attr("size") > 500` emits an `int`-typed `scalar` — and leaves equality and membership untyped, so `== 500` and `one_of([500,503])` match whatever form is stored (any-type resolution). The caller passes an explicit type to narrow an equality to one type.
 - **Operator mapping.** `== != > < >= <=` map to `eq/ne/gt/lt/gte/lte`; `& | ~` to `and/or/not`; and the operators Python cannot overload get method forms — `.matches()` (regex), `.exists()`, `.one_of()`/`.not_one_of()` (in/not_in), since `x in [...]` and `and`/`or` keywords cannot be intercepted. Method aliases (`.eq()`, `.gt()`, …) exist for callers who prefer them or want to avoid overloading `==` (which, as in SQLAlchemy/pandas, returns a query fragment, not a bool).
