@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 
@@ -91,6 +90,10 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
+	filter, err := toStorageFilter(query.GetFilter())
+	if err != nil {
+		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
 	queryParams := querysvc.TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			ServiceName:   query.GetServiceName(),
@@ -101,6 +104,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			StartTimeMax:  query.GetStartTimeMax(),
 			DurationMin:   query.GetDurationMin(),
 			DurationMax:   query.GetDurationMax(),
+			Filter:        filter,
 		},
 	}
 	return queryParams, nil
@@ -221,7 +225,7 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 // a server fault, and without this it would reach the client as Unknown. Other errors pass
 // through unchanged.
 func asStatusError(err error) error {
-	if errors.Is(err, querysvc.ErrServiceNameRequired) {
+	if querysvc.IsBadRequest(err) {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	return err

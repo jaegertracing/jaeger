@@ -71,7 +71,11 @@ func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams)
 			return ctx, query, err
 		}
 	}
-	return ctx, fromPublicQuery(pq), nil
+	intercepted := fromPublicQuery(pq)
+	// The public Query does not carry the structured filter, so carry it across untouched
+	// rather than dropping a predicate the backend was meant to apply.
+	intercepted.Filter = query.Filter
+	return ctx, intercepted, nil
 }
 
 // onResult runs every interceptor's OnResult in order on one batch, threading the

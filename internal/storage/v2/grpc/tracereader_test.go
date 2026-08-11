@@ -854,6 +854,33 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
 		},
 		{
+			name: "backend reports every capability",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{
+						Search: &storage.SearchCapabilities{
+							WithoutServiceName:  true,
+							SameSpanConjunction: true,
+							Filter: &storage.FilterCapabilities{
+								Levels:    []string{"span", "resource"},
+								Operators: []string{"eq", "regex"},
+								Boolean:   true,
+							},
+						},
+					},
+				})
+			},
+			expected: tracestore.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &tracestore.FilterCapabilities{
+					Levels:    []tracestore.Level{tracestore.LevelSpan, tracestore.LevelResource},
+					Operators: []tracestore.Operator{tracestore.OpEq, tracestore.OpRegex},
+					Boolean:   true,
+				},
+			},
+		},
+		{
 			name: "backend reports its absence",
 			register: func(srv *grpc.Server) {
 				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{

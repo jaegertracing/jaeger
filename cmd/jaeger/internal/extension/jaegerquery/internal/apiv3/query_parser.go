@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
+	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -35,6 +38,7 @@ const (
 	paramDurationMax    = "query.durationMax"
 	paramQueryRawTraces = "query.rawTraces"
 	paramAttributes     = "query.attributes"
+	paramFilter         = "query.filter"
 	paramSpanKind       = "spanKind"
 
 	// Deprecated snake_case aliases kept for backward compatibility.
@@ -79,6 +83,19 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramAttributes, err)
 		}
 		queryParams.Attributes = jptrace.PlainMapToPcommonMap(attrsMap)
+	}
+	// The filter is a message, which a GET binding cannot expand by field path (the
+	// recursive args would be lost), so it travels as one URL-encoded JSON object.
+	if filterParam := q.Get(paramFilter); filterParam != "" {
+		var call api_v3.Call
+		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		filter, err := toStorageFilter(&call)
+		if err != nil {
+			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
+		}
+		queryParams.Filter = filter
 	}
 
 	timeMinStr, timeMinParam := getQueryParam(q, paramTimeMin, paramTimeMinDeprecated)

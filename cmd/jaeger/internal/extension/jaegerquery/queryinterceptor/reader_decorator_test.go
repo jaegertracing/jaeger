@@ -199,6 +199,31 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, out[0], "secret"), "result hook must redact")
 }
 
+// TestReader_FindTraces_CarriesTheStructuredFilter pins that the structured filter survives
+// the trip through an interceptor. The public Query does not carry it, so without this the
+// decorator would hand storage a query missing a predicate it was meant to apply.
+func TestReader_FindTraces_CarriesTheStructuredFilter(t *testing.T) {
+	filter := &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
+		&tracestore.Reference{Name: "http.route", Level: tracestore.LevelSpan, Attr: true},
+		&tracestore.Scalar{Value: "/cart"},
+	}}
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	r := NewReaderDecorator(next, fakeInterceptor{
+		onQuery: func(q pub.Query) (pub.Query, error) {
+			q.ServiceName = "gated"
+			return q, nil
+		},
+	})
+
+	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{
+		ServiceName: "original",
+		Filter:      filter,
+	}))
+	require.NoError(t, err)
+	assert.Equal(t, "gated", next.gotQuery.ServiceName)
+	assert.Equal(t, filter, next.gotQuery.Filter)
+}
+
 func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
 	sentinel := errors.New("denied")
 	next := &fakeReader{batch: tracesWith("k", "v")}
@@ -547,14 +572,20 @@ func TestReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
 // queries; if the decorator answered for itself, a capability the backend has would be
 // lost to every caller that consults it (RFC 0013 §3.1).
 //
-// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
-// per field rather than for one value that happens to pass;
+// The cases set each field of SearchCapabilities on its own, so forwarding is proven per
+// field rather than for one value that happens to pass;
 // TestSearchCapabilities_FieldCount fails when a field is added without extending this
 // table.
 func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
 	for _, caps := range []tracestore.SearchCapabilities{
-		{WithoutServiceName: false},
+		{},
 		{WithoutServiceName: true},
+		{SameSpanConjunction: true},
+		{Filter: &tracestore.FilterCapabilities{
+			Levels:    []tracestore.Level{tracestore.LevelSpan},
+			Operators: []tracestore.Operator{tracestore.OpEq},
+			Boolean:   true,
+		}},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			r := NewReaderDecorator(&fakeReader{capabilities: caps}, fakeInterceptor{})

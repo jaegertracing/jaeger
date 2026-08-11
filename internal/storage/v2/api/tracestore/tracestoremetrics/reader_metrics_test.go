@@ -257,14 +257,20 @@ func TestReadMetricsDecorator_FindTraceSummaries_EarlyExit(t *testing.T) {
 // reader the factories build, so answering here would hide a capability the backend has
 // from everything downstream (RFC 0013 §3.1).
 //
-// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
-// per field rather than for one value that happens to pass;
+// The cases set each field of SearchCapabilities on its own, so forwarding is proven per
+// field rather than for one value that happens to pass;
 // TestSearchCapabilities_FieldCount fails when a field is added without extending this
 // table.
 func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 	for _, caps := range []tracestore.SearchCapabilities{
-		{WithoutServiceName: false},
+		{},
 		{WithoutServiceName: true},
+		{SameSpanConjunction: true},
+		{Filter: &tracestore.FilterCapabilities{
+			Levels:    []tracestore.Level{tracestore.LevelSpan},
+			Operators: []tracestore.Operator{tracestore.OpEq},
+			Boolean:   true,
+		}},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			inner := &mocks.Reader{}

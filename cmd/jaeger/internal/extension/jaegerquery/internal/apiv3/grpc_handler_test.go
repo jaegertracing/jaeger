@@ -546,6 +546,90 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 	}
 }
 
+// TestFindTracesWithFilter covers the gRPC end of the filter plumbing: the filter reaches
+// the query service, which expresses it in the predicate fields the backend already serves
+// because the mock reader declares no filter support.
+func TestFindTracesWithFilter(t *testing.T) {
+	tsc := newTestServerClient(t)
+	var dispatched tracestore.TraceQueryParams
+	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Run(func(args mock.Arguments) {
+			dispatched = args.Get(1).(tracestore.TraceQueryParams)
+		}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &api_v3.Call{Op: "and", Args: []*api_v3.Expression{
+				{Term: &api_v3.Expression_Call{Call: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
+					{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "service", Level: "resource"}}},
+					{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "myservice"}}},
+				}}}},
+				{Term: &api_v3.Expression_Call{Call: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
+					{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "foo"}}},
+					{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "bar"}}},
+				}}}},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, 1, recv.ToTraces().SpanCount())
+
+	assert.Equal(t, "myservice", dispatched.ServiceName)
+	value, ok := dispatched.Attributes.Get("foo")
+	require.True(t, ok)
+	assert.Equal(t, "bar", value.Str())
+}
+
+// TestFindTracesMalformedFilter pins that a filter this build cannot parse is the caller's
+// problem: InvalidArgument, reported before storage is reached.
+func TestFindTracesMalformedFilter(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter:       &api_v3.Call{Op: "matches"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, `unknown filter operator "matches"`)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// TestFindTracesFilterWithLegacyPredicates pins the mutual exclusion of RFC 0005 §7: a
+// request that sets both a filter and a predicate field the filter replaces is refused.
+func TestFindTracesFilterWithLegacyPredicates(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
+				{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "foo"}}},
+				{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "bar"}}},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "cannot be combined with [service_name]")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 // TestFindTracesServiceNameRequired pins the status code for a query this deployment's
 // storage cannot serve: the request is well-formed, so it is InvalidArgument rather than
 // the Unknown a bare error would produce (RFC 0013 §3.3).

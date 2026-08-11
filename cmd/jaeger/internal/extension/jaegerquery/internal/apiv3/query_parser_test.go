@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -222,6 +224,80 @@ func TestParseFindTracesQuery(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
+}
+
+// TestParseFindTracesQuery_Filter covers the GET binding of the structured filter: a GET
+// cannot expand a message by field path without losing the recursive args, so the filter
+// travels as one URL-encoded JSON object.
+func TestParseFindTracesQuery_Filter(t *testing.T) {
+	timeRange := func() url.Values {
+		q := url.Values{}
+		q.Set(paramTimeMin, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano))
+		q.Set(paramTimeMax, time.Now().UTC().Format(time.RFC3339Nano))
+		return q
+	}
+
+	t.Run("a single predicate", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"eq","args":[{"ref":{"name":"http.status_code"}},{"scalar":{"value":"500"}}]}`)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
+			&tracestore.Reference{Name: "http.status_code"},
+			&tracestore.Scalar{Value: "500"},
+		}}, got.Filter)
+	})
+
+	t.Run("a conjunction with a level-qualified attribute and a list", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"and","args":[
+			{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}},
+			{"call":{"op":"in","args":[{"ref":{"name":"http.status_code"}},{"list":{"values":["500","503"],"type":"int"}}]}}]}`)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
+			&tracestore.Call{Op: tracestore.OpGt, Args: []tracestore.Expression{
+				&tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan},
+				&tracestore.Scalar{Value: "2s"},
+			}},
+			&tracestore.Call{Op: tracestore.OpIn, Args: []tracestore.Expression{
+				&tracestore.Reference{Name: "http.status_code"},
+				&tracestore.List{Values: []string{"500", "503"}, Type: tracestore.ValueTypeInt},
+			}},
+		}}, got.Filter)
+	})
+
+	t.Run("no filter", func(t *testing.T) {
+		got, err := parseFindTracesQuery(timeRange())
+		require.NoError(t, err)
+		assert.Nil(t, got.Filter)
+	})
+
+	t.Run("malformed JSON", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"eq",`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("a field the schema does not define", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"operator":"eq"}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("a filter this build cannot evaluate", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"matches","args":[{"ref":{"name":"a"}},{"scalar":{"value":"b"}}]}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, `malformed parameter query.filter: unknown filter operator "matches"`)
+	})
 }
 
 func TestGetQueryParam(t *testing.T) {

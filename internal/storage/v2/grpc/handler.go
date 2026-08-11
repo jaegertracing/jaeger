@@ -267,7 +267,9 @@ func (h *Handler) GetCapabilities(
 	}
 	return &storage.GetCapabilitiesResponse{
 		Search: &storage.SearchCapabilities{
-			WithoutServiceName: caps.WithoutServiceName,
+			WithoutServiceName:  caps.WithoutServiceName,
+			SameSpanConjunction: caps.SameSpanConjunction,
+			Filter:              toProtoFilterCapabilities(caps.Filter),
 		},
 	}, nil
 }
@@ -282,6 +284,7 @@ func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int(t.SearchDepth),
+		Filter:        fromProtoFilter(t.GetFilter()),
 	}
 }
 
