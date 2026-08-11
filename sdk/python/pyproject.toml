@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jaeger-query"
+version = "0.0.1"
+description = "Prototype Python SDK for Jaeger trace search with RFC 0005 structured query filters"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "The Jaeger Authors" }]
+keywords = ["jaeger", "tracing", "opentelemetry", "grpc"]
+dependencies = []
+
+# The query builders need nothing, so the gRPC runtime is an extra: a caller that
+# only composes queries, or sends them over HTTP, installs none of it.
+# opentelemetry-proto supplies the TracesData messages the search RPCs return.
+[project.optional-dependencies]
+grpc = ["grpcio>=1.60", "protobuf>=4.25", "opentelemetry-proto>=1.20"]
+
+# grpcio-tools is here rather than in the grpc extra because it is only needed to
+# regenerate the stubs, which the repository's proto-api-v3-python target drives
+# out of this environment.
+[dependency-groups]
+dev = ["grpcio-tools>=1.60", "pyright>=1.1.408", "pytest>=8", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/jaegertracing/jaeger"
+"RFC 0005" = "https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+# The builder leans on typing to keep a wrong filter unbuildable, so the type
+# checker is part of the contract rather than a nicety. The generated modules are
+# excluded: they are protoc's output, not this package's typing.
+[tool.pyright]
+include = ["src/jaeger_query", "tests", "examples"]
+extraPaths = ["src"]
+typeCheckingMode = "standard"
+
+[tool.ruff]
+line-length = 110
+src = ["src", "tests"]
+# The generated protobuf modules are committed but not hand-maintained.
+extend-exclude = ["src/api_v3", "src/expression"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
