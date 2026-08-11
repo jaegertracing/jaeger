@@ -222,6 +222,32 @@ some( <collection>, <predicate> )
 
 Correlated matching is a **declared capability** (ADR-013, §7): ClickHouse and Elasticsearch can evaluate `some` (via `arrayExists` and `nested` respectively); a backend that cannot declares it unsupported, and the query service refuses a filter containing `some` up front rather than silently returning the uncorrelated answer.
 
+### 5.6 Nested access into JSON-valued attributes (`json_extract`)
+
+Some attributes hold a JSON document rather than a scalar — an LLM span's `input`/`output`, a serialized request body. A user often wants to filter on a field *inside* that document: `input.guardrails[0].is_passed = true`. The attribute key is `input`; `guardrails[0].is_passed` is a path into its value, evaluated as part of the query.
+
+The reference model (§5.1) cannot express this. `name` is the whole attribute key and cannot also carry the path, because attribute keys legitimately contain dots (`http.status_code`), so `input.guardrails.is_passed` would be ambiguous. And reaching into a value is not *locating* a value on the span; it is *computing* a derived value from one. That is a function, so it is a `Call`:
+
+```
+json_extract( <reference>, <path> )
+```
+
+`json_extract` takes the attribute reference and a **path** — a JSONPath expression (RFC 9535: `guardrails[0].is_passed`, `[-1]` for the last element, `[*]` for any element), chosen because it is the one standard that spells positional, last, and wildcard uniformly, and each backend translates it to its own engine. Because a call's result is itself an operand (§6 — the property that lets `(a + b) > c` compose), it slots directly under a comparison, and the compared constant carries the type as usual (§5.4):
+
+```json
+{ "op": "eq", "args": [
+  { "call": { "op": "json_extract", "args": [
+      { "ref": { "name": "input" } },
+      { "scalar": { "value": "guardrails[0].is_passed" } } ] } },
+  { "scalar": { "value": "true", "type": "bool" } } ] }
+```
+
+Making it a function rather than a field on `Reference` keeps `Reference` as "a value located on the span" and adds no new node — `json_extract` is one more `op`, exactly the extension path §6 reserves for named functions. It needs no new capability field either: a backend lists `json_extract` in its declared operator set (§7), or the query service refuses it, the same gate every operator rides.
+
+When the path targets an array rather than a leaf, the intent is usually existential — "some guardrail failed". A single-field test needs nothing new: an array-valued `json_extract` fans out over the elements, and the comparison matches if any element matches. Only the *correlated* case — two fields of the **same** element, "some guardrail with `is_passed=false` **and** `severity=high`" — needs the `some` quantifier of §5.5 over the array, `some(json_extract(ref(input), "guardrails"), …)`; there the one piece left to define is how the inner predicate names a field of the *current element* (a `json_extract` rooted at the bound element). Positional access (`[0]`) is just a path that ends at an index.
+
+Storage feasibility is uneven, and it is the crux of the proposal. A columnar store with JSON functions and positional arrays can push most paths down; a search index can serve dotted leaf-equality cheaply but handles positional and typed access only through a query-time scan. That per-backend analysis, and a plan to measure it at scale before committing, is tracked separately. Here `json_extract` is a **proposed extension** — a future `op`, additive — not part of the initial committed operator set.
+
 ---
 
 ## 6. Proposed API
@@ -280,7 +306,7 @@ message List {
 // Named scalar functions and aggregates (avg, count, coalesce, …) are future
 // `op` values needing no new message — a function is just a call.
 message Call {
-  string op = 1;              // and|or|not | eq|ne|gt|lt|gte|lte|regex|exists|in|not_in | some | (future: not_regex|every|add|sub|avg|count|…)
+  string op = 1;              // and|or|not | eq|ne|gt|lt|gte|lte|regex|exists|in|not_in | some | (future: not_regex|every|add|sub|avg|count|json_extract|…)
   repeated Expression args = 2;
 }
 
@@ -493,6 +519,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 - ES/OS schema evolution to index instrumentation and link attributes distinctly (§1.6) — unblocks those levels in M4.
 - A discovery API returning keys, their type(s), and sample values per level — the piece that feeds typed predicates and autocomplete (§5.4); ClickHouse-first.
 - A public capability endpoint exposing `SearchCapabilities` to the UI, so the M7 builder can gray out levels/operators a backend cannot serve — ADR-013's mechanism sits at the storage boundary; surfacing it on the public API is a separate addition (§7).
+- Nested access into JSON-valued attributes via the `json_extract` operator (§5.6) — the AST already accommodates it as a function; its per-backend storage feasibility is being evaluated separately.
 - Tiers L3–L5 (§4): result shaping, aggregation/metrics (metrics subsystem), and structural/trace-tree queries.
 
 ---
