@@ -1,3 +1,4 @@
+Signed-off-by: Ankita Salaria <ankitasalaria21@gmail.com>
 // Copyright (c) 2024 The Jaeger Authors.
 // SPDX-License-Identifier: Apache-2.0
 
