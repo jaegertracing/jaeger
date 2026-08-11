@@ -259,7 +259,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
 			&tracestore.Call{Op: tracestore.OpGt, Args: []tracestore.Expression{
-				&tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan},
+				tracestore.SpanDuration.Ref(),
 				&tracestore.Scalar{Value: "2s"},
 			}},
 			&tracestore.Call{Op: tracestore.OpIn, Args: []tracestore.Expression{

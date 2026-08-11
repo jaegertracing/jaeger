@@ -1110,7 +1110,7 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 			Attributes: pcommon.NewMap(),
 			Filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
 				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					&tracestore.Reference{Name: tracestore.FieldService, Level: tracestore.LevelResource},
+					tracestore.ResourceService.Ref(),
 					&tracestore.Scalar{Value: "cart"},
 				}},
 				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
@@ -1177,9 +1177,9 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 // every service is satisfied by a filter that names one — and still refuses a filter that
 // does not.
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
-	filterOn := func(name string, value string) *tracestore.Call {
+	filterOn := func(field tracestore.Field, value string) *tracestore.Call {
 		return &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-			&tracestore.Reference{Name: name, Level: tracestore.LevelResource},
+			field.Ref(),
 			&tracestore.Scalar{Value: value},
 		}}
 	}
@@ -1196,7 +1196,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
-			queryWith(filterOn(tracestore.FieldService, "cart"))))
+			queryWith(filterOn(tracestore.ResourceService, "cart"))))
 		require.NoError(t, err)
 		assert.Equal(t, "cart", dispatched.ServiceName)
 		reader.AssertExpectations(t)

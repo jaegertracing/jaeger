@@ -111,7 +111,7 @@ func TestToStorageFilter_Converts(t *testing.T) {
 			expected: &tracestore.Call{Op: tracestore.OpSome, Args: []tracestore.Expression{
 				&tracestore.Reference{Level: tracestore.LevelEvent},
 				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					&tracestore.Reference{Name: tracestore.FieldName, Level: tracestore.LevelEvent},
+					tracestore.EventName.Ref(),
 					&tracestore.Scalar{Value: "exception"},
 				}},
 			}},

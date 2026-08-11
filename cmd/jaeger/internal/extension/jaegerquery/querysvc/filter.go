@@ -174,7 +174,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *tracestore.Call) err
 	switch {
 	case ref.Level == "" || ref.Attr:
 		return applyAttribute(query, predicate.Op, ref, value)
-	case ref.Level == tracestore.LevelResource && ref.Name == tracestore.FieldService:
+	case ref.IsField(tracestore.ResourceService):
 		if predicate.Op != tracestore.OpEq {
 			return errUnsupportedOperatorOn(predicate.Op, ref)
 		}
@@ -183,7 +183,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *tracestore.Call) err
 		}
 		query.ServiceName = value.Value
 		return nil
-	case ref.Level == tracestore.LevelSpan && ref.Name == tracestore.FieldName:
+	case ref.IsField(tracestore.SpanName):
 		if predicate.Op != tracestore.OpEq {
 			return errUnsupportedOperatorOn(predicate.Op, ref)
 		}
@@ -192,7 +192,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *tracestore.Call) err
 		}
 		query.OperationName = value.Value
 		return nil
-	case ref.Level == tracestore.LevelSpan && ref.Name == tracestore.FieldDuration:
+	case ref.IsField(tracestore.SpanDuration):
 		return applyDurationBound(query, predicate.Op, ref, value)
 	default:
 		return fmt.Errorf("%w: it does not support the built-in field %q of the %q level",

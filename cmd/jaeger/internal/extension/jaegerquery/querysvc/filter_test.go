@@ -65,20 +65,20 @@ func TestPrepareFilter_RewritesAsLegacyFields(t *testing.T) {
 		{
 			name: "the service built-in becomes the service name",
 			filter: predicate(tracestore.OpEq,
-				&tracestore.Reference{Name: tracestore.FieldService, Level: tracestore.LevelResource}, "cart"),
+				tracestore.ResourceService.Ref(), "cart"),
 			expected: tracestore.TraceQueryParams{ServiceName: "cart", Attributes: pcommon.NewMap()},
 		},
 		{
 			name: "the span name built-in becomes the operation name",
 			filter: predicate(tracestore.OpEq,
-				&tracestore.Reference{Name: tracestore.FieldName, Level: tracestore.LevelSpan}, "GET /cart"),
+				tracestore.SpanName.Ref(), "GET /cart"),
 			expected: tracestore.TraceQueryParams{OperationName: "GET /cart", Attributes: pcommon.NewMap()},
 		},
 		{
 			name: "the inclusive duration bounds become the duration range",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				predicate(tracestore.OpGte, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "2s"),
-				predicate(tracestore.OpLte, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "1m30s"),
+				predicate(tracestore.OpGte, tracestore.SpanDuration.Ref(), "2s"),
+				predicate(tracestore.OpLte, tracestore.SpanDuration.Ref(), "1m30s"),
 			}},
 			expected: tracestore.TraceQueryParams{
 				DurationMin: 2 * time.Second,
@@ -89,7 +89,7 @@ func TestPrepareFilter_RewritesAsLegacyFields(t *testing.T) {
 		{
 			name: "a conjunction fills several fields at once",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				predicate(tracestore.OpEq, &tracestore.Reference{Name: tracestore.FieldService, Level: tracestore.LevelResource}, "cart"),
+				predicate(tracestore.OpEq, tracestore.ResourceService.Ref(), "cart"),
 				predicate(tracestore.OpEq, &tracestore.Reference{Name: "http.method"}, "GET"),
 				predicate(tracestore.OpEq, &tracestore.Reference{Name: "http.status_code"}, "500"),
 			}},
@@ -156,19 +156,19 @@ func TestPrepareFilter_RefusesWhatLegacyFieldsCannotExpress(t *testing.T) {
 		{
 			name: "an exclusive duration bound",
 			filter: predicate(tracestore.OpGt,
-				&tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "2s"),
+				tracestore.SpanDuration.Ref(), "2s"),
 			expectedErr: `does not support the operator "gt" on "duration"`,
 		},
 		{
 			name: "a regex on the operation name",
 			filter: predicate(tracestore.OpRegex,
-				&tracestore.Reference{Name: tracestore.FieldName, Level: tracestore.LevelSpan}, "GET .*"),
+				tracestore.SpanName.Ref(), "GET .*"),
 			expectedErr: `does not support the operator "regex" on "name"`,
 		},
 		{
 			name: "an inequality on the service",
 			filter: predicate(tracestore.OpNe,
-				&tracestore.Reference{Name: tracestore.FieldService, Level: tracestore.LevelResource}, "cart"),
+				tracestore.ResourceService.Ref(), "cart"),
 			expectedErr: `does not support the operator "ne" on "service"`,
 		},
 		{
@@ -223,32 +223,32 @@ func TestPrepareFilter_RefusesWhatLegacyFieldsCannotExpress(t *testing.T) {
 		{
 			name: "two services",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				predicate(tracestore.OpEq, &tracestore.Reference{Name: tracestore.FieldService, Level: tracestore.LevelResource}, "cart"),
-				predicate(tracestore.OpEq, &tracestore.Reference{Name: tracestore.FieldService, Level: tracestore.LevelResource}, "checkout"),
+				predicate(tracestore.OpEq, tracestore.ResourceService.Ref(), "cart"),
+				predicate(tracestore.OpEq, tracestore.ResourceService.Ref(), "checkout"),
 			}},
 			expectedErr: `only one predicate on "service"`,
 		},
 		{
 			name: "two operation names",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				predicate(tracestore.OpEq, &tracestore.Reference{Name: tracestore.FieldName, Level: tracestore.LevelSpan}, "a"),
-				predicate(tracestore.OpEq, &tracestore.Reference{Name: tracestore.FieldName, Level: tracestore.LevelSpan}, "b"),
+				predicate(tracestore.OpEq, tracestore.SpanName.Ref(), "a"),
+				predicate(tracestore.OpEq, tracestore.SpanName.Ref(), "b"),
 			}},
 			expectedErr: `only one predicate on "name"`,
 		},
 		{
 			name: "two lower duration bounds",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				predicate(tracestore.OpGte, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "1s"),
-				predicate(tracestore.OpGte, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "2s"),
+				predicate(tracestore.OpGte, tracestore.SpanDuration.Ref(), "1s"),
+				predicate(tracestore.OpGte, tracestore.SpanDuration.Ref(), "2s"),
 			}},
 			expectedErr: `only one predicate on "duration"`,
 		},
 		{
 			name: "two upper duration bounds",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				predicate(tracestore.OpLte, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "1s"),
-				predicate(tracestore.OpLte, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "2s"),
+				predicate(tracestore.OpLte, tracestore.SpanDuration.Ref(), "1s"),
+				predicate(tracestore.OpLte, tracestore.SpanDuration.Ref(), "2s"),
 			}},
 			expectedErr: `only one predicate on "duration"`,
 		},
@@ -268,7 +268,7 @@ func TestPrepareFilter_RefusesWhatLegacyFieldsCannotExpress(t *testing.T) {
 // validation cannot catch, because the filter AST does not carry types.
 func TestPrepareFilter_RefusesAnUnparsableDuration(t *testing.T) {
 	filter := predicate(tracestore.OpGte,
-		&tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "quickly")
+		tracestore.SpanDuration.Ref(), "quickly")
 	_, err := prepareFilter(filterQuery(filter), tracestore.SearchCapabilities{})
 	require.ErrorIs(t, err, ErrFilterInvalid)
 	assert.Contains(t, err.Error(), `"quickly" is not a duration`)
@@ -283,7 +283,7 @@ func TestPrepareFilter_PassesFilterToADeclaringReader(t *testing.T) {
 		Boolean:   true,
 	}}
 	filter := &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-		predicate(tracestore.OpGt, &tracestore.Reference{Name: tracestore.FieldDuration, Level: tracestore.LevelSpan}, "2s"),
+		predicate(tracestore.OpGt, tracestore.SpanDuration.Ref(), "2s"),
 		&tracestore.Call{Op: tracestore.OpOr, Args: []tracestore.Expression{
 			predicate(tracestore.OpEq, &tracestore.Reference{Name: "http.status_code"}, "500"),
 			predicate(tracestore.OpRegex, &tracestore.Reference{Name: "http.route", Level: tracestore.LevelSpan, Attr: true}, "/cart/.*"),

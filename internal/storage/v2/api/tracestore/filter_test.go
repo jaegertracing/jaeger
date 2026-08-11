@@ -29,7 +29,7 @@ func TestValidateFilter_Accepts(t *testing.T) {
 		},
 		{
 			name:   "built-in field against a typed constant",
-			filter: &Call{Op: OpGt, Args: []Expression{&Reference{Name: FieldDuration, Level: LevelSpan}, &Scalar{Value: "2s"}}},
+			filter: &Call{Op: OpGt, Args: []Expression{SpanDuration.Ref(), &Scalar{Value: "2s"}}},
 		},
 		{
 			name:   "reference against reference",
@@ -67,7 +67,7 @@ func TestValidateFilter_Accepts(t *testing.T) {
 			filter: &Call{Op: OpSome, Args: []Expression{
 				&Reference{Level: LevelEvent},
 				&Call{Op: OpAnd, Args: []Expression{
-					eq(&Reference{Name: FieldName, Level: LevelEvent}, &Scalar{Value: "exception"}),
+					eq(EventName.Ref(), &Scalar{Value: "exception"}),
 					&Call{Op: OpGt, Args: []Expression{
 						&Reference{Name: "timeSinceStart", Level: LevelEvent},
 						&Scalar{Value: "50us"},
@@ -180,7 +180,7 @@ func TestValidateFilter_Rejects(t *testing.T) {
 			expectedErr: `operator "some" takes a collection reference as its first argument, got a constant`,
 			filter: &Call{Op: OpSome, Args: []Expression{
 				&Scalar{Value: "event"},
-				&Call{Op: OpExists, Args: []Expression{&Reference{Name: FieldName, Level: LevelEvent}}},
+				&Call{Op: OpExists, Args: []Expression{EventName.Ref()}},
 			}},
 		},
 		{
@@ -195,7 +195,7 @@ func TestValidateFilter_Rejects(t *testing.T) {
 			name:        "quantifier over a named event field",
 			expectedErr: `operator "some" takes the whole collection, so its first argument must not name "name"`,
 			filter: &Call{Op: OpSome, Args: []Expression{
-				&Reference{Name: FieldName, Level: LevelEvent},
+				EventName.Ref(),
 				&Call{Op: OpExists, Args: []Expression{&Reference{Name: "a"}}},
 			}},
 		},
@@ -276,6 +276,31 @@ func TestExpressionTerms(t *testing.T) {
 		assert.Equal(t, test.name, termName(test.term))
 	}
 	assert.Equal(t, "an empty term", termName(nil))
+}
+
+// TestField_Ref pins that a Field carries its level into the Reference it builds, which is
+// what keeps a field name from being read at a level it does not belong to.
+func TestField_Ref(t *testing.T) {
+	assert.Equal(t, &Reference{Name: "duration", Level: LevelSpan}, SpanDuration.Ref())
+	assert.Equal(t, &Reference{Name: "service", Level: LevelResource}, ResourceService.Ref())
+	assert.Equal(t, &Reference{Name: "name", Level: LevelSpan}, SpanName.Ref())
+	assert.Equal(t, &Reference{Name: "name", Level: LevelEvent}, EventName.Ref())
+}
+
+// TestReference_IsField covers the three ways a reference can fail to be a given built-in
+// field: a different name, the same name at another level, and an attribute that borrows the
+// field's spelling.
+func TestReference_IsField(t *testing.T) {
+	assert.True(t, SpanDuration.Ref().IsField(SpanDuration))
+	assert.False(t, SpanName.Ref().IsField(SpanDuration), "a different field of the same level")
+	assert.False(t, EventName.Ref().IsField(SpanName), "the same name is a different field per level")
+	assert.False(t, SpanName.Ref().IsField(EventName))
+
+	attribute := &Reference{Name: "duration", Level: LevelSpan, Attr: true}
+	assert.False(t, attribute.IsField(SpanDuration), "an attribute is never the built-in field")
+
+	unqualified := &Reference{Name: "service"}
+	assert.False(t, unqualified.IsField(ResourceService), "an unqualified reference is an attribute")
 }
 
 func TestFilterCapabilities_SupportsLevel(t *testing.T) {
