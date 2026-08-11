@@ -95,3 +95,34 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 	adjuster.Adjust(i)
 	assert.Equal(t, expected(), i)
 }
+
+func TestSortEventsByTimestamp(t *testing.T) {
+	adjuster := SortCollections()
+	traces := ptrace.NewTraces()
+	rs := traces.ResourceSpans().AppendEmpty()
+	ss := rs.ScopeSpans().AppendEmpty()
+	span := ss.Spans().AppendEmpty()
+
+	event1 := span.Events().AppendEmpty()
+	event1.SetName("c-third")
+	event1.SetTimeUnixNano(300)
+
+	event2 := span.Events().AppendEmpty()
+	event2.SetName("a-first")
+	event2.SetTimeUnixNano(100)
+
+	event3 := span.Events().AppendEmpty()
+	event3.SetName("b-second")
+	event3.SetTimeUnixNano(200)
+
+	adjuster.Adjust(traces)
+
+	events := span.Events()
+	assert.Equal(t, 3, events.Len())
+	assert.Equal(t, "a-first", events.At(0).Name())
+	assert.Equal(t, "b-second", events.At(1).Name())
+	assert.Equal(t, "c-third", events.At(2).Name())
+	assert.Equal(t, uint64(100), uint64(events.At(0).TimeUnixNano()))
+	assert.Equal(t, uint64(200), uint64(events.At(1).TimeUnixNano()))
+	assert.Equal(t, uint64(300), uint64(events.At(2).TimeUnixNano()))
+}
