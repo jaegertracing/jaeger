@@ -287,6 +287,17 @@ func TestField_Ref(t *testing.T) {
 	assert.Equal(t, &Reference{Name: "name", Level: LevelEvent}, EventName.Ref())
 }
 
+// TestReference_IsAttribute pins that the question is not the Attr bit alone: an unqualified
+// reference is an attribute however Attr is set, because no built-in field has an unqualified
+// form.
+func TestReference_IsAttribute(t *testing.T) {
+	assert.True(t, (&Reference{Name: "http.method"}).IsAttribute(), "unqualified, Attr unset")
+	assert.True(t, (&Reference{Name: "http.method", Attr: true}).IsAttribute())
+	assert.True(t, (&Reference{Name: "http.method", Level: LevelSpan, Attr: true}).IsAttribute())
+	assert.False(t, SpanDuration.Ref().IsAttribute())
+	assert.False(t, (&Reference{Level: LevelEvent}).IsAttribute(), "a collection is not an attribute")
+}
+
 // TestReference_IsField covers the three ways a reference can fail to be a given built-in
 // field: a different name, the same name at another level, and an attribute that borrows the
 // field's spelling.

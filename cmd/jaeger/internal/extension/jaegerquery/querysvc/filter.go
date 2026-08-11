@@ -172,7 +172,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *tracestore.Call) err
 		return err
 	}
 	switch {
-	case ref.Level == "" || ref.Attr:
+	case ref.IsAttribute():
 		return applyAttribute(query, predicate.Op, ref, value)
 	case ref.IsField(tracestore.ResourceService):
 		if predicate.Op != tracestore.OpEq {

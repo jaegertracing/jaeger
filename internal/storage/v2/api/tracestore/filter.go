@@ -98,10 +98,18 @@ type Reference struct {
 	Attr bool
 }
 
-// IsField reports whether r references the built-in field f. A Reference with Attr set names
-// an attribute of its level and never that level's built-in field, however it is spelled.
+// IsAttribute reports whether r names an entry in an attribute map rather than a built-in
+// field. It is not the Attr bit on its own: an unqualified reference is an attribute of the
+// span or resource however Attr is set, because no built-in field has an unqualified form.
+func (r *Reference) IsAttribute() bool {
+	return r.Level == "" || r.Attr
+}
+
+// IsField reports whether r references the built-in field f. A Reference that IsAttribute
+// names an attribute of its level and never that level's built-in field, however it is
+// spelled.
 func (r *Reference) IsField(f Field) bool {
-	return !r.Attr && r.Level == f.Level && r.Name == f.Name
+	return !r.IsAttribute() && r.Level == f.Level && r.Name == f.Name
 }
 
 // Scalar is a single constant value. The value is carried as a string whatever its
