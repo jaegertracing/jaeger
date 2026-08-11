@@ -478,7 +478,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 **Stage C — Ergonomics and UI**
 
 - **M6 — Prefix/shorthand parser** (§7) — normalize `resource.k:v`, `duration>2s`, etc. into the AST in the api_v3 HTTP parser ([`query_parser.go`](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go)). *Exit:* shorthand reaches storage as the structured predicate; unprefixed keys unchanged.
-- **M7 — UI builder** — a filter builder emitting `filter`, starting with the conjunctive subset (chips with a level/property selector) and adding nested groups later; the legacy text box keeps populating `attributes`. *Exit:* existing search unaffected; qualified predicates emit `filter`.
+- **M7 — UI builder** — a filter builder emitting `filter`, starting with the conjunctive subset (chips with a level/property selector) and adding nested groups later; the legacy text box keeps populating `attributes`. **Type foundation in flight — [jaeger-ui#4371](https://github.com/jaegertracing/jaeger-ui/pull/4371) regenerates the api_v3 zod client with the filter-AST schemas (`Expression`/`Reference`/`Scalar`/`List`/`Call`) the builder emits against; the generator reproduces the recursive AST and string enumerations with no manual fixups. Draft pending M1.** *Exit:* existing search unaffected; qualified predicates emit `filter`.
 
 **Out of scope (future, this model enables):**
 - A `trace` level and its whole-trace built-in fields (`traceDuration`/`rootName`/`rootService`) — no Jaeger backend stores a trace-level entity, so these need the trace assembled and are left to a future enhancement (§5.1–§5.2). Also IDs, and built-in fields beyond the initial span set.
