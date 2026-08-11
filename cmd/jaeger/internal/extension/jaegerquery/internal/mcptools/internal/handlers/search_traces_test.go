@@ -302,7 +302,7 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 	input := types.SearchTracesInput{
 		StartTimeMin: "-1h",
 		ServiceName:  "test",
-		SearchDepth:  200, // capped at maxResults=100
+		SearchDepth:  200,
 	}
 
 	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
@@ -310,10 +310,6 @@ func TestSearchTracesHandler_Handle_SearchDepthMax(t *testing.T) {
 }
 
 func TestSearchTracesHandler_Handle_SearchDepthUnboundedWhenMaxResultsZero(t *testing.T) {
-	// maxResults == 0 means "unlimited" (see handle()'s `h.maxResults > 0 && ...`
-	// guard). buildQuery must honor that same semantics when clamping
-	// SearchDepth: a requested depth larger than the default must NOT be
-	// zeroed out just because maxResults is 0.
 	want := makeTraceSummary("test", "/test", false)
 
 	mock := &mockQueryService{
@@ -338,8 +334,6 @@ func TestSearchTracesHandler_Handle_SearchDepthUnboundedWhenMaxResultsZero(t *te
 }
 
 func TestSearchTracesHandler_Handle_SearchDepthDefaultWhenMaxResultsZero(t *testing.T) {
-	// Same as above, but relying on the default search depth (10) rather
-	// than an explicit input value.
 	want := makeTraceSummary("test", "/test", false)
 
 	mock := &mockQueryService{
