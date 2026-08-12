@@ -33,9 +33,11 @@ func filterQuery(filter *tracestore.Call) TraceQueryParams {
 // filter itself: the filter reaches it untouched and the legacy fields stay empty.
 func TestPrepareFilter_PassesFilterToADeclaringReader(t *testing.T) {
 	caps := tracestore.SearchCapabilities{Filter: &tracestore.FilterCapabilities{
-		Levels:    []tracestore.Level{tracestore.LevelSpan, tracestore.LevelResource, tracestore.LevelEvent},
-		Operators: []tracestore.Operator{tracestore.OpEq, tracestore.OpGt, tracestore.OpRegex, tracestore.OpSome},
-		Boolean:   true,
+		Levels: []tracestore.Level{tracestore.LevelSpan, tracestore.LevelResource, tracestore.LevelEvent},
+		Operators: []tracestore.Operator{
+			tracestore.OpAnd, tracestore.OpOr,
+			tracestore.OpEq, tracestore.OpGt, tracestore.OpRegex, tracestore.OpSome,
+		},
 	}}
 	filter := &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
 		predicate(tracestore.OpGt, tracestore.SpanDuration.Ref(), "2s"),
@@ -51,11 +53,16 @@ func TestPrepareFilter_PassesFilterToADeclaringReader(t *testing.T) {
 	assert.Equal(t, query, got)
 }
 
-// TestPrepareFilter_RefusesWhatAReaderDidNotDeclare covers the refusal gates: a level,
-// operator or boolean structure absent from the declaration is refused before dispatch.
+// TestPrepareFilter_RefusesWhatAReaderDidNotDeclare covers the refusal gates: a level or an
+// operator absent from the declaration is refused before dispatch. The boolean combinators
+// ride the same gate, so a reader confined to the conjunctive subset is one that lists OpAnd
+// and omits OpOr and OpNot.
 func TestPrepareFilter_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 	eqRef := func(name string) *tracestore.Call {
 		return predicate(tracestore.OpEq, &tracestore.Reference{Name: name}, "1")
+	}
+	conjunctive := tracestore.FilterCapabilities{
+		Operators: []tracestore.Operator{tracestore.OpAnd, tracestore.OpEq},
 	}
 	tests := []struct {
 		name        string
@@ -65,13 +72,13 @@ func TestPrepareFilter_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 	}{
 		{
 			name:        "an operator it did not list",
-			caps:        tracestore.FilterCapabilities{Operators: []tracestore.Operator{tracestore.OpEq}},
+			caps:        conjunctive,
 			filter:      predicate(tracestore.OpRegex, &tracestore.Reference{Name: "a"}, "b.*"),
 			expectedErr: `does not support the operator "regex"`,
 		},
 		{
 			name: "an operator it did not list, nested in a conjunction",
-			caps: tracestore.FilterCapabilities{Operators: []tracestore.Operator{tracestore.OpEq}},
+			caps: conjunctive,
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
 				eqRef("a"),
 				predicate(tracestore.OpGt, &tracestore.Reference{Name: "b"}, "1"),
@@ -80,18 +87,24 @@ func TestPrepareFilter_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 		},
 		{
 			name:        "a disjunction against a flat index",
-			caps:        tracestore.FilterCapabilities{Operators: []tracestore.Operator{tracestore.OpEq}},
+			caps:        conjunctive,
 			filter:      &tracestore.Call{Op: tracestore.OpOr, Args: []tracestore.Expression{eqRef("a"), eqRef("b")}},
 			expectedErr: `does not support the operator "or"`,
 		},
 		{
-			name: "a nested conjunction against a flat index",
-			caps: tracestore.FilterCapabilities{Operators: []tracestore.Operator{tracestore.OpEq}},
+			name: "a disjunction nested in a conjunction against a flat index",
+			caps: conjunctive,
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
 				eqRef("a"),
-				&tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{eqRef("b"), eqRef("c")}},
+				&tracestore.Call{Op: tracestore.OpOr, Args: []tracestore.Expression{eqRef("b"), eqRef("c")}},
 			}},
-			expectedErr: "flat conjunction only",
+			expectedErr: `does not support the operator "or"`,
+		},
+		{
+			name:        "a conjunction against a reader that declares no operator at all",
+			caps:        tracestore.FilterCapabilities{},
+			filter:      &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{eqRef("a"), eqRef("b")}},
+			expectedErr: `does not support the operator "and"`,
 		},
 		{
 			name: "a level it does not index",

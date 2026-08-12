@@ -323,16 +323,22 @@ func TestFilterCapabilities_SupportsLevel(t *testing.T) {
 	assert.False(t, FilterCapabilities{}.SupportsLevel(LevelSpan))
 }
 
+// TestFilterCapabilities_SupportsOperator pins that the boolean combinators are declared
+// like any other operator: a reader confined to the conjunctive subset lists OpAnd and omits
+// OpOr and OpNot, and nothing is implicit — the zero value declares no operator at all.
 func TestFilterCapabilities_SupportsOperator(t *testing.T) {
-	flat := FilterCapabilities{Operators: []Operator{OpEq, OpGte}}
-	assert.True(t, flat.SupportsOperator(OpAnd), "a flat conjunction is always available")
+	flat := FilterCapabilities{Operators: []Operator{OpAnd, OpEq, OpGte}}
+	assert.True(t, flat.SupportsOperator(OpAnd))
 	assert.True(t, flat.SupportsOperator(OpEq))
 	assert.True(t, flat.SupportsOperator(OpGte))
 	assert.False(t, flat.SupportsOperator(OpRegex))
 	assert.False(t, flat.SupportsOperator(OpOr))
 	assert.False(t, flat.SupportsOperator(OpNot))
 
-	boolean := FilterCapabilities{Operators: []Operator{OpEq}, Boolean: true}
-	assert.True(t, boolean.SupportsOperator(OpOr))
-	assert.True(t, boolean.SupportsOperator(OpNot))
+	full := FilterCapabilities{Operators: []Operator{OpAnd, OpOr, OpNot, OpEq}}
+	assert.True(t, full.SupportsOperator(OpOr))
+	assert.True(t, full.SupportsOperator(OpNot))
+
+	assert.False(t, FilterCapabilities{}.SupportsOperator(OpAnd), "nothing is implicit")
+	assert.False(t, FilterCapabilities{}.SupportsOperator(OpEq))
 }

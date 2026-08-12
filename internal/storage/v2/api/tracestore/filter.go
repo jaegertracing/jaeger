@@ -3,6 +3,8 @@
 
 package tracestore
 
+import "slices"
+
 // Level is the scope a referenced value lives in. The five explicit levels are the
 // OTLP attribute maps; an empty Level means an unqualified attribute, searched at the
 // span and resource levels. See RFC 0005 §5.1.
@@ -141,19 +143,17 @@ func (*Scalar) isExpression()    {}
 func (*List) isExpression()      {}
 func (*Call) isExpression()      {}
 
-// FilterCapabilities declares how much of a structured filter a Reader evaluates.
-// Every zero value is the least capable answer, so a Reader that returns the zero
-// value accepts only a flat conjunction of unqualified predicates.
+// FilterCapabilities declares how much of a structured filter a Reader evaluates. Nothing
+// is implicit, so the zero value serves no filter at all.
 type FilterCapabilities struct {
 	// Levels are the levels a Reference may name. Empty means the Reader can serve only
 	// unqualified references.
 	Levels []Level
-	// Operators are the operators the Reader evaluates. OpAnd, OpOr and OpNot are not
-	// listed here: a flat conjunction is always available and Boolean governs the rest.
+	// Operators are the operators the Reader evaluates. The boolean combinators are listed
+	// here like any other operator: a flat inverted index declares OpAnd and omits OpOr and
+	// OpNot, which is what confines it to the conjunctive subset. Nesting is not declared
+	// separately, because OpAnd is associative and a caller flattens it before asking.
 	Operators []Operator
-	// Boolean is true when the Reader evaluates OpOr, OpNot, and nested groups. False
-	// means it accepts only a flat conjunction.
-	Boolean bool
 }
 
 // SupportsLevel reports whether a Reference at the given level may reach the Reader.
@@ -162,27 +162,10 @@ func (c FilterCapabilities) SupportsLevel(level Level) bool {
 	if level == "" {
 		return true
 	}
-	for _, l := range c.Levels {
-		if l == level {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.Levels, level)
 }
 
-// SupportsOperator reports whether the Reader evaluates the given operator. OpAnd is
-// always supported, and OpOr and OpNot follow Boolean rather than the Operators list.
+// SupportsOperator reports whether the Reader evaluates the given operator.
 func (c FilterCapabilities) SupportsOperator(op Operator) bool {
-	switch op {
-	case OpAnd:
-		return true
-	case OpOr, OpNot:
-		return c.Boolean
-	}
-	for _, o := range c.Operators {
-		if o == op {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.Operators, op)
 }

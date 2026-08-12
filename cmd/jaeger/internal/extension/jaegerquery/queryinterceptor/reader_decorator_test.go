@@ -616,8 +616,7 @@ func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
 		{SameSpanConjunction: true},
 		{Filter: &tracestore.FilterCapabilities{
 			Levels:    []tracestore.Level{tracestore.LevelSpan},
-			Operators: []tracestore.Operator{tracestore.OpEq},
-			Boolean:   true,
+			Operators: []tracestore.Operator{tracestore.OpAnd, tracestore.OpEq},
 		}},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {

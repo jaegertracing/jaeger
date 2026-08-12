@@ -84,6 +84,26 @@ func TestPrepareFilter_RewritesAsLegacyFields(t *testing.T) {
 				Attributes:  attributes(map[string]string{"http.method": "GET", "http.status_code": "500"}),
 			},
 		},
+		{
+			// `and` is associative, so a nested conjunction asks the same question as a flat one
+			// and is flattened rather than refused.
+			name: "a conjunction nested in a conjunction",
+			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
+				predicate(tracestore.OpEq, tracestore.ResourceService.Ref(), "cart"),
+				&tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
+					predicate(tracestore.OpEq, &tracestore.Reference{Name: "http.method"}, "GET"),
+					&tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
+						predicate(tracestore.OpEq, &tracestore.Reference{Name: "http.status_code"}, "500"),
+						predicate(tracestore.OpGte, tracestore.SpanDuration.Ref(), "2s"),
+					}},
+				}},
+			}},
+			expected: tracestore.TraceQueryParams{
+				ServiceName: "cart",
+				DurationMin: 2 * time.Second,
+				Attributes:  attributes(map[string]string{"http.method": "GET", "http.status_code": "500"}),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -120,12 +140,12 @@ func TestPrepareFilter_RefusesWhatLegacyFieldsCannotExpress(t *testing.T) {
 			expectedErr: `does not support the operator "not"`,
 		},
 		{
-			name: "a nested boolean group",
+			name: "a disjunction nested in a conjunction",
 			filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
 				eqRef("a"),
 				&tracestore.Call{Op: tracestore.OpOr, Args: []tracestore.Expression{eqRef("b"), eqRef("c")}},
 			}},
-			expectedErr: "flat conjunction only",
+			expectedErr: `does not support the operator "or"`,
 		},
 		{
 			name: "a bare reference among the conjuncts",

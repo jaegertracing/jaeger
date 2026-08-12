@@ -114,7 +114,6 @@ func toProtoFilterCapabilities(caps *tracestore.FilterCapabilities) *storage.Fil
 	return &storage.FilterCapabilities{
 		Levels:    levels,
 		Operators: operators,
-		Boolean:   caps.Boolean,
 	}
 }
 
@@ -133,6 +132,5 @@ func fromProtoFilterCapabilities(caps *storage.FilterCapabilities) *tracestore.F
 	return &tracestore.FilterCapabilities{
 		Levels:    levels,
 		Operators: operators,
-		Boolean:   caps.GetBoolean(),
 	}
 }

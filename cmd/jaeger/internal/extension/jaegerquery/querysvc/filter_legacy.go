@@ -49,27 +49,30 @@ func rewriteFilterAsLegacyFields(query TraceQueryParams) (TraceQueryParams, erro
 	return rewritten, nil
 }
 
-// flatConjuncts returns the predicates of a flat conjunction: the arguments of a
-// top-level `and`, or the filter itself when it is a single predicate.
+// flatConjuncts returns the leaf predicates of a conjunction. A nested `and` means the same
+// as a flat one, so it is flattened rather than refused; `or` and `not` have no legacy form,
+// so they are refused as the operators they are.
 func flatConjuncts(filter *tracestore.Call) ([]*tracestore.Call, error) {
-	if filter.Op != tracestore.OpAnd {
-		if isBoolean(filter.Op) {
-			return nil, errUnsupportedOperator(filter.Op)
+	switch filter.Op {
+	case tracestore.OpOr, tracestore.OpNot:
+		return nil, errUnsupportedOperator(filter.Op)
+	case tracestore.OpAnd:
+		conjuncts := make([]*tracestore.Call, 0, len(filter.Args))
+		for _, arg := range filter.Args {
+			nested, ok := arg.(*tracestore.Call)
+			if !ok {
+				return nil, fmt.Errorf("%w: it evaluates a conjunction of predicates only", ErrFilterUnsupported)
+			}
+			inner, err := flatConjuncts(nested)
+			if err != nil {
+				return nil, err
+			}
+			conjuncts = append(conjuncts, inner...)
 		}
+		return conjuncts, nil
+	default:
 		return []*tracestore.Call{filter}, nil
 	}
-	conjuncts := make([]*tracestore.Call, 0, len(filter.Args))
-	for _, arg := range filter.Args {
-		predicate, ok := arg.(*tracestore.Call)
-		if !ok {
-			return nil, fmt.Errorf("%w: it evaluates a conjunction of predicates only", ErrFilterUnsupported)
-		}
-		if isBoolean(predicate.Op) {
-			return nil, errNestedBoolean()
-		}
-		conjuncts = append(conjuncts, predicate)
-	}
-	return conjuncts, nil
 }
 
 // applyAsLegacyField writes one predicate into the legacy field that carries it.

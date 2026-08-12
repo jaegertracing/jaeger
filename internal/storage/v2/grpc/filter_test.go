@@ -175,9 +175,9 @@ func TestFilterCapabilitiesRoundTrip(t *testing.T) {
 				Operators: []tracestore.Operator{
 					tracestore.OpEq, tracestore.OpNe, tracestore.OpGt, tracestore.OpLt,
 					tracestore.OpGte, tracestore.OpLte, tracestore.OpRegex, tracestore.OpExists,
+					tracestore.OpAnd, tracestore.OpOr, tracestore.OpNot,
 					tracestore.OpIn, tracestore.OpNotIn, tracestore.OpSome,
 				},
-				Boolean: true,
 			},
 		},
 	}

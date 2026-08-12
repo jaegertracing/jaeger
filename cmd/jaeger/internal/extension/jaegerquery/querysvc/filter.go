@@ -87,9 +87,6 @@ func checkFilterSupported(filter *tracestore.Call, caps tracestore.FilterCapabil
 	for _, arg := range filter.Args {
 		switch term := arg.(type) {
 		case *tracestore.Call:
-			if !caps.Boolean && isBoolean(filter.Op) && isBoolean(term.Op) {
-				return errNestedBoolean()
-			}
 			if err := checkFilterSupported(term, caps); err != nil {
 				return err
 			}
@@ -104,14 +101,6 @@ func checkFilterSupported(filter *tracestore.Call, caps tracestore.FilterCapabil
 	return nil
 }
 
-func isBoolean(op tracestore.Operator) bool {
-	return op == tracestore.OpAnd || op == tracestore.OpOr || op == tracestore.OpNot
-}
-
 func errUnsupportedOperator(op tracestore.Operator) error {
 	return fmt.Errorf("%w: it does not support the operator %q", ErrFilterUnsupported, op)
-}
-
-func errNestedBoolean() error {
-	return fmt.Errorf("%w: it evaluates a flat conjunction only, not nested boolean groups", ErrFilterUnsupported)
 }

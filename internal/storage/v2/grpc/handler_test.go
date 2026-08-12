@@ -871,8 +871,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 				SameSpanConjunction: true,
 				Filter: &tracestore.FilterCapabilities{
 					Levels:    []tracestore.Level{tracestore.LevelSpan, tracestore.LevelResource},
-					Operators: []tracestore.Operator{tracestore.OpEq, tracestore.OpRegex},
-					Boolean:   true,
+					Operators: []tracestore.Operator{tracestore.OpAnd, tracestore.OpEq, tracestore.OpRegex},
 				},
 			},
 			expected: &storage.SearchCapabilities{
@@ -880,8 +879,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 				SameSpanConjunction: true,
 				Filter: &storage.FilterCapabilities{
 					Levels:    []string{"span", "resource"},
-					Operators: []string{"eq", "regex"},
-					Boolean:   true,
+					Operators: []string{"and", "eq", "regex"},
 				},
 			},
 		},
