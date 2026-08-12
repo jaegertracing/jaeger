@@ -23,7 +23,7 @@ func TestComponents(t *testing.T) {
 	assert.Equal(t, []string{
 		"basicauth", "expvar", "healthcheckv2", "jaeger_query",
 		"jaeger_storage", "pprof", "remote_sampling", "remote_storage",
-		"sigv4auth", "storage_cleaner", "zpages",
+		"sigv4auth", "zpages",
 	}, keys(factories.Extensions))
 	assert.Equal(t, []string{
 		"jaeger", "kafka", "nop", "otlp", "zipkin",
