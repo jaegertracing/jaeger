@@ -61,7 +61,7 @@ func flatConjuncts(filter *tracestore.Call) ([]*tracestore.Call, error) {
 		for _, arg := range filter.Args {
 			nested, ok := arg.(*tracestore.Call)
 			if !ok {
-				return nil, fmt.Errorf("%w: it evaluates a conjunction of predicates only", ErrFilterUnsupported)
+				return nil, fmt.Errorf("%w: it evaluates a conjunction of predicates only", tracestore.ErrFilterUnsupported)
 			}
 			inner, err := flatConjuncts(nested)
 			if err != nil {
@@ -106,7 +106,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *tracestore.Call) err
 		return applyDurationBound(query, predicate.Op, ref, value)
 	default:
 		return fmt.Errorf("%w: it does not support the built-in field %q of the %q level",
-			ErrFilterUnsupported, ref.Name, ref.Level)
+			tracestore.ErrFilterUnsupported, ref.Name, ref.Level)
 	}
 }
 
@@ -115,7 +115,7 @@ func applyAttribute(query *TraceQueryParams, op tracestore.Operator, ref *traces
 		return errUnsupportedOperatorOn(op, ref)
 	}
 	if !legacyFilterLevels.SupportsLevel(ref.Level) {
-		return fmt.Errorf("%w: it does not index the %q level", ErrFilterUnsupported, ref.Level)
+		return fmt.Errorf("%w: it does not index the %q level", tracestore.ErrFilterUnsupported, ref.Level)
 	}
 	if _, ok := query.Attributes.Get(ref.Name); ok {
 		return errRepeatedPredicateOn(ref)
@@ -127,7 +127,7 @@ func applyAttribute(query *TraceQueryParams, op tracestore.Operator, ref *traces
 func applyDurationBound(query *TraceQueryParams, op tracestore.Operator, ref *tracestore.Reference, value *tracestore.Scalar) error {
 	duration, err := time.ParseDuration(value.Value)
 	if err != nil {
-		return fmt.Errorf(`%w: %q is not a duration such as "2s"`, ErrFilterInvalid, value.Value)
+		return fmt.Errorf(`%w: %q is not a duration such as "2s"`, tracestore.ErrFilterInvalid, value.Value)
 	}
 	switch op {
 	case tracestore.OpGte:
@@ -156,15 +156,15 @@ func refAndConstant(predicate *tracestore.Call) (*tracestore.Reference, *tracest
 	ref, refOK := predicate.Args[0].(*tracestore.Reference)
 	value, valueOK := predicate.Args[1].(*tracestore.Scalar)
 	if !refOK || !valueOK {
-		return nil, nil, fmt.Errorf("%w: it compares a reference against a constant only", ErrFilterUnsupported)
+		return nil, nil, fmt.Errorf("%w: it compares a reference against a constant only", tracestore.ErrFilterUnsupported)
 	}
 	return ref, value, nil
 }
 
 func errUnsupportedOperatorOn(op tracestore.Operator, ref *tracestore.Reference) error {
-	return fmt.Errorf("%w: it does not support the operator %q on %q", ErrFilterUnsupported, op, ref.Name)
+	return fmt.Errorf("%w: it does not support the operator %q on %q", tracestore.ErrFilterUnsupported, op, ref.Name)
 }
 
 func errRepeatedPredicateOn(ref *tracestore.Reference) error {
-	return fmt.Errorf("%w: it can carry only one predicate on %q", ErrFilterUnsupported, ref.Name)
+	return fmt.Errorf("%w: it can carry only one predicate on %q", tracestore.ErrFilterUnsupported, ref.Name)
 }

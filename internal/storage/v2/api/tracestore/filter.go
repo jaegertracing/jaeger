@@ -3,7 +3,25 @@
 
 package tracestore
 
-import "slices"
+import (
+	"errors"
+	"slices"
+)
+
+// ErrFilterUnsupported is returned for a well-formed query filter that the storage cannot
+// serve — a level it does not index, an operator it has not implemented, or a boolean
+// structure a flat index cannot evaluate (RFC 0005 §7). The query is refused rather than
+// approximated, so a caller never reads a narrower answer as the whole one. The query
+// service returns it for the limits a Reader declared through FilterCapabilities, and a
+// Reader returns it for the ones that declaration is too coarse to express — a built-in
+// field of a level it serves but does not store, or an operator it serves on some
+// references and not others.
+var ErrFilterUnsupported = errors.New("this storage backend cannot serve this query filter")
+
+// ErrFilterInvalid is returned for a query filter whose value does not fit the field it
+// compares — the kind of mistake a structural check cannot catch, because the filter AST
+// deliberately does not carry types (RFC 0005 §6.1).
+var ErrFilterInvalid = errors.New("invalid query filter")
 
 // Level is the scope a referenced value lives in. The five explicit levels are the
 // OTLP attribute maps; an empty Level means an unqualified attribute, searched at the

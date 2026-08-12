@@ -133,7 +133,7 @@ func TestPrepareFilter_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			caps := tracestore.SearchCapabilities{Filter: &test.caps}
 			_, err := prepareFilter(filterQuery(test.filter), caps)
-			require.ErrorIs(t, err, ErrFilterUnsupported)
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.Contains(t, err.Error(), test.expectedErr)
 		})
 	}
@@ -167,7 +167,7 @@ func TestPrepareFilter_RefusesLegacyPredicatesAlongsideAFilter(t *testing.T) {
 			query := filterQuery(filter)
 			test.mutate(&query)
 			_, err := prepareFilter(query, tracestore.SearchCapabilities{})
-			require.ErrorIs(t, err, ErrFilterInvalid)
+			require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 			assert.Contains(t, err.Error(), test.expected)
 		})
 	}
@@ -175,8 +175,8 @@ func TestPrepareFilter_RefusesLegacyPredicatesAlongsideAFilter(t *testing.T) {
 
 func TestIsBadRequest(t *testing.T) {
 	assert.True(t, IsBadRequest(ErrServiceNameRequired))
-	assert.True(t, IsBadRequest(ErrFilterUnsupported))
-	assert.True(t, IsBadRequest(ErrFilterInvalid))
+	assert.True(t, IsBadRequest(tracestore.ErrFilterUnsupported))
+	assert.True(t, IsBadRequest(tracestore.ErrFilterInvalid))
 	assert.True(t, IsBadRequest(errUnsupportedOperator(tracestore.OpOr)))
 	// Raised below the query service, by the reader an interceptor decorates, and still the
 	// caller's problem rather than a server fault.

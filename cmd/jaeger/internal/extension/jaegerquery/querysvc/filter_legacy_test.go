@@ -263,7 +263,7 @@ func TestPrepareFilter_RefusesWhatLegacyFieldsCannotExpress(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			query := filterQuery(test.filter)
 			got, err := prepareFilter(query, tracestore.SearchCapabilities{})
-			require.ErrorIs(t, err, ErrFilterUnsupported)
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.Contains(t, err.Error(), test.expectedErr)
 			assert.Equal(t, query, got, "the query is returned unchanged so nothing half-rewritten reaches storage")
 		})
@@ -276,6 +276,6 @@ func TestPrepareFilter_RefusesAnUnparsableDuration(t *testing.T) {
 	filter := predicate(tracestore.OpGte,
 		tracestore.SpanDuration.Ref(), "quickly")
 	_, err := prepareFilter(filterQuery(filter), tracestore.SearchCapabilities{})
-	require.ErrorIs(t, err, ErrFilterInvalid)
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
 	assert.Contains(t, err.Error(), `"quickly" is not a duration`)
 }

@@ -1247,10 +1247,10 @@ func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 			qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
-			require.ErrorIs(t, err, ErrFilterUnsupported)
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 
 			_, err = jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), query))
-			require.ErrorIs(t, err, ErrFilterUnsupported)
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 		})
 	}
 }
