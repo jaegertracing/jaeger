@@ -46,7 +46,7 @@ Graduation is optional and not the only end state. An RFC may also be superseded
 - [0002: AI Gateway — Frontend-Driven Contextual Tools](./0002-ai-gateway-contextual-tools.md) - Per-turn UI tool registration via ACP extension method
 - [0003: Simplify Running Jaeger With the AI Sidecar](./0003-simplify-ai-sidecar-setup.md) - Reduce the setup steps needed for a first local run of Jaeger with an AI sidecar
 - [0004: Elasticsearch/OpenSearch Data Streams](./0004-elasticsearch-data-streams.md) - Data Streams as a new index management strategy for span storage
-- [0005: Qualified Attribute Queries](./0005-qualified-attribute-queries.md) - Allow scoping tag/attribute queries to specific OTLP levels
+- [0005: Structured Query Filters for Trace Search](./0005-structured-query-filters.md) - A structured query-filter model for trace search: level-qualified attributes, built-in fields, and boolean composition
 - [0006: Unified Elasticsearch/OpenSearch Client](./0006-unified-elasticsearch-client.md) - Collapse the data-plane and control-plane ES/OS clients into one Jaeger-owned client
 - [0007: Synchronous Elasticsearch/OpenSearch Writes](./0007-synchronous-elasticsearch-writes.md) - Per-batch synchronous bulk writes so failures propagate and Kafka offsets commit only after durable persistence
 - [0008: AI Gateway — Unified MCP Tool Routing](./0008-ai-gateway-mcp-tool-routing.md) - Consolidate telemetry and UI tool dispatch through one gateway-hosted MCP server; supersedes the tool-routing decision in RFC 0002
@@ -54,3 +54,4 @@ Graduation is optional and not the only end state. An RFC may also be superseded
 - [0010: Grafana Dashboard Modernization and SPM Example Validation](./0010-grafana-dashboards-modernization.md) - Replace the Jsonnet mixin toolchain with the Go `grafana-foundation-sdk` to escape deprecated Angular panels, and restore Grafana to the SPM example for live validation; extracted from ADR-007, which records the outcome
 - [0011: Trace Summary API for Lightweight Search Results](./0011-trace-summary-api.md) - A `FindTraceSummaries` endpoint returning per-trace statistics instead of full span data, with alternatives weighed and a five-milestone rollout; extracted from ADR-010, which records the outcome
 - [0012: MCP Server Extension for Jaeger](./0012-mcp-server-extension.md) - Expose Jaeger's query capabilities to LLM agents as progressive-disclosure MCP tools; extracted from ADR-002, whose surviving decisions it links to, with routing since superseded by RFC 0008
+- [0013: Optional Service Name in Trace Search](./0013-optional-service-name-in-search.md) - Let backends that can search without a service name declare it, so the UI can offer an "All Services" option where the storage supports it
