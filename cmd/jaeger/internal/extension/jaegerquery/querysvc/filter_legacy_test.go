@@ -109,8 +109,13 @@ func TestPrepareFilter_RewritesAsLegacyFields(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			got, err := prepareFilter(filterQuery(test.filter), tracestore.SearchCapabilities{})
 			require.NoError(t, err)
-			assert.Equal(t, test.expected, got.TraceQueryParams)
 			assert.Nil(t, got.Filter, "the filter is consumed, so the reader sees one filtering model")
+			// Attributes are compared by content, because the map is a set of tag filters and the
+			// order the rewrite inserts them in is not part of what a reader is promised.
+			assert.Equal(t, test.expected.Attributes.AsRaw(), got.Attributes.AsRaw())
+			expected, actual := test.expected, got.TraceQueryParams
+			expected.Attributes, actual.Attributes = pcommon.NewMap(), pcommon.NewMap()
+			assert.Equal(t, expected, actual)
 		})
 	}
 }
