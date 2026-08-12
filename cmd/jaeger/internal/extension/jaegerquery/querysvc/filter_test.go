@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -164,6 +165,9 @@ func TestIsBadRequest(t *testing.T) {
 	assert.True(t, IsBadRequest(ErrFilterUnsupported))
 	assert.True(t, IsBadRequest(ErrFilterInvalid))
 	assert.True(t, IsBadRequest(errUnsupportedOperator(tracestore.OpOr)))
+	// Raised below the query service, by the reader an interceptor decorates, and still the
+	// caller's problem rather than a server fault.
+	assert.True(t, IsBadRequest(queryinterceptor.ErrFilterNotInterceptable))
 	assert.False(t, IsBadRequest(errors.New("storage is down")))
 	assert.False(t, IsBadRequest(nil))
 }

@@ -5,12 +5,29 @@ package queryinterceptor
 
 import (
 	"context"
+	"errors"
 	"iter"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	pub "github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+)
+
+// ErrFilterNotInterceptable is returned for a search that carries a structured query filter
+// (RFC 0005) while an interceptor is configured. An interceptor exists to scope a search so
+// it cannot match data the caller may not read, and the public Query has no field for the
+// filter, so the interceptor can neither see the predicate nor constrain it — and cannot tell
+// that it failed to. Refusing the search is the only answer that does not quietly under-gate
+// it. It reaches this point only from a remote backend that declares FilterCapabilities,
+// because for every other reader the query service rewrites the filter into the fields the
+// public Query does carry.
+//
+// Lifting this means giving the public Query the filter, which waits on the filter AST
+// settling: it would be a stable extension contract over a shape RFC 0005 is still moving.
+var ErrFilterNotInterceptable = errors.New(
+	"a query interceptor is configured, which cannot gate a structured query filter; " +
+		"use the legacy predicate fields for this search",
 )
 
 type reader struct {
@@ -63,6 +80,9 @@ func fromPublicQuery(q pub.Query) tracestore.TraceQueryParams {
 // the storage reader and to onResult, letting an interceptor carry per-query state
 // (e.g. a resolved caller identity) from the pre-query hook to the return path.
 func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams) (context.Context, tracestore.TraceQueryParams, error) {
+	if query.Filter != nil {
+		return ctx, query, ErrFilterNotInterceptable
+	}
 	pq := toPublicQuery(query)
 	var err error
 	for _, interceptor := range r.interceptors {
@@ -71,11 +91,7 @@ func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams)
 			return ctx, query, err
 		}
 	}
-	intercepted := fromPublicQuery(pq)
-	// The public Query does not carry the structured filter, so carry it across untouched
-	// rather than dropping a predicate the backend was meant to apply.
-	intercepted.Filter = query.Filter
-	return ctx, intercepted, nil
+	return ctx, fromPublicQuery(pq), nil
 }
 
 // onResult runs every interceptor's OnResult in order on one batch, threading the

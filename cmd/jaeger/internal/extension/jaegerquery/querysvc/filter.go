@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -29,7 +30,8 @@ var ErrFilterInvalid = errors.New("invalid query filter")
 func IsBadRequest(err error) bool {
 	return errors.Is(err, ErrServiceNameRequired) ||
 		errors.Is(err, ErrFilterUnsupported) ||
-		errors.Is(err, ErrFilterInvalid)
+		errors.Is(err, ErrFilterInvalid) ||
+		errors.Is(err, queryinterceptor.ErrFilterNotInterceptable)
 }
 
 // prepareFilter decides what a reader receives for a search that carries a structured

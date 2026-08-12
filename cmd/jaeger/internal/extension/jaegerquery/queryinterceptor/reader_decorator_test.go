@@ -199,29 +199,62 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, out[0], "secret"), "result hook must redact")
 }
 
-// TestReader_FindTraces_CarriesTheStructuredFilter pins that the structured filter survives
-// the trip through an interceptor. The public Query does not carry it, so without this the
-// decorator would hand storage a query missing a predicate it was meant to apply.
-func TestReader_FindTraces_CarriesTheStructuredFilter(t *testing.T) {
-	filter := &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-		&tracestore.Reference{Name: "http.route", Level: tracestore.LevelSpan, Attr: true},
-		&tracestore.Scalar{Value: "/cart"},
-	}}
-	next := &fakeReader{batch: tracesWith("k", "v")}
-	r := NewReaderDecorator(next, fakeInterceptor{
+// TestReader_StructuredFilterIsRefused pins the fail-closed answer for a search an
+// interceptor cannot gate. The public Query has no field for the filter, so an interceptor
+// could neither read the predicate nor scope it, and would have no way to tell that it had
+// not — an access-control interceptor would be silently under-gating. Storage is never
+// reached: fakeReader records whether it was called.
+func TestReader_StructuredFilterIsRefused(t *testing.T) {
+	query := tracestore.TraceQueryParams{
+		Filter: &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
+			&tracestore.Reference{Name: "http.route", Level: tracestore.LevelSpan, Attr: true},
+			&tracestore.Scalar{Value: "/cart"},
+		}},
+	}
+	// The interceptor scopes the query, which is what it would silently fail to do.
+	gating := fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) {
 			q.ServiceName = "gated"
 			return q, nil
 		},
+	}
+
+	t.Run("FindTraces", func(t *testing.T) {
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		_, err := collectTraces(NewReaderDecorator(next, gating).FindTraces(t.Context(), query))
+		require.ErrorIs(t, err, ErrFilterNotInterceptable)
+		assert.False(t, next.findCalled, "storage must not be queried")
 	})
 
-	_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{
-		ServiceName: "original",
-		Filter:      filter,
-	}))
-	require.NoError(t, err)
-	assert.Equal(t, "gated", next.gotQuery.ServiceName)
-	assert.Equal(t, filter, next.gotQuery.Filter)
+	t.Run("FindTraceIDs", func(t *testing.T) {
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		r := NewReaderDecorator(next, gating)
+		var err error
+		for _, e := range r.FindTraceIDs(t.Context(), query) {
+			err = e
+		}
+		require.ErrorIs(t, err, ErrFilterNotInterceptable)
+	})
+
+	t.Run("FindTraceSummaries", func(t *testing.T) {
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		r := NewReaderDecorator(next, gating)
+		var err error
+		for _, e := range r.FindTraceSummaries(t.Context(), query) {
+			err = e
+		}
+		require.ErrorIs(t, err, ErrFilterNotInterceptable)
+	})
+
+	// Without a filter the same query reaches storage, scoped by the interceptor.
+	t.Run("a query without a filter is unaffected", func(t *testing.T) {
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		_, err := collectTraces(NewReaderDecorator(next, gating).FindTraces(
+			t.Context(), tracestore.TraceQueryParams{ServiceName: "original"},
+		))
+		require.NoError(t, err)
+		assert.Equal(t, "gated", next.gotQuery.ServiceName)
+	})
 }
 
 func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
