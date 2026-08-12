@@ -47,6 +47,10 @@ on:
 
 permissions: read-all
 
+concurrency:
+  group: jaeger-otel-demo-opensearch-recovery
+  cancel-in-progress: false
+
 jobs:
   deploy:
     name: Deploy Jaeger to OKE Cluster
