@@ -7,6 +7,23 @@ global:
 allInOne:
   enabled: true
   extraEnv: []
+  resources:
+    requests:
+      memory: "1Gi"
+    limits:
+      memory: "3Gi"
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            namespaces:
+              - opensearch
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: opensearch
+                app.kubernetes.io/name: opensearch
 
 
 # Enable HotROD demo application

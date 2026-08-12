@@ -1,6 +1,34 @@
-# PR Quota Manager - Manual Execution Guide
+# PR Quota Manager
 
-This document explains how to run the PR Quota Manager script manually from the command line for testing and troubleshooting.
+Limits how many pull requests a new contributor can have open at once, by labelling the ones over quota with `pr-quota-reached` and explaining why in a comment. `jaegertracing/jaeger` and `jaegertracing/jaeger-ui` both apply the policy through the composite action in this directory.
+
+The logic lives in [`.github/scripts/pr-quota-manager.js`](../../scripts/pr-quota-manager.js), next to the dependencies and jest setup its command line and tests need. This directory holds the action wrapper and this guide.
+
+## Using the action
+
+```yaml
+permissions:
+  pull-requests: write
+  issues: write
+
+steps:
+  - uses: actions/checkout@v7 # only when calling the action from this repository
+  - uses: jaegertracing/jaeger/.github/actions/pr-quota-manager@<commit-sha>
+    with:
+      token: ${{ github.token }}
+```
+
+| Input | Required | Default | Purpose |
+|---|---|---|---|
+| `token` | yes | — | Token used to label and comment. Needs `issues: write` and `pull-requests: write`. |
+| `username` | no | PR author | Whose quota to process. Only manual runs need to set it. |
+| `dry-run` | no | `false` | Log the intended labels and comments without writing anything. |
+
+Labels and comments on a pull request go through the `/issues/{n}/labels` and `/issues/{n}/comments` endpoints, so the token needs `issues: write` — `pull-requests: write` alone is not enough, and a token missing it fails every write with `403 Resource not accessible`.
+
+Consumers outside this repository pin a commit SHA, so a change to the script reaches them only when that pin is bumped, which Renovate raises as an ordinary dependency pull request.
+
+Everything below covers running the script directly from the command line, for testing and troubleshooting.
 
 ## Prerequisites
 
@@ -203,8 +231,10 @@ If you hit rate limits, wait for the limit to reset or use a different token.
 
 ## Integration with GitHub Actions
 
-This script is automatically executed by the GitHub Actions workflow (`.github/workflows/pr-quota-manager.yml`) on:
-- Pull request opened, closed, or reopened events
-- Manual workflow dispatch
+`.github/workflows/pr-quota-manager.yml` calls the action in this directory on:
+- Pull request opened, closed, reopened, or pushed to
+- Manual workflow dispatch, which is also how you process a single user without a command line — pass `username`, and `dryRun` if you only want to see what would happen
 
-The workflow uses `actions/github-script` to run the script with the repository's built-in `GITHUB_TOKEN`.
+The action runs the script through `actions/github-script` with the repository's built-in `GITHUB_TOKEN`. The `pull_request_target` trigger runs in the base repository context, so that token carries the workflow's declared write permissions even for pull requests from forks.
+
+`jaegertracing/jaeger-ui` calls the same action at a pinned SHA rather than keeping its own copy of the script.

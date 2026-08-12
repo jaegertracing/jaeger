@@ -844,3 +844,51 @@ func TestHandler_FindTraceSummaries_SendError(t *testing.T) {
 	}, &summaryStream{sendErr: assert.AnError})
 	require.ErrorIs(t, err, assert.AnError)
 }
+
+// TestHandler_GetCapabilities covers what the server makes of each answer its reader gives.
+func TestHandler_GetCapabilities(t *testing.T) {
+	tests := []struct {
+		name         string
+		caps         tracestore.SearchCapabilities
+		readerErr    error
+		expected     bool
+		expectedCode codes.Code
+	}{
+		{
+			name:     "capability is reported",
+			caps:     tracestore.SearchCapabilities{WithoutServiceName: true},
+			expected: true,
+		},
+		{
+			name: "absence is reported",
+			caps: tracestore.SearchCapabilities{},
+		},
+		{
+			name:         "a reader that cannot answer becomes Unimplemented",
+			readerErr:    fmt.Errorf("cannot ask: %w", errors.ErrUnsupported),
+			expectedCode: codes.Unimplemented,
+		},
+		{
+			name:         "any other failure is Internal",
+			readerErr:    assert.AnError,
+			expectedCode: codes.Internal,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			reader.On("SearchCapabilities", mock.Anything).Return(test.caps, test.readerErr).Once()
+
+			server := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+			resp, err := server.GetCapabilities(context.Background(), &storage.GetCapabilitiesRequest{})
+
+			if test.expectedCode != codes.OK {
+				require.Error(t, err)
+				assert.Equal(t, test.expectedCode, status.Code(err))
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, resp.GetSearch().GetWithoutServiceName())
+		})
+	}
+}
