@@ -36,6 +36,7 @@ assertRouteDisabled() {
 
 testJaegerUpgradeRouting() {
   assertRouteDisabled upgrade jaeger deploy_full_stack
+  assertRouteDisabled upgrade jaeger deploy_opensearch_stack
   assertRouteEnabled upgrade jaeger deploy_jaeger_stack
   assertRouteDisabled upgrade jaeger deploy_otel_demo
   assertRouteEnabled upgrade jaeger reconcile_ingress
@@ -43,13 +44,23 @@ testJaegerUpgradeRouting() {
 
 testOtelDemoOnlyUpgradeRouting() {
   assertRouteDisabled upgrade otel-demo deploy_full_stack
+  assertRouteDisabled upgrade otel-demo deploy_opensearch_stack
   assertRouteDisabled upgrade otel-demo deploy_jaeger_stack
   assertRouteEnabled upgrade otel-demo deploy_otel_demo
   assertRouteDisabled upgrade otel-demo reconcile_ingress
 }
 
+testOpenSearchOnlyUpgradeRouting() {
+  assertRouteDisabled upgrade opensearch deploy_full_stack
+  assertRouteEnabled upgrade opensearch deploy_opensearch_stack
+  assertRouteDisabled upgrade opensearch deploy_jaeger_stack
+  assertRouteDisabled upgrade opensearch deploy_otel_demo
+  assertRouteDisabled upgrade opensearch reconcile_ingress
+}
+
 testAllUpgradeRouting() {
   assertRouteEnabled upgrade all deploy_full_stack
+  assertRouteEnabled upgrade all deploy_opensearch_stack
   assertRouteEnabled upgrade all deploy_jaeger_stack
   assertRouteEnabled upgrade all deploy_otel_demo
   assertRouteEnabled upgrade all reconcile_ingress
@@ -57,6 +68,7 @@ testAllUpgradeRouting() {
 
 testCleanAlwaysUsesFullStackRouting() {
   assertRouteEnabled clean otel-demo deploy_full_stack
+  assertRouteEnabled clean otel-demo deploy_opensearch_stack
   assertRouteEnabled clean otel-demo deploy_jaeger_stack
   assertRouteEnabled clean otel-demo deploy_otel_demo
   assertRouteEnabled clean otel-demo reconcile_ingress
@@ -89,6 +101,85 @@ testMainIsGuardedWhenSourced() {
 testPinsCompatibleOtelDemoChart() {
   output=$(bash -c 'source "$1"; printf "%s" "$OTEL_DEMO_CHART_VERSION"' _ "$SCRIPT")
   assertEquals "0.40.9" "$output"
+}
+
+testPinnedChartRendersCollectorStartupProbe() {
+  local chart_version
+  local rendered
+  local render_rc
+  local startup_probe_count
+  local startup_probe
+  local liveness_probe
+  local readiness_probe
+  local resources
+
+  chart_version=$(bash -c \
+    'source "$1"; printf "%s" "$OTEL_DEMO_CHART_VERSION"' \
+    _ "$SCRIPT")
+
+  rendered=$(helm template otel-demo opentelemetry-demo \
+    --repo https://open-telemetry.github.io/opentelemetry-helm-charts \
+    --version "$chart_version" \
+    --namespace otel-demo \
+    --values "$(dirname "$SCRIPT")/otel-demo-values.yaml" \
+    --show-only charts/opentelemetry-collector/templates/daemonset.yaml)
+  render_rc=$?
+
+  assertEquals "pinned OTel Demo chart should render" 0 "$render_rc"
+  [[ "$render_rc" -eq 0 ]] || return
+
+  assertContains "$rendered" "kind: DaemonSet"
+  assertContains "$rendered" "name: otel-collector-agent"
+  assertContains "$rendered" "- name: opentelemetry-collector"
+
+  startup_probe_count=$(printf '%s\n' "$rendered" | grep -c '^[[:space:]]*startupProbe:$' || true)
+  assertEquals "collector should render exactly one startup probe" 1 "$startup_probe_count"
+
+  startup_probe=$(printf '%s\n' "$rendered" |
+    sed -n '/^[[:space:]]*startupProbe:$/,/^[[:space:]]*resources:$/p')
+  assertContains "$startup_probe" "periodSeconds: 10"
+  assertContains "$startup_probe" "timeoutSeconds: 1"
+  assertContains "$startup_probe" "failureThreshold: 30"
+  assertContains "$startup_probe" "httpGet:"
+  assertContains "$startup_probe" "path: /"
+  assertContains "$startup_probe" "port: 13133"
+
+  liveness_probe=$(printf '%s\n' "$rendered" |
+    sed -n '/^[[:space:]]*livenessProbe:$/,/^[[:space:]]*readinessProbe:$/p')
+  assertContains "$liveness_probe" "path: /"
+  assertContains "$liveness_probe" "port: 13133"
+
+  readiness_probe=$(printf '%s\n' "$rendered" |
+    sed -n '/^[[:space:]]*readinessProbe:$/,/^[[:space:]]*startupProbe:$/p')
+  assertContains "$readiness_probe" "path: /"
+  assertContains "$readiness_probe" "port: 13133"
+
+  resources=$(printf '%s\n' "$rendered" |
+    sed -n '/^[[:space:]]*resources:$/,/^[[:space:]]*volumeMounts:$/p')
+  assertContains "$resources" "memory: 200Mi"
+}
+
+testPinsCompatibleOpenSearchCharts() {
+  output=$(bash -c 'source "$1"; printf "%s|%s" "$OPENSEARCH_CHART_VERSION" "$OPENSEARCH_DASHBOARDS_CHART_VERSION"' _ "$SCRIPT")
+  assertEquals "2.38.0|2.34.0" "$output"
+}
+
+testDeploysPinnedOpenSearchChartsInOrder() {
+  output=$(bash -c '
+    source "$1"
+    log() { :; }
+    helm() { printf "helm"; printf " %s" "$@"; printf "\n"; }
+    wait_for_statefulset() { printf "wait-for-statefulset"; printf " %s" "$@"; printf "\n"; }
+    wait_for_deployment() { printf "wait-for-deployment"; printf " %s" "$@"; printf "\n"; }
+    deploy_opensearch_releases
+  ' _ "$SCRIPT")
+
+  expected="helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 2.38.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
+wait-for-statefulset opensearch opensearch-cluster-single 600s
+helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 2.34.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 10m"
+  expected="$expected
+wait-for-deployment opensearch opensearch-dashboards 600s"
+  assertEquals "$expected" "$output"
 }
 
 # shellcheck disable=SC1091
