@@ -77,7 +77,8 @@ WHERE s.trace_id IN (
 		    max(t.end) AS end
 		FROM (
 			SELECT
-			    s.trace_id
+			    s.trace_id,
+			    max(s.start_time) AS start_time
 			FROM spans s
 			WHERE 1=1
 			GROUP BY s.trace_id
@@ -86,7 +87,7 @@ WHERE s.trace_id IN (
 		) l
 		LEFT JOIN trace_id_timestamps t ON l.trace_id = t.trace_id
 		GROUP BY l.trace_id
-		ORDER BY end DESC, l.trace_id
+		ORDER BY l.start_time DESC, l.trace_id
 	)
 )
 ORDER BY s.trace_id
