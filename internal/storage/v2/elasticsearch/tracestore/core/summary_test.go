@@ -436,9 +436,12 @@ func TestSpanReader_FindTraceSummaries_RootSpan(t *testing.T) {
 }
 
 // TestSummaryRequestSnapshots freezes the wire format of the native trace-summaries
-// aggregation. FindTraceSummaries runs two searches (phase 1 discovers matching
-// trace IDs, phase 2 aggregates over all their spans); phase 1 is the same request
-// already snapshot as find_trace_ids, so only the phase-2 request is captured here.
+// aggregation. The error filter includes explicit error/status tags and HTTP 5xx
+// responses without an explicit OTEL status, matching full-trace conversion. This
+// covers spans that only contain http.response.status_code=5xx. FindTraceSummaries
+// runs two searches (phase 1 discovers matching trace IDs, phase 2 aggregates over
+// all their spans); phase 1 is the same request already snapshot as find_trace_ids,
+// so only the phase-2 request is captured here.
 func TestSummaryRequestSnapshots(t *testing.T) {
 	start := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
 	traceQuery := dbmodel.TraceQueryParameters{

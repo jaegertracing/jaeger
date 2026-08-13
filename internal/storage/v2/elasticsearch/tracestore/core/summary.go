@@ -25,6 +25,12 @@ import (
 // aggregation; the value is high enough that real traces never hit it.
 const maxServicesPerTrace = 1000
 
+const (
+	httpResponseStatusCodeTag = "http.response.status_code"
+	otelStatusCodeTag         = "otel.status_code"
+	httpServerErrorPattern    = "5[0-9][0-9]"
+)
+
 // FindTraceSummaries natively computes per-trace summaries (ADR-010 Milestone 5)
 // via aggregations instead of fetching full span documents.
 //
@@ -150,9 +156,10 @@ func (s *SpanReader) buildTraceSummariesByIDsQuery(traceIDs []dbmodel.TraceID, s
 }
 
 func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) esquery.Aggregation {
-	// "error"="true" is the canonical boolean error tag the v2 ES writer emits for
-	// spans with OTEL StatusCode=ERROR (see to_dbmodel.go).
-	errorFilter := s.buildTagQuery("error", "true")
+	// Explicit error tags are preserved for backwards compatibility. HTTP 5xx
+	// status codes are included as well because the read conversion infers
+	// StatusCodeError from them when no explicit status exists.
+	errorFilter := s.buildErrorTagQuery()
 
 	services := esquery.NewTermsAggregation(serviceNameField).
 		Size(maxServicesPerTrace).
@@ -182,6 +189,52 @@ func (s *SpanReader) buildTraceSummariesAggregation(numOfTraces int) esquery.Agg
 		SubAggregation("error_count", esquery.NewFilterAggregation(errorFilter)).
 		SubAggregation("services", services).
 		SubAggregation("root_span", rootSpan)
+}
+
+func (s *SpanReader) buildErrorTagQuery() esquery.Query {
+	httpError := esquery.NewBoolQuery().
+		Must(s.buildHTTPServerErrorQuery()).
+		MustNot(s.buildSpanTagExistsQuery(otelStatusCodeTag))
+
+	return esquery.NewBoolQuery().Should(
+		s.buildTagQuery(errorTag, "true"),
+		s.buildSpanTagQuery(otelStatusCodeTag, "ERROR"),
+		httpError,
+	)
+}
+
+func (s *SpanReader) buildHTTPServerErrorQuery() esquery.Query {
+	return esquery.NewBoolQuery().Should(
+		esquery.NewRangeQuery(
+			fmt.Sprintf("%s.%s", objectTagsField, s.dotReplacer.ReplaceDot(httpResponseStatusCodeTag)),
+		).Gte(500).Lt(600),
+		esquery.NewNestedQuery(
+			nestedTagsField,
+			esquery.NewBoolQuery().Must(
+				esquery.NewMatchQuery(fmt.Sprintf("%s.%s", nestedTagsField, tagKeyField), httpResponseStatusCodeTag),
+				esquery.NewRegexpQuery(fmt.Sprintf("%s.%s", nestedTagsField, tagValueField), httpServerErrorPattern),
+			),
+		),
+	)
+}
+
+func (s *SpanReader) buildSpanTagExistsQuery(k string) esquery.Query {
+	return esquery.NewBoolQuery().Should(
+		esquery.NewExistsQuery(fmt.Sprintf("%s.%s", objectTagsField, s.dotReplacer.ReplaceDot(k))),
+		esquery.NewNestedQuery(
+			nestedTagsField,
+			esquery.NewBoolQuery().Must(
+				esquery.NewMatchQuery(fmt.Sprintf("%s.%s", nestedTagsField, tagKeyField), k),
+			),
+		),
+	)
+}
+
+func (s *SpanReader) buildSpanTagQuery(k, v string) esquery.Query {
+	return esquery.NewBoolQuery().Should(
+		s.buildObjectQuery(objectTagsField, s.dotReplacer.ReplaceDot(k), v),
+		s.buildNestedQuery(nestedTagsField, k, v),
+	)
 }
 
 func parseTraceSummaries(buckets []esclient.AggregationBucket) ([]dbmodel.TraceSummary, error) {
