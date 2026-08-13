@@ -21,11 +21,15 @@ import (
 )
 
 func TestAggregator(t *testing.T) {
-	t.Skip("Skipping flaky unit test")
 	metricsFactory := metricstest.NewFactory(0)
 
 	mockStorage := &mocks.Store{}
 	mockStorage.On("InsertThroughput", mock.AnythingOfType("[]*model.Throughput")).Return(nil)
+	// Start() initializes the post-aggregator's throughput buckets, and its
+	// calculation loop saves probabilities back once this host is leader. Both
+	// read through the store, so both need stubbing or the mock panics.
+	mockStorage.On("GetThroughput", mock.Anything, mock.Anything).Return(nil, nil)
+	mockStorage.On("InsertProbabilitiesAndQPS", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mockEP := &epmocks.ElectionParticipant{}
 	mockEP.On("Start").Return(nil)
 	mockEP.On("Close").Return(nil)
@@ -48,13 +52,11 @@ func TestAggregator(t *testing.T) {
 
 	a.Start()
 	defer a.Close()
-	for range 10000 {
+	require.Eventually(t, func() bool {
 		counters, _ := metricsFactory.Snapshot()
-		if _, ok := counters["sampling_operations"]; ok {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
+		_, ok := counters["sampling_operations"]
+		return ok
+	}, 10*time.Second, time.Millisecond, "aggregation loop never recorded sampling_operations")
 
 	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 		{Name: "sampling_operations", Value: 4},
