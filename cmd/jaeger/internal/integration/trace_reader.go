@@ -41,6 +41,16 @@ type traceReader struct {
 	client     api_v3.QueryServiceClient
 }
 
+// SearchCapabilities cannot be answered: api_v3 has no capability discovery, so this
+// client has no way to ask the query service what the storage behind it supports
+// (RFC 0013 §3.7 proposes the API that would let it). Reporting ErrUnsupported says
+// exactly that, where any concrete value would be a guess a caller might trust.
+func (*traceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{}, fmt.Errorf(
+		"api_v3 does not expose the backend's search capabilities: %w", errors.ErrUnsupported,
+	)
+}
+
 func createTraceReader(logger *zap.Logger, port int) (*traceReader, error) {
 	logger.Info("Creating the trace reader", zap.Int("port", port))
 	opts := []grpc.DialOption{

@@ -6,6 +6,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"sync"
 
@@ -101,6 +102,14 @@ func (st *Store) GetServices(ctx context.Context) ([]string, error) {
 	return retMe, nil
 }
 
+func (*Store) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	return tracestore.SearchCapabilities{
+		// The span matcher treats an empty query service name as "match any", so an
+		// omitted name spans every service in the store.
+		WithoutServiceName: true,
+	}, nil
+}
+
 func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryParams) iter.Seq2[[]ptrace.Traces, error] {
 	m := st.getTenant(tenancy.GetTenant(ctx))
 	return func(yield func([]ptrace.Traces, error) bool) {
@@ -110,7 +119,12 @@ func (st *Store) FindTraces(ctx context.Context, query tracestore.TraceQueryPara
 			return
 		}
 		for i := range traceAndIds {
-			if !yield([]ptrace.Traces{traceAndIds[i].trace}, nil) {
+			trace, err := cloneTrace(traceAndIds[i].trace)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield([]ptrace.Traces{trace}, nil) {
 				return
 			}
 		}
@@ -138,12 +152,55 @@ func (st *Store) GetTraces(ctx context.Context, traceIDs ...tracestore.GetTraceP
 	return func(yield func([]ptrace.Traces, error) bool) {
 		traces := m.getTraces(traceIDs...)
 		for i := range traces {
-			if !yield([]ptrace.Traces{traces[i]}, nil) {
+			trace, err := cloneTrace(traces[i])
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+			if !yield([]ptrace.Traces{trace}, nil) {
 				return
 			}
 		}
 	}
 }
+
+// cloneTrace deep-copies a stored trace before it is handed to a reader.
+//
+// The Tenant accessors return the ptrace.Traces the store holds, and pdata
+// handles are references into shared backing storage, so without this copy a
+// reader that modifies what it received would rewrite the stored trace for
+// every later reader. Query-time adjusters do exactly that — the adjuster
+// interface is documented as modifying a trace in place — as does any
+// query-interceptor extension that redacts attributes on the return path.
+//
+// This restores for the v2 store the guarantee #2720 added to the v1 store,
+// which was lost when the v1 implementation was deleted in #7711, and it uses
+// the same mechanism. A proto round-trip is the only copy that is deep for every
+// field: ptrace.Traces.CopyTo looks like the cheaper equivalent, but it assigns
+// bytes-valued attributes by slice (`ov.BytesValue = t.BytesValue` in pdata's
+// generated CopyAnyValue), leaving the clone sharing a backing array with the
+// store, which a reader can then rewrite through pcommon.ByteSlice.SetAt.
+// Nested array and kvlist values are copied properly, so bytes are the only
+// gap — but relying on that is how this class of bug survives, and the contract
+// this upholds promises callers a trace they may modify however they like.
+func cloneTrace(src ptrace.Traces) (ptrace.Traces, error) {
+	buf, err := marshalTraces(src)
+	if err != nil {
+		return ptrace.Traces{}, fmt.Errorf("cannot copy stored trace: %w", err)
+	}
+	dst, err := unmarshalTraces(buf)
+	if err != nil {
+		return ptrace.Traces{}, fmt.Errorf("cannot copy stored trace: %w", err)
+	}
+	return dst, nil
+}
+
+// Indirected so that tests can exercise cloneTrace's error paths, which pdata
+// does not produce for a well-formed trace held by the store.
+var (
+	marshalTraces   = new(ptrace.ProtoMarshaler).MarshalTraces
+	unmarshalTraces = new(ptrace.ProtoUnmarshaler).UnmarshalTraces
+)
 
 func (st *Store) GetDependencies(ctx context.Context, query depstore.QueryParameters) ([]model.DependencyLink, error) {
 	m := st.getTenant(tenancy.GetTenant(ctx))

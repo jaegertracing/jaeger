@@ -32,6 +32,7 @@ import (
 	samplemodel "github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore/model"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	"github.com/jaegertracing/jaeger/internal/telemetry/otelsemconv"
 )
 
 //go:embed fixtures
@@ -472,6 +473,64 @@ func (s *StorageIntegration) testFindTraceSummaries(t *testing.T) {
 	assert.NotEmpty(t, summary.Services, "services should not be empty")
 }
 
+// testFindTracesWithoutServiceName is the cross-service search RFC 0013 exists for: two
+// traces from different services share an attribute, and one query carrying only that
+// attribute and a time range returns both. It is the assertion the httptest snapshots
+// cannot make — that the backend really reads an absent service name as "any service".
+//
+// The gate is the suite's per-backend opt-out, which CI populates from the STORAGE under
+// test, not the reader's own SearchCapabilities: in the e2e configuration that reader talks
+// to a query service over api_v3, which cannot report capabilities, so gating on it would
+// skip everywhere (RFC 0013 §3.7).
+func (s *StorageIntegration) testFindTracesWithoutServiceName(t *testing.T) {
+	s.skipIfNeeded(t)
+	if s.Capabilities.SearchRequiresServiceName() {
+		t.Skip("this storage backend requires a service name to search")
+	}
+	defer s.cleanUp(t)
+
+	const marker = "rfc0013.cross.service"
+	start := time.Now().Add(-time.Hour)
+	expected := make([]ptrace.Traces, 0, 2)
+	for i, service := range []string{"cross-service-a", "cross-service-b"} {
+		trace := ptrace.NewTraces()
+		rs := trace.ResourceSpans().AppendEmpty()
+		rs.Resource().Attributes().PutStr(otelsemconv.ServiceNameKey, service)
+		span := rs.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+		span.SetTraceID(pcommon.TraceID{byte(i + 1), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+		span.SetSpanID(pcommon.SpanID{byte(i + 1), 2, 3, 4, 5, 6, 7, 8})
+		span.SetName("cross-service-op")
+		span.SetStartTimestamp(pcommon.NewTimestampFromTime(time.Now()))
+		span.SetEndTimestamp(pcommon.NewTimestampFromTime(time.Now().Add(time.Millisecond)))
+		span.Attributes().PutStr(marker, "yes")
+		s.writeTrace(t, trace)
+		expected = append(expected, trace)
+	}
+
+	attributes := pcommon.NewMap()
+	attributes.PutStr(marker, "yes")
+	query := &tracestore.TraceQueryParams{
+		Attributes:   attributes,
+		StartTimeMin: start,
+		StartTimeMax: time.Now().Add(time.Hour),
+		SearchDepth:  10,
+	}
+
+	actual := s.findTracesByQuery(t, query, expected)
+
+	services := make([]string, 0, len(actual))
+	for _, trace := range actual {
+		for i := 0; i < trace.ResourceSpans().Len(); i++ {
+			if name, ok := trace.ResourceSpans().At(i).Resource().Attributes().Get(otelsemconv.ServiceNameKey); ok {
+				services = append(services, name.Str())
+			}
+		}
+	}
+	slices.Sort(services)
+	assert.Equal(t, []string{"cross-service-a", "cross-service-b"}, services,
+		"a search with no service name must return the traces of both services")
+}
+
 func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *tracestore.TraceQueryParams, expected []ptrace.Traces) []ptrace.Traces {
 	var traces []ptrace.Traces
 	found := s.waitForCondition(t, func(t *testing.T) bool {
@@ -747,4 +806,5 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
+	t.Run("FindTracesWithoutServiceName", s.testFindTracesWithoutServiceName)
 }

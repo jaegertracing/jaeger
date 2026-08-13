@@ -33,6 +33,8 @@ flowchart LR
 
 Integration tests require cleaning up the data in the storage between tests to produce independent results. This is achieved with a `storagecleaner` extension. The configuration for this extension is auto-injected into standard collector configs located in `/cmd/jaeger/`. The extension opens an HTTP endpoint (`POST /purge`) in the collector which retrieves the storage factory from the `jaegerstorage` extension and if the factory implements the `Purger` interface it calls the `purge()` function.
 
+Because that endpoint deletes all trace data and has no authentication, the extension is not part of the standard component set. The tests therefore run `jaeger-e2e` (`./jaeger-e2e`), which is the standard set plus `storagecleaner`, rather than the `jaeger` binary that ships to users.
+
 ```mermaid
 flowchart LR
     Receiver --> Processor
