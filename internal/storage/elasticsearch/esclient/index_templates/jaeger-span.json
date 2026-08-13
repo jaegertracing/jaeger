@@ -1,3 +1,28 @@
+{{- /*
+typedAttributeSubFields indexes an attribute value a second time, as a number,
+beside the keyword that already carries it (RFC 0015 Option A). The keyword keeps
+its exact-term behavior, so `eq` is unchanged, and the sub-field is what an
+ordered predicate ranges over.
+
+`coerce: false` keeps a numeric *string* out of the numeric index, which is what
+makes the sub-field say whether a value arrived as a number rather than merely
+looking like one. `ignore_malformed: true` then skips a value that will not fit
+instead of rejecting the document.
+
+There is no boolean sub-field. RFC 0015 §7 question 7 asked whether one was worth
+its field; it is not, and it is also not portable. OpenSearch rejects
+`ignore_malformed` on a boolean mapper, and without that parameter a non-boolean
+value costs the whole document — so neither spelling can be installed on both
+engines. Nothing is lost: the keyword renders a JSON boolean as the term "true",
+so it already answers the equality that is the only operator a boolean has.
+*/ -}}
+{{- define "typedAttributeSubFields" -}}
+{{- if .TypedAttributes }},
+  "fields": {
+    "number": { "type": "double", "coerce": false, "ignore_malformed": true }
+  }
+{{- end }}
+{{- end -}}
 {
   {{- if .UseILM}}
     "aliases": {
@@ -27,6 +52,7 @@
             "mapping": {
               "type": "keyword",
               "ignore_above": 256
+              {{- template "typedAttributeSubFields" . }}
             },
             "path_match": "tag.*"
           }
@@ -36,6 +62,7 @@
             "mapping": {
               "type": "keyword",
               "ignore_above": 256
+              {{- template "typedAttributeSubFields" . }}
             },
             "path_match": "process.tag.*"
           }
@@ -98,6 +125,7 @@
                 "value": {
                   "type": "keyword",
                   "ignore_above": 256
+                  {{- template "typedAttributeSubFields" . }}
                 },
                 "type": {
                   "type": "keyword",
@@ -127,6 +155,7 @@
                 "value": {
                   "type": "keyword",
                   "ignore_above": 256
+                  {{- template "typedAttributeSubFields" . }}
                 },
                 "type": {
                   "type": "keyword",
@@ -193,6 +222,7 @@
             "value": {
               "type": "keyword",
               "ignore_above": 256
+              {{- template "typedAttributeSubFields" . }}
             },
             "type": {
               "type": "keyword",

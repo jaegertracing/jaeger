@@ -11,8 +11,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 )
 
 func TestOptionsWithDefaultFlags(t *testing.T) {
@@ -53,6 +55,26 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "test", o.IndexPrefix)
 	assert.Equal(t, "true", o.UseILM)
 	assert.Equal(t, "jaeger-test-policy", o.ILMPolicyName)
+}
+
+func TestFeatureGatesFlag(t *testing.T) {
+	o := Options{}
+	c := cobra.Command{}
+	o.AddFlags(&c)
+
+	gate := esclient.TypedAttributeIndexingGate
+	original := gate.IsEnabled()
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
+
+	require.NoError(t, c.ParseFlags([]string{"--feature-gates=" + gate.ID()}))
+	assert.True(t, gate.IsEnabled())
+
+	require.NoError(t, c.ParseFlags([]string{"--feature-gates=-" + gate.ID()}))
+	assert.False(t, gate.IsEnabled())
+
+	require.ErrorContains(t, c.ParseFlags([]string{"--feature-gates=jaeger.es.noSuchGate"}), "no such feature gate")
 }
 
 func TestResolveBackendVersion(t *testing.T) {
