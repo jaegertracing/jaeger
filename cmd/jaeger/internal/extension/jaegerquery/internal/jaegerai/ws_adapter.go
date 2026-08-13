@@ -14,23 +14,22 @@ import (
 	"go.uber.org/zap"
 )
 
-// newline is the JSON-RPC line delimiter the reader above this adapter expects.
-var newline = []byte{'\n'}
-
-// WsReadWriteCloser wraps a gorilla websocket to implement io.ReadWriteCloser.
+// WsReadWriteCloser adapts a WebSocket connection to io.ReadWriteCloser so the
+// ACP SDK can drive it. A WebSocket delivers discrete messages, each ending in
+// io.EOF, while the SDK reads one continuous stream and splits it on newlines.
+// Converting between the two is sound because ACP messages "are delimited by
+// newlines (\n), and MUST NOT contain embedded newlines":
+// https://agentclientprotocol.com/protocol/v1/transports
+//
+// A single goroutine must own Read, which keeps unsynchronized framing state.
 type WsReadWriteCloser struct {
 	conn   *websocket.Conn
 	r      io.Reader
 	logger *zap.Logger
-	// ACP frames exactly one JSON-RPC object per WebSocket message, but the
-	// codec reading from us is line-oriented, so a message that arrives without
-	// a trailing newline would leave it waiting for a delimiter that never
-	// comes. Agents built on the ACP SDK's own WebSocket server (acp.ws) send
-	// exactly that shape, so the delimiter is re-inserted at the message
-	// boundary. These three fields track where that boundary is.
-	pendingNewline   bool
-	sawData          bool
-	endedWithNewline bool
+	// One message can span several Read calls, because gorilla clamps each Read
+	// to the current WebSocket frame. The delimiter therefore goes in when the
+	// message ends rather than when a Read ends, and w.r == nil marks that gap.
+	messageUnterminated bool
 }
 
 // NewWsAdapter wraps an existing websocket connection.
@@ -65,35 +64,29 @@ func (w *WsReadWriteCloser) Read(p []byte) (int, error) {
 		return 0, nil
 	}
 	for {
-		// A message boundary was crossed without a newline; supply it before
-		// reading anything further, so the reader above sees one framed line.
-		if w.pendingNewline {
-			w.pendingNewline = false
-			p[0] = '\n'
-			return 1, nil
-		}
-
 		if w.r == nil {
+			// If the last seen message lacked a delimiter, return the newline
+			// before opening the next reader.
+			if w.messageUnterminated {
+				w.messageUnterminated = false
+				p[0] = '\n'
+				return 1, nil
+			}
 			_, r, err := w.conn.NextReader()
 			if err != nil {
 				return 0, err
 			}
 			w.r = r
-			w.sawData = false
-			w.endedWithNewline = false
 		}
 
 		n, err := w.r.Read(p)
 		if n > 0 {
-			w.sawData = true
-			w.endedWithNewline = bytes.HasSuffix(p[:n], newline)
+			// Tracked here instead of the EOF case because websocket may return
+			// the payload and EOF via two consecutive calls.
+			w.messageUnterminated = !bytes.HasSuffix(p[:n], []byte("\n"))
 		}
 		if err == io.EOF {
 			w.r = nil
-			// Empty messages carry no frame, so they need no delimiter.
-			if w.sawData && !w.endedWithNewline {
-				w.pendingNewline = true
-			}
 			if n > 0 {
 				return n, nil
 			}
