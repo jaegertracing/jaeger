@@ -60,10 +60,29 @@ func (h *readSkillHandler) handle(
 	if n > int(h.maxFileSize) {
 		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
 	}
+	content = stripFrontMatter(content)
 
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: content}},
 	}, types.ReadSkillOutput{Instructions: content}, nil
+}
+
+// stripFrontMatter drops a leading YAML front matter block from a skill file.
+// The block holds provenance (license, author, version) and the name and
+// description the root catalog already used to route the agent here, so
+// serving it again only spends context. A file with no block, or with an
+// unterminated one, is returned unchanged rather than guessed at.
+func stripFrontMatter(content string) string {
+	const delim = "---"
+	if !strings.HasPrefix(content, delim+"\n") {
+		return content
+	}
+	rest := content[len(delim)+1:]
+	end := strings.Index(rest, "\n"+delim)
+	if end < 0 {
+		return content
+	}
+	return strings.TrimLeft(rest[end+len(delim)+1:], "\n")
 }
 
 // open routes p to the custom tree when it names the custom/ prefix and to the

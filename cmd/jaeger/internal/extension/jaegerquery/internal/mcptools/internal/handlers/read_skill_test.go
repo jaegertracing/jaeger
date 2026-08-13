@@ -146,3 +146,73 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestReadSkillHandler_StripsFrontMatter(t *testing.T) {
+	const withFrontMatter = `---
+name: skill-c
+description: does a thing
+license: Apache-2.0
+allowed-tools: get_services
+---
+
+# Skill C
+
+Procedure goes here.`
+
+	h := &readSkillHandler{
+		builtins: fstest.MapFS{
+			"skill-c/SKILL.md": &fstest.MapFile{Data: []byte(withFrontMatter)},
+		},
+		maxFileSize: 1024,
+	}
+
+	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-c/SKILL.md"})
+	require.NoError(t, err)
+	assert.Equal(t, "# Skill C\n\nProcedure goes here.", output.Instructions)
+	assert.NotContains(t, output.Instructions, "license")
+	assert.NotContains(t, output.Instructions, "allowed-tools")
+}
+
+func TestStripFrontMatter(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "block removed",
+			content:  "---\nname: a\n---\n# Body",
+			expected: "# Body",
+		},
+		{
+			name:     "no block is unchanged",
+			content:  "# Body\n\nNo front matter here.",
+			expected: "# Body\n\nNo front matter here.",
+		},
+		{
+			name:     "unterminated block is unchanged",
+			content:  "---\nname: a\n# Body",
+			expected: "---\nname: a\n# Body",
+		},
+		{
+			name:     "empty body",
+			content:  "---\nname: a\n---\n",
+			expected: "",
+		},
+		{
+			name:     "horizontal rule in body survives",
+			content:  "---\nname: a\n---\n# Body\n\n---\n\nMore.",
+			expected: "# Body\n\n---\n\nMore.",
+		},
+		{
+			name:     "delimiter not at start is unchanged",
+			content:  "# Body\n---\nname: a\n---\n",
+			expected: "# Body\n---\nname: a\n---\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, stripFrontMatter(tt.content))
+		})
+	}
+}
