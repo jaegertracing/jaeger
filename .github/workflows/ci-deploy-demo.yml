@@ -35,15 +35,21 @@ on:
           - otel
           - all
       otel_deploy_scope:
-        description: 'OTel demo deploy scope. Use all to refresh OpenSearch and the OTel app.'
+        description: 'OTel demo deploy scope. Use otel-demo or opensearch for an isolated upgrade, or all for the full stack.'
         required: false
         default: jaeger
         type: choice
         options:
           - jaeger
+          - otel-demo
+          - opensearch
           - all
 
 permissions: read-all
+
+concurrency:
+  group: jaeger-otel-demo-opensearch-recovery
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -82,6 +88,7 @@ jobs:
       uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
     - name: Resolve and verify snapshot image tags
+      if: env.JAEGER_DEMO_STACK != 'otel' || (env.JAEGER_OTEL_DEMO_DEPLOY_SCOPE != 'otel-demo' && env.JAEGER_OTEL_DEMO_DEPLOY_SCOPE != 'opensearch') || env.JAEGER_DEMO_DEPLOY_MODE == 'clean'
       run: bash scripts/utils/resolve-demo-snapshot-tags.sh
 
     - name: Deploy using appropriate script

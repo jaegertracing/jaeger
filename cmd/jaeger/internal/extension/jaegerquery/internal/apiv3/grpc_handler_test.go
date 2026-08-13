@@ -81,6 +81,9 @@ func newTestServerClient(t *testing.T) *testServerClient {
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
+	// The baseline: a backend that requires a service name. Only service-less searches ask.
+	tsc.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 	q := querysvc.NewQueryService(
 		tsc.reader,
 		tsc.depsReader,
@@ -278,6 +281,7 @@ func TestFindTracesSendError(t *testing.T) {
 		context.Background(),
 		&api_v3.FindTracesRequest{
 			Query: &api_v3.TraceQueryParameters{
+				ServiceName:  "myservice",
 				StartTimeMin: time.Now().Add(-2 * time.Hour),
 				StartTimeMax: time.Now(),
 			},
@@ -318,6 +322,7 @@ func TestFindTracesStorageError(t *testing.T) {
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
 		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
 		},
@@ -418,6 +423,7 @@ func TestFindTraceSummariesStorageError(t *testing.T) {
 
 	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
 		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
 		},
@@ -443,6 +449,7 @@ func TestFindTraceSummariesSendError(t *testing.T) {
 	}
 	err := h.FindTraceSummaries(&api_v3.FindTraceSummariesRequest{
 		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
 			StartTimeMin: time.Now().Add(-time.Hour),
 			StartTimeMax: time.Now(),
 		},
@@ -537,4 +544,39 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 			assert.Nil(t, response)
 		})
 	}
+}
+
+// TestFindTracesServiceNameRequired pins the status code for a query this deployment's
+// storage cannot serve: the request is well-formed, so it is InvalidArgument rather than
+// the Unknown a bare error would produce (RFC 0013 §3.3).
+func TestFindTracesServiceNameRequired(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "requires a service name")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestFindTraceSummariesServiceNameRequired(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraceSummaries(context.Background(), &api_v3.FindTraceSummariesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "requires a service name")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }

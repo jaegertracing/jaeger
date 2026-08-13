@@ -51,34 +51,15 @@ type AIConfig struct {
 	// AgentURL is the WebSocket endpoint of an ACP-compatible agent sidecar.
 	// For example, ws://localhost:16688
 	// See https://agentclientprotocol.com/
-	// Optional: leave empty (and set EnableMCP) to expose the telemetry MCP
+	// Optional: leave empty (and set the mcp block) to expose the telemetry MCP
 	// endpoint without the AI chat surface.
 	AgentURL string `mapstructure:"agent_url" valid:"optional"`
-	// EnableMCP exposes the Jaeger telemetry MCP server at
-	// <basePath>/api/ai/mcp/ on the query port. Off by default. It replaces the
-	// retired standalone jaeger_mcp extension (which served :16687); point
-	// Cursor/IDE MCP clients at the query port instead. Independent of AgentURL.
-	EnableMCP bool `mapstructure:"enable_mcp" valid:"optional"`
-	// MCPBaseURL is the externally-reachable scheme+authority a sidecar uses to
-	// dial the turn-scoped MCP endpoint, e.g. "https://jaeger.example.com:16686".
-	// The gateway announces "<MCPBaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
-	// the sidecar in the session/new request.
-	//
-	// Optional override. If left empty, the gateway infers its own loopback address
-	// when the sidecar is co-located (AgentURL is a loopback address), the query
-	// server is bound to loopback or a wildcard, and TLS is off — the common
-	// single-host deployment, which then needs no configuration at all (see
-	// resolveMCPBaseURL). Set this whenever the sidecar reaches the gateway at
-	// some other address — behind a proxy, in another network namespace, with TLS
-	// terminated elsewhere, or forwarded into a container — none of which the
-	// query server can infer. Ignored unless both AgentURL and EnableMCP are set.
-	MCPBaseURL string `mapstructure:"mcp_base_url" valid:"optional"`
-	// SkillsDir is a directory of operator-supplied skill playbooks on the query
-	// server's disk, served by the read_skill MCP tool under custom/ beside the
-	// built-in skills, so an installation can add its own without rebuilding
-	// Jaeger. See mcptools/README.md for the layout it expects. Requires
-	// EnableMCP. Empty (the default) serves the built-in skills only.
-	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
+	// MCP exposes Jaeger telemetry MCP server at <basePath>/api/ai/mcp/ on
+	// the query port. Present enables it, absent disables it — an empty block
+	// (`mcp: {}`) is enough. It replaces the retired standalone jaeger_mcp
+	// extension (which served :16687); point Cursor/IDE MCP clients at the query
+	// port instead. Independent of AgentURL.
+	MCP configoptional.Optional[MCPConfig] `mapstructure:"mcp"`
 	// MaxRequestBodySize limits the chat-handler request body. Must be positive.
 	MaxRequestBodySize int64 `mapstructure:"max_request_body_size" valid:"optional"`
 	// HealthCheckInterval controls how often the AI health checker contacts
@@ -89,6 +70,47 @@ type AIConfig struct {
 	// HealthCheckTimeout is the per-check timeout. Must be positive when
 	// HealthCheckInterval > 0; ignored when the checker is disabled.
 	HealthCheckTimeout time.Duration `mapstructure:"health_check_timeout" valid:"optional"`
+}
+
+// MCPConfig configures the telemetry MCP endpoint. Its presence on AIConfig is
+// what enables the endpoint, so both fields are optional and an empty block is
+// the common case.
+type MCPConfig struct {
+	// BaseURL is the externally-reachable scheme+authority a sidecar uses to
+	// dial the turn-scoped MCP endpoint, e.g. "https://jaeger.example.com:16686".
+	// The gateway announces "<BaseURL><basePath>/api/ai/mcp/<mcpRouteID>/" to
+	// the sidecar in the session/new request.
+	//
+	// Optional override. If left empty, the gateway infers its own loopback address
+	// when the sidecar is co-located (AgentURL is a loopback address), the query
+	// server is bound to loopback or a wildcard, and TLS is off — the common
+	// single-host deployment, which then needs no configuration at all (see
+	// resolveMCPBaseURL). Set this whenever the sidecar reaches the gateway at
+	// some other address — behind a proxy, in another network namespace, with TLS
+	// terminated elsewhere, or forwarded into a container — none of which the
+	// query server can infer. Ignored unless AgentURL is also set.
+	BaseURL string `mapstructure:"base_url" valid:"optional"`
+	// SkillsDir is a directory of operator-supplied skill playbooks on the query
+	// server's disk, served by the read_skill MCP tool under custom/ beside the
+	// built-in skills, so an installation can add its own without rebuilding
+	// Jaeger. See mcptools/README.md for the layout it expects. Empty (the
+	// default) serves the built-in skills only.
+	SkillsDir string `mapstructure:"skills_dir" valid:"optional"`
+}
+
+func (c *MCPConfig) Validate() error {
+	if c.BaseURL == "" {
+		return nil
+	}
+	// Reject anything we cannot turn into a dialable absolute URL. A relative
+	// or scheme-less value would be announced verbatim and fail at the
+	// sidecar, which is exactly the mid-turn failure this field exists to
+	// avoid — so fail fast at config load instead.
+	u, err := url.Parse(c.BaseURL)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return errors.New("ai.mcp.base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
+	}
+	return nil
 }
 
 // DefaultOTLPProxyTarget is the loopback endpoint of the bundled OTel-collector
@@ -115,11 +137,8 @@ func (c *OTLPProxyConfig) Validate() error {
 // (see the AIConfig type-level comment) so by the time Validate runs the
 // caller's struct already has sensible values for any field they omitted.
 func (c *AIConfig) Validate() error {
-	if c.AgentURL == "" && !c.EnableMCP {
-		return errors.New("ai requires agent_url (AI chat) or enable_mcp (telemetry MCP tools)")
-	}
-	if c.SkillsDir != "" && !c.EnableMCP {
-		return errors.New("ai.skills_dir requires ai.enable_mcp to be true")
+	if c.AgentURL == "" && !c.MCP.HasValue() {
+		return errors.New("ai requires agent_url (AI chat) or mcp (telemetry MCP tools)")
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("ai.max_request_body_size must be a positive integer")
@@ -130,21 +149,14 @@ func (c *AIConfig) Validate() error {
 	if c.HealthCheckInterval > 0 && c.HealthCheckTimeout <= 0 {
 		return errors.New("ai.health_check_timeout must be positive when health_check_interval is positive")
 	}
-	if c.MCPBaseURL != "" {
-		// Reject anything we cannot turn into a dialable absolute URL. A relative
-		// or scheme-less value would be announced verbatim and fail at the
-		// sidecar, which is exactly the mid-turn failure this field exists to
-		// avoid — so fail fast at config load instead.
-		u, err := url.Parse(c.MCPBaseURL)
-		if err != nil || !u.IsAbs() || u.Host == "" {
-			return errors.New("ai.mcp_base_url must be an absolute URL including scheme and host, e.g. https://jaeger.example.com:16686")
-		}
-	}
+	// MCPConfig.Validate is reached by the collector's config walk on its own,
+	// the same way OTLPProxyConfig's is; delegating to it here would only
+	// duplicate the check and drop the "mcp:" path segment from the message.
 	return nil
 }
 
 // resolveMCPBaseURL returns the base URL the gateway announces for the turn-scoped
-// MCP endpoint, or "" to announce no HTTP transport. An explicit MCPBaseURL always
+// MCP endpoint, or "" to announce no HTTP transport. An explicit base_url always
 // wins. Otherwise the gateway infers its own loopback address, which requires every
 // leg of the round trip to hold:
 //
@@ -157,7 +169,7 @@ func (c *AIConfig) Validate() error {
 //     dial the gateway by, essentially never for an inferred loopback host, so an
 //     inferred https:// URL fails certificate verification at the sidecar.
 //
-// If any leg is unmet, nothing is announced until an operator sets MCPBaseURL. The
+// If any leg is unmet, nothing is announced until an operator sets base_url. The
 // gateway declines rather than guessing: a specific-interface bind or TLS is positive
 // evidence that an inferred loopback URL is wrong, and there is nothing else here to
 // derive a correct one from.
@@ -166,13 +178,17 @@ func (c *AIConfig) Validate() error {
 // container published with "-p 127.0.0.1:16688:16688", or "kubectl port-forward").
 // The gateway reaches the sidecar over loopback, but the sidecar's loopback is its
 // own namespace, where the gateway is not listening. That is indistinguishable from
-// genuine co-location here, and needs an explicit MCPBaseURL.
+// genuine co-location here, and needs an explicit base_url.
 //
 // httpEndpoint is the query server's own HTTP host:port and tlsEnabled its own TLS
 // setting; neither is derived from AgentURL, which only gates the inference.
 func (c *AIConfig) resolveMCPBaseURL(ctx context.Context, httpEndpoint string, tlsEnabled bool) string {
-	if c.MCPBaseURL != "" {
-		return c.MCPBaseURL
+	mcp := c.MCP.Get()
+	if mcp == nil {
+		return "" // MCP is off, so there is no endpoint to announce
+	}
+	if mcp.BaseURL != "" {
+		return mcp.BaseURL
 	}
 	if tlsEnabled {
 		return ""

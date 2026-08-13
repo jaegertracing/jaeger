@@ -31,7 +31,47 @@
       "on the first day of the month"
     ]
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update annotated Helm chart version variables in shell scripts",
+      "managerFilePatterns": [
+        "/\\.sh$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>helm) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s+[A-Z][A-Z0-9_]*_CHART_VERSION=\"(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
   "packageRules": [
+    {
+      "description": "Require review for OTel Demo Helm chart upgrades",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchPackageNames": [
+        "opentelemetry-demo"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Keep the OTel demo OpenSearch charts on supported 2.x releases and update them together",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "helm"
+      ],
+      "matchPackageNames": [
+        "opensearch",
+        "opensearch-dashboards"
+      ],
+      "groupName": "OTel demo OpenSearch Helm charts",
+      "groupSlug": "otel-demo-opensearch-helm",
+      "minimumGroupSize": 2,
+      "allowedVersions": "/^2\\./",
+      "automerge": false
+    },
     {
       "description": "CI Python deps are hash-pinned in .github/requirements/*requirements.txt for OpenSSF Scorecard. Renovate bumps the version but NOT the --hash line, so the bump PR will fail --require-hashes until the hash is regenerated (see the comment in the requirements file). Label these so they are easy to spot and complete.",
       "matchManagers": [
