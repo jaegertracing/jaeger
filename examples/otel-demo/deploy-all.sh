@@ -73,6 +73,9 @@ check_cluster() {
 
 check_required_files() {
   local files=(
+    "$SCRIPT_DIR/OPENSEARCH_RECOVERY.md"
+    "$SCRIPT_DIR/opensearch-recovery.sh"
+    "$SCRIPT_DIR/opensearch-volume-snapshot-class.yaml"
     "$SCRIPT_DIR/opensearch-values.yaml"
     "$SCRIPT_DIR/opensearch-dashboard-values.yaml"
     "$SCRIPT_DIR/jaeger-values.yaml"
@@ -281,6 +284,11 @@ reconcile_ingress() {
 }
 
 deploy_opensearch_releases() {
+  if [[ "$MODE" == "upgrade" ]]; then
+    log "Verifying a recent tested OpenSearch recovery point"
+    bash "$SCRIPT_DIR/opensearch-recovery.sh" verify
+  fi
+
   log "Deploying OpenSearch chart $OPENSEARCH_CHART_VERSION"
   helm upgrade --install opensearch opensearch/opensearch \
     --namespace opensearch --create-namespace \

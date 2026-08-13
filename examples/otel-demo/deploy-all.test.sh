@@ -167,19 +167,38 @@ testPinsCompatibleOpenSearchCharts() {
 testDeploysPinnedOpenSearchChartsInOrder() {
   output=$(bash -c '
     source "$1"
+    MODE=upgrade
     log() { :; }
+    bash() { printf "bash"; printf " %s" "$@"; printf "\n"; }
     helm() { printf "helm"; printf " %s" "$@"; printf "\n"; }
     wait_for_statefulset() { printf "wait-for-statefulset"; printf " %s" "$@"; printf "\n"; }
     wait_for_deployment() { printf "wait-for-deployment"; printf " %s" "$@"; printf "\n"; }
     deploy_opensearch_releases
   ' _ "$SCRIPT")
 
-  expected="helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 2.38.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
+  expected="bash $(dirname "$SCRIPT")/opensearch-recovery.sh verify
+helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 2.38.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
 wait-for-statefulset opensearch opensearch-cluster-single 600s
 helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 2.34.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 10m"
   expected="$expected
 wait-for-deployment opensearch opensearch-dashboards 600s"
   assertEquals "$expected" "$output"
+}
+
+testRecoveryGatePrecedesOpenSearchUpgrade() {
+  output=$(bash -c '
+    source "$1"
+    MODE=upgrade
+    log() { :; }
+    bash() { printf "recovery %s %s\n" "$1" "$2"; return 1; }
+    helm() { printf "unsafe helm call\n"; }
+    deploy_opensearch_releases
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertNotEquals "missing recovery point must stop deployment" 0 "$rc"
+  assertContains "$output" "recovery $(dirname "$SCRIPT")/opensearch-recovery.sh verify"
+  assertNotContains "$output" "unsafe helm call"
 }
 
 # shellcheck disable=SC1091
