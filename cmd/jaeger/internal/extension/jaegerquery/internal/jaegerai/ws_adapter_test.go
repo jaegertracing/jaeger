@@ -271,7 +271,13 @@ func TestWsAdapterReadMultipleMessagesSmallBuffer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "aa", string(buf[:n]))
 
-	// Second read gets the next message after the internal EOF→continue.
+	// Each message ends at a line boundary, so the delimiter the sender omitted is
+	// supplied here before the next message is read.
+	n, err = adapter.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, "\n", string(buf[:n]))
+
+	// Second message follows, after the internal EOF→continue.
 	n, err = adapter.Read(buf)
 	require.NoError(t, err)
 	assert.Equal(t, "bb", string(buf[:n]))
@@ -320,4 +326,186 @@ func TestWsAdapterReadReturnsPartialBytesOnEOF(t *testing.T) {
 	n, err := adapter.Read(buf)
 	require.NoError(t, err, "should swallow EOF when bytes are returned")
 	assert.Equal(t, "hello", string(buf[:n]))
+}
+
+// serveMessages upgrades one connection and writes each payload as its own
+// WebSocket text message, mirroring how an ACP agent frames JSON-RPC.
+func serveMessages(t *testing.T, payloads ...string) *websocket.Conn {
+	t.Helper()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		for _, payload := range payloads {
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(payload)); err != nil {
+				return
+			}
+		}
+		// Hold the connection open so the client controls teardown.
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
+	require.NoError(t, err, "dial websocket")
+	// Without a deadline, an adapter that stops emitting delimiters would leave
+	// readFramed blocked until the whole test binary times out.
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(10*time.Second)))
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
+
+// readFramed reads through bufSize-sized buffers until it has as many bytes as
+// want, so each caller states the framing it expects instead of a byte count.
+func readFramed(t *testing.T, adapter *WsReadWriteCloser, want string, bufSize int) string {
+	t.Helper()
+
+	buf := make([]byte, bufSize)
+	var got strings.Builder
+	for got.Len() < len(want) {
+		n, err := adapter.Read(buf)
+		require.NoError(t, err)
+		got.Write(buf[:n])
+	}
+	return got.String()
+}
+
+// Agents that frame one JSON-RPC object per WebSocket message send no trailing
+// newline, which stalls the bufio.Scanner the ACP SDK reads us with, so the
+// adapter supplies the delimiter itself.
+func TestWsReadWriteCloserFramesMessagesAsLines(t *testing.T) {
+	t.Parallel()
+
+	first := `{"jsonrpc":"2.0","id":1,"result":{}}`
+	second := `{"jsonrpc":"2.0","id":2,"result":{}}`
+	conn := serveMessages(t, first, second)
+	adapter := NewWsAdapter(conn, zap.NewNop())
+
+	got := readFramed(t, adapter, first+"\n"+second+"\n", 256)
+
+	// The property under test is the framing: each WebSocket message must surface
+	// as exactly one newline-terminated line, each still parseable on its own.
+	require.True(t, strings.HasSuffix(got, "\n"), "stream must end at a line boundary")
+	lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+	require.Len(t, lines, 2, "two messages should produce two lines")
+	assert.JSONEq(t, first, lines[0])
+	assert.JSONEq(t, second, lines[1])
+}
+
+// A newline the agent already supplied must not be doubled, or the scanner sees
+// a stray blank line between messages.
+func TestWsReadWriteCloserDoesNotDoubleExistingNewline(t *testing.T) {
+	t.Parallel()
+
+	conn := serveMessages(t, "{\"id\":1}\n", "{\"id\":2}\n")
+	adapter := NewWsAdapter(conn, zap.NewNop())
+
+	want := "{\"id\":1}\n{\"id\":2}\n"
+	assert.Equal(t, want, readFramed(t, adapter, want, 256))
+}
+
+// The injected newline must survive a buffer too small to hold the message and
+// its delimiter in one Read.
+func TestWsReadWriteCloserSmallBuffer(t *testing.T) {
+	t.Parallel()
+
+	conn := serveMessages(t, `{"id":1}`)
+	adapter := NewWsAdapter(conn, zap.NewNop())
+
+	want := "{\"id\":1}\n"
+	assert.Equal(t, want, readFramed(t, adapter, want, 3))
+}
+
+// An empty message carries no JSON-RPC object, so it must not produce a stray
+// blank line ahead of the next real one.
+func TestWsReadWriteCloserSkipsEmptyMessages(t *testing.T) {
+	t.Parallel()
+
+	conn := serveMessages(t, "", `{"id":1}`)
+	adapter := NewWsAdapter(conn, zap.NewNop())
+
+	want := "{\"id\":1}\n"
+	assert.Equal(t, want, readFramed(t, adapter, want, 256))
+}
+
+// A zero-length buffer must not consume a message or panic indexing p[0].
+func TestWsReadWriteCloserZeroLengthBuffer(t *testing.T) {
+	t.Parallel()
+
+	conn := serveMessages(t, `{"id":1}`)
+	adapter := NewWsAdapter(conn, zap.NewNop())
+
+	n, err := adapter.Read(nil)
+	require.NoError(t, err)
+	assert.Zero(t, n)
+
+	// The message was left pending, so a real buffer still frames it.
+	want := "{\"id\":1}\n"
+	assert.Equal(t, want, readFramed(t, adapter, want, 256))
+}
+
+// A WebSocket message arrives complete, but gorilla still delivers it across
+// several Read calls when the sender fragments it into continuation frames,
+// because each Read is clamped to the current frame. The delimiter therefore
+// belongs at the end of the message, not at the end of a Read.
+func TestWsReadWriteCloserFragmentedMessageIsOneLine(t *testing.T) {
+	t.Parallel()
+
+	payload := `{"jsonrpc":"2.0","id":1,"result":{"pad":"` + strings.Repeat("x", 300) + `"}}`
+	upgrader := websocket.Upgrader{
+		CheckOrigin:     func(*http.Request) bool { return true },
+		WriteBufferSize: 16, // far below the payload, so gorilla fragments it
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		writer, err := conn.NextWriter(websocket.TextMessage)
+		if err != nil {
+			return
+		}
+		if _, err := writer.Write([]byte(payload)); err != nil {
+			return
+		}
+		_ = writer.Close()
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.DialContext(context.Background(), wsURL, nil)
+	require.NoError(t, err, "dial websocket")
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(10*time.Second)))
+	t.Cleanup(func() { _ = conn.Close() })
+	adapter := NewWsAdapter(conn, zap.NewNop())
+
+	// The buffer is larger than the whole message, so a single Read would suffice
+	// if fragments did not exist.
+	buf := make([]byte, 4096)
+	var got strings.Builder
+	reads := 0
+	for got.Len() < len(payload)+1 {
+		n, err := adapter.Read(buf)
+		require.NoError(t, err)
+		got.Write(buf[:n])
+		reads++
+	}
+
+	assert.Greater(t, reads, 1, "a fragmented message must span multiple Read calls")
+	assert.Equal(t, payload+"\n", got.String())
 }
