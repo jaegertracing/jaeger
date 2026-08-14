@@ -1,6 +1,6 @@
 # RFC 0004: Elasticsearch/OpenSearch Data Streams for Span Storage
 
-- **Status:** Draft
+- **Status:** Partially Implemented
 - **Author:** Yuri Shkuro
 - **Created:** 2026-06-18
 - **Last Updated:** 2026-06-21
