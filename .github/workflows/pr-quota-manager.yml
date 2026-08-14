@@ -34,21 +34,11 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Process PR Quota
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        uses: ./.github/actions/pr-quota-manager
         with:
-          # Use custom PAT if available (not available for fork PRs), otherwise use default token
-          github-token: ${{ secrets.PR_QUOTA_MANAGER_PAT || github.token }}
-          script: |
-            const handler = require('./.github/scripts/pr-quota-manager.js')
-            // For PR events, use PR author; for manual runs, use input. Fail if no username can be determined.
-            const prUser = context.payload.pull_request?.user?.login
-            const inputUser = context.payload.inputs?.username
-            const username = prUser || inputUser
-            if (!username) {
-              core.setFailed('Unable to determine username for quota processing. Aborting.')
-              return
-            }
-            const owner = context.repo.owner
-            const repo = context.repo.repo
-            const dryRun = context.payload.inputs?.dryRun === 'true'
-            await handler({github, core, username, owner, repo, dryRun})
+          # The default GITHUB_TOKEN suffices: the pull_request_target trigger runs in
+          # the base repo context, so the job-level issues/pull-requests write
+          # permissions above cover labelling and commenting even on fork PRs.
+          token: ${{ github.token }}
+          username: ${{ github.event.inputs.username }}
+          dry-run: ${{ github.event.inputs.dryRun }}
