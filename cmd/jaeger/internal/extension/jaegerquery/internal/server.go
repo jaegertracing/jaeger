@@ -285,6 +285,17 @@ func registerAIRoutes(
 	var mcpCfg mcptools.Config
 	if mcp := aiCfg.MCP.Get(); mcp != nil {
 		mcpCfg = mcptools.DefaultConfig()
+		// Operator overrides on top of the defaults. Zero means "unset" for all
+		// three, which is why they are applied conditionally rather than copied.
+		if mcp.MaxSpanDetailsPerRequest > 0 {
+			mcpCfg.MaxSpanDetailsPerRequest = mcp.MaxSpanDetailsPerRequest
+		}
+		if mcp.MaxSearchResults > 0 {
+			mcpCfg.MaxSearchResults = mcp.MaxSearchResults
+		}
+		if mcp.MaxReadFileSize > 0 {
+			mcpCfg.MaxReadFileSize = mcp.MaxReadFileSize
+		}
 		// Opened once, so both endpoints share the handle and a broken path is
 		// reported once, at startup. It stays open for as long as it serves, so
 		// it is released with the server rather than at process exit.
