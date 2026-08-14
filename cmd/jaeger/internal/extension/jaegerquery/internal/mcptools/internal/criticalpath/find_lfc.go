@@ -27,8 +27,12 @@ func findLastFinishingChildSpan(
 		childEndTime := childSpan.StartTime + childSpan.Duration
 
 		if returningChildStartTime != nil {
-			// Find child that finishes just before the returning child's start time
-			if childEndTime < *returningChildStartTime {
+			// Find child that finishes just before the returning child's start time.
+			// The bound is inclusive: back-to-back siblings, where one ends on the
+			// exact microsecond the next begins, are the common shape for sequential
+			// work and belong on the critical path. A strict bound dropped them,
+			// truncating the walk at the first such boundary.
+			if childEndTime <= *returningChildStartTime {
 				if childEndTime > maxEndTime {
 					maxEndTime = childEndTime
 					childSpanCopy := childSpan

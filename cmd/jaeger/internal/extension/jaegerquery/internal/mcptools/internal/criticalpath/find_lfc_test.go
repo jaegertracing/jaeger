@@ -181,6 +181,73 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 			returningChildStartTime: new(uint64(155)),
 			expectedSpanID:          &pcommon.SpanID{4}, // ends at 150 < 155, closest to returningChildStartTime
 		},
+		{
+			// Regression: back-to-back sequential siblings. The predecessor ends on
+			// the exact microsecond the returning child starts, which is the normal
+			// shape for sequential work and must stay on the critical path.
+			name: "child ending exactly at returningChildStartTime is included",
+			spanMap: map[pcommon.SpanID]CPSpan{
+				spanID(2): {
+					SpanID:    spanID(2),
+					StartTime: 100,
+					Duration:  50, // ends at 150, exactly when the returning child starts
+				},
+			},
+			currentSpan: CPSpan{
+				SpanID:       spanID(1),
+				StartTime:    100,
+				Duration:     100,
+				ChildSpanIDs: []pcommon.SpanID{spanID(2)},
+			},
+			returningChildStartTime: new(uint64(150)),
+			expectedSpanID:          &pcommon.SpanID{2},
+		},
+		{
+			// The exact-boundary sibling is also the *best* answer when an earlier
+			// sibling also qualifies — it is the one immediately preceding the
+			// returning child.
+			name: "exact-boundary child wins over an earlier finishing sibling",
+			spanMap: map[pcommon.SpanID]CPSpan{
+				spanID(2): {
+					SpanID:    spanID(2),
+					StartTime: 100,
+					Duration:  20, // ends at 120
+				},
+				spanID(3): {
+					SpanID:    spanID(3),
+					StartTime: 120,
+					Duration:  30, // ends at 150, exactly at the boundary
+				},
+			},
+			currentSpan: CPSpan{
+				SpanID:       spanID(1),
+				StartTime:    100,
+				Duration:     100,
+				ChildSpanIDs: []pcommon.SpanID{spanID(2), spanID(3)},
+			},
+			returningChildStartTime: new(uint64(150)),
+			expectedSpanID:          &pcommon.SpanID{3},
+		},
+		{
+			// The bound stays exclusive on the other side: a sibling still running
+			// when the returning child starts overlaps it and is not a predecessor.
+			name: "child ending after returningChildStartTime is still excluded",
+			spanMap: map[pcommon.SpanID]CPSpan{
+				spanID(2): {
+					SpanID:    spanID(2),
+					StartTime: 100,
+					Duration:  51, // ends at 151, one past the boundary
+				},
+			},
+			currentSpan: CPSpan{
+				SpanID:       spanID(1),
+				StartTime:    100,
+				Duration:     100,
+				ChildSpanIDs: []pcommon.SpanID{spanID(2)},
+			},
+			returningChildStartTime: new(uint64(150)),
+			expectedSpanID:          nil,
+		},
 	}
 
 	for _, tt := range tests {
