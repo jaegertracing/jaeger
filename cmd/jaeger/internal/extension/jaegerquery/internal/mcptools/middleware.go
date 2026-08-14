@@ -80,6 +80,9 @@ func createTracingMiddleware(tracerProvider trace.TracerProvider) mcp.Middleware
 				span.SetAttributes(otelsemconv.ErrorType(errorTypeTool))
 				if toolErr := callResult.GetError(); toolErr != nil {
 					span.RecordError(toolErr)
+					span.SetStatus(codes.Error, toolErr.Error())
+				} else {
+					span.SetStatus(codes.Error, "tool returned an error result")
 				}
 			}
 
