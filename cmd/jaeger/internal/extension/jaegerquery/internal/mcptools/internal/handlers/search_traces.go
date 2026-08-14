@@ -19,6 +19,11 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
+// errorAttributeKey is the attribute the with_errors shorthand expands to. It is
+// also a key callers may set directly through attributes, which is why the two
+// have to be reconciled rather than blindly merged.
+const errorAttributeKey = "error"
+
 // queryServiceInterface defines the interface we need from QueryService for testing.
 type queryServiceInterface interface {
 	FindTraceSummaries(ctx context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error]
@@ -169,12 +174,22 @@ func (h *searchTracesHandler) buildQuery(input types.SearchTracesInput) (querysv
 		searchDepth = h.maxResults
 	}
 
+	// with_errors is sugar for the "error" attribute, so the two can express
+	// contradictory filters through different channels. Silently letting one win
+	// hands the agent results that do not match what it asked for, and nothing in
+	// the response reveals the substitution — so reject the ambiguity instead.
+	if userError, ok := input.Attributes[errorAttributeKey]; ok && input.WithErrors && userError != "true" {
+		return querysvc.TraceQueryParams{}, fmt.Errorf(
+			"conflicting filters: with_errors=true implies attributes[%q]=\"true\", but %q was given; drop one of them",
+			errorAttributeKey, userError)
+	}
+
 	attributes := pcommon.NewMap()
 	for key, value := range input.Attributes {
 		attributes.PutStr(key, value)
 	}
 	if input.WithErrors {
-		attributes.PutStr("error", "true")
+		attributes.PutStr(errorAttributeKey, "true")
 	}
 
 	return querysvc.TraceQueryParams{

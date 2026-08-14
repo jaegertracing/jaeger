@@ -25,7 +25,9 @@ type SearchTracesInput struct {
 	Attributes map[string]string `json:"attributes,omitempty" jsonschema:"Key-value pairs to match against span/resource attributes"`
 
 	// WithErrors filters to only return traces containing error spans (optional).
-	WithErrors bool `json:"with_errors,omitempty" jsonschema:"If true only return traces containing error spans"`
+	// It is shorthand for attributes["error"]="true"; setting both to conflicting
+	// values is rejected rather than silently resolved.
+	WithErrors bool `json:"with_errors,omitempty" jsonschema:"If true only return traces containing error spans. Shorthand for attributes[error]=true; do not also pass a conflicting error attribute"`
 
 	// DurationMin is the minimum duration filter (optional, e.g., "2s", "100ms").
 	DurationMin string `json:"duration_min,omitempty" jsonschema:"Minimum duration filter (e.g. 2s 100ms)"`

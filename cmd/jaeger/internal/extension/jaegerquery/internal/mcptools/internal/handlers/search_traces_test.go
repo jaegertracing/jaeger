@@ -223,6 +223,92 @@ func TestSearchTracesHandler_Handle_WithErrorsFilter(t *testing.T) {
 	assert.True(t, output.Traces[0].HasErrors)
 }
 
+func TestSearchTracesHandler_Handle_WithErrorsConflictsWithErrorAttribute(t *testing.T) {
+	// The query must never reach storage: the caller asked for two different
+	// things and the tool cannot pick one for them.
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(context.Context, querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			t.Fatal("storage must not be queried when the filters conflict")
+			return nil
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		WithErrors:   true,
+		Attributes:   map[string]string{"error": "false"},
+	}
+
+	_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "conflicting filters")
+}
+
+func TestSearchTracesHandler_Handle_WithErrorsAgreesWithErrorAttribute(t *testing.T) {
+	// Redundant but consistent: both channels ask for errored traces, so there is
+	// no ambiguity to reject.
+	want := makeTraceSummary("test", "/error", true)
+
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			errorAttr, ok := query.Attributes.Get("error")
+			assert.True(t, ok)
+			assert.Equal(t, "true", errorAttr.Str())
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{want}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		WithErrors:   true,
+		Attributes:   map[string]string{"error": "true"},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+}
+
+func TestSearchTracesHandler_Handle_ErrorAttributeAloneIsPreserved(t *testing.T) {
+	// Without with_errors there is nothing to reconcile, and an explicit
+	// error=false filter must survive to storage rather than being overwritten.
+	want := makeTraceSummary("test", "/ok", false)
+
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			errorAttr, ok := query.Attributes.Get("error")
+			assert.True(t, ok)
+			assert.Equal(t, "false", errorAttr.Str())
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{want}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test",
+		Attributes:   map[string]string{"error": "false"},
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+}
+
 func TestSearchTracesHandler_Handle_WithErrorsFilter_UsingMemoryStore(t *testing.T) {
 	store, err := memory.NewStore(memory.Configuration{MaxTraces: 10})
 	require.NoError(t, err)
