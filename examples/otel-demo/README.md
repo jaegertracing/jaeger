@@ -115,6 +115,18 @@ instead. See the
 [OpenSearch recovery procedure](./OPENSEARCH_RECOVERY.md) for both intact- and
 replaced-namespace recovery.
 
+If the trace data is disposable, a maintainer may explicitly select
+`opensearch_recovery=waive` for a manual workflow dispatch from `main` whose
+other inputs are exactly `demo_stack=otel`, `deploy_mode=upgrade`, and
+`otel_deploy_scope=opensearch`. No other event, branch, stack, mode, or scope
+accepts the waiver. This skips only the recovery-point check: it does not run
+`clean`, delete data or storage, change the OpenSearch-before-Dashboards rollout
+order, or remove health waits. The waived upgrade has no tested rollback or
+data-recovery path if the existing persistent data becomes unusable.
+
+The waiver does not waive cluster-capacity checks. Confirm sufficient memory
+and disk headroom separately before dispatching the upgrade.
+
 The Jaeger deployment uses `jaeger-config.yaml` to configure the Jaeger v2
 `jaeger_storage` extension against the in-cluster OpenSearch service. The Helm
 chart storage type is set to `elasticsearch` for compatibility with the chart's
