@@ -18,7 +18,7 @@ const (
 	defaultDatabase                      = "jaeger"
 	defaultSearchDepth                   = 1000
 	defaultMaxSearchDepth                = 10000
-	defaultAttributeMetadataCacheTTL     = time.Hour
+	defaultAttributeMetadataCacheTTL     = 10 * time.Minute
 	defaultAttributeMetadataCacheMaxSize = 1000
 )
 
@@ -48,7 +48,9 @@ type Configuration struct {
 	// AttributeMetadataCacheTTL is the time-to-live for cached attribute metadata entries.
 	// Attribute metadata maps attribute keys to their stored types and levels,
 	// which is needed to build type-correct queries for querying attributes.
-	// Default is 1h.
+	// The metadata table is populated incrementally as span batches are inserted,
+	// so a cache entry captured mid-ingestion may be a partial snapshot; a shorter
+	// TTL bounds how long such stale entries can affect queries. Default is 10m.
 	AttributeMetadataCacheTTL time.Duration `mapstructure:"attribute_metadata_cache_ttl"`
 	// AttributeMetadataCacheMaxSize is the maximum number of entries in the attribute metadata cache.
 	// Default is 1000.
