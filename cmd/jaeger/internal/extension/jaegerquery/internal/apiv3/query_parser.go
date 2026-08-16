@@ -89,8 +89,8 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	if filterParam := q.Get(paramFilter); filterParam != "" {
 		// Consulted before the JSON is read, so a caller whose deployment has not enabled the
 		// filter hears that rather than being told its parameter is malformed.
-		if err := checkStructuredFiltersEnabled(); err != nil {
-			return nil, err
+		if !structuredFiltersGate.IsEnabled() {
+			return nil, errStructuredFiltersDisabled()
 		}
 		var call api_v3.Call
 		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {

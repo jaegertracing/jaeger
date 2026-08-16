@@ -26,21 +26,6 @@ func enableStructuredFilters(t *testing.T) {
 	})
 }
 
-// TestToStorageFilter_Disabled pins the default: a filter is refused, naming the gate that
-// admits it. It is refused rather than ignored, because dropping the predicate would answer
-// with every trace in the time range.
-func TestToStorageFilter_Disabled(t *testing.T) {
-	require.False(t, structuredFiltersGate.IsEnabled(), "the gate must be off by default")
-
-	filter := &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-		protoRef(&api_v3.Reference{Name: "http.status_code"}),
-		protoScalar("500", ""),
-	}}
-	_, err := toStorageFilter(filter)
-	require.ErrorContains(t, err, "the structured query filter is disabled")
-	require.ErrorContains(t, err, "jaeger.query.structuredFilters")
-}
-
 func protoRef(ref *api_v3.Reference) *api_v3.Expression {
 	return &api_v3.Expression{Term: &api_v3.Expression_Ref{Ref: ref}}
 }
@@ -60,7 +45,6 @@ func TestToStorageFilter_NoFilter(t *testing.T) {
 }
 
 func TestToStorageFilter_Converts(t *testing.T) {
-	enableStructuredFilters(t)
 	tests := []struct {
 		name     string
 		proto    *api_v3.Call
@@ -156,7 +140,6 @@ func TestToStorageFilter_Converts(t *testing.T) {
 }
 
 func TestToStorageFilter_Rejects(t *testing.T) {
-	enableStructuredFilters(t)
 	tests := []struct {
 		name        string
 		proto       *api_v3.Call

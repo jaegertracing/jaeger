@@ -37,13 +37,12 @@ var structuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
 )
 
-// checkStructuredFiltersEnabled refuses a request that carries a filter while the gate is
-// off. It refuses rather than ignoring the filter, because dropping a predicate would answer
-// with every trace in the time range — more than the caller asked for.
-func checkStructuredFiltersEnabled() error {
-	if structuredFiltersGate.IsEnabled() {
-		return nil
-	}
+// errStructuredFiltersDisabled reports a request that carries a filter to a deployment that
+// has not enabled the gate. Each entry point raises it for itself, before reading the filter,
+// because admitting the request is its concern and not the conversion's. The request is
+// refused rather than served with the filter ignored: dropping the predicate would answer
+// with every trace in the time range, more than the caller asked for.
+func errStructuredFiltersDisabled() error {
 	return fmt.Errorf("the structured query filter is disabled: enable the %q feature gate to use it",
 		structuredFiltersGate.ID())
 }
@@ -53,9 +52,6 @@ func checkStructuredFiltersEnabled() error {
 func toStorageFilter(filter *api_v3.Call) (*tracestore.Call, error) {
 	if filter == nil {
 		return nil, nil
-	}
-	if err := checkStructuredFiltersEnabled(); err != nil {
-		return nil, err
 	}
 	call, err := toStorageCall(filter)
 	if err != nil {

@@ -90,6 +90,9 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 	if query.GetStartTimeMin().IsZero() || query.GetStartTimeMax().IsZero() {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, "start time min and max are required parameters")
 	}
+	if query.GetFilter() != nil && !structuredFiltersGate.IsEnabled() {
+		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, errStructuredFiltersDisabled().Error())
+	}
 	filter, err := toStorageFilter(query.GetFilter())
 	if err != nil {
 		return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
