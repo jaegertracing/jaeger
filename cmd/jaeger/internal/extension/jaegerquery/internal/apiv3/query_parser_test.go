@@ -230,6 +230,7 @@ func TestParseFindTracesQuery(t *testing.T) {
 // cannot expand a message by field path without losing the recursive args, so the filter
 // travels as one URL-encoded JSON object.
 func TestParseFindTracesQuery_Filter(t *testing.T) {
+	enableStructuredFilters(t)
 	timeRange := func() url.Values {
 		q := url.Values{}
 		q.Set(paramTimeMin, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano))
@@ -298,6 +299,37 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 		_, err := parseFindTracesQuery(q)
 		require.ErrorContains(t, err, `malformed parameter query.filter: unknown filter operator "matches"`)
 	})
+}
+
+// TestParseFindTracesQuery_FilterDisabled covers the HTTP binding in a default deployment.
+// The gate is consulted before the JSON is read, so a caller hears that the filter is
+// disabled rather than that its parameter is malformed — even when the JSON is in fact
+// malformed, which is the more useful of the two answers to give.
+func TestParseFindTracesQuery_FilterDisabled(t *testing.T) {
+	require.False(t, structuredFiltersGate.IsEnabled(), "the gate must be off by default")
+
+	q := url.Values{}
+	q.Set(paramTimeMin, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano))
+	q.Set(paramTimeMax, time.Now().UTC().Format(time.RFC3339Nano))
+
+	for name, filterParam := range map[string]string{
+		"a well-formed filter": `{"op":"eq","args":[{"ref":{"name":"a"}},{"scalar":{"value":"1"}}]}`,
+		"malformed JSON":       `{"op":"eq",`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			q.Set(paramFilter, filterParam)
+			_, err := parseFindTracesQuery(q)
+			require.ErrorContains(t, err, "the structured query filter is disabled")
+			require.ErrorContains(t, err, "jaeger.query.structuredFilters")
+			assert.NotContains(t, err.Error(), "malformed parameter")
+		})
+	}
+
+	// The same query without a filter is served exactly as before.
+	q.Del(paramFilter)
+	got, err := parseFindTracesQuery(q)
+	require.NoError(t, err)
+	assert.Nil(t, got.Filter)
 }
 
 func TestGetQueryParam(t *testing.T) {

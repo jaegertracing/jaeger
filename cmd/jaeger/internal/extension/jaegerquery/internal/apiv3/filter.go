@@ -5,16 +5,53 @@ package apiv3
 
 import (
 	"errors"
+	"fmt"
+
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+// structuredFiltersGate admits the RFC 0005 structured query filter on trace search. It is
+// off by default because the filter AST is a public API still moving through that RFC's
+// milestones, and because each backend's lowering of it arrives separately: a deployment that
+// has not opted in behaves exactly as it did before the filter existed.
+//
+// The gate sits at the api_v3 edge rather than deeper, so that while it is off no filter
+// enters the system at all and none of what follows can run — validation, the capability
+// check, the rewrite into the legacy predicate fields, the remote-storage encoding, or a
+// backend's own lowering.
+var structuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.query.structuredFilters",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.21.0"),
+	featuregate.WithRegisterDescription(
+		"Accepts the RFC 0005 structured query filter on api_v3 trace search. The filter AST "+
+			"is not yet stable, so a request that carries one is refused while this is disabled.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
+)
+
+// checkStructuredFiltersEnabled refuses a request that carries a filter while the gate is
+// off. It refuses rather than ignoring the filter, because dropping a predicate would answer
+// with every trace in the time range — more than the caller asked for.
+func checkStructuredFiltersEnabled() error {
+	if structuredFiltersGate.IsEnabled() {
+		return nil
+	}
+	return fmt.Errorf("the structured query filter is disabled: enable the %q feature gate to use it",
+		structuredFiltersGate.ID())
+}
 
 // toStorageFilter converts the filter of an api_v3 request into the storage filter and
 // checks that it is well formed. A request without a filter converts to nil.
 func toStorageFilter(filter *api_v3.Call) (*tracestore.Call, error) {
 	if filter == nil {
 		return nil, nil
+	}
+	if err := checkStructuredFiltersEnabled(); err != nil {
+		return nil, err
 	}
 	call, err := toStorageCall(filter)
 	if err != nil {

@@ -8,10 +8,38 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
+
+// enableStructuredFilters turns the filter feature gate on for one test and restores it
+// afterwards. The gate is off by default, so every test that sends a filter through the
+// api_v3 edge has to ask for it — which is the isolation the gate exists to give a deployment
+// that has not opted in.
+func enableStructuredFilters(t *testing.T) {
+	original := structuredFiltersGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(structuredFiltersGate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(structuredFiltersGate.ID(), original))
+	})
+}
+
+// TestToStorageFilter_Disabled pins the default: a filter is refused, naming the gate that
+// admits it. It is refused rather than ignored, because dropping the predicate would answer
+// with every trace in the time range.
+func TestToStorageFilter_Disabled(t *testing.T) {
+	require.False(t, structuredFiltersGate.IsEnabled(), "the gate must be off by default")
+
+	filter := &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
+		protoRef(&api_v3.Reference{Name: "http.status_code"}),
+		protoScalar("500", ""),
+	}}
+	_, err := toStorageFilter(filter)
+	require.ErrorContains(t, err, "the structured query filter is disabled")
+	require.ErrorContains(t, err, "jaeger.query.structuredFilters")
+}
 
 func protoRef(ref *api_v3.Reference) *api_v3.Expression {
 	return &api_v3.Expression{Term: &api_v3.Expression_Ref{Ref: ref}}
@@ -32,6 +60,7 @@ func TestToStorageFilter_NoFilter(t *testing.T) {
 }
 
 func TestToStorageFilter_Converts(t *testing.T) {
+	enableStructuredFilters(t)
 	tests := []struct {
 		name     string
 		proto    *api_v3.Call
@@ -127,6 +156,7 @@ func TestToStorageFilter_Converts(t *testing.T) {
 }
 
 func TestToStorageFilter_Rejects(t *testing.T) {
+	enableStructuredFilters(t)
 	tests := []struct {
 		name        string
 		proto       *api_v3.Call

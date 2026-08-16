@@ -87,6 +87,11 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 	// The filter is a message, which a GET binding cannot expand by field path (the
 	// recursive args would be lost), so it travels as one URL-encoded JSON object.
 	if filterParam := q.Get(paramFilter); filterParam != "" {
+		// Consulted before the JSON is read, so a caller whose deployment has not enabled the
+		// filter hears that rather than being told its parameter is malformed.
+		if err := checkStructuredFiltersEnabled(); err != nil {
+			return nil, err
+		}
 		var call api_v3.Call
 		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)

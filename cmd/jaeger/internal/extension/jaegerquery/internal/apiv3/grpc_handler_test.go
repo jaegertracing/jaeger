@@ -550,6 +550,7 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 // the query service, which expresses it in the predicate fields the backend already serves
 // because the mock reader declares no filter support.
 func TestFindTracesWithFilter(t *testing.T) {
+	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 	var dispatched tracestore.TraceQueryParams
 	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
@@ -587,9 +588,36 @@ func TestFindTracesWithFilter(t *testing.T) {
 	assert.Equal(t, "bar", value.Str())
 }
 
+// TestFindTracesFilterDisabled covers the default deployment: a filter is refused with
+// InvalidArgument naming the gate, and storage is never reached — tsc.reader has no
+// expectation set, so a call to it would fail the test. A search without a filter is
+// unaffected, which is the whole point of the gate.
+func TestFindTracesFilterDisabled(t *testing.T) {
+	require.False(t, structuredFiltersGate.IsEnabled(), "the gate must be off by default")
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
+				{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "foo"}}},
+				{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "bar"}}},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "the structured query filter is disabled")
+	require.ErrorContains(t, err, "jaeger.query.structuredFilters")
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 // TestFindTracesMalformedFilter pins that a filter this build cannot parse is the caller's
 // problem: InvalidArgument, reported before storage is reached.
 func TestFindTracesMalformedFilter(t *testing.T) {
+	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
@@ -610,6 +638,7 @@ func TestFindTracesMalformedFilter(t *testing.T) {
 // TestFindTracesFilterWithLegacyPredicates pins the mutual exclusion of RFC 0005 §7: a
 // request that sets both a filter and a predicate field the filter replaces is refused.
 func TestFindTracesFilterWithLegacyPredicates(t *testing.T) {
+	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
