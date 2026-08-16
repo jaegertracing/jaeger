@@ -260,7 +260,7 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration},
+				&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
 				&expression.Scalar{Value: "2s"},
 			}},
 			&expression.Call{Op: expression.OpIn, Args: []expression.Expression{

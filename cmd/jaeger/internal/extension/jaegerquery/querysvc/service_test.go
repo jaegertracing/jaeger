@@ -1111,7 +1111,7 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 			Attributes: pcommon.NewMap(),
 			Filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService},
+					&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService},
 					&expression.Scalar{Value: "cart"},
 				}},
 				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
@@ -1197,7 +1197,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
-			queryWith(filterOn(expression.LevelResource, expression.FieldService, "cart"))))
+			queryWith(filterOn(expression.LevelResource, expression.ResourceFieldService, "cart"))))
 		require.NoError(t, err)
 		assert.Equal(t, "cart", dispatched.ServiceName)
 		reader.AssertExpectations(t)

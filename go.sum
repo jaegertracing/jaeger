@@ -671,8 +671,8 @@ github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZ
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yosida95/uritemplate/v3 v3.0.2 h1:Ed3Oyj9yrmi9087+NczuL5BwkIc4wvTb5zIM+UJPGz4=
 github.com/yosida95/uritemplate/v3 v3.0.2/go.mod h1:ILOh0sOhIJR3+L/8afwt/kE++YT040gmv5BQTMR2HP4=
-github.com/ysh-bot/jaeger-idl v0.9.1-0.20260816185620-b3608a2fc063 h1:/kxmzTW9kXubNwstIRIzvHQViGTO05UwuExsWTnfSFI=
-github.com/ysh-bot/jaeger-idl v0.9.1-0.20260816185620-b3608a2fc063/go.mod h1:W+9vbcr2cVZyS6z/cbr540EOzSkKYml3hmaWEavxkB0=
+github.com/ysh-bot/jaeger-idl v0.9.1-0.20260816192211-ac3cc8e5a7a8 h1:owCB9wHAmmgBfSyCbVfeBL5CMOqJnRBIV0ZkKpMhzIg=
+github.com/ysh-bot/jaeger-idl v0.9.1-0.20260816192211-ac3cc8e5a7a8/go.mod h1:W+9vbcr2cVZyS6z/cbr540EOzSkKYml3hmaWEavxkB0=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=

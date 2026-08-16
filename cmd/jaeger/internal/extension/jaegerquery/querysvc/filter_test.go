@@ -41,7 +41,7 @@ func TestPrepareFilter_PassesFilterToADeclaringReader(t *testing.T) {
 		},
 	}}
 	filter := &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-		predicate(expression.OpGt, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
+		predicate(expression.OpGt, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
 		&expression.Call{Op: expression.OpOr, Args: []expression.Expression{
 			predicate(expression.OpEq, &expression.Reference{Name: "http.status_code"}, "500"),
 			predicate(expression.OpRegex, &expression.Reference{Name: "http.route", Level: expression.LevelSpan, Attr: true}, "/cart/.*"),

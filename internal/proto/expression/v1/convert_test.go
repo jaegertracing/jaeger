@@ -64,7 +64,7 @@ func TestFilterRoundTrip(t *testing.T) {
 			filter: &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
 				&expression.Reference{Level: expression.LevelEvent},
 				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					&expression.Reference{Level: expression.LevelEvent, Name: expression.FieldName},
+					&expression.Reference{Level: expression.LevelEvent, Name: expression.EventFieldName},
 					&expression.Scalar{Value: "exception"},
 				}},
 			}},

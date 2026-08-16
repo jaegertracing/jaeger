@@ -45,10 +45,10 @@ func (q TraceQueryParams) ToFilterShape() TraceQueryParams {
 		})
 	}
 	if q.ServiceName != "" {
-		eq(&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, q.ServiceName)
+		eq(&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, q.ServiceName)
 	}
 	if q.OperationName != "" {
-		eq(&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, q.OperationName)
+		eq(&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, q.OperationName)
 	}
 	// Attributes is documented as needing pcommon.NewMap(), but a caller that left it at its
 	// zero value used to reach storage unharmed, and converting shape must not be what turns
@@ -81,7 +81,7 @@ func durationBound(op expression.Operator, d time.Duration) expression.Expressio
 	return &expression.Call{
 		Op: op,
 		Args: []expression.Expression{
-			&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration},
+			&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
 			&expression.Scalar{Value: d.String()},
 		},
 	}
@@ -153,7 +153,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) err
 	switch {
 	case ref.IsAttribute():
 		return applyAttribute(query, predicate.Op, ref, value)
-	case ref.IsField(expression.LevelResource, expression.FieldService):
+	case ref.IsField(expression.LevelResource, expression.ResourceFieldService):
 		if predicate.Op != expression.OpEq {
 			return errUnsupportedOperatorOn(predicate.Op, ref)
 		}
@@ -162,7 +162,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) err
 		}
 		query.ServiceName = value.Value
 		return nil
-	case ref.IsField(expression.LevelSpan, expression.FieldName):
+	case ref.IsField(expression.LevelSpan, expression.SpanFieldName):
 		if predicate.Op != expression.OpEq {
 			return errUnsupportedOperatorOn(predicate.Op, ref)
 		}
@@ -171,7 +171,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) err
 		}
 		query.OperationName = value.Value
 		return nil
-	case ref.IsField(expression.LevelSpan, expression.FieldDuration):
+	case ref.IsField(expression.LevelSpan, expression.SpanFieldDuration):
 		return applyDurationBound(query, predicate.Op, ref, value)
 	default:
 		return fmt.Errorf("%w: it does not support the built-in field %q of the %q level",

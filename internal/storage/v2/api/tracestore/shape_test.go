@@ -59,20 +59,20 @@ func TestToLegacyShape_Converts(t *testing.T) {
 		{
 			name: "the service built-in becomes the service name",
 			filter: predicate(expression.OpEq,
-				&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
+				&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
 			expected: TraceQueryParams{ServiceName: "cart", Attributes: pcommon.NewMap()},
 		},
 		{
 			name: "the span name built-in becomes the operation name",
 			filter: predicate(expression.OpEq,
-				&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, "GET /cart"),
+				&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, "GET /cart"),
 			expected: TraceQueryParams{OperationName: "GET /cart", Attributes: pcommon.NewMap()},
 		},
 		{
 			name: "the inclusive duration bounds become the duration range",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
-				predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "1m30s"),
+				predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
+				predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "1m30s"),
 			}},
 			expected: TraceQueryParams{
 				DurationMin: 2 * time.Second,
@@ -83,7 +83,7 @@ func TestToLegacyShape_Converts(t *testing.T) {
 		{
 			name: "a conjunction fills several fields at once",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
+				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
 				predicate(expression.OpEq, &expression.Reference{Name: "http.method"}, "GET"),
 				predicate(expression.OpEq, &expression.Reference{Name: "http.status_code"}, "500"),
 			}},
@@ -97,12 +97,12 @@ func TestToLegacyShape_Converts(t *testing.T) {
 			// and is flattened rather than refused.
 			name: "a conjunction nested in a conjunction",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
+				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
 				&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 					predicate(expression.OpEq, &expression.Reference{Name: "http.method"}, "GET"),
 					&expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 						predicate(expression.OpEq, &expression.Reference{Name: "http.status_code"}, "500"),
-						predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
+						predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
 					}},
 				}},
 			}},
@@ -175,19 +175,19 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 		{
 			name: "an exclusive duration bound",
 			filter: predicate(expression.OpGt,
-				&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
+				&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
 			expectedErr: `does not support the operator "gt" on "duration"`,
 		},
 		{
 			name: "a regex on the operation name",
 			filter: predicate(expression.OpRegex,
-				&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, "GET .*"),
+				&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, "GET .*"),
 			expectedErr: `does not support the operator "regex" on "name"`,
 		},
 		{
 			name: "an inequality on the service",
 			filter: predicate(expression.OpNe,
-				&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
+				&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
 			expectedErr: `does not support the operator "ne" on "service"`,
 		},
 		{
@@ -242,32 +242,32 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 		{
 			name: "two services",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
-				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "checkout"),
+				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
+				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "checkout"),
 			}},
 			expectedErr: `only one predicate on "service"`,
 		},
 		{
 			name: "two operation names",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, "a"),
-				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, "b"),
+				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, "a"),
+				predicate(expression.OpEq, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, "b"),
 			}},
 			expectedErr: `only one predicate on "name"`,
 		},
 		{
 			name: "two lower duration bounds",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "1s"),
-				predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
+				predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "1s"),
+				predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
 			}},
 			expectedErr: `only one predicate on "duration"`,
 		},
 		{
 			name: "two upper duration bounds",
 			filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "1s"),
-				predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
+				predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "1s"),
+				predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
 			}},
 			expectedErr: `only one predicate on "duration"`,
 		},
@@ -287,7 +287,7 @@ func TestToLegacyShape_RefusesWhatTheFieldsCannotExpress(t *testing.T) {
 // validation cannot catch, because the filter AST does not carry types.
 func TestToLegacyShape_RefusesAnUnparsableDuration(t *testing.T) {
 	filter := predicate(expression.OpGte,
-		&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "quickly")
+		&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "quickly")
 	_, err := filterQuery(filter).ToLegacyShape()
 	require.ErrorIs(t, err, ErrFilterInvalid)
 	assert.Contains(t, err.Error(), `"quickly" is not a duration`)
@@ -318,11 +318,11 @@ func TestToFilterShape(t *testing.T) {
 	require.NotNil(t, got.Filter)
 	assert.Equal(t, expression.OpAnd, got.Filter.Op)
 	assert.Equal(t, []expression.Expression{
-		predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
-		predicate(expression.OpEq, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, "GET /cart"),
+		predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
+		predicate(expression.OpEq, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, "GET /cart"),
 		predicate(expression.OpEq, &expression.Reference{Name: "http.status_code"}, "500"),
-		predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "2s"),
-		predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration}, "1m30s"),
+		predicate(expression.OpGte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "2s"),
+		predicate(expression.OpLte, &expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration}, "1m30s"),
 	}, got.Filter.Args)
 }
 
@@ -368,7 +368,7 @@ func TestToFilterShape_UninitializedAttributes(t *testing.T) {
 	got := TraceQueryParams{ServiceName: "cart"}.ToFilterShape()
 	require.NotNil(t, got.Filter)
 	assert.Equal(t, []expression.Expression{
-		predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, "cart"),
+		predicate(expression.OpEq, &expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, "cart"),
 	}, got.Filter.Args)
 }
 
