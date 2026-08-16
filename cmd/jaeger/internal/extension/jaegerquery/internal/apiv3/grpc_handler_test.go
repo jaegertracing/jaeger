@@ -27,6 +27,7 @@ import (
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -565,14 +566,14 @@ func TestFindTracesWithFilter(t *testing.T) {
 		Query: &api_v3.TraceQueryParameters{
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
-			Filter: &api_v3.Call{Op: "and", Args: []*api_v3.Expression{
-				{Term: &api_v3.Expression_Call{Call: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-					{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "service", Level: "resource"}}},
-					{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "myservice"}}},
+			Filter: &expressionproto.Call{Op: "and", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Call{Call: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+					{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "service", Level: "resource"}}},
+					{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "myservice"}}},
 				}}}},
-				{Term: &api_v3.Expression_Call{Call: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-					{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "foo"}}},
-					{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "bar"}}},
+				{Term: &expressionproto.Expression_Call{Call: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+					{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "foo"}}},
+					{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "bar"}}},
 				}}}},
 			}},
 		},
@@ -600,9 +601,9 @@ func TestFindTracesFilterDisabled(t *testing.T) {
 		Query: &api_v3.TraceQueryParameters{
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
-			Filter: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-				{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "foo"}}},
-				{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "bar"}}},
+			Filter: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "foo"}}},
+				{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "bar"}}},
 			}},
 		},
 	})
@@ -625,7 +626,7 @@ func TestFindTracesMalformedFilter(t *testing.T) {
 			ServiceName:  "myservice",
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
-			Filter:       &api_v3.Call{Op: "matches"},
+			Filter:       &expressionproto.Call{Op: "matches"},
 		},
 	})
 	require.NoError(t, err)
@@ -646,9 +647,9 @@ func TestFindTracesFilterWithLegacyPredicates(t *testing.T) {
 			ServiceName:  "myservice",
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
-			Filter: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-				{Term: &api_v3.Expression_Ref{Ref: &api_v3.Reference{Name: "foo"}}},
-				{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: "bar"}}},
+			Filter: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "foo"}}},
+				{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "bar"}}},
 			}},
 		},
 	})

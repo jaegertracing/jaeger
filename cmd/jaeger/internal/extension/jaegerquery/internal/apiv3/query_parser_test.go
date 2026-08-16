@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -244,9 +244,9 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-			&tracestore.Reference{Name: "http.status_code"},
-			&tracestore.Scalar{Value: "500"},
+		assert.Equal(t, &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.Reference{Name: "http.status_code"},
+			&expression.Scalar{Value: "500"},
 		}}, got.Filter)
 	})
 
@@ -258,14 +258,14 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
-		assert.Equal(t, &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-			&tracestore.Call{Op: tracestore.OpGt, Args: []tracestore.Expression{
-				tracestore.SpanDuration.Ref(),
-				&tracestore.Scalar{Value: "2s"},
+		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				expression.SpanDuration.Ref(),
+				&expression.Scalar{Value: "2s"},
 			}},
-			&tracestore.Call{Op: tracestore.OpIn, Args: []tracestore.Expression{
-				&tracestore.Reference{Name: "http.status_code"},
-				&tracestore.List{Values: []string{"500", "503"}, Type: tracestore.ValueTypeInt},
+			&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.Reference{Name: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
 			}},
 		}}, got.Filter)
 	})

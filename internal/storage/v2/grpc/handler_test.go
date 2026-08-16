@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -870,8 +871,8 @@ func TestHandler_GetCapabilities(t *testing.T) {
 				WithoutServiceName:  true,
 				SameSpanConjunction: true,
 				Filter: &tracestore.FilterCapabilities{
-					Levels:    []tracestore.Level{tracestore.LevelSpan, tracestore.LevelResource},
-					Operators: []tracestore.Operator{tracestore.OpAnd, tracestore.OpEq, tracestore.OpRegex},
+					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
 			},
 			expected: &storage.SearchCapabilities{

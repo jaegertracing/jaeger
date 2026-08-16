@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/metricstest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/mocks"
@@ -267,8 +268,8 @@ func TestReadMetricsDecorator_SearchCapabilities(t *testing.T) {
 		{WithoutServiceName: true},
 		{SameSpanConjunction: true},
 		{Filter: &tracestore.FilterCapabilities{
-			Levels:    []tracestore.Level{tracestore.LevelSpan},
-			Operators: []tracestore.Operator{tracestore.OpAnd, tracestore.OpEq},
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
 		}},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {

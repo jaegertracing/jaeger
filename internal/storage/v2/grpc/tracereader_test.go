@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -873,8 +874,8 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 				WithoutServiceName:  true,
 				SameSpanConjunction: true,
 				Filter: &tracestore.FilterCapabilities{
-					Levels:    []tracestore.Level{tracestore.LevelSpan, tracestore.LevelResource},
-					Operators: []tracestore.Operator{tracestore.OpAnd, tracestore.OpEq, tracestore.OpRegex},
+					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
 				},
 			},
 		},

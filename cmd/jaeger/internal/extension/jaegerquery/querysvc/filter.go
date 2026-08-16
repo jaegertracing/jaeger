@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/queryinterceptor"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -18,8 +20,7 @@ import (
 func IsBadRequest(err error) bool {
 	return errors.Is(err, ErrServiceNameRequired) ||
 		errors.Is(err, tracestore.ErrFilterUnsupported) ||
-		errors.Is(err, tracestore.ErrFilterInvalid) ||
-		errors.Is(err, queryinterceptor.ErrFilterNotInterceptable)
+		errors.Is(err, tracestore.ErrFilterInvalid)
 }
 
 // prepareFilter decides what a reader receives for a search that carries a structured
@@ -32,8 +33,13 @@ func prepareFilter(query TraceQueryParams, caps tracestore.SearchCapabilities) (
 	if err := checkNoLegacyPredicates(query); err != nil {
 		return query, err
 	}
-	if caps.Filter == nil {
-		return rewriteFilterAsLegacyFields(query)
+	if !caps.Filter.ServesAnyFilter() {
+		legacy, err := query.TraceQueryParams.ToLegacyShape()
+		if err != nil {
+			return query, err
+		}
+		query.TraceQueryParams = legacy
+		return query, nil
 	}
 	return query, checkFilterSupported(query.Filter, *caps.Filter)
 }
@@ -56,7 +62,7 @@ func checkNoLegacyPredicates(query TraceQueryParams) error {
 	if query.DurationMax != 0 {
 		set = append(set, "duration_max")
 	}
-	if query.Attributes.Len() > 0 {
+	if query.Attributes != (pcommon.Map{}) && query.Attributes.Len() > 0 {
 		set = append(set, "attributes")
 	}
 	if len(set) == 0 {
@@ -68,17 +74,18 @@ func checkNoLegacyPredicates(query TraceQueryParams) error {
 
 // checkFilterSupported walks the filter and refuses the first predicate the reader did
 // not declare it can evaluate.
-func checkFilterSupported(filter *tracestore.Call, caps tracestore.FilterCapabilities) error {
+func checkFilterSupported(filter *expression.Call, caps tracestore.FilterCapabilities) error {
 	if !caps.SupportsOperator(filter.Op) {
-		return errUnsupportedOperator(filter.Op)
+		return fmt.Errorf("%w: it does not support the operator %q",
+			tracestore.ErrFilterUnsupported, filter.Op)
 	}
 	for _, arg := range filter.Args {
 		switch term := arg.(type) {
-		case *tracestore.Call:
+		case *expression.Call:
 			if err := checkFilterSupported(term, caps); err != nil {
 				return err
 			}
-		case *tracestore.Reference:
+		case *expression.Reference:
 			if !caps.SupportsLevel(term.Level) {
 				return fmt.Errorf("%w: it does not index the %q level", tracestore.ErrFilterUnsupported, term.Level)
 			}
@@ -87,8 +94,4 @@ func checkFilterSupported(filter *tracestore.Call, caps tracestore.FilterCapabil
 		}
 	}
 	return nil
-}
-
-func errUnsupportedOperator(op tracestore.Operator) error {
-	return fmt.Errorf("%w: it does not support the operator %q", tracestore.ErrFilterUnsupported, op)
 }

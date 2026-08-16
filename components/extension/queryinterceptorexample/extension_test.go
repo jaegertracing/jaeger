@@ -13,10 +13,10 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 )
 
@@ -39,10 +39,18 @@ func ctxWithRole(t *testing.T, role string) context.Context {
 	return client.NewContext(t.Context(), client.Info{Metadata: md})
 }
 
+// queryWithAttr builds the query a caller asking for one attribute arrives with: every
+// predicate is in the filter, so the equality is a predicate rather than a map entry.
 func queryWithAttr(key, val string) queryinterceptor.Query {
-	q := queryinterceptor.Query{Attributes: pcommon.NewMap()}
-	q.Attributes.PutStr(key, val)
-	return q
+	return queryinterceptor.Query{Filter: &expression.Call{
+		Op: expression.OpAnd,
+		Args: []expression.Expression{
+			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.Reference{Name: key},
+				&expression.Scalar{Value: val},
+			}},
+		},
+	}}
 }
 
 func tracesWithSpanAttrs(kv map[string]string) []ptrace.Traces {

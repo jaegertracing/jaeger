@@ -335,3 +335,5 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
 )
+
+replace github.com/jaegertracing/jaeger-idl => github.com/ysh-bot/jaeger-idl v0.9.1-0.20260816182234-48438f3240b6

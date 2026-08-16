@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/featuregate"
 
-	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
-	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 )
 
 // enableStructuredFilters turns the filter feature gate on for one test and restores it
@@ -26,20 +26,20 @@ func enableStructuredFilters(t *testing.T) {
 	})
 }
 
-func protoRef(ref *api_v3.Reference) *api_v3.Expression {
-	return &api_v3.Expression{Term: &api_v3.Expression_Ref{Ref: ref}}
+func protoRef(ref *expressionproto.Reference) *expressionproto.Expression {
+	return &expressionproto.Expression{Term: &expressionproto.Expression_Ref{Ref: ref}}
 }
 
-func protoScalar(value string, valueType string) *api_v3.Expression {
-	return &api_v3.Expression{Term: &api_v3.Expression_Scalar{Scalar: &api_v3.Scalar{Value: value, Type: valueType}}}
+func protoScalar(value string, valueType string) *expressionproto.Expression {
+	return &expressionproto.Expression{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: value, Type: valueType}}}
 }
 
-func protoCall(call *api_v3.Call) *api_v3.Expression {
-	return &api_v3.Expression{Term: &api_v3.Expression_Call{Call: call}}
+func protoCall(call *expressionproto.Call) *expressionproto.Expression {
+	return &expressionproto.Expression{Term: &expressionproto.Expression_Call{Call: call}}
 }
 
 func TestToStorageFilter_NoFilter(t *testing.T) {
-	filter, err := toStorageFilter(nil)
+	filter, err := toFilter(nil)
 	require.NoError(t, err)
 	assert.Nil(t, filter)
 }
@@ -47,92 +47,92 @@ func TestToStorageFilter_NoFilter(t *testing.T) {
 func TestToStorageFilter_Converts(t *testing.T) {
 	tests := []struct {
 		name     string
-		proto    *api_v3.Call
-		expected *tracestore.Call
+		proto    *expressionproto.Call
+		expected *expression.Call
 	}{
 		{
 			name: "an unqualified attribute equality",
-			proto: &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-				protoRef(&api_v3.Reference{Name: "http.status_code"}),
+			proto: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+				protoRef(&expressionproto.Reference{Name: "http.status_code"}),
 				protoScalar("500", ""),
 			}},
-			expected: &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-				&tracestore.Reference{Name: "http.status_code"},
-				&tracestore.Scalar{Value: "500"},
+			expected: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.Reference{Name: "http.status_code"},
+				&expression.Scalar{Value: "500"},
 			}},
 		},
 		{
 			name: "a level-qualified attribute and a typed constant",
-			proto: &api_v3.Call{Op: "gt", Args: []*api_v3.Expression{
-				protoRef(&api_v3.Reference{Name: "size", Level: "span", Attr: true}),
+			proto: &expressionproto.Call{Op: "gt", Args: []*expressionproto.Expression{
+				protoRef(&expressionproto.Reference{Name: "size", Level: "span", Attr: true}),
 				protoScalar("500", "int"),
 			}},
-			expected: &tracestore.Call{Op: tracestore.OpGt, Args: []tracestore.Expression{
-				&tracestore.Reference{Name: "size", Level: tracestore.LevelSpan, Attr: true},
-				&tracestore.Scalar{Value: "500", Type: tracestore.ValueTypeInt},
+			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.Reference{Name: "size", Level: expression.LevelSpan, Attr: true},
+				&expression.Scalar{Value: "500", Type: expression.ValueTypeInt},
 			}},
 		},
 		{
 			name: "a list operand",
-			proto: &api_v3.Call{Op: "in", Args: []*api_v3.Expression{
-				protoRef(&api_v3.Reference{Name: "http.status_code"}),
-				{Term: &api_v3.Expression_List{List: &api_v3.List{Values: []string{"500", "503"}, Type: "int"}}},
+			proto: &expressionproto.Call{Op: "in", Args: []*expressionproto.Expression{
+				protoRef(&expressionproto.Reference{Name: "http.status_code"}),
+				{Term: &expressionproto.Expression_List{List: &expressionproto.List{Values: []string{"500", "503"}, Type: "int"}}},
 			}},
-			expected: &tracestore.Call{Op: tracestore.OpIn, Args: []tracestore.Expression{
-				&tracestore.Reference{Name: "http.status_code"},
-				&tracestore.List{Values: []string{"500", "503"}, Type: tracestore.ValueTypeInt},
+			expected: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.Reference{Name: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
 			}},
 		},
 		{
 			name: "a nested boolean tree",
-			proto: &api_v3.Call{Op: "and", Args: []*api_v3.Expression{
-				protoCall(&api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-					protoRef(&api_v3.Reference{Name: "a"}), protoScalar("1", ""),
+			proto: &expressionproto.Call{Op: "and", Args: []*expressionproto.Expression{
+				protoCall(&expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+					protoRef(&expressionproto.Reference{Name: "a"}), protoScalar("1", ""),
 				}}),
-				protoCall(&api_v3.Call{Op: "or", Args: []*api_v3.Expression{
-					protoCall(&api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-						protoRef(&api_v3.Reference{Name: "b"}), protoScalar("2", ""),
+				protoCall(&expressionproto.Call{Op: "or", Args: []*expressionproto.Expression{
+					protoCall(&expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+						protoRef(&expressionproto.Reference{Name: "b"}), protoScalar("2", ""),
 					}}),
-					protoCall(&api_v3.Call{Op: "exists", Args: []*api_v3.Expression{
-						protoRef(&api_v3.Reference{Name: "c"}),
+					protoCall(&expressionproto.Call{Op: "exists", Args: []*expressionproto.Expression{
+						protoRef(&expressionproto.Reference{Name: "c"}),
 					}}),
 				}}),
 			}},
-			expected: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					&tracestore.Reference{Name: "a"}, &tracestore.Scalar{Value: "1"},
+			expected: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					&expression.Reference{Name: "a"}, &expression.Scalar{Value: "1"},
 				}},
-				&tracestore.Call{Op: tracestore.OpOr, Args: []tracestore.Expression{
-					&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-						&tracestore.Reference{Name: "b"}, &tracestore.Scalar{Value: "2"},
+				&expression.Call{Op: expression.OpOr, Args: []expression.Expression{
+					&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+						&expression.Reference{Name: "b"}, &expression.Scalar{Value: "2"},
 					}},
-					&tracestore.Call{Op: tracestore.OpExists, Args: []tracestore.Expression{
-						&tracestore.Reference{Name: "c"},
+					&expression.Call{Op: expression.OpExists, Args: []expression.Expression{
+						&expression.Reference{Name: "c"},
 					}},
 				}},
 			}},
 		},
 		{
 			name: "a correlated match over the event collection",
-			proto: &api_v3.Call{Op: "some", Args: []*api_v3.Expression{
-				protoRef(&api_v3.Reference{Level: "event"}),
-				protoCall(&api_v3.Call{Op: "eq", Args: []*api_v3.Expression{
-					protoRef(&api_v3.Reference{Name: "name", Level: "event"}),
+			proto: &expressionproto.Call{Op: "some", Args: []*expressionproto.Expression{
+				protoRef(&expressionproto.Reference{Level: "event"}),
+				protoCall(&expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+					protoRef(&expressionproto.Reference{Name: "name", Level: "event"}),
 					protoScalar("exception", ""),
 				}}),
 			}},
-			expected: &tracestore.Call{Op: tracestore.OpSome, Args: []tracestore.Expression{
-				&tracestore.Reference{Level: tracestore.LevelEvent},
-				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					tracestore.EventName.Ref(),
-					&tracestore.Scalar{Value: "exception"},
+			expected: &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
+				&expression.Reference{Level: expression.LevelEvent},
+				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					expression.EventName.Ref(),
+					&expression.Scalar{Value: "exception"},
 				}},
 			}},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := toStorageFilter(test.proto)
+			got, err := toFilter(test.proto)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, got)
 		})
@@ -142,40 +142,40 @@ func TestToStorageFilter_Converts(t *testing.T) {
 func TestToStorageFilter_Rejects(t *testing.T) {
 	tests := []struct {
 		name        string
-		proto       *api_v3.Call
+		proto       *expressionproto.Call
 		expectedErr string
 	}{
 		{
 			name:        "an argument with no term",
-			proto:       &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{protoRef(&api_v3.Reference{Name: "a"}), {}}},
+			proto:       &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{protoRef(&expressionproto.Reference{Name: "a"}), {}}},
 			expectedErr: "filter argument is empty",
 		},
 		{
 			name: "an argument with no term, nested in a call",
-			proto: &api_v3.Call{Op: "and", Args: []*api_v3.Expression{
-				protoCall(&api_v3.Call{Op: "eq", Args: []*api_v3.Expression{{}, protoScalar("1", "")}}),
+			proto: &expressionproto.Call{Op: "and", Args: []*expressionproto.Expression{
+				protoCall(&expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{{}, protoScalar("1", "")}}),
 			}},
 			expectedErr: "filter argument is empty",
 		},
 		{
 			name:        "an operator this build does not know",
-			proto:       &api_v3.Call{Op: "matches", Args: []*api_v3.Expression{protoRef(&api_v3.Reference{Name: "a"}), protoScalar("b", "")}},
+			proto:       &expressionproto.Call{Op: "matches", Args: []*expressionproto.Expression{protoRef(&expressionproto.Reference{Name: "a"}), protoScalar("b", "")}},
 			expectedErr: `unknown filter operator "matches"`,
 		},
 		{
 			name:        "a level this build does not know",
-			proto:       &api_v3.Call{Op: "eq", Args: []*api_v3.Expression{protoRef(&api_v3.Reference{Name: "a", Level: "pod"}), protoScalar("b", "")}},
+			proto:       &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{protoRef(&expressionproto.Reference{Name: "a", Level: "pod"}), protoScalar("b", "")}},
 			expectedErr: `unknown filter level "pod"`,
 		},
 		{
 			name:        "an empty filter",
-			proto:       &api_v3.Call{},
+			proto:       &expressionproto.Call{},
 			expectedErr: `unknown filter operator ""`,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := toStorageFilter(test.proto)
+			_, err := toFilter(test.proto)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), test.expectedErr)
 		})

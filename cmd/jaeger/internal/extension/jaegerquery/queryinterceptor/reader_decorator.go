@@ -5,29 +5,13 @@ package queryinterceptor
 
 import (
 	"context"
-	"errors"
 	"iter"
 
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	pub "github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
-)
-
-// ErrFilterNotInterceptable is returned for a search that carries a structured query filter
-// (RFC 0005) while an interceptor is configured. An interceptor exists to scope a search so
-// it cannot match data the caller may not read, and the public Query has no field for the
-// filter, so the interceptor can neither see the predicate nor constrain it — and cannot tell
-// that it failed to. Refusing the search is the only answer that does not quietly under-gate
-// it. It reaches this point only from a remote backend that declares FilterCapabilities,
-// because for every other reader the query service rewrites the filter into the fields the
-// public Query does carry.
-//
-// Lifting this means giving the public Query the filter, which waits on the filter AST
-// settling: it would be a stable extension contract over a shape RFC 0005 is still moving.
-var ErrFilterNotInterceptable = errors.New(
-	"a query interceptor is configured, which cannot gate a structured query filter; " +
-		"use the legacy predicate fields for this search",
 )
 
 type reader struct {
@@ -42,36 +26,29 @@ type reader struct {
 // Callers wrap only when there is at least one interceptor, so this always
 // returns a decorator.
 //
-// The interceptors see the public queryinterceptor.Query; this decorator
-// converts to and from the internal tracestore.TraceQueryParams at the boundary,
-// so the internal query type never crosses the contract.
+// The interceptors see the public queryinterceptor.Query; this decorator converts to and from
+// the internal tracestore.TraceQueryParams at the boundary, so the internal query type never
+// crosses the contract.
 func NewReaderDecorator(next tracestore.Reader, interceptors ...pub.Interceptor) tracestore.Reader {
 	return &reader{next: next, interceptors: interceptors}
 }
 
 func toPublicQuery(q tracestore.TraceQueryParams) pub.Query {
 	return pub.Query{
-		ServiceName:   q.ServiceName,
-		OperationName: q.OperationName,
-		Attributes:    q.Attributes,
-		StartTimeMin:  q.StartTimeMin,
-		StartTimeMax:  q.StartTimeMax,
-		DurationMin:   q.DurationMin,
-		DurationMax:   q.DurationMax,
-		SearchDepth:   q.SearchDepth,
+		Filter:       q.Filter,
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+		SearchDepth:  q.SearchDepth,
 	}
 }
 
 func fromPublicQuery(q pub.Query) tracestore.TraceQueryParams {
 	return tracestore.TraceQueryParams{
-		ServiceName:   q.ServiceName,
-		OperationName: q.OperationName,
-		Attributes:    q.Attributes,
-		StartTimeMin:  q.StartTimeMin,
-		StartTimeMax:  q.StartTimeMax,
-		DurationMin:   q.DurationMin,
-		DurationMax:   q.DurationMax,
-		SearchDepth:   q.SearchDepth,
+		Attributes:   pcommon.NewMap(),
+		Filter:       q.Filter,
+		StartTimeMin: q.StartTimeMin,
+		StartTimeMax: q.StartTimeMax,
+		SearchDepth:  q.SearchDepth,
 	}
 }
 
@@ -79,11 +56,17 @@ func fromPublicQuery(q pub.Query) tracestore.TraceQueryParams {
 // returns into the next. The final context is returned so callers can pass it to
 // the storage reader and to onResult, letting an interceptor carry per-query state
 // (e.g. a resolved caller identity) from the pre-query hook to the return path.
+//
+// The interceptors are shown the query in filter shape whatever shape it arrived in, because
+// gating a search means reading and narrowing its predicates and an interceptor should not
+// have to find them in two places. What reaches storage afterwards is put back into the shape
+// storage was going to receive: a reader that does not evaluate filters gets the scalar fields,
+// and one that does gets the filter the interceptors left behind. An interceptor that adds a
+// predicate the scalar fields cannot express — a disjunction, say — is refused here rather than
+// silently dropped, which is the same answer the query service would have given for that filter.
 func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams) (context.Context, tracestore.TraceQueryParams, error) {
-	if query.Filter != nil {
-		return ctx, query, ErrFilterNotInterceptable
-	}
-	pq := toPublicQuery(query)
+	wasFilterShaped := query.Filter != nil
+	pq := toPublicQuery(query.ToFilterShape())
 	var err error
 	for _, interceptor := range r.interceptors {
 		ctx, pq, err = interceptor.OnQuery(ctx, pq)
@@ -91,7 +74,15 @@ func (r *reader) onQuery(ctx context.Context, query tracestore.TraceQueryParams)
 			return ctx, query, err
 		}
 	}
-	return ctx, fromPublicQuery(pq), nil
+	intercepted := fromPublicQuery(pq)
+	if wasFilterShaped {
+		return ctx, intercepted, nil
+	}
+	legacy, err := intercepted.ToLegacyShape()
+	if err != nil {
+		return ctx, query, err
+	}
+	return ctx, legacy, nil
 }
 
 // onResult runs every interceptor's OnResult in order on one batch, threading the

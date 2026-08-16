@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -1108,14 +1109,14 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 	query := TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			Attributes: pcommon.NewMap(),
-			Filter: &tracestore.Call{Op: tracestore.OpAnd, Args: []tracestore.Expression{
-				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					tracestore.ResourceService.Ref(),
-					&tracestore.Scalar{Value: "cart"},
+			Filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					expression.ResourceService.Ref(),
+					&expression.Scalar{Value: "cart"},
 				}},
-				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					&tracestore.Reference{Name: "http.status_code"},
-					&tracestore.Scalar{Value: "500"},
+				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					&expression.Reference{Name: "http.status_code"},
+					&expression.Scalar{Value: "500"},
 				}},
 			}},
 		},
@@ -1141,11 +1142,11 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 // TestFindTraces_FilterReachesADeclaringReader covers the other branch: a reader that
 // declares filter support gets the filter itself.
 func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
-	filter := &tracestore.Call{
-		Op: tracestore.OpRegex,
-		Args: []tracestore.Expression{
-			&tracestore.Reference{Name: "http.route", Level: tracestore.LevelSpan, Attr: true},
-			&tracestore.Scalar{Value: "/cart/.*"},
+	filter := &expression.Call{
+		Op: expression.OpRegex,
+		Args: []expression.Expression{
+			&expression.Reference{Name: "http.route", Level: expression.LevelSpan, Attr: true},
+			&expression.Scalar{Value: "/cart/.*"},
 		},
 	}
 	query := TraceQueryParams{
@@ -1160,8 +1161,8 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
 		WithoutServiceName: true,
 		Filter: &tracestore.FilterCapabilities{
-			Levels:    []tracestore.Level{tracestore.LevelSpan},
-			Operators: []tracestore.Operator{tracestore.OpRegex},
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpRegex},
 		},
 	}, nil)
 
@@ -1177,13 +1178,13 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 // every service is satisfied by a filter that names one — and still refuses a filter that
 // does not.
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
-	filterOn := func(field tracestore.Field, value string) *tracestore.Call {
-		return &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
+	filterOn := func(field expression.Field, value string) *expression.Call {
+		return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
 			field.Ref(),
-			&tracestore.Scalar{Value: value},
+			&expression.Scalar{Value: value},
 		}}
 	}
-	queryWith := func(filter *tracestore.Call) TraceQueryParams {
+	queryWith := func(filter *expression.Call) TraceQueryParams {
 		return TraceQueryParams{
 			TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter},
 		}
@@ -1196,7 +1197,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
-			queryWith(filterOn(tracestore.ResourceService, "cart"))))
+			queryWith(filterOn(expression.ResourceService, "cart"))))
 		require.NoError(t, err)
 		assert.Equal(t, "cart", dispatched.ServiceName)
 		reader.AssertExpectations(t)
@@ -1207,9 +1208,9 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		reader := declaresSearchWithoutServiceName(new(tracestoremocks.Reader), false)
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
-		attrFilter := &tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-			&tracestore.Reference{Name: "http.method"},
-			&tracestore.Scalar{Value: "GET"},
+		attrFilter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.Reference{Name: "http.method"},
+			&expression.Scalar{Value: "GET"},
 		}}
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), queryWith(attrFilter)))
 		require.ErrorIs(t, err, ErrServiceNameRequired)
@@ -1224,12 +1225,12 @@ func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 	query := TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			Attributes: pcommon.NewMap(),
-			Filter: &tracestore.Call{Op: tracestore.OpOr, Args: []tracestore.Expression{
-				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					&tracestore.Reference{Name: "a"}, &tracestore.Scalar{Value: "1"},
+			Filter: &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
+				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					&expression.Reference{Name: "a"}, &expression.Scalar{Value: "1"},
 				}},
-				&tracestore.Call{Op: tracestore.OpEq, Args: []tracestore.Expression{
-					&tracestore.Reference{Name: "b"}, &tracestore.Scalar{Value: "2"},
+				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					&expression.Reference{Name: "b"}, &expression.Scalar{Value: "2"},
 				}},
 			}},
 		},

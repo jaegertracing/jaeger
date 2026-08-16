@@ -36,16 +36,20 @@ type SearchCapabilities struct {
 	// Cassandra, cannot do this.
 	WithoutServiceName bool `protobuf:"varint,1,opt,name=without_service_name,json=withoutServiceName,proto3" json:"without_service_name,omitempty"`
 	// same_span_conjunction is true when a multi-predicate conjunction — the legacy
-	// attributes map, or an `and` in the RFC 0005 filter — is matched within a single
+	// attributes map, or an `and` in the structured filter — is matched within a single
 	// span. false means the backend may satisfy different conjuncts from different spans
 	// of the same trace, as a flat inverted index intersecting at trace granularity does.
 	// It is reported, not enforced: the query service does not refuse a conjunction, it
 	// surfaces the looser scoping so a caller that needs strict single-span matching is
 	// not surprised by the result.
 	SameSpanConjunction bool `protobuf:"varint,2,opt,name=same_span_conjunction,json=sameSpanConjunction,proto3" json:"same_span_conjunction,omitempty"`
-	// filter describes structured-filter support (RFC 0005). An absent message means the
-	// backend serves only the legacy predicate fields, so the query service down-converts
-	// any filter to service_name / attributes / duration for it.
+	// filter describes structured-filter support (see FilterCapabilities below). An absent message and an
+	// empty one (both lists below empty) mean the same thing — no structured-filter
+	// support — so the query service down-converts any filter to the legacy service_name /
+	// attributes / duration fields, refusing what those cannot express. This follows the
+	// opt-in, zero-value-is-least-capable rule above: a backend advertises filter support
+	// only by populating the lists below, and there is no distinct "present but empty"
+	// state to get wrong.
 	Filter               *FilterCapabilities `protobuf:"bytes,3,opt,name=filter,proto3" json:"filter,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
 	XXX_unrecognized     []byte              `json:"-"`
@@ -97,10 +101,13 @@ func (m *SearchCapabilities) GetFilter() *FilterCapabilities {
 	return nil
 }
 
-// FilterCapabilities declares how much of the RFC 0005 structured filter a backend can
-// serve. Both fields are refusal gates: the query service rejects a predicate that names
-// a level or an operator not listed here. Nothing is implicit, so the zero value of this
-// message — both lists empty — serves no filter at all.
+// FilterCapabilities declares how much of the structured trace-query filter a backend
+// can serve, by listing the levels and operators it evaluates. (The filter is Jaeger
+// RFC 0005: https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md.)
+// Empty lists mean no support, the same as an absent FilterCapabilities (see
+// SearchCapabilities.filter) — a backend opts in only by naming what it serves. When the lists are non-empty they are refusal
+// gates: the query service rejects a predicate that names a level or an operator not
+// listed here.
 type FilterCapabilities struct {
 	// levels lists the attribute levels the backend can filter on
 	// (span|resource|instrumentation|event|link). Empty means it cannot serve a

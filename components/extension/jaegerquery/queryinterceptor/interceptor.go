@@ -22,9 +22,9 @@
 // traces before it is returned (to drop or redact them). The business logic —
 // authorization, redaction — lives entirely in the extension.
 //
-// The types here depend only on public packages (OTel pdata), so custom OCB
-// builds and third-party extensions implement this contract without importing
-// any jaeger-internal package. Query is a stable, purpose-built view: it is
+// The types here depend only on public packages (OTel pdata, and the filter AST from
+// jaeger-idl), so custom OCB builds and third-party extensions implement this contract
+// without importing any jaeger-internal package. Query is a stable, purpose-built view: it is
 // deliberately decoupled from jaeger-query's internal query struct so the
 // internals can evolve without breaking this contract.
 package queryinterceptor
@@ -33,21 +33,30 @@ import (
 	"context"
 	"time"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Query is the public view of a trace-search query passed to Interceptor.OnQuery.
+//
+// Every predicate is in Filter, including the ones a caller sent as the older scalar search
+// fields: jaeger-query expresses a service, an operation name, a tag and a duration bound as
+// filter predicates before an interceptor sees them, so an implementation reads and rewrites
+// one thing rather than a filter plus four fields that can say the same in two ways. The
+// remaining fields are the envelope, which no predicate lives in.
 type Query struct {
-	ServiceName   string
-	OperationName string
-	// Attributes holds the tag/attribute filters of the query. When building a
-	// Query, initialize it with pcommon.NewMap().
-	Attributes   pcommon.Map
+	// Filter is the query's predicates as a boolean-valued expression (RFC 0005 §6). Never
+	// nil: a search with no predicates at all arrives as an empty conjunction.
+	//
+	// Scoping a query means narrowing this — conjoining a predicate the caller is permitted,
+	// or refusing outright. A filter naming a level or operator the storage backend cannot
+	// serve is refused after OnQuery returns, so an interceptor is told when it has asked for
+	// something the deployment cannot answer rather than having it quietly widened.
+	Filter *expression.Call
+
 	StartTimeMin time.Time
 	StartTimeMax time.Time
-	DurationMin  time.Duration
-	DurationMax  time.Duration
 	SearchDepth  int
 }
 

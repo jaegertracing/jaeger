@@ -10,6 +10,8 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -165,7 +167,7 @@ type TraceQueryParams struct {
 	// receives a Filter whose levels, operators and boolean structure its
 	// SearchCapabilities declare; for any other reader the caller expresses the filter in
 	// the legacy fields instead, or refuses the query.
-	Filter *Call
+	Filter *expression.Call
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs

@@ -19,6 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -256,7 +257,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
-		Filter:        toProtoFilter(t.Filter),
+		Filter:        expressionproto.FromFilter(t.Filter),
 	}
 }
 

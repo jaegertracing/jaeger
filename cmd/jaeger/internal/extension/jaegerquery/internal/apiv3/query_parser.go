@@ -16,7 +16,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
-	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -92,11 +92,11 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		if !structuredFiltersGate.IsEnabled() {
 			return nil, errStructuredFiltersDisabled()
 		}
-		var call api_v3.Call
+		var call expressionproto.Call
 		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 		}
-		filter, err := toStorageFilter(&call)
+		filter, err := toFilter(&call)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 		}
