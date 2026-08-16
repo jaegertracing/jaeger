@@ -5,6 +5,7 @@ package clickhouse
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -14,12 +15,15 @@ import (
 )
 
 const (
-	defaultProtocol                      = "native"
-	defaultDatabase                      = "jaeger"
-	defaultSearchDepth                   = 1000
-	defaultMaxSearchDepth                = 10000
-	defaultAttributeMetadataCacheTTL     = time.Hour
-	defaultAttributeMetadataCacheMaxSize = 1000
+	defaultProtocol                        = "native"
+	defaultDatabase                        = "jaeger"
+	defaultSearchDepth                     = 1000
+	defaultMaxSearchDepth                  = 10000
+	defaultAttributeMetadataCacheTTL       = time.Hour
+	defaultAttributeMetadataCacheMaxSize   = 1000
+	defaultTraceIDBloomFilterFalsePositive = 0.025
+	minTraceIDBloomFilterFalsePositive     = 1e-7
+	maxTraceIDBloomFilterFalsePositive     = 0.1
 )
 
 type Configuration struct {
@@ -56,6 +60,13 @@ type Configuration struct {
 	// TTL is the Time-To-Live for spans in the database.
 	// Data older than this will be automatically deleted. 0 means disabled.
 	TTL time.Duration `mapstructure:"ttl"`
+	// TraceIDBloomFilterFalsePositive is the false-positive rate for the
+	// bloom_filter skip index on spans.trace_id. It only affects schema
+	// creation (create_schema: true); existing tables are not altered.
+	// Default is 0.025 (ClickHouse's implicit default). For high-scale
+	// deployments where FindTraces is limited by trace-ID filtering,
+	// operators may set this to 0.0001.
+	TraceIDBloomFilterFalsePositive *float64 `mapstructure:"trace_id_bloom_filter_false_positive"`
 }
 
 type Authentication struct {
@@ -71,6 +82,20 @@ func (cfg *Configuration) Validate() error {
 	}
 	if cfg.TTL > 0 && cfg.TTL%time.Second != 0 {
 		return errors.New("ttl must be a whole number of seconds")
+	}
+	// Nil is valid: applyDefaults fills in the ClickHouse default before schema creation.
+	if cfg.TraceIDBloomFilterFalsePositive != nil {
+		fp := *cfg.TraceIDBloomFilterFalsePositive
+		if fp <= 0 || fp >= 1 {
+			return errors.New("trace_id_bloom_filter_false_positive must be between 0 and 1")
+		}
+		if fp < minTraceIDBloomFilterFalsePositive || fp > maxTraceIDBloomFilterFalsePositive {
+			return fmt.Errorf(
+				"trace_id_bloom_filter_false_positive must be between %g and %g",
+				minTraceIDBloomFilterFalsePositive,
+				maxTraceIDBloomFilterFalsePositive,
+			)
+		}
 	}
 	return nil
 }
@@ -93,5 +118,9 @@ func (cfg *Configuration) applyDefaults() {
 	}
 	if cfg.AttributeMetadataCacheMaxSize <= 0 {
 		cfg.AttributeMetadataCacheMaxSize = defaultAttributeMetadataCacheMaxSize
+	}
+	if cfg.TraceIDBloomFilterFalsePositive == nil {
+		v := defaultTraceIDBloomFilterFalsePositive
+		cfg.TraceIDBloomFilterFalsePositive = &v
 	}
 }
