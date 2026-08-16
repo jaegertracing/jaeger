@@ -15,7 +15,8 @@ import (
 var defaultIndexOptions = config.IndexOptions{
 	Shards:   5,
 	Replicas: new(int64(1)),
-	Priority: 0,
+	// Priority is left unset rather than pointed at 0: nothing here chose a priority,
+	// and an explicit 0 would claim otherwise. Both render 0 on the ES8 path.
 	Rotation: config.RotationConfig{
 		Periodic: configoptional.Default(config.PeriodicRotation{
 			DateLayout:        initDateLayout("day", "-"),

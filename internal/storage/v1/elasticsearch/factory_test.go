@@ -387,8 +387,8 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 		CreateIndexTemplates: true,
 		LogLevel:             "error",
 		Indices: escfg.Indices{
-			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
-			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
+			Spans:    escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: new(int64(10))},
+			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: new(int64(10))},
 		},
 	}
 	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)

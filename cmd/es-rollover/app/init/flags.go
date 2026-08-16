@@ -51,10 +51,13 @@ func (c *Config) InitFromViper(v *viper.Viper) {
 	c.Indices.Dependencies.Replicas = repsPtr
 	c.Indices.Sampling.Replicas = repsPtr
 
-	c.Indices.Spans.Priority = v.GetInt64(prioritySpanTemplate)
-	c.Indices.Services.Priority = v.GetInt64(priorityServiceTemplate)
-	c.Indices.Dependencies.Priority = v.GetInt64(priorityDependenciesTemplate)
-	c.Indices.Sampling.Priority = v.GetInt64(prioritySamplingTemplate)
+	// v.GetInt64 falls back to the flag default of 0, so an omitted flag arrives here
+	// as an explicit 0 rather than as unset: es-rollover has no unset priority. That
+	// is the value it rendered before the field became a pointer.
+	c.Indices.Spans.Priority = new(v.GetInt64(prioritySpanTemplate))
+	c.Indices.Services.Priority = new(v.GetInt64(priorityServiceTemplate))
+	c.Indices.Dependencies.Priority = new(v.GetInt64(priorityDependenciesTemplate))
+	c.Indices.Sampling.Priority = new(v.GetInt64(prioritySamplingTemplate))
 
 	// Config.IndexPrefix supersedes Indices.IndexPrefix: the client renders the
 	// templates from Indices, so reconcile the prefix onto it here.

@@ -164,8 +164,14 @@ func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilm
 	}
 
 	if version.UsesV8API() {
+		// An unset priority still renders 0, the value the field's int64 zero
+		// rendered before it became a pointer, so no template body changes.
+		var priority int64
+		if opts.Priority != nil {
+			priority = *opts.Priority
+		}
 		body, err := json.Marshal(map[string]any{
-			"priority":       opts.Priority,
+			"priority":       priority,
 			"index_patterns": prefix + m.indexBase() + "-*",
 			"template":       inner,
 		})

@@ -42,17 +42,17 @@ func TestApplyDefaults(t *testing.T) {
 			Spans: IndexOptions{
 				Shards:   5,
 				Replicas: new(int64(1)),
-				Priority: 10,
+				Priority: new(int64(10)),
 			},
 			Services: IndexOptions{
 				Shards:   5,
 				Replicas: new(int64(1)),
-				Priority: 20,
+				Priority: new(int64(20)),
 			},
 			Dependencies: IndexOptions{
 				Shards:   5,
 				Replicas: new(int64(1)),
-				Priority: 30,
+				Priority: new(int64(30)),
 			},
 			Sampling: IndexOptions{},
 		},
@@ -76,7 +76,7 @@ func TestApplyDefaults(t *testing.T) {
 			target: &Configuration{
 				Indices: Indices{
 					Dependencies: IndexOptions{
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 			}, // All fields are empty
@@ -91,13 +91,13 @@ func TestApplyDefaults(t *testing.T) {
 				},
 				Indices: Indices{
 					Spans: IndexOptions{
-						Priority: 10,
+						Priority: new(int64(10)),
 					},
 					Services: IndexOptions{
-						Priority: 20,
+						Priority: new(int64(20)),
 					},
 					Dependencies: IndexOptions{
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 				// Other fields left default
@@ -117,17 +117,17 @@ func TestApplyDefaults(t *testing.T) {
 					Spans: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 10,
+						Priority: new(int64(10)),
 					},
 					Services: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 20,
+						Priority: new(int64(20)),
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 				BulkProcessing: BulkProcessing{
@@ -157,17 +157,17 @@ func TestApplyDefaults(t *testing.T) {
 					Spans: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 10,
+						Priority: new(int64(10)),
 					},
 					Services: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 20,
+						Priority: new(int64(20)),
 					},
 					Dependencies: IndexOptions{
 						Shards:   5,
 						Replicas: new(int64(1)),
-						Priority: 30,
+						Priority: new(int64(30)),
 					},
 				},
 				BulkProcessing: BulkProcessing{
@@ -189,6 +189,23 @@ func TestApplyDefaults(t *testing.T) {
 			require.Equal(t, test.expected, test.target)
 		})
 	}
+}
+
+// TestSetDefaultIndexOptions_Priority pins what the pointer is for: zero is a legal
+// composable-template priority, so an explicitly configured 0 has to survive
+// defaulting, while an unset one still inherits the source's.
+func TestSetDefaultIndexOptions_Priority(t *testing.T) {
+	source := IndexOptions{Priority: new(int64(10))}
+
+	explicitZero := IndexOptions{Priority: new(int64(0))}
+	setDefaultIndexOptions(&explicitZero, &source)
+	require.NotNil(t, explicitZero.Priority)
+	assert.Equal(t, int64(0), *explicitZero.Priority)
+
+	var unset IndexOptions
+	setDefaultIndexOptions(&unset, &source)
+	require.NotNil(t, unset.Priority)
+	assert.Equal(t, int64(10), *unset.Priority)
 }
 
 func TestApplyDefaults_Auth(t *testing.T) {

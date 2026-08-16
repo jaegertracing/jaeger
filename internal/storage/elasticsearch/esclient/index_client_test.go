@@ -633,7 +633,7 @@ func testIndices() config.Indices {
 func templateSnapshotIndices() config.Indices {
 	opts := func(priority int64) config.IndexOptions {
 		reps := int64(3)
-		return config.IndexOptions{Shards: 3, Replicas: &reps, Priority: priority}
+		return config.IndexOptions{Shards: 3, Replicas: &reps, Priority: &priority}
 	}
 	return config.Indices{
 		IndexPrefix:  "test-",
