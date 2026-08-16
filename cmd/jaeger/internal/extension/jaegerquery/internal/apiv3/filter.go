@@ -15,20 +15,24 @@ import (
 
 // structuredFiltersGate admits the RFC 0005 structured query filter on trace search. It is
 // off by default because the filter AST is a public API still moving through that RFC's
-// milestones, and because each backend's lowering of it arrives separately: a deployment that
-// has not opted in behaves exactly as it did before the filter existed.
+// milestones, so a deployment that has not opted in behaves exactly as it did before the
+// filter existed. It sits at the api_v3 edge rather than deeper, so that while it is off no
+// filter enters the system and nothing downstream of it can run.
 //
-// The gate sits at the api_v3 edge rather than deeper, so that while it is off no filter
-// enters the system at all and none of what follows can run — validation, the capability
-// check, the rewrite into the legacy predicate fields, the remote-storage encoding, or a
-// backend's own lowering.
+// It admits the filter into the query path; whether a backend evaluates one natively is a
+// separate switch, named jaeger.<backend>.structuredFilters — this gate's leaf with the
+// backend in place of "query" — because the two stabilize on different schedules. With this
+// gate on and a backend's off, that backend declares no FilterCapabilities, so the query
+// service rewrites the filter into the legacy predicate fields instead of sending it down.
 var structuredFiltersGate = featuregate.GlobalRegistry().MustRegister(
 	"jaeger.query.structuredFilters",
 	featuregate.StageAlpha,
 	featuregate.WithRegisterFromVersion("v2.21.0"),
 	featuregate.WithRegisterDescription(
-		"Accepts the RFC 0005 structured query filter on api_v3 trace search. The filter AST "+
-			"is not yet stable, so a request that carries one is refused while this is disabled.",
+		"Accepts the RFC 0005 structured query filter on api_v3 trace search. The filter AST is "+
+			"not yet stable, so a request that carries one is refused while this is disabled. This "+
+			"admits filters into the query path only; whether a storage backend evaluates one "+
+			"natively is gated separately, by jaeger.<backend>.structuredFilters.",
 	),
 	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0005-structured-query-filters.md"),
 )
