@@ -186,7 +186,7 @@ func TestMultiSearchNDJSONAndResponse(t *testing.T) {
 	}})
 	require.NoError(t, err)
 
-	assert.Equal(t, http.MethodGet, gotMethod)
+	assert.Equal(t, http.MethodPost, gotMethod)
 	assert.Equal(t, "/_msearch", gotPath)
 	assert.Equal(t, "application/x-ndjson", gotCT)
 	lines := strings.Split(strings.TrimRight(string(gotBody), "\n"), "\n")

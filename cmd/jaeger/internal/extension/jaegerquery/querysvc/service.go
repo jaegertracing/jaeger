@@ -22,6 +22,14 @@ import (
 
 var errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 
+// ErrServiceNameRequired is returned for a search that omits the service name against a
+// backend whose reader does not accept one (RFC 0013 §3.3). It names the backend's
+// limitation rather than the missing field, because the same query is valid elsewhere.
+// The API layers map it to InvalidArgument / HTTP 400.
+var ErrServiceNameRequired = errors.New(
+	"this storage backend requires a service name to search; searching all services is not supported",
+)
+
 // QueryServiceOptions holds the configuration options for the query service.
 type QueryServiceOptions struct {
 	// ArchiveTraceReader is used to read archived traces from the storage.
@@ -33,15 +41,6 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
-}
-
-// StorageCapabilities is a feature flag for query service
-type StorageCapabilities struct {
-	ArchiveStorage bool `json:"archiveStorage"`
-	MetricsStorage bool `json:"metricsStorage"`
-	// Potential future extensions:
-	// SupportRegex     bool
-	// SupportTagFilter bool
 }
 
 // QueryService provides methods to query data from the storage.
@@ -153,48 +152,81 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
+		if err := qs.validateSearchQuery(ctx, query); err != nil {
+			yield(nil, err)
+			return
+		}
 		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
 
-// FindTraceSummaries searches for traces matching the query and returns an iterator
-// of lightweight summary information. If the underlying storage implements
-// tracestore.SummaryReader, it delegates to that; otherwise it falls back to
-// FindTraces and computes summaries from the full trace data.
+// SearchWithoutServiceName reports whether the trace reader accepts a search that omits the
+// service name and reads it as "any service" (RFC 0013 §3.3). The reader is asked every time
+// rather than once, because a remote backend answers for itself and may not have been
+// reachable when jaeger-query started; a reader for which that costs a round trip caches its
+// own answer.
 //
-// A SummaryReader implementation that does not support the operation should yield
-// errors.ErrUnsupported (wrapped with %w) as the first error; FindTraceSummaries
-// will fall back transparently to computeSummaries.
+// A reader that cannot say returns an error, which callers read as the least capable
+// backend.
+func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, error) {
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		return false, err
+	}
+	return caps.WithoutServiceName, nil
+}
+
+// validateSearchQuery rejects a query whose shape the backend cannot serve. Storage
+// readers guard themselves too, but they answer differently — Cassandra returned an empty
+// result for a service-less search until RFC 0013 — so the single answer callers see is
+// decided here. Rejecting here also keeps the query from reaching storage and coming back
+// silently wrong.
+func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
+	if query.ServiceName != "" {
+		return nil
+	}
+	if withoutServiceName, err := qs.SearchWithoutServiceName(ctx); err != nil || !withoutServiceName {
+		return ErrServiceNameRequired
+	}
+	return nil
+}
+
+// FindTraceSummaries searches for traces matching the query and returns an iterator
+// of lightweight summary information. It calls the trace reader's FindTraceSummaries;
+// readers that cannot compute summaries natively yield errors.ErrUnsupported (wrapped
+// with %w) as the first error, in which case FindTraceSummaries transparently falls
+// back to FindTraces and computes summaries from the full trace data.
 //
 // The iterator is single-use: once consumed, it cannot be used again.
 func (qs QueryService) FindTraceSummaries(
 	ctx context.Context,
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
-	if sr, ok := qs.traceReader.(tracestore.SummaryReader); ok {
-		return func(yield func([]tracestore.TraceSummary, error) bool) {
-			for batch, err := range sr.FindTraceSummaries(ctx, query.TraceQueryParams) {
-				if err != nil {
-					if errors.Is(err, errors.ErrUnsupported) {
-						// Fall back to FindTraces + aggregation.
-						for b, e := range computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster) {
-							if !yield(b, e) {
-								return
-							}
+	return func(yield func([]tracestore.TraceSummary, error) bool) {
+		if err := qs.validateSearchQuery(ctx, query); err != nil {
+			yield(nil, err)
+			return
+		}
+		for batch, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
+			if err != nil {
+				if errors.Is(err, errors.ErrUnsupported) {
+					// Fall back to FindTraces + aggregation.
+					for b, e := range computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster) {
+						if !yield(b, e) {
+							return
 						}
-						return
 					}
-					yield(nil, err)
 					return
 				}
-				if !yield(batch, nil) {
-					return
-				}
+				yield(nil, err)
+				return
+			}
+			if !yield(batch, nil) {
+				return
 			}
 		}
 	}
-	return computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster)
 }
 
 // ArchiveTrace archives a trace specified by the given query parameters.

@@ -372,17 +372,55 @@ func TestSearchTracesHandler_Handle_PartialResults(t *testing.T) {
 	assert.Contains(t, output.Error, "temporary failure")
 }
 
-func TestSearchTracesHandler_Handle_MissingServiceName(t *testing.T) {
-	handler := NewSearchTracesHandler(nil, 100)
-
-	input := types.SearchTracesInput{
-		StartTimeMin: "-1h",
+// TestSearchTracesHandler_Handle_NoServiceName covers the cross-service search an agent can
+// now ask for: the tool forwards a query with no service name instead of refusing it, so an
+// agent asked for "HTTP 500s in the last 10 minutes" makes one call rather than fanning out
+// over get_services (RFC 0013).
+func TestSearchTracesHandler_Handle_NoServiceName(t *testing.T) {
+	var gotQuery querysvc.TraceQueryParams
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			gotQuery = query
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{{RootServiceName: "svc-a"}}, nil)
+			}
+		},
 	}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
 
-	_, _, err := handler(context.Background(), &mcp.CallToolRequest{}, input)
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		Attributes:   map[string]string{"http.status_code": "500"},
+	})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service_name is required")
+	require.NoError(t, err)
+	assert.Empty(t, gotQuery.ServiceName, "the empty service name must reach the query service")
+	assert.Len(t, output.Traces, 1)
+	assert.Empty(t, output.Error)
+}
+
+// TestSearchTracesHandler_Handle_ServiceNameRequiredByBackend covers the other side: the
+// query service refuses the query for a backend that cannot serve it, and the agent is told
+// why rather than being handed an empty result set described as partial.
+func TestSearchTracesHandler_Handle_ServiceNameRequiredByBackend(t *testing.T) {
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield(nil, querysvc.ErrServiceNameRequired)
+			}
+		},
+	}
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, types.SearchTracesInput{
+		StartTimeMin: "-1h",
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, output.Traces)
+	assert.Contains(t, output.Error, "requires a service name")
+	assert.NotContains(t, output.Error, "partial results",
+		"nothing was returned, so the agent must not be told results were partial")
 }
 
 func TestSearchTracesHandler_Handle_InvalidTimeFormat(t *testing.T) {

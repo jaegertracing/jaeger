@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +28,35 @@ const (
 	ServiceIndexName    = "jaeger-service"
 	DependencyIndexName = "jaeger-dependencies"
 	SamplingIndexName   = "jaeger-sampling"
+)
+
+// WriteMode selects how the Elasticsearch/OpenSearch trace writer persists spans.
+type WriteMode string
+
+const (
+	// WriteModeAsync enqueues spans into a client-side bulk buffer and returns from
+	// WriteTraces before the data is durable. It is the default when write_mode is unset.
+	WriteModeAsync WriteMode = "async"
+	// WriteModeSync writes each batch with a single blocking _bulk request and returns
+	// a real error from WriteTraces if any span fails to persist.
+	WriteModeSync WriteMode = "sync"
+)
+
+// PoisonHandling selects what a synchronous writer does with a document the backend
+// rejects *terminally* — a "poison pill" (mapping conflict, malformed field, other
+// 4xx) that will fail identically on every retry. It has no effect in async mode.
+type PoisonHandling string
+
+const (
+	// PoisonFail fails the whole batch on any terminal rejection, so the write is
+	// retried indefinitely. This is the default: it never drops data, at the cost of
+	// head-of-line blocking on the Kafka ingest path until the document is fixed.
+	PoisonFail PoisonHandling = "fail"
+	// PoisonDrop discards a terminally-rejected document — logging and counting it —
+	// so the batch completes and the Kafka offset advances. Transient failures
+	// (429 / 5xx / transport) still fail the batch and are retried. Use this when
+	// dropping a rare malformed span is preferable to stalling a partition.
+	PoisonDrop PoisonHandling = "drop"
 )
 
 // IndexOptions describes the index format and rollover frequency
@@ -124,12 +152,24 @@ type Configuration struct {
 	// TLS contains the TLS configuration for the connection to the ElasticSearch clusters.
 	TLS      configtls.ClientConfig `mapstructure:"tls"`
 	Sniffing Sniffing               `mapstructure:"sniffing"`
-	// Disable the Elasticsearch health check
-	DisableHealthCheck bool `mapstructure:"disable_health_check"`
-	// Set the Elasticsearch health check timeout startup
-	HealthCheckTimeoutStartup time.Duration `mapstructure:"health_check_timeout_startup"`
-	// SendGetBodyAs is the HTTP verb to use for requests that contain a body.
-	SendGetBodyAs string `mapstructure:"send_get_body_as"`
+	// DisableHealthCheck used to disable the Elasticsearch health check.
+	//
+	// Deprecated: the owned esclient transport performs no client-side health
+	// check, so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	DisableHealthCheck configoptional.Optional[bool] `mapstructure:"disable_health_check"`
+	// HealthCheckTimeoutStartup used to set the Elasticsearch health check startup timeout.
+	//
+	// Deprecated: the owned esclient transport performs no client-side health
+	// check, so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	HealthCheckTimeoutStartup configoptional.Optional[time.Duration] `mapstructure:"health_check_timeout_startup"`
+	// SendGetBodyAs used to select the HTTP verb for requests that carry a body.
+	//
+	// Deprecated: the owned esclient transport sends each request with a fixed
+	// verb, so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	SendGetBodyAs configoptional.Optional[string] `mapstructure:"send_get_body_as"`
 	// QueryTimeout contains the timeout used for queries. A timeout of zero means no timeout.
 	QueryTimeout time.Duration `mapstructure:"query_timeout"`
 	// HTTPCompression can be set to false to disable gzip compression for requests to ElasticSearch
@@ -141,6 +181,21 @@ type Configuration struct {
 	CustomHeaders map[string]string `mapstructure:"custom_headers"`
 	// ---- elasticsearch client related configs ----
 	BulkProcessing BulkProcessing `mapstructure:"bulk_processing"`
+	// WriteMode selects how the trace writer persists spans. Valid values are
+	// "async" and "sync":
+	//   - "async": spans are enqueued into a client-side bulk buffer and
+	//     WriteTraces returns before the data is durable (higher throughput, but
+	//     a bulk-flush failure is not surfaced to the caller).
+	//   - "sync": each batch is written with a single blocking _bulk request and
+	//     WriteTraces returns a real error if any span fails to persist,
+	//     respecting the tracestore.Writer contract. See RFC 0007 for background.
+	// When empty, it defaults to "async". See config.EffectiveWriteMode().
+	WriteMode WriteMode `mapstructure:"write_mode"`
+	// PoisonPillHandling selects what the synchronous writer does with a document the
+	// backend rejects terminally: "fail" (default — retry forever, never drop) or
+	// "drop" (discard the poison doc so the offset advances). No effect in async mode.
+	// When empty it defaults to "fail". See config.EffectivePoisonHandling().
+	PoisonPillHandling PoisonHandling `mapstructure:"poison_pill_handling"`
 	// Version contains the backend version number (e.g. 7, 8, 9 for Elasticsearch,
 	// 101, 102, 103 for OpenSearch). If 0, it will be auto-detected from the server.
 	Version uint `mapstructure:"version"`
@@ -245,18 +300,31 @@ type TagsAsFields struct {
 // Sniffing sets the sniffing configuration for the ElasticSearch client, which is the process
 // of discovering all the nodes of a cluster by querying one of its members.
 type Sniffing struct {
-	// Enabled, if set to true, enables sniffing for the ElasticSearch client.
+	// Enabled, if set to true, enables sniffing for the ElasticSearch client: the
+	// client queries one seed node once at startup and adds the cluster's other
+	// nodes to its connection pool. Left off by default because a cluster that
+	// publishes addresses the client cannot reach (a common AWS/proxy setup)
+	// would break; enable it only when every node is directly reachable.
 	Enabled bool `mapstructure:"enabled"`
-	// UseHTTPS, if set to true, sets the HTTP scheme to HTTPS when performing sniffing.
-	// For ESV8, the scheme is set to HTTPS by default, so this configuration is ignored.
-	UseHTTPS bool `mapstructure:"use_https"`
+	// UseHTTPS used to force the HTTPS scheme when sniffing discovered nodes.
+	//
+	// Deprecated: the owned esclient transport derives the scheme of discovered
+	// nodes from the seed server URL (an https:// seed already yields https://
+	// nodes), so this setting has no effect since v2.20.0. It is now
+	// rejected by config validation and will be removed in a future release.
+	UseHTTPS configoptional.Optional[bool] `mapstructure:"use_https"`
 }
 
 type BulkProcessing struct {
 	// MaxBytes, contains the number of bytes which specifies when to flush.
 	MaxBytes int `mapstructure:"max_bytes"`
-	// MaxActions contain the number of added actions which specifies when to flush.
-	MaxActions int `mapstructure:"max_actions"`
+	// MaxActions used to contain the number of added actions which specifies when to flush.
+	//
+	// Deprecated: the bulk indexer flushes only on a byte threshold (max_bytes) or a
+	// flush interval (flush_interval); it has no action-count trigger, so this setting
+	// has no effect since v2.20.0. It is now rejected by config validation and will be
+	// removed in a future release.
+	MaxActions configoptional.Optional[int] `mapstructure:"max_actions"`
 	// FlushInterval is the interval at the end of which a flush occurs.
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
 	// Workers contains the number of concurrent workers allowed to be executed.
@@ -300,126 +368,6 @@ type BasicAuthentication struct {
 // the TokenFilePath will be ignored.
 // For more information about token-based authentication in elasticsearch, check out
 // https://www.elastic.co/guide/en/elasticsearch/reference/current/token-authentication-services.html.
-
-func setDefaultIndexOptions(target, source *IndexOptions) {
-	if target.Shards == 0 {
-		target.Shards = source.Shards
-	}
-
-	if target.Replicas == nil {
-		target.Replicas = source.Replicas
-	}
-
-	if target.Priority == 0 {
-		target.Priority = source.Priority
-	}
-
-	if !target.DateLayout.HasValue() && source.DateLayout.HasValue() {
-		target.DateLayout = source.DateLayout
-	}
-
-	if !target.RolloverFrequency.HasValue() && source.RolloverFrequency.HasValue() {
-		target.RolloverFrequency = source.RolloverFrequency
-	}
-}
-
-// ApplyDefaults copies settings from source unless its own value is non-zero.
-func (c *Configuration) ApplyDefaults(source *Configuration) {
-	if len(c.RemoteReadClusters) == 0 {
-		c.RemoteReadClusters = source.RemoteReadClusters
-	}
-	// Handle BasicAuthentication defaults
-	sourceHasBasicAuth := source.Authentication.BasicAuthentication.HasValue()
-	targetHasBasicAuth := c.Authentication.BasicAuthentication.HasValue()
-	if sourceHasBasicAuth {
-		// If target doesn't have BasicAuth, copy it from source
-		if !targetHasBasicAuth {
-			c.Authentication.BasicAuthentication = source.Authentication.BasicAuthentication
-		} else {
-			// Target has BasicAuth, apply field-level defaults
-			sourceBasicAuth := source.Authentication.BasicAuthentication.Get()
-			// Make a copy of target BasicAuth
-			basicAuth := *c.Authentication.BasicAuthentication.Get()
-
-			// Apply defaults for username if not set
-			if basicAuth.Username == "" && sourceBasicAuth.Username != "" {
-				basicAuth.Username = sourceBasicAuth.Username
-			}
-			// Apply defaults for password if not set
-			if basicAuth.Password == "" && sourceBasicAuth.Password != "" {
-				basicAuth.Password = sourceBasicAuth.Password
-			}
-
-			// Only update BasicAuthentication if we have values to set
-			if basicAuth.Username != "" || basicAuth.Password != "" {
-				c.Authentication.BasicAuthentication = configoptional.Some(basicAuth)
-			}
-		}
-	}
-	if !c.Sniffing.Enabled {
-		c.Sniffing.Enabled = source.Sniffing.Enabled
-	}
-	if c.MaxSpanAge == 0 {
-		c.MaxSpanAge = source.MaxSpanAge
-	}
-	if c.MaxTraceDuration == 0 {
-		c.MaxTraceDuration = source.MaxTraceDuration
-	}
-	if c.AdaptiveSamplingLookback == 0 {
-		c.AdaptiveSamplingLookback = source.AdaptiveSamplingLookback
-	}
-	if c.Indices.IndexPrefix == "" {
-		c.Indices.IndexPrefix = source.Indices.IndexPrefix
-	}
-
-	setDefaultIndexOptions(&c.Indices.Spans, &source.Indices.Spans)
-	setDefaultIndexOptions(&c.Indices.Services, &source.Indices.Services)
-	setDefaultIndexOptions(&c.Indices.Dependencies, &source.Indices.Dependencies)
-
-	if c.BulkProcessing.MaxBytes == 0 {
-		c.BulkProcessing.MaxBytes = source.BulkProcessing.MaxBytes
-	}
-	if c.BulkProcessing.Workers == 0 {
-		c.BulkProcessing.Workers = source.BulkProcessing.Workers
-	}
-	if c.BulkProcessing.MaxActions == 0 {
-		c.BulkProcessing.MaxActions = source.BulkProcessing.MaxActions
-	}
-	if c.BulkProcessing.FlushInterval == 0 {
-		c.BulkProcessing.FlushInterval = source.BulkProcessing.FlushInterval
-	}
-	if !c.Sniffing.UseHTTPS {
-		c.Sniffing.UseHTTPS = source.Sniffing.UseHTTPS
-	}
-	if !c.Tags.AllAsFields {
-		c.Tags.AllAsFields = source.Tags.AllAsFields
-	}
-	if c.Tags.DotReplacement == "" {
-		c.Tags.DotReplacement = source.Tags.DotReplacement
-	}
-	if c.Tags.Include == "" {
-		c.Tags.Include = source.Tags.Include
-	}
-	if c.Tags.File == "" {
-		c.Tags.File = source.Tags.File
-	}
-	if c.MaxDocCount == 0 {
-		c.MaxDocCount = source.MaxDocCount
-	}
-	if c.LogLevel == "" {
-		c.LogLevel = source.LogLevel
-	}
-	if c.SendGetBodyAs == "" {
-		c.SendGetBodyAs = source.SendGetBodyAs
-	}
-	if !c.HTTPCompression {
-		c.HTTPCompression = source.HTTPCompression
-	}
-	if c.CustomHeaders == nil && len(source.CustomHeaders) > 0 {
-		c.CustomHeaders = make(map[string]string)
-		maps.Copy(c.CustomHeaders, source.CustomHeaders)
-	}
-}
 
 // RolloverFrequencyAsNegativeDuration returns the index rollover frequency as a negative duration.
 func RolloverFrequencyAsNegativeDuration(frequency string) time.Duration {
@@ -492,6 +440,36 @@ func (c *Configuration) Validate() error {
 		return errors.New("at most one authentication method (basic, bearer_token, api_key) may be configured; all three use the Authorization header")
 	}
 
+	// Reject options orphaned when the olivere client stack was retired (#8982):
+	// the owned esclient transport never wired them back up, so they have no
+	// effect. sniffing.use_https is a sniffing sub-option, disable_health_check /
+	// health_check_timeout_startup / send_get_body_as are connection options, and
+	// bulk_processing.max_actions is a client option; none has a lever on the
+	// current transport. Fail fast rather than accept a setting that silently does
+	// nothing.
+	if c.Sniffing.UseHTTPS.HasValue() {
+		return rejectUnwiredKey("sniffing.use_https",
+			"the client derives the scheme of discovered nodes from the seed server URL, "+
+				"so an https:// entry in 'server_urls' already yields https:// nodes")
+	}
+	if c.DisableHealthCheck.HasValue() {
+		return rejectUnwiredKey("disable_health_check",
+			"the client performs no client-side health check, so there is nothing to disable")
+	}
+	if c.HealthCheckTimeoutStartup.HasValue() {
+		return rejectUnwiredKey("health_check_timeout_startup",
+			"the client performs no client-side health check")
+	}
+	if c.SendGetBodyAs.HasValue() {
+		return rejectUnwiredKey("send_get_body_as",
+			"the client sends each request with a fixed HTTP verb")
+	}
+	if c.BulkProcessing.MaxActions.HasValue() {
+		return rejectUnwiredKey("bulk_processing.max_actions",
+			"the bulk indexer flushes only on a byte threshold ('bulk_processing.max_bytes') "+
+				"or a time interval ('bulk_processing.flush_interval'), so an action count has no effect")
+	}
+
 	// Validate rotation config for each index type
 	if err := c.validateRotationConfig(); err != nil {
 		return err
@@ -532,5 +510,77 @@ func (c *Configuration) Validate() error {
 		return errors.New("both service_read_alias and service_write_alias must be set together")
 	}
 
-	return nil
+	if err := validateWriteMode(c.WriteMode); err != nil {
+		return err
+	}
+
+	if err := validatePoisonHandling(c.PoisonPillHandling); err != nil {
+		return err
+	}
+
+	return validateLogLevel(c.LogLevel)
+}
+
+// EffectiveWriteMode resolves the write mode Jaeger should use: the explicit
+// WriteMode from config, or WriteModeAsync when it is unset.
+func (c *Configuration) EffectiveWriteMode() WriteMode {
+	if c.WriteMode != "" {
+		return c.WriteMode
+	}
+	return WriteModeAsync
+}
+
+// EffectivePoisonHandling resolves the poison-pill policy Jaeger should use: the
+// explicit PoisonPillHandling from config, or PoisonFail when it is unset.
+func (c *Configuration) EffectivePoisonHandling() PoisonHandling {
+	if c.PoisonPillHandling != "" {
+		return c.PoisonPillHandling
+	}
+	return PoisonFail
+}
+
+// validatePoisonHandling rejects an unrecognized poison_pill_handling. An empty
+// value is allowed and resolves to the default (PoisonFail).
+func validatePoisonHandling(mode PoisonHandling) error {
+	switch mode {
+	case "", PoisonFail, PoisonDrop:
+		return nil
+	default:
+		return fmt.Errorf("unrecognized poison_pill_handling %q: valid values are %q and %q", mode, PoisonFail, PoisonDrop)
+	}
+}
+
+// validateWriteMode rejects an unrecognized write_mode. An empty value is allowed
+// and resolves to the default (WriteModeAsync). It mirrors validateLogLevel:
+// write_mode carries no govalidator struct tag, so the whole-config Validate must
+// check it explicitly.
+func validateWriteMode(mode WriteMode) error {
+	switch mode {
+	case "", WriteModeAsync, WriteModeSync:
+		return nil
+	default:
+		return fmt.Errorf("unrecognized write_mode %q: valid values are %q and %q", mode, WriteModeAsync, WriteModeSync)
+	}
+}
+
+// validateLogLevel rejects an unrecognized log_level. An empty value is allowed
+// and means no client logging is attached.
+func validateLogLevel(level string) error {
+	switch level {
+	case "", "debug", "info", "error":
+		return nil
+	default:
+		return fmt.Errorf("unrecognized log_level %q: valid values are debug, info, error", level)
+	}
+}
+
+// rejectUnwiredKey builds the validation error for a config key that the current
+// Elasticsearch client no longer reads, pointing operators at the PR that explains
+// the change. The migration is always the same: remove the key.
+func rejectUnwiredKey(key, reason string) error {
+	return fmt.Errorf(
+		"'%s' is no longer supported: %s; please remove the setting "+
+			"(see https://github.com/jaegertracing/jaeger/pull/9076)",
+		key, reason,
+	)
 }

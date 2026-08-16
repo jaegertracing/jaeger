@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	"github.com/jaegertracing/jaeger/internal/metrics"
@@ -26,27 +25,11 @@ import (
 
 const tagError = "error"
 
-// nativeTraceSummariesGate enables computing trace summaries (the metadata shown
-// on the search-results page) natively in Elasticsearch/OpenSearch via a single
-// aggregation query, instead of loading full traces and aggregating them in the
-// query service. Enabled by default; when disabled, CreateTraceReader returns a
-// reader that does not implement tracestore.SummaryReader, so the query service
-// transparently falls back to the full-trace path.
-var nativeTraceSummariesGate = featuregate.GlobalRegistry().MustRegister(
-	"jaeger.es.nativeTraceSummaries",
-	featuregate.StageBeta,
-	featuregate.WithRegisterFromVersion("v2.20.0"),
-	featuregate.WithRegisterDescription(
-		"Computes trace summaries natively in Elasticsearch/OpenSearch via aggregations "+
-			"instead of loading full traces and aggregating in the query service. Requires "+
-			"inline (Painless) scripts to be enabled on the cluster.",
-	),
-)
-
 var (
-	_ io.Closer          = (*Factory)(nil)
-	_ tracestore.Factory = (*Factory)(nil)
-	_ depstore.Factory   = (*Factory)(nil)
+	_ io.Closer                      = (*Factory)(nil)
+	_ tracestore.Factory             = (*Factory)(nil)
+	_ tracestore.SyncBulkWriteConfig = (*Factory)(nil)
+	_ depstore.Factory               = (*Factory)(nil)
 )
 
 type Factory struct {
@@ -73,12 +56,7 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 
 func (f *Factory) CreateTraceReader() (tracestore.Reader, error) {
 	params := f.coreFactory.GetSpanReaderParams()
-	var reader tracestore.Reader
-	if nativeTraceSummariesGate.IsEnabled() {
-		reader = v2tracestore.NewReaderWithSummaries(params)
-	} else {
-		reader = v2tracestore.NewTraceReader(params)
-	}
+	reader := v2tracestore.NewTraceReader(params)
 	return tracestoremetrics.NewReaderDecorator(reader, f.metricsFactory), nil
 }
 
@@ -86,6 +64,16 @@ func (f *Factory) CreateTraceWriter() (tracestore.Writer, error) {
 	params := f.coreFactory.GetSpanWriterParams()
 	wr := v2tracestore.NewTraceWriter(params)
 	return wr, nil
+}
+
+// SyncBulkWriteByteCap implements tracestore.SyncBulkWriteConfig: it reports
+// whether spans are written synchronously (write_mode: sync) and, if so, the
+// maximum number of bytes the synchronous writer places in a single _bulk request
+// (bulk_processing.max_bytes). A blocking exporter uses it to check its configured
+// batch size against the cap (RFC 0007 §4.5). In async mode sync is false and the
+// cap is irrelevant.
+func (f *Factory) SyncBulkWriteByteCap() (sync bool, maxBytes int) {
+	return f.config.EffectiveWriteMode() == escfg.WriteModeSync, f.config.BulkProcessing.MaxBytes
 }
 
 func (f *Factory) CreateDependencyReader() (depstore.Reader, error) {

@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"iter"
 	"net/http"
 	"net/http/httptest"
@@ -39,7 +40,16 @@ func setupHTTPGatewayNoServer(
 	gw := &testGateway{
 		reader: &tracestoremocks.Reader{},
 	}
+	// The mock reader models a backend without native trace summaries: FindTraceSummaries
+	// yields ErrUnsupported so the query service falls back to FindTraces + aggregation.
+	gw.reader.On("FindTraceSummaries", mock.Anything, mock.Anything).
+		Return(iter.Seq2[[]tracestore.TraceSummary, error](func(yield func([]tracestore.TraceSummary, error) bool) {
+			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
+		})).Maybe()
 
+	// The baseline: a backend that requires a service name. Only service-less searches ask.
+	gw.reader.On("SearchCapabilities", mock.Anything).
+		Return(tracestore.SearchCapabilities{}, nil).Maybe()
 	q := querysvc.NewQueryService(
 		gw.reader,
 		&dependencystoremocks.Reader{},
@@ -78,6 +88,18 @@ func TestHTTPGateway(t *testing.T) {
 	runGatewayTests(t, "/", func(_ *http.Request) {})
 }
 
+func TestHTTPGatewayBasePath(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "/jaeger")
+	gw.reader.On("GetServices", matchContext).Return([]string{"foo"}, nil).Once()
+
+	r := httptest.NewRequest(http.MethodGet, "/jaeger/api/v3/services", http.NoBody)
+	w := httptest.NewRecorder()
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	gw.reader.AssertExpectations(t)
+}
+
 func TestHTTPGatewayTryHandleError(t *testing.T) {
 	gw := new(HTTPGateway)
 	assert.False(t, gw.tryHandleError(nil, nil, 0), "returns false if no error")
@@ -85,6 +107,13 @@ func TestHTTPGatewayTryHandleError(t *testing.T) {
 	w := httptest.NewRecorder()
 	assert.True(t, gw.tryHandleError(w, spanstore.ErrTraceNotFound, 0), "returns true if error")
 	assert.Equal(t, http.StatusNotFound, w.Code, "sets status code to 404")
+
+	// A well-formed query this deployment's storage cannot serve is the caller's problem,
+	// not a server fault, so it must not arrive as a 500 (RFC 0013 §3.3).
+	w = httptest.NewRecorder()
+	assert.True(t, gw.tryHandleError(w, querysvc.ErrServiceNameRequired, http.StatusInternalServerError))
+	assert.Equal(t, http.StatusBadRequest, w.Code, "sets status code to 400")
+	assert.Contains(t, w.Body.String(), "requires a service name", "explains the limitation")
 
 	logger, log := testutils.NewLogger()
 	gw.Logger = logger
@@ -132,6 +161,13 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 				End:     time.Date(2000, time.April, 5, 13, 55, 16, 999999992, time.UTC),
 			},
 		},
+		{
+			name:   "raw traces",
+			params: map[string]string{"rawTraces": "true"},
+			expectedQuery: tracestore.GetTraceParams{
+				TraceID: traceID,
+			},
+		},
 	}
 
 	testUri := "/api/v3/traces/1"
@@ -158,6 +194,7 @@ func TestHTTPGatewayGetTrace(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 			gw.router.ServeHTTP(w, r)
+			assert.Equal(t, http.StatusOK, w.Code)
 			gw.reader.AssertCalled(t, "GetTraces", matchContext, []tracestore.GetTraceParams{tc.expectedQuery})
 		})
 	}
@@ -602,6 +639,17 @@ func TestHTTPGatewayFindTraceSummariesError(t *testing.T) {
 	gw.router.ServeHTTP(w, r)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestHTTPGatewayFindTraceSummariesInvalidQuery(t *testing.T) {
+	gw := setupHTTPGatewayNoServer(t, "")
+	r := httptest.NewRequest(http.MethodGet, "/api/v3/trace-summaries", http.NoBody)
+	w := httptest.NewRecorder()
+
+	gw.router.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "query.startTimeMin and query.startTimeMax are required")
 }
 
 func TestTraceIDFromString(t *testing.T) {

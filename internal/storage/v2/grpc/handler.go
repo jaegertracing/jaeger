@@ -5,6 +5,7 @@ package grpc
 
 import (
 	"context"
+	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
@@ -23,12 +24,14 @@ import (
 var (
 	_ storage.TraceReaderServer      = (*Handler)(nil)
 	_ storage.DependencyReaderServer = (*Handler)(nil)
+	_ storage.CapabilitiesServer     = (*Handler)(nil)
 	_ ptraceotlp.GRPCServer          = (*Handler)(nil)
 )
 
 type Handler struct {
 	storage.UnimplementedTraceReaderServer
 	storage.UnimplementedDependencyReaderServer
+	storage.UnimplementedCapabilitiesServer
 	ptraceotlp.UnimplementedGRPCServer
 
 	traceReader tracestore.Reader
@@ -137,12 +140,14 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	sr, ok := h.traceReader.(tracestore.SummaryReader)
-	if !ok {
-		return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented")
-	}
-	for summaries, err := range sr.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
+	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
 		if err != nil {
+			// A backend that cannot compute summaries natively signals this with
+			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
+			// client falls back to loading full traces and aggregating client-side.
+			if errors.Is(err, errors.ErrUnsupported) {
+				return status.Errorf(codes.Unimplemented, "method FindTraceSummaries not implemented: %v", err)
+			}
 			return err
 		}
 		batch := make([]*storage.TraceSummary, len(summaries))
@@ -236,11 +241,35 @@ func (h *Handler) GetDependencies(
 func (h *Handler) Register(ss *grpc.Server, hs *health.Server) {
 	storage.RegisterTraceReaderServer(ss, h)
 	storage.RegisterDependencyReaderServer(ss, h)
+	storage.RegisterCapabilitiesServer(ss, h)
 	ptraceotlp.RegisterGRPCServer(ss, h)
 
 	hs.SetServingStatus("jaeger.storage.v2.TraceReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.DependencyReader", grpc_health_v1.HealthCheckResponse_SERVING)
 	hs.SetServingStatus("jaeger.storage.v2.TraceWriter", grpc_health_v1.HealthCheckResponse_SERVING)
+	hs.SetServingStatus("jaeger.storage.v2.Capabilities", grpc_health_v1.HealthCheckResponse_SERVING)
+}
+
+// GetCapabilities answers for the reader this handler fronts, so a client can learn what the
+// store behind the remote supports. A reader that cannot determine its own capabilities is
+// reported as UNIMPLEMENTED, which clients read as "unknown" rather than as a declaration
+// that nothing is supported.
+func (h *Handler) GetCapabilities(
+	ctx context.Context,
+	_ *storage.GetCapabilitiesRequest,
+) (*storage.GetCapabilitiesResponse, error) {
+	caps, err := h.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		if errors.Is(err, errors.ErrUnsupported) {
+			return nil, status.Error(codes.Unimplemented, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &storage.GetCapabilitiesResponse{
+		Search: &storage.SearchCapabilities{
+			WithoutServiceName: caps.WithoutServiceName,
+		},
+	}, nil
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {

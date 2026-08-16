@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"sync/atomic"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -21,13 +22,17 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
-var (
-	_ tracestore.Reader        = (*TraceReader)(nil)
-	_ tracestore.SummaryReader = (*TraceReader)(nil)
-)
+var _ tracestore.Reader = (*TraceReader)(nil)
 
 type TraceReader struct {
-	client storage.TraceReaderClient
+	client       storage.TraceReaderClient
+	capabilities storage.CapabilitiesClient
+
+	// cachedCaps holds the backend's answer once it has given one; the proto says capabilities
+	// are stable for the lifetime of a connection. Failures are not cached, so a backend that
+	// was not up yet is not mistaken for one that has answered. Racing callers may each ask,
+	// which is harmless because they store the same answer.
+	cachedCaps atomic.Pointer[tracestore.SearchCapabilities]
 }
 
 // NewTraceReader creates a TraceReader that communicates with a remote gRPC storage server.
@@ -35,8 +40,34 @@ type TraceReader struct {
 // to enable instrumentation on the connection without risk of recursively generating traces.
 func NewTraceReader(conn *grpc.ClientConn) *TraceReader {
 	return &TraceReader{
-		client: storage.NewTraceReaderClient(conn),
+		client:       storage.NewTraceReaderClient(conn),
+		capabilities: storage.NewCapabilitiesClient(conn),
 	}
+}
+
+// SearchCapabilities asks the remote backend what it supports and remembers the answer. A
+// backend that does not serve the Capabilities service answers UNIMPLEMENTED, which becomes
+// ErrUnsupported, so the caller assumes the least capable backend and a backend predating the
+// service keeps working (RFC 0013 §3.6).
+func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.SearchCapabilities, error) {
+	if caps := tr.cachedCaps.Load(); caps != nil {
+		return *caps, nil
+	}
+
+	resp, err := tr.capabilities.GetCapabilities(ctx, &storage.GetCapabilitiesRequest{})
+	if err != nil {
+		if status.Code(err) == codes.Unimplemented {
+			return tracestore.SearchCapabilities{}, fmt.Errorf(
+				"remote storage does not report its capabilities: %w", errors.ErrUnsupported,
+			)
+		}
+		return tracestore.SearchCapabilities{}, err
+	}
+	caps := tracestore.SearchCapabilities{
+		WithoutServiceName: resp.GetSearch().GetWithoutServiceName(),
+	}
+	tr.cachedCaps.Store(&caps)
+	return caps, nil
 }
 
 func (tr *TraceReader) GetTraces(

@@ -1,9 +1,9 @@
 # RFC 0008: AI Gateway — Unified MCP Tool Routing
 
-- **Status:** Draft
+- **Status:** Partially Implemented
 - **Authors:** Nabil Salah ([@Nabil-Salah](https://github.com/Nabil-Salah)), Yuri Shkuro ([@yurishkuro](https://github.com/yurishkuro))
 - **Created:** 2026-07-15
-- **Last Updated:** 2026-07-15
+- **Last Updated:** 2026-07-30
 
 This RFC captures the "MCP movement": consolidating every AI tool call — telemetry and UI alike — through a single gateway-hosted MCP dispatch surface. It supersedes the tool-routing decision recorded in [RFC 0002 §5](./0002-ai-gateway-contextual-tools.md) (which chose an ACP extension method and rejected a gateway-hosted MCP server), building on the internal [Tool Routing Design doc][doc-routing] and the runnable spike in POC [#8854][pr-8854]. It does not touch [RFC 0003](./0003-simplify-ai-sidecar-setup.md) (sidecar setup ergonomics), which remains a separate, already-shipping concern.
 
@@ -18,9 +18,11 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M2 | Turn-scoped MCP endpoint `/api/ai/mcp/<id>/` + turn registry ([#8910][pr-8910]), then serving telemetry **+** per-turn UI tools over it ([#8973][pr-8973]) — dormant until a URL is announced | ✅ Done |
 | M3 | Tool-call observability: GenAI span attributes + gateway↔sidecar trace propagation | ✅ Done — [#8942][pr-8942] |
 | M4 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ✅ Done — [#9017][pr-9017] |
-| M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ⏳ In review — [#9009][pr-9009] |
+| M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ✅ Done — [#9009][pr-9009] |
 | M6 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its bespoke `jaeger_mcp` bridge and the ext-method path | ⏳ Pending |
 | M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server` (two instances today; the turn-scoped middleware already degrades to telemetry-only when no turn is active, so one serves both) | ⏳ Proposed — cleanup |
+| M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.WrapHTTP` returns a bare `http.Handler`, so the shared mount at `/api/ai/mcp/` has no closer and its sessions outlive the query server; the turn-scoped mount got one in [#9009][pr-9009]. Let `mcptools` own the teardown, so every mount gets it from construction rather than from whoever remembers to reach for the server. | ⏳ Proposed — cleanup |
+| M7.2 | Decouple **UI tools** from `ai.enable_mcp`. The turn-scoped endpoint is mounted only when `enable_mcp` is set, yet it also carries the per-turn UI tools. Today the ACP ext-method path still carries them too, so the gate is harmless — but M6 drops that path, at which point `enable_mcp: false` with chat enabled would leave the agent no UI tools at all. Needs a decision: mount the endpoint whenever chat is enabled (which exposes the telemetry tools `enable_mcp` is meant to gate) or register only the UI tools on it in that case. **Settle before M6.** | ⏳ Proposed |
 | M8 | Probe `ai.mcp_base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
 | — | Claude Code sidecar (parallel track; consumes the same URL) | ⏳ In progress — [#8631][pr-8631] |
 
@@ -122,7 +124,7 @@ Browser ──[AG-UI / HTTP+SSE]──► Gateway (jaeger-query :16686) ──[A
 Both premises have since shifted:
 
 - **(2) was wrong.** ACP provides no usable same-connection tool-call path today: MCP-over-ACP is an UNSTABLE, unfinished draft (§3.3). The assumption that made reusing the WebSocket the clean choice does not hold.
-- **(1) gets worse, not better.** Routing tool calls through a gateway-hosted MCP server over HTTP *adds* a distinct data flow — a second connection back into the process, even on `localhost` — the opposite of minimizing flows. (The *configuration* cost is largely avoided by defaulting `ai.mcp_base_url` to `localhost` (§4.3), which works for a co-located sidecar; only other topologies need an override. But the extra connection itself remains.)
+- **(1) gets worse, not better.** Routing tool calls through a gateway-hosted MCP server over HTTP *adds* a distinct data flow — a second connection back into the process, even on `localhost` — the opposite of minimizing flows. The *configuration* cost is largely avoided: the gateway infers a loopback base URL when the whole round trip is loopback (§4.3), so only other topologies need an `ai.mcp_base_url` override. But the extra connection itself remains regardless.
 
 So the gateway-hosted server is not a strict win on RFC 0002's own criteria — it is a deliberate trade-off, justified by a **larger problem RFC 0002 was not solving**: telemetry tool calls bypass the gateway entirely (§1), and the goal is to put the gateway on the path of *every* tool call. The reconciling point with RFC 0002's objection is that the issue was never *whether* the agent dials an MCP server — MCP is simply how agents consume tools — but *which* server: dialing `jaeger_mcp` (or any external server) directly leaves the gateway blind (the violation), whereas dialing the gateway's **own** MCP endpoint keeps it on the path of every call, able to see, trace, and gate the traffic. Accepting the extra flow and the URL config is the price of that visibility — and MCP-over-ACP, if it stabilizes, would later recover consideration (1) by folding the flow back onto the WebSocket (§6).
 
@@ -181,9 +183,13 @@ The turn-scoped endpoint is served over **HTTP** (standard streamable-HTTP MCP),
 
 **HTTP**, at `/api/ai/mcp/<mcpRouteID>/`. The gateway announces the URL in `NewSessionRequest.mcpServers`, but only when the agent advertised `mcpCapabilities.http` in its `InitializeResponse` (announcing a transport the agent cannot consume would make it fail the session) ([#9009][pr-9009]).
 
-**Decision — default the base URL to localhost.** `ai.mcp_base_url` defaults to the gateway's own address on `localhost` (scheme + query port from its HTTP config, e.g. `http://localhost:16686`). That works whenever the sidecar is co-located with the gateway — the common deployment, a sidecar in the same pod dialing `localhost` — so the endpoint is announced out of the box, with no configuration. Operators override `ai.mcp_base_url` only when the sidecar reaches the gateway at a *different* address (behind a proxy, in another network namespace, or with TLS terminated elsewhere); the query server can infer the localhost address but not that one. (This revises [#9009][pr-9009], which currently defaults the value empty and announces nothing.)
+**Decision — infer a loopback base URL when the entire round trip is loopback; require config otherwise.** `ai.mcp_base_url` is the address the *sidecar* uses to dial the gateway back. When it is unset, the gateway infers its own loopback address, but only if every leg of that round trip holds: `ai.agent_url` is a loopback address, so the sidecar is co-located and its `localhost` is the gateway's; the query server is bound to loopback or to a wildcard, so something actually answers there (bound to one specific interface, say `10.0.0.5:16686`, nothing does); and TLS is off, because a server certificate carries a SAN for the name operators dial the gateway by and essentially never for a loopback host, so an inferred `https://` URL fails certificate verification at the sidecar. That covers the common single-host deployment with no configuration at all. A wildcard bind is announced as `localhost`; a loopback bind is announced verbatim, since on a dual-stack host `localhost` may resolve to the family the gateway did not bind. If any leg fails, the gateway announces nothing rather than an address it has positive reason to believe is wrong ([#9009][pr-9009]).
 
-**Reachability probe (M8).** The gateway should probe the base URL — the localhost default or an override — before relying on it, analogous to the existing ACP agent health probe, so a wrong address surfaces at startup rather than mid-turn.
+Two poles were rejected. An **unconditional** localhost default announces a broken address to a remote sidecar — one whose `ai.agent_url` is not loopback — and the failure only surfaces when the agent dials it mid-turn. A **no-default / announce-nothing** policy is safe but makes every co-located deployment configure an address the gateway can plainly infer. Gating the inference on the full round trip keeps the safe half of each: inferred out-of-the-box behavior where loopback reachability is symmetric, and silence where it is not.
+
+**Limitation — forwarded loopback.** Loopback reachability is not symmetric when a forwarder sits in the path. A sidecar in a container published with `-p 127.0.0.1:16688:16688`, or reached through `kubectl port-forward`, is dialable at `localhost` from the gateway, but the sidecar's own `localhost` is a different network namespace, where the gateway is not listening. Nothing in the gateway's configuration distinguishes that from genuine co-location — both are literally `agent_url: ws://localhost:16688` — so these deployments must set `ai.mcp_base_url`. The sidecar's dial then fails; whether the agent reports the failure and continues without tools or fails the turn outright is agent-specific, and is the argument for logging the announced URL at `session/new` so the cause is visible either way.
+
+**Reachability probe (M8).** The gateway can probe the resolved base URL — inferred or configured — at startup, analogous to the ACP agent health probe, so a typo or an unbound port surfaces then rather than mid-turn. But the probe runs on the gateway, so it confirms only that the *gateway* reaches the URL, not that the *sidecar* does: it passes in the forwarded-loopback case above, which is precisely the case the inference cannot detect. Confirming the sidecar's reach needs an agent-side signal instead — whether the announced endpoint is ever dialed during a turn.
 
 **Why not MCP-over-ACP now.** It would keep all tool traffic on the single ACP WebSocket, needing no second connection and no reachable-URL config. But it is an UNSTABLE, unfinished draft RFD that may never be finalized; its `mcp/message` bridge is unimplemented in the SDK; and none of our sidecars' SDKs support it (§3.3 — Python for the shipped Gemini sidecar, `claude-agent-acp`/Node.js for the in-progress Claude Code sidecar [#8631][pr-8631]). HTTP works today and is stable, so MCP-over-ACP is recorded as a future enhancement (§6), not planned work.
 
@@ -195,7 +201,7 @@ The transports considered (🟢 good / 🟡 partial / 🔴 poor):
 | Covers telemetry **and** UI on one path | 🔴 UI only | 🟢 | 🟢 |
 | Gateway observes/gates every call (IoC) | 🟡 UI only | 🟢 | 🟢 |
 | Transport speakable by today's sidecar SDKs | 🟢 | 🟢 | 🔴 Python/Node SDKs lack it |
-| No externally-reachable URL to configure | 🟢 | 🔴 needs `ai.mcp_base_url` | 🟢 |
+| No externally-reachable URL to configure | 🟢 | 🟡 inferred for an all-loopback deployment; `ai.mcp_base_url` otherwise | 🟢 |
 | Standard MCP `tools/call` (no custom method) | 🔴 Jaeger-custom `_meta/…/tools/call` | 🟢 | 🟢 |
 | Stable wire contract | 🟡 Jaeger-defined: stable, but bespoke | 🟢 standard, stable | 🔴 UNSTABLE draft |
 

@@ -10,7 +10,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/basicauthextension"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config/configoptional"
-	"go.opentelemetry.io/collector/featuregate"
 
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	ch "github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse"
@@ -24,21 +23,15 @@ type ClickHouseStorageIntegration struct {
 }
 
 func (s *ClickHouseStorageIntegration) initialize(t *testing.T) {
-	require.NoError(t, featuregate.GlobalRegistry().Set("jaeger.clickhouse", true))
-	t.Cleanup(func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set("jaeger.clickhouse", false))
-	})
-
-	cfg := ch.Configuration{
-		Addresses:    []string{"127.0.0.1:9000"},
-		Database:     "jaeger",
-		CreateSchema: true,
-		Auth: ch.Authentication{
-			Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
-				Username: "default",
-				Password: "password",
-			}),
-		},
+	cfg := ch.DefaultConfiguration()
+	cfg.Addresses = []string{"127.0.0.1:9000"}
+	cfg.Database = "jaeger"
+	cfg.CreateSchema = true
+	cfg.Auth = ch.Authentication{
+		Basic: configoptional.Some(basicauthextension.ClientAuthSettings{
+			Username: "default",
+			Password: "password",
+		}),
 	}
 	f, err := ch.NewFactory(context.Background(), cfg, telemetry.NoopSettings())
 	require.NoError(t, err)

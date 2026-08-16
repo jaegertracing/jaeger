@@ -13,6 +13,14 @@ import (
 )
 
 // Reader finds and loads traces and other data from storage.
+//
+// Ownership of returned traces: the caller owns every ptrace.Traces a Reader
+// yields and may modify it in place — query-time adjusters do, and so does any
+// query-interceptor extension that rewrites spans on the return path. An
+// implementation that keeps its own copy of the data (an in-memory backend, or
+// any backend with a read cache) MUST therefore yield a deep copy rather than a
+// reference to what it holds, or a single reader will corrupt the stored trace
+// for every later one.
 type Reader interface {
 	// GetTraces returns an iterator that retrieves all traces with given IDs.
 	// The iterator is single-use: once consumed, it cannot be used again.
@@ -60,6 +68,57 @@ type Reader interface {
 	// large list of trace IDs may be queried first and then the full traces are loaded
 	// in batches.
 	FindTraceIDs(ctx context.Context, query TraceQueryParams) iter.Seq2[[]FoundTraceID, error]
+
+	// FindTraceSummaries returns an iterator over lightweight summaries of the traces
+	// matching the query parameters (the metadata shown in search-result lists). The
+	// iterator is single-use: once consumed, it cannot be used again.
+	//
+	// Backends that can compute summaries natively (e.g. via a storage-side aggregation)
+	// should do so. Backends that cannot must yield errors.ErrUnsupported (wrapped with
+	// %w) as the first error, before any batch; the caller then falls back to FindTraces
+	// plus client-side aggregation. Such backends can embed UnsupportedTraceSummaries to
+	// get this behavior for free.
+	//
+	// The iterator streams result batches; each yielded batch may contain one or more
+	// summaries, and implementations may yield incrementally rather than buffering all
+	// results first.
+	FindTraceSummaries(ctx context.Context, query TraceQueryParams) iter.Seq2[[]TraceSummary, error]
+
+	// SearchCapabilities reports how this reader's search methods behave; see
+	// SearchCapabilities for what it describes.
+	//
+	// A reader that cannot determine its own — one whose backend sits behind an API that
+	// cannot be asked — returns errors.ErrUnsupported (wrapped with %w) rather than a
+	// value a caller might trust.
+	//
+	// A Reader that wraps another must forward the call, or it reports the wrapper's
+	// capabilities instead of the backend's.
+	SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
+}
+
+// SearchCapabilities describes how a Reader's search methods behave where backends
+// differ: which TraceQueryParams fields may be omitted, which are honored exactly
+// rather than approximated, and which combinations a backend cannot serve. Its zero
+// value is the least capable reader, so a field added here leaves every existing
+// implementation declaring the new capability unsupported.
+//
+// Fields to expect over time, each of which is a real divergence today:
+//
+//   - Whether SearchDepth is an exact limit or a hint. jaeger.api_v3's
+//     TraceQueryParameters warns of search_depth that "some implementations might not
+//     support precise limits", so a caller cannot tell whether a short result set means
+//     that there are no more matches or that the backend stopped early.
+//   - Which duration-query combinations hold. Cassandra reads DurationMin/DurationMax
+//     from a separate duration_index table, and it cannot combine that table with the
+//     tag index in one query, so it rejects a search that uses both
+//     (docs/adr/001-cassandra-find-traces-duration.md). The API layer stopped rejecting
+//     the combination in https://github.com/jaegertracing/jaeger/issues/1047, which did
+//     not remove the storage limitation.
+type SearchCapabilities struct {
+	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
+	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
+	// service", rather than as an error or an empty result.
+	WithoutServiceName bool
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.
