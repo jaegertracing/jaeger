@@ -1111,7 +1111,7 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 			Attributes: pcommon.NewMap(),
 			Filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					expression.ResourceService.Ref(),
+					&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService},
 					&expression.Scalar{Value: "cart"},
 				}},
 				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
@@ -1178,9 +1178,9 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 // every service is satisfied by a filter that names one — and still refuses a filter that
 // does not.
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
-	filterOn := func(field expression.Field, value string) *expression.Call {
+	filterOn := func(level expression.Level, name, value string) *expression.Call {
 		return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			field.Ref(),
+			&expression.Reference{Level: level, Name: name},
 			&expression.Scalar{Value: value},
 		}}
 	}
@@ -1197,7 +1197,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
-			queryWith(filterOn(expression.ResourceService, "cart"))))
+			queryWith(filterOn(expression.LevelResource, expression.FieldService, "cart"))))
 		require.NoError(t, err)
 		assert.Equal(t, "cart", dispatched.ServiceName)
 		reader.AssertExpectations(t)

@@ -45,10 +45,10 @@ func (q TraceQueryParams) ToFilterShape() TraceQueryParams {
 		})
 	}
 	if q.ServiceName != "" {
-		eq(expression.ResourceService.Ref(), q.ServiceName)
+		eq(&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, q.ServiceName)
 	}
 	if q.OperationName != "" {
-		eq(expression.SpanName.Ref(), q.OperationName)
+		eq(&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldName}, q.OperationName)
 	}
 	// Attributes is documented as needing pcommon.NewMap(), but a caller that left it at its
 	// zero value used to reach storage unharmed, and converting shape must not be what turns
@@ -81,7 +81,7 @@ func durationBound(op expression.Operator, d time.Duration) expression.Expressio
 	return &expression.Call{
 		Op: op,
 		Args: []expression.Expression{
-			expression.SpanDuration.Ref(),
+			&expression.Reference{Level: expression.LevelSpan, Name: expression.FieldDuration},
 			&expression.Scalar{Value: d.String()},
 		},
 	}
@@ -153,7 +153,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) err
 	switch {
 	case ref.IsAttribute():
 		return applyAttribute(query, predicate.Op, ref, value)
-	case ref.IsField(expression.ResourceService):
+	case ref.IsField(expression.LevelResource, expression.FieldService):
 		if predicate.Op != expression.OpEq {
 			return errUnsupportedOperatorOn(predicate.Op, ref)
 		}
@@ -162,7 +162,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) err
 		}
 		query.ServiceName = value.Value
 		return nil
-	case ref.IsField(expression.SpanName):
+	case ref.IsField(expression.LevelSpan, expression.FieldName):
 		if predicate.Op != expression.OpEq {
 			return errUnsupportedOperatorOn(predicate.Op, ref)
 		}
@@ -171,7 +171,7 @@ func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) err
 		}
 		query.OperationName = value.Value
 		return nil
-	case ref.IsField(expression.SpanDuration):
+	case ref.IsField(expression.LevelSpan, expression.FieldDuration):
 		return applyDurationBound(query, predicate.Op, ref, value)
 	default:
 		return fmt.Errorf("%w: it does not support the built-in field %q of the %q level",

@@ -124,7 +124,7 @@ func TestToStorageFilter_Converts(t *testing.T) {
 			expected: &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
 				&expression.Reference{Level: expression.LevelEvent},
 				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					expression.EventName.Ref(),
+					&expression.Reference{Level: expression.LevelEvent, Name: expression.FieldName},
 					&expression.Scalar{Value: "exception"},
 				}},
 			}},

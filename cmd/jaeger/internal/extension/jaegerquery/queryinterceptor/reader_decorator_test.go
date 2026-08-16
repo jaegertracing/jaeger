@@ -144,7 +144,7 @@ func gateToService(name string) func(pub.Query) (pub.Query, error) {
 	return func(q pub.Query) (pub.Query, error) {
 		q.Filter = &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				expression.ResourceService.Ref(),
+				&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService},
 				&expression.Scalar{Value: name},
 			}},
 		}}
@@ -266,10 +266,10 @@ func TestReader_ShowsFilterShapeAndRestoresIt(t *testing.T) {
 			onQuery: func(q pub.Query) (pub.Query, error) {
 				q.Filter = &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
 					&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-						expression.ResourceService.Ref(), &expression.Scalar{Value: "a"},
+						&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, &expression.Scalar{Value: "a"},
 					}},
 					&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-						expression.ResourceService.Ref(), &expression.Scalar{Value: "b"},
+						&expression.Reference{Level: expression.LevelResource, Name: expression.FieldService}, &expression.Scalar{Value: "b"},
 					}},
 				}}
 				return q, nil
