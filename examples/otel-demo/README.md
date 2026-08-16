@@ -127,6 +127,22 @@ data-recovery path if the existing persistent data becomes unusable.
 The waiver does not waive cluster-capacity checks. Confirm sufficient memory
 and disk headroom separately before dispatching the upgrade.
 
+### OpenSearch volume expansion
+
+The manual `Expand OTel Demo OpenSearch Volume` workflow expands only the
+existing OpenSearch PVC to 100Gi. It verifies the expected StatefulSet, pod,
+PVC, StorageClass, and OCI CSI driver, then uses a preconditioned JSON Patch and
+waits for both Kubernetes and OpenSearch to report the expanded filesystem. It
+does not restart or replace the workload and is idempotent after a successful
+expansion.
+
+The live PVC intentionally remains larger than the 10Gi StatefulSet claim
+template after this operation. Kubernetes does not permit updating that
+template in place, and changing it during the OpenSearch Helm upgrade would
+fail on an immutable StatefulSet field. Reconcile the template separately only
+after the staged version upgrade and soak. PVC expansion cannot be rolled back
+or shrunk.
+
 The Jaeger deployment uses `jaeger-config.yaml` to configure the Jaeger v2
 `jaeger_storage` extension against the in-cluster OpenSearch service. The Helm
 chart storage type is set to `elasticsearch` for compatibility with the chart's
