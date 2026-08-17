@@ -154,7 +154,7 @@ A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** 
 
 ### 5.1 References: three kinds, each its own term
 
-A **reference** names a value to read off the span or trace, and there are exactly three kinds of them. An **attribute reference** names an entry in an attribute map, by key, at a level or with no level at all. A **field reference** names a built-in field of a level (§5.2). A **collection reference** names a whole collection of events or links, and is only meaningful as the first operand of `some` (§5.5). We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
+A **reference** names a value to read off the span or trace, and there are exactly three kinds of them. An **attribute reference** names an entry in an attribute map, by key, at a level or with no level at all. A **field reference** names a built-in field of a level (§5.2). A **nested reference** names the events or links a span nests, and is only meaningful as the first operand of `some` (§5.5). We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
 
 Each kind is a distinct term in the AST rather than one `Reference` message distinguished by a flag and a sentinel. An earlier draft used a single message carrying a `level`, a `name` and an `attr` boolean, which made two spellings mean the same thing — the flag is meaningless without a level, since an unqualified reference is always an attribute — and made "the whole collection" an empty `name` that is significant in exactly one operator position. Both are states a validator has to reject rather than states the type system prevents, and every visitor, converter and interceptor then has to remember which bits are meaningful where. Three terms cost three arms in the oneof and give exhaustive cases instead (§6.1), and let `some` declare that its first operand *is* a collection.
 
@@ -312,7 +312,7 @@ message Expression {
   oneof term {
     AttributeReference  attr       = 1;  // an entry in an attribute map, by key
     FieldReference      field      = 2;  // a built-in field of a level (§5.2)
-    CollectionReference collection = 3;  // a whole collection, for `some` (§5.5)
+    NestedReference     nested     = 3;  // the nested events or links, for `some` (§5.5)
     Scalar              scalar     = 4;  // constant: single typed value
     List                list       = 5;  // constant: homogeneous list (right arg of in / not_in)
     Call                call       = 6;  // an operator/function applied to argument Expressions
@@ -321,7 +321,7 @@ message Expression {
 
 message AttributeReference {
   string key   = 1;  // the attribute key; required
-  string level = 2;  // span|resource|scope|event|link; empty = span-or-resource (§5.1)
+  string level = 2;  // span|resource|scope|event|link; optional, and the only reference level that is — empty = span-or-resource (§5.1)
 }
 
 message FieldReference {
@@ -329,7 +329,7 @@ message FieldReference {
   string level = 2;  // span|resource|scope|event|link; required — a built-in field has no unqualified form
 }
 
-message CollectionReference {
+message NestedReference {
   string level = 1;  // event|link — the only levels a span holds many of; required
 }
 
@@ -350,7 +350,7 @@ message List {
 // and `in`/`not_in` are binary ([left, right]). Because args are Expressions,
 // `span.a > span.b` and `(a + b) > c` are expressible, not only `ref op scalar`;
 // `in`/`not_in` take a List as the right arg. `some` (§5.5) is the existential
-// quantifier over the event/link collections — args = [collection Reference,
+// quantifier over the event/link collections — args = [NestedReference,
 // predicate], with the predicate's same-level references bound to one element.
 // Named scalar functions and aggregates (avg, count, coalesce, …) are future
 // `op` values needing no new message — a function is just a call.
@@ -406,7 +406,7 @@ Legend: 🟢 good · 🟡 partial · 🔴 poor
 
 The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients, which is acceptable for a query surface. A string also makes the refusal legible: a build that does not define `matches` can answer `unknown filter operator "matches"`, quoting what the caller actually sent. A proto3 enum carries an unrecognized value through as a bare number, so the same error could only report `7`.
 
-The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`attr`/`field`/`collection`/`scalar`/`list`/`call`). Those keys are kept short where they are frequent: a reference appears in every predicate, so the attribute arm is `attr` rather than `attribute`. `collection` keeps its longer name because it appears once per `some`, the rarest operator, where being unambiguous is worth four characters — and the obvious short alternative, `nested`, would name the term after Elasticsearch's `nested` query, importing a storage concept into the query vocabulary. That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
+The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`attr`/`field`/`nested`/`scalar`/`list`/`call`). Those keys are kept short: a reference appears in every predicate, so the attribute arm is `attr` rather than `attribute`, and the third is `nested` rather than `collection`. `nested` is not a storage term borrowed for the occasion — OTLP nests a span's events and links as repeated fields, and Elasticsearch's `nested` query is named after that shape rather than the reverse. That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
 
 ```
 GET /api/v3/traces?query.filter={"op":"eq","args":[{"attr":{"key":"http.status_code"}},{"scalar":{"value":"500"}}]}
@@ -436,7 +436,7 @@ And the correlated event query of §5.5 — an event named `exception` that fire
 
 ```json
 { "op": "some", "args": [
-  { "collection": { "level": "event" } },
+  { "nested": { "level": "event" } },
   { "call": { "op": "and", "args": [
     { "call": { "op": "eq", "args": [
         { "field": { "name": "name", "level": "event" } },
@@ -616,7 +616,7 @@ The structured model of §4–§6 is option C. Three lettered alternatives (A, B
 
 **AST node-shape decisions.** Four shape choices within the structured model, each with the alternative it was chosen over:
 
-- **Separate `attribute` / `field` / `collection` reference terms, not one `Reference{name, level, attr}`.** This RFC first proposed the single node: a built-in field and an attribute are both "a value read off the span/trace," so one node parameterized by level, with an `attr` flag picking between them. That reasoning still holds for what the two *are*; what it missed is which states the encoding admits. The flag means nothing without a level, because an unqualified reference is always an attribute, so `{name: "x"}` and `{name: "x", attr: true}` spell one thing two ways. "The whole collection" became an empty `name` that is significant in one operator position and meaningless everywhere else — and a collection reference could carry `attr: true`, which validation had no reason to inspect. Those are states a validator must reject rather than states the type system prevents, and every visitor, converter and interceptor has to know which bits matter where. The original objection — that a bare field-name string cannot carry a level — is answered by giving each term its own level field rather than by merging the terms. Three arms give exhaustive cases and let `some` declare that its first operand *is* a collection (§5.1, §6.1).
+- **Separate `attr` / `field` / `nested` reference terms, not one `Reference{name, level, attr}`.** This RFC first proposed the single node: a built-in field and an attribute are both "a value read off the span/trace," so one node parameterized by level, with an `attr` flag picking between them. That reasoning still holds for what the two *are*; what it missed is which states the encoding admits. The flag means nothing without a level, because an unqualified reference is always an attribute, so `{name: "x"}` and `{name: "x", attr: true}` spell one thing two ways. "The whole collection" became an empty `name` that is significant in one operator position and meaningless everywhere else — and a collection reference could carry `attr: true`, which validation had no reason to inspect. Those are states a validator must reject rather than states the type system prevents, and every visitor, converter and interceptor has to know which bits matter where. The original objection — that a bare field-name string cannot carry a level — is answered by giving each term its own level field rather than by merging the terms. Three arms give exhaustive cases and let `some` declare that its first operand *is* a nested collection (§5.1, §6.1).
 - **`in`/`not_in` take a `List` operand, not variadic scalar args.** The set is a first-class `List` literal (one `type` for the homogeneous list), so `in`/`not_in` stay binary `[subject, set]` like every other operator. *Rejected:* `Call(op="in", args=[subject, s1, s2, …])` — a variadic form invents a "first arg is the subject, the rest are the set" convention unique to `in`, lets a `ref`/`call` slip into set positions, and carries a `type` per element (admitting a heterogeneous set validation must then reject). The concern that a first-class `List` enables nonsensical ASTs is closed by `filter: Call` (a list cannot be the top-level filter) and by validation catching a list in a scalar position, the same class as any other type error.
 - **Top-level `filter` is a `Call`, not an `Expression` (nor an implicit-AND list).** A filter always applies a boolean operator, so the field is a `Call`; the top level then carries no `Expression` oneof envelope — `{"op":…}` on the wire, not `{"call":{…}}` — so the common single-predicate query is shorter, and a single node gives one canonical encoding of conjunction (an `and` call) rather than a second, implicit one (a top-level list). *Rejected:* `Expression filter` — the composability it appeared to buy (a filter being the same type as any sub-expression) is a host-language concern, met by a one-line `Expr(call)` wrap in a typed builder, not something the wire must carry, so the constant envelope on every request buys nothing. A top-level implicit-AND list was also rejected: it is a second way to spell AND, and forces a one-element list for a top-level `or`.
 - **Scalars carry a string `value` + optional `type` hint, not a typed `oneof`** (§5.4). A typed `oneof {int64|double|bool|string}` cannot express the *match any type* default the data model needs (§5.4), and unit-bearing values (`duration` = `"2s"`, future timestamps) have no native proto scalar and revert to strings regardless. The stringify "tax" for a known-typed caller is paid once by the builder (§6.3); wire packing is immaterial at query-payload sizes. *Rejected:* a typed `oneof` — its strictness is illusory here, since it cannot represent "any type."
