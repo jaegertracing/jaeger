@@ -12,8 +12,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	pub "github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -134,6 +136,15 @@ func (f fakeInterceptor) OnResult(ctx context.Context, t []ptrace.Traces) (conte
 	return ctx, t, nil
 }
 
+// serviceFilter builds the predicate `resource.service == name`, which is how an access-control
+// interceptor scopes a search to a service the caller may read.
+func serviceFilter(name string) *expression.Call {
+	return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+		&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService},
+		&expression.Scalar{Value: name},
+	}}
+}
+
 func tracesWith(key, val string) []ptrace.Traces {
 	td := ptrace.NewTraces()
 	span := td.ResourceSpans().AppendEmpty().ScopeSpans().AppendEmpty().Spans().AppendEmpty()
@@ -185,7 +196,7 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	next := &fakeReader{batch: tracesWith("secret", "value")}
 	ic := fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) {
-			q.ServiceName = "gated"
+			q.Filter = serviceFilter("gated")
 			return q, nil
 		},
 		onResult: redactResult("secret"),
@@ -197,6 +208,158 @@ func TestReader_FindTraces_AppliesQueryAndResultHooks(t *testing.T) {
 	assert.Equal(t, "gated", next.gotQuery.ServiceName, "pre-query hook must reach storage")
 	require.Len(t, out, 1)
 	assert.Equal(t, "REDACTED", firstSpanAttr(t, out[0], "secret"), "result hook must redact")
+}
+
+// TestReader_ShowsFilterShapeAndRestoresIt pins the two halves of the conversion the decorator
+// does. Whatever shape a query arrives in, an interceptor sees every predicate in the filter;
+// and what reaches storage is the shape storage was going to get, so a backend that evaluates
+// filters keeps one and a backend that does not gets the scalar fields back.
+func TestReader_ShowsFilterShapeAndRestoresIt(t *testing.T) {
+	t.Run("a scalar query is shown as a filter and restored", func(t *testing.T) {
+		var seen pub.Query
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		r := NewReaderDecorator(next, fakeInterceptor{
+			onQuery: func(q pub.Query) (pub.Query, error) {
+				seen = q
+				q.Filter = serviceFilter("gated")
+				return q, nil
+			},
+		})
+
+		_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{
+			ServiceName: "original",
+			Attributes:  attributesWith("http.method", "GET"),
+		}))
+		require.NoError(t, err)
+
+		// The interceptor saw predicates, not fields.
+		require.NotNil(t, seen.Filter)
+		assert.Equal(t, expression.OpAnd, seen.Filter.Op)
+		assert.Len(t, seen.Filter.Args, 2, "the service and the tag both became predicates")
+
+		// Storage got fields again, carrying what the interceptor chose.
+		assert.Equal(t, "gated", next.gotQuery.ServiceName)
+		assert.Nil(t, next.gotQuery.Filter)
+	})
+
+	t.Run("a filter query stays a filter", func(t *testing.T) {
+		filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.Reference{Name: "http.route", Level: expression.LevelSpan, Attr: true},
+			&expression.Scalar{Value: "/cart"},
+		}}
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		r := NewReaderDecorator(next, fakeInterceptor{})
+
+		_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{Filter: filter}))
+		require.NoError(t, err)
+		assert.Equal(t, filter, next.gotQuery.Filter, "a reader that evaluates filters keeps one")
+		assert.Empty(t, next.gotQuery.ServiceName)
+	})
+
+	// An interceptor may narrow a scalar query only in ways the scalar fields can carry.
+	t.Run("a predicate the scalar fields cannot carry is refused", func(t *testing.T) {
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		r := NewReaderDecorator(next, fakeInterceptor{
+			onQuery: func(q pub.Query) (pub.Query, error) {
+				q.Filter = &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
+					&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+						&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, &expression.Scalar{Value: "a"},
+					}},
+					&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+						&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, &expression.Scalar{Value: "b"},
+					}},
+				}}
+				return q, nil
+			},
+		})
+
+		_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{ServiceName: "original"}))
+		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+		assert.False(t, next.findCalled, "storage must not be queried")
+	})
+}
+
+func attributesWith(key, val string) pcommon.Map {
+	m := pcommon.NewMap()
+	m.PutStr(key, val)
+	return m
+}
+
+// TestReader_RefusesAnInvalidInterceptorFilter covers what an interceptor can return that
+// storage must not see. Nothing here is the caller's fault, so none of it reads as a bad
+// request, and none of it reaches storage — which would answer the malformed trees by matching
+// nothing and the missing one by matching everything, silently undoing the narrowing an
+// access-control interceptor exists to apply.
+func TestReader_RefusesAnInvalidInterceptorFilter(t *testing.T) {
+	tests := []struct {
+		name        string
+		filter      *expression.Call
+		expectedErr string
+	}{
+		{
+			name:        "no filter at all, for a query that had predicates",
+			expectedErr: "widen the search to every trace in the time range",
+		},
+		{
+			name:        "a conjunction of one",
+			filter:      &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{serviceFilter("gated")}},
+			expectedErr: `operator "and" takes at least two arguments`,
+		},
+		{
+			name: "an operator this build does not define",
+			filter: &expression.Call{Op: "matches", Args: []expression.Expression{
+				&expression.Reference{Name: "a"}, &expression.Scalar{Value: "b"},
+			}},
+			expectedErr: `unknown filter operator "matches"`,
+		},
+		{
+			name: "a comparison missing an operand",
+			filter: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.Scalar{Value: "a"},
+			}},
+			expectedErr: `operator "eq" takes`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			next := &fakeReader{batch: tracesWith("k", "v")}
+			r := NewReaderDecorator(next, fakeInterceptor{
+				onQuery: func(q pub.Query) (pub.Query, error) {
+					q.Filter = test.filter
+					return q, nil
+				},
+			})
+
+			_, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{
+				ServiceName: "original",
+			}))
+			require.ErrorIs(t, err, ErrInterceptorFilter)
+			require.ErrorContains(t, err, test.expectedErr)
+			assert.False(t, next.findCalled, "storage must not be queried")
+			assert.NotErrorIs(t, err, tracestore.ErrFilterInvalid,
+				"the caller's request was fine, so this is not a bad request")
+		})
+	}
+}
+
+// TestReader_AllowsNoFilterForAPredicatelessQuery is the other side of the nil rule: a search
+// of the time range alone has no filter to begin with, so an interceptor that leaves it that way
+// has widened nothing and the search proceeds.
+func TestReader_AllowsNoFilterForAPredicatelessQuery(t *testing.T) {
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	var seen pub.Query
+	r := NewReaderDecorator(next, fakeInterceptor{
+		onQuery: func(q pub.Query) (pub.Query, error) {
+			seen = q
+			return q, nil
+		},
+	})
+
+	out, err := collectTraces(r.FindTraces(t.Context(), tracestore.TraceQueryParams{}))
+	require.NoError(t, err)
+	assert.Len(t, out, 1)
+	assert.Nil(t, seen.Filter, "there were no predicates to show")
+	assert.True(t, next.findCalled)
 }
 
 func TestReader_FindTraces_QueryRejectionSkipsStorage(t *testing.T) {
@@ -348,7 +511,7 @@ func TestReader_FindTraceIDs_AppliesQueryHook(t *testing.T) {
 	next := &fakeReader{ids: []tracestore.FoundTraceID{{}}}
 	r := NewReaderDecorator(next, fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) {
-			q.ServiceName = "gated"
+			q.Filter = serviceFilter("gated")
 			return q, nil
 		},
 	})
@@ -499,7 +662,7 @@ func TestReader_FindTraceSummaries_AppliesQueryHook(t *testing.T) {
 	next := &fakeReader{summaries: []tracestore.TraceSummary{{RootServiceName: "svc"}}}
 	r := NewReaderDecorator(next, fakeInterceptor{
 		onQuery: func(q pub.Query) (pub.Query, error) {
-			q.ServiceName = "gated"
+			q.Filter = serviceFilter("gated")
 			return q, nil
 		},
 	})
@@ -547,14 +710,19 @@ func TestReader_FindTraceSummaries_StorageErrorPropagates(t *testing.T) {
 // queries; if the decorator answered for itself, a capability the backend has would be
 // lost to every caller that consults it (RFC 0013 §3.1).
 //
-// The cases enumerate every permutation of SearchCapabilities, so forwarding is proven
-// per field rather than for one value that happens to pass;
+// The cases set each field of SearchCapabilities on its own, so forwarding is proven per
+// field rather than for one value that happens to pass;
 // TestSearchCapabilities_FieldCount fails when a field is added without extending this
 // table.
 func TestReader_SearchCapabilities_ForwardsBackendDeclaration(t *testing.T) {
 	for _, caps := range []tracestore.SearchCapabilities{
-		{WithoutServiceName: false},
+		{},
 		{WithoutServiceName: true},
+		{SameSpanConjunction: true},
+		{Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
+		}},
 	} {
 		t.Run(fmt.Sprintf("%+v", caps), func(t *testing.T) {
 			r := NewReaderDecorator(&fakeReader{capabilities: caps}, fakeInterceptor{})
