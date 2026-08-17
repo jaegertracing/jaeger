@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger-idl/model/v1"
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
+	"github.com/jaegertracing/jaeger/components/extension/jaegerquery/queryinterceptor"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -43,6 +44,10 @@ type QueryServiceOptions struct {
 	// MaxTraceSize is the maximum number of spans allowed per trace. A value of 0 (default) means unlimited.
 	// If a trace has more spans than this limit, it will be truncated and a warning will be added.
 	MaxTraceSize int
+	// Interceptors are the query-interceptor extensions this deployment configured, in the order
+	// it named them. The query service invokes their OnQuery around every trace search and their
+	// OnResult around every batch of loaded traces. Most deployments configure none.
+	Interceptors []queryinterceptor.Interceptor
 }
 
 // QueryService provides methods to query data from the storage.
@@ -105,7 +110,7 @@ func (qs QueryService) GetTraces(
 	ctx context.Context,
 	params GetTraceParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
-	getTracesIter := qs.traceReader.GetTraces(ctx, params.TraceIDs...)
+	getTracesIter := qs.interceptResults(ctx, qs.traceReader.GetTraces(ctx, params.TraceIDs...))
 	return func(yield func([]ptrace.Traces, error) bool) {
 		foundTraceIDs, proceed := qs.receiveTraces(getTracesIter, yield, params.RawTraces)
 		if proceed && qs.options.ArchiveTraceReader != nil {
@@ -116,7 +121,9 @@ func (qs QueryService) GetTraces(
 				}
 			}
 			if len(missingTraceIDs) > 0 {
-				getArchiveTracesIter := qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...)
+				getArchiveTracesIter := qs.interceptResults(
+					ctx, qs.options.ArchiveTraceReader.GetTraces(ctx, missingTraceIDs...),
+				)
 				qs.receiveTraces(getArchiveTracesIter, yield, params.RawTraces)
 			}
 		}
@@ -154,12 +161,12 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, query, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
-		tracesIter := qs.traceReader.FindTraces(ctx, query.TraceQueryParams)
+		tracesIter := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
 		qs.receiveTraces(tracesIter, yield, query.RawTraces)
 	}
 }
@@ -180,30 +187,48 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, erro
 	return caps.WithoutServiceName, nil
 }
 
-// prepareSearchQuery refuses a query the backend declared it cannot serve, and returns the
-// query to dispatch in the shape that backend understands. One place decides, so that every
-// caller gets the same answer instead of each backend's own (ADR-013).
-func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryParams) (TraceQueryParams, error) {
+// prepareSearchQuery settles a search before it is dispatched: it refuses a request this
+// deployment does not accept, gives the configured query interceptors their say, and returns the
+// query to dispatch in the shape the backend understands, along with the context to dispatch it
+// with. One place decides, so that every caller gets the same answer instead of each backend's
+// own (ADR-013).
+//
+// The interceptors run after the caller's request is validated and before the backend's
+// capabilities are consulted. So an interceptor is never shown a request jaeger-query was going
+// to refuse anyway, and a predicate an interceptor adds is held to the same capability check as
+// one the caller sent.
+func (qs QueryService) prepareSearchQuery(
+	ctx context.Context,
+	query TraceQueryParams,
+) (context.Context, TraceQueryParams, error) {
+	if query.Filter != nil {
+		// None of these refusals depends on the backend, so they come before the capability call
+		// rather than after it.
+		if !StructuredFiltersGate.IsEnabled() {
+			return ctx, query, fmt.Errorf("%w: enable the %q feature gate to use it",
+				ErrFilterDisabled, StructuredFiltersGate.ID())
+		}
+		if err := query.EnsureFilterStandsAlone(); err != nil {
+			return ctx, query, err
+		}
+		// Decoding a filter validates nothing, so it is finalized — validated and normalized —
+		// here, on behalf of every API layer above (RFC 0005 §7).
+		finalized, err := expression.Finalize(query.Filter)
+		if err != nil {
+			return ctx, query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+		}
+		query.Filter = finalized
+	}
+	if len(qs.options.Interceptors) > 0 {
+		var err error
+		ctx, query, err = qs.onQuery(ctx, query)
+		if err != nil {
+			return ctx, query, err
+		}
+	}
 	if query.Filter == nil {
-		return query, qs.checkServiceName(ctx, query)
+		return ctx, query, qs.checkServiceName(ctx, query)
 	}
-	// None of the next three refusals depends on the backend, so they come before the capability
-	// call rather than after it.
-	if !StructuredFiltersGate.IsEnabled() {
-		return query, fmt.Errorf("%w: enable the %q feature gate to use it",
-			ErrFilterDisabled, StructuredFiltersGate.ID())
-	}
-	if err := query.EnsureFilterStandsAlone(); err != nil {
-		return query, err
-	}
-	// Decoding a filter validates nothing, so it is finalized — validated and normalized — here, on
-	// behalf of every API layer above (RFC 0005 §7).
-	finalized, err := expression.Finalize(query.Filter)
-	if err != nil {
-		return query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
-	}
-	query.Filter = finalized
-
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	if err != nil {
 		// A reader that cannot report its capabilities reads as the least capable one, which
@@ -214,13 +239,13 @@ func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryP
 	// service itself and rewriting it is what moves that into ServiceName.
 	prepared, err := query.ForCapabilities(caps)
 	if err != nil {
-		return query, err
+		return ctx, query, err
 	}
 	query.TraceQueryParams = prepared
 	if query.ServiceName == "" && !caps.WithoutServiceName {
-		return query, ErrServiceNameRequired
+		return ctx, query, ErrServiceNameRequired
 	}
-	return query, nil
+	return ctx, query, nil
 }
 
 func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {
@@ -245,7 +270,7 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		query, err := qs.prepareSearchQuery(ctx, query)
+		ctx, query, err := qs.prepareSearchQuery(ctx, query)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -253,8 +278,11 @@ func (qs QueryService) FindTraceSummaries(
 		for batch, err := range qs.traceReader.FindTraceSummaries(ctx, query.TraceQueryParams) {
 			if err != nil {
 				if errors.Is(err, errors.ErrUnsupported) {
-					// Fall back to FindTraces + aggregation.
-					for b, e := range computeSummaries(qs.traceReader.FindTraces(ctx, query.TraceQueryParams), qs.adjuster) {
+					// Fall back to FindTraces + aggregation. The fallback loads whole traces, so
+					// the interceptors get the same say over them as on a FindTraces search; the
+					// summaries computed from them carry no spans and have no hook of their own.
+					traces := qs.interceptResults(ctx, qs.traceReader.FindTraces(ctx, query.TraceQueryParams))
+					for b, e := range computeSummaries(traces, qs.adjuster) {
 						if !yield(b, e) {
 							return
 						}

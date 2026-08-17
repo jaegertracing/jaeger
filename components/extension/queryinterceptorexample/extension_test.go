@@ -46,8 +46,8 @@ func queryWithAttr(key, val string) queryinterceptor.Query {
 		Op: expression.OpAnd,
 		Args: []expression.Expression{
 			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-				&expression.Reference{Name: key},
-				&expression.Scalar{Value: val},
+				&expression.AttributeRef{Key: key},
+				&expression.AnyValue{Value: val},
 			}},
 		},
 	}}

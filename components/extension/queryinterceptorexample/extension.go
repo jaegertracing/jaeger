@@ -94,8 +94,8 @@ func (i *interceptor) OnQuery(ctx context.Context, query queryinterceptor.Query)
 // walk catches a denied attribute however the caller asked for it.
 func referencesAttribute(expr expression.Expression, key string) bool {
 	switch term := expr.(type) {
-	case *expression.Reference:
-		return term.IsAttribute() && term.Name == key
+	case *expression.AttributeRef:
+		return term.Key == key
 	case *expression.Call:
 		for _, arg := range term.Args {
 			if referencesAttribute(arg, key) {

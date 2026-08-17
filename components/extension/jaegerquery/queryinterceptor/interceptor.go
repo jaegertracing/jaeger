@@ -62,6 +62,11 @@ type Query struct {
 	// is permitted — or refusing the query outright by returning an error. Returning nil is not
 	// a way to decline: it asks for every trace in the time range, and is refused as invalid if
 	// the query had predicates when OnQuery received it.
+	//
+	// jaeger-query decides how to send the search to storage only after the interceptors have
+	// finished with it, so a filter naming a level or an operator the storage backend cannot
+	// serve is refused on the same terms whether the caller wrote that predicate or an
+	// interceptor added it.
 	Filter *expression.Call
 
 	StartTimeMin time.Time
