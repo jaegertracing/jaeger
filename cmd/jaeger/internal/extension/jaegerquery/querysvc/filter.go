@@ -70,6 +70,18 @@ func prepareFilteredQuery(query TraceQueryParams, caps tracestore.SearchCapabili
 	return query, ensureFilterSupported(query.Filter, *caps.Filter)
 }
 
+// ensureWellFormedFilter rejects a filter that is not a well-formed tree. Decoding a filter off
+// a wire does not check this, so the query service asks here on behalf of every API layer above
+// it: an operator or level this build has no meaning for, or an operator given the wrong number
+// or kind of arguments, would otherwise reach a backend that typically answers such a predicate
+// by matching nothing rather than by refusing.
+func ensureWellFormedFilter(filter *expression.Call) error {
+	if err := expression.ValidateFilter(filter); err != nil {
+		return fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+	}
+	return nil
+}
+
 // ensureNoLegacyPredicates rejects a query that carries both a filter and one of the
 // predicate fields the filter replaces. The two express the same things — a service, an
 // operation name, a duration bound, a tag — so honoring both would leave the caller

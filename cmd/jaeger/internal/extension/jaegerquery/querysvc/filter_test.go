@@ -212,6 +212,25 @@ func TestPrepareSearchQuery_FilterDisabled(t *testing.T) {
 	reader.AssertExpectations(t)
 }
 
+// TestPrepareSearchQuery_RefusesAMalformedFilter covers the boundary check the conversion no
+// longer does: decoding a filter off a wire yields whatever tree the wire described, so the query
+// service is where a tree this build has no meaning for is refused — before the reader is asked
+// anything, since it has no expectations set here.
+func TestPrepareSearchQuery_RefusesAMalformedFilter(t *testing.T) {
+	enableStructuredFilters(t)
+	reader := new(tracestoremocks.Reader)
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+	query := filterQuery(&expression.Call{Op: "matches", Args: []expression.Expression{
+		&expression.Reference{Name: "a"}, &expression.Scalar{Value: "b"},
+	}})
+
+	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+	require.ErrorIs(t, err, tracestore.ErrFilterInvalid)
+	require.ErrorContains(t, err, `unknown filter operator "matches"`)
+	assert.True(t, IsBadRequest(err), "the API layers answer 400")
+	reader.AssertExpectations(t)
+}
+
 func TestStructuredFiltersGate_IsAlpha(t *testing.T) {
 	assert.Equal(t, featuregate.StageAlpha, StructuredFiltersGate.Stage(),
 		"Alpha is what keeps the filter off unless a deployment asks for it")

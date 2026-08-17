@@ -196,6 +196,9 @@ func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryP
 	if err := ensureNoLegacyPredicates(query); err != nil {
 		return query, err
 	}
+	if err := ensureWellFormedFilter(query.Filter); err != nil {
+		return query, err
+	}
 
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	if err != nil {
