@@ -10,7 +10,6 @@ import (
 	"errors"
 	"math"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 	"time"
 
@@ -425,11 +424,13 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	spans := []dbmodel.Span{{TraceID: "abc", SpanID: "def", StartTime: model.TimeAsEpochMicroseconds(date)}}
 	require.NoError(t, writer.WriteSpans(context.Background(), spans))
 
-	// The data stream write path stamps @timestamp as epoch nanoseconds.
-	assert.Equal(t, strconv.FormatInt(date.UnixNano(), 10), spans[0].Timestamp)
+	// The exact format is load-bearing rather than cosmetic; see the reason on
+	// dbmodel.Span.Timestamp. Pinning it here is what makes a revert to epoch
+	// nanoseconds fail without needing a live backend.
+	assert.Equal(t, date.Format(time.RFC3339Nano), spans[0].Timestamp)
 	out, err := json.Marshal(spans[0])
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"@timestamp":"`+strconv.FormatInt(date.UnixNano(), 10)+`"`)
+	assert.Contains(t, string(out), `"@timestamp":"`+date.Format(time.RFC3339Nano)+`"`)
 }
 
 func TestWriteSpan_LegacyOmitsTimestamp(t *testing.T) {
