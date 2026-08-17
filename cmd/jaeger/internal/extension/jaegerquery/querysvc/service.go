@@ -186,9 +186,8 @@ func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryP
 	if query.Filter == nil {
 		return query, qs.checkServiceName(ctx, query)
 	}
-	// Whether the request is acceptable at all is not a question about the backend, so both of
-	// these are settled before the capability round trip: a deployment that has not enabled the
-	// filter, or a caller that asked for one thing two ways, has no use for the answer.
+	// None of the next three refusals depends on the backend, so they come before the capability
+	// call rather than after it.
 	if !StructuredFiltersGate.IsEnabled() {
 		return query, fmt.Errorf("%w: enable the %q feature gate to use it",
 			ErrFilterDisabled, StructuredFiltersGate.ID())
