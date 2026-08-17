@@ -17,6 +17,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -121,7 +122,11 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	for traces, err := range h.traceReader.FindTraces(srv.Context(), toTraceQueryParams(req.Query)) {
+	query, err := toTraceQueryParams(req.Query)
+	if err != nil {
+		return err
+	}
+	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
 			return err
 		}
@@ -140,7 +145,11 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
+	query, err := toTraceQueryParams(req.Query)
+	if err != nil {
+		return err
+	}
+	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
 			// A backend that cannot compute summaries natively signals this with
 			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
@@ -185,7 +194,11 @@ func (h *Handler) FindTraceIDs(
 	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
-	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {
+	query, err := toTraceQueryParams(req.Query)
+	if err != nil {
+		return nil, err
+	}
+	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
 			return nil, err
 		}
@@ -267,12 +280,18 @@ func (h *Handler) GetCapabilities(
 	}
 	return &storage.GetCapabilitiesResponse{
 		Search: &storage.SearchCapabilities{
-			WithoutServiceName: caps.WithoutServiceName,
+			WithoutServiceName:  caps.WithoutServiceName,
+			SameSpanConjunction: caps.SameSpanConjunction,
+			Filter:              toProtoFilterCapabilities(caps.Filter),
 		},
 	}, nil
 }
 
-func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {
+func toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
+	filter, err := expressionproto.ToFilter(t.GetFilter())
+	if err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
 	return tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -282,7 +301,8 @@ func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int(t.SearchDepth),
-	}
+		Filter:        filter,
+	}, nil
 }
 
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {

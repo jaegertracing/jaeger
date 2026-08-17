@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
@@ -851,17 +852,37 @@ func TestHandler_GetCapabilities(t *testing.T) {
 		name         string
 		caps         tracestore.SearchCapabilities
 		readerErr    error
-		expected     bool
+		expected     *storage.SearchCapabilities
 		expectedCode codes.Code
 	}{
 		{
 			name:     "capability is reported",
 			caps:     tracestore.SearchCapabilities{WithoutServiceName: true},
-			expected: true,
+			expected: &storage.SearchCapabilities{WithoutServiceName: true},
 		},
 		{
-			name: "absence is reported",
-			caps: tracestore.SearchCapabilities{},
+			name:     "absence is reported",
+			caps:     tracestore.SearchCapabilities{},
+			expected: &storage.SearchCapabilities{},
+		},
+		{
+			name: "every capability is reported",
+			caps: tracestore.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &tracestore.FilterCapabilities{
+					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
+				},
+			},
+			expected: &storage.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &storage.FilterCapabilities{
+					Levels:    []string{"span", "resource"},
+					Operators: []string{"and", "eq", "regex"},
+				},
+			},
 		},
 		{
 			name:         "a reader that cannot answer becomes Unimplemented",
@@ -888,7 +909,7 @@ func TestHandler_GetCapabilities(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, test.expected, resp.GetSearch().GetWithoutServiceName())
+			assert.Equal(t, test.expected, resp.GetSearch())
 		})
 	}
 }

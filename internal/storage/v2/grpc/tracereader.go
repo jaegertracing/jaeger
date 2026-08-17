@@ -19,6 +19,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -64,7 +65,9 @@ func (tr *TraceReader) SearchCapabilities(ctx context.Context) (tracestore.Searc
 		return tracestore.SearchCapabilities{}, err
 	}
 	caps := tracestore.SearchCapabilities{
-		WithoutServiceName: resp.GetSearch().GetWithoutServiceName(),
+		WithoutServiceName:  resp.GetSearch().GetWithoutServiceName(),
+		SameSpanConjunction: resp.GetSearch().GetSameSpanConjunction(),
+		Filter:              fromProtoFilterCapabilities(resp.GetSearch().GetFilter()),
 	}
 	tr.cachedCaps.Store(&caps)
 	return caps, nil
@@ -254,6 +257,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
+		Filter:        expressionproto.FromFilter(t.Filter),
 	}
 }
 

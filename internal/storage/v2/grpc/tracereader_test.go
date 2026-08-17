@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
@@ -852,6 +853,31 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 				})
 			},
 			expected: tracestore.SearchCapabilities{WithoutServiceName: true},
+		},
+		{
+			name: "backend reports every capability",
+			register: func(srv *grpc.Server) {
+				storage.RegisterCapabilitiesServer(srv, &capabilitiesServer{
+					resp: &storage.GetCapabilitiesResponse{
+						Search: &storage.SearchCapabilities{
+							WithoutServiceName:  true,
+							SameSpanConjunction: true,
+							Filter: &storage.FilterCapabilities{
+								Levels:    []string{"span", "resource"},
+								Operators: []string{"and", "eq", "regex"},
+							},
+						},
+					},
+				})
+			},
+			expected: tracestore.SearchCapabilities{
+				WithoutServiceName:  true,
+				SameSpanConjunction: true,
+				Filter: &tracestore.FilterCapabilities{
+					Levels:    []expression.Level{expression.LevelSpan, expression.LevelResource},
+					Operators: []expression.Operator{expression.OpAnd, expression.OpEq, expression.OpRegex},
+				},
+			},
 		},
 		{
 			name: "backend reports its absence",
