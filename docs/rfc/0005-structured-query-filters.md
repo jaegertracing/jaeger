@@ -154,7 +154,7 @@ A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** 
 
 ### 5.1 References: three kinds, each its own term
 
-A **reference** names a value to read off the span or trace, and there are exactly three kinds of them. An **attribute reference** names an entry in an attribute map, by key, at a level or with no level at all. A **field reference** names a built-in field of a level (§5.2). A **nested reference** names the events or links a span nests, and is only meaningful as the first operand of `some` (§5.5). We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
+A **reference** names a value to read off the span or trace, and there are exactly three kinds of them. An **attribute reference** names an entry in an attribute map, by key, at a level or with no level at all. A **field reference** names a built-in field of a level (§5.2). A **nested reference** names all of a span's events or all of its links — the collection rather than one element — and is only meaningful as the first operand of `some` (§5.5). We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
 
 Each kind is a distinct term in the AST rather than one `Reference` message distinguished by a flag and a sentinel. An earlier draft used a single message carrying a `level`, a `name` and an `attr` boolean, which made two spellings mean the same thing — the flag is meaningless without a level, since an unqualified reference is always an attribute — and made "the whole collection" an empty `name` that is significant in exactly one operator position. Both are states a validator has to reject rather than states the type system prevents, and every visitor, converter and interceptor then has to remember which bits are meaningful where. Three terms cost three arms in the oneof and give exhaustive cases instead (§6.1), and let `some` declare that its first operand *is* a collection.
 
@@ -334,7 +334,7 @@ message FieldReference {
 }
 
 message NestedReference {
-  string level = 1;  // event|link — the only levels a span holds many of; required
+  string level = 1;  // event|link — a span has many of each and one of everything else; required
 }
 
 message Scalar {
