@@ -9,7 +9,7 @@
 
 ## Abstract
 
-Jaeger's trace-search API filters spans by unqualified key-value tag pairs, implicitly ANDed. Each pair matches any attribute location the backend indexes, and which locations those are differs per backend. This RFC defines a **structured query-filter model** for trace search that (1) lets a predicate reference a specific attribute *level* (span / resource / instrumentation / event / link) or a built-in *field* (duration, name, status, …), (2) composes predicates with **boolean operators** (`AND`/`OR`/`NOT`), and (3) keeps the existing unqualified tag filter working unchanged.
+Jaeger's trace-search API filters spans by unqualified key-value tag pairs, implicitly ANDed. Each pair matches any attribute location the backend indexes, and which locations those are differs per backend. This RFC defines a **structured query-filter model** for trace search that (1) lets a predicate reference a specific attribute *level* (span / resource / scope / event / link) or a built-in *field* (duration, name, status, …), (2) composes predicates with **boolean operators** (`AND`/`OR`/`NOT`), and (3) keeps the existing unqualified tag filter working unchanged.
 
 The model is a **fully structured AST** (proto/JSON), *not* a free-text query language, and its reach is deliberately bounded by what Jaeger's storage backends (Elasticsearch/OpenSearch, ClickHouse, Cassandra, Badger) can implement — it covers filtering and stops short of result shaping, aggregation, and trace-tree/structural queries.
 
@@ -59,7 +59,7 @@ Feasibility is dominated by how each backend physically stores and indexes attri
 | Backend | Attribute storage | Level differentiation | Consequence |
 |---------|-------------------|-----------------------|-------------|
 | **ClickHouse** | Typed Map columns per level (`str_attributes`, `resource_str_attributes`, …) + nested arrays for events/links | Full — each level is a distinct column family | Native level filtering; a level-qualified query skips irrelevant columns |
-| **Elasticsearch / OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span / resource / log are distinct; no scope/event/link distinction in the v1 schema | Span/resource/event levels work; instrumentation and link need schema evolution |
+| **Elasticsearch / OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span / resource / log are distinct; no scope/event/link distinction in the v1 schema | Span/resource/event levels work; scope and link need schema evolution |
 | **Cassandra** | One flat inverted index (`tag_index`) keyed by `service + key + value` | None | Cannot restrict level at query time; only the indexed levels exist at all |
 | **Badger** | Flat KV tag index (span tags + process tags + log fields) | None | Same as Cassandra |
 
@@ -152,19 +152,21 @@ So the proposed filter API is the **L2 boolean expression tree** (§6). "L1" is 
 
 A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** expressions. Each operand is either a *reference* — a value on the span or trace, identified by its level, name, and whether it is an attribute or a built-in field (§5.1–§5.2) — or a *constant* (a scalar, or a list for `in`/`not_in`). The operands are the same kind of thing, so neither side is privileged: the everyday `reference op constant` shape (`span.http.status_code = 500`) and a `reference op reference` shape (`span.a > span.b`) are equally expressible. A constant carries an optional **type** (§5.3–§5.4) telling the backend how to interpret it.
 
-### 5.1 References: levels and the `attr` flag
+### 5.1 References: three kinds, each its own term
 
-A **reference** names a value to read off the span or trace. It has three parts: a **level** (which part of the span it lives in), a **name**, and an **`attr`** flag. At an explicit level, `attr: false` (the default) means a built-in field of that level (§5.2); `attr: true` means an entry in that level's attribute map, keyed by `name`. An **empty level** is always an attribute — the unqualified span-or-resource search — since a built-in field has no unqualified form. So the flag is only ever set to reach a level-qualified *attribute*; built-ins and unqualified attributes carry no flag. We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
+A **reference** names a value to read off the span or trace, and there are exactly three kinds of them. An **attribute reference** names an entry in an attribute map, by key, at a level or with no level at all. A **field reference** names a built-in field of a level (§5.2). A **collection reference** names a whole collection of events or links, and is only meaningful as the first operand of `some` (§5.5). We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
+
+Each kind is a distinct term in the AST rather than one `Reference` message distinguished by a flag and a sentinel. An earlier draft used a single message carrying a `level`, a `name` and an `attr` boolean, which made two spellings mean the same thing — the flag is meaningless without a level, since an unqualified reference is always an attribute — and made "the whole collection" an empty `name` that is significant in exactly one operator position. Both are states a validator has to reject rather than states the type system prevents, and every visitor, converter and interceptor then has to remember which bits are meaningful where. Three terms cost three arms in the oneof and give exhaustive cases instead (§6.1), and let `some` declare that its first operand *is* a collection.
 
 The five explicit `level` values name the OTLP attribute maps of §1.2 — `span`, `resource`, `scope` (OTLP's `InstrumentationScope`), `event`, and `link` — and an empty `level` defaults to span-or-resource.
 
-The `attr` flag disambiguates a built-in field from an attribute that happens to share its name: `{level:"span", name:"duration"}` is the span's duration (built-in, the default), while `{level:"span", name:"duration", attr:true}` is a span attribute *named* `duration`. A reference at an explicit `event` or `link` level with an *empty* `name` is a third case: it denotes the whole collection, and is used only as the first operand of `some` (§5.5).
+Separate terms are also what disambiguates a built-in field from an attribute that happens to share its name: a field reference to `span.duration` is the span's duration, while an attribute reference to `span` / `duration` is a span attribute *named* `duration`. An attribute reference with no level is the unqualified span-or-resource search; a field reference has no unqualified form, because a built-in field belongs to a level by definition.
 
 The empty-level default means span-or-resource attributes rather than "all five", a deliberate choice for the new `filter` model: span and resource (process) attributes are the tags reliably indexed across every backend, so this default covers the high-value common case without paying to scan levels that are unindexed or costly.
 
 The default matches api_v3's *documented* contract — its `attributes` field already says a tag is "matched against span and resource attributes." What it does not match is the backends' *implemented* behavior, which generally searches more: ClickHouse ORs across every level a key was seen at (all five when it has no recorded metadata; §1.3), and Elasticsearch across its indexed span/resource/event locations. So the default follows the spec while those backends over-search, and a backend that scans more simply returns a superset (§1.6). The legacy `attributes` map keeps its existing behavior unchanged; the span-or-resource default applies only to an empty `level` in the new `filter` field.
 
-Further levels are future enhancements — a `trace` level for whole-trace fields (`traceDuration`, `rootName`), or `parent.` for the parent span's attributes. Neither is answerable today: no Jaeger backend stores a trace-level entity, so a whole-trace predicate needs the trace assembled first (§9). The level vocabulary is an open string set (§6), so they slot in later without a redesign.
+Further levels are future enhancements — a `trace` level for whole-trace fields (`traceDuration`, `rootName`), or `parent.` for the parent span's attributes. Neither is answerable today: no Jaeger backend stores a trace-level entity, so a whole-trace predicate needs the trace assembled first (§9). The level is carried as a string rather than a proto enum (§6.2), so adding one is additive on the wire — but the accepted values are closed and a new one arrives by a versioned IDL change (§7), not by a backend announcing it.
 
 ### 5.2 Built-in fields
 
@@ -179,6 +181,8 @@ Much of what users filter on is not an attribute at all but a **built-in field**
 | `link` | `traceID`, `spanID` (the linked trace/span) | not expressible |
 
 The value of folding these into references is *uniformity*: `span.duration > 2s`, `span.status = error`, and `span.http.method = GET` are all the same shape (a predicate over a reference), instead of three unrelated mechanisms (a dedicated duration field, a magic `error` tag, and a tag map). It also makes queries expressible that are impossible today (`event.name`, `link.traceID`, `span.startTime`). The dedicated top-level query fields (`service_name`, `operation_name`, the paired `duration_min`/`duration_max`) and the legacy `attributes` map remain supported for backward compatibility but are **mutually exclusive with `filter`** (§7): a legacy request uses them, and the query service normalizes them into built-in-field predicates internally, while a `filter` request expresses `service`, `name`, and `duration` as references directly. Either way a backend sees one filtering model rather than a growing mix of scalar fields *plus* `attributes` *plus* `filter`.
+
+Each built-in field also declares its **type**, which is what lets a constant compared against it be parsed and refused when it is malformed: `span.duration > "not-a-duration"` is rejected at the query boundary rather than passed to a backend to interpret. The declared types are the ones the fields actually hold — a duration, a timestamp, an ID, a status, a span kind, a string, an integer — and they are what §5.4's spellings are checked against. An arbitrary attribute declares nothing, because only storage knows how it was written, so a constant compared against one is left as it was given.
 
 The built-in-field names are a **closed vocabulary, enumerated per level** and checked when a filter is validated. Which fields a query may name is part of the query API, not of each backend: a caller writes one query against Jaeger rather than a different one per storage backend, so a name outside the enumeration is refused up front instead of being passed down for a backend to interpret or ignore. Which of the valid fields a given backend can *serve* is the separate question its declared capabilities answer (§7). The enumeration is additive — a level gains fields as they are defined — and it names the derived values people filter on alongside the ones OTLP stores: `span.duration` from the two timestamps, `event.timeSinceStart` from the event's offset into its span, and `resource.service` from the `service.name` attribute Jaeger reads as identity rather than metadata. The names are camelCase (`startTime`, `timeSinceStart`, `traceID`) because that is how proto3 JSON renders a message field, and api_v3's own query parameters are already spelled that way — the [HTTP query parser](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go) calls `query.serviceName`, `query.startTimeMin`, and `query.startTimeMax` its "Canonical camelCase query params matching proto3 JSON encoding". So a built-in field name reads like the rest of the JSON surface a caller already writes, and since OTLP's own JSON encoding follows the same proto3 JSON mapping, camelCase is also what an OTLP JSON payload looks like. An initialism keeps its capitals — `traceID`, where proto3 JSON would render `traceId` — which is the one point at which the vocabulary reads as Go rather than as JSON. The snake_case operator vocabulary (`not_in`) does not contradict this, because an operator is a *value*, not a field name. A constant compared against a field is written the way that field's values are written: a duration in Go duration syntax (`2s`, `50us`; §5.3), and a timestamp in RFC 3339 with nanosecond precision, which is what api_v3 already accepts for the query's own time range. Whole-trace fields (`traceDuration`, `rootName`) wait on a future `trace` level (§5.1). The event- and link-level fields interact with correlated matching (§5.5), since a span has many of each.
 
@@ -218,6 +222,14 @@ some( <collection>, <predicate> )
 - The first operand names the collection: a reference at `event` or `link` level with no `name` (the collection-reference case of §5.1).
 - The second is a boolean predicate. **Inside it, references at the quantified level bind to the currently-bound element**; references at other levels (`span`, `resource`) bind to the enclosing span as usual. So `some(event, and(event.name = "exception", event.timeSinceStart > 50us))` reads "there is an event on this span whose name is `exception` and which fired more than 50us in" — one event satisfying both.
 
+The binding rules are deliberately narrow for the first version, so that nothing depends on inferred shadowing:
+
+1. `some` introduces a binding for its collection's level.
+2. A reference at that level binds to the innermost active binding.
+3. A reference at a *different* collection level is uncorrelated unless it sits inside its own `some`.
+4. A nested `some` over the same level is **rejected**. Whether the inner one shadows the outer, and whether an inner predicate may reach back to the outer element, are questions this version does not answer — so it refuses the query rather than answering it by accident.
+5. Referring to an outer collection element, when someone needs it, will require an explicit binder identifier. It must not be inferred from tree position.
+
 `some` yields a boolean, so it composes like any other predicate — AND it with span predicates, negate it, nest it. Outside a `some`, an event/link reference keeps its uncorrelated "any element" meaning, which is all a bare `exists(event.name)` needs. The universal quantifier (*every* element matches) is not a separate operator: `every` is `not(some(c, not(p)))` by De Morgan — including the correct vacuous truth on an empty collection — so `some` is the primitive and an `every`/`all` sugar can be added later if demand appears.
 
 Correlated matching is a **declared capability** (ADR-013, §7): ClickHouse and Elasticsearch can evaluate `some` (via `arrayExists` and `nested` respectively); a backend that cannot declares it unsupported, and the query service refuses a filter containing `some` up front rather than silently returning the uncorrelated answer.
@@ -237,7 +249,7 @@ json_extract( <reference>, <path> )
 ```json
 { "op": "eq", "args": [
   { "call": { "op": "json_extract", "args": [
-      { "ref": { "name": "input" } },
+      { "attribute": { "key": "input" } },
       { "scalar": { "value": "guardrails[0].is_passed" } } ] } },
   { "scalar": { "value": "true", "type": "bool" } } ] }
 ```
@@ -271,17 +283,27 @@ The two axes combine into one structured AST: a single, uniformly recursive **`E
 // type validity is a separate concern from grammatical structure.
 message Expression {
   oneof term {
-    Reference ref    = 1;  // a value on the span/trace: attribute or built-in field
-    Scalar    scalar = 2;  // constant: single typed value
-    List      list   = 3;  // constant: homogeneous list (right arg of in / not_in)
-    Call      call   = 4;  // an operator/function applied to argument Expressions
+    AttributeReference  attribute  = 1;  // an entry in an attribute map, by key
+    FieldReference      field      = 2;  // a built-in field of a level (§5.2)
+    CollectionReference collection = 3;  // a whole collection, for `some` (§5.5)
+    Scalar              scalar     = 4;  // constant: single typed value
+    List                list       = 5;  // constant: homogeneous list (right arg of in / not_in)
+    Call                call       = 6;  // an operator/function applied to argument Expressions
   }
 }
 
-message Reference {
-  string name  = 1;  // built-in field name, or attribute key when attr = true; empty at event/link level = the whole collection (for `some`, §5.5)
-  string level = 2;  // span|resource|scope|event|link; empty = span-or-resource, always an attribute whatever attr says
-  bool   attr  = 3;  // at an explicit level: true = attribute of `level`, false (default) = built-in field of `level` (§5.2); ignored when level is empty
+message AttributeReference {
+  string key   = 1;  // the attribute key; required
+  string level = 2;  // span|resource|scope|event|link; empty = span-or-resource (§5.1)
+}
+
+message FieldReference {
+  string name  = 1;  // one of the built-in fields of `level` (§5.2); required
+  string level = 2;  // span|resource|scope|event|link; required — a built-in field has no unqualified form
+}
+
+message CollectionReference {
+  string level = 1;  // event|link — the only levels a span holds many of
 }
 
 message Scalar {
@@ -349,45 +371,45 @@ Legend: 🟢 good · 🟡 partial · 🔴 poor
 
 ¹ `string` proto field + OpenAPI `enum` annotation.
 
-The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and the open string set is precisely what lets a backend treat an unrecognized level/operator as "unsupported" rather than failing a type check.
+The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and a string is what lets an unrecognized level or operator be refused as one this build does not define, with an error naming it, rather than failing a type check on a number nobody can read.
 
 The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`ref`/`scalar`/`list`/`call`). That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
 
 ```
-GET /api/v3/traces?query.filter={"op":"eq","args":[{"ref":{"name":"http.status_code"}},{"scalar":{"value":"500"}}]}
+GET /api/v3/traces?query.filter={"op":"eq","args":[{"attribute":{"key":"http.status_code"}},{"scalar":{"value":"500"}}]}
 ```
 ```json
 { "query": { "filter": {
   "op": "and", "args": [
     { "call": { "op": "gt", "args": [
-        { "ref": { "name": "duration", "level": "span" } },
+        { "field": { "name": "duration", "level": "span" } },
         { "scalar": { "value": "2s" } } ] } },
     { "call": { "op": "in", "args": [
-        { "ref": { "name": "http.status_code" } },
+        { "attribute": { "key": "http.status_code" } },
         { "list": { "values": ["500", "503"] } } ] } } ] } } }
 ```
 
 The `filter` itself is a `Call`, written bare (`{"op":…}`); its `args` are `Expression`s, so a nested call carries the `{"call":…}` envelope. A single predicate is the filter directly (the first example); a conjunction is an `and` call over its predicates (the second). Note that nothing here carries a flag: `span.duration` is a built-in field (the default at an explicit level) and `http.status_code` is an unqualified attribute (empty level). The membership test is a single `in` call over a list, and `or`/`not` nest the same way as `and`.
 
-The `attr` flag appears only when you qualify an *attribute* by level — "spans whose end-user id differs between the span and its resource":
+An attribute reference carries its level when you qualify it — "spans whose end-user id differs between the span and its resource":
 
 ```json
 { "op": "ne", "args": [
-  { "ref": { "name": "enduser.id", "level": "span", "attr": true } },
-  { "ref": { "name": "enduser.id", "level": "resource", "attr": true } } ] }
+  { "attribute": { "key": "enduser.id", "level": "span" } },
+  { "attribute": { "key": "enduser.id", "level": "resource" } } ] }
 ```
 
 And the correlated event query of §5.5 — an event named `exception` that fired more than 50us into the span — is a `some` over the `event` collection whose predicate's event-level references bind to one event:
 
 ```json
 { "op": "some", "args": [
-  { "ref": { "level": "event" } },
+  { "collection": { "level": "event" } },
   { "call": { "op": "and", "args": [
     { "call": { "op": "eq", "args": [
-        { "ref": { "name": "name", "level": "event" } },
+        { "field": { "name": "name", "level": "event" } },
         { "scalar": { "value": "exception" } } ] } },
     { "call": { "op": "gt", "args": [
-        { "ref": { "name": "timeSinceStart", "level": "event" } },
+        { "field": { "name": "timeSinceStart", "level": "event" } },
         { "scalar": { "value": "50us" } } ] } } ] } } ] }
 ```
 
@@ -399,12 +421,12 @@ The verbose AST is comfortable for machines to *transport* but unpleasant to *as
 from jaeger.query import span, resource, event, link, attr, Query
 
 # References — each level is callable for attributes and exposes its built-in
-# fields as members, so one object covers both `attr` cases of a Reference
-span("http.status_code")          # attribute at the span level        (attr:true)
-span.duration                     # built-in field of the span          (attr:false)
-resource("deployment.environment")# attribute at the resource level     (attr:true)
-resource.service                  # built-in field of the resource      (attr:false)
-event.name                        # built-in field of an event          (attr:false)
+# fields as members, so one object reaches both an attribute and a field of its level
+span("http.status_code")          # attribute reference at the span level
+span.duration                     # field reference on the span
+resource("deployment.environment")# attribute reference at the resource level
+resource.service                  # field reference on the resource
+event.name                        # field reference on an event
 attr("k8s.pod.name")              # unqualified attribute (span-or-resource)
 
 # Predicates — Python comparison operators build a `call`
@@ -425,7 +447,7 @@ q = (Query()
      .build())          # -> TraceQueryParameters.filter (an `and` of the two)
 ```
 
-Each fragment lowers directly to the AST — `span.duration > "2s"` produces `{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}}` (`span.x` emits a built-in-field `ref` — level set, no `attr` flag; `span(...)`/`resource(...)` emit level-qualified attribute `ref`s with `attr:true`; `attr(...)` emits an unqualified attribute). Two builder conveniences carry their weight:
+Each fragment lowers directly to the AST — `span.duration > "2s"` produces `{"call":{"op":"gt","args":[{"field":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}}` (`span.x` emits a built-in-field `ref` — level set, no `attr` flag; `span(...)`/`resource(...)` emit level-qualified attribute `ref`s with `attr:true`; `attr(...)` emits an unqualified attribute). Two builder conveniences carry their weight:
 
 - **Type-hint inference.** The builder sets `type` only where a numeric interpretation is required (`attr("size") > 500` emits an `int` scalar) and leaves equality and membership untyped, matching whatever form is stored (§5.4).
 - **Operator mapping.** `== != > < >= <=` map to `eq/ne/gt/lt/gte/lte` and `& | ~` to `and/or/not`; the operators Python cannot overload take method forms (`.matches()`, `.exists()`, `.one_of()`/`.not_one_of()`), with `.eq()`/`.gt()` aliases for callers who prefer them.
@@ -495,13 +517,24 @@ Read as end-to-end paths:
 
 The third row is worth reading twice: refusing a request is not the same as bypassing an interceptor. A caller's filter with the gate off is refused outright, so there is no query for an interceptor to gate — while that same deployment's ordinary searches, which carry no filter, go through the interceptor exactly as they always did.
 
-**Validating where a filter arrives.** A filter reaches Jaeger over one of two wires — an api_v3 request, or a remote-storage `FindTraces` call — and each of those decodes the proto message into the AST. Decoding validates: the same conversion that builds the AST checks it against the operator, level and field vocabularies, so neither wire can hand a backend a tree that names something Jaeger has no meaning for. Validating inside the decoder rather than asking each caller to remember a second step is what makes that true of both wires, including the remote-storage server, whose caller is a third party. Encoding is the opposite and stays total: what a filter may say is what the receiving backend declared it can evaluate, so an operator this build does not recognize is still passed through to a backend that asked for it.
+**Four stages, and which boundary runs each.** A filter arrives over one of two wires — an api_v3 request, or a remote-storage `FindTraces` call — and what happens to it is deliberately four separate steps rather than one:
+
+1. **Decode.** The conversion from the wire message to the AST refuses only what the AST cannot hold at all: an argument with no term set, a call argument carrying no call. Those decode to nothing rather than to a tree. It checks nothing else, so a caller can decode a payload in order to inspect it, and a test can build a tree the validator rejects.
+2. **Validate the structure.** Every operator is one this build defines, with the number and kind of arguments it takes; every level, value type and built-in field name is a defined one; the quantifier's binding rules hold (§5.5). Each ingress runs this before dispatching: the query service on behalf of every API layer above it, and the remote-storage server on what a third party sent it.
+3. **Check the constants.** A constant compared against a built-in field is parsed as that field's declared type and refused when malformed (§5.2). This is what stops the same query being rejected on a backend that receives the legacy predicate fields and accepted by one that evaluates the filter natively.
+4. **Check the capabilities.** Whether *this* backend can serve a well-formed filter — the levels and operators it declared (ADR-013) — which is the only stage that depends on which backend the query is going to.
+
+Keeping decode separate from validation is why each ingress has to run stage 2 explicitly, and a wire that forgets to is a wire that hands a backend a tree it cannot evaluate. The remote peer repeats stages 1–3 after its own decode: it is a separate process, and what reached it is what a client chose to send.
+
+Encoding is total for a validated tree. It writes whatever the AST holds, because a filter reaches it only after the stages above.
 
 This is clean for the **internal `TraceReader`** API, which is versioned with the binary and can simply drop the redundant scalar fields once the query service populates `filter`. It is harder at the **Remote Storage gRPC API**: those scalar fields are part of the published `storage.v2` contract and existing third-party plugins read them.
 
 A plain additive `filter` field on the existing `FindTraces`/`FindTraceIDs` RPCs would be a *silent* gap at the remote boundary: a plugin that predates `filter` ignores the unknown field and answers from the scalar fields alone, under-filtering with no signal. What closes the gap is a **separate capability declaration that gates the field** — the mechanism in [ADR-013](../adr/013-storage-capability-declaration.md). A backend declares what it can search through `SearchCapabilities` on `tracestore.Reader`, carried across the remote boundary by the `jaeger.storage.v2.Capabilities` service ([jaeger-idl#211](https://github.com/jaegertracing/jaeger-idl/pull/211), merged). RFC 0005's filter capabilities — which levels, which operators, whether boolean `or`/`not` is honored — are declared there as sibling fields alongside the `WithoutServiceName` field ADR-013 shipped first.
 
 So the query service asks before it dispatches: it sends the rich `filter` only to a backend that declares support, and **down-converts** to the legacy scalar fields + `attributes` (rejecting what those cannot express, e.g. `or`/`not`) for one that does not. A plugin predating the declaration reads as least capable (its `Capabilities` service is absent; ADR-013), so the query service never sends it `filter` and the under-filtering case cannot arise. No bespoke filter-aware RPC is needed. The internal `TraceReader` cleanup — dropping the redundant scalar fields once the query service populates `filter` — can proceed independently. (Heavier fallbacks — mirroring the scalars alongside `filter`, or a whole-protocol major bump — apply only if the capability-declaration route is rejected.)
+
+**The vocabulary is closed, and additions are versioned.** An unknown level, operator or value type is refused at every boundary that sees one — the OpenAPI schema, the decode-and-validate path, and the domain validator — and a new one arrives by changing the IDL, not by a backend announcing it. An earlier draft of this section said the opposite, that the value sets are open and an operator this build does not recognize is passed through to a backend that declared it. That cannot work, and the implementation never did it: validation runs before capabilities are consulted, so an operator the validator does not know is refused before anything asks which backend the query is for. Declaring an operator by name in a capability list also cannot teach an older validator its arity, its operand kinds or its result type, which is what would be needed to check, authorize and lower it safely.
 
 **Capability-based degradation.** The backend-wide limits are *declared* through `SearchCapabilities` (ADR-013), so the query service refuses an unserviceable filter before it dispatches; a per-query predicate that no declared capability covers is *rejected* at query time as the backstop. Either way a backend never silently returns wrong results. (Surfacing these limits to the UI builder, so it can gray out unsupported options, needs the capabilities exposed on the *public* API — a future addition, since ADR-013's mechanism sits at the storage boundary; §9.)
 
@@ -550,12 +583,18 @@ The structured model of §4–§6 is option C. Three lettered alternatives (A, B
 
 **AST node-shape decisions.** Four shape choices within the structured model, each with the alternative it was chosen over:
 
-- **One `Reference{name, level, attr}`, not separate `attribute`/`field` variants.** A built-in field and an attribute are both "a value read off the span/trace," so they are one node parameterized by level, with an `attr` flag distinguishing a level-qualified attribute from the built-in field that is the default at an explicit level. *Rejected:* separate oneof variants — the split saves no evaluator branch (a field and a map entry resolve differently regardless), and a bare field-name string cannot carry a level, which is required once built-in fields exist at non-span levels (`event.name`, `link.traceID`; §5.2). Unifying is what makes those expressible at all. The default is built-in rather than attribute so the common built-in-heavy query carries no flags; only a level-qualified attribute sets `attr:true` (§5.1).
+- **Separate `attribute` / `field` / `collection` reference terms, not one `Reference{name, level, attr}`.** This RFC first proposed the single node: a built-in field and an attribute are both "a value read off the span/trace," so one node parameterized by level, with an `attr` flag picking between them. That reasoning still holds for what the two *are*; what it missed is which states the encoding admits. The flag means nothing without a level, because an unqualified reference is always an attribute, so `{name: "x"}` and `{name: "x", attr: true}` spell one thing two ways. "The whole collection" became an empty `name` that is significant in one operator position and meaningless everywhere else — and a collection reference could carry `attr: true`, which validation had no reason to inspect. Those are states a validator must reject rather than states the type system prevents, and every visitor, converter and interceptor has to know which bits matter where. The original objection — that a bare field-name string cannot carry a level — is answered by giving each term its own level field rather than by merging the terms. Three arms give exhaustive cases and let `some` declare that its first operand *is* a collection (§5.1, §6.1).
 - **`in`/`not_in` take a `List` operand, not variadic scalar args.** The set is a first-class `List` literal (one `type` for the homogeneous list), so `in`/`not_in` stay binary `[subject, set]` like every other operator. *Rejected:* `Call(op="in", args=[subject, s1, s2, …])` — a variadic form invents a "first arg is the subject, the rest are the set" convention unique to `in`, lets a `ref`/`call` slip into set positions, and carries a `type` per element (admitting a heterogeneous set validation must then reject). The concern that a first-class `List` enables nonsensical ASTs is closed by `filter: Call` (a list cannot be the top-level filter) and by validation catching a list in a scalar position, the same class as any other type error.
 - **Top-level `filter` is a `Call`, not an `Expression` (nor an implicit-AND list).** A filter always applies a boolean operator, so the field is a `Call`; the top level then carries no `Expression` oneof envelope — `{"op":…}` on the wire, not `{"call":{…}}` — so the common single-predicate query is shorter, and a single node gives one canonical encoding of conjunction (an `and` call) rather than a second, implicit one (a top-level list). *Rejected:* `Expression filter` — the composability it appeared to buy (a filter being the same type as any sub-expression) is a host-language concern, met by a one-line `Expr(call)` wrap in a typed builder, not something the wire must carry, so the constant envelope on every request buys nothing. A top-level implicit-AND list was also rejected: it is a second way to spell AND, and forces a one-element list for a top-level `or`.
 - **Scalars carry a string `value` + optional `type` hint, not a typed `oneof`** (§5.4). A typed `oneof {int64|double|bool|string}` cannot express the *match any type* default the data model needs (§5.4), and unit-bearing values (`duration` = `"2s"`, future timestamps) have no native proto scalar and revert to strings regardless. The stringify "tax" for a known-typed caller is paid once by the builder (§6.3); wire packing is immaterial at query-payload sizes. *Rejected:* a typed `oneof` — its strictness is illusory here, since it cannot represent "any type."
 
 ---
+
+Three things this RFC is asked for and does not adopt, recorded so the question does not have to be re-litigated:
+
+- **A semantic type system for the AST** — a type algebra (`Bool`, `Duration`, `Timestamp`, `TraceID`, `Dynamic`, …), an operator signature table, inferred result types on every `Call`, and a pass returning a tree annotated with them. *Deferred, not rejected.* The part that pays for itself now is in stage 3 above: built-in fields declare their types, so a malformed constant is refused once instead of differently per backend. The rest waits on a second backend that evaluates filters natively, because designing coercion rules against a single implementation encodes that implementation's assumptions as though they were the API's — which is the mistake this RFC already made twice, with a `boolean` capability flag and with normalization toward the filter. Two parts of the proposal look speculative rather than early: a result type on `Call` matters only once a call may appear as a comparison operand, which no operator does today, and distinguishing "no constraint on this literal" from "this attribute's type is storage's to decide" is a distinction with no consumer while backends resolve attribute types themselves. What would trigger revisiting: a second native backend, or a coercion question that cannot be answered per-backend.
+- **An opaque extension node for backend-specific operations.** No backend has asked for one, and an extension form needs an argument contract, a result type and a round-trip story before it is safe to parse, authorize or lower. Closing the vocabulary (§7) is the honest position until something concrete needs it.
+- **A canonical form and a normalizer** — flattening associative calls, sorting commutative operands, sorting and deduplicating membership lists. The uses put forward for it are caching, comparing filters in an interceptor, and stable logging; nothing caches a filter, and an interceptor replaces the filter rather than comparing it. Sorting also destroys information a backend may want: operand order can drive index selection, and it is what a diagnostic shows back to the user. The flattening that is actually needed already happens where it is needed — the legacy-shape rewrite flattens conjunctions, and the fluent builder flattens as it composes. Revisit when something genuinely compares or caches filters.
 
 ## 9. Implementation roadmap
 
@@ -569,7 +608,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 **Stage B — Backend routing (one PR per backend, parallelizable after M2)**
 
 - **M3 — ClickHouse.** Route level-qualified predicates to their typed Map column ([`query_builder.go`](../../internal/storage/v2/clickhouse/tracestore/query_builder.go)) and lower the boolean tree into the SQL `WHERE` (`AND`/`OR`/`NOT`); an empty level keeps the span-or-resource expansion. *Exit:* level-qualified/boolean queries emit the corresponding SQL; unqualified queries byte-identical to today.
-- **M4 — Elasticsearch/OpenSearch.** Route span/resource/event levels to their fields in `buildTagQuery` ([`core/reader.go`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)) and lower the boolean tree into a `bool` query; the instrumentation and link levels are rejected pending schema evolution. *Exit:* span/resource/event level-qualification and `AND`/`OR`/`NOT` work; unqualified snapshots byte-identical.
+- **M4 — Elasticsearch/OpenSearch.** Route span/resource/event levels to their fields in `buildTagQuery` ([`core/reader.go`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)) and lower the boolean tree into a `bool` query; the scope and link levels are rejected pending schema evolution. *Exit:* span/resource/event level-qualification and `AND`/`OR`/`NOT` work; unqualified snapshots byte-identical.
 - **M5 — Cassandra + Badger (capability boundary).** Accept the conjunctive subset over indexed levels (span/resource/event); populate the `FilterCapabilities` fields (§7) — `levels=[span,resource,event]` and `operators=[and,eq]` — plus `same_span_conjunction=false`, so the query service refuses `OR`/`NOT`, unsupported operators, and predicates naming an unindexed level (link, instrumentation) up front and never silently widens (§1.6), while the looser conjunction scoping is reported rather than refused. *Exit:* supported predicates return correct supersets; unsupported ones are refused cleanly; the reported scoping is surfaced; a cross-backend conformance test asserts all three.
 
 **Stage C — Ergonomics and UI**
