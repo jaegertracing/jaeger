@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
 	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
@@ -288,7 +289,13 @@ func (h *Handler) GetCapabilities(
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
-	filter, err := expressionproto.ToFilter(t.GetFilter())
+	// The caller here is a third party, and decoding says only that the wire described a tree,
+	// not that the tree means anything, so this is where a filter naming an operator or level
+	// this build has no meaning for is refused rather than handed to a reader.
+	filter, err := expressionproto.FromProto(t.GetFilter())
+	if err == nil && filter != nil {
+		err = expression.ValidateFilter(filter)
+	}
 	if err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}

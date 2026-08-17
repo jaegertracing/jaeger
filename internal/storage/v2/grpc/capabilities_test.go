@@ -19,12 +19,12 @@ import (
 // which is what makes a remote backend that declares filter support actually receive one.
 func TestQueryParametersCarryTheFilter(t *testing.T) {
 	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-		&expression.Reference{Name: "http.route", Level: expression.LevelSpan, Attr: true},
-		&expression.Scalar{Value: "/cart"},
+		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "/cart"},
 	}}
 
 	sent := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter})
-	assert.Equal(t, expressionproto.FromFilter(filter), sent.GetFilter())
+	assert.Equal(t, expressionproto.ToProto(filter), sent.GetFilter())
 	decoded, err := toTraceQueryParams(sent)
 	require.NoError(t, err)
 	assert.Equal(t, filter, decoded.Filter)

@@ -257,7 +257,7 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
-		Filter:        expressionproto.FromFilter(t.Filter),
+		Filter:        expressionproto.ToProto(t.Filter),
 	}
 }
 
