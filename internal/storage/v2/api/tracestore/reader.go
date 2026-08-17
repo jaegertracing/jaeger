@@ -98,43 +98,6 @@ type Reader interface {
 	SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
 }
 
-// SearchCapabilities describes how a Reader's search methods behave where backends
-// differ: which TraceQueryParams fields may be omitted, which are honored exactly
-// rather than approximated, and which combinations a backend cannot serve. Its zero
-// value is the least capable reader, so a field added here leaves every existing
-// implementation declaring the new capability unsupported.
-//
-// Fields to expect over time, each of which is a real divergence today:
-//
-//   - Whether SearchDepth is an exact limit or a hint. jaeger.api_v3's
-//     TraceQueryParameters warns of search_depth that "some implementations might not
-//     support precise limits", so a caller cannot tell whether a short result set means
-//     that there are no more matches or that the backend stopped early.
-//   - Which duration-query combinations hold. Cassandra reads DurationMin/DurationMax
-//     from a separate duration_index table, and it cannot combine that table with the
-//     tag index in one query, so it rejects a search that uses both
-//     (docs/adr/001-cassandra-find-traces-duration.md). The API layer stopped rejecting
-//     the combination in https://github.com/jaegertracing/jaeger/issues/1047, which did
-//     not remove the storage limitation.
-type SearchCapabilities struct {
-	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
-	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
-	// service", rather than as an error or an empty result.
-	WithoutServiceName bool
-
-	// SameSpanConjunction is true when a conjunction — several entries in the Attributes
-	// map, or an OpAnd in Filter — is satisfied within a single span. False means the
-	// backend may satisfy different conjuncts from different spans of the same trace, as
-	// a flat inverted index that intersects at trace granularity does. Callers report
-	// this looser scoping rather than refusing the query.
-	SameSpanConjunction bool
-
-	// Filter is how much of TraceQueryParams.Filter the reader evaluates. A nil Filter
-	// means none of it: the reader serves only the other, legacy fields, so a caller with
-	// a filter to run must express it in those fields or refuse the query.
-	Filter *FilterCapabilities
-}
-
 // GetTraceParams contains single-trace parameters for a GetTraces request.
 // Some storage backends (e.g. Tempo) perform GetTraces much more efficiently
 // if they know the approximate time range of the trace.
