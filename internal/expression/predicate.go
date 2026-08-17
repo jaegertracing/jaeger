@@ -123,14 +123,15 @@ func (Predicate) Or(predicates ...*ast.Call) *ast.Call {
 	return combine(ast.OpOr, predicates)
 }
 
-// Not negates a predicate.
+// Not builds the negation of a predicate.
 func (Predicate) Not(predicate *ast.Call) *ast.Call {
 	return &ast.Call{Op: ast.OpNot, Args: []ast.Expression{predicate}}
 }
 
-// Some matches a span holding one event or link that satisfies the predicate. A conjunction
-// naming two event fields without the quantifier is uncorrelated, because each conjunct may be
-// satisfied by a different event; inside Some both bind to the same one (RFC 0005 §5.5).
+// Some builds a quantifier, matching a span that holds one event or link satisfying the
+// predicate. A conjunction naming two event fields without the quantifier is uncorrelated,
+// because each conjunct may be satisfied by a different event; inside Some both bind to the same
+// one (RFC 0005 §5.5).
 func (Predicate) Some(collection Collection, predicate *ast.Call) *ast.Call {
 	return &ast.Call{Op: ast.OpSome, Args: []ast.Expression{
 		collection.collectionRef(),
@@ -245,20 +246,20 @@ func (r Ref) Lt(value any) *ast.Call  { return r.compare(ast.OpLt, value) }
 func (r Ref) Gte(value any) *ast.Call { return r.compare(ast.OpGte, value) }
 func (r Ref) Lte(value any) *ast.Call { return r.compare(ast.OpLte, value) }
 
-// Matches tests the reference against a regular expression.
+// Matches builds a regular-expression test on the reference.
 func (r Ref) Matches(pattern string) *ast.Call {
 	return r.compare(ast.OpRegex, pattern)
 }
 
-// Exists tests that the reference has a value at all.
+// Exists builds a test that the reference has a value at all.
 func (r Ref) Exists() *ast.Call {
 	return &ast.Call{Op: ast.OpExists, Args: []ast.Expression{r.ref}}
 }
 
-// In tests the reference against a list of values.
+// In builds a membership test against a list of values.
 func (r Ref) In(values ...any) *ast.Call { return r.member(ast.OpIn, values) }
 
-// NotIn is the negation of In.
+// NotIn builds the negation of the In test.
 func (r Ref) NotIn(values ...any) *ast.Call { return r.member(ast.OpNotIn, values) }
 
 // numericOps are the comparisons that ask a backend to read the value as a number, and so the
