@@ -249,7 +249,7 @@ json_extract( <reference>, <path> )
 ```json
 { "op": "eq", "args": [
   { "call": { "op": "json_extract", "args": [
-      { "attribute": { "key": "input" } },
+      { "attr": { "key": "input" } },
       { "scalar": { "value": "guardrails[0].is_passed" } } ] } },
   { "scalar": { "value": "true", "type": "bool" } } ] }
 ```
@@ -283,7 +283,7 @@ The two axes combine into one structured AST: a single, uniformly recursive **`E
 // type validity is a separate concern from grammatical structure.
 message Expression {
   oneof term {
-    AttributeReference  attribute  = 1;  // an entry in an attribute map, by key
+    AttributeReference  attr       = 1;  // an entry in an attribute map, by key
     FieldReference      field      = 2;  // a built-in field of a level (§5.2)
     CollectionReference collection = 3;  // a whole collection, for `some` (§5.5)
     Scalar              scalar     = 4;  // constant: single typed value
@@ -303,7 +303,7 @@ message FieldReference {
 }
 
 message CollectionReference {
-  string level = 1;  // event|link — the only levels a span holds many of
+  string level = 1;  // event|link — the only levels a span holds many of; required
 }
 
 message Scalar {
@@ -371,12 +371,12 @@ Legend: 🟢 good · 🟡 partial · 🔴 poor
 
 ¹ `string` proto field + OpenAPI `enum` annotation.
 
-The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients — acceptable for a query surface, and a string is what lets an unrecognized level or operator be refused as one this build does not define, with an error naming it, rather than failing a type check on a number nobody can read.
+The only thing string constants give up is a generated enum *type* for strongly-typed gRPC clients, which is acceptable for a query surface. A string also makes the refusal legible: a build that does not define `matches` can answer `unknown filter operator "matches"`, quoting what the caller actually sent. A proto3 enum carries an unrecognized value through as a bare number, so the same error could only report `7`.
 
-The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`ref`/`scalar`/`list`/`call`). That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
+The recursive `Call` shape makes the raw JSON verbose — each call carries an `args` array whose entries name their kind (`attr`/`field`/`collection`/`scalar`/`list`/`call`). Those keys are kept short where they are frequent: a reference appears in every predicate, so the attribute arm is `attr` rather than `attribute`. `collection` keeps its longer name because it appears once per `some`, the rarest operator, where being unambiguous is worth four characters — and the obvious short alternative, `nested`, would name the term after Elasticsearch's `nested` query, importing a storage concept into the query vocabulary. That verbosity is the deliberate cost of one uniform node that expresses `ref op ref` and keeps future L3/L4 in reach; humans are not expected to author it by hand — the §7 prefix shorthand does that. Spelled out, `http.status_code = 500` and `span.duration > 2s AND http.status_code in [500,503]` are:
 
 ```
-GET /api/v3/traces?query.filter={"op":"eq","args":[{"attribute":{"key":"http.status_code"}},{"scalar":{"value":"500"}}]}
+GET /api/v3/traces?query.filter={"op":"eq","args":[{"attr":{"key":"http.status_code"}},{"scalar":{"value":"500"}}]}
 ```
 ```json
 { "query": { "filter": {
@@ -385,7 +385,7 @@ GET /api/v3/traces?query.filter={"op":"eq","args":[{"attribute":{"key":"http.sta
         { "field": { "name": "duration", "level": "span" } },
         { "scalar": { "value": "2s" } } ] } },
     { "call": { "op": "in", "args": [
-        { "attribute": { "key": "http.status_code" } },
+        { "attr": { "key": "http.status_code" } },
         { "list": { "values": ["500", "503"] } } ] } } ] } } }
 ```
 
@@ -395,8 +395,8 @@ An attribute reference carries its level when you qualify it — "spans whose en
 
 ```json
 { "op": "ne", "args": [
-  { "attribute": { "key": "enduser.id", "level": "span" } },
-  { "attribute": { "key": "enduser.id", "level": "resource" } } ] }
+  { "attr": { "key": "enduser.id", "level": "span" } },
+  { "attr": { "key": "enduser.id", "level": "resource" } } ] }
 ```
 
 And the correlated event query of §5.5 — an event named `exception` that fired more than 50us into the span — is a `some` over the `event` collection whose predicate's event-level references bind to one event:
