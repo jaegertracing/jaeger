@@ -4,8 +4,8 @@
 // Package expression assembles the query expressions of RFC 0005.
 //
 // An expression written out as struct literals buries the query in its own scaffolding: a
-// two-predicate conjunction is ten lines of nested Call, Args and Reference. Predicate names the
-// query instead, so the same conjunction reads as
+// two-predicate conjunction is ten lines of nested Call, Args and reference terms. Predicate
+// names the query instead, so the same conjunction reads as
 //
 //	var p expression.Predicate
 //	p.And(
@@ -23,13 +23,14 @@
 // wire carries.
 //
 // Nothing here type checks the query — comparing a duration against a word builds a valid tree
-// that means nothing — because RFC 0005 leaves that to the backend, and ast.ValidateFilter is
-// what checks the structure an operator requires.
+// that means nothing — because ast.ValidateFilter is what checks the structure an operator
+// requires and ast.ResolveConstants is what reads a constant as the field beside it holds it.
 package expression
 
 import (
 	"fmt"
-	"slices"
+	"math"
+	"reflect"
 	"strconv"
 	"time"
 
@@ -85,10 +86,10 @@ func (Predicate) Scope() ScopeLevel {
 func (Predicate) Event() EventLevel {
 	at := level(ast.LevelEvent)
 	return EventLevel{
-		collectionLevel: collectionLevel{at},
-		Name:            at.Field(ast.EventFieldName),
-		Time:            at.Field(ast.EventFieldTime),
-		TimeSinceStart:  at.Field(ast.EventFieldTimeSinceStart),
+		level:          at,
+		Name:           at.Field(ast.EventFieldName),
+		Time:           at.Field(ast.EventFieldTime),
+		TimeSinceStart: at.Field(ast.EventFieldTimeSinceStart),
 	}
 }
 
@@ -97,17 +98,17 @@ func (Predicate) Event() EventLevel {
 func (Predicate) Link() LinkLevel {
 	at := level(ast.LevelLink)
 	return LinkLevel{
-		collectionLevel: collectionLevel{at},
-		TraceID:         at.Field(ast.LinkFieldTraceID),
-		SpanID:          at.Field(ast.LinkFieldSpanID),
-		TraceState:      at.Field(ast.LinkFieldTraceState),
+		level:      at,
+		TraceID:    at.Field(ast.LinkFieldTraceID),
+		SpanID:     at.Field(ast.LinkFieldSpanID),
+		TraceState: at.Field(ast.LinkFieldTraceState),
 	}
 }
 
 // Attr names an attribute without saying which level it lives in, which a backend looks for at
 // the span and resource levels. It is the filter counterpart of the legacy attributes map.
 func (Predicate) Attr(name string) Ref {
-	return Ref{&ast.Reference{Name: name}}
+	return Ref{&ast.AttributeRef{Key: name}}
 }
 
 // And joins predicates conjunctively. An argument that is itself an and contributes its own
@@ -128,15 +129,22 @@ func (Predicate) Not(predicate *ast.Call) *ast.Call {
 	return &ast.Call{Op: ast.OpNot, Args: []ast.Expression{predicate}}
 }
 
-// Some builds a quantifier, matching a span that holds one event or link satisfying the
-// predicate. A conjunction naming two event fields without the quantifier is uncorrelated,
-// because each conjunct may be satisfied by a different event; inside Some both bind to the same
-// one (RFC 0005 §5.5).
+// Some builds a quantifier over the span's events or links, matching a span that holds one
+// element satisfying the predicate. A conjunction naming two event fields without the quantifier
+// is uncorrelated, because each conjunct may be satisfied by a different event; inside Some both
+// bind to the same one (RFC 0005 §5.5).
 func (Predicate) Some(collection Collection, predicate *ast.Call) *ast.Call {
 	return &ast.Call{Op: ast.OpSome, Args: []ast.Expression{
-		collection.collectionRef(),
+		collection.nested(),
 		predicate,
 	}}
+}
+
+// Collection is a level a span holds many of, which is what Some may quantify over: the event
+// and link levels, and no others. The method is unexported so that no other level can satisfy
+// it, which makes quantifying over the span a compile error rather than a refusal at validation.
+type Collection interface {
+	nested() *ast.NestedRef
 }
 
 // Compare builds a comparison in prefix form, for the caller holding an operator in a variable —
@@ -150,10 +158,10 @@ func (Predicate) Compare(op ast.Operator, ref Ref, value any) *ast.Call {
 	return ref.compare(op, value)
 }
 
-// Scalar builds a constant of a declared type, for the comparison that has to narrow the type
-// where the operator alone would not (RFC 0005 §5.4).
-func (Predicate) Scalar(valueType ast.ValueType, value any) *ast.Scalar {
-	return &ast.Scalar{Value: render(value), Type: valueType}
+// Text builds a constant to be matched as text, for the comparison that has to narrow the match
+// to the string-typed value where a Go string leaves the type open (RFC 0005 §5.4).
+func (Predicate) Text(value string) *ast.StringValue {
+	return &ast.StringValue{Value: value}
 }
 
 // List builds a list constant whose elements are all of a declared type, to pass to In or
@@ -198,7 +206,7 @@ type ScopeLevel struct {
 
 // EventLevel names an event's built-in fields.
 type EventLevel struct {
-	collectionLevel
+	level
 
 	Name           Ref
 	Time           Ref
@@ -207,7 +215,7 @@ type EventLevel struct {
 
 // LinkLevel names a link's built-in fields.
 type LinkLevel struct {
-	collectionLevel
+	level
 
 	TraceID    Ref
 	SpanID     Ref
@@ -220,34 +228,30 @@ type level ast.Level
 // Attr names an attribute of this level, the case the named fields cannot cover because the key
 // is the caller's rather than this API's.
 func (l level) Attr(name string) Ref {
-	return Ref{&ast.Reference{Name: name, Level: ast.Level(l), Attr: true}}
+	return Ref{&ast.AttributeRef{Key: name, Level: ast.Level(l)}}
 }
 
 // Field names a built-in field of this level by the spelling ast.Fields lists it under. The named
 // fields are what a query written out in Go uses; this is for the caller holding a field name in
 // a variable, such as a query arriving from a UI.
+func (l level) nested() *ast.NestedRef {
+	return &ast.NestedRef{Level: ast.Level(l)}
+}
+
 func (l level) Field(name string) Ref {
-	return Ref{&ast.Reference{Name: name, Level: ast.Level(l)}}
-}
-
-// collectionLevel is a level a span holds many of, so a predicate over it can be quantified.
-type collectionLevel struct {
-	level
-}
-
-func (c collectionLevel) collectionRef() *ast.Reference {
-	return &ast.Reference{Level: ast.Level(c.level)}
-}
-
-// Collection is a level holding many elements per span, which is what Some quantifies over: the
-// event and link levels, and no others.
-type Collection interface {
-	collectionRef() *ast.Reference
+	return Ref{&ast.FieldRef{Name: name, Level: ast.Level(l)}}
 }
 
 // Ref is a value named by a query, and the left operand of the predicate its methods build.
+//
+// The right-hand operand is any rather than a type parameter because Go does not allow type
+// parameters on methods, and a generic function would give up the chained form these methods
+// exist for. It is a real union in any case: a Go scalar, another Ref to compare two references,
+// or a term already built by Text or List. constant decides which node a Go value becomes, and
+// what a backend does with a value it cannot read is RFC 0005's question, not this package's —
+// nothing here type checks the query.
 type Ref struct {
-	ref *ast.Reference
+	ref ast.Expression
 }
 
 func (r Ref) Eq(value any) *ast.Call  { return r.compare(ast.OpEq, value) }
@@ -273,14 +277,16 @@ func (r Ref) In(values ...any) *ast.Call { return r.member(ast.OpIn, values) }
 // NotIn builds the negation of the In test.
 func (r Ref) NotIn(values ...any) *ast.Call { return r.member(ast.OpNotIn, values) }
 
-// numericOps are the comparisons that ask a backend to read the value as a number, and so the
-// only ones that declare the constant's type. Equality and membership leave it open, so they
-// match the value in whatever form it was stored (RFC 0005 §5.4).
-var numericOps = []ast.Operator{ast.OpGt, ast.OpLt, ast.OpGte, ast.OpLte}
-
 func (r Ref) compare(op ast.Operator, value any) *ast.Call {
-	operand := scalarOperand(value, slices.Contains(numericOps, op))
-	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, operand}}
+	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, operand(value, isOrdered(op))}}
+}
+
+// isOrdered reports whether an operator reads its operand as a number or an instant. Only those
+// declare a constant's type: equality and membership leave it open so they match the value in
+// whatever form a backend stored it (RFC 0005 §5.4), and a constant compared against a built-in
+// field is typed later anyway, by ResolveConstants.
+func isOrdered(op ast.Operator) bool {
+	return op == ast.OpGt || op == ast.OpLt || op == ast.OpGte || op == ast.OpLte
 }
 
 func (r Ref) member(op ast.Operator, values []any) *ast.Call {
@@ -305,23 +311,76 @@ func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
 	return &ast.Call{Op: op, Args: args}
 }
 
-// scalarOperand reads the right-hand side of a comparison. Another reference or an already-built
-// term is compared as it stands, which is what lets a query compare two references.
-func scalarOperand(value any, numeric bool) ast.Expression {
+// operand reads the right-hand side of a comparison. Another reference or an already-built term
+// is compared as it stands, which is what lets a query compare two references.
+func operand(value any, typed bool) ast.Expression {
 	switch term := value.(type) {
 	case Ref:
 		return term.ref
 	case ast.Expression:
 		return term
 	}
-	scalar := &ast.Scalar{Value: render(value)}
-	if numeric {
-		scalar.Type = valueTypeOf(value)
+	if !typed {
+		return &ast.AnyValue{Value: spelling(value)}
 	}
-	return scalar
+	return constant(value)
 }
 
-// listOperand reads the right-hand side of In or NotIn. A list built by Values is taken as it
+// spelling writes a Go value the way a constant carries it, for the operators that leave the
+// type open. A duration and an instant keep the syntax their built-in fields are compared in, so
+// ResolveConstants can still read them.
+func spelling(value any) string {
+	switch term := value.(type) {
+	case string:
+		return term
+	case time.Duration:
+		return term.String()
+	case time.Time:
+		return term.Format(time.RFC3339Nano)
+	default:
+		return fmt.Sprint(value)
+	}
+}
+
+// constant reads a Go value as the constant node carrying it. A string becomes an untyped
+// constant rather than a text one, so it matches the value in whatever form it was stored (RFC
+// 0005 §5.4) and a duration or an instant written out by hand still reaches
+// ast.ResolveConstants.
+func constant(value any) ast.Expression {
+	switch term := value.(type) {
+	case string:
+		return &ast.AnyValue{Value: term}
+	case bool:
+		return &ast.BoolValue{Value: term}
+	case time.Duration:
+		return &ast.DurationValue{Value: term}
+	case time.Time:
+		return &ast.TimestampValue{Value: term}
+	}
+	// Every integer and floating-point width reaches the same two nodes, so they are read by
+	// kind rather than as a dozen cases spelling out the same conversion.
+	switch reflected := reflect.ValueOf(value); reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return &ast.IntValue{Value: reflected.Int()}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return unsignedConstant(reflected.Uint())
+	case reflect.Float32, reflect.Float64:
+		return &ast.DoubleValue{Value: reflected.Float()}
+	}
+	return &ast.AnyValue{Value: fmt.Sprint(value)}
+}
+
+// unsignedConstant reads an unsigned integer, which the AST holds as a signed one. A value the
+// signed node cannot hold keeps its decimal spelling instead of being wrapped into a negative
+// number.
+func unsignedConstant(value uint64) ast.Expression {
+	if value > math.MaxInt64 {
+		return &ast.AnyValue{Value: strconv.FormatUint(value, 10)}
+	}
+	return &ast.IntValue{Value: int64(value)}
+}
+
+// listOperand reads the right-hand side of In or NotIn. A list built by List is taken as it
 // stands, which is how a caller declares the element type; anything else becomes a list whose
 // elements have no declared type.
 func listOperand(values []any) *ast.List {
@@ -330,7 +389,7 @@ func listOperand(values []any) *ast.List {
 			return list
 		}
 	}
-	return &ast.List{Values: renderAll(values)}
+	return &ast.List{Values: renderAll(values), Type: ""}
 }
 
 func renderAll(values []any) []string {
@@ -341,7 +400,7 @@ func renderAll(values []any) []string {
 	return rendered
 }
 
-// render writes a Go value as the string a constant carries. A duration and an instant are
+// render writes a Go value as the string a list element carries. A duration and an instant are
 // spelled the way the built-in fields holding them are compared — Go duration syntax and RFC
 // 3339 — so a caller passes the Go value and not its spelling.
 func render(value any) string {
@@ -360,20 +419,5 @@ func render(value any) string {
 		return strconv.FormatFloat(term, 'g', -1, 64)
 	default:
 		return fmt.Sprint(value)
-	}
-}
-
-// valueTypeOf reads the filter type a Go value is compared as. A value of no such type is left
-// undeclared rather than guessed at, which is also what a duration string wants.
-func valueTypeOf(value any) ast.ValueType {
-	switch value.(type) {
-	case bool:
-		return ast.ValueTypeBool
-	case float32, float64:
-		return ast.ValueTypeDouble
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		return ast.ValueTypeInt
-	default:
-		return ""
 	}
 }
