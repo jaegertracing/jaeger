@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,10 +24,12 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	_ "github.com/jaegertracing/jaeger/internal/gogocodec" // force gogo codec registration
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	dependencystoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -69,7 +72,13 @@ func (*sendErrorTraceSummariesStream) Send(*api_v3.FindTraceSummariesResponse) e
 	return assert.AnError
 }
 
+// newTestServerClient stands up the handler over a backend that requires a service name and
+// evaluates no filter, which is what most of these tests want.
 func newTestServerClient(t *testing.T) *testServerClient {
+	return newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{})
+}
+
+func newTestServerClientWithCapabilities(t *testing.T, caps tracestore.SearchCapabilities) *testServerClient {
 	tsc := &testServerClient{
 		reader:     &tracestoremocks.Reader{},
 		depsReader: &dependencystoremocks.Reader{},
@@ -81,9 +90,7 @@ func newTestServerClient(t *testing.T) *testServerClient {
 			yield(nil, fmt.Errorf("unsupported: %w", errors.ErrUnsupported))
 		})).Maybe()
 
-	// The baseline: a backend that requires a service name. Only service-less searches ask.
-	tsc.reader.On("SearchCapabilities", mock.Anything).
-		Return(tracestore.SearchCapabilities{}, nil).Maybe()
+	tsc.reader.On("SearchCapabilities", mock.Anything).Return(caps, nil).Maybe()
 	q := querysvc.NewQueryService(
 		tsc.reader,
 		tsc.depsReader,
@@ -544,6 +551,93 @@ func TestGetDependencies_InvalidArguments(t *testing.T) {
 			assert.Nil(t, response)
 		})
 	}
+}
+
+// enableStructuredFilters turns the filter feature gate on for one test and restores it
+// afterwards. The gate belongs to the query service, so it is named here by ID rather than
+// held; a test needs it only when it dispatches far enough to reach that check.
+func enableStructuredFilters(t *testing.T) {
+	gate := querysvc.StructuredFiltersGate
+	original := gate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), true))
+	t.Cleanup(func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set(gate.ID(), original))
+	})
+}
+
+// TestFindTracesWithFilter covers what the handler contributes to the filter plumbing: it
+// decodes the proto filter into the AST and hands it to the query service. The backend here
+// declares filter support so the filter arrives at the reader as the handler built it; what
+// the query service does for a backend that declares none is that package's own test.
+func TestFindTracesWithFilter(t *testing.T) {
+	enableStructuredFilters(t)
+	tsc := newTestServerClientWithCapabilities(t, tracestore.SearchCapabilities{
+		WithoutServiceName: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelResource},
+			Operators: []expression.Operator{expression.OpAnd, expression.OpEq},
+		},
+	})
+	var dispatched tracestore.TraceQueryParams
+	tsc.reader.On("FindTraces", matchContext, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Run(func(args mock.Arguments) {
+			dispatched = args.Get(1).(tracestore.TraceQueryParams)
+		}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &expressionproto.Call{Op: "and", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Call{Call: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+					{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "service", Level: "resource"}}},
+					{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "myservice"}}},
+				}}}},
+				{Term: &expressionproto.Expression_Call{Call: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+					{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "foo"}}},
+					{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "bar"}}},
+				}}}},
+			}},
+		},
+	})
+	require.NoError(t, err)
+	recv, err := responseStream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, 1, recv.ToTraces().SpanCount())
+
+	assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.Reference{Name: expression.ResourceFieldService, Level: expression.LevelResource},
+			&expression.Scalar{Value: "myservice"},
+		}},
+		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.Reference{Name: "foo"},
+			&expression.Scalar{Value: "bar"},
+		}},
+	}}, dispatched.Filter)
+}
+
+// TestFindTracesMalformedFilter pins that a filter this build cannot parse is the caller's
+// problem: InvalidArgument, reported before storage is reached.
+func TestFindTracesMalformedFilter(t *testing.T) {
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			ServiceName:  "myservice",
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter:       &expressionproto.Call{Op: "matches"},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, `unknown filter operator "matches"`)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 // TestFindTracesServiceNameRequired pins the status code for a query this deployment's

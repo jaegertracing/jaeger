@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -222,6 +224,61 @@ func TestParseFindTracesQuery(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
+}
+
+// TestParseFindTracesQuery_Filter covers the GET binding of the structured filter: the parser
+// reads one URL-encoded JSON object, and reports what it cannot read under the parameter's own
+// name. The first case doubles as the contract test for the JSON spelling of the AST, since
+// this is the only surface where a caller writes it by hand.
+func TestParseFindTracesQuery_Filter(t *testing.T) {
+	timeRange := func() url.Values {
+		q := url.Values{}
+		q.Set(paramTimeMin, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano))
+		q.Set(paramTimeMax, time.Now().UTC().Format(time.RFC3339Nano))
+		return q
+	}
+
+	t.Run("a conjunction with a level-qualified attribute and a list", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"and","args":[
+			{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}},
+			{"call":{"op":"in","args":[{"ref":{"name":"http.status_code"}},{"list":{"values":["500","503"],"type":"int"}}]}}]}`)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
+				&expression.Scalar{Value: "2s"},
+			}},
+			&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.Reference{Name: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
+			}},
+		}}, got.Filter)
+	})
+
+	t.Run("no filter", func(t *testing.T) {
+		got, err := parseFindTracesQuery(timeRange())
+		require.NoError(t, err)
+		assert.Nil(t, got.Filter)
+	})
+
+	t.Run("malformed JSON", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"eq",`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
+
+	t.Run("a filter this build cannot evaluate", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"matches","args":[{"ref":{"name":"a"}},{"scalar":{"value":"b"}}]}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, `malformed parameter query.filter: unknown filter operator "matches"`)
+	})
 }
 
 func TestGetQueryParam(t *testing.T) {

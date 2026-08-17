@@ -5,7 +5,6 @@ package apiv3
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"iter"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
@@ -102,6 +102,13 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			DurationMin:   query.GetDurationMin(),
 			DurationMax:   query.GetDurationMax(),
 		},
+	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.ToFilter(protoFilter)
+		if err != nil {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
 	}
 	return queryParams, nil
 }
@@ -221,7 +228,7 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 // a server fault, and without this it would reach the client as Unknown. Other errors pass
 // through unchanged.
 func asStatusError(err error) error {
-	if errors.Is(err, querysvc.ErrServiceNameRequired) {
+	if querysvc.IsBadRequest(err) {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 	return err
