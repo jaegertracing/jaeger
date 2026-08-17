@@ -28,12 +28,12 @@ OTLP spans carry attributes at five distinct levels:
 | Level | OTLP location | Semantic meaning |
 |-------|---------------|------------------|
 | Resource | `ResourceSpans.resource.attributes` | Service / host-level metadata |
-| Instrumentation | `ScopeSpans.scope.attributes` | Instrumentation library (`InstrumentationScope`) metadata |
+| Scope | `ScopeSpans.scope.attributes` | Instrumentation library (`InstrumentationScope`) metadata |
 | Span | `Span.attributes` | Per-operation metadata |
 | Event | `Span.events[].attributes` | Timestamped annotations |
 | Link | `Span.links[].attributes` | Cross-trace references |
 
-(OTLP's own name for the instrumentation level is the `InstrumentationScope`, carried inside `ScopeSpans`. This RFC uses **level** for the qualifier and **instrumentation** for that value, to avoid overloading the word "scope" — see §5.1.)
+(This level is OTLP's `InstrumentationScope`, carried inside `ScopeSpans`, and this RFC calls it **scope** — which is what OTLP itself calls it everywhere a user meets it: `ScopeSpans`, `Scope()`, and the `otel.scope.name` and `otel.scope.version` attributes. An earlier draft called it `instrumentation` to keep the word "scope" from doing double duty with **level**, the qualifier; that is not a real ambiguity, because the field is named `level` and carries the value — `"level": "scope"` — see §5.1.)
 
 ### 1.3 The performance problem
 
@@ -59,7 +59,7 @@ Feasibility is dominated by how each backend physically stores and indexes attri
 | Backend | Attribute storage | Level differentiation | Consequence |
 |---------|-------------------|-----------------------|-------------|
 | **ClickHouse** | Typed Map columns per level (`str_attributes`, `resource_str_attributes`, …) + nested arrays for events/links | Full — each level is a distinct column family | Native level filtering; a level-qualified query skips irrelevant columns |
-| **Elasticsearch / OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span / resource / log are distinct; no instrumentation/event/link distinction in the v1 schema | Span/resource/event levels work; instrumentation and link need schema evolution |
+| **Elasticsearch / OpenSearch** | Denormalized object fields (`tag.*`, `process.tag.*`) + nested arrays (`tags`, `process.tags`, `logs.fields`) | Partial — span / resource / log are distinct; no scope/event/link distinction in the v1 schema | Span/resource/event levels work; instrumentation and link need schema evolution |
 | **Cassandra** | One flat inverted index (`tag_index`) keyed by `service + key + value` | None | Cannot restrict level at query time; only the indexed levels exist at all |
 | **Badger** | Flat KV tag index (span tags + process tags + log fields) | None | Same as Cassandra |
 
@@ -71,7 +71,7 @@ Feasibility is dominated by how each backend physically stores and indexes attri
 
 ### Goals
 
-- **G1 — Level-qualified attributes.** A predicate may target a single OTLP attribute level (span/resource/instrumentation/event/link) or leave it unqualified (search the default level set — span-or-resource; §5.1).
+- **G1 — Level-qualified attributes.** A predicate may target a single OTLP attribute level (span/resource/scope/event/link) or leave it unqualified (search the default level set — span-or-resource; §5.1).
 - **G2 — Built-in fields.** A predicate may target a built-in field (`duration`, `name`, `status`, `kind`, `service`) uniformly with attributes (§5).
 - **G3 — Richer operators.** Beyond equality: `ne`, `gt`, `lt`, `gte`, `lte`, `regex`, `exists`, and set membership `in`/`not_in` — extensible without a second API redesign.
 - **G4 — Boolean composition.** Predicates combine with `AND`/`OR`/`NOT` and nesting, including an existential quantifier (`some`) over the multi-valued event/link collections (§4 tier L2, §5.5).
@@ -154,9 +154,9 @@ A predicate is a `Call` (§6.1): an **operator** (§5.3) applied to **operand** 
 
 ### 5.1 References: levels and the `attr` flag
 
-A **reference** names a value to read off the span or trace. It has three parts: a **level** (the scope it lives in), a **name**, and an **`attr`** flag. At an explicit level, `attr: false` (the default) means a built-in field of that level (§5.2); `attr: true` means an entry in that level's attribute map, keyed by `name`. An **empty level** is always an attribute — the unqualified span-or-resource search — since a built-in field has no unqualified form. So the flag is only ever set to reach a level-qualified *attribute*; built-ins and unqualified attributes carry no flag. We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
+A **reference** names a value to read off the span or trace. It has three parts: a **level** (which part of the span it lives in), a **name**, and an **`attr`** flag. At an explicit level, `attr: false` (the default) means a built-in field of that level (§5.2); `attr: true` means an entry in that level's attribute map, keyed by `name`. An **empty level** is always an attribute — the unqualified span-or-resource search — since a built-in field has no unqualified form. So the flag is only ever set to reach a level-qualified *attribute*; built-ins and unqualified attributes carry no flag. We call the qualifier **level**, not "scope", so it never overloads OTLP's `InstrumentationScope`.
 
-The five explicit `level` values name the OTLP attribute maps of §1.2 — `span`, `resource`, `instrumentation` (the `InstrumentationScope`), `event`, and `link` — and an empty `level` defaults to span-or-resource.
+The five explicit `level` values name the OTLP attribute maps of §1.2 — `span`, `resource`, `scope` (OTLP's `InstrumentationScope`), `event`, and `link` — and an empty `level` defaults to span-or-resource.
 
 The `attr` flag disambiguates a built-in field from an attribute that happens to share its name: `{level:"span", name:"duration"}` is the span's duration (built-in, the default), while `{level:"span", name:"duration", attr:true}` is a span attribute *named* `duration`. A reference at an explicit `event` or `link` level with an *empty* `name` is a third case: it denotes the whole collection, and is used only as the first operand of `some` (§5.5).
 
@@ -174,7 +174,7 @@ Much of what users filter on is not an attribute at all but a **built-in field**
 |---------|-----------------|-----------------------|
 | `span` | `duration`, `name`, `kind`, `status`, `startTime`, `spanID`, … | `duration_min`/`max`, `operation_name`, `span.kind` tag, `error=true` tag |
 | `resource` | `service`, … | `service_name` field |
-| `instrumentation` | `name`, `version` | not expressible |
+| `scope` | `name`, `version` | not expressible |
 | `event` | `name`, `timeSinceStart`, … | not expressible |
 | `link` | `traceID`, `spanID` (the linked trace/span) | not expressible |
 
@@ -280,7 +280,7 @@ message Expression {
 
 message Reference {
   string name  = 1;  // built-in field name, or attribute key when attr = true; empty at event/link level = the whole collection (for `some`, §5.5)
-  string level = 2;  // span|resource|instrumentation|event|link; empty = span-or-resource, always an attribute whatever attr says
+  string level = 2;  // span|resource|scope|event|link; empty = span-or-resource, always an attribute whatever attr says
   bool   attr  = 3;  // at an explicit level: true = attribute of `level`, false (default) = built-in field of `level` (§5.2); ignored when level is empty
 }
 
@@ -332,7 +332,7 @@ The filter is a single `Call`, not the more general `Expression`: a filter alway
 Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defaults, so a proto *enum* would cross the wire as its full `CONSTANT_CASE` name (`"level":"ATTRIBUTE_LEVEL_SPAN"`) with no short-alias option, and proto3 enums are *open* (an unknown number is accepted, not rejected). Plain `string` fields avoid the verbosity, and the value set is still declared in the generated OpenAPI schema via the gnostic `enum` annotation, which validates it for generated clients and request validators (stricter there than an open proto enum). The closure is a schema-layer guarantee, not a proto one: the field stays a plain `string`, so at runtime an unknown `level`/`op` is caught by the backend rejecting it as *unsupported* (§7), not by the type system.
 
 ```yaml
-level: { type: string, enum: [span, resource, instrumentation, event, link] }               # Reference.level
+level: { type: string, enum: [span, resource, scope, event, link] }               # Reference.level
 op:    { type: string, enum: [and, or, not, eq, ne, gt, lt, gte, lte, regex, exists, in, not_in, some] }  # Call.op
 type:  { type: string, enum: [string, int, double, bool] }                                   # Scalar.type / List.type; optional, empty = any type
 ```
@@ -440,6 +440,61 @@ This is illustrative, not normative: the wire contract is the AST (§6.1), and e
 
 **Converting between the two shapes.** Each legacy predicate field has an exact filter equivalent — `service_name` → `resource.service`, `operation_name` → `span.name`, `duration_min`/`duration_max` → a pair of inclusive `span.duration` bounds, and `attributes` → a set of unqualified equalities — so a query converts in either direction, and both conversions sit on the internal query type beside the fields they convert. The direction is not fixed, which is the part this RFC first got wrong by proposing normalization toward the filter alone: a backend that declares filter support receives the `filter`, and one that declares none receives the legacy fields, so the conversion runs toward whichever shape the receiving backend understands. Only what the legacy fields cannot carry is refused — `or`, `not`, an operator they have no form for, an attribute at a level the backend never indexed. The asymmetry is load-bearing: converting *to* the filter cannot fail, because every field has an equivalent, while converting *from* it can, which is why every refusal lives on that side. (The inclusive duration bounds use `gte`/`lte`, part of the operator set — §5.3.)
 
+**What a query is on the way down.** A search may change shape twice: once so that a query interceptor sees every predicate in one place, and once so that storage receives the shape it evaluates. Which shape storage finally sees depends on the shape the caller sent, the feature gate, what the backend declared, and whether an interceptor is configured. No combination silently narrows or widens the search — every path either reaches storage in a shape that backend evaluates, or is refused.
+
+The gate governs one thing: whether a **caller** may put a filter into Jaeger over api_v3. It is consulted only when the request carries one, so the searches a deployment makes while the gate is off pass it untouched, and it never stands between a query and an interceptor.
+
+```mermaid
+flowchart TB
+    req["api_v3 request"] --> decode["decode the filter field into the AST"]
+    decode --> hasFilter{"did the caller<br/>send a filter?"}
+
+    hasFilter -->|yes| gate{"structuredFilters<br/>gate enabled?"}
+    gate -->|no| refuseGate(["400 — this deployment takes<br/>no filter from a caller"])
+    gate -->|yes| checks{"free of legacy predicate<br/>fields, and well formed?"}
+    checks -->|no| refuseBad(["400 — invalid request"])
+
+    hasFilter -->|no| ic{"is an interceptor<br/>configured?"}
+    checks -->|yes| ic
+
+    ic -->|yes| toFilter["express every predicate<br/>as one filter"]
+    toFilter --> onQuery["OnQuery: narrow, or refuse"]
+    onQuery --> icOK{"returned a well-formed<br/>filter?"}
+    icOK -->|no| refuseIc(["interceptor error"])
+
+    ic -->|no| declares{"does the backend declare<br/>filter support?"}
+    icOK -->|yes| declares
+
+    declares -->|yes| supported{"is every level and<br/>operator declared?"}
+    supported -->|no| refuseCap(["400 — unsupported"])
+    supported -->|yes| sendFilter["send the filter"]
+
+    declares -->|no| lower{"expressible in the<br/>legacy fields?"}
+    lower -->|no| refuseLower(["400 — unsupported"])
+    lower -->|yes| sendLegacy["send the legacy fields"]
+
+    sendFilter --> svcName["check the service name"]
+    sendLegacy --> svcName
+    svcName --> storage[["storage reader"]]
+```
+
+Two properties of that order are worth naming, because an earlier arrangement had neither. The interceptor runs **before** the shape is chosen, so it is shown the filter the caller actually sent rather than one rebuilt from a lossy rewrite — a rewrite into the legacy fields drops the level from an attribute predicate, and rebuilding gives back an unqualified one. And because the capability decision comes after, it applies to whatever the interceptor left behind, so an interceptor cannot ask a backend for something it never declared.
+
+The service-name check comes last for a reason of its own: a filter may name the service itself, and the rewrite is what moves that into `ServiceName`, so a backend that cannot search every service is satisfied by a filter that names one (§7, RFC 0013).
+
+Read as end-to-end paths:
+
+| Arrives as | Gate | Backend declares | Interceptor | Storage receives |
+| --- | --- | --- | --- | --- |
+| legacy fields | either | anything | no | the legacy fields, untouched |
+| legacy fields | either | anything | yes | the legacy fields, carrying whatever the interceptor added |
+| `filter` | off | anything | either | nothing — the request is refused, and an interceptor never sees it |
+| `filter` | on | no filter support | either | the legacy fields, or a refusal if the filter cannot be expressed in them |
+| `filter` | on | filter support | no | the filter, once every level and operator it names was declared |
+| `filter` | on | filter support | yes | the filter the interceptor left behind, checked against the same declaration |
+
+The third row is worth reading twice: refusing a request is not the same as bypassing an interceptor. A caller's filter with the gate off is refused outright, so there is no query for an interceptor to gate — while that same deployment's ordinary searches, which carry no filter, go through the interceptor exactly as they always did.
+
 **Validating where a filter arrives.** A filter reaches Jaeger over one of two wires — an api_v3 request, or a remote-storage `FindTraces` call — and each of those decodes the proto message into the AST. Decoding validates: the same conversion that builds the AST checks it against the operator, level and field vocabularies, so neither wire can hand a backend a tree that names something Jaeger has no meaning for. Validating inside the decoder rather than asking each caller to remember a second step is what makes that true of both wires, including the remote-storage server, whose caller is a third party. Encoding is the opposite and stays total: what a filter may say is what the receiving backend declared it can evaluate, so an operator this build does not recognize is still passed through to a backend that asked for it.
 
 This is clean for the **internal `TraceReader`** API, which is versioned with the binary and can simply drop the redundant scalar fields once the query service populates `filter`. It is harder at the **Remote Storage gRPC API**: those scalar fields are part of the published `storage.v2` contract and existing third-party plugins read them.
@@ -450,7 +505,7 @@ So the query service asks before it dispatches: it sends the rich `filter` only 
 
 **Capability-based degradation.** The backend-wide limits are *declared* through `SearchCapabilities` (ADR-013), so the query service refuses an unserviceable filter before it dispatches; a per-query predicate that no declared capability covers is *rejected* at query time as the backstop. Either way a backend never silently returns wrong results. (Surfacing these limits to the UI builder, so it can gray out unsupported options, needs the capabilities exposed on the *public* API — a future addition, since ADR-013's mechanism sits at the storage boundary; §9.)
 
-- **Levels** — ClickHouse honors all five; ES/OS honor span/resource/event today (instrumentation and link await schema evolution); the flat backends honor only span/resource/event (§1.6). The honored level set is declared, so a predicate naming an unsupported level is refused, not widened.
+- **Levels** — ClickHouse honors all five; ES/OS honor span/resource/event today (scope and link await schema evolution); the flat backends honor only span/resource/event (§1.6). The honored level set is declared, so a predicate naming an unsupported level is refused, not widened.
 - **Operators** — the implemented operator set is declared; a backend that has not implemented `regex`/`gt`/… does not advertise it, and the query service refuses such a predicate rather than letting the backend approximate.
 - **Boolean structure** — declared through the same operator list rather than an axis of its own: ClickHouse and ES/OS list `and`, `or` and `not`, while the flat backends list `and` alone, so an `or`/`not` call is refused up front while their conjunctive subset still runs.
 - **Remote-storage plugins** — a plugin that declares no filter capability (or predates the `Capabilities` service, and so reads as least capable) receives only the legacy `attributes` and behaves exactly as today; the query service populates `attributes` from a purely-conjunctive, unqualified `filter` for it.
@@ -465,14 +520,14 @@ message SearchCapabilities {
 }
 
 message FilterCapabilities {
-  repeated string levels    = 1;    // span|resource|instrumentation|event|link; empty = unqualified only
+  repeated string levels    = 1;    // span|resource|scope|event|link; empty = unqualified only
   repeated string operators = 2;    // and|or|not|eq|ne|gt|lt|gte|lte|regex|exists|in|not_in|some
 }
 ```
 
 `levels` and `operators` are **refusal gates**: the query service rejects a predicate that names a level or an operator the backend did not list, mapping to `InvalidArgument` (§7). The boolean combinators are declared as operators like any other rather than through a flag of their own, so a backend confined to the conjunctive subset is one that lists `and` and omits `or` and `not`; nesting is not declared at all, because `and` is associative and a caller flattens a nested conjunction before asking. An absent `filter` message and an empty one mean the same thing — no support — so a backend opts in only by naming what it serves and there is no half-declared state to read differently. `same_span_conjunction` is **reported, not enforced**: a backend whose flat index intersects at trace granularity declares `false`, and the query service surfaces that looser scoping to the caller rather than refusing the conjunction — refusing every multi-predicate query on the flat backends would regress their long-standing tag search. ClickHouse and ES/OS declare the full sets they can index and `same_span_conjunction=true`; the flat backends declare `levels=[span,resource,event]`, `operators=[and,eq]`, and `same_span_conjunction=false`. `same_span_conjunction` sits on `SearchCapabilities` rather than inside `filter` because it also characterizes the legacy `attributes` conjunction, which shares the evaluation path.
 
-**The gate and the query interceptor are separate opt-ins.** A [query interceptor](../../components/extension/jaegerquery/queryinterceptor/interceptor.go) is shown every predicate as a filter whatever shape the caller sent, so an interceptor deployment converts legacy fields to a filter and back on every search — including while `jaeger.query.structuredFilters` is off. This is not a hole in the gate. The gate governs whether a *caller* may put a filter into Jaeger over api_v3, which is the unstable public API it exists to withhold; the shape an interceptor works in is made below the query service, in the reader decorator, and never leaves the process. So the two compose without either consulting the other: with neither enabled a deployment runs exactly as it did before this RFC; with an interceptor alone the shape conversions run but no filter crosses a public boundary and no capability is consulted, which is the minimal wiring an interceptor needs; with both, a caller's filter is served as well.
+**The gate and the query interceptor are separate opt-ins.** A [query interceptor](../../components/extension/jaegerquery/queryinterceptor/interceptor.go) is shown every predicate as a filter whatever shape the caller sent, so an interceptor deployment expresses legacy fields as a filter on every search — including while `jaeger.query.structuredFilters` is off. This is not a hole in the gate. The gate governs whether a *caller* may put a filter into Jaeger over api_v3, which is the unstable public API it exists to withhold, and it is consulted only for a filter the caller sent; the filter an interceptor works in is built by the query service and never leaves the process. So the two compose without either consulting the other: with neither enabled a deployment runs exactly as it did before this RFC, and with an interceptor alone the query service builds a filter, shows it, and converts back to whatever the backend evaluates, while no filter crosses a public boundary. What an interceptor asks for is checked against the backend's declaration on the same terms as a caller's filter, because the interceptor runs before that check rather than after it.
 
 Requiring the gate in order to run an interceptor was considered and rejected. It would make anyone who wants access control at query time also open the api_v3 `filter` field to every client — strictly more exposure than they asked for, and the opposite of what the gate is for. It would also break the interceptor deployments that predate the filter. The interceptor extension is experimental in its own right, and an implementation that reads `Query.Filter` has already opted into the AST by compiling against it, so a second switch would gate something its user cannot avoid.
 
@@ -525,7 +580,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 **Out of scope (future, this model enables):**
 - A `trace` level and its whole-trace built-in fields (`traceDuration`/`rootName`/`rootService`) — no Jaeger backend stores a trace-level entity, so these need the trace assembled and are left to a future enhancement (§5.1–§5.2). Also IDs, and built-in fields beyond the initial span set.
 - Levels beyond the OTLP five (e.g. `parent.`, the parent span's attributes) — §5.1.
-- ES/OS schema evolution to index instrumentation and link attributes distinctly (§1.6) — unblocks those levels in M4.
+- ES/OS schema evolution to index scope and link attributes distinctly (§1.6) — unblocks those levels in M4.
 - A discovery API returning keys, their type(s), and sample values per level — the piece that feeds typed predicates and autocomplete (§5.4); ClickHouse-first.
 - A public capability endpoint exposing `SearchCapabilities` to the UI, so the M7 builder can gray out levels/operators a backend cannot serve — ADR-013's mechanism sits at the storage boundary; surfacing it on the public API is a separate addition (§7).
 - Nested access into JSON-valued attributes via the `json_extract` operator (§5.6) — the AST already accommodates it as a function; its per-backend storage feasibility is being evaluated separately.
