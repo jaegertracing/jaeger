@@ -10,6 +10,8 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -119,6 +121,18 @@ type SearchCapabilities struct {
 	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
 	// service", rather than as an error or an empty result.
 	WithoutServiceName bool
+
+	// SameSpanConjunction is true when a conjunction — several entries in the Attributes
+	// map, or an OpAnd in Filter — is satisfied within a single span. False means the
+	// backend may satisfy different conjuncts from different spans of the same trace, as
+	// a flat inverted index that intersects at trace granularity does. Callers report
+	// this looser scoping rather than refusing the query.
+	SameSpanConjunction bool
+
+	// Filter is how much of TraceQueryParams.Filter the reader evaluates. A nil Filter
+	// means none of it: the reader serves only the other, legacy fields, so a caller with
+	// a filter to run must express it in those fields or refuse the query.
+	Filter *FilterCapabilities
 }
 
 // GetTraceParams contains single-trace parameters for a GetTraces request.
@@ -146,6 +160,14 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
+	// level-qualified attributes and built-in fields. It is mutually exclusive with the
+	// predicate fields above — ServiceName, OperationName, Attributes and the duration
+	// bounds — so a reader sees one filtering model, not a mix of the two. A reader only
+	// receives a Filter whose levels and operators its SearchCapabilities declare; for any
+	// other reader the query service expresses the filter in the legacy fields instead, or
+	// refuses the query.
+	Filter *expression.Call
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
