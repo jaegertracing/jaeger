@@ -5,7 +5,6 @@ package tracestore
 
 import (
 	"fmt"
-	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
@@ -40,32 +39,47 @@ func (q TraceQueryParams) ToFilterShape() TraceQueryParams {
 		return converted
 	}
 	var predicates []*expression.Call
-	eq := func(ref *expression.Reference, value string) {
+	compare := func(op expression.Operator, ref expression.Expression, value expression.Expression) {
 		predicates = append(predicates, &expression.Call{
-			Op:   expression.OpEq,
-			Args: []expression.Expression{ref, &expression.Scalar{Value: value}},
+			Op:   op,
+			Args: []expression.Expression{ref, value},
 		})
 	}
+	field := func(level expression.Level, name string) *expression.FieldRef {
+		return &expression.FieldRef{Level: level, Name: name}
+	}
 	if q.ServiceName != "" {
-		eq(&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService}, q.ServiceName)
+		compare(expression.OpEq,
+			field(expression.LevelResource, expression.ResourceFieldService),
+			&expression.StringValue{Value: q.ServiceName})
 	}
 	if q.OperationName != "" {
-		eq(&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldName}, q.OperationName)
+		compare(expression.OpEq,
+			field(expression.LevelSpan, expression.SpanFieldName),
+			&expression.StringValue{Value: q.OperationName})
 	}
 	// Attributes is documented as needing pcommon.NewMap(), but a caller that left it at its
 	// zero value used to reach storage unharmed, and converting shape must not be what turns
 	// that into a panic. The zero Map holds no slice to range over.
 	if q.Attributes != (pcommon.Map{}) {
 		q.Attributes.Range(func(key string, value pcommon.Value) bool {
-			eq(&expression.Reference{Name: key}, value.AsString())
+			// A tag carries no type, so the equality it becomes declares none either and matches
+			// the attribute in whatever form it was stored (RFC 0005 §5.4).
+			compare(expression.OpEq,
+				&expression.AttributeRef{Key: key},
+				&expression.AnyValue{Value: value.AsString()})
 			return true
 		})
 	}
 	if q.DurationMin != 0 {
-		predicates = append(predicates, durationBound(expression.OpGte, q.DurationMin))
+		compare(expression.OpGte,
+			field(expression.LevelSpan, expression.SpanFieldDuration),
+			&expression.DurationValue{Value: q.DurationMin})
 	}
 	if q.DurationMax != 0 {
-		predicates = append(predicates, durationBound(expression.OpLte, q.DurationMax))
+		compare(expression.OpLte,
+			field(expression.LevelSpan, expression.SpanFieldDuration),
+			&expression.DurationValue{Value: q.DurationMax})
 	}
 
 	converted.ServiceName = ""
@@ -86,18 +100,6 @@ func (q TraceQueryParams) ToFilterShape() TraceQueryParams {
 		converted.Filter = &expression.Call{Op: expression.OpAnd, Args: args}
 	}
 	return converted
-}
-
-// durationBound writes a duration back in the Go syntax the filter carries it in, which is
-// what ToLegacyShape parses to recover it.
-func durationBound(op expression.Operator, d time.Duration) *expression.Call {
-	return &expression.Call{
-		Op: op,
-		Args: []expression.Expression{
-			&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-			&expression.Scalar{Value: d.String()},
-		},
-	}
 }
 
 // ToLegacyShape expresses q's Filter in the scalar predicate fields every backend serves, so
@@ -157,100 +159,138 @@ func flatConjuncts(filter *expression.Call) ([]*expression.Call, error) {
 	}
 }
 
-// applyAsLegacyField writes one predicate into the legacy field that carries it.
+// applyAsLegacyField writes one predicate into the legacy field that carries it. A legacy field
+// holds a key and one value, so a predicate that reads no single value off the span — a
+// quantifier over the events, an operator applied to a call — has nowhere to go.
 func applyAsLegacyField(query *TraceQueryParams, predicate *expression.Call) error {
-	ref, value, err := refAndConstant(predicate)
+	if len(predicate.Args) != 2 {
+		return errUnsupportedOperator(predicate.Op)
+	}
+	switch ref := predicate.Args[0].(type) {
+	case *expression.AttributeRef:
+		return applyAttribute(query, predicate.Op, ref, predicate.Args[1])
+	case *expression.FieldRef:
+		return applyField(query, predicate.Op, ref, predicate.Args[1])
+	default:
+		return fmt.Errorf("%w: it compares a reference against a constant only", ErrFilterUnsupported)
+	}
+}
+
+func applyAttribute(query *TraceQueryParams, op expression.Operator, ref *expression.AttributeRef, value expression.Expression) error {
+	if op != expression.OpEq {
+		return errUnsupportedOperatorOn(op, ref.Key)
+	}
+	if !legacyFilterLevels.SupportsLevel(ref.Level) {
+		return fmt.Errorf("%w: it does not index the %q level", ErrFilterUnsupported, ref.Level)
+	}
+	text, err := textConstant(ref.Key, value)
 	if err != nil {
 		return err
 	}
+	if _, ok := query.Attributes.Get(ref.Key); ok {
+		return errRepeatedPredicateOn(ref.Key)
+	}
+	query.Attributes.PutStr(ref.Key, text)
+	return nil
+}
+
+// applyField writes a predicate on a built-in field into the legacy field that holds it. Only
+// three of the built-ins have one, and a predicate on any of the others is refused.
+func applyField(query *TraceQueryParams, op expression.Operator, ref *expression.FieldRef, value expression.Expression) error {
 	switch {
-	case ref.IsAttribute():
-		return applyAttribute(query, predicate.Op, ref, value)
-	case ref.IsField(expression.LevelResource, expression.ResourceFieldService):
-		if predicate.Op != expression.OpEq {
-			return errUnsupportedOperatorOn(predicate.Op, ref)
-		}
-		if query.ServiceName != "" {
-			return errRepeatedPredicateOn(ref)
-		}
-		query.ServiceName = value.Value
-		return nil
-	case ref.IsField(expression.LevelSpan, expression.SpanFieldName):
-		if predicate.Op != expression.OpEq {
-			return errUnsupportedOperatorOn(predicate.Op, ref)
-		}
-		if query.OperationName != "" {
-			return errRepeatedPredicateOn(ref)
-		}
-		query.OperationName = value.Value
-		return nil
-	case ref.IsField(expression.LevelSpan, expression.SpanFieldDuration):
-		return applyDurationBound(query, predicate.Op, ref, value)
+	case isField(ref, expression.LevelResource, expression.ResourceFieldService):
+		return applyText(&query.ServiceName, op, ref.Name, value)
+	case isField(ref, expression.LevelSpan, expression.SpanFieldName):
+		return applyText(&query.OperationName, op, ref.Name, value)
+	case isField(ref, expression.LevelSpan, expression.SpanFieldDuration):
+		return applyDurationBound(query, op, ref.Name, value)
 	default:
 		return fmt.Errorf("%w: it does not support the built-in field %q of the %q level",
 			ErrFilterUnsupported, ref.Name, ref.Level)
 	}
 }
 
-func applyAttribute(query *TraceQueryParams, op expression.Operator, ref *expression.Reference, value *expression.Scalar) error {
+// isField reports whether the reference names that built-in field. It takes both the level and
+// the name because neither identifies a field on its own.
+func isField(ref *expression.FieldRef, level expression.Level, name string) bool {
+	return ref.Level == level && ref.Name == name
+}
+
+// applyText writes an equality on a string-valued legacy field.
+func applyText(target *string, op expression.Operator, name string, value expression.Expression) error {
 	if op != expression.OpEq {
-		return errUnsupportedOperatorOn(op, ref)
+		return errUnsupportedOperatorOn(op, name)
 	}
-	if !legacyFilterLevels.SupportsLevel(ref.Level) {
-		return fmt.Errorf("%w: it does not index the %q level", ErrFilterUnsupported, ref.Level)
+	text, err := textConstant(name, value)
+	if err != nil {
+		return err
 	}
-	if _, ok := query.Attributes.Get(ref.Name); ok {
-		return errRepeatedPredicateOn(ref)
+	if *target != "" {
+		return errRepeatedPredicateOn(name)
 	}
-	query.Attributes.PutStr(ref.Name, value.Value)
+	*target = text
 	return nil
 }
 
-func applyDurationBound(query *TraceQueryParams, op expression.Operator, ref *expression.Reference, value *expression.Scalar) error {
-	duration, err := time.ParseDuration(value.Value)
-	if err != nil {
-		return fmt.Errorf(`%w: %q is not a duration such as "2s"`, ErrFilterInvalid, value.Value)
+// applyDurationBound writes one of the inclusive duration bounds. The constant already holds a
+// time.Duration, because expression.ResolveConstants read it as the type span.duration declares
+// and refused a spelling that is not one.
+func applyDurationBound(query *TraceQueryParams, op expression.Operator, name string, value expression.Expression) error {
+	constant, ok := value.(*expression.DurationValue)
+	if !ok {
+		return errNotADuration(name, value)
 	}
 	switch op {
 	case expression.OpGte:
 		if query.DurationMin != 0 {
-			return errRepeatedPredicateOn(ref)
+			return errRepeatedPredicateOn(name)
 		}
-		query.DurationMin = duration
+		query.DurationMin = constant.Value
 	case expression.OpLte:
 		if query.DurationMax != 0 {
-			return errRepeatedPredicateOn(ref)
+			return errRepeatedPredicateOn(name)
 		}
-		query.DurationMax = duration
+		query.DurationMax = constant.Value
 	default:
-		return errUnsupportedOperatorOn(op, ref)
+		return errUnsupportedOperatorOn(op, name)
 	}
 	return nil
 }
 
-// refAndConstant splits a predicate into the value it reads off the span and the constant
-// it compares against. A legacy field holds a key and one value, so a predicate comparing
-// two references, or testing membership of a list, has nowhere to go.
-func refAndConstant(predicate *expression.Call) (*expression.Reference, *expression.Scalar, error) {
-	if len(predicate.Args) != 2 {
-		return nil, nil, errUnsupportedOperator(predicate.Op)
+// textConstant reads the constant a string-valued legacy field can carry: a text constant, or an
+// untyped one, which is what an unqualified tag equality has always been. A constant of any other
+// type asks for a match on a type these fields cannot name.
+func textConstant(name string, value expression.Expression) (string, error) {
+	switch constant := value.(type) {
+	case *expression.StringValue:
+		return constant.Value, nil
+	case *expression.AnyValue:
+		return constant.Value, nil
+	default:
+		return "", fmt.Errorf("%w: it compares %q against a string constant only", ErrFilterUnsupported, name)
 	}
-	ref, refOK := predicate.Args[0].(*expression.Reference)
-	value, valueOK := predicate.Args[1].(*expression.Scalar)
-	if !refOK || !valueOK {
-		return nil, nil, fmt.Errorf("%w: it compares a reference against a constant only", ErrFilterUnsupported)
+}
+
+// errNotADuration refuses a bound that is not a length of time. An untyped constant reaching here
+// was never read as a duration, which expression.ResolveConstants does on the way in, so the
+// refusal says that rather than blaming the spelling the caller wrote.
+func errNotADuration(name string, value expression.Expression) error {
+	if constant, ok := value.(*expression.AnyValue); ok {
+		return fmt.Errorf("%w: the bound %q on %q was never read as a duration",
+			ErrFilterInvalid, constant.Value, name)
 	}
-	return ref, value, nil
+	return fmt.Errorf(`%w: it compares %q against a duration such as "2s" only`,
+		ErrFilterUnsupported, name)
 }
 
 func errUnsupportedOperator(op expression.Operator) error {
 	return fmt.Errorf("%w: it does not support the operator %q", ErrFilterUnsupported, op)
 }
 
-func errUnsupportedOperatorOn(op expression.Operator, ref *expression.Reference) error {
-	return fmt.Errorf("%w: it does not support the operator %q on %q", ErrFilterUnsupported, op, ref.Name)
+func errUnsupportedOperatorOn(op expression.Operator, name string) error {
+	return fmt.Errorf("%w: it does not support the operator %q on %q", ErrFilterUnsupported, op, name)
 }
 
-func errRepeatedPredicateOn(ref *expression.Reference) error {
-	return fmt.Errorf("%w: it can carry only one predicate on %q", ErrFilterUnsupported, ref.Name)
+func errRepeatedPredicateOn(name string) error {
+	return fmt.Errorf("%w: it can carry only one predicate on %q", ErrFilterUnsupported, name)
 }

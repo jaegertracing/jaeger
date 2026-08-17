@@ -1110,16 +1110,11 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 	query := TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			Attributes: pcommon.NewMap(),
-			Filter: &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
-				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					&expression.Reference{Level: expression.LevelResource, Name: expression.ResourceFieldService},
-					&expression.Scalar{Value: "cart"},
-				}},
-				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					&expression.Reference{Name: "http.status_code"},
-					&expression.Scalar{Value: "500"},
-				}},
-			}},
+			Filter: compare(expression.OpAnd,
+				compare(expression.OpEq,
+					&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
+					&expression.AnyValue{Value: "cart"}),
+				tag(expression.OpEq, "http.status_code", "500")),
 		},
 	}
 
@@ -1144,13 +1139,9 @@ func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
 // declares filter support gets the filter itself.
 func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 	enableStructuredFilters(t)
-	filter := &expression.Call{
-		Op: expression.OpRegex,
-		Args: []expression.Expression{
-			&expression.Reference{Name: "http.route", Level: expression.LevelSpan, Attr: true},
-			&expression.Scalar{Value: "/cart/.*"},
-		},
-	}
+	filter := compare(expression.OpRegex,
+		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "/cart/.*"})
 	query := TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			Attributes: pcommon.NewMap(),
@@ -1182,10 +1173,9 @@ func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
 func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
 	enableStructuredFilters(t)
 	filterOn := func(level expression.Level, name, value string) *expression.Call {
-		return &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.Reference{Level: level, Name: name},
-			&expression.Scalar{Value: value},
-		}}
+		return compare(expression.OpEq,
+			&expression.FieldRef{Level: level, Name: name},
+			&expression.AnyValue{Value: value})
 	}
 	queryWith := func(filter *expression.Call) TraceQueryParams {
 		return TraceQueryParams{
@@ -1211,10 +1201,7 @@ func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing
 		reader := declaresSearchWithoutServiceName(new(tracestoremocks.Reader), false)
 		qs := NewQueryService(reader, nil, QueryServiceOptions{})
 
-		attrFilter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.Reference{Name: "http.method"},
-			&expression.Scalar{Value: "GET"},
-		}}
+		attrFilter := tag(expression.OpEq, "http.method", "GET")
 		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), queryWith(attrFilter)))
 		require.ErrorIs(t, err, ErrServiceNameRequired)
 	})
@@ -1229,14 +1216,9 @@ func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
 	query := TraceQueryParams{
 		TraceQueryParams: tracestore.TraceQueryParams{
 			Attributes: pcommon.NewMap(),
-			Filter: &expression.Call{Op: expression.OpOr, Args: []expression.Expression{
-				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					&expression.Reference{Name: "a"}, &expression.Scalar{Value: "1"},
-				}},
-				&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-					&expression.Reference{Name: "b"}, &expression.Scalar{Value: "2"},
-				}},
-			}},
+			Filter: compare(expression.OpOr,
+				tag(expression.OpEq, "a", "1"),
+				tag(expression.OpEq, "b", "2")),
 		},
 	}
 	for name, answer := range map[string]struct {
