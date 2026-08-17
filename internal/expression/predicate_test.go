@@ -192,6 +192,19 @@ func TestLowering(t *testing.T) {
 	}
 }
 
+// TestCompareTakesTheOperatorAtRunTime covers the prefix form, which exists for an operator the
+// caller does not know when writing the query. It has to agree with the named methods, and the
+// membership operators have to take a list rather than a scalar operand.
+func TestCompareTakesTheOperatorAtRunTime(t *testing.T) {
+	ref := p.Resource().Service
+
+	assert.Equal(t, ref.Eq("cart"), p.Compare(ast.OpEq, ref, "cart"))
+	assert.Equal(t, ref.Gte(2*time.Second), p.Compare(ast.OpGte, ref, 2*time.Second))
+	assert.Equal(t, ref.Matches("ca.*"), p.Compare(ast.OpRegex, ref, "ca.*"))
+	assert.Equal(t, ref.In("cart"), p.Compare(ast.OpIn, ref, "cart"))
+	assert.Equal(t, ref.NotIn(p.List(ast.ValueTypeInt, 1)), p.Compare(ast.OpNotIn, ref, p.List(ast.ValueTypeInt, 1)))
+}
+
 // TestNumericComparisonDeclaresTheType covers the one place the builder decides something the
 // caller did not say: a numeric comparison against a Go number asks the backend to read the
 // value as a number, while equality leaves the type open (RFC 0005 §5.4).

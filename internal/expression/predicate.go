@@ -139,6 +139,17 @@ func (Predicate) Some(collection Collection, predicate *ast.Call) *ast.Call {
 	}}
 }
 
+// Compare builds a comparison in prefix form, for the caller holding an operator in a variable —
+// a query arriving from a UI, say. A query written out in Go names the operator instead, through
+// the reference's own methods: Duration.Gte(2 * time.Second). Exists is not here because it takes
+// no right-hand operand.
+func (Predicate) Compare(op ast.Operator, ref Ref, value any) *ast.Call {
+	if op == ast.OpIn || op == ast.OpNotIn {
+		return ref.member(op, []any{value})
+	}
+	return ref.compare(op, value)
+}
+
 // Scalar builds a constant of a declared type, for the comparison that has to narrow the type
 // where the operator alone would not (RFC 0005 §5.4).
 func (Predicate) Scalar(valueType ast.ValueType, value any) *ast.Scalar {
