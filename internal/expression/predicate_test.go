@@ -97,7 +97,7 @@ func TestLowering(t *testing.T) {
 		},
 		{
 			name:  "exclusion from a typed list",
-			built: p.Attr("http.status_code").NotIn(p.Values(ast.ValueTypeInt, 500, 503)),
+			built: p.Attr("http.status_code").NotIn(p.List(ast.ValueTypeInt, 500, 503)),
 			want: &ast.Call{Op: ast.OpNotIn, Args: []ast.Expression{
 				&ast.Reference{Name: "http.status_code"},
 				&ast.List{Values: []string{"500", "503"}, Type: ast.ValueTypeInt},
@@ -105,7 +105,7 @@ func TestLowering(t *testing.T) {
 		},
 		{
 			name:  "constant of a declared type",
-			built: p.Attr("size").Eq(p.Value(ast.ValueTypeInt, 4096)),
+			built: p.Attr("size").Eq(p.Scalar(ast.ValueTypeInt, 4096)),
 			want: &ast.Call{Op: ast.OpEq, Args: []ast.Expression{
 				&ast.Reference{Name: "size"},
 				&ast.Scalar{Value: "4096", Type: ast.ValueTypeInt},
@@ -262,11 +262,11 @@ func TestCombineFlattens(t *testing.T) {
 // levelObjects pairs each level with the object naming its fields. The tripwires below look a
 // level up here, so a level added to the vocabulary needs an object of its own.
 var levelObjects = map[ast.Level]any{
-	ast.LevelSpan:            p.Span(),
-	ast.LevelResource:        p.Resource(),
-	ast.LevelScope: p.Scope(),
-	ast.LevelEvent:           p.Event(),
-	ast.LevelLink:            p.Link(),
+	ast.LevelSpan:     p.Span(),
+	ast.LevelResource: p.Resource(),
+	ast.LevelScope:    p.Scope(),
+	ast.LevelEvent:    p.Event(),
+	ast.LevelLink:     p.Link(),
 }
 
 // TestEveryBuiltInFieldHasAnAccessor is a tripwire rather than a property. The named accessors

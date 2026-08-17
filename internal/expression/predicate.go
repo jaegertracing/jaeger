@@ -138,15 +138,15 @@ func (Predicate) Some(collection Collection, predicate *ast.Call) *ast.Call {
 	}}
 }
 
-// Value builds a constant of a declared type, for the comparison that has to narrow the type
+// Scalar builds a constant of a declared type, for the comparison that has to narrow the type
 // where the operator alone would not (RFC 0005 §5.4).
-func (Predicate) Value(valueType ast.ValueType, value any) *ast.Scalar {
+func (Predicate) Scalar(valueType ast.ValueType, value any) *ast.Scalar {
 	return &ast.Scalar{Value: render(value), Type: valueType}
 }
 
-// Values builds a list constant whose elements are all of a declared type, to pass to In or
+// List builds a list constant whose elements are all of a declared type, to pass to In or
 // NotIn. A list of values that need no declared type goes to In directly.
-func (Predicate) Values(valueType ast.ValueType, values ...any) *ast.List {
+func (Predicate) List(valueType ast.ValueType, values ...any) *ast.List {
 	return &ast.List{Values: renderAll(values), Type: valueType}
 }
 
