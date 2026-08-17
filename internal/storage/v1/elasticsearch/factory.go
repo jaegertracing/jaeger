@@ -143,6 +143,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 	return esspanstore.SpanReaderParams{
 		Searcher:          f.searcher,
 		MaxDocCount:       f.config.MaxDocCount,
+		MaxMsearchItems:   f.config.MaxMsearchItems,
 		MaxSpanAge:        maxSpanAge,
 		MaxTraceDuration:  f.config.MaxTraceDuration,
 		TagDotReplacement: f.config.Tags.DotReplacement,
