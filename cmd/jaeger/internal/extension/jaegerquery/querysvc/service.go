@@ -6,6 +6,7 @@ package querysvc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"time"
 
@@ -152,7 +153,8 @@ func (qs QueryService) FindTraces(
 	query TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		if err := qs.validateSearchQuery(ctx, query); err != nil {
+		query, err := qs.prepareSearchQuery(ctx, query)
+		if err != nil {
 			yield(nil, err)
 			return
 		}
@@ -177,12 +179,43 @@ func (qs QueryService) SearchWithoutServiceName(ctx context.Context) (bool, erro
 	return caps.WithoutServiceName, nil
 }
 
-// validateSearchQuery rejects a query whose shape the backend cannot serve. Storage
-// readers guard themselves too, but they answer differently — Cassandra returned an empty
-// result for a service-less search until RFC 0013 — so the single answer callers see is
-// decided here. Rejecting here also keeps the query from reaching storage and coming back
-// silently wrong.
-func (qs QueryService) validateSearchQuery(ctx context.Context, query TraceQueryParams) error {
+// prepareSearchQuery refuses a query the backend declared it cannot serve, and returns the
+// query to dispatch in the shape that backend understands. One place decides, so that every
+// caller gets the same answer instead of each backend's own (ADR-013).
+func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryParams) (TraceQueryParams, error) {
+	if query.Filter == nil {
+		return query, qs.checkServiceName(ctx, query)
+	}
+	// Whether the request is acceptable at all is not a question about the backend, so both of
+	// these are settled before the capability round trip: a deployment that has not enabled the
+	// filter, or a caller that asked for one thing two ways, has no use for the answer.
+	if !StructuredFiltersGate.IsEnabled() {
+		return query, fmt.Errorf("%w: enable the %q feature gate to use it",
+			ErrFilterDisabled, StructuredFiltersGate.ID())
+	}
+	if err := ensureNoLegacyPredicates(query); err != nil {
+		return query, err
+	}
+
+	caps, err := qs.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities reads as the least capable one, which
+		// serves only the legacy predicate fields.
+		caps = tracestore.SearchCapabilities{}
+	}
+	// The filter is settled before the service name is checked, because a filter can name the
+	// service itself and rewriting it is what moves that into ServiceName.
+	prepared, err := prepareFilteredQuery(query, caps)
+	if err != nil {
+		return query, err
+	}
+	if prepared.ServiceName == "" && !caps.WithoutServiceName {
+		return query, ErrServiceNameRequired
+	}
+	return prepared, nil
+}
+
+func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {
 	if query.ServiceName != "" {
 		return nil
 	}
@@ -204,7 +237,8 @@ func (qs QueryService) FindTraceSummaries(
 	query TraceQueryParams,
 ) iter.Seq2[[]tracestore.TraceSummary, error] {
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		if err := qs.validateSearchQuery(ctx, query); err != nil {
+		query, err := qs.prepareSearchQuery(ctx, query)
+		if err != nil {
 			yield(nil, err)
 			return
 		}
