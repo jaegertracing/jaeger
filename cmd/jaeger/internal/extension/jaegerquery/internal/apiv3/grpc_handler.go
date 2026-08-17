@@ -104,7 +104,7 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 		},
 	}
 	if protoFilter := query.GetFilter(); protoFilter != nil {
-		filter, err := expressionproto.ToFilter(protoFilter)
+		filter, err := expressionproto.FromProto(protoFilter)
 		if err != nil {
 			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 		}

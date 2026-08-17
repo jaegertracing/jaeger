@@ -238,24 +238,53 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 		return q
 	}
 
-	t.Run("a conjunction with a level-qualified attribute and a list", func(t *testing.T) {
+	t.Run("a conjunction of a built-in field and an attribute", func(t *testing.T) {
 		q := timeRange()
 		q.Set(paramFilter, `{"op":"and","args":[
-			{"call":{"op":"gt","args":[{"ref":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}},
-			{"call":{"op":"in","args":[{"ref":{"name":"http.status_code"}},{"list":{"values":["500","503"],"type":"int"}}]}}]}`)
+			{"call":{"op":"gt","args":[{"field":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}},
+			{"call":{"op":"in","args":[{"attr":{"key":"http.status_code"}},{"list":{"values":["500","503"],"type":"int"}}]}}]}`)
 
 		got, err := parseFindTracesQuery(q)
 		require.NoError(t, err)
 		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
-				&expression.Reference{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
-				&expression.Scalar{Value: "2s"},
+				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
+				&expression.AnyValue{Value: "2s"},
 			}},
 			&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
-				&expression.Reference{Name: "http.status_code"},
+				&expression.AttributeRef{Key: "http.status_code"},
 				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
 			}},
 		}}, got.Filter)
+	})
+
+	// The quantifier is the one place the third reference arm is written, and its own level says
+	// which collection is bound.
+	t.Run("a correlated match over the events", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"some","args":[
+			{"nested":{"level":"event"}},
+			{"call":{"op":"eq","args":[{"field":{"name":"name","level":"event"}},{"scalar":{"value":"exception","type":"string"}}]}}]}`)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
+			&expression.NestedRef{Level: expression.LevelEvent},
+			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
+				&expression.StringValue{Value: "exception"},
+			}},
+		}}, got.Filter)
+	})
+
+	t.Run("a constant that is not the type it declares", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"eq","args":[
+			{"attr":{"key":"size"}},{"scalar":{"value":"large","type":"int"}}]}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+		require.ErrorContains(t, err, `"large" is not the "int" it declares`)
 	})
 
 	t.Run("no filter", func(t *testing.T) {
@@ -270,14 +299,6 @@ func TestParseFindTracesQuery_Filter(t *testing.T) {
 
 		_, err := parseFindTracesQuery(q)
 		require.ErrorContains(t, err, "malformed parameter query.filter")
-	})
-
-	t.Run("a filter this build cannot evaluate", func(t *testing.T) {
-		q := timeRange()
-		q.Set(paramFilter, `{"op":"matches","args":[{"ref":{"name":"a"}},{"scalar":{"value":"b"}}]}`)
-
-		_, err := parseFindTracesQuery(q)
-		require.ErrorContains(t, err, `malformed parameter query.filter: unknown filter operator "matches"`)
 	})
 }
 

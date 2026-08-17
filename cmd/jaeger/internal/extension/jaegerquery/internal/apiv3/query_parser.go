@@ -90,7 +90,7 @@ func parseFindTracesQuery(q url.Values) (*querysvc.TraceQueryParams, error) {
 		if err := jsonpb.Unmarshal(strings.NewReader(filterParam), &call); err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 		}
-		filter, err := expressionproto.ToFilter(&call)
+		filter, err := expressionproto.FromProto(&call)
 		if err != nil {
 			return nil, fmt.Errorf("malformed parameter %s: %w", paramFilter, err)
 		}

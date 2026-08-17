@@ -593,11 +593,11 @@ func TestFindTracesWithFilter(t *testing.T) {
 			StartTimeMax: time.Now(),
 			Filter: &expressionproto.Call{Op: "and", Args: []*expressionproto.Expression{
 				{Term: &expressionproto.Expression_Call{Call: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
-					{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "service", Level: "resource"}}},
+					{Term: &expressionproto.Expression_Field{Field: &expressionproto.FieldReference{Name: "service", Level: "resource"}}},
 					{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "myservice"}}},
 				}}}},
 				{Term: &expressionproto.Expression_Call{Call: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
-					{Term: &expressionproto.Expression_Ref{Ref: &expressionproto.Reference{Name: "foo"}}},
+					{Term: &expressionproto.Expression_Attr{Attr: &expressionproto.AttributeReference{Key: "foo"}}},
 					{Term: &expressionproto.Expression_Scalar{Scalar: &expressionproto.Scalar{Value: "bar"}}},
 				}}}},
 			}},
@@ -608,26 +608,30 @@ func TestFindTracesWithFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, recv.ToTraces().SpanCount())
 
+	// The service name is compared as text because expression.ResolveConstants read the untyped
+	// constant as the type resource.service declares.
 	assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
 		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.Reference{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-			&expression.Scalar{Value: "myservice"},
+			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
+			&expression.StringValue{Value: "myservice"},
 		}},
 		&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
-			&expression.Reference{Name: "foo"},
-			&expression.Scalar{Value: "bar"},
+			&expression.AttributeRef{Key: "foo"},
+			&expression.AnyValue{Value: "bar"},
 		}},
 	}}, dispatched.Filter)
 }
 
-// TestFindTracesMalformedFilter pins that a filter this build cannot parse is the caller's
-// problem: InvalidArgument, reported before storage is reached.
+// TestFindTracesMalformedFilter pins that a filter this build cannot make sense of reaches the
+// caller as InvalidArgument rather than as an unknown error. The refusal itself belongs to the
+// query service, which is where a decoded tree is validated; what this asserts is the gRPC
+// mapping of it.
 func TestFindTracesMalformedFilter(t *testing.T) {
+	enableStructuredFilters(t)
 	tsc := newTestServerClient(t)
 
 	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
 		Query: &api_v3.TraceQueryParameters{
-			ServiceName:  "myservice",
 			StartTimeMin: time.Now().Add(-2 * time.Hour),
 			StartTimeMax: time.Now(),
 			Filter:       &expressionproto.Call{Op: "matches"},
@@ -637,6 +641,30 @@ func TestFindTracesMalformedFilter(t *testing.T) {
 
 	_, err = responseStream.Recv()
 	require.ErrorContains(t, err, `unknown filter operator "matches"`)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+// TestFindTracesUndecodableFilter covers the refusal the handler makes itself, on a filter the
+// AST has no node for: the request never reaches the query service, so the reader here has no
+// expectations and a call to it would fail the test.
+func TestFindTracesUndecodableFilter(t *testing.T) {
+	enableStructuredFilters(t)
+	tsc := newTestServerClient(t)
+
+	responseStream, err := tsc.client.FindTraces(context.Background(), &api_v3.FindTracesRequest{
+		Query: &api_v3.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-2 * time.Hour),
+			StartTimeMax: time.Now(),
+			Filter: &expressionproto.Call{Op: "eq", Args: []*expressionproto.Expression{
+				{Term: &expressionproto.Expression_Attr{Attr: &expressionproto.AttributeReference{Key: "a"}}},
+				{},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = responseStream.Recv()
+	require.ErrorContains(t, err, "filter argument is empty")
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
