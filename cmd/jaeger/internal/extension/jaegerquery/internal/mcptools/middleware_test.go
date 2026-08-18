@@ -7,8 +7,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -99,8 +101,11 @@ func TestTracingMiddlewareTruncatesOversizedResult(t *testing.T) {
 
 	spanData := capture.singleSpan(t)
 	resultAttr := findAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolCallResult("").Key))
-	assert.LessOrEqual(t, len(resultAttr.Value.AsString()), maxSpanAttrChars)
-	assert.Contains(t, resultAttr.Value.AsString(), "chars total]")
+	got := resultAttr.Value.AsString()
+	assert.LessOrEqual(t, len(got), maxSpanAttrChars)
+	assert.True(t, strings.HasPrefix(got, "(truncated from "),
+		"marker must lead the exported value, got %q", got[:min(40, len(got))])
+	assert.True(t, utf8.ValidString(got), "exported attribute must be valid UTF-8")
 }
 
 func TestToolResultText(t *testing.T) {
@@ -126,13 +131,32 @@ func TestTruncateForSpan(t *testing.T) {
 	long := string(make([]byte, maxSpanAttrChars+100))
 	truncated := truncateForSpan(long, maxSpanAttrChars)
 	assert.LessOrEqual(t, len(truncated), maxSpanAttrChars)
-	assert.Contains(t, truncated, "chars total]")
+	// The marker leads, so it survives a UI that clips the value, and the
+	// value no longer opens with "{" for a UI that would try to parse it.
+	assert.True(t, strings.HasPrefix(truncated, "(truncated from "),
+		"marker must lead the value, got %q", truncated[:min(40, len(truncated))])
 }
 
-func TestTruncateForSpanMaxCharsSmallerThanSuffix(t *testing.T) {
+func TestTruncateForSpanMaxCharsSmallerThanMarker(t *testing.T) {
 	long := string(make([]byte, 1000))
 	truncated := truncateForSpan(long, 10)
 	assert.Len(t, truncated, 10)
+	assert.True(t, utf8.ValidString(truncated))
+}
+
+// A multi-byte rune straddling the cut must not be split: protobuf string
+// fields must hold valid UTF-8, and the Go marshaler rejects anything else,
+// which would fail the OTLP export of every span in the same batch.
+func TestTruncateForSpanCutsOnRuneBoundary(t *testing.T) {
+	// "€" is three bytes, so a cut can land inside it at one of two offsets.
+	// Sweep the cap so the boundary falls at each position in turn.
+	body := strings.Repeat("€", 200)
+	for maxChars := len("(truncated from 600) ") + 1; maxChars <= len("(truncated from 600) ")+9; maxChars++ {
+		truncated := truncateForSpan(body, maxChars)
+		assert.True(t, utf8.ValidString(truncated),
+			"maxChars=%d produced invalid UTF-8: %q", maxChars, truncated)
+		assert.LessOrEqual(t, len(truncated), maxChars, "maxChars=%d exceeded cap", maxChars)
+	}
 }
 
 func TestToolArgumentsFromRequest(t *testing.T) {
