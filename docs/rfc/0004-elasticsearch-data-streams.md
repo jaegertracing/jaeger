@@ -196,13 +196,13 @@ Recommendation: Add `@timestamp` as a field in the document at write time (in Go
 
 Rationale:
 - OTLP defines timestamps in nanoseconds; truncating to milliseconds loses precision unnecessarily.
-- ES/OpenSearch `date_nanos` type supports epoch nanoseconds natively.
+- ES/OpenSearch `date_nanos` type stores nanosecond precision; `date` stores milliseconds.
 - Ingest pipelines add operational complexity and a failure point.
 - Avoids dependency on ES ingest nodes (relevant for cost in licensed ES/ECK deployments).
 
 ```go
-// In the span-to-dbmodel conversion
-doc["@timestamp"] = span.StartTimestamp().AsTime().UnixNano()
+// In SpanWriter.WriteSpans, on the data stream path only
+span.Timestamp = spanStartTime.Format(time.RFC3339Nano)
 ```
 
 The field is added to the mapping component template:
@@ -212,7 +212,9 @@ The field is added to the mapping component template:
 }
 ```
 
-The `date_nanos` type accepts both epoch nanoseconds (what Jaeger writes) and ISO-8601 strings by default. No explicit `format` restriction is needed — keeping the default allows users to index documents manually or query with human-readable timestamps in Kibana/Grafana.
+The value is written as an RFC 3339 string rather than a number. `date_nanos` defaults to `strict_date_optional_time_nanos||epoch_millis` on Elasticsearch and `strict_date_optional_time||epoch_millis` on OpenSearch, and neither engine has an `epoch_nanos` format at all, so a bare number is always read as epoch *milliseconds*. That is why this RFC's original proposal to write epoch nanoseconds does not work: such a value lands far past the type's 2262 upper bound and the document is rejected.
+
+Both defaults accept an RFC 3339 string at full precision, so no explicit `format` restriction is needed and users can still index documents manually or query with human-readable timestamps in Kibana/Grafana.
 
 Note: The existing `startTime` (microseconds) and `startTimeMillis` fields remain for backward compatibility with queries. `@timestamp` is used exclusively by the data stream machinery for rollover and time-based partitioning.
 
