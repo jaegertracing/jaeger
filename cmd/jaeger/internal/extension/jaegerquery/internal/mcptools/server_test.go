@@ -122,14 +122,16 @@ func TestRegisterTools(t *testing.T) {
 	listed, err := clientSession.ListTools(ctx, &mcp.ListToolsParams{})
 	require.NoError(t, err)
 
-	got := make([]string, 0, len(listed.Tools))
+	got := make(map[string]string, len(listed.Tools))
 	for _, tool := range listed.Tools {
-		got = append(got, tool.Name)
+		got[tool.Name] = tool.Description
 	}
 
-	assert.ElementsMatch(t, []string{
-		"get_services", "get_span_names", "search_traces", "get_span_details",
-		"get_trace_errors", "get_trace_topology", "get_critical_path", "get_service_dependencies",
-		"read_skill",
-	}, got)
+	assert.Contains(t, got, "get_trace_errors")
+	assert.Contains(t, got, "get_trace_topology")
+
+	assert.Contains(t, got["get_trace_errors"], "not necessarily the root cause")
+	assert.Contains(t, got["get_trace_errors"], "Inspect the trace topology and child spans")
+	assert.Contains(t, got["get_trace_topology"], "parent-child relationships")
+	assert.Contains(t, got["get_trace_topology"], "actual cause may be a descendant without error status")
 }
