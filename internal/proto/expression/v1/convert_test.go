@@ -110,7 +110,7 @@ func TestFilterRoundTrip(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.filter, mustFromProto(t, ToProto(test.filter)))
+			assert.Equal(t, test.filter, mustFromProto(t, mustToProto(t, test.filter)))
 		})
 	}
 }
@@ -146,7 +146,7 @@ func TestTimeConstantsTravelUnhinted(t *testing.T) {
 			ref := &expression.FieldRef{Level: expression.LevelSpan, Name: test.field}
 			filter := &expression.Call{Op: expression.OpGt, Args: []expression.Expression{ref, test.built}}
 
-			encoded := ToProto(filter)
+			encoded := mustToProto(t, filter)
 			assert.Equal(t, test.encoded, encoded.GetArgs()[1].GetScalar())
 
 			decoded := mustFromProto(t, encoded)
@@ -236,8 +236,36 @@ func TestFromProto_ConstantNotOfItsDeclaredType(t *testing.T) {
 	}
 }
 
-// TestToProto_UnknownTerm pins that an expression outside the term types — only reachable as a
-// nil interface, since the interface is closed — encodes as an empty term rather than panicking.
-func TestToProto_UnknownTerm(t *testing.T) {
-	assert.Equal(t, &Expression{}, fromFilterExpression(nil))
+// TestToProto_RefusesATermItCannotWrite covers the terms with no wire form: a missing one, and a
+// nil pointer of a term type. An empty oneof arm decodes as an argument with no term, so writing
+// one would hand the receiver a different filter instead of an error.
+func TestToProto_RefusesATermItCannotWrite(t *testing.T) {
+	terms := map[string]expression.Expression{
+		"no term at all":            nil,
+		"a nil attribute reference": (*expression.AttributeRef)(nil),
+		"a nil field reference":     (*expression.FieldRef)(nil),
+		"a nil collection":          (*expression.NestedRef)(nil),
+		"a nil list":                (*expression.List)(nil),
+		"a nil call":                (*expression.Call)(nil),
+	}
+	for name, term := range terms {
+		t.Run(name, func(t *testing.T) {
+			encoded, err := fromFilterExpression(term)
+			require.ErrorIs(t, err, ErrTermNotEncodable)
+			assert.Nil(t, encoded)
+		})
+	}
+
+	_, err := ToProto(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+		&expression.AttributeRef{Key: "a"}, nil,
+	}})
+	require.ErrorIs(t, err, ErrTermNotEncodable)
+}
+
+// mustToProto encodes a filter the test means to be encodable.
+func mustToProto(t *testing.T, filter *expression.Call) *Call {
+	t.Helper()
+	encoded, err := ToProto(filter)
+	require.NoError(t, err)
+	return encoded
 }
