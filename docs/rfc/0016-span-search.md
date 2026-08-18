@@ -10,7 +10,11 @@
 
 ## Abstract
 
-Every trace search in Jaeger is already a span search. The api_v3 contract says so — "Fields are matched against individual spans, not the trace level" — and each backend implements it that way: it finds the spans that match, then throws away which spans those were and answers with trace identity. This RFC proposes **`FindSpans`**, a search that keeps them. The request is the same predicate model the trace search uses, extended with an optional set of trace IDs to scope the search to; the response is the matching spans themselves, in OTLP, paginated by the keyset cursor of [RFC 0014](0014-search-result-pagination.md). The immediate consumer is a GenAI evaluation UI that shows one row per experiment and needs the entry span of each experiment's trace, not the trace. The design also settles the shape of the request so that the result-shaping and aggregation tiers [RFC 0005 §4](0005-structured-query-filters.md#4-composition--the-query-complexity-continuum) deferred — a `SELECT` list and a `GROUP BY` over spans — can be added later as clauses on this query rather than as a second query API. Neither is built here.
+Every trace search in Jaeger is already a span search. The api_v3 contract says so — "Fields are matched against individual spans, not the trace level" — and each backend implements it that way: it finds the spans that match, then throws away which spans those were and answers with trace identity. This RFC proposes **`FindSpans`**, a search that keeps them, and it lets a caller name the spans it wants two ways: **by predicate**, and **by identity** — a trace ID with a set of span IDs. Both are the same query model rather than two operations, because trace ID and span ID are intrinsic span fields in [RFC 0005](0005-structured-query-filters.md)'s vocabulary, so addressing a span by identity is a predicate over those fields. The request also carries them as a dedicated selector, which is the spelling a backend can push into its primary key.
+
+The immediate consumer is a GenAI evaluation UI that shows one row per experiment and needs the entry span of each experiment's trace, not the trace. Which pattern it uses depends on what the evaluation harness recorded: a harness that captured only the trace ID has to search for the entry span, while one that captured the span ID too can ask for it directly. The identity pattern is the one that reaches every backend, because a span search needs a secondary index that resolves to span granularity — which Cassandra has only for tag predicates and Badger has not at all — whereas every backend's primary span storage is keyed by trace ID and addresses an individual span within it.
+
+The predicates are RFC 0005's filter and nothing else: this is a new surface with no callers to stay compatible with, so it does not carry the legacy scalar predicate fields. The response is the matching spans in OTLP, paginated by the keyset cursor of [RFC 0014](0014-search-result-pagination.md). The design also settles the shape of the request so that the result-shaping and aggregation tiers [RFC 0005 §4](0005-structured-query-filters.md#4-composition--the-query-complexity-continuum) deferred — a `SELECT` list and a `GROUP BY` over spans — can be added later as clauses on this query rather than as a second query API. Neither is built here.
 
 ---
 
@@ -20,9 +24,11 @@ Every trace search in Jaeger is already a span search. The api_v3 contract says 
 
 A GenAI evaluation UI lists experiments, one row each, and each row carries the trace ID of the run it came from. What the row needs to display is the *entry span of the GenAI work* — the local root of the subtree where the model calls begin — with its attributes: the prompt version, the model name, the token counts, the evaluator scores. It does not need the rest of the trace, which for an agentic run can be thousands of spans and megabytes of payload. [RFC 0001 §10](0001-genai-data-layer.md) names that size problem directly when it discusses running evaluators inside Jaeger, and it correlates evaluation records to traces through attributes on the root span, then hands the evaluator the whole trace to traverse.
 
-Neither existing endpoint answers this. `FindTraces` returns complete traces, which is the payload the UI is trying not to fetch. `FindTraceSummaries` ([RFC 0011](0011-trace-summary-api.md)) returns a fixed set of per-trace statistics — root service, span count, error count — and a summary is not a span: it carries none of the attributes the row displays, and its "root" is the trace's root, not the root of the GenAI subtree inside it. `GetTraces` takes the trace IDs the UI already has, but it too returns whole traces.
+**The requirement arrives in two strengths, depending on what the producer recorded.** An evaluation harness that stored only the trace ID leaves the UI to *find* the entry span, by whatever attribute marks it. A harness that stored the span ID alongside the trace ID — which it can, since it is the code that started that span — leaves the UI to *retrieve* it. The second is a strictly easier question, it is the one worth encouraging a producer toward, and §9 shows it is answerable on backends where the first is not. Neither replaces the other: a caller cannot always control the producer, and a search over marked spans is what answers "every LLM call in this experiment" rather than one span per run.
 
-Jaeger already works around this internally. The MCP `get_span_details` tool takes a trace ID and a list of span IDs, calls `querysvc.GetTraces` for the whole trace, and picks the requested spans out of it in memory ([`handlers/get_span_details.go:69`](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers/get_span_details.go)). Its input schema even recommends asking for no more than twenty spans, which is a limit on the client's patience with the payload rather than on anything the storage cares about. The tool defines its own `SpanDetail` JSON type to return the result. So the need for "these spans, not their traces" is established inside the codebase; what is missing is a way to ask storage for it.
+Neither existing endpoint answers either strength. `FindTraces` returns complete traces, which is the payload the UI is trying not to fetch. `FindTraceSummaries` ([RFC 0011](0011-trace-summary-api.md)) returns a fixed set of per-trace statistics — root service, span count, error count — and a summary is not a span: it carries none of the attributes the row displays, and its "root" is the trace's root, not the root of the GenAI subtree inside it. `GetTraces` takes the trace IDs the UI already has, but it too returns whole traces.
+
+Jaeger already works around this internally, and it works around the *retrieval* case specifically. The MCP `get_span_details` tool takes a trace ID and a list of span IDs, calls `querysvc.GetTraces` for the whole trace, and picks the requested spans out of it in memory ([`handlers/get_span_details.go:69`](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers/get_span_details.go)). Its input schema even recommends asking for no more than twenty spans, which is a limit on the client's patience with the payload rather than on anything the storage cares about. The tool defines its own `SpanDetail` JSON type to return the result. So the need for "these spans, not their traces" is established inside the codebase, in exactly the shape §4.3 gives the request; what is missing is a way to ask storage for it.
 
 ### 1.2 The search is already a span search
 
@@ -34,19 +40,22 @@ The predicates are span predicates. Only the *result* is aggregated up to trace 
 
 - **Elasticsearch/OpenSearch** runs the span query with `Size: 0` — asking for no documents at all — and reads the trace IDs out of a `terms` aggregation on the `traceID` field, ordered by the maximum `startTime` per bucket ([`core/reader.go:402`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)). `FindTraces` then calls `FindTraceIDs` and re-reads the full traces by ID through `multiRead` ([`core/reader.go:257`](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go)). The matching spans are found by the search and deliberately discarded before they cross the wire.
 - **ClickHouse** builds `SELECT DISTINCT s.trace_id FROM spans s WHERE …` and, for `FindTraces`, wraps it as `WHERE s.trace_id IN (…)` around the span projection it already has ([`query_builder.go:116`](../../internal/storage/v2/clickhouse/tracestore/query_builder.go), [`sql/queries.go:214`](../../internal/storage/v2/clickhouse/sql/queries.go)). The `DISTINCT` is the aggregation.
-- **Cassandra and Badger** intersect per-index sets of trace IDs. Their indices record trace IDs and nothing finer, so for them the matched span genuinely is not recoverable without reading the trace.
+- **Cassandra** intersects per-index sets of trace IDs, and its v1 reader returns `[]dbmodel.TraceID`. That is a property of the reader rather than of the schema: `tag_index` is keyed `((service_name, tag_key, tag_value), start_time, trace_id, span_id)` and so already records which span carried the tag, while `duration_index` and the two service indices stop at the trace ([`v004-go-tmpl.cql.tmpl`](../../internal/storage/v1/cassandra/schema/v004-go-tmpl.cql.tmpl)). So the span identity survives for a tag predicate and is discarded by the code, and does not exist for the others.
+- **Badger** intersects index seeks whose keys end at the trace ID for every one of its four secondary indices ([ADR-005](../adr/005-badger-storage-record-layouts.md)). Here the span identity genuinely is not recorded.
 
 So on the two backends that motivate this work, returning matching spans is not new machinery. It is the removal of a step. On ES/OS it means asking for the documents the query already matched instead of asking for none of them, which also drops the `terms` aggregation whose cross-shard approximation [RFC 0014 §1.2](0014-search-result-pagination.md) identifies as a correctness problem in its own right.
 
 ```mermaid
 flowchart LR
     q["span predicates<br/>+ time range"] --> match[["storage matches spans"]]
+    ids2["trace IDs<br/>+ span IDs"] --> primary[["storage reads<br/>the primary key"]]
     match --> agg["aggregate to trace identity"]
     agg --> ids["FindTraceIDs<br/>trace IDs"]
     agg --> refetch["re-read every span<br/>of each matched trace"]
     refetch --> traces["FindTraces<br/>whole traces"]
     refetch --> sum["FindTraceSummaries<br/>per-trace statistics"]
     match --> spans["FindSpans<br/>the matched spans"]
+    primary --> spans
 
     style spans stroke-width:3px
 ```
@@ -63,22 +72,23 @@ This RFC does not build them. It settles where they would attach, so that adding
 
 ### Goals
 
-- **G1 — Return matching spans.** A search whose result is the spans that satisfied the predicates, in OTLP, each with the resource and scope it was recorded under.
-- **G2 — Scope a search to known trace IDs.** The evaluation UI holds the trace IDs already; the search must be a lookup within those traces, not a scan of the time range.
-- **G3 — Reuse the predicate model.** The same legacy predicate fields and the same [RFC 0005](0005-structured-query-filters.md) filter AST that trace search uses, with the same meaning. No second filtering model.
-- **G4 — Paginate.** Spans are the unit a keyset cursor is natural over, so the search is paginated from the start, using [RFC 0014](0014-search-result-pagination.md)'s opaque page token.
-- **G5 — Honest degradation.** A backend whose indices cannot identify matching spans declares that through [ADR-013](../adr/013-storage-capability-declaration.md) and the query service refuses the search, rather than the backend answering a different question.
-- **G6 — Provision for result shaping and aggregation.** The request and response messages must be able to grow a `SELECT` list and a `GROUP BY` without a breaking change and without a second RPC. Neither is delivered here.
-- **G7 — Additive.** Nothing about `FindTraces`, `FindTraceIDs`, or `FindTraceSummaries` changes.
+- **G1 — Return matching spans.** A search whose result is the spans that satisfied the query, in OTLP, each with the resource and scope it was recorded under.
+- **G2 — Address spans by identity.** A caller that holds a trace ID and a span ID gets that span, without a predicate and without reading the trace.
+- **G3 — Scope a search to known traces.** A caller that holds trace IDs but not span IDs searches within those traces rather than across the time range.
+- **G4 — One predicate model.** [RFC 0005](0005-structured-query-filters.md)'s filter, and no second filtering model — which for a new surface means no legacy scalar predicate fields at all.
+- **G5 — Paginate.** Spans are the unit a keyset cursor is natural over, so the search is paginated from the start, using [RFC 0014](0014-search-result-pagination.md)'s opaque page token.
+- **G6 — Honest degradation.** A backend that cannot serve one of the two access patterns declares that through [ADR-013](../adr/013-storage-capability-declaration.md) and the query service refuses that query, rather than the backend answering a different question.
+- **G7 — Provision for result shaping and aggregation.** The request and response messages must be able to grow a `SELECT` list and a `GROUP BY` without a breaking change and without a second RPC. Neither is delivered here.
+- **G8 — Additive.** Nothing about `FindTraces`, `FindTraceIDs`, or `FindTraceSummaries` changes.
 
 ### Non-goals
 
-- **Defining what a local root is.** Jaeger has no concept of a subtree root, and this RFC does not add one. The caller identifies its entry spans with its own predicate (§8).
-- **Structural predicates.** Ancestor, descendant, parent and sibling navigation is [RFC 0005](0005-structured-query-filters.md) tier L5 and stays out of scope. A local root cannot be *derived* by this API, only *matched* by a predicate the producer arranged for.
+- **Defining what a local root is.** Jaeger has no concept of a subtree root, and this RFC does not add one. The caller either recorded its entry span's ID or identifies it with its own predicate (§8).
+- **Structural predicates.** Ancestor, descendant, parent and sibling navigation is [RFC 0005](0005-structured-query-filters.md) tier L5 and stays out of scope. A local root cannot be *derived* by this API, only recorded by the producer or matched by a predicate.
 - **Projection and aggregation themselves.** §5 reserves room for them and states what a later RFC has to define; it does not define it.
 - **Metrics over spans.** Rate and quantile over time belong to the metrics/SPM subsystem, as RFC 0005 §4 concluded.
 - **Trace-scoped enrichment of span results.** The query-time adjusters do not run on a span result set, and §7 explains why that is a design decision rather than a gap.
-- **A new storage schema.** Every backend that can serve this can serve it from what it indexes today.
+- **A new storage schema.** Every backend that can serve either access pattern can serve it from what it stores today.
 
 ---
 
@@ -113,58 +123,84 @@ Five ways to deliver span results were considered.
 | Payload for the evaluation UI | 🟢 | 🔴 | 🟢 | 🟡¹ | 🟢 |
 | Keeps full OTLP span fidelity | 🟢 | 🟢 | 🟢 | 🔴¹ | 🔴² |
 | Result type says what it is | 🟢 | 🟢 | 🔴³ | 🟡 | 🟢 |
-| Fits a keyset cursor | 🟢 | 🔴⁴ | 🟡⁵ | 🟡⁵ | 🟢 |
-| Grows into `SELECT`/`GROUP BY` | 🟢 | 🔴 | 🔴⁶ | 🔴 | 🟢 |
-| Elasticsearch/OpenSearch | 🟢⁷ | 🟢 | 🟢⁷ | 🟡 | 🟡² |
-| ClickHouse | 🟢⁷ | 🟢 | 🟢⁷ | 🟡 | 🟢 |
-| Cassandra / Badger | 🔴⁸ | 🟢 | 🔴⁸ | 🔴⁸ | 🔴⁸ |
+| Serves the identity pattern (G2) | 🟢 | 🟡⁴ | 🔴⁵ | 🔴 | 🟢 |
+| Fits a keyset cursor | 🟢 | 🔴⁶ | 🟡⁷ | 🟡⁷ | 🟢 |
+| Grows into `SELECT`/`GROUP BY` | 🟢 | 🔴 | 🔴⁸ | 🔴 | 🟢 |
+| Elasticsearch/OpenSearch | 🟢⁹ | 🟢 | 🟢⁹ | 🟡 | 🟡² |
+| ClickHouse | 🟢⁹ | 🟢 | 🟢⁹ | 🟡 | 🟢 |
+| Cassandra / Badger | 🟡¹⁰ | 🟢 | 🔴¹¹ | 🔴 | 🔴¹¹ |
 | API surface cost | 🟡 | 🟢 | 🟢 | 🟡 | 🔴² |
-| Consumer cost (UI, MCP) | 🟢 | 🟢 | 🟡³ | 🟡 | 🔴⁹ |
+| Consumer cost (UI, MCP) | 🟢 | 🟢 | 🟡³ | 🟡 | 🔴¹² |
 
 Legend: 🟢 good · 🟡 partial · 🔴 poor
 
-¹ one representative span per trace answers the evaluation row and nothing else, and `TraceSummary` is a flat statistics message, so carrying a span in it means either a second span encoding or a link back to `GetTrace`. ² a row result needs a typed value encoding and column metadata that Jaeger does not have, and it cannot represent a span's events and links without inventing a nesting model; on ES/OS it also collides with the metrics subsystem, as RFC 0005 §4 footnote 2 notes. ³ `FindTraces` answers `stream TracesData`, so a flag changes what the same type means at runtime with nothing in the type system to say which it is. This is the reason [RFC 0011](0011-trace-summary-api.md) rejected `summary=true` on `FindTraces` and made `FindTraceSummaries` a separate RPC; the reasoning has not changed. ⁴ the client would page traces and filter spans, so a page of results has an unpredictable number of rows and can be empty. ⁵ the token would have to mean "the next page of traces", not of spans, which is the wrong unit for a span result. ⁶ a projection or a grouping clause on `TraceQueryParameters` is meaningless for `FindTraces`, which is the RPC that message exists for. ⁷ the removal of a step, not new machinery — §1.2. ⁸ their indices resolve to trace IDs only (§9); every option that returns spans from storage is refused there, and O2 works precisely because it does the work in the client. ⁹ every consumer would need a row decoder, and the UI and MCP already speak OTLP spans.
+¹ one representative span per trace answers the evaluation row and nothing else, and `TraceSummary` is a flat statistics message, so carrying a span in it means either a second span encoding or a link back to `GetTrace`. ² a row result needs a typed value encoding and column metadata that Jaeger does not have, and it cannot represent a span's events and links without inventing a nesting model; on ES/OS it also collides with the metrics subsystem, as RFC 0005 §4 footnote 2 notes. ³ `FindTraces` answers `stream TracesData`, so a flag changes what the same type means at runtime with nothing in the type system to say which it is. This is the reason [RFC 0011](0011-trace-summary-api.md) rejected `summary=true` on `FindTraces` and made `FindTraceSummaries` a separate RPC; the reasoning has not changed. ⁴ correct but at whole-trace cost, which is the workaround `get_span_details` implements today. ⁵ `TraceQueryParameters` has no span-identity field and gaining one would give `FindTraces` a parameter it cannot act on. ⁶ the client would page traces and filter spans, so a page of results has an unpredictable number of rows and can be empty. ⁷ the token would have to mean "the next page of traces", not of spans, which is the wrong unit for a span result. ⁸ a projection or a grouping clause on `TraceQueryParameters` is meaningless for `FindTraces`, which is the RPC that message exists for. ⁹ the removal of a step, not new machinery — §1.2. ¹⁰ the identity pattern is serviceable on both, and on Cassandra it is a native point read; the predicate pattern is partial on Cassandra and unavailable on Badger (§9). This split is the reason §4.5 declares two capabilities rather than one. ¹¹ every option that returns predicate-matched spans from storage is refused there. ¹² every consumer would need a row decoder, and the UI and MCP already speak OTLP spans.
 
 **Decision — O1.** `FindSpans` is a first-class RPC whose response type is spans, for the same reason `FindTraceSummaries` is one: the result shape belongs in the type system, not in a flag. O2 stays available and stays correct — it is the fallback a caller can always implement — but it is what the requirement exists to avoid. O5 is not rejected so much as postponed: §5 keeps a place for a row result inside `FindSpans`, so the tabular capability arrives as an arm of this RPC's response rather than as a competing API.
 
-### 4.2 The request
+### 4.2 The name
 
-The span query is a new message rather than a reuse of `TraceQueryParameters`, even though `FindTraceSummaries` reuses that message. Three of its fields do not carry over: `search_depth` counts traces, `raw_traces` selects between adjusted and stored traces where a span result is always as stored (§7), and its documented contract sentence — "The results include traces with at least one matching span" — is a statement about trace results. More importantly, the clauses §5 reserves are span-query clauses: a projection or a grouping on the message that `FindTraces` uses would be a field with no meaning for the RPC that message exists to serve.
+Jaeger's reader vocabulary splits on how the caller names what it wants: `GetTrace` and `GetTraces` take IDs, while `FindTraces`, `FindTraceIDs` and `FindTraceSummaries` take a query. This method takes both, so neither prefix obviously applies, and two other names suggest themselves from the analytics direction of §5.
+
+| Criterion | `FindSpans` | `GetSpans` | `SelectSpans` | `QuerySpans` | `SearchSpans` |
+|---|:-:|:-:|:-:|:-:|:-:|
+| Fits the existing `Get*`/`Find*` vocabulary | 🟢 | 🟢 | 🔴 | 🔴 | 🟡 |
+| Accurate for the predicate pattern | 🟢 | 🔴 | 🟢 | 🟢 | 🟢 |
+| Accurate for the identity pattern | 🟢¹ | 🟢 | 🟢 | 🟢 | 🔴² |
+| Free of clause confusion | 🟢 | 🟢 | 🔴³ | 🟢 | 🟢 |
+| Survives a tabular response arm | 🔴⁴ | 🔴⁴ | 🔴⁴ | 🟢⁵ | 🔴⁴ |
+| Reads well on both services | 🟢 | 🟢 | 🟢 | 🟡⁶ | 🟢 |
+
+Legend: 🟢 good · 🟡 partial · 🔴 poor
+
+¹ because identity is a predicate: `span.traceID` and `span.spanID` are intrinsic span fields in RFC 0005's vocabulary, so naming a span is a comparison over two of its fields and the `traces` selector is a pushdown spelling of one (§4.3). Under that reading the identity pattern is a search, and `Find` is accurate rather than merely tolerable. ² "search" reads as scanning for unknowns, which is the opposite of naming a span you already hold. ³ `SELECT` is SQL's *projection* clause, and §5 reserves a `projection` field on this very message, so `SelectSpans` would name the method after a clause it also contains — and after the one clause it does not yet implement. ⁴ every `*Spans` name promises spans as the result, which a grouped aggregate is not. ⁵ "query spans" names the subject rather than the result, so it stays true whatever the response holds. ⁶ `QueryService.QuerySpans` stutters, though `TraceReader.QuerySpans` does not.
+
+**Decision — `FindSpans`.** The tabular arm is the only criterion `QuerySpans` wins, and it is the speculative one: whether rows belong in this RPC at all is Q3 in §14, and if they arrive under a name that would then lie, that is one more argument for giving them their own RPC. Every other criterion favors staying inside the vocabulary the four sibling methods established. The identity pattern is not a concession here — treating trace ID and span ID as intrinsic fields is what makes one method cover both patterns in the first place, and it makes `Find` the honest prefix for both.
+
+### 4.3 The request
+
+The span query is a new message rather than a reuse of `TraceQueryParameters`. Three of that message's fields do not carry over: `search_depth` counts traces, `raw_traces` selects between adjusted and stored traces where a span result is always as stored (§7), and its documented contract sentence — "The results include traces with at least one matching span" — is a statement about trace results. More importantly, the clauses §5 reserves are span-query clauses: a projection or a grouping on the message that `FindTraces` uses would be a field with no meaning for the RPC that message exists to serve.
+
+**It also does not carry the legacy scalar predicate fields.** `service_name`, `operation_name`, `attributes`, `duration_min` and `duration_max` exist on `TraceQueryParameters` because callers depend on them. `FindSpans` has no callers, so putting them here would import RFC 0005 §7's mutual-exclusion rule and its two-way conversion into a surface that never needed either, and would leave the project maintaining two filtering models on a message that could have started with one. So the predicates are the `filter` and nothing else, which makes this the first Jaeger query surface with a single filtering model.
 
 ```protobuf
 // Query parameters to find spans. Field numbers are illustrative.
 //
-// The predicates form a conjunction, and they are matched against individual
-// spans; a span is returned when it satisfies all of them. This is the same
-// predicate model as jaeger.api_v3.TraceQueryParameters, evaluated the same way
-// — what differs is that the matching spans are the result rather than an
-// intermediate step toward trace identity.
+// A span is returned when it satisfies every part of the query: it is named by
+// `traces` if that is set, and it satisfies `filter` if that is set. The
+// predicates are matched against individual spans, which is the same evaluation
+// the trace search performs — what differs is that the matching spans are the
+// result rather than an intermediate step toward trace identity.
 message SpanQueryParameters {
-  // Scope: restrict the search to these traces. Hex-encoded 64- or 128-bit
-  // trace IDs. Optional; conjunctive with the predicates below.
-  repeated string trace_ids = 1;
+  // The spans this query addresses by identity. Empty means "search the whole
+  // time range". A TraceSpans with no span_ids means "every span of that trace",
+  // so a query naming traces and nothing else reshapes GetTraces as spans.
+  repeated TraceSpans traces = 1;
 
-  // The time range, as on TraceQueryParameters. Required.
+  // The time range, as on TraceQueryParameters. Required — see below.
   google.protobuf.Timestamp start_time_min = 2;
   google.protobuf.Timestamp start_time_max = 3;
 
-  // Predicates, legacy shape. Same fields and same meaning as on
-  // TraceQueryParameters; mutually exclusive with `filter` (RFC 0005 §7).
-  string service_name = 4;
-  string operation_name = 5;
-  map<string, string> attributes = 6;
-  google.protobuf.Duration duration_min = 7;
-  google.protobuf.Duration duration_max = 8;
+  // The predicates (RFC 0005): a single boolean-valued Call. Optional; a query
+  // that names `traces` needs no filter.
+  jaeger.query.expression.v1.Call filter = 4;
 
-  // Predicates, structured shape (RFC 0005). A single boolean-valued Call.
-  jaeger.query.expression.v1.Call filter = 9;
+  // The page size and cursor (RFC 0014). There is no search_depth: a span search
+  // is bounded by its page size, and the server caps that.
+  Pagination pagination = 5;
 
-  // The page size and cursor (RFC 0014). There is no search_depth: a span
-  // search is bounded by its page size, and the server caps that.
-  Pagination pagination = 10;
-
-  // 11 to 19 are reserved for the result-shaping and aggregation clauses of
+  // 6 to 15 are reserved for the result-shaping and aggregation clauses of
   // RFC 0016 §5: projection, group_by, having, order_by.
+}
+
+// TraceSpans names one trace, and optionally individual spans within it. The
+// optional time range is the same hint GetTraceRequest carries, for backends that
+// read a trace faster when they know roughly when it happened.
+message TraceSpans {
+  string trace_id = 1;             // hex-encoded 64- or 128-bit; required
+  repeated string span_ids = 2;    // hex-encoded; empty = every span of the trace
+  google.protobuf.Timestamp start_time = 3;
+  google.protobuf.Timestamp end_time = 4;
 }
 
 message FindSpansRequest {
@@ -172,13 +208,25 @@ message FindSpansRequest {
 }
 ```
 
-**`trace_ids` is a scoping field, not a predicate, and that is why it is a field.** RFC 0005's rule is that predicates belong in the filter and dedicated scalar fields are legacy, and once `span.traceID` is a built-in field reference the same restriction is expressible as `in` over a list. Two things still argue for the field. It selects the storage access path rather than narrowing a scan: given trace IDs, every backend reads its trace-ID index or primary key, which is a different query plan from an attribute search, and a predicate buried in a boolean tree does not signal that. And it is the field that makes this RPC useful before RFC 0005's `filter` and its `jaeger.query.structuredFilters` feature gate reach a default deployment, which matters because the motivating query is a trace-scoped lookup and the legacy fields cannot express one at all. The cost is honest: it is a second spelling for what a `traceID in […]` predicate will also express, and the query service normalizes the two the same way RFC 0005 §7 normalizes `service_name` against `resource.service`. Whether that cost is worth paying is Q1 in §14.
+**Why `traces` is a field and not only a predicate.** Trace ID and span ID are intrinsic span fields, so RFC 0005's model can express this: `span.traceID` and `span.spanID` compared with `eq`, or with `in` over a list. The vocabulary needs one addition — [RFC 0005 §5.2](0005-structured-query-filters.md#52-built-in-fields) lists `spanID` at the span level and `traceID` only at the link level, so span-level `traceID` joins the enumeration, which is the additive change that section provides for. Three things still argue for the field.
 
-The time range stays required even when `trace_ids` is given, because ES/OS selects which indices to read from it and ClickHouse prunes partitions with it. A caller that knows only the trace IDs must supply a range wide enough to contain them, exactly as `GetTraceRequest`'s optional `start_time`/`end_time` hints already assume. Q5 in §14 asks whether that should be relaxed.
+*The exact question needs `or`, and the cheap approximation is a different question.* A set of `(trace, span)` pairs is a disjunction of conjunctions: `or(and(traceID=t1, spanID=s1), and(traceID=t2, spanID=s2), …)`. The tempting flattening — `and(traceID in [t1,t2], spanID in [s1,s2])` — is a cross product, which asks whether *some* named span ID appears in *some* named trace, and that is not what the caller means even if the collision is unlikely in practice. RFC 0005 has the flat backends rejecting `or` outright, and Cassandra is the backend where this operation is a native point read, so the predicate spelling would refuse the query on the backend best able to answer it.
 
-### 4.3 The response, and why it is an envelope
+*It selects the access path.* Given a trace ID, every backend reads its primary span storage — a partition, a key prefix, a bloom-filtered granule — which is a different plan from an index search. A predicate buried in a boolean tree does not signal that, whereas a field the query builder reads first does.
 
-`FindTraces` streams bare `TracesData`, which leaves nowhere to put anything that is not a span — which is why [RFC 0014 §4](0014-search-result-pagination.md) could not give `FindTraces` a page token and attached pagination to `FindTraceIDs` and `FindTraceSummaries` instead. A span search is paginated by construction, so it needs a response message of its own on day one. That message is also where a future row result attaches.
+*It carries the time hints.* `GetTraceParams` already proves a backend wants an approximate time range per trace ID, and a predicate has nowhere to put one.
+
+The cost is a second spelling for a question the filter can also ask, which is the same arrangement RFC 0005 §7 already describes for `service_name` against `resource.service`, resolved the same way: one conversion, in the query service, in one direction per backend.
+
+**The time range stays required**, because ES/OS selects which indices to read from it and ClickHouse prunes partitions with it — its `spans` table is `PARTITION BY toDate(start_time)` with a bloom-filter skip index on `trace_id`, so without a range a trace-ID lookup scans every partition. A caller that knows only trace IDs supplies a range wide enough to contain them, or the per-trace hints on `TraceSpans`. Q4 in §14 asks whether a backend that does not need it should be allowed to say so.
+
+### 4.4 The response, and why it is an envelope
+
+**No RPC that returns spans has a response envelope, in either protocol.** `GetTrace` and `FindTraces` in api_v3 and `GetTraces` and `FindTraces` in `jaeger.storage.v2` all stream bare `opentelemetry.proto.trace.v1.TracesData`, while every RPC returning a Jaeger-defined type has an envelope — `GetServicesResponse`, `FindTraceIDsResponse`, `FindTraceSummariesResponse`. The dividing line is not what the response needs to say; it is whether the payload is an OTLP type. Reusing OTLP's own top-level message meant taking its shape, and that message belongs to OpenTelemetry, so Jaeger cannot add a field to it.
+
+That is a limitation rather than a decision, and it already costs something. A trace truncated at `MaxTraceSize` is a fact about the *response*, and `markTraceTruncated` reports it by writing a warning attribute onto the trace's first span and returning after one span ([`aggregator.go:159`](../../internal/jptrace/aggregator.go)) — response metadata smuggled into the payload because there is nowhere else to put it. `AddWarnings`' own comment notes the attribute may round-trip through a storage backend and come back as a plain string, so the signal is not reliably distinguishable from stored span data. It is also why [RFC 0014 §4](0014-search-result-pagination.md) attaches pagination to `FindTraceIDs` and `FindTraceSummaries` and gives `FindTraces` no token: not because a trace search wants none, but because that response has no field to carry one.
+
+Correcting it on the existing RPCs is a breaking change, since the streamed message type is part of the method signature, so this RFC does not propose it (§13 records it). What this RFC can do cheaply is not repeat it. A span search is paginated by construction, so it needs a response message of its own on day one; that message is also where response-level warnings belong, and where a future row result attaches.
 
 | Criterion | R1 bare `stream TracesData` | R2 envelope, `oneof` with one arm | R3 always tabular rows | R4 spans now, second RPC later |
 |---|:-:|:-:|:-:|:-:|
@@ -222,7 +270,7 @@ rpc FindSpans(FindSpansRequest) returns (stream FindSpansResponse) {
 }
 ```
 
-### 4.4 The internal storage interface
+### 4.5 The internal storage interface
 
 `FindSpans` goes on `tracestore.Reader` itself, not on an optional interface. [ADR-010](../adr/010-trace-summary-api.md) records why: `FindTraceSummaries` shipped as an optional `SummaryReader` and was moved onto `Reader` in [#9067](https://github.com/jaegertracing/jaeger/pull/9067) because an optional interface taxes every decorator, and a decorator that fails to forward it silently downgrades the backend. [ADR-013](../adr/013-storage-capability-declaration.md) makes the same argument for `SearchCapabilities`. A required method means the compiler enumerates the implementations that have to answer.
 
@@ -233,9 +281,9 @@ rpc FindSpans(FindSpansRequest) returns (stream FindSpansResponse) {
 // the result is a set of spans, not a set of traces. Spans are returned as
 // stored, with no query-time adjustment (RFC 0016 §7).
 //
-// A reader whose indices cannot identify which spans matched declares
-// SpanSearch=false and yields errors.ErrUnsupported (wrapped with %w) as the
-// first error before any page; such readers embed UnsupportedSpanSearch.
+// A reader that cannot serve the query's access pattern — see SearchCapabilities
+// — yields errors.ErrUnsupported (wrapped with %w) as the first error before any
+// page; such readers embed UnsupportedSpanSearch for the patterns they lack.
 FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[SpanPage, error]
 
 // SpanPage is one chunk of a page of span results. NextPageToken is set on the
@@ -246,40 +294,47 @@ type SpanPage struct {
 }
 
 type SpanQueryParams struct {
-    TraceIDs      []pcommon.TraceID
-    ServiceName   string
-    OperationName string
-    Attributes    pcommon.Map
-    StartTimeMin  time.Time
-    StartTimeMax  time.Time
-    DurationMin   time.Duration
-    DurationMax   time.Duration
-    Filter        *expression.Call   // RFC 0005
-    Pagination    Pagination         // RFC 0014
+    Traces       []TraceSpans
+    StartTimeMin time.Time
+    StartTimeMax time.Time
+    Filter       *expression.Call   // RFC 0005
+    Pagination   Pagination         // RFC 0014
+}
+
+// TraceSpans names one trace and optionally individual spans within it. Start
+// and End are the same optional hint GetTraceParams carries.
+type TraceSpans struct {
+    TraceID pcommon.TraceID
+    SpanIDs []pcommon.SpanID
+    Start   time.Time
+    End     time.Time
 }
 ```
 
 `SpanPage` mirrors RFC 0014's `TraceIDPage` rather than inventing a second way to carry a cursor. The ownership rule in the `Reader` doc comment applies unchanged: the caller owns each yielded `ptrace.Traces`, so a reader that holds its own copy of the data yields a deep copy.
 
-Capability, declared through [ADR-013](../adr/013-storage-capability-declaration.md)'s existing mechanism, whose zero value is already the least capable backend:
+**The two access patterns are declared separately,** because they rest on different storage structures: retrieving an identified span reads the primary span storage, while matching a predicate needs a secondary index that resolves to span granularity, and §9 shows backends that have the first and not the second.
 
 ```go
 type SearchCapabilities struct {
     WithoutServiceName bool   // ADR-013
     Paginated          bool   // RFC 0014
-    SpanSearch         bool   // RFC 0016: FindSpans returns spans rather than ErrUnsupported
+    SpanRetrieval      bool   // RFC 0016: can return spans named by trace ID and span ID
+    SpanSearch         bool   // RFC 0016: can return spans matched by predicates
 }
 ```
 
-The query service enforces it before dispatch, in the one place ADR-013 put enforcement, and maps the refusal to `InvalidArgument` and HTTP 400. `UnsupportedSpanSearch` is the compile-time counterpart and the backstop, exactly as `UnsupportedTraceSummaries` is for summaries: a reader that declares `false` still needs the method to exist, and a reader reached without the capability check still must not answer a narrower question.
+A reader that declares `SpanSearch` can serve retrieval too, since identity is a predicate over two intrinsic fields, but the reverse does not hold and the zero value of each is still the least capable answer. Two booleans rather than one enum follows ADR-013's existing style; [RFC 0014](0014-search-result-pagination.md)'s open question about capability granularity applies here equally, and if it resolves toward an enum this pair goes with it.
 
-The remote-storage protocol gets the matching `FindSpans` RPC on `jaeger.storage.v2.TraceReader` and the matching `span_search` field on `SearchCapabilities` in `capabilities.proto`. A plugin that predates either reads as least capable — its `Capabilities` service is absent, so ADR-013's client maps that to `ErrUnsupported` — and the query service therefore never sends it a span search.
+The query service enforces both before dispatch, in the one place ADR-013 put enforcement, and maps a refusal to `InvalidArgument` and HTTP 400. `UnsupportedSpanSearch` is the compile-time counterpart and the backstop, as `UnsupportedTraceSummaries` is for summaries: a reader that declares `false` still needs the method to exist, and a reader reached without the capability check still must not answer a narrower question.
 
-### 4.5 The query service and the HTTP surface
+The remote-storage protocol gets the matching `FindSpans` RPC on `jaeger.storage.v2.TraceReader` and the matching `span_retrieval` and `span_search` fields on `SearchCapabilities` in `capabilities.proto`. A plugin that predates either reads as least capable — its `Capabilities` service is absent, so ADR-013's client maps that to `ErrUnsupported` — and the query service therefore never sends it a span query.
 
-`querysvc.QueryService` gains `FindSpans`, and it is a thinner path than `FindTraces`: validate the query, check the capability, dispatch, and pass the pages through. There is no aggregation step and no adjuster step (§7). This is also the first search the query service exposes whose storage counterpart is paginated, so it is where RFC 0014's token handling lands for real; `FindTraceIDs` has no query-service method today, which RFC 0014 has to add for its own milestones.
+### 4.6 The query service and the HTTP surface
 
-The HTTP route is `GET /api/v3/spans`, alongside `/api/v3/traces` and `/api/v3/trace-summaries`, with the same camelCase `query.*` parameters the existing parser uses plus `query.traceIDs` as a comma-separated list and RFC 0014's page-size and page-token parameters. As with the other endpoints, the HTTP handler buffers a page through `jiter.FlattenWithErrors` while gRPC streams it; a page is a bounded unit, which is what makes buffering acceptable here.
+`querysvc.QueryService` gains `FindSpans`, and it is a thinner path than `FindTraces`: validate the query, check the capability the query's access pattern needs, dispatch, and pass the pages through. There is no aggregation step and no adjuster step (§7). This is also the first search the query service exposes whose storage counterpart is paginated, so it is where RFC 0014's token handling lands for real; `FindTraceIDs` has no query-service method today, which RFC 0014 has to add for its own milestones.
+
+The HTTP route is `GET /api/v3/spans`, alongside `/api/v3/traces` and `/api/v3/trace-summaries`, with `query.filter` as RFC 0005 defines it, RFC 0014's page-size and page-token parameters, and the trace selector as a repeated `query.traces` parameter whose value is `<traceID>[:<spanID>[,<spanID>…]]`. A structured selector also travels as JSON in the `POST` binding, which is what the gRPC-gateway wrapper already provides for `FindTraces`. As with the other endpoints, the HTTP handler buffers a page through `jiter.FlattenWithErrors` while gRPC streams it; a page is a bounded unit, which is what makes buffering acceptable here.
 
 ---
 
@@ -291,9 +346,9 @@ RFC 0005 built the `WHERE` clause and mapped what lies beyond it: L3 result shap
 
 | SQL | Span query | Status |
 |---|---|---|
-| `FROM` | implicit: spans, within the time range, optionally scoped to `trace_ids` | delivered |
-| `WHERE` | `filter`, an RFC 0005 `Call`, or the legacy predicate fields | delivered |
-| `SELECT` | `projection`: a list of expressions with optional aliases | reserved (§4.2 field 11+) |
+| `FROM` | implicit: spans, within the time range, optionally narrowed to `traces` | delivered |
+| `WHERE` | `filter`, an RFC 0005 `Call` | delivered |
+| `SELECT` | `projection`: a list of expressions with optional aliases | reserved (§4.3 field 6+) |
 | `GROUP BY` | `group_by`: a list of expressions | reserved |
 | `HAVING` | `having`: a `Call` over aggregates | reserved |
 | `ORDER BY` | `order_by`: expressions with a direction | partly delivered — a fixed sort order the cursor depends on (§6); a caller-chosen order is reserved |
@@ -307,7 +362,7 @@ The important finding is that L3 and L4 do not need the same thing from the resp
 
 **A projection over plain references can stay in the spans arm.** If every projected expression is an attribute or a built-in field, the result is a *sparse span*: the same span with only the requested fields populated. That is what TraceQL's `select()` returns, it needs no new result type, and it delivers most of what a projection is for — the evaluation UI asking for four attributes out of a span carrying two hundred. What cannot ride the spans arm is a *computed* projection, because OTLP has no field for the value of `duration / 1000` or `json_extract(input, "model")`.
 
-**Grouping always needs rows.** A group with a count is not a span, and no arrangement of `ResourceSpans` represents one. So the tabular arm of §4.3 is what L4 needs, and a later RFC that adds `group_by` has to define three things this one does not: a typed value encoding for a cell, column metadata naming and typing each output column, and the aggregate `op` vocabulary. Paging over grouped results is a separate question again, and usually a non-question — a grouped result is small by construction, and the honest answer is likely to be a cap and a refusal rather than a cursor.
+**Grouping always needs rows.** A group with a count is not a span, and no arrangement of `ResourceSpans` represents one. So the tabular arm of §4.4 is what L4 needs, and a later RFC that adds `group_by` has to define three things this one does not: a typed value encoding for a cell, column metadata naming and typing each output column, and the aggregate `op` vocabulary. Paging over grouped results is a separate question again, and usually a non-question — a grouped result is small by construction, and the honest answer is likely to be a cap and a refusal rather than a cursor.
 
 This is why the response is a `oneof` and not a `TracesData` with a bag of extras: the arm follows from the query, statically, and a caller knows which arm it will get before it sends the request. A query with no `projection` and no `group_by` returns spans. A query whose projection is references only returns sparse spans. A query that groups or computes returns rows.
 
@@ -315,7 +370,7 @@ This is why the response is a `oneof` and not a `TracesData` with a bag of extra
 
 Joins between spans, cross-trace correlation, structural predicates over the trace tree (RFC 0005 tier L5), and time-bucketed metrics all stay outside this shape. The first three need an execution model that assembles more than one span at a time, which is the reason RFC 0005 deferred L5 rather than judging it infeasible. The last belongs to the metrics/SPM subsystem, as RFC 0005 §4 concluded, and a span-analytics clause that grew a `rate()` would be duplicating it.
 
-The analytics tier will also be a per-backend capability, like everything else here. ClickHouse can push a grouped aggregate down natively and is the reason to design for this at all. ES/OS has aggregations, and RFC 0005 §4 already flags that they overlap the metrics path. Cassandra and Badger cannot serve even the ungrouped span search (§9), so they will not serve this either.
+The analytics tier will also be a per-backend capability, like everything else here. ClickHouse can push a grouped aggregate down natively and is the reason to design for this at all. ES/OS has aggregations, and RFC 0005 §4 already flags that they overlap the metrics path. Cassandra and Badger cannot serve the predicate half of the span search at full fidelity (§9), so they will not serve grouping over it either.
 
 ---
 
@@ -327,62 +382,87 @@ The analytics tier will also be a per-backend capability, like everything else h
 
 **The token is RFC 0014's token.** Opaque, base64 over a proto carrying the cursor, a fingerprint of the query, a backend tag and a version; a token presented against a different query is refused with `InvalidArgument`. Reusing it rather than defining a span-specific cursor is the point — one token format, one place that encodes and validates it.
 
+**A query that names its spans needs no cursor,** because the request bounds the result: at most one span per `(traceID, spanID)` pair asked for, or the spans of the named traces. It still travels through the same envelope, with an empty token. What it needs instead is a cap on how many spans a caller may name at once, which is the same bound MCP's `get_span_details` states as advice today and should state as a limit.
+
 **The forward-traversal guarantee is stronger here than for traces.** RFC 0014 accepts that a forward traversal may skip a trace, because a trace's max-keyed sort position rises as new spans arrive. A span's key never changes after it is written, so a span search skips nothing; a span written into an already-passed position is missed, which is the ordinary property of paging a time-ordered index backwards from now.
 
-**The page size is capped by the server.** `search_depth` does not carry over (§4.2), so the page size is the only bound, and it needs a maximum for the same reason ClickHouse already rejects a `SearchDepth` above `MaxSearchDepth` and the query service already truncates oversized traces at `MaxTraceSize`. A trace-scoped lookup on an agentic run can match thousands of spans, and the honest answer is a capped page plus a token, not a large response.
+**The page size is capped by the server.** `search_depth` does not carry over (§4.3), so the page size is the only bound, and it needs a maximum for the same reason ClickHouse already rejects a `SearchDepth` above `MaxSearchDepth` and the query service already truncates oversized traces at `MaxTraceSize`.
 
-**A backend that declares `Paginated=false` but `SpanSearch=true`** serves one capped page with an empty token, and refuses a token with `InvalidArgument` — RFC 0014 §6.2's three-way degradation, unchanged.
+**A backend that declares `Paginated=false`** serves one capped page with an empty token, and refuses a token with `InvalidArgument` — RFC 0014 §6.2's three-way degradation, unchanged.
 
 ---
 
 ## 7. Spans are returned as stored
 
-The query service applies seven adjusters to a trace before returning it ([`adjuster/standard.go`](../../cmd/jaeger/internal/extension/jaegerquery/internal/adjuster/standard.go)), unless the caller asks for `raw_traces`. None of them runs on a span search result, for two independent reasons.
+The query service applies seven adjusters to a trace before returning it ([`adjuster/standard.go`](../../cmd/jaeger/internal/extension/jaegerquery/internal/adjuster/standard.go)), unless the caller asks for `raw_traces`. None of them runs on a span query result, for two independent reasons.
 
 **Three of them need the complete trace.** The `Adjuster` contract says so: "The caller must ensure that all spans in the `ptrace.Traces` argument belong to the same trace and represent the complete trace" ([`adjuster.go:11`](../../cmd/jaeger/internal/extension/jaegerquery/internal/adjuster/adjuster.go)). `CorrectClockSkew` needs each span's parent to compute an offset, `DeduplicateClientServerSpanIDs` needs to see both members of a shared-ID pair, and `DeduplicateSpans` needs the whole set to know which copy to keep. A span result set is a partial set of spans from many traces, so these cannot run at all.
 
-**The other four would make the result disagree with the query.** `MoveLibraryAttributes` moves `otel.library.name` from the span's attributes into the instrumentation scope; `NormalizeIPAttributes` rewrites a numeric IP attribute into a string. Both rewrite the attributes a predicate matched, so applying them would return a span that no longer satisfies the filter that selected it. For a trace result that is harmless, because the caller asked about the trace. For a span result it breaks the property that makes the result legible: **a returned span satisfies the predicate that returned it.**
+**The other four would make the result disagree with the query.** `MoveLibraryAttributes` moves `otel.library.name` from the span's attributes into the instrumentation scope; `NormalizeIPAttributes` rewrites a numeric IP attribute into a string. Both rewrite the attributes a predicate matched, so applying them would return a span that no longer satisfies the filter that selected it. For a trace result that is harmless, because the caller asked about the trace. For a span result it breaks the property that makes the result legible: **a returned span satisfies the query that returned it.**
 
-So a span result is the span as stored, and there is no `raw_spans` flag because there is nothing to opt out of. One consequence is worth stating rather than discovering: for a trace where a client and server span share a span ID, `FindTraces` shows the span ID that `DeduplicateClientServerSpanIDs` rewrote and `FindSpans` shows the stored one, so the same span has two spellings depending on which endpoint a caller used. Whether that is worth an opt-in is Q2 in §14.
+So a span result is the span as stored, and there is no `raw_spans` flag because there is nothing to opt out of. One consequence is worth stating rather than discovering: for a trace where a client and server span share a span ID, `FindTraces` shows the span ID that `DeduplicateClientServerSpanIDs` rewrote and `FindSpans` shows the stored one, so the same span has two spellings depending on which endpoint a caller used. That also means a caller who reads a span ID out of a `FindTraces` result cannot always name that span in a `FindSpans` request. Whether that is worth an opt-in is Q2 in §14.
 
 ---
 
 ## 8. Identifying the local root
 
-The motivating query asks for "the span where the GenAI portion of the trace starts". Jaeger has no such concept, and this RFC does not add one. There are three ways to get it, and only one is in scope.
+The motivating query asks for "the span where the GenAI portion of the trace starts". Jaeger has no such concept, and this RFC does not add one. There are four ways to get it, in descending order of preference.
 
-**The producer marks it, and the caller matches the marker.** The instrumentation that starts the GenAI work sets an attribute the caller can filter on, either a dedicated one or a distinguishing attribute the semantic conventions already put on entry spans. The query is then an ordinary conjunction — these trace IDs, and this attribute — which is what §4 delivers, and it works today with the legacy `attributes` map. This is the recommended approach, and it is where [RFC 0001](0001-genai-data-layer.md) already sits: it correlates evaluation records to traces with `jaeger.eval.trial_id` on the root span, so the marker-on-the-entry-span pattern is the one that RFC's data layer assumes.
+**The producer records the span ID.** The code that starts the GenAI work knows the span it just started, so it can store that span ID next to the trace ID in the evaluation record. Then the UI names the span (§4.3) and no predicate, no attribute convention and no search is involved. This is the cheapest answer, the only one that works on every backend, and the one to steer a harness toward. It is also a small addition to [RFC 0001](0001-genai-data-layer.md)'s data layer, which stores a trial's trace correlation today and would store a span ID beside it.
 
-**The query derives it structurally** — a span carrying attribute X whose parent does not carry X. That is a structural predicate, RFC 0005 tier L5, out of scope there and here. It is also the only one of the three that would let Jaeger answer the question for instrumentation that marked nothing.
+**The producer marks the span and the caller matches the marker.** Where the span ID was not recorded — a harness that cannot be changed, or spans marked by instrumentation rather than by the harness — the entry span carries an attribute the caller filters on, either a dedicated one or a distinguishing attribute the GenAI semantic conventions already put on entry spans. The query is then a `traces` selector for the known traces plus a filter for the marker. This is also what answers the questions that are searches rather than lookups: every LLM call in an experiment, or the entry spans of every run in the last hour.
+
+**The query derives it structurally** — a span carrying attribute X whose parent does not carry X. That is a structural predicate, RFC 0005 tier L5, out of scope there and here. It is the only one of the four that answers the question for instrumentation that recorded and marked nothing.
 
 **The caller derives it post-fetch,** by reading the trace and walking it. That is the payload cost the requirement exists to avoid.
 
-Two properties of the batch query are the caller's to handle, and are worth stating so that a UI does not assume otherwise. A trace may contain zero matching spans or several, so the mapping from a row to a span is not guaranteed one-to-one; the caller groups the result by trace ID and decides what to show for a trace with none or many. And a page boundary can fall inside a batch of trace IDs, so a caller that needs every row filled must follow the token rather than assume one page covers its request.
+Two properties of the batch query are the caller's to handle, and are worth stating so that a UI does not assume otherwise. Under the marker approach a trace may contain zero matching spans or several, so the mapping from a row to a span is not guaranteed one-to-one; the caller groups the result by trace ID and decides what to show for a trace with none or many. And a page boundary can fall inside a batch, so a caller that needs every row filled follows the token rather than assuming one page covers its request. Naming the span IDs directly removes both properties, which is the third reason to prefer it.
 
 ---
 
 ## 9. Backends
 
-| Backend | What a span search costs | Cursor | Declares |
-|---|---|---|:-:|
-| **Elasticsearch / OpenSearch** | the existing bool query from `buildFindTraceIDsQuery`, with `Size: page_size` instead of `Size: 0` and no `terms` aggregation. Strictly less work than today's trace-ID search, and it drops the aggregation's cross-shard approximation | `search_after` on the sort key, the mechanism `buildTraceReadRequest` already builds for intra-trace paging | 🟢 `SpanSearch`, `Paginated` |
-| **ClickHouse** | `SelectSpansQuery` with the predicates `buildFindTraceIDsQuery` already assembles, and without the `trace_id IN (…)` subquery — one round trip instead of a nested one. This is also where `GROUP BY` (§5) would be native | keyset: `WHERE (start_time, trace_id, span_id) < cursor ORDER BY … LIMIT n` | 🟢 `SpanSearch`; `Paginated` per RFC 0014 |
-| **memory** | the linear scan already visits every span, so the matching spans are in hand. Valuable out of proportion to its production use, because it unblocks the cross-backend conformance tests and the default distribution | in-memory offset over the scan order | 🟢 `SpanSearch` |
-| **Cassandra** | not serviceable. `tag_index` is keyed by service, key and value and resolves to trace IDs; the matched span is not recoverable without reading the trace | — | 🔴 |
-| **Badger** (via `v1adapter`) | not serviceable, for the same reason: every index seek resolves to trace IDs | — | 🔴 |
-| **gRPC remote storage** | forwards the call and forwards the declaration; a plugin that predates either reads as least capable | whatever its backend does | per backend |
+The two access patterns land on different storage structures, so they are tabulated separately. Retrieval reads the primary span storage; search needs a secondary index that resolves to span granularity.
 
-The two 🔴 rows are the reason §4.4 declares a capability instead of building a fallback. A fallback is possible — read the candidate traces and re-evaluate the predicates against each span in memory, which is what MCP `get_span_details` does by hand today, and what [RFC 0011](0011-trace-summary-api.md)'s summary fallback does for its own shape. It would need an in-process evaluator for the RFC 0005 expression tree, which does not exist, and it would spend the storage read the requirement is trying to avoid while saving only the client hop. Refusing is honest and cheap; the fallback is listed as future work in §13 for the case where universal availability turns out to matter more than the cost.
+**Retrieving spans named by trace ID and span ID:**
+
+| Backend | How | Verdict |
+|---|---|:-:|
+| **Cassandra** | `traces` is `PRIMARY KEY (trace_id, span_id, span_hash)` — partition by trace, clustered by span. A native point read, and the best any backend does on this operation | 🟢 |
+| **Elasticsearch / OpenSearch** | `traceID` and `spanID` are indexed `keyword` fields, so an exact match on the pair is a cheap bool query. The `_id` is *prefixed* by `traceID_spanID_` but ends in a content hash of the document, so it cannot be reconstructed for an `mget` — as the writer's own comment notes, the composite key drives Cassandra's read path and an ES `_id` is not a read path | 🟢 |
+| **memory** | a map lookup within the trace | 🟢 |
+| **ClickHouse** | `spans` is `PARTITION BY toDate(start_time)`, `ORDER BY (service_name, name, start_time)`, with a `bloom_filter` skip index on `trace_id` and no index on the span-id column (`id`). So this is partition pruning plus granule skipping plus a filter, not a point read; the per-trace time hints and the `trace_id_timestamps` table are what make it cheap | 🟡 |
+| **Badger** | the primary span key is `[0x80][traceID][startTime][spanID]`, so `startTime` precedes the span ID and a pair lookup is a prefix scan of the trace's keys with a filter, not a point get. Cheaper than today's path, which transfers the whole trace to the client, but it still reads the trace's keys | 🟡 |
+| **gRPC remote** | forwards the call and the declaration | per backend |
+
+**Searching spans by predicate:**
+
+| Backend | How | Verdict |
+|---|---|:-:|
+| **Elasticsearch / OpenSearch** | the existing bool query from `buildFindTraceIDsQuery`, with `Size: page_size` instead of `Size: 0` and no `terms` aggregation. Strictly less work than today's trace-ID search, and it drops the aggregation's cross-shard approximation | 🟢 |
+| **ClickHouse** | `SelectSpansQuery` with the predicates `buildFindTraceIDsQuery` already assembles, and without the `trace_id IN (…)` subquery — one round trip instead of a nested one. Its sort key is built for exactly this scan, and this is where `GROUP BY` (§5) would be native | 🟢 |
+| **memory** | the linear scan already visits every span. Valuable out of proportion to its production use, because it unblocks the cross-backend conformance tests and the default distribution | 🟢 |
+| **Cassandra** | partial, and more capable than the current reader suggests. `tag_index` is keyed `((service_name, tag_key, tag_value), start_time, trace_id, span_id)`, so a tag predicate resolves to `(trace_id, span_id)` pairs and the spans are then point-read from `traces`; intersecting two tag reads on those pairs is a same-span conjunction, which is stronger than the trace-granularity intersection it does today. But `duration_index` and the two service indices stop at the trace, so any query touching them degrades to trace granularity and the span identity is lost | 🟡 |
+| **Badger** | not serviceable. All four secondary index keys end at the trace ID, so no span identity is recorded anywhere an index can return it | 🔴 |
+| **gRPC remote** | forwards the call and the declaration | per backend |
+
+Two consequences follow. **The capability declaration has to be two fields** (§4.5), because a single `SpanSearch` boolean would either deny Cassandra and Badger the retrieval they serve well or claim for them a search they cannot serve.
+
+**And Cassandra's partial search is a finding worth pursuing separately, not in this RFC.** It would mean declaring `SpanSearch` conditionally on the predicate shape, which is finer than ADR-013's per-backend granularity and finer than RFC 0005's per-level and per-operator declarations. It also bears on RFC 0005's `same_span_conjunction`, which Cassandra declares `false` today: a tag-only conjunction resolved through `tag_index` at `(trace_id, span_id)` granularity would be same-span by construction. The initial implementation declares `SpanSearch=false` for Cassandra and leaves this to a follow-up (§13).
+
+A fallback for the 🔴 and 🟡 search cases is possible — read the candidate traces and re-evaluate the predicates against each span in memory, which is what MCP `get_span_details` does by hand today, and what [RFC 0011](0011-trace-summary-api.md)'s summary fallback does for its own shape. It would need an in-process evaluator for the RFC 0005 expression tree, which does not exist, and it would spend the storage read the requirement is trying to avoid while saving only the client hop. Refusing is honest and cheap; the fallback is listed as future work in §13.
 
 ---
 
 ## 10. Consumers
 
-**The evaluation UI** is the requirement: one query per screen of rows, scoped to the trace IDs it holds, returning one span per row.
+**The evaluation UI** is the requirement: one query per screen of rows, naming the spans it recorded, or scoped to the traces it recorded and filtered by the marker.
 
-**MCP gains a `find_spans` tool,** and this is arguably the larger win. An agent investigating a trace currently reaches for `search_traces` and then `get_span_details`, and the second fetches whole traces to return a few spans. A `find_spans` tool answers "the LLM spans in these traces" or "the spans over two seconds in this service" in one call, and `get_span_details` can be rewired onto it where the backend declares support. The `SpanDetail` JSON shape the MCP layer already defines is the projection such a tool returns.
+**MCP `get_span_details` becomes what its signature already claims.** Its input is a trace ID plus span IDs — the identity pattern exactly — and it currently satisfies it by fetching whole traces. Rewiring it onto `FindSpans` makes it cheap on every backend, because retrieval is the pattern every backend serves. This is the one consumer change that needs no new capability gate to be worth doing.
 
-**Evaluators reading their own traces.** [RFC 0001](0001-genai-data-layer.md) gives an introspective evaluator the full trace and notes the size problem for agentic runs. An evaluator that needs the entry span, or every LLM call span, can ask for those instead.
+**MCP also gains a `find_spans` tool** for the predicate half. An agent investigating a trace can ask for "the LLM spans in these traces" or "the spans over two seconds in this service" in one call, where today it searches traces and then reads them.
+
+**Evaluators reading their own traces.** [RFC 0001](0001-genai-data-layer.md) gives an introspective evaluator the full trace and notes the size problem for agentic runs. An evaluator that needs the entry span, or every LLM call span, asks for those instead.
 
 **The Jaeger UI**, eventually, for a span-oriented result list. That is not part of this proposal; the API's first consumers reach it over api_v3 and MCP.
 
@@ -392,50 +472,58 @@ The two 🔴 rows are the reason §4.4 declares a capability instead of building
 
 Everything here is additive. `FindTraces`, `FindTraceIDs` and `FindTraceSummaries` are untouched, `TraceQueryParameters` is untouched, and a caller that never sends `FindSpans` sees no change. The new interface method is the one non-additive piece: every `tracestore.Reader` implementation must supply it, at minimum by embedding `UnsupportedSpanSearch`, and every decorator must forward it — the same one-time cost `FindTraceSummaries` and `SearchCapabilities` each imposed, and the reason both are required methods rather than optional interfaces.
 
-The dependency on [RFC 0005](0005-structured-query-filters.md) is real but not blocking. `FindSpans` carries the `filter` field and inherits its validation, its feature gate and its capability rules, so the rich predicates arrive when RFC 0005's do. The legacy predicate fields plus `trace_ids` are enough for the motivating query, which is what lets these two efforts proceed on their own schedules rather than in series.
+**The retrieval half depends on nothing.** A request that names its spans carries no filter, so it needs neither [RFC 0005](0005-structured-query-filters.md)'s AST nor its `jaeger.query.structuredFilters` gate, and its result is bounded so it needs no page token either. That is what lets the milestone that serves the motivating requirement land first and on every backend (§13).
 
-The dependency on [RFC 0014](0014-search-result-pagination.md) is tighter, because a span search is paginated from its first release rather than gaining pagination later. Both RFCs need the same two things: the `Pagination` message on the request, and the code that encodes, binds and validates the opaque token. Whichever milestone lands first introduces them, and the second reuses them; what must not happen is a span-specific cursor beside a trace-specific one.
+**The search half depends on RFC 0005**, whose `filter` field, validation, feature gate and capability rules it inherits wholesale rather than reproducing. It also needs one additive extension to RFC 0005's vocabulary: `traceID` as a built-in field at the span level, which §5.2 there lists only at the link level.
+
+**Pagination depends on RFC 0014**, and more tightly, because a span search is paginated from its first release rather than gaining pagination later. Both RFCs need the same two things: the `Pagination` message on the request, and the code that encodes, binds and validates the opaque token. Whichever milestone lands first introduces them and the second reuses them; what must not happen is a span-specific cursor beside a trace-specific one.
 
 ---
 
 ## 12. Considered alternatives
 
-§4.1 and §4.3 hold the two structural decisions. Four narrower alternatives were rejected along the way.
+§4.1 and §4.4 hold the two structural decisions. Five narrower alternatives were rejected along the way.
 
-**Reuse `TraceQueryParameters` for the span query**, as `FindTraceSummaries` does. Rejected because `search_depth` and `raw_traces` mean nothing for a span result, and because the clauses §5 reserves would then hang off the message `FindTraces` uses, where they have no meaning. The cost of a separate message is five duplicated envelope fields; the predicates themselves are shared by construction, since they are the same `filter` AST and the same legacy fields with the same conversion code.
+**Carry the legacy scalar predicate fields on the span query** — `service_name`, `operation_name`, `attributes`, `duration_min`/`duration_max` — so that a predicate search works before RFC 0005 lands. Rejected. Those fields exist on `TraceQueryParameters` because callers depend on them, and a new message has no callers to owe that to; including them would import RFC 0005 §7's mutual-exclusion rule and its two-way conversion permanently, to buy a transitional convenience. The transition it was meant to cover is answered better anyway: the identity pattern needs no predicates at all, so the motivating requirement ships without waiting for either.
 
-**A separate `GetSpans(trace_ids, filter)` method** paralleling `GetTraces`, leaving `FindSpans` for time-range searches. Rejected because it splits one operation in two on the basis of which predicate the caller happens to have: both are "spans matching a conjunction", and a backend distinguishes them by query plan, which the presence of `trace_ids` already tells it.
+**A separate `GetSpans` method** for the identity pattern, paralleling `GetTraces` against `FindTraces`. Rejected because the two patterns are one question asked about different fields — identity is a predicate over `span.traceID` and `span.spanID`, which RFC 0005's model already expresses — and splitting them would duplicate the time range, the response envelope, the "spans as stored" rule, the page-size cap and the capability plumbing, then require callers to know which method answers a query that mixes both. Mixing them is a real query, not a hypothetical: "the error spans among these fifty runs" names traces and a predicate together. The capability split of §4.5 gives the honest degradation a separate method would have given, without a second surface.
+
+**Reuse `TraceQueryParameters` for the span query**, as `FindTraceSummaries` does. Rejected because `search_depth` and `raw_traces` mean nothing for a span result, and because the clauses §5 reserves would then hang off the message `FindTraces` uses, where they have no meaning.
 
 **Return a flat list of spans with no OTLP envelope**, one message per span carrying its service name inline. Rejected because it invents a second span encoding for the project to maintain beside `TracesData`, and because losing the scope loses the instrumentation library.
 
-**Make `SpanSearch` a fallback rather than a capability**, with the query service reading candidate traces and filtering in memory on the backends that cannot search spans. Deferred rather than rejected; §9 states the cost and §13 keeps it as future work.
+**Make span search a fallback rather than a capability**, with the query service reading candidate traces and filtering in memory on the backends that cannot search spans. Deferred rather than rejected; §9 states the cost and §13 keeps it as future work.
 
 ---
 
 ## 13. Implementation roadmap
 
-PR-sized milestones with exit bars. M4 onward are parallelizable after M2.
+PR-sized milestones with exit bars. The identity pattern comes first because it serves the requirement, reaches every backend, and depends on neither RFC 0005 nor RFC 0014.
 
-**M1 — Proto foundation (jaeger-idl).** `SpanQueryParameters`, `FindSpansRequest`, `FindSpansResponse` with the `oneof` and `next_page_token`, and the `FindSpans` RPC on `jaeger.api_v3.QueryService` with its `GET /api/v3/spans` binding; the same RPC on `jaeger.storage.v2.TraceReader`; the `span_search` field on `jaeger.storage.v2.SearchCapabilities`. *Exit:* generated types compile and vendor cleanly; existing api_v3 and storage.v2 callers byte-for-byte unaffected.
+**M1 — Proto foundation (jaeger-idl).** `SpanQueryParameters`, `TraceSpans`, `FindSpansRequest`, `FindSpansResponse` with the `oneof` and `next_page_token`, and the `FindSpans` RPC on `jaeger.api_v3.QueryService` with its `GET /api/v3/spans` binding; the same RPC on `jaeger.storage.v2.TraceReader`; the `span_retrieval` and `span_search` fields on `jaeger.storage.v2.SearchCapabilities`. *Exit:* generated types compile and vendor cleanly; existing api_v3 and storage.v2 callers byte-for-byte unaffected.
 
-**M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `SpanPage`, `UnsupportedSpanSearch`, and `SearchCapabilities.SpanSearch`; every backend embeds the mixin and declares `false`; `querysvc.FindSpans` with validation and the capability refusal; the api_v3 gRPC handler, the HTTP route and the query-parser parameters. *Exit:* a span search against any backend is refused with `InvalidArgument` and a message naming the backend limitation; no existing search changes behavior.
+**M2 — Internal interface and query-service plumbing.** `Reader.FindSpans`, `SpanQueryParams`, `TraceSpans`, `SpanPage`, `UnsupportedSpanSearch`, and the two `SearchCapabilities` fields; every backend embeds the mixin and declares both `false`; `querysvc.FindSpans` with validation and the per-pattern capability refusal; the api_v3 gRPC handler, the HTTP route and the query-parser parameters. *Exit:* a span query against any backend is refused with `InvalidArgument` naming the pattern the backend cannot serve; no existing search changes behavior.
 
-**M3 — memory backend.** The first reader to declare `SpanSearch=true`, and the harness for a cross-backend conformance test that asserts the refusal on the others. *Exit:* an end-to-end span search works in the all-in-one distribution; the conformance test passes on every backend, serving or refusing.
+**M3 — Retrieval on every backend.** The identity pattern on Cassandra (point read), ES/OS (bool query on the two keyword fields), memory (map lookup), ClickHouse (bloom-filtered scan with the time hints) and Badger (trace-prefix scan), each declaring `SpanRetrieval=true`, plus the cross-backend conformance test. No filter, no cursor. *Exit:* naming a trace and span IDs returns those spans on every backend; the evaluation requirement is answerable for a harness that records span IDs.
 
-**M4 — Elasticsearch/OpenSearch.** Documents instead of the `terms` aggregation, the sort key of §6, and `search_after`. Sequenced with [RFC 0014](0014-search-result-pagination.md) M3, which builds the same query with a `collapse` clause. *Exit:* a span search returns the matching spans with a working cursor; existing trace-search snapshots byte-identical.
+**M4 — MCP `get_span_details` onto retrieval.** The one consumer that already has this shape, and the one that demonstrates the payload win. *Exit:* the tool no longer fetches whole traces on a backend declaring `SpanRetrieval`; behavior unchanged where it does not.
 
-**M5 — ClickHouse.** `SelectSpansQuery` with the existing predicate construction and the keyset cursor. *Exit:* the SQL snapshot tests cover the new query shape; existing snapshots byte-identical.
+**M5 — Predicate search on Elasticsearch/OpenSearch.** Documents instead of the `terms` aggregation, the sort key of §6, and `search_after`; `SpanSearch=true`. Sequenced with [RFC 0014](0014-search-result-pagination.md) M3, which builds the same query with a `collapse` clause, and gated on RFC 0005 M2 for the filter. *Exit:* a predicate span search returns the matching spans with a working cursor; existing trace-search snapshots byte-identical.
 
-**M6 — Remote-storage gRPC.** Client and server for the new RPC, and capability forwarding. *Exit:* a remote backend that declares support serves a span search end to end; one that does not, or that predates the declaration, is refused before dispatch.
+**M6 — Predicate search on ClickHouse.** `SelectSpansQuery` with the existing predicate construction and the keyset cursor. *Exit:* the SQL snapshot tests cover the new query shape; existing snapshots byte-identical.
 
-**M7 — MCP `find_spans` tool.** The tool, and `get_span_details` rewired onto it where the backend declares support, falling back to its present trace-fetch otherwise. *Exit:* an agent retrieves spans across traces in one call; the existing tool's behavior is unchanged on backends that cannot search spans.
+**M7 — Remote-storage gRPC.** Client and server for the new RPC, and forwarding for both capability fields. *Exit:* a remote backend that declares either pattern serves it end to end; one that declares neither, or that predates the declaration, is refused before dispatch.
+
+**M8 — MCP `find_spans` tool** for the predicate half. *Exit:* an agent retrieves predicate-matched spans across traces in one call, on backends that declare `SpanSearch`.
 
 **Out of scope (future, this design enables):**
+- A response envelope for the four RPCs that return bare `TracesData` in api_v3 and `jaeger.storage.v2` (§4.4). It would give a trace search somewhere to put a page token, and truncation somewhere to be reported other than a warning attribute on the first span. It is a breaking change to both published protocols, so it needs its own proposal; what this RFC settles is only that the span RPC does not join them.
+- Cassandra's partial predicate search through `tag_index` at `(trace_id, span_id)` granularity (§9), which needs a capability granularity finer than per-backend and bears on RFC 0005's `same_span_conjunction`.
 - The tabular result arm and the `projection`, `group_by` and `having` clauses (§5), including the value encoding and column metadata a row result needs.
 - Sparse spans: a reference-only projection returning spans with only the requested fields (§5.2), which needs no new result type.
 - A caller-chosen `order_by`, which the fixed cursor sort order currently precludes.
-- An in-memory expression evaluator, which would turn the capability refusal into a fallback on Cassandra and Badger (§9).
-- Per-trace-ID time hints on `trace_ids`, mirroring `GetTraceParams.Start`/`End`, if a backend turns out to need them.
+- An in-memory expression evaluator, which would turn the search refusal into a fallback on Cassandra and Badger (§9).
+- A `span_id` column on RFC 0001's evaluation records, so a harness records the entry span rather than searching for it (§8).
 - A UI span-results view.
 - Structural derivation of a local root (§8), which is RFC 0005 tier L5.
 
@@ -443,32 +531,39 @@ PR-sized milestones with exit bars. M4 onward are parallelizable after M2.
 
 ## 14. Open questions
 
-1. **Does `trace_ids` earn its place?** It is a second spelling for a `span.traceID in […]` predicate once RFC 0005 lands (§4.2). Keeping it makes the motivating query answerable before that RFC's feature gate opens and signals the trace-ID access path explicitly; dropping it means one predicate model and a wait. The recommendation is to keep it and treat it as legacy from the day the predicate exists, the way `service_name` is.
-2. **Should any adjustment be available on span results?** §7 argues for none, and accepts that `FindTraces` and `FindSpans` can therefore show different span IDs for the same span. An opt-in for the four span-scoped adjusters would close that gap and reintroduce the disagreement between a returned span and the predicate that matched it.
-3. **Default and maximum page size.** A screenful of evaluation rows is tens of spans; an agent asking for every LLM call in a trace wants hundreds. Whether the maximum is shared with the existing search caps or configured separately is open.
-4. **Does the tabular result belong in this RPC?** §4.3 reserves an arm for it, which keeps one query envelope. A later RFC that finds the row encoding large may still prefer its own RPC, in which case the reserved arm is simply never used.
-5. **Must the time range be required when `trace_ids` is given?** ES/OS needs it to select indices and ClickHouse to prune partitions, so today it is required (§4.2). A caller holding only trace IDs has to guess a range wide enough, and a backend that can resolve a trace ID without one gains nothing from the requirement.
+1. **Should the two access patterns share one page-size cap?** Retrieval is bounded by how many spans a caller may name, and search by how many a page may hold. These are different limits on different things, and MCP's existing advice to stay under twenty spans suggests the retrieval bound wants to be much smaller than a search page.
+2. **Should any adjustment be available on span results?** §7 argues for none, and accepts that `FindTraces` and `FindSpans` can therefore show different span IDs for the same span — which also means a span ID copied out of a `FindTraces` result may not name that span in a `FindSpans` request. An opt-in for the four span-scoped adjusters would close that gap and reintroduce the disagreement between a returned span and the query that matched it.
+3. **Does the tabular result belong in this RPC?** §4.4 reserves an arm for it, which keeps one query envelope. A later RFC that finds the row encoding large may still prefer its own RPC, in which case the reserved arm is simply never used.
+4. **Must the time range be required when the query names its traces?** ES/OS needs it to select indices and ClickHouse to prune partitions, so today it is required (§4.3). Cassandra needs neither, since the trace ID is its partition key, so the requirement costs its best-case operation nothing but asks the caller to supply a range it may not know.
+5. **Is `SpanRetrieval` on the whole trace worth naming separately?** A `TraceSpans` with no span IDs asks for every span of a trace, which is `GetTraces` reshaped as spans, and it is not obvious whether that should be the same capability as naming individual spans or simply always available.
 
 ---
 
 ## 15. References
 
 **Jaeger code**
-- [`tracestore.Reader`](../../internal/storage/v2/api/tracestore/reader.go) — the storage interface, `TraceQueryParams`, `SearchCapabilities`, and the chunking and ownership contracts
+- [`tracestore.Reader`](../../internal/storage/v2/api/tracestore/reader.go) — the storage interface, `TraceQueryParams`, `GetTraceParams`, `SearchCapabilities`, and the chunking and ownership contracts
 - [`querysvc.QueryService`](../../cmd/jaeger/internal/extension/jaegerquery/querysvc/service.go) — validation, adjusters, and the summary fallback
+- [`jaeger.storage.v2.TraceReader`](https://github.com/jaegertracing/jaeger-idl/blob/main/proto/storage/v2/trace_storage.proto) — the remote-storage RPCs, and the same missing envelope on the two that return `TracesData`
+- [`jptrace.markTraceTruncated`](../../internal/jptrace/aggregator.go) and [`AddWarnings`](../../internal/jptrace/warning.go) — response-level metadata carried as a span attribute for want of an envelope
 - [ES/OS trace-ID search](../../internal/storage/v2/elasticsearch/tracestore/core/reader.go) — `Size: 0` plus the `traceID` terms aggregation, and the intra-trace `search_after` cursor
+- [ES/OS span writer](../../internal/storage/v2/elasticsearch/tracestore/core/writer.go) — the deterministic `_id` and why it is not a read path
+- [ES/OS span mapping](../../internal/storage/elasticsearch/esclient/index_templates/jaeger-span.json) — `traceID` and `spanID` as indexed keyword fields
+- [ClickHouse spans DDL](../../internal/storage/v2/clickhouse/sql/create_spans_table.sql) — the partition key, sort key, and the `trace_id` bloom-filter skip index
 - [ClickHouse query builder](../../internal/storage/v2/clickhouse/tracestore/query_builder.go) and [SQL templates](../../internal/storage/v2/clickhouse/sql/queries.go) — the `DISTINCT trace_id` search and the span projection
+- [Cassandra schema](../../internal/storage/v1/cassandra/schema/v004-go-tmpl.cql.tmpl) — `traces` keyed `(trace_id, span_id, span_hash)`, and `tag_index` carrying `span_id`
+- [ADR-005](../adr/005-badger-storage-record-layouts.md) — Badger's primary span key and its four trace-granular indices
 - [Standard adjusters](../../cmd/jaeger/internal/extension/jaegerquery/internal/adjuster/standard.go) and the [`Adjuster` contract](../../cmd/jaeger/internal/extension/jaegerquery/internal/adjuster/adjuster.go) — the complete-trace requirement
 - [MCP `get_span_details`](../../cmd/jaeger/internal/extension/jaegerquery/internal/mcptools/internal/handlers/get_span_details.go) — the whole-trace fetch this RFC replaces
 - [api_v3 HTTP gateway](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/http_gateway.go) and [query parser](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go)
 - [#9067](https://github.com/jaegertracing/jaeger/pull/9067) — moved `FindTraceSummaries` onto `tracestore.Reader`, the precedent for a required method over an optional interface
 
 **Jaeger design documents**
-- [RFC 0005](0005-structured-query-filters.md) — the predicate model this search reuses, and the L3/L4 tiers §5 provisions for
+- [RFC 0005](0005-structured-query-filters.md) — the predicate model this query reuses, the intrinsic span fields identity is expressed over, and the L3/L4 tiers §5 provisions for
 - [RFC 0011](0011-trace-summary-api.md) and [ADR-010](../adr/010-trace-summary-api.md) — why a new result shape gets its own RPC
 - [RFC 0014](0014-search-result-pagination.md) — the page token, the keyset cursor, and the ES/OS query this search shares
 - [RFC 0001](0001-genai-data-layer.md) — the GenAI evaluation data layer and its trace-size problem
-- [ADR-013](../adr/013-storage-capability-declaration.md) — the capability declaration `SpanSearch` plugs into
+- [ADR-013](../adr/013-storage-capability-declaration.md) — the capability declaration `SpanRetrieval` and `SpanSearch` plug into
 
 **External**
 - [Grafana TraceQL](https://grafana.com/docs/tempo/latest/traceql/) — `select()` as prior art for a projection returning sparse spans
