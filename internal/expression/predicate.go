@@ -139,9 +139,10 @@ func (Predicate) Some(collection Collection, predicate *ast.Call) *ast.Call {
 	}}
 }
 
-// Collection is a level a span holds many of, which is what Some may quantify over: the event
-// and link levels, and no others. The method is unexported so that no other level can satisfy
-// it, which makes quantifying over the span a compile error rather than a refusal at validation.
+// Collection is a level a span holds many of, which is what Some may quantify over: the event and
+// link levels, and no others. The method is unexported so no type outside this package can satisfy
+// it, and it is declared on those two level types alone rather than on the level they share, so
+// quantifying over the span is a compile error rather than a refusal at validation.
 type Collection interface {
 	nested() *ast.NestedRef
 }
@@ -212,6 +213,10 @@ type EventLevel struct {
 	TimeSinceStart Ref
 }
 
+func (e EventLevel) nested() *ast.NestedRef {
+	return &ast.NestedRef{Level: ast.Level(e.level)}
+}
+
 // LinkLevel names a link's built-in fields.
 type LinkLevel struct {
 	level
@@ -219,6 +224,10 @@ type LinkLevel struct {
 	TraceID    Ref
 	SpanID     Ref
 	TraceState Ref
+}
+
+func (l LinkLevel) nested() *ast.NestedRef {
+	return &ast.NestedRef{Level: ast.Level(l.level)}
 }
 
 // level is what every level offers beyond its own named fields.
@@ -233,10 +242,6 @@ func (l level) Attr(name string) Ref {
 // Field names a built-in field of this level by the spelling ast.Fields lists it under. The named
 // fields are what a query written out in Go uses; this is for the caller holding a field name in
 // a variable, such as a query arriving from a UI.
-func (l level) nested() *ast.NestedRef {
-	return &ast.NestedRef{Level: ast.Level(l)}
-}
-
 func (l level) Field(name string) Ref {
 	return Ref{&ast.FieldRef{Name: name, Level: ast.Level(l)}}
 }
@@ -356,8 +361,16 @@ func elementType(values []any) ast.ValueType {
 }
 
 func valueType(value any) ast.ValueType {
-	if _, ok := value.(bool); ok {
+	switch value.(type) {
+	case bool:
 		return ast.ValueTypeBool
+	case time.Duration, time.Time:
+		// Read before the kinds below, where a duration would read as the integer its underlying
+		// type is while render writes it as "1s". A list has to declare a type that parses the
+		// values it carries, and the wire has no duration or instant type, so text is the one that
+		// does. Against a duration field the list declares nothing at all and the field's own type
+		// reads the elements (see Ref.list).
+		return ast.ValueTypeString
 	}
 	// Every integer and floating-point width reaches the same two types, so they are read by kind
 	// rather than as a dozen cases naming the same answer. A duration and an instant are text: the

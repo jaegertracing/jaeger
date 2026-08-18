@@ -288,6 +288,16 @@ func TestListDeclaresItsElementType(t *testing.T) {
 			want:  &ast.List{Values: []string{"client", "server"}},
 		},
 		{
+			name:  "durations against an attribute, which are text however Go holds them",
+			built: p.Attr("latency").In(time.Second, 2*time.Second),
+			want:  &ast.List{Values: []string{"1s", "2s"}, Type: ast.ValueTypeString},
+		},
+		{
+			name:  "instants against an attribute",
+			built: p.Attr("deadline").In(time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)),
+			want:  &ast.List{Values: []string{"2026-08-18T00:00:00Z"}, Type: ast.ValueTypeString},
+		},
+		{
 			name:  "a list built outright, which says its own type",
 			built: p.Attr("size").In(p.List(ast.ValueTypeInt, 1, 2)),
 			want:  &ast.List{Values: []string{"1", "2"}, Type: ast.ValueTypeInt},
