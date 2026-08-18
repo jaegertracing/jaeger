@@ -153,7 +153,7 @@ Legend: 🟢 good · 🟡 partial · 🔴 poor
 
 ¹ because naming a span is a predicate: `span.traceID` and `span.spanID` are intrinsic span fields in RFC 0005's vocabulary, so a caller holding an identity is comparing two of the span's own fields (§4.3). It is a search whose predicate happens to be exact, which makes `Find` accurate rather than merely tolerable. ² "search" reads as scanning for unknowns, which is the opposite of naming a span you already hold. ³ `SELECT` is SQL's *projection* clause, and §5 reserves a `projection` field on this very message, so `SelectSpans` would name the method after a clause it also contains — and after the one clause it does not yet implement. ⁴ this RPC returns spans and only spans (§4.4), so a name promising spans is accurate rather than provisional. ⁵ accurate about the result, but §5.2 shows a projection is *also* what turns a span into something that is no longer one, so the word cuts both ways. ⁶ "query spans" names the subject rather than the result, which is the right choice for an RPC whose response shape varies — and the wrong one for an RPC whose response shape does not, since it says less than it could. ⁷ `QueryService.QuerySpans` stutters, though `TraceReader.QuerySpans` does not.
 
-**Decision — `FindSpans`.** The name and the response shape are one decision, not two, and §4.4 settles it: this RPC returns spans, and a query that groups or computes goes to a separate aggregate RPC sharing the same request message. `QuerySpans` would be the right name for the other choice — an RPC whose response shape is decided by the request — and its only advantage disappears once that choice is not taken. What remains favors `FindSpans` on every axis: it stays inside the vocabulary the four sibling methods established, and it says what the response holds.
+**Decision — `FindSpans`.** The name and the response shape are one decision, not two, and §4.4 settles it: this RPC returns spans, and a query that groups or computes goes to a second, row-returning RPC over the same request message. `QuerySpans` would be the right name for the other choice — an RPC whose response shape is decided by the request — and its only advantage disappears once that choice is not taken. What remains favors `FindSpans` on every axis: it stays inside the vocabulary the four sibling methods established, and it says what the response holds.
 
 A caller naming a span is not a concession to the prefix either. It is asking Jaeger to find the span whose two intrinsic fields equal these values, which is a search with an exact predicate — the same operation the rest of the RPC performs, with a narrower filter.
 
@@ -238,15 +238,15 @@ Legend: 🟢 good · 🟡 partial · 🔴 poor
 
 ¹ moving an existing top-level field into a new `oneof` keeps wire compatibility but changes the generated Go accessors, so it breaks every compiled consumer. ² a second RPC does not mean a second query model, because the two share one request message — which is what Jaeger already does: `FindTraces`, `FindTraceIDs` and `FindTraceSummaries` are three RPCs over one `TraceQueryParameters`, differing only in response type. ³ a `oneof` whose arm is decided by the request is a runtime discriminator for a distinction the RPC signature could have made statically, and it reads oddly while it has one arm.
 
-**Decision — R4.** The envelope earns its place on its own, for the page token and for response-level warnings that today are written onto spans. What it does not need is the `oneof`: Jaeger's existing answer to "one query, several result shapes" is several RPCs sharing one request message, and that answer applies here unchanged. So `FindSpansResponse` carries spans, and a later aggregate RPC takes the same `SpanQueryParameters` with its grouping clauses set and returns rows. Each RPC then honors the clause subset it can shape and refuses the rest, and the boundary falls exactly where §5.2 finds it: a reference-only projection is still spans, while grouping and computed projections are not.
+**Decision — R4.** The envelope earns its place on its own, for the page token and for response-level warnings that today are written onto spans. What it does not need is the `oneof`: Jaeger's existing answer to "one query, several result shapes" is several RPCs sharing one request message, and that answer applies here unchanged. So `FindSpansResponse` carries spans, and a later RPC takes the same `SpanQueryParameters` with its grouping clauses set and returns rows. Each RPC then honors the clause subset it can shape and refuses the rest, and the boundary falls exactly where §5.2 finds it: a reference-only projection is still spans, while grouping and computed projections are not.
 
 This replaces the reserved response arm with a reserved *RPC*, which is the better trade in three ways. The response type stops depending on a request field. The single-arm `oneof` disappears. And the method name stays true — a `FindSpans` that could return aggregate rows would be misnamed, which is the one criterion §4.2 could not settle from the name alone.
 
 ```protobuf
 message FindSpansResponse {
-  // The matching spans. A query that groups or computes does not return spans and
-  // so does not belong on this RPC; it belongs on the aggregate RPC of RFC 0016
-  // §5, which takes the same SpanQueryParameters and returns rows.
+  // The matching spans. A query that groups or computes does not return spans, so
+  // it belongs on a second RPC that takes the same SpanQueryParameters and
+  // returns rows — designed, and named, by the RFC that adds it (RFC 0016 §5).
   opentelemetry.proto.trace.v1.TracesData spans = 1;
 
   // 2 is reserved for response-level warnings, which today are written onto a
@@ -337,9 +337,9 @@ RFC 0005 built the `WHERE` clause and mapped what lies beyond it: L3 result shap
 |---|---|---|
 | `FROM` | implicit: every span in the time range | delivered |
 | `WHERE` | `filter`, an RFC 0005 `Call` | delivered |
-| `SELECT` | `projection`: a list of expressions with optional aliases | reserved (§4.3 field 6+) — reference-only on `FindSpans`, computed on the aggregate RPC (§5.2) |
-| `GROUP BY` | `group_by`: a list of expressions | reserved — aggregate RPC only |
-| `HAVING` | `having`: a `Call` over aggregates | reserved — aggregate RPC only |
+| `SELECT` | `projection`: a list of expressions with optional aliases | reserved (§4.3 field 6+) — reference-only on `FindSpans`; computed needs rows (§5.2) |
+| `GROUP BY` | `group_by`: a list of expressions | reserved — needs rows |
+| `HAVING` | `having`: a `Call` over aggregates | reserved — needs rows |
 | `ORDER BY` | `order_by`: expressions with a direction | partly delivered — a fixed sort order the cursor depends on (§6); a caller-chosen order is reserved |
 | `LIMIT` / cursor | `pagination.page_size` and `pagination.page_token` | delivered |
 
@@ -353,7 +353,9 @@ The important finding is that L3 and L4 do not need the same thing from the resp
 
 **Grouping always needs rows.** A group with a count is not a span, and no arrangement of `ResourceSpans` represents one. So L4 needs a row result, and a later RFC that adds `group_by` has to define three things this one does not: a typed value encoding for a cell, column metadata naming and typing each output column, and the aggregate `op` vocabulary. Paging over grouped results is a separate question again, and usually a non-question — a grouped result is small by construction, and the honest answer is likely to be a cap and a refusal rather than a cursor.
 
-**So the clause split is also the RPC split** (§4.4). `FindSpans` honors the clauses whose result is still spans — `WHERE`, a reference-only `SELECT`, the ordering and the cursor — and refuses `group_by` and a computed projection with `InvalidArgument`. A future aggregate RPC takes the same `SpanQueryParameters`, honors all of them, and returns rows. Both read one query model; what differs is the shape each can express its answer in, and that is a property of the RPC rather than of a field inside the response.
+**So the clause split is also the RPC split** (§4.4). `FindSpans` honors the clauses whose result is still spans — `WHERE`, a reference-only `SELECT`, the ordering and the cursor — and refuses `group_by` and a computed projection with `InvalidArgument`. A second RPC takes the same `SpanQueryParameters`, honors all of them, and returns rows. Both read one query model; what differs is the shape each can express its answer in, and that is a property of the RPC rather than of a field inside the response.
+
+**That second RPC is deliberately left unnamed here.** This RFC has no design for the row result — no value encoding, no column metadata, no aggregate operator set (§5.2 above) — and §4.2 shows that naming an RPC well depends on knowing what its response holds, so a name chosen now would be chosen with the least information anyone will ever have about it. What can be said is which criterion will apply: its response shape does not vary, so the same reasoning that picked `FindSpans` over `QuerySpans` will favor a name describing the rows it returns over one describing the spans it reads.
 
 ### 5.3 What is not provisioned
 
@@ -510,7 +512,7 @@ PR-sized milestones with exit bars. Everything here sits behind RFC 0005 M1 and 
 **Out of scope (future, this design enables):**
 - A response envelope for the four RPCs that return bare `TracesData` in api_v3 and `jaeger.storage.v2` (§4.4). It would give a trace search somewhere to put a page token, and truncation somewhere to be reported other than a warning attribute on the first span. It is a breaking change to both published protocols, so it needs its own proposal; what this RFC settles is only that the span RPC does not join them.
 - A capability model that can declare predicate *shapes* rather than whole operators, which is what would let Cassandra and Badger serve an identity filter from their primary span storage, and Cassandra serve a tag-only conjunction through `tag_index` at `(trace_id, span_id)` granularity (§9). It bears on RFC 0005's `FilterCapabilities` and on its `same_span_conjunction`, so it belongs there rather than here.
-- The aggregate RPC and the `projection`, `group_by` and `having` clauses (§5), including the value encoding and column metadata a row result needs. It shares `SpanQueryParameters` with `FindSpans`, so what it adds is a response type, not a query model.
+- The row-returning RPC and the `projection`, `group_by` and `having` clauses (§5), including the value encoding, the column metadata and the aggregate operator set a row result needs, and the RPC's own name. It shares `SpanQueryParameters` with `FindSpans`, so what it adds is a response type, not a query model.
 - Sparse spans: a reference-only projection returning spans with only the requested fields (§5.2), which needs no new result type and so belongs on `FindSpans` itself.
 - A caller-chosen `order_by`, which the fixed cursor sort order currently precludes.
 - An in-memory expression evaluator, which would turn the search refusal into a fallback on Cassandra and Badger (§9).
