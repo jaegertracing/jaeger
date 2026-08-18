@@ -17,6 +17,7 @@ IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
 PUBLIC_JAEGER_URL="${JAEGER_DEMO_PUBLIC_JAEGER_URL:-${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}"
+OPENSEARCH_RECOVERY="${JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY:-required}"
 # renovate: datasource=helm depName=opentelemetry-demo registryUrl=https://open-telemetry.github.io/opentelemetry-helm-charts
 OTEL_DEMO_CHART_VERSION="0.40.9"
 # renovate: datasource=helm depName=opensearch registryUrl=https://opensearch-project.github.io/helm-charts
@@ -48,6 +49,26 @@ validate_options() {
       return 1
       ;;
   esac
+
+  case "$OPENSEARCH_RECOVERY" in
+    required|waive)
+      ;;
+    *)
+      echo "Error: Invalid OpenSearch recovery policy '$OPENSEARCH_RECOVERY'" >&2
+      echo "Expected JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY to be 'required' or 'waive'" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ "$OPENSEARCH_RECOVERY" == "waive" ]] &&
+    { [[ "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ]] ||
+      [[ "${GITHUB_REF:-}" != "refs/heads/main" ]] ||
+      [[ "${JAEGER_DEMO_STACK:-}" != "otel" ]] ||
+      [[ "$MODE" != "upgrade" ]] ||
+      [[ "$DEPLOY_SCOPE" != "opensearch" ]]; }; then
+    echo "Error: OpenSearch recovery may be waived only by a manual isolated otel/upgrade/opensearch run from main" >&2
+    return 1
+  fi
 }
 
 configure_jaeger_helm_command() {
@@ -285,8 +306,18 @@ reconcile_ingress() {
 
 deploy_opensearch_releases() {
   if [[ "$MODE" == "upgrade" ]]; then
-    log "Verifying a recent tested OpenSearch recovery point"
-    bash "$SCRIPT_DIR/opensearch-recovery.sh" verify
+    case "$OPENSEARCH_RECOVERY" in
+      required)
+        log "Verifying a recent tested OpenSearch recovery point"
+        bash "$SCRIPT_DIR/opensearch-recovery.sh" verify
+        ;;
+      waive)
+        log "WARNING: OpenSearch recovery was explicitly waived; this upgrade has no tested rollback or data-recovery path"
+        ;;
+      *)
+        err "Invalid OpenSearch recovery policy '$OPENSEARCH_RECOVERY'"
+        ;;
+    esac
   fi
 
   log "Deploying OpenSearch chart $OPENSEARCH_CHART_VERSION"
