@@ -289,12 +289,14 @@ func (h *Handler) GetCapabilities(
 }
 
 func toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
-	// The caller here is a third party, and decoding says only that the wire described a tree,
-	// not that the tree means anything, so this is where a filter naming an operator or level
-	// this build has no meaning for is refused rather than handed to a reader.
+	// The caller here is a third party, and decoding says only that the wire described a tree, not
+	// that the tree means anything. So this is where the filter is finalized: an operator or level
+	// this build has no meaning for is refused rather than handed to a reader, and every constant is
+	// read against the field beside it, because a reader is owed the same tree whether the query
+	// came from this process or over the wire.
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
-		err = expression.ValidateFilter(filter)
+		filter, err = expression.Finalize(filter)
 	}
 	if err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())

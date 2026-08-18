@@ -139,9 +139,12 @@ func (tr *TraceReader) FindTraces(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
-		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{
-			Query: toProtoQueryParameters(params),
-		})
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		stream, err := tr.client.FindTraces(ctx, &storage.FindTracesRequest{Query: query})
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to execute FindTraces: %w", err))
 			return
@@ -163,9 +166,12 @@ func (tr *TraceReader) FindTraceIDs(
 	params tracestore.TraceQueryParams,
 ) iter.Seq2[[]tracestore.FoundTraceID, error] {
 	return func(yield func([]tracestore.FoundTraceID, error) bool) {
-		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{
-			Query: toProtoQueryParameters(params),
-		})
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		resp, err := tr.client.FindTraceIDs(ctx, &storage.FindTraceIDsRequest{Query: query})
 		if err != nil {
 			yield(nil, fmt.Errorf("failed to execute FindTraceIDs: %w", err))
 			return
@@ -196,9 +202,12 @@ func (tr *TraceReader) FindTraceSummaries(
 		return fmt.Errorf("%s: %w", msg, err)
 	}
 	return func(yield func([]tracestore.TraceSummary, error) bool) {
-		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{
-			Query: toProtoQueryParameters(params),
-		})
+		query, err := toProtoQueryParameters(params)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		stream, err := tr.client.FindTraceSummaries(ctx, &storage.FindTraceSummariesRequest{Query: query})
 		if err != nil {
 			yield(nil, maybeNotImplemented(err, "failed to execute FindTraceSummaries"))
 			return
@@ -247,7 +256,15 @@ func convertSummaryBatch(protos []*storage.TraceSummary) []tracestore.TraceSumma
 	return batch
 }
 
-func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryParameters {
+// toProtoQueryParameters encodes a query for the remote server. Encoding the filter can fail, for
+// a tree the wire has no form for, and asking here rather than at each RPC keeps that one refusal in
+// one place: the alternative is sending a query whose filter went missing, which reads to the server
+// as a search with no predicates.
+func toProtoQueryParameters(t tracestore.TraceQueryParams) (*storage.TraceQueryParameters, error) {
+	filter, err := expressionproto.ToProto(t.Filter)
+	if err != nil {
+		return nil, fmt.Errorf("cannot send the query filter: %w", err)
+	}
 	return &storage.TraceQueryParameters{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
@@ -257,8 +274,8 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int32(t.SearchDepth), //nolint:gosec // G115
-		Filter:        expressionproto.ToProto(t.Filter),
-	}
+		Filter:        filter,
+	}, nil
 }
 
 func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {

@@ -23,17 +23,31 @@ func TestQueryParametersCarryTheFilter(t *testing.T) {
 		&expression.AnyValue{Value: "/cart"},
 	}}
 
-	sent := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter})
-	assert.Equal(t, expressionproto.ToProto(filter), sent.GetFilter())
+	sent, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter})
+	require.NoError(t, err)
+	encoded, err := expressionproto.ToProto(filter)
+	require.NoError(t, err)
+	assert.Equal(t, encoded, sent.GetFilter())
 	decoded, err := toTraceQueryParams(sent)
 	require.NoError(t, err)
 	assert.Equal(t, filter, decoded.Filter)
 
-	noFilter := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
+	noFilter, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap()})
+	require.NoError(t, err)
 	assert.Nil(t, noFilter.GetFilter())
 	decodedNoFilter, err := toTraceQueryParams(noFilter)
 	require.NoError(t, err)
 	assert.Nil(t, decodedNoFilter.Filter)
+}
+
+// TestQueryParametersRefuseAnUnsendableFilter pins that a filter the wire has no form for is
+// answered here rather than sent as a query with no predicates at all.
+func TestQueryParametersRefuseAnUnsendableFilter(t *testing.T) {
+	filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+		&expression.AttributeRef{Key: "http.route"}, nil,
+	}}
+	_, err := toProtoQueryParameters(tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter})
+	require.ErrorIs(t, err, expressionproto.ErrTermNotEncodable)
 }
 
 // TestFilterCapabilitiesRoundTrip covers the declaration crossing the same boundary: a
