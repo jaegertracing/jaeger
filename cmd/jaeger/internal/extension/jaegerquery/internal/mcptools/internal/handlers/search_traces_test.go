@@ -626,4 +626,22 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Len(t, output.Traces, 3)
+	assert.True(t, output.Truncated)
+}
+func TestSearchTracesHandler_Handle_NotTruncatedWhenWithinLimit(t *testing.T) {
+	want := makeTraceSummary("cart-service", "/get-cart", false)
+	mock := newMockFindTraceSummaries(want)
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "cart-service",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+	assert.False(t, output.Truncated)
 }
