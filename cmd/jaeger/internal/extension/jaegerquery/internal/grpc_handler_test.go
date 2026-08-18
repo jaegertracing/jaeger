@@ -619,6 +619,31 @@ func TestGetDependenciesFailureUninitializedTimeGRPC(t *testing.T) {
 	}
 }
 
+func TestGetDependenciesFailureInvertedTimeRangeGRPC(t *testing.T) {
+	now := time.Now().UTC()
+	timeInputs := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+	}{
+		{"end before start", now, now.Add(-time.Hour)},
+		{"end equal to start", now, now},
+	}
+
+	for _, input := range timeInputs {
+		t.Run(input.name, func(t *testing.T) {
+			withServerAndClient(t, func(_ *grpcServer, client *grpcClient) {
+				_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
+					StartTime: input.startTime,
+					EndTime:   input.endTime,
+				})
+
+				assertGRPCError(t, err, codes.InvalidArgument, "end_time must be after start_time")
+			})
+		})
+	}
+}
+
 // test from GRPCHandler and not grpcClient as Generated Go client panics with `nil` request
 func TestGetDependenciesNilRequestOnHandlerGRPC(t *testing.T) {
 	grpcHandler := &GRPCHandler{}
