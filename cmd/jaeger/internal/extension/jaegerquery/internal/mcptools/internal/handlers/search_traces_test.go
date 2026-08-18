@@ -513,6 +513,96 @@ func TestSearchTracesHandler_Handle_DurationMaxLessThanMin(t *testing.T) {
 	assert.Contains(t, err.Error(), "duration_max must be greater than duration_min")
 }
 
+func TestSearchTracesHandler_Handle_NegativeDurations(t *testing.T) {
+	tests := []struct {
+		name        string
+		durationMin string
+		durationMax string
+		wantErr     string
+	}{
+		{
+			name:        "negative duration_min",
+			durationMin: "-5s",
+			wantErr:     "invalid duration_min: duration cannot be negative",
+		},
+		{
+			name:        "negative duration_max",
+			durationMax: "-10s",
+			wantErr:     "invalid duration_max: duration cannot be negative",
+		},
+		{
+			name:        "both negative",
+			durationMin: "-5s",
+			durationMax: "-10s",
+			wantErr:     "invalid duration_min: duration cannot be negative",
+		},
+		{
+			name:        "negative duration_min with valid duration_max",
+			durationMin: "-5s",
+			durationMax: "10s",
+			wantErr:     "invalid duration_min: duration cannot be negative",
+		},
+		{
+			name:        "negative duration_max with valid duration_min",
+			durationMin: "2s",
+			durationMax: "-10s",
+			wantErr:     "invalid duration_max: duration cannot be negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &mockQueryService{
+				findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+					t.Error("storage must not be queried when durations are invalid")
+					return func(_ func([]tracestore.TraceSummary, error) bool) {}
+				},
+			}
+
+			handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+			input := types.SearchTracesInput{
+				StartTimeMin: "-1h",
+				ServiceName:  "test",
+				DurationMin:  tt.durationMin,
+				DurationMax:  tt.durationMax,
+			}
+
+			_, _, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestSearchTracesHandler_Handle_ZeroDurations(t *testing.T) {
+	want := makeTraceSummary("test-service", "/test", false)
+
+	mock := &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, query querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			assert.Zero(t, query.DurationMin)
+			assert.Zero(t, query.DurationMax)
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield([]tracestore.TraceSummary{want}, nil)
+			}
+		},
+	}
+
+	handler := &searchTracesHandler{queryService: mock, maxResults: 100}
+
+	input := types.SearchTracesInput{
+		StartTimeMin: "-1h",
+		ServiceName:  "test-service",
+		DurationMin:  "0s",
+		DurationMax:  "0s",
+	}
+
+	_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+	require.NoError(t, err)
+	require.Len(t, output.Traces, 1)
+}
+
 func TestParseTimeParam(t *testing.T) {
 	tests := []struct {
 		name      string
