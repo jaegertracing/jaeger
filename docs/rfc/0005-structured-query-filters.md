@@ -219,7 +219,9 @@ A constant `value` is a string on the wire and is **optionally typed** (`string`
 
 ### 5.4 Typed values
 
-`type` is optional on the wire. Omitted, it means *any type*: the backend resolves the value wherever the key lives, across every observed type, exactly as today.
+`type` is optional on the wire for a *constant*. Omitted, it means *any type*: the backend resolves the value wherever the key lives, across every observed type, exactly as today.
+
+**A list is typed, even where it does not say so.** `List` carries one type for all its elements, and unlike a lone constant it cannot leave that open: `in` is a set membership, and a set whose members are read at whichever type each happens to match is not one thing. So an element type is always known — the list declares it, or the built-in field it is compared against supplies it, which is also the only way to write a list of durations, the wire having no duration type. Compared against an *attribute*, which declares nothing itself, the list has to declare one. The type is then authoritative like any other: a list of `int` matches integer-stored values, and a backend that cannot honor that refuses the predicate (§7).
 
 **In the Go AST a constant is a typed node, not a string plus a hint.** The wire carries `{value, type}` because a protobuf field has to, but a consumer wants the value, not the text — a `time.Duration`, not `"2s"` to be re-parsed at every layer that touches it. So the AST has one node type per constant kind: `AnyValue`, `StringValue`, `IntValue`, `DoubleValue`, `BoolValue`, `DurationValue`, `TimestampValue`. A visitor switches on the node and has the parsed value; it never asks "is this string a duration".
 
@@ -355,7 +357,8 @@ message Scalar {
 
 message List {
   repeated string values = 1;
-  string type = 2;          // optional hint applied to every element; empty = any type
+  string type = 2;          // the type every element is read as; empty only where the
+                            // built-in field opposite supplies it (§5.4)
 }
 
 // Call applies operator/function `op` to argument Expressions. (Named Call, not
@@ -404,7 +407,8 @@ Jaeger's api_v3 HTTP endpoint serializes with gogo/protobuf `jsonpb` at its defa
 ```yaml
 level: { type: string, enum: [span, resource, scope, event, link] }               # the level on each reference term
 op:    { type: string, enum: [and, or, not, eq, ne, gt, lt, gte, lte, regex, exists, in, not_in, some] }  # Call.op
-type:  { type: string, enum: [string, int, double, bool] }                                   # Scalar.type / List.type; optional, empty = any type
+type:  { type: string, enum: ["", string, int, double, bool] }                               # Scalar.type: empty = any type. List.type: empty
+                                                                                             # only where a built-in field supplies it (§5.4)
 ```
 
 Legend: 🟢 good · 🟡 partial · 🔴 poor
@@ -636,7 +640,7 @@ The structured model of §4–§6 is option C. Three lettered alternatives (A, B
 **AST node-shape decisions.** Four shape choices within the structured model, each with the alternative it was chosen over:
 
 - **Separate `attr` / `field` / `nested` reference terms, not one `Reference{name, level, attr}`.** This RFC first proposed the single node: a built-in field and an attribute are both "a value read off the span/trace," so one node parameterized by level, with an `attr` flag picking between them. That reasoning still holds for what the two *are*; what it missed is which states the encoding admits. The flag means nothing without a level, because an unqualified reference is always an attribute, so `{name: "x"}` and `{name: "x", attr: true}` spell one thing two ways. "The whole collection" became an empty `name` that is significant in one operator position and meaningless everywhere else — and a collection reference could carry `attr: true`, which validation had no reason to inspect. Those are states a validator must reject rather than states the type system prevents, and every visitor, converter and interceptor has to know which bits matter where. The original objection — that a bare field-name string cannot carry a level — is answered by giving each term its own level field rather than by merging the terms. Three arms give exhaustive cases and let `some` declare that its first operand *is* a nested collection (§5.1, §6.1).
-- **`in`/`not_in` take a `List` operand, not variadic scalar args.** The set is a first-class `List` literal (one `type` for the homogeneous list), so `in`/`not_in` stay binary `[subject, set]` like every other operator. *Rejected:* `Call(op="in", args=[subject, s1, s2, …])` — a variadic form invents a "first arg is the subject, the rest are the set" convention unique to `in`, lets a `ref`/`call` slip into set positions, and carries a `type` per element (admitting a heterogeneous set validation must then reject). The concern that a first-class `List` enables nonsensical ASTs is closed by `filter: Call` (a list cannot be the top-level filter) and by validation catching a list in a scalar position, the same class as any other type error.
+- **`in`/`not_in` take a `List` operand, not variadic scalar args.** The set is a first-class `List` literal (one type for every element, §5.4), so `in`/`not_in` stay binary `[subject, set]` like every other operator. *Rejected:* `Call(op="in", args=[subject, s1, s2, …])` — a variadic form invents a "first arg is the subject, the rest are the set" convention unique to `in`, lets a `ref`/`call` slip into set positions, and carries a `type` per element (admitting a heterogeneous set validation must then reject). The concern that a first-class `List` enables nonsensical ASTs is closed by `filter: Call` (a list cannot be the top-level filter) and by validation catching a list in a scalar position, the same class as any other type error.
 - **Top-level `filter` is a `Call`, not an `Expression` (nor an implicit-AND list).** A filter always applies a boolean operator, so the field is a `Call`; the top level then carries no `Expression` oneof envelope — `{"op":…}` on the wire, not `{"call":{…}}` — so the common single-predicate query is shorter, and a single node gives one canonical encoding of conjunction (an `and` call) rather than a second, implicit one (a top-level list). *Rejected:* `Expression filter` — the composability it appeared to buy (a filter being the same type as any sub-expression) is a host-language concern, met by a one-line `Expr(call)` wrap in a typed builder, not something the wire must carry, so the constant envelope on every request buys nothing. A top-level implicit-AND list was also rejected: it is a second way to spell AND, and forces a one-element list for a top-level `or`.
 - **Scalars carry a string `value` + optional `type` hint, not a typed `oneof`** (§5.4). A typed `oneof {int64|double|bool|string}` cannot express the *match any type* default the data model needs (§5.4), and unit-bearing values (`duration` = `"2s"`, future timestamps) have no native proto scalar and revert to strings regardless. The stringify "tax" for a known-typed caller is paid once by the builder (§6.3); wire packing is immaterial at query-payload sizes. *Rejected:* a typed `oneof` — its strictness is illusory here, since it cannot represent "any type."
 
