@@ -123,7 +123,7 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	query, err := toTraceQueryParams(req.Query)
+	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
 	if err != nil {
 		return err
 	}
@@ -146,7 +146,7 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	query, err := toTraceQueryParams(req.Query)
+	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
 	if err != nil {
 		return err
 	}
@@ -195,7 +195,7 @@ func (h *Handler) FindTraceIDs(
 	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
-	query, err := toTraceQueryParams(req.Query)
+	query, err := h.toTraceQueryParams(ctx, req.Query)
 	if err != nil {
 		return nil, err
 	}
@@ -288,12 +288,23 @@ func (h *Handler) GetCapabilities(
 	}, nil
 }
 
-func toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryParams, error) {
-	// The caller here is a third party, and decoding says only that the wire described a tree, not
-	// that the tree means anything. So this is where the filter is finalized: an operator or level
-	// this build has no meaning for is refused rather than handed to a reader, and every constant is
-	// read against the field beside it, because a reader is owed the same tree whether the query
-	// came from this process or over the wire.
+// toTraceQueryParams prepares a query a third party sent for the reader behind this handler. The
+// same three things happen to a query arriving on api_v3, and for the same reasons, so they happen
+// through the same checks (RFC 0005 §7):
+//
+//   - The filter is finalized, because decoding validates nothing: a reader is owed the same tree
+//     whether the query came from this process or over the wire.
+//   - A query carrying both a filter and the legacy fields it replaces is refused, rather than left
+//     for the reader to answer one of them without saying which.
+//   - The reader gets whichever filtering model it declared. A reader that evaluates no filter is
+//     given the legacy fields instead, which is what keeps a client's filter from reaching one that
+//     would ignore the field and answer with every trace in the range.
+//
+// A refusal is InvalidArgument, because each is something the caller has to change.
+func (h *Handler) toTraceQueryParams(
+	ctx context.Context,
+	t *storage.TraceQueryParameters,
+) (tracestore.TraceQueryParams, error) {
 	filter, err := expressionproto.FromProto(t.GetFilter())
 	if err == nil && filter != nil {
 		filter, err = expression.Finalize(filter)
@@ -301,7 +312,7 @@ func toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryP
 	if err != nil {
 		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
 	}
-	return tracestore.TraceQueryParams{
+	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
 		Attributes:    convertKeyValueListToMap(t.Attributes),
@@ -311,7 +322,24 @@ func toTraceQueryParams(t *storage.TraceQueryParameters) (tracestore.TraceQueryP
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int(t.SearchDepth),
 		Filter:        filter,
-	}, nil
+	}
+	if err := query.EnsureFilterStandsAlone(); err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if query.Filter == nil {
+		return query, nil
+	}
+	caps, err := h.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities reads as the least capable one, which serves
+		// only the legacy predicate fields.
+		caps = tracestore.SearchCapabilities{}
+	}
+	prepared, err := query.ForCapabilities(caps)
+	if err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return prepared, nil
 }
 
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
