@@ -154,6 +154,24 @@ func TestFindLastFinishingChildSpan(t *testing.T) {
 			expectedSpanID: nil,
 		},
 		{
+			name: "with returningChildStartTime child ending exactly at boundary is included",
+			spanMap: map[pcommon.SpanID]CPSpan{
+				spanID(2): {
+					SpanID:    spanID(2),
+					StartTime: 100,
+					Duration:  50, // ends at 150, exactly at returningChildStartTime
+				},
+			},
+			currentSpan: CPSpan{
+				SpanID:       spanID(1),
+				StartTime:    100,
+				Duration:     100,
+				ChildSpanIDs: []pcommon.SpanID{spanID(2)},
+			},
+			returningChildStartTime: new(uint64(150)),
+			expectedSpanID:          &pcommon.SpanID{2}, // back-to-back sequential span must not be dropped
+		},
+		{
 			name: "with returningChildStartTime selects best among multiple valid children",
 			spanMap: map[pcommon.SpanID]CPSpan{
 				spanID(2): {
