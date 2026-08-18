@@ -193,14 +193,11 @@ func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryP
 		return query, fmt.Errorf("%w: enable the %q feature gate to use it",
 			ErrFilterDisabled, StructuredFiltersGate.ID())
 	}
-	if err := ensureNoLegacyPredicates(query); err != nil {
+	if err := query.EnsureFilterStandsAlone(); err != nil {
 		return query, err
 	}
-	// Decoding a filter off a wire does not check that the tree means anything, so this is where it
-	// is finalized, on behalf of every API layer above: the structure checked, every constant
-	// compared against a built-in field read as that field's type, and each comparison turned so
-	// the reference comes first. A duration therefore reaches a backend as a length of time, and a
-	// value that is not one is answered here rather than passed down (RFC 0005 §7).
+	// Decoding a filter validates nothing, so it is finalized — validated and normalized — here, on
+	// behalf of every API layer above (RFC 0005 §7).
 	finalized, err := expression.Finalize(query.Filter)
 	if err != nil {
 		return query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
@@ -215,14 +212,15 @@ func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryP
 	}
 	// The filter is settled before the service name is checked, because a filter can name the
 	// service itself and rewriting it is what moves that into ServiceName.
-	prepared, err := prepareFilteredQuery(query, caps)
+	prepared, err := query.ForCapabilities(caps)
 	if err != nil {
 		return query, err
 	}
-	if prepared.ServiceName == "" && !caps.WithoutServiceName {
+	query.TraceQueryParams = prepared
+	if query.ServiceName == "" && !caps.WithoutServiceName {
 		return query, ErrServiceNameRequired
 	}
-	return prepared, nil
+	return query, nil
 }
 
 func (qs QueryService) checkServiceName(ctx context.Context, query TraceQueryParams) error {

@@ -67,9 +67,9 @@ func TestPrepareFilteredQuery_PassesFilterToADeclaringReader(t *testing.T) {
 				&expression.StringValue{Value: "exception"})))
 	query := filterQuery(filter)
 
-	got, err := prepareFilteredQuery(query, caps)
+	got, err := query.ForCapabilities(caps)
 	require.NoError(t, err)
-	assert.Equal(t, query, got)
+	assert.Equal(t, query.TraceQueryParams, got)
 }
 
 // TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare covers the refusal gates: a level or an
@@ -165,7 +165,7 @@ func TestPrepareFilteredQuery_RefusesWhatAReaderDidNotDeclare(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			caps := tracestore.SearchCapabilities{Filter: &test.caps}
-			_, err := prepareFilteredQuery(filterQuery(test.filter), caps)
+			_, err := filterQuery(test.filter).ForCapabilities(caps)
 			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 			assert.Contains(t, err.Error(), test.expectedErr)
 		})
@@ -351,7 +351,7 @@ func TestPrepareFilteredQuery_EmptyDeclarationIsNoDeclaration(t *testing.T) {
 		"empty declaration": {Filter: &tracestore.FilterCapabilities{}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			got, err := prepareFilteredQuery(filterQuery(filter), caps)
+			got, err := filterQuery(filter).ForCapabilities(caps)
 			require.NoError(t, err)
 			assert.Nil(t, got.Filter, "the filter is rewritten, not sent down")
 			value, ok := got.Attributes.Get("http.method")
