@@ -4,10 +4,12 @@
 package handlers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -28,15 +30,18 @@ type queryServiceGetCriticalPathInterface interface {
 // This tool identifies the sequence of spans forming the critical latency path
 // (the blocking execution path) in a distributed trace.
 type getCriticalPathHandler struct {
-	queryService queryServiceGetCriticalPathInterface
+	queryService             queryServiceGetCriticalPathInterface
+	maxSpanDetailsPerRequest int
 }
 
 // NewGetCriticalPathHandler creates a new get_critical_path handler and returns the handler function.
 func NewGetCriticalPathHandler(
 	queryService *querysvc.QueryService,
+	maxSpanDetailsPerRequest int,
 ) mcp.ToolHandlerFor[types.GetCriticalPathInput, types.GetCriticalPathOutput] {
 	h := &getCriticalPathHandler{
-		queryService: queryService,
+		queryService:             queryService,
+		maxSpanDetailsPerRequest: maxSpanDetailsPerRequest,
 	}
 	return h.handle
 }
@@ -108,7 +113,7 @@ func (*getCriticalPathHandler) buildQuery(input types.GetCriticalPathInput) (que
 }
 
 // buildOutput constructs the GetCriticalPathOutput from the trace and critical path sections.
-func (*getCriticalPathHandler) buildOutput(
+func (h *getCriticalPathHandler) buildOutput(
 	traceIDStr string,
 	trace ptrace.Traces,
 	criticalPathSections []criticalpath.Section,
@@ -176,10 +181,34 @@ func (*getCriticalPathHandler) buildOutput(
 		})
 	}
 
+	totalSegmentCount := len(segments)
+	segments = h.capSegments(segments)
+
 	return types.GetCriticalPathOutput{
 		TraceID:                traceIDStr,
 		TotalDurationUs:        traceEndTime - traceStartTime,
 		CriticalPathDurationUs: criticalPathDuration,
+		TotalSegmentCount:      totalSegmentCount,
 		Segments:               segments,
 	}
+}
+
+// capSegments bounds the number of segments returned to the caller. The critical
+// path and its total duration are always computed over the full trace (see
+// buildOutput); only the segments slice itself is capped here, so truncating a
+// deep trace can never change which spans are considered part of the critical
+// path. When capping is needed, the segments with the highest self_time_us are
+// kept, since those are the ones the tool description tells callers to look at
+// first, and a stable sort preserves their original chronological order among
+// ties. segments is freshly built by the caller for this response and held
+// nowhere else, so it is safe to sort in place instead of cloning.
+func (h *getCriticalPathHandler) capSegments(segments []types.CriticalPathSegment) []types.CriticalPathSegment {
+	if h.maxSpanDetailsPerRequest <= 0 || len(segments) <= h.maxSpanDetailsPerRequest {
+		return segments
+	}
+
+	slices.SortStableFunc(segments, func(a, b types.CriticalPathSegment) int {
+		return cmp.Compare(b.SelfTimeUs, a.SelfTimeUs) // descending
+	})
+	return segments[:h.maxSpanDetailsPerRequest]
 }
