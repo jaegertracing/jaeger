@@ -199,20 +199,29 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 
 	serviceAny, ok := config["service"]
 	require.True(t, ok)
-	service := serviceAny.(map[string]any)
-	service["extensions"] = append(service["extensions"].([]any), "storage_cleaner")
+	service, ok := serviceAny.(map[string]any)
+	require.True(t, ok, "expecting 'service' to be a map, found: %T", serviceAny)
+	serviceExtensions, ok := service["extensions"].([]any)
+	require.True(t, ok, "expecting 'service.extensions' to be a list, found: %T", service["extensions"])
+	service["extensions"] = append(serviceExtensions, "storage_cleaner")
 
 	extensionsAny, ok := config["extensions"]
 	require.True(t, ok)
-	extensions := extensionsAny.(map[string]any)
+	extensions, ok := extensionsAny.(map[string]any)
+	require.True(t, ok, "expecting 'extensions' to be a map, found: %T", extensionsAny)
 
 	var traceStorage string
 
 	// Try to get the storage from jaeger_query first
 	if queryAny, found := extensions["jaeger_query"]; found {
-		if storageAny, found := queryAny.(map[string]any)["storage"]; found {
-			if traceStorageAny, found := storageAny.(map[string]any)["traces"]; found {
-				traceStorage = traceStorageAny.(string)
+		query, isMap := queryAny.(map[string]any)
+		require.True(t, isMap, "expecting 'jaeger_query' to be a map, found: %T", queryAny)
+		if storageAny, found := query["storage"]; found {
+			storage, isMap := storageAny.(map[string]any)
+			require.True(t, isMap, "expecting 'jaeger_query.storage' to be a map, found: %T", storageAny)
+			if traceStorageAny, found := storage["traces"]; found {
+				traceStorage, ok = traceStorageAny.(string)
+				require.True(t, ok, "expecting 'jaeger_query.storage.traces' to be a string, found: %T", traceStorageAny)
 			}
 		}
 	}
@@ -220,8 +229,11 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 	// If jaeger_query not found or no storage, fallback to remote_storage
 	if traceStorage == "" {
 		if remoteAny, found := extensions["remote_storage"]; found {
-			if storageNameAny, found := remoteAny.(map[string]any)["storage"]; found {
-				traceStorage = storageNameAny.(string)
+			remote, isMap := remoteAny.(map[string]any)
+			require.True(t, isMap, "expecting 'remote_storage' to be a map, found: %T", remoteAny)
+			if storageNameAny, found := remote["storage"]; found {
+				traceStorage, ok = storageNameAny.(string)
+				require.True(t, ok, "expecting 'remote_storage.storage' to be a string, found: %T", storageNameAny)
 			}
 		}
 	}
@@ -232,19 +244,23 @@ func createStorageCleanerConfig(t *testing.T, configFile string, storage string)
 
 	jaegerStorageAny, ok := extensions["jaeger_storage"]
 	require.True(t, ok)
-	jaegerStorage := jaegerStorageAny.(map[string]any)
+	jaegerStorage, ok := jaegerStorageAny.(map[string]any)
+	require.True(t, ok, "expecting 'jaeger_storage' to be a map, found: %T", jaegerStorageAny)
 	backendsAny, ok := jaegerStorage["backends"]
 	require.True(t, ok)
-	backends := backendsAny.(map[string]any)
+	backends, ok := backendsAny.(map[string]any)
+	require.True(t, ok, "expecting 'backends' to be a map, found: %T", backendsAny)
 
 	switch storage {
 	case "elasticsearch", "opensearch":
 		someStoreAny, ok := backends["some_storage"]
 		require.True(t, ok, "expecting 'some_storage' entry, found: %v", jaegerStorage)
-		someStore := someStoreAny.(map[string]any)
+		someStore, ok := someStoreAny.(map[string]any)
+		require.True(t, ok, "expecting 'some_storage' to be a map, found: %T", someStoreAny)
 		esMainAny, ok := someStore[storage]
 		require.True(t, ok, "expecting '%s' entry, found %v", storage, someStore)
-		esMain := esMainAny.(map[string]any)
+		esMain, ok := esMainAny.(map[string]any)
+		require.True(t, ok, "expecting '%s' to be a map, found: %T", storage, esMainAny)
 		esMain["service_cache_ttl"] = "1ms"
 	default:
 		// Do Nothing
