@@ -22,6 +22,13 @@ func TestNestedQuerySource(t *testing.T) {
 	assert.Contains(t, nested, "query")
 }
 
+func TestNestedQueryIgnoreUnmapped(t *testing.T) {
+	src, err := NewNestedQuery("tags", NewMatchQuery("tags.key", "http.status_code")).IgnoreUnmapped(true).Source()
+	require.NoError(t, err)
+	nested := src.(map[string]any)["nested"].(map[string]any)
+	assert.True(t, nested["ignore_unmapped"].(bool))
+}
+
 func TestNestedQueryPropagatesInnerError(t *testing.T) {
 	_, err := NewNestedQuery("tags", errQuery{}).Source()
 	require.ErrorIs(t, err, errBadQuery)
