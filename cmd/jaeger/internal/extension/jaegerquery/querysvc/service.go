@@ -196,19 +196,16 @@ func (qs QueryService) prepareSearchQuery(ctx context.Context, query TraceQueryP
 	if err := ensureNoLegacyPredicates(query); err != nil {
 		return query, err
 	}
-	// Decoding a filter off a wire does not check that the tree means anything, so this is where
-	// it is checked, on behalf of every API layer above.
-	if err := expression.ValidateFilter(query.Filter); err != nil {
-		return query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
-	}
-	// A constant compared against a built-in field is read as that field's type here, so a
-	// duration reaches a backend as a length of time and a spelling that is not one is answered
-	// rather than passed down (RFC 0005 §7).
-	resolved, err := expression.ResolveConstants(query.Filter)
+	// Decoding a filter off a wire does not check that the tree means anything, so this is where it
+	// is finalized, on behalf of every API layer above: the structure checked, every constant
+	// compared against a built-in field read as that field's type, and each comparison turned so
+	// the reference comes first. A duration therefore reaches a backend as a length of time, and a
+	// value that is not one is answered here rather than passed down (RFC 0005 §7).
+	finalized, err := expression.Finalize(query.Filter)
 	if err != nil {
 		return query, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
 	}
-	query.Filter = resolved
+	query.Filter = finalized
 
 	caps, err := qs.traceReader.SearchCapabilities(ctx)
 	if err != nil {
