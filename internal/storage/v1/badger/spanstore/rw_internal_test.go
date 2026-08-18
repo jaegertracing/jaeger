@@ -19,6 +19,7 @@ import (
 )
 
 func TestEncodingTypes(t *testing.T) {
+	t.Parallel()
 	// JSON encoding
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
@@ -80,6 +81,7 @@ func TestEncodingTypes(t *testing.T) {
 }
 
 func TestDecodeErrorReturns(t *testing.T) {
+	t.Parallel()
 	garbage := []byte{0x08}
 
 	_, err := decodeValue(garbage, protoEncoding)
@@ -90,6 +92,7 @@ func TestDecodeErrorReturns(t *testing.T) {
 }
 
 func TestDuplicateTraceIDDetection(t *testing.T) {
+	t.Parallel()
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 		cache := NewCacheStore(store, time.Duration(1*time.Hour))
@@ -157,6 +160,7 @@ func createDummySpan() model.Span {
 }
 
 func TestMergeJoin(t *testing.T) {
+	t.Parallel()
 	chk := assert.New(t)
 
 	// Test equals
@@ -191,6 +195,7 @@ func TestMergeJoin(t *testing.T) {
 }
 
 func TestOldReads(t *testing.T) {
+	t.Parallel()
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		timeNow := model.TimeAsEpochMicroseconds(time.Now())
 		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
