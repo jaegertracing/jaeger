@@ -437,6 +437,125 @@ func TestFindTraces_RefusesAnInvalidInterceptorFilter(t *testing.T) {
 	}
 }
 
+// filterCapableBackend declares a backend that serves the span level and the comparisons these
+// tests build, so a test about the tree reaching storage is not also a test of what a backend
+// declared.
+func filterCapableBackend() *tracestore.SearchCapabilities {
+	return &tracestore.SearchCapabilities{
+		WithoutServiceName: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels: []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{
+				expression.OpEq, expression.OpGt, expression.OpLt, expression.OpIn,
+			},
+		},
+	}
+}
+
+// TestFindTraces_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches
+// storage in the same shape as one a caller sent: its constants read against the fields they are
+// compared to, and its comparisons turned so the reference comes first. Only checking the structure
+// would hand a backend an unread string where it expects a length of time.
+func TestFindTraces_FinalizesAnInterceptorFilter(t *testing.T) {
+	tests := []struct {
+		name     string
+		returned *expression.Call
+		expected *expression.Call
+	}{
+		{
+			name: "a duration compared against the field that holds one",
+			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "2s"},
+			}},
+			expected: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+				&expression.DurationValue{Value: 2 * time.Second},
+			}},
+		},
+		{
+			name: "an instant compared against a timestamp field",
+			returned: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "2026-08-18T00:00:00Z"},
+			}},
+			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
+				&expression.TimestampValue{Value: time.Date(2026, 8, 18, 0, 0, 0, 0, time.UTC)},
+			}},
+		},
+		{
+			name: "a comparison written with the constant on the left",
+			returned: &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.AnyValue{Value: "2s"},
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+			}},
+			expected: &expression.Call{Op: expression.OpLt, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+				&expression.DurationValue{Value: 2 * time.Second},
+			}},
+		},
+		{
+			name: "a typed list against an attribute",
+			returned: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
+			}},
+			expected: &expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
+			}},
+		},
+		{
+			name: "a word one of the closed sets holds",
+			returned: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
+				&expression.AnyValue{Value: "server"},
+			}},
+			expected: &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.FieldRef{Name: expression.SpanFieldKind, Level: expression.LevelSpan},
+				&expression.StringValue{Value: "server"},
+			}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			enableStructuredFilters(t)
+			next := &fakeReader{batch: tracesWith("k", "v")}
+			next.capabilities = filterCapableBackend()
+			qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(test.returned)})
+
+			_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+				ServiceName: "original",
+			})))
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, next.gotQuery.Filter)
+		})
+	}
+}
+
+// TestFindTraces_RefusesAnInterceptorConstantThatWillNotParse is the other half: finalizing an
+// interceptor's filter can refuse it for the same reason a caller's is refused, and the caller is
+// told the interceptor was at fault rather than blamed for its own request.
+func TestFindTraces_RefusesAnInterceptorConstantThatWillNotParse(t *testing.T) {
+	enableStructuredFilters(t)
+	next := &fakeReader{batch: tracesWith("k", "v")}
+	next.capabilities = filterCapableBackend()
+	returned := &expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+		&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "banana"},
+	}}
+	qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(returned)})
+
+	_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+		ServiceName: "original",
+	})))
+	require.ErrorIs(t, err, ErrInterceptorFilter)
+	require.ErrorContains(t, err, `cannot compare span.duration against "banana"`)
+	assert.False(t, next.findCalled, "storage must not be queried")
+	assert.False(t, IsBadRequest(err), "the caller's request was fine")
+}
+
 // TestFindTraces_AllowsNoFilterForAPredicatelessQuery is the other side of the nil rule: a search
 // of the time range alone has no filter to begin with, so an interceptor that leaves it that way
 // has widened nothing and the search proceeds.

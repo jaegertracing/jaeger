@@ -65,34 +65,42 @@ func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (con
 			return ctx, query, err
 		}
 	}
-	if err := checkInterceptorFilter(public.Filter, asked.Filter); err != nil {
+	finalized, err := finalizeInterceptorFilter(public.Filter, asked.Filter)
+	if err != nil {
 		return ctx, query, err
 	}
+	public.Filter = finalized
 	asked.TraceQueryParams = fromPublicQuery(public)
 	return ctx, asked, nil
 }
 
-// checkInterceptorFilter rejects what an interceptor must not hand to storage. An interceptor
-// builds its filter by hand, in code jaeger-query does not control, and a malformed tree is
-// typically answered by a backend matching nothing rather than refusing — so a search meant to
-// be narrowed would come back wrong with nothing to say why.
+// finalizeInterceptorFilter finalizes what an interceptor returns and rejects what it must not
+// hand to storage. An interceptor builds its filter by hand, in code jaeger-query does not control,
+// and a malformed tree is typically answered by a backend matching nothing rather than refusing —
+// so a search meant to be narrowed would come back wrong with nothing to say why.
+//
+// Finalizing rather than only checking is what makes an interceptor's predicate the equal of a
+// caller's: `span.duration > "2s"` added here arrives at a backend as a length of time, the same as
+// one that came in over api_v3. Running it a second time on a filter the caller already sent
+// changes nothing, since finalizing is idempotent.
 //
 // Dropping the filter is refused separately, because it is the one mistake that fails open: a
 // search that arrived with predicates and leaves with none asks for every trace in the range.
 // It is only a mistake when there was something to drop, since a caller may legitimately search
 // a time range and nothing else.
-func checkInterceptorFilter(returned, asked *expression.Call) error {
+func finalizeInterceptorFilter(returned, asked *expression.Call) (*expression.Call, error) {
 	if returned == nil {
 		if asked == nil {
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("%w: it returned no filter for a query that had predicates, which would "+
-			"widen the search to every trace in the time range", ErrInterceptorFilter)
+		return nil, fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
+			"would widen the search to every trace in the time range", ErrInterceptorFilter)
 	}
-	if err := expression.ValidateFilter(returned); err != nil {
-		return fmt.Errorf("%w: %w", ErrInterceptorFilter, err)
+	finalized, err := expression.Finalize(returned)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInterceptorFilter, err)
 	}
-	return nil
+	return finalized, nil
 }
 
 // interceptResults hands every batch of seq to the interceptors' OnResult in order, threading the
