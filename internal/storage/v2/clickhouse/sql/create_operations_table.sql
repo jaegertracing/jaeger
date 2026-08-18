@@ -5,4 +5,4 @@ CREATE TABLE IF NOT EXISTS
         span_kind String
     ) ENGINE = AggregatingMergeTree
 ORDER BY
-    (service_name, span_kind);
+    (service_name, span_kind, name);
