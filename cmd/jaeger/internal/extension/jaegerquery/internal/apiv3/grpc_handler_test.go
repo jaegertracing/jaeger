@@ -499,6 +499,39 @@ func TestGetDependencies(t *testing.T) {
 	assert.Equal(t, uint64(100), response.GetDependencies()[0].CallCount)
 }
 
+func TestGetDependenciesSortsLinks(t *testing.T) {
+	tsc := newTestServerClient(t)
+	endTime := time.Now().UTC()
+	lookback := 24 * time.Hour
+
+	// Returned in an order that is not sorted, mimicking the unstable map
+	// iteration order the storage layer builds dependency links from.
+	unsortedDeps := []model.DependencyLink{
+		{Parent: "frontend", Child: "redis", CallCount: 1},
+		{Parent: "backend", Child: "mysql", CallCount: 2},
+		{Parent: "frontend", Child: "backend", CallCount: 3},
+	}
+	tsc.depsReader.On("GetDependencies", matchContext, mock.Anything).
+		Return(unsortedDeps, nil).Once()
+
+	response, err := tsc.client.GetDependencies(context.Background(), &api_v3.GetDependenciesRequest{
+		StartTime: endTime.Add(-lookback),
+		EndTime:   endTime,
+	})
+	require.NoError(t, err)
+
+	got := make([][2]string, 0, len(response.GetDependencies()))
+	for _, d := range response.GetDependencies() {
+		got = append(got, [2]string{d.Parent, d.Child})
+	}
+	want := [][2]string{
+		{"backend", "mysql"},
+		{"frontend", "backend"},
+		{"frontend", "redis"},
+	}
+	assert.Equal(t, want, got)
+}
+
 func TestGetDependenciesStorageError(t *testing.T) {
 	tsc := newTestServerClient(t)
 	tsc.depsReader.On("GetDependencies", matchContext, mock.Anything).Return(
