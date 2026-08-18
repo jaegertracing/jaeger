@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"reflect"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -49,50 +50,59 @@ func fromPublicQuery(q queryinterceptor.Query) tracestore.TraceQueryParams {
 // OnResult, letting an interceptor carry per-query state (a resolved caller identity, say) from
 // the pre-query hook to the return path.
 //
-// The interceptors are shown the query in filter shape whatever shape it arrived in, because
-// gating a search means reading and narrowing its predicates and an interceptor should not have
-// to find them in two places. Nothing converts it back: the query service then chooses the
-// outgoing shape from what the reader declared, and a predicate an interceptor added is held to
-// the same capability check as one the caller sent.
+// The interceptors are shown the query in filter shape whatever shape it arrived in, because gating
+// a search means reading and narrowing its predicates, and an interceptor should not have to find
+// them in two places. A filter one of them leaves behind is not converted back: the query service
+// chooses the outgoing shape from what the reader declared, and a predicate an interceptor added is
+// held to the same capability check as one the caller sent.
 func (qs QueryService) onQuery(ctx context.Context, query TraceQueryParams) (context.Context, TraceQueryParams, error) {
-	asked := query
-	asked.TraceQueryParams = query.ToFilterShape()
-	public := toPublicQuery(asked.TraceQueryParams)
+	queryPreIntercept := toPublicQuery(query.ToFilterShape())
+	queryPostIntercept := queryPreIntercept
 	var err error
 	for _, interceptor := range qs.options.Interceptors {
-		ctx, public, err = interceptor.OnQuery(ctx, public)
+		ctx, queryPostIntercept, err = interceptor.OnQuery(ctx, queryPostIntercept)
 		if err != nil {
 			return ctx, query, err
 		}
 	}
-	finalized, err := finalizeInterceptorFilter(public.Filter, asked.Filter)
+
+	// A legacy query whose predicates no interceptor touched reaches storage as it arrived, carrying
+	// only the time range or search depth one of them may have narrowed. Converting it anyway would
+	// change the answer on a backend that searches a legacy attribute more widely than an unqualified
+	// filter reference — Elasticsearch reads the legacy tag search over the event location too, while
+	// the filter's unqualified default is span-or-resource (RFC 0005 §5.1) — and enabling an
+	// interceptor must not move a result set by itself.
+	if query.Filter == nil && reflect.DeepEqual(queryPostIntercept.Filter, queryPreIntercept.Filter) {
+		query.StartTimeMin = queryPostIntercept.StartTimeMin
+		query.StartTimeMax = queryPostIntercept.StartTimeMax
+		query.SearchDepth = queryPostIntercept.SearchDepth
+		return ctx, query, nil
+	}
+
+	// Finalized after that comparison, so finalizing's own rewriting cannot read as a change an
+	// interceptor made.
+	queryPostIntercept.Filter, err = finalizeInterceptorFilter(queryPostIntercept.Filter)
 	if err != nil {
 		return ctx, query, err
 	}
-	public.Filter = finalized
-	asked.TraceQueryParams = fromPublicQuery(public)
-	return ctx, asked, nil
+	query.TraceQueryParams = fromPublicQuery(queryPostIntercept)
+	return ctx, query, nil
 }
 
-// finalizeInterceptorFilter finalizes what an interceptor returns and rejects what it must not
-// hand to storage. An interceptor builds its filter by hand, in code jaeger-query does not control,
-// and a malformed tree is typically answered by a backend matching nothing rather than refusing —
-// so a search meant to be narrowed would come back wrong with nothing to say why.
+// finalizeInterceptorFilter finalizes the filter an interceptor returned and rejects what it must
+// not hand to storage. An interceptor builds its filter by hand, in code jaeger-query does not
+// control, and a malformed tree is typically answered by a backend matching nothing rather than
+// refusing — so a search meant to be narrowed would come back wrong with nothing to say why.
 //
-// Finalizing rather than only checking is what makes an interceptor's predicate the equal of a
-// caller's: `span.duration > "2s"` added here arrives at a backend as a length of time, the same as
-// one that came in over api_v3. Running it a second time on a filter the caller already sent
-// changes nothing, since finalizing is idempotent.
+// It finalizes rather than only validates, so that an interceptor's predicate reaches storage as the
+// equal of one a caller sent, having been through the same stage.
 //
-// Dropping the filter is refused separately, because it is the one mistake that fails open: a
-// search that arrived with predicates and leaves with none asks for every trace in the range.
-// It is only a mistake when there was something to drop, since a caller may legitimately search
-// a time range and nothing else.
-func finalizeInterceptorFilter(returned, asked *expression.Call) (*expression.Call, error) {
+// A nil filter here is the one mistake that fails open: a search that arrived with predicates and
+// leaves with none asks for every trace in the time range. Its caller returns before this point when
+// there were no predicates to begin with, since a caller may legitimately search a time range and
+// nothing else.
+func finalizeInterceptorFilter(returned *expression.Call) (*expression.Call, error) {
 	if returned == nil {
-		if asked == nil {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("%w: it returned no filter for a query that had predicates, which "+
 			"would widen the search to every trace in the time range", ErrInterceptorFilter)
 	}

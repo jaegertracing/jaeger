@@ -444,12 +444,92 @@ func filterCapableBackend() *tracestore.SearchCapabilities {
 	return &tracestore.SearchCapabilities{
 		WithoutServiceName: true,
 		Filter: &tracestore.FilterCapabilities{
-			Levels: []expression.Level{expression.LevelSpan},
+			Levels: []expression.Level{expression.LevelSpan, expression.LevelResource},
 			Operators: []expression.Operator{
 				expression.OpEq, expression.OpGt, expression.OpLt, expression.OpIn,
 			},
 		},
 	}
+}
+
+// TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt pins that enabling an interceptor does
+// not move a result set by itself. A legacy query is shown to the interceptor as a filter, and an
+// interceptor that returns it unchanged has said nothing about how it should reach storage — so the
+// legacy query is dispatched as it arrived. It matters because a backend may search a legacy
+// attribute more widely than an unqualified filter reference: Elasticsearch reads the legacy tag
+// search over the event location too, while the filter's unqualified default is span-or-resource.
+func TestFindTraces_LeavesALegacyQueryAloneWhenNothingChangedIt(t *testing.T) {
+	t.Run("an interceptor that changes nothing", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		next.capabilities = filterCapableBackend()
+		qs := interceptedService(next, fakeInterceptor{})
+
+		attributes := pcommon.NewMap()
+		attributes.PutStr("http.route", "/cart")
+		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			ServiceName: "cart",
+			Attributes:  attributes,
+		})))
+		require.NoError(t, err)
+		assert.Nil(t, next.gotQuery.Filter, "storage was given the legacy query it would have had")
+		assert.Equal(t, "cart", next.gotQuery.ServiceName)
+		assert.Equal(t, "/cart", next.gotQuery.Attributes.AsRaw()["http.route"])
+	})
+
+	t.Run("an interceptor that narrows the filter", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		next.capabilities = filterCapableBackend()
+		narrowed := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
+			&expression.StringValue{Value: "gated"},
+		}}
+		qs := interceptedService(next, fakeInterceptor{onQuery: narrowTo(narrowed)})
+
+		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			ServiceName: "cart",
+		})))
+		require.NoError(t, err)
+		assert.Equal(t, narrowed, next.gotQuery.Filter, "the interceptor's filter is what storage gets")
+	})
+
+	t.Run("an interceptor that changes only the envelope", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		next.capabilities = filterCapableBackend()
+		qs := interceptedService(next, fakeInterceptor{
+			onQuery: func(q queryinterceptor.Query) (queryinterceptor.Query, error) {
+				q.SearchDepth = 7
+				return q, nil
+			},
+		})
+
+		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			ServiceName: "cart",
+		})))
+		require.NoError(t, err)
+		assert.Nil(t, next.gotQuery.Filter, "the predicates are still the legacy ones")
+		assert.Equal(t, "cart", next.gotQuery.ServiceName)
+		assert.Equal(t, 7, next.gotQuery.SearchDepth, "the envelope change survives")
+	})
+
+	t.Run("a caller's own filter is unaffected by the rule", func(t *testing.T) {
+		enableStructuredFilters(t)
+		next := &fakeReader{batch: tracesWith("k", "v")}
+		next.capabilities = filterCapableBackend()
+		qs := interceptedService(next, fakeInterceptor{})
+
+		filter := &expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+			&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
+			&expression.AnyValue{Value: "cart"},
+		}}
+		_, err := collectTraces(qs.FindTraces(t.Context(), searchQuery(tracestore.TraceQueryParams{
+			Filter: filter,
+		})))
+		require.NoError(t, err)
+		require.NotNil(t, next.gotQuery.Filter, "a filter the caller sent stays a filter")
+	})
 }
 
 // TestFindTraces_FinalizesAnInterceptorFilter pins that a predicate an interceptor adds reaches

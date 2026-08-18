@@ -78,10 +78,6 @@ func (s *server) Start(ctx context.Context, host component.Host) error {
 		return fmt.Errorf("cannot create trace reader: %w", err)
 	}
 
-	// Resolve any configured query-interceptor extensions from the host and hand them to the
-	// query service below. This is the Option-D extension point: jaeger-query invokes a
-	// caller-supplied plugin (an OTel extension) around every trace query — gating the query and
-	// sanitizing the results — without exposing the storage Reader itself.
 	interceptors, err := queryinterceptor.Resolve(host, s.config.QueryInterceptors)
 	if err != nil {
 		return fmt.Errorf("cannot resolve query interceptors: %w", err)
