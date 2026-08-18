@@ -104,7 +104,8 @@ func TestTracingMiddlewareToolCallResultError(t *testing.T) {
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
-	assert.Equal(t, codes.Unset, spanData.Status.Code)
+	assert.Equal(t, codes.Error, spanData.Status.Code)
+	assert.Equal(t, "invalid pattern", spanData.Status.Description)
 }
 
 func TestTracingMiddlewareTracesNonToolMethods(t *testing.T) {
@@ -191,7 +192,8 @@ func TestTracingMiddlewareToolCallResultErrorWithoutConcreteError(t *testing.T) 
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIToolName("").Key), "get_services")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.GenAIOperationNameExecuteTool.Key), "execute_tool")
 	assertHasStringAttribute(t, spanData.Attributes, string(otelsemconv.ErrorType("").Key), errorTypeTool)
-	assert.Equal(t, codes.Unset, spanData.Status.Code)
+	assert.Equal(t, codes.Error, spanData.Status.Code)
+	assert.Equal(t, "tool returned an error result", spanData.Status.Description)
 }
 
 func TestTracingMiddlewareUsesTraceContextFromRequestMeta(t *testing.T) {
