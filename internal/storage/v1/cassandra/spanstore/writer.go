@@ -259,9 +259,8 @@ func (s *SpanWriter) indexByOperation(span *dbmodel.Span) error {
 // shouldIndexTag checks to see if the tag is json or not, if it's UTF8 valid and it's not too large
 func (*SpanWriter) shouldIndexTag(tag dbmodel.TagInsertion) bool {
 	isJSON := func(s string) bool {
-		var js json.RawMessage
 		// poor man's string-is-a-json check shortcircuits full unmarshalling
-		return strings.HasPrefix(s, "{") && json.Unmarshal([]byte(s), &js) == nil
+		return strings.HasPrefix(s, "{") && json.Valid([]byte(s))
 	}
 
 	return len(tag.TagKey) < maximumTagKeyOrValueSize &&
