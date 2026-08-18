@@ -60,9 +60,9 @@ type Span struct {
 	Tag     map[string]any `json:"tag,omitempty"`
 	Logs    []Log          `json:"logs"`
 	Process Process        `json:"process"`
-	// Timestamp is epoch nanoseconds as a decimal string, written only for data
-	// streams (mapped as date_nanos). Using a string avoids JSON float64 truncation
-	// of large int64 nanosecond values; legacy strategies leave it empty.
+	// Timestamp is the span's start time as an RFC 3339 string, written only on the
+	// data stream path; other rotation strategies leave it empty. It has to be the
+	// string form rather than a number (RFC 0004 §3.3).
 	Timestamp string `json:"@timestamp,omitempty"`
 }
 
