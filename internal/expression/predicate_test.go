@@ -77,7 +77,7 @@ func TestLowering(t *testing.T) {
 			built: p.Span().Duration.Gte(2 * time.Second),
 			want: &ast.Call{Op: ast.OpGte, Args: []ast.Expression{
 				&ast.FieldRef{Name: ast.SpanFieldDuration, Level: ast.LevelSpan},
-				&ast.DurationValue{Value: 2 * time.Second},
+				&ast.AnyValue{Value: "2s"},
 			}},
 		},
 		{
@@ -85,7 +85,7 @@ func TestLowering(t *testing.T) {
 			built: p.Span().StartTime.Lt(time.Date(2026, 8, 16, 18, 56, 20, 0, time.UTC)),
 			want: &ast.Call{Op: ast.OpLt, Args: []ast.Expression{
 				&ast.FieldRef{Name: ast.SpanFieldStartTime, Level: ast.LevelSpan},
-				&ast.TimestampValue{Value: time.Date(2026, 8, 16, 18, 56, 20, 0, time.UTC)},
+				&ast.AnyValue{Value: "2026-08-16T18:56:20Z"},
 			}},
 		},
 		{
@@ -145,7 +145,7 @@ func TestLowering(t *testing.T) {
 					}},
 					&ast.Call{Op: ast.OpGt, Args: []ast.Expression{
 						&ast.FieldRef{Name: ast.EventFieldTimeSinceStart, Level: ast.LevelEvent},
-						&ast.DurationValue{Value: 50 * time.Microsecond},
+						&ast.AnyValue{Value: "50µs"},
 					}},
 				}},
 			}},
@@ -206,35 +206,33 @@ func TestCompareTakesTheOperatorAtRunTime(t *testing.T) {
 	assert.Equal(t, ref.NotIn(p.List(ast.ValueTypeInt, 1)), p.Compare(ast.OpNotIn, ref, p.List(ast.ValueTypeInt, 1)))
 }
 
-// TestConstantCarriesTheGoType covers the node a Go value is compared as. The AST holds a typed
-// constant, so the builder writes the type the caller already stated by choosing a Go type; only
-// a string leaves it open, which is what matches a value in whatever form it was stored.
-func TestConstantCarriesTheGoType(t *testing.T) {
+// TestConstantLeavesTheTypeOpen covers the node a Go value is compared as. Whatever Go type the
+// caller wrote, the constant carries no declared type: a declared one is authoritative, so typing a
+// Go int would ask only for integer storage and quietly drop the same number kept as a double
+// (RFC 0005 §5.4). Narrowing is available where it is meant, through Text and List.
+func TestConstantLeavesTheTypeOpen(t *testing.T) {
 	tests := []struct {
 		name  string
 		built *ast.Call
 		want  ast.Expression
 	}{
-		{"integer", p.Attr("size").Gt(500), &ast.IntValue{Value: 500}},
-		{"unsigned integer", p.Attr("size").Lte(uint8(7)), &ast.IntValue{Value: 7}},
+		{"integer", p.Attr("size").Gt(500), &ast.AnyValue{Value: "500"}},
+		{"unsigned integer", p.Attr("size").Lte(uint8(7)), &ast.AnyValue{Value: "7"}},
 		{"unsigned integer past the signed range", p.Attr("size").Lte(uint64(math.MaxUint64)), &ast.AnyValue{Value: "18446744073709551615"}},
-		{"float", p.Attr("ratio").Lt(1.5), &ast.DoubleValue{Value: 1.5}},
-		{"32-bit float", p.Attr("ratio").Gte(float32(0.5)), &ast.DoubleValue{Value: 0.5}},
-		{"boolean", p.Attr("ok").Gt(true), &ast.BoolValue{Value: true}},
-		{"duration", p.Attr("d").Gt(time.Second), &ast.DurationValue{Value: time.Second}},
-		{"instant", p.Attr("t").Gt(time.Unix(0, 0).UTC()), &ast.TimestampValue{Value: time.Unix(0, 0).UTC()}},
+		{"float", p.Attr("ratio").Lt(1.5), &ast.AnyValue{Value: "1.5"}},
+		{"32-bit float", p.Attr("ratio").Gte(float32(0.5)), &ast.AnyValue{Value: "0.5"}},
+		{"boolean", p.Attr("ok").Eq(true), &ast.AnyValue{Value: "true"}},
+		{"duration", p.Attr("d").Gt(time.Second), &ast.AnyValue{Value: "1s"}},
+		{"instant", p.Attr("t").Gt(time.Unix(0, 0).UTC()), &ast.AnyValue{Value: "1970-01-01T00:00:00Z"}},
+		{"string", p.Attr("size").Eq("500"), &ast.AnyValue{Value: "500"}},
+		{"a value with no Go rendering of its own", p.Attr("ids").Eq([]int{1, 2}), &ast.AnyValue{Value: "[1 2]"}},
 
-		// Equality and membership leave the type open, whatever Go type carried the value, so a
-		// key stored as text still matches (RFC 0005 §5.4). A duration keeps the syntax
-		// ResolveConstants reads it back from.
-		{"an integer under equality", p.Attr("size").Eq(500), &ast.AnyValue{Value: "500"}},
-		{"a boolean under equality", p.Attr("ok").Eq(true), &ast.AnyValue{Value: "true"}},
-		{"a duration under equality", p.Attr("d").Eq(time.Second), &ast.AnyValue{Value: "1s"}},
-		{"a string is always open", p.Attr("size").Eq("500"), &ast.AnyValue{Value: "500"}},
-		{"an instant under equality", p.Attr("t").Eq(time.Unix(0, 0).UTC()), &ast.AnyValue{Value: "1970-01-01T00:00:00Z"}},
-		{"a value with no Go spelling of its own", p.Attr("ids").Eq([]int{1, 2}), &ast.AnyValue{Value: "[1 2]"}},
-		{"a string under an ordered comparison", p.Attr("v").Gt("1.2.3"), &ast.AnyValue{Value: "1.2.3"}},
-		{"a value of no filter type at all", p.Attr("ids").Gt([]int{1, 2}), &ast.AnyValue{Value: "[1 2]"}},
+		// A built-in field resolves an untyped constant to its own type, so the same value written
+		// against a field arrives as that field's type after Finalize rather than here.
+		{"a duration against the field that holds one", p.Span().Duration.Gt(2 * time.Second), &ast.AnyValue{Value: "2s"}},
+
+		// Narrowing on purpose, which is the one way to get a typed node.
+		{"text asked for explicitly", p.Attr("size").Eq(p.Text("500")), &ast.StringValue{Value: "500"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -243,25 +241,84 @@ func TestConstantCarriesTheGoType(t *testing.T) {
 	}
 }
 
-// TestListElementSpelling covers how a Go value is written into a list, whose elements stay
-// spellings because that is what the AST holds them as.
-func TestListElementSpelling(t *testing.T) {
+// TestListDeclaresItsElementType covers where a list's element type comes from. Compared against an
+// attribute it has to declare one, because nothing else does and the AST requires it; compared
+// against a built-in field it declares none, since the field's own type says how to read the
+// elements — which is also the only way to write a list of durations, the wire having no duration
+// type (RFC 0005 §5.4).
+func TestListDeclaresItsElementType(t *testing.T) {
+	tests := []struct {
+		name  string
+		built *ast.Call
+		want  *ast.List
+	}{
+		{
+			name:  "strings against an attribute",
+			built: p.Attr("k").In("cart", "checkout"),
+			want:  &ast.List{Values: []string{"cart", "checkout"}, Type: ast.ValueTypeString},
+		},
+		{
+			name:  "integers against an attribute",
+			built: p.Attr("size").In(1, 2),
+			want:  &ast.List{Values: []string{"1", "2"}, Type: ast.ValueTypeInt},
+		},
+		{
+			name:  "floating-point numbers against an attribute",
+			built: p.Attr("ratio").In(1.5, float32(0.5)),
+			want:  &ast.List{Values: []string{"1.5", "0.5"}, Type: ast.ValueTypeDouble},
+		},
+		{
+			name:  "booleans against an attribute",
+			built: p.Attr("ok").In(true, false),
+			want:  &ast.List{Values: []string{"true", "false"}, Type: ast.ValueTypeBool},
+		},
+		{
+			name:  "mixed kinds, which read as text",
+			built: p.Attr("k").In("cart", 500),
+			want:  &ast.List{Values: []string{"cart", "500"}, Type: ast.ValueTypeString},
+		},
+		{
+			name:  "durations against the field that holds them",
+			built: p.Span().Duration.In(2*time.Second, 3*time.Second),
+			want:  &ast.List{Values: []string{"2s", "3s"}},
+		},
+		{
+			name:  "words against the field that holds them",
+			built: p.Span().Kind.NotIn("client", "server"),
+			want:  &ast.List{Values: []string{"client", "server"}},
+		},
+		{
+			name:  "a list built outright, which says its own type",
+			built: p.Attr("size").In(p.List(ast.ValueTypeInt, 1, 2)),
+			want:  &ast.List{Values: []string{"1", "2"}, Type: ast.ValueTypeInt},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, test.built.Args[1])
+		})
+	}
+}
+
+// TestListElementText covers how a Go value is written into a list, whose elements stay text
+// because that is what the AST holds them as. These are of mixed kinds, so the list reads as text.
+func TestListElementText(t *testing.T) {
 	instant := time.Date(2026, 8, 16, 18, 56, 20, 0, time.UTC)
 	assert.Equal(t,
 		&ast.List{Values: []string{
 			"cart", "500", "1.5", "0.5", "true", "2s", "2026-08-16T18:56:20Z",
-		}},
+		}, Type: ast.ValueTypeString},
 		p.Attr("k").In("cart", 500, 1.5, float32(0.5), true, 2*time.Second, instant).Args[1])
 }
 
-// TestValueWithoutOwnSpelling covers a value the builder has no case for. It is rendered rather
-// than refused, because a constant of no declared type carries a spelling whatever it holds.
-func TestValueWithoutOwnSpelling(t *testing.T) {
+// TestValueWithoutOwnRendering covers a value the builder has no case for. It is rendered rather
+// than refused, because an untyped constant carries text whatever it holds.
+func TestValueWithoutOwnRendering(t *testing.T) {
 	assert.Equal(t,
 		&ast.AnyValue{Value: "[1 2]"},
 		p.Attr("ids").Eq([]int{1, 2}).Args[1])
 	assert.Equal(t,
-		&ast.List{Values: []string{"[1 2]"}},
+		&ast.List{Values: []string{"[1 2]"}, Type: ast.ValueTypeString},
 		p.Attr("ids").In([]int{1, 2}).Args[1])
 }
 

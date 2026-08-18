@@ -29,7 +29,6 @@ package expression
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"strconv"
 	"time"
@@ -278,19 +277,11 @@ func (r Ref) In(values ...any) *ast.Call { return r.member(ast.OpIn, values) }
 func (r Ref) NotIn(values ...any) *ast.Call { return r.member(ast.OpNotIn, values) }
 
 func (r Ref) compare(op ast.Operator, value any) *ast.Call {
-	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, operand(value, isOrdered(op))}}
-}
-
-// isOrdered reports whether an operator reads its operand as a number or an instant. Only those
-// declare a constant's type: equality and membership leave it open so they match the value in
-// whatever form a backend stored it (RFC 0005 §5.4), and a constant compared against a built-in
-// field is typed later anyway, by ResolveConstants.
-func isOrdered(op ast.Operator) bool {
-	return op == ast.OpGt || op == ast.OpLt || op == ast.OpGte || op == ast.OpLte
+	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, operand(value)}}
 }
 
 func (r Ref) member(op ast.Operator, values []any) *ast.Call {
-	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, listOperand(values)}}
+	return &ast.Call{Op: op, Args: []ast.Expression{r.ref, r.list(values)}}
 }
 
 func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
@@ -311,85 +302,75 @@ func combine(op ast.Operator, predicates []*ast.Call) *ast.Call {
 	return &ast.Call{Op: op, Args: args}
 }
 
-// operand reads the right-hand side of a comparison. Another reference or an already-built term
-// is compared as it stands, which is what lets a query compare two references.
-func operand(value any, typed bool) ast.Expression {
+// operand reads the right-hand side of a comparison. Another reference or an already-built term is
+// compared as it stands, which is what lets a query compare two references and what Text uses to
+// narrow a match to text.
+//
+// Everything else becomes an untyped constant, whatever its Go type. A declared type is
+// authoritative — `int` matches only what storage kept as an integer — and a Go literal says
+// nothing about that: `Attr("size").Gt(500)` asks about the number 500, not about integer storage,
+// and typing it would quietly drop a size recorded as 500.0 (RFC 0005 §5.4).
+func operand(value any) ast.Expression {
 	switch term := value.(type) {
 	case Ref:
 		return term.ref
 	case ast.Expression:
 		return term
 	}
-	if !typed {
-		return &ast.AnyValue{Value: spelling(value)}
-	}
-	return constant(value)
+	return &ast.AnyValue{Value: render(value)}
 }
 
-// spelling writes a Go value the way a constant carries it, for the operators that leave the
-// type open. A duration and an instant keep the syntax their built-in fields are compared in, so
-// ResolveConstants can still read them.
-func spelling(value any) string {
-	switch term := value.(type) {
-	case string:
-		return term
-	case time.Duration:
-		return term.String()
-	case time.Time:
-		return term.Format(time.RFC3339Nano)
-	default:
-		return fmt.Sprint(value)
-	}
-}
-
-// constant reads a Go value as the constant node carrying it. A string becomes an untyped
-// constant rather than a text one, so it matches the value in whatever form it was stored (RFC
-// 0005 §5.4) and a duration or an instant written out by hand still reaches
-// ast.ResolveConstants.
-func constant(value any) ast.Expression {
-	switch term := value.(type) {
-	case string:
-		return &ast.AnyValue{Value: term}
-	case bool:
-		return &ast.BoolValue{Value: term}
-	case time.Duration:
-		return &ast.DurationValue{Value: term}
-	case time.Time:
-		return &ast.TimestampValue{Value: term}
-	}
-	// Every integer and floating-point width reaches the same two nodes, so they are read by
-	// kind rather than as a dozen cases spelling out the same conversion.
-	switch reflected := reflect.ValueOf(value); reflected.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return &ast.IntValue{Value: reflected.Int()}
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return unsignedConstant(reflected.Uint())
-	case reflect.Float32, reflect.Float64:
-		return &ast.DoubleValue{Value: reflected.Float()}
-	}
-	return &ast.AnyValue{Value: fmt.Sprint(value)}
-}
-
-// unsignedConstant reads an unsigned integer, which the AST holds as a signed one. A value the
-// signed node cannot hold keeps its decimal spelling instead of being wrapped into a negative
-// number.
-func unsignedConstant(value uint64) ast.Expression {
-	if value > math.MaxInt64 {
-		return &ast.AnyValue{Value: strconv.FormatUint(value, 10)}
-	}
-	return &ast.IntValue{Value: int64(value)}
-}
-
-// listOperand reads the right-hand side of In or NotIn. A list built by List is taken as it
-// stands, which is how a caller declares the element type; anything else becomes a list whose
-// elements have no declared type.
-func listOperand(values []any) *ast.List {
+// list reads the right-hand side of In or NotIn. A list built by List is taken as it stands, which
+// is how a caller declares the element type outright.
+//
+// Otherwise the type comes from what the list is compared against: a built-in field declares one
+// already, so the list needs none, while an attribute declares nothing and every list has to have
+// one (RFC 0005 §5.4). There the type follows the Go values, which is the only statement of intent
+// available — and unlike a lone constant, a list cannot decline to make one.
+func (r Ref) list(values []any) *ast.List {
 	if len(values) == 1 {
 		if list, ok := values[0].(*ast.List); ok {
 			return list
 		}
 	}
-	return &ast.List{Values: renderAll(values), Type: ""}
+	elements := renderAll(values)
+	if _, ok := r.ref.(*ast.FieldRef); ok {
+		return &ast.List{Values: elements}
+	}
+	return &ast.List{Values: elements, Type: elementType(values)}
+}
+
+// elementType names the type a set of Go values was written as. Mixed kinds and anything that is
+// not a number or a boolean read as text, which is what a rendered value is.
+func elementType(values []any) ast.ValueType {
+	kinds := make(map[ast.ValueType]bool, len(values))
+	for _, value := range values {
+		kinds[valueType(value)] = true
+	}
+	if len(kinds) == 1 {
+		for only := range kinds {
+			return only
+		}
+	}
+	return ast.ValueTypeString
+}
+
+func valueType(value any) ast.ValueType {
+	if _, ok := value.(bool); ok {
+		return ast.ValueTypeBool
+	}
+	// Every integer and floating-point width reaches the same two types, so they are read by kind
+	// rather than as a dozen cases naming the same answer. A duration and an instant are text: the
+	// wire has no type for either, and only a built-in field's own type can rebuild them.
+	switch reflect.ValueOf(value).Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return ast.ValueTypeInt
+	case reflect.Float32, reflect.Float64:
+		return ast.ValueTypeDouble
+	default:
+		return ast.ValueTypeString
+	}
 }
 
 func renderAll(values []any) []string {
