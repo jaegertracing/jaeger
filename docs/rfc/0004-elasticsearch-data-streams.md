@@ -192,10 +192,11 @@ This overrides Jaeger's default policy without touching any Jaeger config or ris
 
 Data streams require a `@timestamp` field mapped as `date` or `date_nanos`.
 
-Recommendation: Add `@timestamp` as a field in the document at write time (in Go code), derived from the span's start time. No ingest pipeline needed.
+Recommendation: Add `@timestamp` as a field in the document at write time (in Go code), derived from the OTLP `StartTimestamp` at nanosecond precision. No ingest pipeline needed.
 
 Rationale:
-- Jaeger stores `startTime` as epoch microseconds, and a plain `date` field is millisecond precision, so it would truncate. `date_nanos` keeps the microseconds.
+- OTLP defines timestamps in nanoseconds; truncating to milliseconds loses precision unnecessarily.
+- ES/OpenSearch `date_nanos` type stores nanosecond precision; `date` stores milliseconds.
 - Ingest pipelines add operational complexity and a failure point.
 - Avoids dependency on ES ingest nodes (relevant for cost in licensed ES/ECK deployments).
 
@@ -211,7 +212,9 @@ The field is added to the mapping component template:
 }
 ```
 
-The value is written as an RFC 3339 string rather than a number. `date_nanos` defaults to `strict_date_optional_time_nanos||epoch_millis` on Elasticsearch and `strict_date_optional_time||epoch_millis` on OpenSearch, and both read a bare number as epoch *milliseconds*: the epoch-nanosecond value this RFC originally proposed lands far past the type's 2262 upper bound and gets the document rejected. Both defaults accept an RFC 3339 string at full precision, so no explicit `format` restriction is needed and users can still index documents manually or query with human-readable timestamps in Kibana/Grafana.
+The value is written as an RFC 3339 string rather than a number. `date_nanos` defaults to `strict_date_optional_time_nanos||epoch_millis` on Elasticsearch and `strict_date_optional_time||epoch_millis` on OpenSearch, and neither engine has an `epoch_nanos` format at all, so a bare number is always read as epoch *milliseconds*. That is why this RFC's original proposal to write epoch nanoseconds does not work: such a value lands far past the type's 2262 upper bound and the document is rejected.
+
+Both defaults accept an RFC 3339 string at full precision, so no explicit `format` restriction is needed and users can still index documents manually or query with human-readable timestamps in Kibana/Grafana.
 
 Note: The existing `startTime` (microseconds) and `startTimeMillis` fields remain for backward compatibility with queries. `@timestamp` is used exclusively by the data stream machinery for rollover and time-based partitioning.
 

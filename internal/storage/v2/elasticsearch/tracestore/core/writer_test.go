@@ -409,7 +409,10 @@ func TestSpanDocID(t *testing.T) {
 }
 
 func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
-	date := time.Date(2024, time.June, 18, 10, 0, 0, 0, time.UTC)
+	// The sub-second digits are the point of the fixture: they survive
+	// TimeAsEpochMicroseconds exactly (123456000 nanoseconds is 123456 microseconds),
+	// and a whole-second format would pass against a fixture that had none.
+	date := time.Date(2024, time.June, 18, 10, 0, 0, 123456000, time.UTC)
 
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
@@ -424,13 +427,12 @@ func TestWriteSpan_DataStreamTimestamp(t *testing.T) {
 	spans := []dbmodel.Span{{TraceID: "abc", SpanID: "def", StartTime: model.TimeAsEpochMicroseconds(date)}}
 	require.NoError(t, writer.WriteSpans(context.Background(), spans))
 
-	// The exact format is load-bearing rather than cosmetic; see the reason on
-	// dbmodel.Span.Timestamp. Pinning it here is what makes a revert to epoch
-	// nanoseconds fail without needing a live backend.
-	assert.Equal(t, date.Format(time.RFC3339Nano), spans[0].Timestamp)
+	// Literals rather than Format calls, so the assertion can disagree with the
+	// implementation instead of restating its formula.
+	assert.Equal(t, "2024-06-18T10:00:00.123456Z", spans[0].Timestamp)
 	out, err := json.Marshal(spans[0])
 	require.NoError(t, err)
-	assert.Contains(t, string(out), `"@timestamp":"`+date.Format(time.RFC3339Nano)+`"`)
+	assert.Contains(t, string(out), `"@timestamp":"2024-06-18T10:00:00.123456Z"`)
 }
 
 func TestWriteSpan_LegacyOmitsTimestamp(t *testing.T) {
