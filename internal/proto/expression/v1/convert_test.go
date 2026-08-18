@@ -236,6 +236,35 @@ func TestFromProto_ConstantNotOfItsDeclaredType(t *testing.T) {
 	}
 }
 
+// TestFromProto_BoundsNesting pins that decoding stops at the AST's own depth bound. It matters
+// here more than anywhere: decoding runs before anything has validated the tree, so a wire message
+// nested thousands deep would exhaust the stack on the way in, which is not a refusal a caller can
+// be given.
+func TestFromProto_BoundsNesting(t *testing.T) {
+	nested := func(depth int) *Call {
+		filter := &Call{Op: string(expression.OpExists), Args: []*Expression{
+			{Term: &Expression_Attr{Attr: &AttributeReference{Key: "a"}}},
+		}}
+		for range depth - 1 {
+			filter = &Call{Op: string(expression.OpNot), Args: []*Expression{
+				{Term: &Expression_Call{Call: filter}},
+			}}
+		}
+		return filter
+	}
+
+	decoded, err := FromProto(nested(expression.MaxNestingDepth))
+	require.NoError(t, err)
+	assert.NotNil(t, decoded)
+
+	_, err = FromProto(nested(expression.MaxNestingDepth + 1))
+	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
+
+	// A tree far past the bound is refused as quickly as one just past it, rather than walked.
+	_, err = FromProto(nested(5000))
+	require.ErrorIs(t, err, expression.ErrTooDeeplyNested)
+}
+
 // TestToProto_RefusesATermItCannotWrite covers the terms with no wire form: a missing one, and a
 // nil pointer of a term type. An empty oneof arm decodes as an argument with no term, so writing
 // one would hand the receiver a different filter instead of an error.

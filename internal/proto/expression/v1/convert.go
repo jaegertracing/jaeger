@@ -28,12 +28,23 @@ import (
 // It says nothing about what a backend can serve either; that is what a backend's declared
 // capabilities are for.
 func FromProto(filter *Call) (*expression.Call, error) {
+	return decodeCall(filter, 1)
+}
+
+// decodeCall decodes one call, depth calls deep counting itself. The bound is the AST's own
+// (expression.MaxNestingDepth), applied here because decoding walks the message before anything has
+// validated it: a wire tree nested thousands deep would otherwise exhaust the stack on the way in,
+// which is not a refusal a caller can be given.
+func decodeCall(filter *Call, depth int) (*expression.Call, error) {
 	if filter == nil {
 		return nil, nil
 	}
+	if depth > expression.MaxNestingDepth {
+		return nil, expression.ErrTooDeeplyNested
+	}
 	args := make([]expression.Expression, 0, len(filter.GetArgs()))
 	for _, arg := range filter.GetArgs() {
-		expr, err := toFilterExpression(arg)
+		expr, err := toFilterExpression(arg, depth)
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +56,7 @@ func FromProto(filter *Call) (*expression.Call, error) {
 	}, nil
 }
 
-func toFilterExpression(expr *Expression) (expression.Expression, error) {
+func toFilterExpression(expr *Expression, depth int) (expression.Expression, error) {
 	switch term := expr.GetTerm().(type) {
 	case *Expression_Attr:
 		return &expression.AttributeRef{
@@ -69,7 +80,7 @@ func toFilterExpression(expr *Expression) (expression.Expression, error) {
 			Type:   expression.ValueType(term.List.GetType()),
 		}, nil
 	case *Expression_Call:
-		nested, err := FromProto(term.Call)
+		nested, err := decodeCall(term.Call, depth+1)
 		if err != nil {
 			return nil, err
 		}
