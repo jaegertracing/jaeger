@@ -199,21 +199,46 @@ var ErrTermNotEncodable = errors.New("filter term cannot be encoded for the wire
 // duration and an instant have no hint of their own, so they travel as an unhinted constant in
 // the syntax the field they are compared against is written in — Go duration syntax and RFC 3339
 // — which is the spelling the receiving side reads them back from.
+// It returns nil for a term that is not a constant, and for a constant that holds nothing: a nil
+// pointer of a constant type reads through the Expression interface as a constant of that type, and
+// reading its value would panic. The caller answers a nil with ErrTermNotEncodable, which is what a
+// tree carrying one deserves.
 func fromFilterConstant(expr expression.Expression) *Scalar {
 	switch term := expr.(type) {
 	case *expression.AnyValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: term.Value}
 	case *expression.StringValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: term.Value, Type: string(expression.ValueTypeString)}
 	case *expression.IntValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: strconv.FormatInt(term.Value, 10), Type: string(expression.ValueTypeInt)}
 	case *expression.DoubleValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: strconv.FormatFloat(term.Value, 'g', -1, 64), Type: string(expression.ValueTypeDouble)}
 	case *expression.BoolValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: strconv.FormatBool(term.Value), Type: string(expression.ValueTypeBool)}
 	case *expression.DurationValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: term.Value.String()}
 	case *expression.TimestampValue:
+		if term == nil {
+			return nil
+		}
 		return &Scalar{Value: term.Value.Format(time.RFC3339Nano)}
 	default:
 		return nil

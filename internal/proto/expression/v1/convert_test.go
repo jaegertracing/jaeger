@@ -247,6 +247,13 @@ func TestToProto_RefusesATermItCannotWrite(t *testing.T) {
 		"a nil collection":          (*expression.NestedRef)(nil),
 		"a nil list":                (*expression.List)(nil),
 		"a nil call":                (*expression.Call)(nil),
+		"a nil untyped constant":    (*expression.AnyValue)(nil),
+		"a nil string constant":     (*expression.StringValue)(nil),
+		"a nil integer constant":    (*expression.IntValue)(nil),
+		"a nil double constant":     (*expression.DoubleValue)(nil),
+		"a nil boolean constant":    (*expression.BoolValue)(nil),
+		"a nil duration constant":   (*expression.DurationValue)(nil),
+		"a nil timestamp constant":  (*expression.TimestampValue)(nil),
 	}
 	for name, term := range terms {
 		t.Run(name, func(t *testing.T) {
@@ -260,6 +267,19 @@ func TestToProto_RefusesATermItCannotWrite(t *testing.T) {
 		&expression.AttributeRef{Key: "a"}, nil,
 	}})
 	require.ErrorIs(t, err, ErrTermNotEncodable)
+
+	// Through ToProto rather than the term encoder, since a constant that holds nothing used to
+	// panic here rather than be refused.
+	for name, term := range terms {
+		t.Run("through ToProto: "+name, func(t *testing.T) {
+			require.NotPanics(t, func() {
+				_, err := ToProto(&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+					&expression.AttributeRef{Key: "a"}, term,
+				}})
+				require.ErrorIs(t, err, ErrTermNotEncodable)
+			})
+		})
+	}
 }
 
 // mustToProto encodes a filter the test means to be encodable.
