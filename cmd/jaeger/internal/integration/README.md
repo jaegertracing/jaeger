@@ -150,6 +150,28 @@ subgraph Remote Storage Backend
 end
 ```
 
+## Assumptions
+
+These e2e tests start the `jaeger-e2e` binary (not the user-facing `jaeger`
+binary) so the `storagecleaner` extension is available. Unless a storage test
+overrides ports, the following defaults apply:
+
+| Endpoint | Default port | Role |
+|----------|--------------|------|
+| OTLP gRPC receiver | `4317` | Span writes from the test process |
+| Query gRPC (`jaeger_query`) | see `ports` package / storage config | Span reads |
+| Metrics | `8888` (`MetricsPort`) | Collector metrics scrape |
+| Storage cleaner | HTTP `POST /purge` on the cleaner extension | Wipe storage between cases |
+
+Storage-specific tests may run extra processes (for example Kafka, remote
+storage, or a second binary) and override `MetricsPort`, `HealthCheckPort`,
+`ConfigFile`, or `BinaryPath` on `E2EStorageIntegration`. Prefer the defaults
+in each `*_test.go` file when debugging a single backend.
+
+Configs under `/cmd/jaeger/` are used as the base collector configuration; the
+test harness injects the storage cleaner extension into that config before
+starting the binary.
+
 ## Running tests locally
 
 You can run integration tests locally with the following command:
@@ -166,3 +188,6 @@ where the storage name can be one of the following:
 * kafka
 * memory_v2
 * query
+
+CI also exercises these flows via the `ci-e2e-*.yml` workflows under
+`.github/workflows/`. Shell helpers used by some jobs live in `scripts/e2e/`.
