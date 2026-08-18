@@ -256,8 +256,10 @@ message FindSpansResponse {
     // which one to read before it sends the query.
   }
 
-  // Set on the final chunk of a page; empty when there are no more pages
-  // (RFC 0014 §4).
+  // The cursor to send as the next request's page_token, or empty when this page
+  // is the last one (RFC 0014 §4). It is meaningful only on the page's final
+  // chunk: a client reads it from the last chunk of the stream and ignores the
+  // field on the earlier chunks, which leave it unset.
   string next_page_token = 3;
 }
 ```
@@ -286,8 +288,10 @@ rpc FindSpans(FindSpansRequest) returns (stream FindSpansResponse) {
 // page; such readers embed UnsupportedSpanSearch for the patterns they lack.
 FindSpans(ctx context.Context, query SpanQueryParams) iter.Seq2[SpanPage, error]
 
-// SpanPage is one chunk of a page of span results. NextPageToken is set on the
-// final chunk of each page and empty on the others.
+// SpanPage is one chunk of a page of span results. NextPageToken is meaningful
+// only on the page's final chunk, where an empty value means this page is the
+// last; the earlier chunks leave it unset, so a caller reads it from the last
+// chunk the iterator yields.
 type SpanPage struct {
     Spans         ptrace.Traces
     NextPageToken string
