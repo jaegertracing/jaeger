@@ -235,9 +235,22 @@ func (s *SpanReader) buildMembership(predicate *expression.Call) (esquery.Query,
 	if err != nil {
 		return nil, err
 	}
+	// Each element is read as the type the list is read at, which the AST answers rather than this
+	// package: the type the list declares, or the type of the built-in field it is compared against.
+	// A list beside an attribute always declares one, so no field type is passed for that case.
+	var fieldType expression.FieldType
+	if !ref.attribute {
+		if field, found := expression.LookupField(ref.level, ref.name); found {
+			fieldType = field.Type
+		}
+	}
 	members := make([]esquery.Query, 0, len(list.Values))
 	for _, value := range list.Values {
-		member, err := s.buildComparison(expression.OpEq, ref, element(list, value))
+		element, err := expression.ReadElement(list, fieldType, value)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", tracestore.ErrFilterInvalid, err)
+		}
+		member, err := s.buildComparison(expression.OpEq, ref, element)
 		if err != nil {
 			return nil, err
 		}
@@ -247,25 +260,6 @@ func (s *SpanReader) buildMembership(predicate *expression.Call) (esquery.Query,
 		return anyOf(members), nil
 	}
 	return holdsSomethingElse(present, anyOf(members)), nil
-}
-
-// element reads one member of a list as the constant an equality compares against. A list that
-// declares its element type is refused for the reason a typed constant is — the type this schema
-// records is "keyword", whatever the value was — so the declaration is carried through as the
-// constant it names and refused there.
-func element(list *expression.List, value string) expression.Expression {
-	switch list.Type {
-	case expression.ValueTypeString:
-		return &expression.StringValue{Value: value}
-	case expression.ValueTypeInt:
-		return &expression.IntValue{}
-	case expression.ValueTypeDouble:
-		return &expression.DoubleValue{}
-	case expression.ValueTypeBool:
-		return &expression.BoolValue{}
-	default:
-		return &expression.AnyValue{Value: value}
-	}
 }
 
 // holdsSomethingElse builds the negated leaf comparisons, `ne` and `not_in`. A comparison
@@ -285,13 +279,18 @@ func (s *SpanReader) buildComparison(
 	if ref.isField(expression.LevelSpan, expression.SpanFieldDuration) {
 		return buildDurationComparison(op, value)
 	}
-	text, err := keyword(value)
+	if ref.attribute {
+		text, err := untypedText(value)
+		if err != nil {
+			return nil, err
+		}
+		return s.buildAttributeComparison(op, ref, text)
+	}
+	text, err := fieldText(value)
 	if err != nil {
 		return nil, err
 	}
 	switch {
-	case ref.attribute:
-		return s.buildAttributeComparison(op, ref, text)
 	case ref.isField(expression.LevelSpan, expression.SpanFieldName):
 		return buildTextComparison(operationNameField, op, ref, text)
 	case ref.isField(expression.LevelResource, expression.ResourceFieldService):
@@ -303,13 +302,33 @@ func (s *SpanReader) buildComparison(
 	}
 }
 
-// keyword reads the text a constant is matched as against a keyword field. Only an untyped constant
-// is read: this schema writes every attribute value as a keyword, so it cannot tell 500 the number
-// from "500" the text, and honoring a declared type would match more than was asked
+// untypedText reads the text a constant is matched as against an attribute. Only an untyped constant
+// is read there: this schema writes every attribute value as a keyword, so it cannot tell 500 the
+// number from "500" the text, and honoring a declared type would match more than was asked
 // (RFC 0005 §5.4). Typed attribute indexing is what makes those answerable (RFC 0015).
-func keyword(value expression.Expression) (string, error) {
+func untypedText(value expression.Expression) (string, error) {
 	if constant, ok := value.(*expression.AnyValue); ok {
 		return constant.Value, nil
+	}
+	return "", errTypedConstant(value)
+}
+
+// fieldText reads the text a constant is matched as against a built-in field that holds text. A
+// string constant is read as well as an untyped one, because a built-in field declares its own type:
+// finalizing a filter rewrites the constant beside `span.name` as a string precisely because that is
+// what the field holds, so refusing it here would refuse `span.name == "checkout"` — the most
+// ordinary predicate there is (RFC 0005 §5.4).
+func fieldText(value expression.Expression) (string, error) {
+	switch constant := value.(type) {
+	case *expression.AnyValue:
+		if constant != nil {
+			return constant.Value, nil
+		}
+	case *expression.StringValue:
+		if constant != nil {
+			return constant.Value, nil
+		}
+	default:
 	}
 	return "", errTypedConstant(value)
 }
@@ -327,12 +346,16 @@ func lengthOfTime(value expression.Expression) (time.Duration, error) {
 		if constant == nil {
 			break
 		}
-		parsed, err := time.ParseDuration(constant.Value)
+		// An untyped constant reaches here from a tree that was not finalized, so it is read the way
+		// finalizing would have read it rather than by a second parser of this package's own.
+		read, err := expression.ReadConstant(expression.FieldTypeDuration, constant.Value)
 		if err != nil {
-			return 0, fmt.Errorf(`%w: %q is not a duration such as "2s"`,
-				tracestore.ErrFilterInvalid, constant.Value)
+			return 0, fmt.Errorf(`%w: %q is not a duration such as "2s": %w`,
+				tracestore.ErrFilterInvalid, constant.Value, err)
 		}
-		return parsed, nil
+		if duration, ok := read.(*expression.DurationValue); ok {
+			return duration.Value, nil
+		}
 	default:
 	}
 	return 0, errTypedConstant(value)
@@ -431,19 +454,55 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 	case expression.OpEq:
 		return termMatch(value), nil
 	case expression.OpRegex:
-		pattern := anywhereInTheValue(value)
+		pattern, err := forThisEngine(value)
+		if err != nil {
+			return nil, err
+		}
 		return func(field string) esquery.Query { return esquery.NewRegexpQuery(field, pattern) }, nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
 }
 
-// anywhereInTheValue rewrites a pattern for Elasticsearch, whose regexp query matches a whole
-// indexed term while RFC 0005 §5.3 makes a pattern match anywhere in the value. Wrapping it is
-// enough because the pattern cannot anchor itself — the query boundary refuses anchors, for exactly
-// this reason — and the group keeps a top-level alternation from swallowing the wildcards.
-func anywhereInTheValue(pattern string) string {
-	return ".*(" + pattern + ").*"
+// forThisEngine prepares a pattern for this engine's regexp query, or refuses one it would read
+// differently than the query boundary said it means (RFC 0005 §5.3).
+//
+// Two differences. The query matches a whole indexed term while a filter's pattern matches anywhere
+// in the value, so the pattern is wrapped: soundly, because the boundary refuses a pattern that
+// anchors itself, and the group keeps a top-level alternation from swallowing the wildcards.
+//
+// And this dialect has no Perl shorthands. It reads `\d` as the letter d rather than as a digit, so a
+// pattern carrying one is refused rather than sent to match something else; the same pattern written
+// `[0-9]` is served. The refusal is lexical because it has to be: parsing turns `\d` and `[0-9]` into
+// one character class, and there is no telling them apart afterwards.
+func forThisEngine(pattern string) (string, error) {
+	if escape, ok := perlShorthand(pattern); ok {
+		return "", fmt.Errorf(
+			`%w: it reads %q as the literal character, so write the class out ("[0-9]" for "\d")`,
+			tracestore.ErrFilterUnsupported, escape,
+		)
+	}
+	return ".*(" + pattern + ").*", nil
+}
+
+// perlShorthand finds the first backslash escape of a letter or a digit, which is what a Perl
+// shorthand looks like. An escaped punctuation character — `\.`, `\[` — means the same thing in both
+// dialects, so those pass.
+func perlShorthand(pattern string) (string, bool) {
+	for i := 0; i < len(pattern)-1; i++ {
+		if pattern[i] != '\\' {
+			continue
+		}
+		next := pattern[i+1]
+		if next == '\\' {
+			i++ // An escaped backslash is a literal one, and does not escape what follows it.
+			continue
+		}
+		if (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') || (next >= '0' && next <= '9') {
+			return pattern[i : i+2], true
+		}
+	}
+	return "", false
 }
 
 func termMatch(value string) valueMatch {
@@ -462,7 +521,11 @@ func buildTextComparison(
 	case expression.OpEq:
 		return esquery.NewTermQuery(field, value), nil
 	case expression.OpRegex:
-		return esquery.NewRegexpQuery(field, anywhereInTheValue(value)), nil
+		pattern, err := forThisEngine(value)
+		if err != nil {
+			return nil, err
+		}
+		return esquery.NewRegexpQuery(field, pattern), nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}

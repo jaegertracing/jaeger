@@ -157,6 +157,29 @@ func TestBuildFilterQuery(t *testing.T) {
 			want:   `{"term":{"duration":3000000}}`,
 		},
 		{
+			name: "a string constant against the operation name, which is what finalizing produces",
+			filter: call(expression.OpEq,
+				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
+				&expression.StringValue{Value: "checkout"}),
+			want: `{"term":{"operationName":"checkout"}}`,
+		},
+		{
+			name: "a string constant against the service name",
+			filter: call(expression.OpEq,
+				&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
+				&expression.StringValue{Value: "cart"}),
+			want: `{"term":{"process.serviceName":"cart"}}`,
+		},
+		{
+			name: "a string constant against the event name",
+			filter: call(expression.OpEq,
+				&expression.FieldRef{Name: expression.EventFieldName, Level: expression.LevelEvent},
+				&expression.StringValue{Value: "exception"}),
+			want: `{"nested":{"path":"logs.fields","query":{"bool":{"must":[
+				{"term":{"logs.fields.key":"event"}},
+				{"term":{"logs.fields.value":"exception"}}]}}}}`,
+		},
+		{
 			name: "a duration constant, which is what a finalized filter carries",
 			filter: call(expression.OpGt,
 				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
@@ -176,6 +199,24 @@ func TestBuildFilterQuery(t *testing.T) {
 				{"nested":{"path":"tags","query":{"bool":{"must":[
 					{"term":{"tags.key":"http.route"}},
 					{"regexp":{"tags.value":{"value":".*(/api/.*).*"}}}]}}}}]}}`,
+		},
+		{
+			name:   "an escaped punctuation character, which both dialects read the same way",
+			filter: call(expression.OpRegex, spanAttr("http.route"), scalar(`/cart\.json`)),
+			want: `{"bool":{"should":[
+				{"regexp":{"tag.http@route":{"value":".*(/cart\\.json).*"}}},
+				{"nested":{"path":"tags","query":{"bool":{"must":[
+					{"term":{"tags.key":"http.route"}},
+					{"regexp":{"tags.value":{"value":".*(/cart\\.json).*"}}}]}}}}]}}`,
+		},
+		{
+			name:   "an escaped backslash, which does not escape what follows it",
+			filter: call(expression.OpRegex, spanAttr("http.route"), scalar(`a\\d`)),
+			want: `{"bool":{"should":[
+				{"regexp":{"tag.http@route":{"value":".*(a\\\\d).*"}}},
+				{"nested":{"path":"tags","query":{"bool":{"must":[
+					{"term":{"tags.key":"http.route"}},
+					{"regexp":{"tags.value":{"value":".*(a\\\\d).*"}}}]}}}}]}}`,
 		},
 		{
 			name:   "an alternation is grouped, so the wildcards apply to the whole pattern",
@@ -449,6 +490,18 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `it evaluates "eq" against a constant only`,
 		},
 		{
+			name:    "a pattern using a Perl shorthand, which this engine reads as a letter",
+			filter:  call(expression.OpRegex, spanAttr("http.status_code"), scalar(`\d+`)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `it reads "\\d" as the literal character`,
+		},
+		{
+			name:    "a pattern using a word shorthand",
+			filter:  call(expression.OpRegex, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar(`GET \w+`)),
+			wantErr: tracestore.ErrFilterUnsupported,
+			wantMsg: `it reads "\\w" as the literal character`,
+		},
+		{
 			name: "a string constant, whose declared type this schema cannot route to",
 			filter: call(expression.OpEq, spanAttr("http.route"),
 				&expression.StringValue{Value: "/cart"}),
@@ -568,7 +621,7 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			filter: call(expression.OpNotIn, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
 				&expression.List{Values: []string{"2s", "later"}}),
 			wantErr: tracestore.ErrFilterInvalid,
-			wantMsg: `"later" is not a duration such as "2s"`,
+			wantMsg: `invalid duration "later"`,
 		},
 		{
 			name:    "a comparison with the wrong number of arguments",
