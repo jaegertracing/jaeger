@@ -41,8 +41,12 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 
+# README.md is collected so its `>>>` example is executed rather than merely read.
+# An example showing the wire form is exactly the kind of thing that rots silently
+# when the AST changes shape.
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "README.md"]
+addopts = "--doctest-glob=*.md"
 
 # The builder leans on typing to keep a wrong filter unbuildable, so the type
 # checker is part of the contract rather than a nicety. The generated modules are
