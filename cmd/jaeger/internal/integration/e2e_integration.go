@@ -66,12 +66,9 @@ type E2EStorageIntegration struct {
 	binary *Binary // set by e2eInitialize; allows mid-test shutdown via binary.Stop(t)
 }
 
-// structuredFiltersGate is enabled for every binary the e2e suites spawn, because the RFC 0005
-// filter is alpha and off by default and the shared trace-search tests send one.
-var structuredFiltersGate = querysvc.StructuredFiltersGate.ID()
-
 func (s *E2EStorageIntegration) args(configFile string) []string {
-	gates := append([]string{structuredFiltersGate}, s.FeatureGates...)
+	// Alpha and off by default, and the shared trace-search tests send a filter.
+	gates := append([]string{querysvc.StructuredFiltersGate.ID()}, s.FeatureGates...)
 	return []string{"jaeger", "--config", configFile, "--feature-gates=" + strings.Join(gates, ",")}
 }
 
