@@ -5,6 +5,7 @@ package adaptive
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"testing"
 	"time"
@@ -456,10 +457,16 @@ func TestConstructorFailure(t *testing.T) {
 	cfg.BucketsForCalculation = 1
 	cfg.TargetSamplesPerSecond = 0
 	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	require.EqualError(t, err, "TargetSamplesPerSecond must be greater than 0")
+	require.EqualError(t, err, "TargetSamplesPerSecond must be a finite number greater than 0")
 	cfg.TargetSamplesPerSecond = -1
 	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	require.EqualError(t, err, "TargetSamplesPerSecond must be greater than 0")
+	require.EqualError(t, err, "TargetSamplesPerSecond must be a finite number greater than 0")
+	cfg.TargetSamplesPerSecond = math.NaN()
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	require.EqualError(t, err, "TargetSamplesPerSecond must be a finite number greater than 0")
+	cfg.TargetSamplesPerSecond = math.Inf(1)
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	require.EqualError(t, err, "TargetSamplesPerSecond must be a finite number greater than 0")
 }
 
 func TestUsingAdaptiveSampling(t *testing.T) {
