@@ -392,9 +392,10 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	mockEP.On("IsLeader").Return(false)
 
 	cfg := Options{
-		CalculationInterval:   time.Millisecond * 5,
-		AggregationBuckets:    2,
-		BucketsForCalculation: 10,
+		TargetSamplesPerSecond: 1.0,
+		CalculationInterval:    time.Millisecond * 5,
+		AggregationBuckets:     2,
+		BucketsForCalculation:  10,
 	}
 	agg, err := NewAggregator(cfg, logger, metrics.NullFactory, mockEP, mockStorage)
 	require.NoError(t, err)
@@ -439,12 +440,26 @@ func TestConstructorFailure(t *testing.T) {
 	cfg.CalculationInterval = 0
 	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
 	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
+	cfg.CalculationInterval = -1
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
+	cfg.CalculationInterval = time.Second
+	cfg.AggregationBuckets = -1
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	require.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = time.Millisecond
 	cfg.AggregationBuckets = 1
 	cfg.BucketsForCalculation = -1
 	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
 	require.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
+	cfg.BucketsForCalculation = 1
+	cfg.TargetSamplesPerSecond = 0
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	require.EqualError(t, err, "TargetSamplesPerSecond must be greater than 0")
+	cfg.TargetSamplesPerSecond = -1
+	_, err = newPostAggregator(cfg, "host", nil, nil, metrics.NullFactory, logger)
+	require.EqualError(t, err, "TargetSamplesPerSecond must be greater than 0")
 }
 
 func TestUsingAdaptiveSampling(t *testing.T) {
