@@ -67,10 +67,17 @@ type E2EStorageIntegration struct {
 }
 
 func (s *E2EStorageIntegration) args(configFile string) []string {
-	// Alpha and off by default, and the shared trace-search tests send a filter.
-	gates := append([]string{querysvc.StructuredFiltersGate.ID()}, s.FeatureGates...)
-	return []string{"jaeger", "--config", configFile, "--feature-gates=" + strings.Join(gates, ",")}
+	args := []string{"jaeger", "--config", configFile}
+	if len(s.FeatureGates) > 0 {
+		args = append(args, "--feature-gates="+strings.Join(s.FeatureGates, ","))
+	}
+	return args
 }
+
+// structuredFilterGates enables the RFC 0005 filter, which is alpha and off by default. Only the
+// suites whose searches carry one need it: the filter battery, where the backend evaluates a filter,
+// and the rewrite test, where it does not.
+var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything

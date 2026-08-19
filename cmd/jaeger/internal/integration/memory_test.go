@@ -14,7 +14,8 @@ func TestMemoryStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageMemoryV2)
 
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config.yaml",
+		ConfigFile:   "../../config.yaml",
+		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Capabilities: capabilities.E2EWithoutNativeFilters(),
