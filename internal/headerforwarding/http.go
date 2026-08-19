@@ -3,11 +3,15 @@
 
 package headerforwarding
 
-import "net/http"
+import (
+	"net/http"
+
+	"go.uber.org/zap"
+)
 
 // HTTPServerMiddleware returns an http.Handler that extracts the configured headers from
 // inbound HTTP requests and stores them in the request context for downstream propagation.
-func HTTPServerMiddleware(headers []ForwardedHeader, next http.Handler) http.Handler {
+func HTTPServerMiddleware(logger *zap.Logger, headers []ForwardedHeader, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		captured := make([]CapturedHeader, 0, len(headers))
 		for i := range headers {
@@ -17,6 +21,7 @@ func HTTPServerMiddleware(headers []ForwardedHeader, next http.Handler) http.Han
 		}
 		if len(captured) > 0 {
 			r = r.WithContext(ContextWithCaptured(r.Context(), captured))
+			logCapturedHeaders(logger, "http", r.URL.Path, captured)
 		}
 		next.ServeHTTP(w, r)
 	})
