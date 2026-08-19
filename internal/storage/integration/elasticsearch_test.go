@@ -139,8 +139,9 @@ func runElasticsearchTest(t *testing.T, allTagsAsFields bool, writeMode escfg.Wr
 	require.NoError(t, healthCheck(c))
 	s := &ESStorageIntegration{
 		StorageIntegration: StorageIntegration{
-			Fixtures:     LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.Elasticsearch(),
+			Fixtures:                   LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities:               capabilities.Elasticsearch(),
+			EvaluatesStructuredFilters: true,
 		},
 		writeMode: writeMode,
 	}

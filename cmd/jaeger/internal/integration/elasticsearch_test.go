@@ -16,9 +16,10 @@ func TestElasticsearchStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-elasticsearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.Elasticsearch(),
+			CleanUp:                    purge,
+			Fixtures:                   integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities:               capabilities.Elasticsearch(),
+			EvaluatesStructuredFilters: true,
 		},
 	}
 	s.e2eInitialize(t, "elasticsearch")

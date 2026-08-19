@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap/zaptest"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
@@ -66,11 +67,13 @@ type E2EStorageIntegration struct {
 }
 
 func (s *E2EStorageIntegration) args(configFile string) []string {
-	args := []string{"jaeger", "--config", configFile}
-	if len(s.FeatureGates) > 0 {
-		args = append(args, "--feature-gates="+strings.Join(s.FeatureGates, ","))
-	}
-	return args
+	// Every suite gets the RFC 0005 structured query filter gate on top of whatever it asked for.
+	// That gate is alpha and off by default, and the shared trace-search battery sends a filter to
+	// every backend — to be evaluated where the reader can, and rewritten into the legacy predicate
+	// fields where it cannot — so a deployment that has not admitted filters refuses those searches
+	// outright.
+	gates := append([]string{querysvc.StructuredFiltersGate.ID()}, s.FeatureGates...)
+	return []string{"jaeger", "--config", configFile, "--feature-gates=" + strings.Join(gates, ",")}
 }
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
@@ -113,6 +116,7 @@ func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool))
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
+	s.ReadsThroughQueryService = true
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
 	}

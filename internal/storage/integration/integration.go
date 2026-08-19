@@ -77,6 +77,20 @@ type StorageIntegration struct {
 	Fixtures         []*QueryFixtures
 	Capabilities     capabilities.Capabilities
 
+	// EvaluatesStructuredFilters says whether the backend's reader evaluates an RFC 0005
+	// structured filter itself, which today Elasticsearch and OpenSearch alone do. Where it does
+	// not, a filter either reaches a reader that ignores the field or is rewritten by the query
+	// service into the legacy predicate fields, and either way a level-qualified predicate comes
+	// back with more traces than it named — so the filter battery would be holding the backend to
+	// a contract it never claimed. A backend sets this as it gains native filter support.
+	EvaluatesStructuredFilters bool
+
+	// ReadsThroughQueryService says whether searches reach the backend through a jaeger-query
+	// rather than through a Reader the suite wired up itself. It is the query service that
+	// rewrites a filter the backend cannot evaluate into the legacy predicate fields, so a suite
+	// holding a Reader directly has no rewrite to check.
+	ReadsThroughQueryService bool
+
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
 	CleanUp func(t *testing.T)
@@ -805,6 +819,8 @@ func (s *StorageIntegration) RunSpanStoreTests(t *testing.T) {
 	t.Run("GetLargeTrace", s.testGetLargeTrace)
 	t.Run("GetTraceWithDuplicateSpans", s.testGetTraceWithDuplicates)
 	t.Run("FindTraces", s.testFindTraces)
+	t.Run("FindTracesWithFilter", s.testFindTracesWithFilter)
+	t.Run("FindTracesLegacyAndFilterAgree", s.testFindTracesLegacyAndFilterAgree)
 	t.Run("FindTraceSummaries", s.testFindTraceSummaries)
 	t.Run("FindTracesWithoutServiceName", s.testFindTracesWithoutServiceName)
 }

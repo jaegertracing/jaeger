@@ -15,9 +15,10 @@ func TestOpenSearchStorage(t *testing.T) {
 	s := &E2EStorageIntegration{
 		ConfigFile: "../../config-opensearch.yaml",
 		StorageIntegration: integration.StorageIntegration{
-			CleanUp:      purge,
-			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
-			Capabilities: capabilities.OpenSearch(),
+			CleanUp:                    purge,
+			Fixtures:                   integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
+			Capabilities:               capabilities.OpenSearch(),
+			EvaluatesStructuredFilters: true,
 		},
 	}
 	s.e2eInitialize(t, "opensearch")
