@@ -7,6 +7,12 @@ const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
 	FindTraceSummariesTest = "FindTraceSummaries"
+	// structuredFilterTest names the RFC 0005 filter battery, which asserts exact result sets and
+	// so runs only where the reader evaluates a filter itself. A reader that declares no filter
+	// capability is handed the filter rewritten into the legacy predicate fields instead, which
+	// drop the level a predicate named and answer with a superset (RFC 0005 §7) — and the battery
+	// is written to catch exactly that. Each backend drops this as it gains native filter support.
+	structuredFilterTest = "FindTracesWithFilter"
 )
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
@@ -49,7 +55,7 @@ func (c Capabilities) SkipList() []string {
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		skipList: []string{FindTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -58,7 +64,7 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest},
+		skipList: []string{FindTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -77,6 +83,7 @@ func Cassandra() Capabilities {
 			scopeAttributesTest,
 			linkAttributesTest,
 			FindTraceSummariesTest,
+			structuredFilterTest,
 		},
 	}
 }
@@ -84,7 +91,7 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest},
+		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -94,7 +101,7 @@ func Badger() Capabilities {
 		searchRequiresServiceName: true,
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -116,6 +123,7 @@ func ElasticsearchSmokeTest() Capabilities {
 		skipList: []string{
 			scopeAttributesTest,
 			linkAttributesTest,
+			structuredFilterTest,
 			"GetLargeTrace",
 			"GetTraceWithDuplicateSpans",
 		},
@@ -135,6 +143,17 @@ func Kafka() Capabilities {
 	return Capabilities{
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest, structuredFilterTest},
+	}
+}
+
+// NoStructuredFilters excuses a suite from the RFC 0005 filter battery and nothing else, for a
+// backend that satisfies the rest of the suite but whose reader does not evaluate a structured
+// filter. It is what the e2e suites need, because a backend reached through jaeger-query can
+// satisfy tests its own reader cannot — computing trace summaries, for one — so those suites
+// cannot reuse the per-backend capabilities their direct counterparts declare.
+func NoStructuredFilters() Capabilities {
+	return Capabilities{
+		skipList: []string{structuredFilterTest},
 	}
 }

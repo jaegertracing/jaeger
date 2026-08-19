@@ -191,11 +191,9 @@ func filterTestCases(p builder.Predicate) []filterCase {
 // filter here, and only the time range and the search depth are left outside it.
 func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	s.skipIfNeeded(t)
-	if !s.EvaluatesStructuredFilters {
-		t.Skip("this backend's reader does not evaluate a structured filter")
-	}
 	defer s.cleanUp(t)
 
+	s.requireReaderEvaluatesFilters(t)
 	corpus := s.writeFilterCorpus(t)
 	start, end := filterCorpusTimeRange(corpus)
 	var p builder.Predicate
@@ -253,46 +251,49 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	}
 }
 
-// testFindTracesLegacyAndFilterAgree asks the same question both ways — once through the legacy
-// predicate fields and once as the filter that means the same thing — and requires the two to
-// answer alike. What that checks depends on the backend: where the reader declares filter
-// capabilities it evaluates the filter itself, and where it declares none the query service
-// rewrites the filter back into the legacy fields (ToLegacyShape). The second is the case worth
-// the test, because a rewrite that drops a predicate answers with more traces than were asked
-// for, and no unit test of the rewrite can tell whether the backend then agreed.
+// RunFilterRewriteTest asks one question both ways — through the legacy predicate fields, and as
+// the filter that means the same thing — and requires the two to answer alike. What it checks is
+// the query service's rewrite: a backend that declares no filter capability is handed the filter
+// expressed in the legacy fields instead (ToLegacyShape), and a rewrite that dropped a predicate
+// would answer with more traces than were asked for.
+//
+// It is not part of RunSpanStoreTests, because the rewrite is the query service's and a suite that
+// wires up a Reader itself has none: such a Reader is never handed a filter in production, and
+// handed one here it ignores the field and answers with every trace in the time range. So one e2e
+// suite over a backend that evaluates no filter calls this, and that is enough — the rewrite reads
+// the same for every backend, and both halves of the comparison go through the same reader, so a
+// second backend would only re-run the same rewrite.
 //
 // The two result sets are compared against each other rather than against the fixtures, so a
 // backend whose read path reshapes a trace is still held to answering both forms the same way.
-func (s *StorageIntegration) testFindTracesLegacyAndFilterAgree(t *testing.T) {
-	s.skipIfNeeded(t)
-	if !s.ReadsThroughQueryService {
-		t.Skip("nothing rewrites a filter when the suite holds the Reader directly, so there is no rewrite to check")
-	}
-	defer s.cleanUp(t)
+func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
+	t.Run("FilterRewrittenAsLegacyQuery", func(t *testing.T) {
+		defer s.cleanUp(t)
 
-	corpus := s.writeFilterCorpus(t)
-	start, end := filterCorpusTimeRange(corpus)
-	var p builder.Predicate
+		corpus := s.writeFilterCorpus(t)
+		start, end := filterCorpusTimeRange(corpus)
+		var p builder.Predicate
 
-	legacyAttributes := pcommon.NewMap()
-	legacyAttributes.PutStr("http.status_code", "500")
-	legacy := &tracestore.TraceQueryParams{
-		ServiceName:  "filter-cart",
-		Attributes:   legacyAttributes,
-		StartTimeMin: start,
-		StartTimeMax: end,
-		SearchDepth:  filterSearchDepth,
-	}
-	filter := filterQuery(p.And(
-		p.Resource().Service.Eq("filter-cart"),
-		p.Attr("http.status_code").Eq("500"),
-	), start, end)
+		legacyAttributes := pcommon.NewMap()
+		legacyAttributes.PutStr("http.status_code", "500")
+		legacy := &tracestore.TraceQueryParams{
+			ServiceName:  "filter-cart",
+			Attributes:   legacyAttributes,
+			StartTimeMin: start,
+			StartTimeMax: end,
+			SearchDepth:  filterSearchDepth,
+		}
+		filter := filterQuery(p.And(
+			p.Resource().Service.Eq("filter-cart"),
+			p.Attr("http.status_code").Eq("500"),
+		), start, end)
 
-	expected := []ptrace.Traces{corpus["filter_cart_post_trace"]}
-	viaLegacy := s.findTracesByQuery(t, legacy, expected)
-	viaFilter := s.findTracesByQuery(t, filter, expected)
-	require.NotEmpty(t, viaLegacy, "the legacy query must match a trace, or the two agreeing says nothing")
-	CompareTraceSlices(t, viaLegacy, viaFilter)
+		expected := []ptrace.Traces{corpus["filter_cart_post_trace"]}
+		viaLegacy := s.findTracesByQuery(t, legacy, expected)
+		viaFilter := s.findTracesByQuery(t, filter, expected)
+		require.NotEmpty(t, viaLegacy, "the legacy query must match a trace, or the two agreeing says nothing")
+		CompareTraceSlices(t, viaLegacy, viaFilter)
+	})
 }
 
 // filterQuery is a search whose only predicate is the filter. The attributes map is empty rather
@@ -307,6 +308,23 @@ func filterQuery(filter *expression.Call, start, end time.Time) *tracestore.Trac
 		StartTimeMax: end,
 		SearchDepth:  filterSearchDepth,
 	}
+}
+
+// requireReaderEvaluatesFilters fails the battery at once where the reader has not declared it can
+// evaluate a filter, rather than leaving each case to retry a wrong answer for a minute and a half.
+// Such a backend belongs in the capabilities skip list, and the failure says so.
+//
+// A reader that cannot report its capabilities is taken at its word and left to the cases: that is
+// what the api_v3 client the e2e suites read through answers, having no way to ask the query
+// service what is behind it.
+func (s *StorageIntegration) requireReaderEvaluatesFilters(t *testing.T) {
+	caps, err := s.TraceReader.SearchCapabilities(context.Background())
+	if err != nil {
+		return
+	}
+	require.False(t, caps.Filter.IsEmpty(),
+		"this reader declares no filter capabilities, so it cannot answer the filter battery; "+
+			"excuse the backend from it in internal/storage/integration/capabilities")
 }
 
 // requireFilterIsServed fails the whole battery, rather than each case in it, when the deployment

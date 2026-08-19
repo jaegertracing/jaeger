@@ -68,10 +68,10 @@ type E2EStorageIntegration struct {
 
 func (s *E2EStorageIntegration) args(configFile string) []string {
 	// Every suite gets the RFC 0005 structured query filter gate on top of whatever it asked for.
-	// That gate is alpha and off by default, and the shared trace-search battery sends a filter to
-	// every backend — to be evaluated where the reader can, and rewritten into the legacy predicate
-	// fields where it cannot — so a deployment that has not admitted filters refuses those searches
-	// outright.
+	// That gate is alpha and off by default, so a deployment without it refuses any search carrying
+	// a filter, and several suites send one — the filter battery where the backend evaluates
+	// filters, and the rewrite test where it does not. Enabling it for every suite spares the
+	// harness from tracking which ones those are.
 	gates := append([]string{querysvc.StructuredFiltersGate.ID()}, s.FeatureGates...)
 	return []string{"jaeger", "--config", configFile, "--feature-gates=" + strings.Join(gates, ",")}
 }
@@ -116,7 +116,6 @@ func (s *E2EStorageIntegration) binaryEnv(lookupEnv func(string) (string, bool))
 // This function should be called before any of the tests start.
 func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 	logger := zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller()))
-	s.ReadsThroughQueryService = true
 	if s.BinaryName == "" {
 		s.BinaryName = "jaeger-v2"
 	}
