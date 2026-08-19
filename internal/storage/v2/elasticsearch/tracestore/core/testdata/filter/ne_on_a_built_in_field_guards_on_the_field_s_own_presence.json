@@ -1,0 +1,14 @@
+{
+  "bool": {
+    "must": {
+      "exists": {
+        "field": "process.serviceName"
+      }
+    },
+    "must_not": {
+      "term": {
+        "process.serviceName": "cart"
+      }
+    }
+  }
+}

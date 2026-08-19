@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/pdata/pcommon"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 func TestParseFindTracesQuery(t *testing.T) {
@@ -222,6 +224,82 @@ func TestParseFindTracesQuery(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.wantErr)
 		})
 	}
+}
+
+// TestParseFindTracesQuery_Filter covers the GET binding of the structured filter: the parser
+// reads one URL-encoded JSON object, and reports what it cannot read under the parameter's own
+// name. The first case doubles as the contract test for the JSON spelling of the AST, since
+// this is the only surface where a caller writes it by hand.
+func TestParseFindTracesQuery_Filter(t *testing.T) {
+	timeRange := func() url.Values {
+		q := url.Values{}
+		q.Set(paramTimeMin, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano))
+		q.Set(paramTimeMax, time.Now().UTC().Format(time.RFC3339Nano))
+		return q
+	}
+
+	t.Run("a conjunction of a built-in field and an attribute", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"and","args":[
+			{"call":{"op":"gt","args":[{"field":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}},
+			{"call":{"op":"in","args":[{"attr":{"key":"http.status_code"}},{"list":{"values":["500","503"],"type":"int"}}]}}]}`)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &expression.Call{Op: expression.OpAnd, Args: []expression.Expression{
+			&expression.Call{Op: expression.OpGt, Args: []expression.Expression{
+				&expression.FieldRef{Level: expression.LevelSpan, Name: expression.SpanFieldDuration},
+				&expression.AnyValue{Value: "2s"},
+			}},
+			&expression.Call{Op: expression.OpIn, Args: []expression.Expression{
+				&expression.AttributeRef{Key: "http.status_code"},
+				&expression.List{Values: []string{"500", "503"}, Type: expression.ValueTypeInt},
+			}},
+		}}, got.Filter)
+	})
+
+	// The quantifier is the one place the third reference arm is written, and its own level says
+	// which collection is bound.
+	t.Run("a correlated match over the events", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"some","args":[
+			{"nested":{"level":"event"}},
+			{"call":{"op":"eq","args":[{"field":{"name":"name","level":"event"}},{"scalar":{"value":"exception","type":"string"}}]}}]}`)
+
+		got, err := parseFindTracesQuery(q)
+		require.NoError(t, err)
+		assert.Equal(t, &expression.Call{Op: expression.OpSome, Args: []expression.Expression{
+			&expression.NestedRef{Level: expression.LevelEvent},
+			&expression.Call{Op: expression.OpEq, Args: []expression.Expression{
+				&expression.FieldRef{Level: expression.LevelEvent, Name: expression.EventFieldName},
+				&expression.StringValue{Value: "exception"},
+			}},
+		}}, got.Filter)
+	})
+
+	t.Run("a constant that is not the type it declares", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"eq","args":[
+			{"attr":{"key":"size"}},{"scalar":{"value":"large","type":"int"}}]}`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+		require.ErrorContains(t, err, `"large" is not the "int" it declares`)
+	})
+
+	t.Run("no filter", func(t *testing.T) {
+		got, err := parseFindTracesQuery(timeRange())
+		require.NoError(t, err)
+		assert.Nil(t, got.Filter)
+	})
+
+	t.Run("malformed JSON", func(t *testing.T) {
+		q := timeRange()
+		q.Set(paramFilter, `{"op":"eq",`)
+
+		_, err := parseFindTracesQuery(q)
+		require.ErrorContains(t, err, "malformed parameter query.filter")
+	})
 }
 
 func TestGetQueryParam(t *testing.T) {

@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author:** Yuri Shkuro
 - **Created:** 2026-08-12
-- **Last Updated:** 2026-08-12
+- **Last Updated:** 2026-08-19
 - **Related:** [RFC 0005 (structured query filters)](0005-structured-query-filters.md), [RFC 0011 (trace summary API)](0011-trace-summary-api.md), [ADR-013 (storage capability declaration)](../adr/013-storage-capability-declaration.md)
 
 ---
@@ -413,7 +413,9 @@ PR-sized milestones with explicit exit bars, grouped by layer, bottom-up so each
 **M5 — UI "load more".** The search-results list consumes `next_page_token` from `FindTraceSummaries` and offers "load more," graying out or disabling continuation when the backend declares no pagination (reusing the capability the UI already reads). Token handling follows the client contract of §3.5: push the token just received, pop on backward navigation, and discard remembered tokens below any page that is re-fetched. *Exit:* results paginate in the UI on paginating backends; non-paginating backends show a single page with an honest truncation indicator.
 
 **Out of scope (future, this design enables):**
-- ClickHouse and the flat backends (Cassandra, Badger) declaring `Paginated = true` — ClickHouse is a natural fit (`WHERE (startTime, traceID) < cursor ORDER BY … LIMIT size`); the flat backends need their index made cursor-able first.
+- ClickHouse declaring `Paginated = true` — a natural fit (`WHERE (startTime, traceID) < cursor ORDER BY … LIMIT size`).
+- Cassandra declaring `Paginated = true`, which is harder than it looks. The CQL driver hands out a `PageState` blob that resumes a query where it stopped, so the obvious move is to wrap that in the token. It does not work here, for two reasons established in [#8961](https://github.com/jaegertracing/jaeger/pull/8961). A `PageState` is bound to one CQL statement against one schema version, so it is not a value the query service can safely mint, hand out, and honour later the way §3.1 requires of a stateless token. More fundamentally, a Cassandra search is not one statement: `duration_index` partitions on `(service_name, operation_name, bucket)` where `bucket` is the span's start time rounded to the hour, so a query spanning a time range fans out into one CQL query per hour bucket and merges the results (`queryByDuration`, `internal/storage/v1/cassandra/spanstore/reader.go`). `PageState` is per statement, not per logical result set, so there is no single blob that describes where the merged traversal stopped. The tractable alternative is to ignore `PageState` and give Cassandra the same keyset cursor everything else uses — carry `(startTime, traceID)` in the token and resume by setting `StartTimeMax` to the last key — which is implementable today but delivers the weaker per-bucket ordering the clustering order gives (`duration DESC, start_time DESC`), not the global recency order §3.3 requires. Either path is its own project; Cassandra declares `Paginated = false` until one is done.
+- Badger declaring `Paginated = true` — its iterator supports `Seek` to a known key, so a keyset cursor is implementable, but the key encodes start time rather than the full set of query predicates, so the same ordering problem applies.
 - A configurable sort key (order by duration, by error count) — the opaque token (§3) already hides the sort-key shape, so this extends without a wire break.
 - An approximate total-count estimate via `cardinality(traceID)` (§7.5), if the UI ever wants "~N results."
 - One document per trace, upserted as spans arrive, carrying the trace's minimum start time, maximum end time, span counts and services. It would let the search sort and page on the same trace-level values the results list displays, retiring the max-versus-min discrepancy of §7.1, and it would serve RFC 0011's summaries directly instead of reconstructing them by aggregation. The cost is a new write path with an upsert per span batch, which is why it is a separate project rather than a step here.
