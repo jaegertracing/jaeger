@@ -46,7 +46,11 @@ where = ["src"]
 # when the AST changes shape.
 [tool.pytest.ini_options]
 testpaths = ["tests", "README.md"]
-addopts = "--doctest-glob=*.md"
+# The end-to-end test needs a running Jaeger, so it is deselected here and run by
+# `make e2e`, which supplies one. It skips itself too, for anyone invoking pytest
+# directly with the marker.
+addopts = "--doctest-glob=*.md -m 'not e2e'"
+markers = ["e2e: needs a running Jaeger and its storage (see e2e/run.sh)"]
 
 # The builder leans on typing to keep a wrong filter unbuildable, so the type
 # checker is part of the contract rather than a nicety. The generated modules are
