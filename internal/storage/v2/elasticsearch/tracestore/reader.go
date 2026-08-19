@@ -28,6 +28,21 @@ func NewTraceReader(p core.SpanReaderParams) *TraceReader {
 	}
 }
 
+func (*TraceReader) SearchCapabilities(context.Context) (tracestore.SearchCapabilities, error) {
+	filter := core.FilterCapabilities()
+	return tracestore.SearchCapabilities{
+		// The query adds its process.serviceName clause only when the query carries a
+		// name, and no other clause depends on it, so an omitted name matches spans from
+		// every service.
+		WithoutServiceName: true,
+		// A search matches span documents, and the clauses of a conjunction all apply to the
+		// same document, so a conjunction is satisfied within one span rather than across a
+		// trace.
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, nil
+}
+
 func (r *TraceReader) GetTraces(ctx context.Context, params ...tracestore.GetTraceParams) iter.Seq2[[]ptrace.Traces, error] {
 	return func(yield func([]ptrace.Traces, error) bool) {
 		dbTraceIds := make([]dbmodel.TraceID, 0, len(params))
@@ -130,5 +145,6 @@ func toDBTraceQueryParams(query tracestore.TraceQueryParams) dbmodel.TraceQueryP
 		SearchDepth:   query.SearchDepth,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
+		Filter:        query.Filter,
 	}
 }

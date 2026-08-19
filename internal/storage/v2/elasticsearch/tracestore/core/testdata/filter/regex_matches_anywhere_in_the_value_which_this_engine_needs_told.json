@@ -1,0 +1,7 @@
+{
+  "regexp": {
+    "operationName": {
+      "value": ".*(GET .*).*"
+    }
+  }
+}

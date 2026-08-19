@@ -734,22 +734,24 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
+// TestSpanReader_FindTracesRejectsQueryBeforeSearching covers the FindTraces side of
+// validation: a query that validateQuery rejects — here an unset time range — returns
+// the validation error without a round trip to the cluster. TestTraceQueryParameterValidation
+// covers which queries are rejected; this covers that rejection short-circuits the search.
+func TestSpanReader_FindTracesRejectsQueryBeforeSearching(t *testing.T) {
 	withSpanReader(t, func(r *spanReaderTest) {
-		// Missing service name with tags fails validation before any search runs.
 		traceQuery := dbmodel.TraceQueryParameters{
-			ServiceName: "",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"hello": "world",
 			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
 		}
 
 		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
-		require.NotEmpty(t, r.traceBuffer.GetSpans(), "Spans recorded")
-		require.Error(t, err)
+		require.ErrorIs(t, err, ErrStartAndEndTimeNotSet)
 		assert.Nil(t, traces)
+		r.searcher.AssertNotCalled(t, "Search")
+		require.NotEmpty(t, r.traceBuffer.GetSpans(), "the attempt is still traced")
 	})
 }
 
@@ -875,20 +877,23 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
+	// A tag search with no service name is a valid cross-service query (RFC 0013):
+	// the tag clauses do not reference the service, so only the time range is required.
 	tqp := dbmodel.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
 		},
+		StartTimeMin: time.Now().Add(-1 * time.Hour),
+		StartTimeMax: time.Now(),
 	}
-	err := validateQuery(tqp)
-	require.EqualError(t, err, ErrServiceNameNotSet.Error())
+	require.NoError(t, validateQuery(tqp))
 
 	tqp.ServiceName = serviceName
 
 	tqp.StartTimeMin = time.Time{} // time.Unix(0,0) doesn't work because timezones
 	tqp.StartTimeMax = time.Time{}
-	err = validateQuery(tqp)
+	err := validateQuery(tqp)
 	require.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 
 	tqp.StartTimeMin = time.Now()
@@ -945,7 +950,8 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			},
 		}
 
-		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		require.NoError(t, err)
 		actual, err := actualQuery.Source()
 		require.NoError(t, err)
 		expectedQuery := esquery.NewBoolQuery().
@@ -959,6 +965,91 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 		expected, err := expectedQuery.Source()
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
+	})
+}
+
+// TestSpanReader_buildFindTraceIDsQueryWithoutServiceName pins the cross-service
+// search RFC 0013 relies on: with no service name the query carries every other
+// clause and simply omits the process.serviceName term, so it matches spans from all
+// services rather than none.
+func TestSpanReader_buildFindTraceIDsQueryWithoutServiceName(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		traceQuery := dbmodel.TraceQueryParameters{
+			StartTimeMin: time.Time{},
+			StartTimeMax: time.Time{}.Add(time.Second),
+			Tags: map[string]string{
+				"hello": "world",
+			},
+		}
+
+		actualQuery, err := r.reader.buildFindTraceIDsQuery(traceQuery)
+		require.NoError(t, err)
+		actual, err := actualQuery.Source()
+		require.NoError(t, err)
+		expected, err := esquery.NewBoolQuery().
+			Must(
+				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+				r.reader.buildTagQuery("hello", "world"),
+			).Source()
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
+// TestSpanReader_buildFindTraceIDsQuery_errorTag covers the error tag special
+// case. Non-error spans carry no error tag (only error spans get error=true), so a
+// literal error=false match finds nothing; error=false must instead exclude
+// error=true. The value is parsed with strconv.ParseBool so every boolean form is
+// accepted, matching the in-memory store's error handling exactly (#9096, which
+// also uses strconv.ParseBool). A non-boolean value keeps the previous literal
+// tag match.
+func TestSpanReader_buildFindTraceIDsQuery_errorTag(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		start := time.Time{}
+		end := time.Time{}.Add(time.Second)
+		base := func() *esquery.BoolQuery {
+			return esquery.NewBoolQuery().Must(r.reader.buildStartTimeQuery(start, end))
+		}
+		wantSource := func(q *esquery.BoolQuery) any {
+			src, err := q.Source()
+			require.NoError(t, err)
+			return src
+		}
+		errorTrueMatch := wantSource(base().Must(r.reader.buildTagQuery("error", "true")))
+		errorTrueExcluded := wantSource(base().MustNot(r.reader.buildTagQuery("error", "true")))
+
+		for _, tt := range []struct {
+			value string
+			want  any
+		}{
+			// Truthy forms match error=true.
+			{"true", errorTrueMatch},
+			{"True", errorTrueMatch},
+			{"TRUE", errorTrueMatch},
+			{"1", errorTrueMatch},
+			{"t", errorTrueMatch},
+			// Falsy forms exclude error=true (the complement).
+			{"false", errorTrueExcluded},
+			{"False", errorTrueExcluded},
+			{"FALSE", errorTrueExcluded},
+			{"0", errorTrueExcluded},
+			{"f", errorTrueExcluded},
+			// Non-boolean values keep the literal tag match.
+			{"oops", wantSource(base().Must(r.reader.buildTagQuery("error", "oops")))},
+			{"2", wantSource(base().Must(r.reader.buildTagQuery("error", "2")))},
+		} {
+			t.Run("error="+tt.value, func(t *testing.T) {
+				query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
+					StartTimeMin: start,
+					StartTimeMax: end,
+					Tags:         map[string]string{"error": tt.value},
+				})
+				require.NoError(t, err)
+				got, err := query.Source()
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			})
+		}
 	})
 }
 

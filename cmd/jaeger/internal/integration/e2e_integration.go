@@ -46,7 +46,7 @@ type E2EStorageIntegration struct {
 	SkipStorageCleaner bool
 	ConfigFile         string
 	BinaryName         string
-	BinaryPath         string // overrides default "./cmd/jaeger/jaeger"; resolved relative to the repo root
+	BinaryPath         string // overrides default "./cmd/jaeger/jaeger-e2e"; resolved relative to the repo root
 
 	MetricsPort     int // overridable, default to 8888
 	HealthCheckPort int // overridable for tests (e.g. Kafka, query) which run two binaries and need different ports
@@ -133,7 +133,7 @@ func (s *E2EStorageIntegration) e2eInitialize(t *testing.T, storage string) {
 
 	binaryPath := s.BinaryPath
 	if binaryPath == "" {
-		binaryPath = "./cmd/jaeger/jaeger"
+		binaryPath = "./cmd/jaeger/jaeger-e2e"
 	}
 	cmd := Binary{
 		Name:            s.BinaryName,

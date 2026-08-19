@@ -16,6 +16,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto/api_v3"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/v1adapter"
 )
@@ -102,6 +103,13 @@ func traceQueryParams(query *api_v3.TraceQueryParameters) (querysvc.TraceQueryPa
 			DurationMax:   query.GetDurationMax(),
 		},
 	}
+	if protoFilter := query.GetFilter(); protoFilter != nil {
+		filter, err := expressionproto.FromProto(protoFilter)
+		if err != nil {
+			return querysvc.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+		}
+		queryParams.Filter = filter
+	}
 	return queryParams, nil
 }
 
@@ -114,7 +122,7 @@ func (h *Handler) FindTraceSummaries(request *api_v3.FindTraceSummariesRequest, 
 
 	for summaries, err := range h.QueryService.FindTraceSummaries(stream.Context(), queryParams) {
 		if err != nil {
-			return err
+			return asStatusError(err)
 		}
 		if err := stream.Send(&api_v3.FindTraceSummariesResponse{Summaries: toProtoTraceSummaries(summaries)}); err != nil {
 			return status.Errorf(codes.Internal, "failed to send response stream chunk to client: %v", err)
@@ -215,13 +223,24 @@ func (h *Handler) GetDependencies(ctx context.Context, request *api_v3.GetDepend
 	return &api_v3.DependenciesResponse{Dependencies: links}, nil
 }
 
+// asStatusError maps a query-service error to a gRPC status code. A query this
+// deployment's storage cannot serve is the caller's problem (InvalidArgument) rather than
+// a server fault, and without this it would reach the client as Unknown. Other errors pass
+// through unchanged.
+func asStatusError(err error) error {
+	if querysvc.IsBadRequest(err) {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	return err
+}
+
 func receiveTraces(
 	seq iter.Seq2[[]ptrace.Traces, error],
 	sendFn func(*jptrace.TracesData) error,
 ) error {
 	for traces, err := range seq {
 		if err != nil {
-			return err
+			return asStatusError(err)
 		}
 		for _, trace := range traces {
 			tracesData := jptrace.TracesData(trace)

@@ -42,7 +42,9 @@ func TestInsertThroughtput(t *testing.T) {
 			{Service: "our-svc", Operation: "op2"},
 		}
 		require.NoError(t, samplingStore.InsertThroughput(throughputs))
-		ret, _ := samplingStore.GetThroughput(start, start.Add(time.Second*time.Duration(1)))
+		// GetThroughput uses an exclusive lower bound (t.time.After(start) in sampling.go), so on a
+		// coarse clock the inserted entry can land exactly on start and get dropped — widen the window.
+		ret, _ := samplingStore.GetThroughput(start.Add(-time.Second), start.Add(time.Second*time.Duration(1)))
 		assert.Len(t, ret, 2)
 
 		for i := range 10 {

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -43,6 +44,7 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
+	errorTag               = "error"
 
 	defaultSearchDepth = 100
 
@@ -50,9 +52,6 @@ const (
 )
 
 var (
-	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("service Name must be set")
-
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
 	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
 
@@ -388,9 +387,6 @@ func buildTraceByIDQuery(traceID dbmodel.TraceID) esquery.Query {
 }
 
 func validateQuery(p dbmodel.TraceQueryParameters) error {
-	if p.ServiceName == "" && len(p.Tags) > 0 {
-		return ErrServiceNameNotSet
-	}
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
 	}
@@ -460,7 +456,10 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
-	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+	boolQuery, err := s.buildFindTraceIDsQuery(traceQuery)
+	if err != nil {
+		return nil, err
+	}
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
@@ -500,7 +499,7 @@ func (*SpanReader) buildTraceIDSubAggregation() esquery.Aggregation {
 	return esquery.NewMaxAggregation(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) esquery.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) (esquery.Query, error) {
 	boolQuery := esquery.NewBoolQuery()
 
 	// add duration query
@@ -526,10 +525,36 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 	}
 
 	for k, v := range traceQuery.Tags {
+		// The error tag is only written for error spans (error=true; see
+		// getTagFromStatusCode in to_dbmodel.go). A non-error span carries no error
+		// tag at all, so a literal error=false tag match returns nothing. Treat
+		// error=false as the complement of error=true — every non-error span — by
+		// excluding error=true instead, mirroring the in-memory store (#9096).
+		if k == errorTag {
+			if isError, parseErr := strconv.ParseBool(v); parseErr == nil {
+				if isError {
+					boolQuery.Must(s.buildTagQuery(errorTag, "true"))
+				} else {
+					boolQuery.MustNot(s.buildTagQuery(errorTag, "true"))
+				}
+				continue
+			}
+		}
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
-	return boolQuery
+
+	// The structured filter carries the same kinds of predicate as the fields above and the
+	// query service keeps the two mutually exclusive, so at most one of them contributes
+	// clauses to this query.
+	if traceQuery.Filter != nil {
+		filterQuery, err := s.buildFilterQuery(traceQuery.Filter)
+		if err != nil {
+			return nil, err
+		}
+		boolQuery.Must(filterQuery)
+	}
+	return boolQuery, nil
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) esquery.Query {

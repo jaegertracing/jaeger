@@ -1,0 +1,36 @@
+{
+  "bool": {
+    "should": [
+      {
+        "regexp": {
+          "tag.http@route": {
+            "value": ".*(a\\\\d).*"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "http.route"
+                  }
+                },
+                {
+                  "regexp": {
+                    "tags.value": {
+                      "value": ".*(a\\\\d).*"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

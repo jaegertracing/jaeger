@@ -17,45 +17,68 @@ IMAGE_PULL_POLICY="${JAEGER_DEMO_IMAGE_PULL_POLICY:-IfNotPresent}"
 PUBLIC_JAEGER_URL="${JAEGER_DEMO_PUBLIC_JAEGER_URL:-${JAEGER_OTEL_DEMO_JAEGER_URL:-https://jaeger.demo.jaegertracing.io}}"
 RUN_PUBLIC_SMOKE_TESTS="${RUN_PUBLIC_SMOKE_TESTS:-false}"
 DEPLOY_SCOPE="${JAEGER_OTEL_DEMO_DEPLOY_SCOPE:-jaeger}"
-
-case "$MODE" in
-  upgrade|clean)
-    echo " Running in '$MODE' mode..."
-    ;;
-  *)
-    echo "Error: Invalid mode '$MODE'"
-    echo "Usage: $0 [upgrade|clean] [image-tag]"
-    echo ""
-    echo "Modes:"
-    echo "  upgrade  - Upgrade existing deployment or install if not present (default)"
-    echo "  clean    - Clean install (removes existing deployment first)"
-    echo ""
-    echo "Examples:"
-    echo "  $0                    # Upgrade mode with latest tag"
-    echo "  $0 clean              # Clean install"
-    exit 1
-    ;;
- esac
-
-case "$DEPLOY_SCOPE" in
-  jaeger|all)
-    ;;
-  *)
-    echo "Error: Invalid deploy scope '$DEPLOY_SCOPE'"
-    echo "Expected JAEGER_OTEL_DEMO_DEPLOY_SCOPE to be 'jaeger' or 'all'"
-    exit 1
-    ;;
-esac
-
-if [[ "$MODE" == "upgrade" ]]; then
-  HELM_JAEGER_CMD="upgrade --install --wait --atomic"
-else
-  # For clean mode, use install after cleanup
-  HELM_JAEGER_CMD="install --wait"
-fi
+OPENSEARCH_RECOVERY="${JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY:-required}"
+# renovate: datasource=helm depName=opentelemetry-demo registryUrl=https://open-telemetry.github.io/opentelemetry-helm-charts
+OTEL_DEMO_CHART_VERSION="0.40.9"
+# renovate: datasource=helm depName=opensearch registryUrl=https://opensearch-project.github.io/helm-charts
+OPENSEARCH_CHART_VERSION="2.38.0"
+# renovate: datasource=helm depName=opensearch-dashboards registryUrl=https://opensearch-project.github.io/helm-charts
+OPENSEARCH_DASHBOARDS_CHART_VERSION="2.34.0"
 
 log() { echo "[$(date +"%F %T")] $*"; }
 err() { echo "[$(date +"%F %T")] ERROR: $*" >&2; exit 1; }
+
+validate_options() {
+  case "$MODE" in
+    upgrade|clean)
+      ;;
+    *)
+      echo "Error: Invalid mode '$MODE'" >&2
+      echo "Usage: $0 [upgrade|clean] [image-tag]" >&2
+      echo "Expected mode to be 'upgrade' or 'clean'" >&2
+      return 1
+      ;;
+  esac
+
+  case "$DEPLOY_SCOPE" in
+    jaeger|otel-demo|opensearch|all)
+      ;;
+    *)
+      echo "Error: Invalid deploy scope '$DEPLOY_SCOPE'" >&2
+      echo "Expected JAEGER_OTEL_DEMO_DEPLOY_SCOPE to be 'jaeger', 'otel-demo', 'opensearch', or 'all'" >&2
+      return 1
+      ;;
+  esac
+
+  case "$OPENSEARCH_RECOVERY" in
+    required|waive)
+      ;;
+    *)
+      echo "Error: Invalid OpenSearch recovery policy '$OPENSEARCH_RECOVERY'" >&2
+      echo "Expected JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY to be 'required' or 'waive'" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ "$OPENSEARCH_RECOVERY" == "waive" ]] &&
+    { [[ "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ]] ||
+      [[ "${GITHUB_REF:-}" != "refs/heads/main" ]] ||
+      [[ "${JAEGER_DEMO_STACK:-}" != "otel" ]] ||
+      [[ "$MODE" != "upgrade" ]] ||
+      [[ "$DEPLOY_SCOPE" != "opensearch" ]]; }; then
+    echo "Error: OpenSearch recovery may be waived only by a manual isolated otel/upgrade/opensearch run from main" >&2
+    return 1
+  fi
+}
+
+configure_jaeger_helm_command() {
+  if [[ "$MODE" == "upgrade" ]]; then
+    HELM_JAEGER_CMD="upgrade --install --wait --atomic"
+  else
+    # For clean mode, use install after cleanup.
+    HELM_JAEGER_CMD="install --wait"
+  fi
+}
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -71,6 +94,9 @@ check_cluster() {
 
 check_required_files() {
   local files=(
+    "$SCRIPT_DIR/OPENSEARCH_RECOVERY.md"
+    "$SCRIPT_DIR/opensearch-recovery.sh"
+    "$SCRIPT_DIR/opensearch-volume-snapshot-class.yaml"
     "$SCRIPT_DIR/opensearch-values.yaml"
     "$SCRIPT_DIR/opensearch-dashboard-values.yaml"
     "$SCRIPT_DIR/jaeger-values.yaml"
@@ -123,8 +149,24 @@ diagnose_deployment_failure() {
   kubectl -n "$namespace" get events --sort-by=.lastTimestamp | tail -80 || true
 }
 
+collect_otel_collector_logs() {
+  local pod
+
+  while IFS= read -r pod; do
+    [[ -n "$pod" ]] || continue
+    log "Collecting current logs for otel-demo/$pod"
+    kubectl -n otel-demo logs "$pod" --all-containers --tail=300 --prefix || true
+    log "Collecting previous logs for otel-demo/$pod"
+    kubectl -n otel-demo logs "$pod" --all-containers --previous --tail=300 --prefix || true
+  done < <(kubectl -n otel-demo get pods \
+    -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo \
+    -o name 2>/dev/null || true)
+}
+
 diagnose_otel_demo_failure() {
   log "Collecting diagnostics for namespace otel-demo"
+  helm status otel-demo -n otel-demo || true
+  helm history otel-demo -n otel-demo || true
   kubectl -n otel-demo get deploy,daemonset,replicaset,pods,svc,endpoints -o wide || true
   kubectl -n otel-demo describe svc otel-collector || true
   kubectl -n otel-demo get endpoints otel-collector -o yaml || true
@@ -134,7 +176,7 @@ diagnose_otel_demo_failure() {
   kubectl -n otel-demo describe deployment load-generator || true
   kubectl -n otel-demo describe deployment postgresql || true
   kubectl -n otel-demo describe deployment product-catalog || true
-  kubectl -n otel-demo logs -l app.kubernetes.io/name=opentelemetry-collector,app.kubernetes.io/instance=otel-demo --all-containers --tail=300 --prefix || true
+  collect_otel_collector_logs
   kubectl -n otel-demo logs -l opentelemetry.io/name=frontend --all-containers --tail=200 --prefix || true
   kubectl -n otel-demo logs -l opentelemetry.io/name=frontend-proxy --all-containers --tail=200 --prefix || true
   kubectl -n otel-demo logs -l opentelemetry.io/name=load-generator --all-containers --tail=200 --prefix || true
@@ -244,6 +286,55 @@ smoke_expect() {
 
 deploy_full_stack() {
   [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "all" ]]
+}
+
+deploy_opensearch_stack() {
+  deploy_full_stack || [[ "$DEPLOY_SCOPE" == "opensearch" ]]
+}
+
+deploy_jaeger_stack() {
+  [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "jaeger" || "$DEPLOY_SCOPE" == "all" ]]
+}
+
+deploy_otel_demo() {
+  [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "otel-demo" || "$DEPLOY_SCOPE" == "all" ]]
+}
+
+reconcile_ingress() {
+  [[ "$MODE" == "clean" || "$DEPLOY_SCOPE" == "jaeger" || "$DEPLOY_SCOPE" == "all" ]]
+}
+
+deploy_opensearch_releases() {
+  if [[ "$MODE" == "upgrade" ]]; then
+    case "$OPENSEARCH_RECOVERY" in
+      required)
+        log "Verifying a recent tested OpenSearch recovery point"
+        bash "$SCRIPT_DIR/opensearch-recovery.sh" verify
+        ;;
+      waive)
+        log "WARNING: OpenSearch recovery was explicitly waived; this upgrade has no tested rollback or data-recovery path"
+        ;;
+      *)
+        err "Invalid OpenSearch recovery policy '$OPENSEARCH_RECOVERY'"
+        ;;
+    esac
+  fi
+
+  log "Deploying OpenSearch chart $OPENSEARCH_CHART_VERSION"
+  helm upgrade --install opensearch opensearch/opensearch \
+    --namespace opensearch --create-namespace \
+    --version "$OPENSEARCH_CHART_VERSION" \
+    -f "$SCRIPT_DIR/opensearch-values.yaml" \
+    --wait --timeout 10m
+  wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
+
+  log "Deploying OpenSearch Dashboards chart $OPENSEARCH_DASHBOARDS_CHART_VERSION"
+  helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
+    --namespace opensearch \
+    --version "$OPENSEARCH_DASHBOARDS_CHART_VERSION" \
+    -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
+    --wait --timeout 10m
+  wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
 }
 
 cleanup() {
@@ -368,6 +459,9 @@ clone_jaeger_v2() {
 
 
 main() {
+  validate_options || exit 1
+  configure_jaeger_helm_command
+  echo " Running in '$MODE' mode..."
   log "Starting CI deploy (weekly refresh)"
   need bash
   need git
@@ -387,77 +481,74 @@ main() {
   helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts >/dev/null 2>&1 || true
   helm repo add jaegertracing https://jaegertracing.github.io/helm-charts >/dev/null 2>&1 || true
   helm repo update >/dev/null
-  clone_jaeger_v2
+  if deploy_jaeger_stack; then
+    clone_jaeger_v2
+  else
+    log "Skipping Jaeger Helm chart preparation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
 
-  if deploy_full_stack; then
-    log "Deploying OpenSearch"
-    helm upgrade --install opensearch opensearch/opensearch \
-      --namespace opensearch --create-namespace \
-      --version 2.19.0 \
-      --set image.tag=2.11.0 \
-      -f "$SCRIPT_DIR/opensearch-values.yaml" \
-      --wait --timeout 10m
-    wait_for_statefulset opensearch opensearch-cluster-single "${ROLLOUT_TIMEOUT}s"
-
-    log "Deploying OpenSearch Dashboards"
-    helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards \
-      --namespace opensearch \
-      -f "$SCRIPT_DIR/opensearch-dashboard-values.yaml" \
-      --wait --timeout 10m
-    wait_for_deployment opensearch opensearch-dashboards "${ROLLOUT_TIMEOUT}s"
+  if deploy_opensearch_stack; then
+    deploy_opensearch_releases
   else
     log "Skipping OpenSearch refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
   fi
 
-  if [[ "$MODE" == "upgrade" ]]; then
-    adopt_resource_for_helm_release jaeger serviceaccount jaeger-hotrod jaeger
-    adopt_resource_for_helm_release jaeger service jaeger-hotrod jaeger
-    delete_deployment_before_helm_upgrade jaeger jaeger-hotrod
+  if deploy_jaeger_stack; then
+    if [[ "$MODE" == "upgrade" ]]; then
+      adopt_resource_for_helm_release jaeger serviceaccount jaeger-hotrod jaeger
+      adopt_resource_for_helm_release jaeger service jaeger-hotrod jaeger
+      delete_deployment_before_helm_upgrade jaeger jaeger-hotrod
+    fi
+
+    log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
+    log "Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG}"
+    if ! helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
+      --namespace jaeger --create-namespace \
+      --set allInOne.enabled=true \
+      --set storage.type=elasticsearch \
+      --set storage.elasticsearch.anonymous=true \
+      --set storage.elasticsearch.usePassword=false \
+      --set storage.elasticsearch.host=opensearch-cluster-single.opensearch.svc.cluster.local \
+      --set storage.elasticsearch.port=9200 \
+      --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}" \
+      --set allInOne.image.tag="${JAEGER_IMAGE_TAG}" \
+      --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}" \
+      --set hotrod.image.repository="${HOTROD_IMAGE_REPOSITORY}" \
+      --set hotrod.image.tag="${HOTROD_IMAGE_TAG}" \
+      --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}" \
+      --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
+      -f "$SCRIPT_DIR/jaeger-values.yaml" \
+      --timeout 10m; then
+      diagnose_deployment_failure jaeger jaeger
+      err "Helm release jaeger failed"
+    fi
+    wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
+
+    log "Creating Jaeger query ClusterIP service..."
+    kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
+    log "Jaeger query ClusterIP service created"
+
+    log "Ensuring Jaeger Collector service endpoints are ready"
+    wait_for_service_endpoints jaeger jaeger-collector 180
+
+    log "Ensuring HotROD service endpoints are ready"
+    wait_for_service_endpoints jaeger jaeger-hotrod 180
+
+    log "Deploying HotROD trace generator"
+    kubectl -n jaeger create configmap trace-script --from-file="$SCRIPT_DIR/generate_traces.py" --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -n jaeger -f "$SCRIPT_DIR/load-generator.yaml"
+    wait_for_deployment jaeger trace-generator "${ROLLOUT_TIMEOUT}s"
+  else
+    log "Skipping Jaeger, HotROD, and trace generator refresh in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
   fi
 
-  log "Deploying Jaeger image ${JAEGER_IMAGE_REPOSITORY}:${JAEGER_IMAGE_TAG}"
-  log "Deploying HotROD image ${HOTROD_IMAGE_REPOSITORY}:${HOTROD_IMAGE_TAG}"
-  if ! helm $HELM_JAEGER_CMD jaeger "$SCRIPT_DIR/helm-charts/charts/jaeger" \
-    --namespace jaeger --create-namespace \
-    --set allInOne.enabled=true \
-    --set storage.type=elasticsearch \
-    --set storage.elasticsearch.anonymous=true \
-    --set storage.elasticsearch.usePassword=false \
-    --set storage.elasticsearch.host=opensearch-cluster-single.opensearch.svc.cluster.local \
-    --set storage.elasticsearch.port=9200 \
-    --set allInOne.image.repository="${JAEGER_IMAGE_REPOSITORY}" \
-    --set allInOne.image.tag="${JAEGER_IMAGE_TAG}" \
-    --set allInOne.image.pullPolicy="${IMAGE_PULL_POLICY}" \
-    --set hotrod.image.repository="${HOTROD_IMAGE_REPOSITORY}" \
-    --set hotrod.image.tag="${HOTROD_IMAGE_TAG}" \
-    --set hotrod.image.pullPolicy="${IMAGE_PULL_POLICY}" \
-    --set-file userconfig="$SCRIPT_DIR/jaeger-config.yaml" \
-    -f "$SCRIPT_DIR/jaeger-values.yaml" \
-    --timeout 10m; then
-    diagnose_deployment_failure jaeger jaeger
-    err "Helm release jaeger failed"
-  fi
-  wait_for_deployment jaeger jaeger "${ROLLOUT_TIMEOUT}s"
+  if deploy_otel_demo; then
+    log "Ensuring Jaeger Collector service endpoints are ready before deploying the demo"
+    wait_for_service_endpoints jaeger jaeger-collector 180
 
-
-  log "Creating Jaeger query ClusterIP service..."
-  kubectl apply -n jaeger -f "$SCRIPT_DIR/jaeger-query-service.yaml"
-  log "Jaeger query ClusterIP service created"
-
-  log "Ensuring Jaeger Collector service endpoints are ready before deploying the demo"
-  wait_for_service_endpoints jaeger jaeger-collector 180
-
-  log "Ensuring HotROD service endpoints are ready"
-  wait_for_service_endpoints jaeger jaeger-hotrod 180
-
-  log "Deploying HotROD trace generator"
-  kubectl -n jaeger create configmap trace-script --from-file="$SCRIPT_DIR/generate_traces.py" --dry-run=client -o yaml | kubectl apply -f -
-  kubectl apply -n jaeger -f "$SCRIPT_DIR/load-generator.yaml"
-  wait_for_deployment jaeger trace-generator "${ROLLOUT_TIMEOUT}s"
-
-  if deploy_full_stack; then
-    log "Deploying OpenTelemetry Demo (with in-cluster Collector)"
+    log "Deploying OpenTelemetry Demo chart $OTEL_DEMO_CHART_VERSION (with in-cluster Collector)"
     if ! helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
+      --version "$OTEL_DEMO_CHART_VERSION" \
       -f "$SCRIPT_DIR/otel-demo-values.yaml" \
       --namespace otel-demo --create-namespace \
       --wait --timeout 15m; then
@@ -474,7 +565,11 @@ main() {
   log "All components deployed successfully"
 
   # Deploy HTTPS ingress
-  deploy_ingress
+  if reconcile_ingress; then
+    deploy_ingress
+  else
+    log "Skipping ingress reconciliation in '$MODE' mode with deploy scope '$DEPLOY_SCOPE'"
+  fi
 
   if [[ "$RUN_PUBLIC_SMOKE_TESTS" == "true" ]]; then
     log "Verifying public OTel demo endpoints..."
@@ -482,7 +577,7 @@ main() {
       diagnose_otel_demo_failure
       err "Public Jaeger UI smoke check failed"
     fi
-    if ! smoke_expect "${PUBLIC_JAEGER_URL}/api/services" '"checkout"' /tmp/otel-jaeger-services.json; then
+    if ! smoke_expect "${PUBLIC_JAEGER_URL}/api/v3/services" '"checkout"' /tmp/otel-jaeger-services.json; then
       diagnose_otel_demo_failure
       err "Public Jaeger services smoke check failed"
     fi
@@ -492,4 +587,6 @@ main() {
 
 }
 
-main
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
