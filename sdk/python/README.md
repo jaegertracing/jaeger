@@ -122,6 +122,32 @@ The target checks both of those outcomes rather than trusting them: it fails if 
 
 One consequence of following the IDL layout: the generated package is top-level `api_v3`, matching what jaeger-idl's own polyglot codegen emits. That is a poor neighbour in a shared site-packages, so publishing this to PyPI would mean revisiting it.
 
+## The end-to-end test
+
+`make test` is hermetic. `make e2e` is the one that talks to a real Jaeger:
+
+```bash
+cd sdk/python
+make e2e        # needs docker and go
+```
+
+It brings up the OpenSearch service the repository already defines for its own e2e
+runs (`e2e/docker-compose.yml` includes it rather than restating it), starts Jaeger
+from source against `cmd/jaeger/config-opensearch.yaml`, and runs the tests marked
+`e2e`. Everything it starts, it stops. It refuses to run when 9200, 4318 or 16685 is
+already taken, rather than testing whatever else is listening — a stale Jaeger
+answers queries happily, and one built before the filter existed drops it as an
+unknown proto field, so every predicate silently stops filtering.
+
+Two things it needs that are easy to miss. The filter is behind the
+`jaeger.query.structuredFilters` feature gate, Alpha and off by default, so `run.sh`
+enables it; without it a query carrying a filter is refused. And OpenSearch is not
+incidental: Elasticsearch/OpenSearch is the only backend that declares filter
+capabilities today, so it is the only one that evaluates a filter rather than having
+it down-converted to the legacy predicate fields. It declares the span, resource and
+event levels and every operator except `some`, and the test asserts that a filter
+naming `some` is refused rather than quietly widened.
+
 ## Not covered
 
 The prototype stops where RFC 0005 does, and a little short of it:

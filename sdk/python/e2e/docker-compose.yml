@@ -1,0 +1,17 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+#
+# The storage this end-to-end test needs, which is the OpenSearch service the
+# repository already defines for its own e2e runs — included rather than restated so
+# the version and settings stay in one place.
+#
+# OpenSearch rather than memory storage because Elasticsearch/OpenSearch is the only
+# backend that declares filter capabilities today, so it is the only one that
+# evaluates a structured filter instead of having it down-converted to the legacy
+# predicate fields.
+#
+# Jaeger is deliberately absent: run.sh starts it from source against
+# cmd/jaeger/config-opensearch.yaml, so the test exercises the working tree rather
+# than a published image.
+include:
+  - ../../../docker-compose/opensearch/v3/docker-compose.yml

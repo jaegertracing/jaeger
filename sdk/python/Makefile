@@ -15,6 +15,7 @@ UV := uv run --extra grpc
 .PHONY: help
 help:
 	@echo "test  - run the tests"
+	@echo "e2e   - run the end-to-end test against OpenSearch and a Jaeger from source"
 	@echo "lint  - check formatting and lint rules"
 	@echo "fmt   - apply formatting and import ordering"
 	@echo "lock  - update uv.lock after changing dependencies"
@@ -25,6 +26,12 @@ help:
 .PHONY: test
 test:
 	$(UV) pytest -q
+
+# Starts OpenSearch and a Jaeger built from this tree, then runs the end-to-end test
+# against them. Needs docker and go; everything it starts, it stops.
+.PHONY: e2e
+e2e:
+	./e2e/run.sh
 
 .PHONY: lint
 lint:
