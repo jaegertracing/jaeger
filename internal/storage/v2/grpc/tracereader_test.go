@@ -23,6 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
 
@@ -942,6 +943,64 @@ func TestTraceReader_SearchCapabilities(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, test.expected, caps)
 			}
+		})
+	}
+}
+
+// TestTraceReader_RefusesUnencodableFilter covers what each search method does with a filter that
+// has no wire form. The query is never sent, because a receiver reading a truncated filter would
+// answer a different question than the one asked.
+func TestTraceReader_RefusesUnencodableFilter(t *testing.T) {
+	params := tracestore.TraceQueryParams{
+		ServiceName: "service-a",
+		Attributes:  pcommon.NewMap(),
+		// A comparison missing an operand is a tree Predicate cannot build and ToProto has no
+		// wire form for, which is how a filter that was never finalized shows up here.
+		Filter: &expression.Call{
+			Op:   expression.OpEq,
+			Args: []expression.Expression{nil, nil},
+		},
+	}
+	conn, err := grpc.NewClient(":0", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		conn.Close()
+	})
+	reader := NewTraceReader(conn)
+
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "FindTraces",
+			call: func() error {
+				_, err := jiter.FlattenWithErrors(reader.FindTraces(context.Background(), params))
+				return err
+			},
+		},
+		{
+			name: "FindTraceIDs",
+			call: func() error {
+				_, err := jiter.FlattenWithErrors(reader.FindTraceIDs(context.Background(), params))
+				return err
+			},
+		},
+		{
+			name: "FindTraceSummaries",
+			call: func() error {
+				_, err := jiter.FlattenWithErrors(reader.FindTraceSummaries(context.Background(), params))
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.call()
+			// The reader holds a client to a server that was never started, so a query that did go
+			// out would fail with the call's own message instead of this one.
+			require.ErrorIs(t, err, expressionproto.ErrTermNotEncodable)
+			assert.ErrorContains(t, err, "cannot send the query filter")
 		})
 	}
 }

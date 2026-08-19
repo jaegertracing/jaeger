@@ -25,6 +25,7 @@ import (
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	depstoremocks "github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore/mocks"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
@@ -910,6 +911,58 @@ func TestHandler_GetCapabilities(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, resp.GetSearch())
+		})
+	}
+}
+
+// TestHandler_RefusesUnusableFilter covers the refusal every search method shares: a filter the
+// caller has to change never reaches the reader, because a reader handed a filter it was not asked
+// about would answer the time range instead and call that a match.
+func TestHandler_RefusesUnusableFilter(t *testing.T) {
+	// An operator no vocabulary lists survives decoding and is refused by Finalize, which is the
+	// refusal these methods have to carry back as InvalidArgument.
+	query := &storage.TraceQueryParameters{
+		Filter: &expressionproto.Call{Op: "no-such-operator"},
+	}
+	tests := []struct {
+		name   string
+		method string
+		call   func(*Handler) error
+	}{
+		{
+			name:   "FindTraces",
+			method: "FindTraces",
+			call: func(h *Handler) error {
+				return h.FindTraces(&storage.FindTracesRequest{Query: query}, &testStream{})
+			},
+		},
+		{
+			name:   "FindTraceSummaries",
+			method: "FindTraceSummaries",
+			call: func(h *Handler) error {
+				return h.FindTraceSummaries(&storage.FindTraceSummariesRequest{Query: query}, &summaryStream{})
+			},
+		},
+		{
+			name:   "FindTraceIDs",
+			method: "FindTraceIDs",
+			call: func(h *Handler) error {
+				_, err := h.FindTraceIDs(context.Background(), &storage.FindTraceIDsRequest{Query: query})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			handler := NewHandler(reader, new(tracestoremocks.Writer), new(depstoremocks.Reader))
+
+			err := test.call(handler)
+
+			require.Error(t, err)
+			assert.Equal(t, codes.InvalidArgument, status.Code(err))
+			assert.Contains(t, err.Error(), "no-such-operator")
+			reader.AssertNotCalled(t, test.method, mock.Anything, mock.Anything)
 		})
 	}
 }
