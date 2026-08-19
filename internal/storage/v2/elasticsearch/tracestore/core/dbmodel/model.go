@@ -4,7 +4,11 @@
 
 package dbmodel
 
-import "time"
+import (
+	"time"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+)
 
 // ReferenceType is the reference type of one span to another
 type ReferenceType string
@@ -122,4 +126,10 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	SearchDepth   int
+	// Filter is the structured query filter (RFC 0005), which carries the same kinds of
+	// predicate as the fields above and is mutually exclusive with them. It is the storage
+	// API's own expression tree rather than a translation of it, because the tree is what the
+	// reader lowers into the Elasticsearch query and a second encoding of it would earn
+	// nothing.
+	Filter *expression.Call
 }

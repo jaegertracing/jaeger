@@ -1,0 +1,62 @@
+{
+  "bool": {
+    "must_not": {
+      "bool": {
+        "should": [
+          {
+            "term": {
+              "tag.error": "true"
+            }
+          },
+          {
+            "term": {
+              "process.tag.error": "true"
+            }
+          },
+          {
+            "nested": {
+              "path": "tags",
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "tags.key": "error"
+                      }
+                    },
+                    {
+                      "term": {
+                        "tags.value": "true"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "nested": {
+              "path": "process.tags",
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "term": {
+                        "process.tags.key": "error"
+                      }
+                    },
+                    {
+                      "term": {
+                        "process.tags.value": "true"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
