@@ -6,6 +6,9 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,30 +16,24 @@ import (
 	"github.com/stretchr/testify/require"
 
 	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
+	builder "github.com/jaegertracing/jaeger/internal/expression"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/snapshottest"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-// spanAttr, resourceAttr, eventAttr, and unqualifiedAttr spell the reference kinds the
-// tests below compare against, so a case reads as the filter a caller would send.
+// The cases below are written with the Predicate builder wherever it can express them. These three
+// helpers serve the handful that it cannot: an operator holding the wrong number or kind of
+// arguments. The builder gives each operator its own method, so it has no way to say "eq with one
+// operand", and it keeps the reference term private, so such a tree cannot be assembled from what a
+// chain returns either — which is the builder working as intended, and why these cases go to the
+// AST directly. A remote-storage client can still put one on the wire, so the reader is tested
+// against them.
 func spanAttr(name string) *expression.AttributeRef {
 	return &expression.AttributeRef{Key: name, Level: expression.LevelSpan}
 }
 
-func resourceAttr(name string) *expression.AttributeRef {
-	return &expression.AttributeRef{Key: name, Level: expression.LevelResource}
-}
-
-func eventAttr(name string) *expression.AttributeRef {
-	return &expression.AttributeRef{Key: name, Level: expression.LevelEvent}
-}
-
-func unqualifiedAttr(name string) *expression.AttributeRef {
-	return &expression.AttributeRef{Key: name}
-}
-
-// scalar spells an untyped constant, which is what a caller writes and what this reader serves.
 func scalar(value string) *expression.AnyValue {
 	return &expression.AnyValue{Value: value}
 }
@@ -70,335 +67,207 @@ func TestFilterCapabilities(t *testing.T) {
 	assert.False(t, caps.SupportsLevel(expression.LevelLink))
 }
 
+// filterSnapshots is where the lowered form of each accepted case is committed, one file per case
+// named after it, so a case that is renamed or deleted shows up as a snapshot nothing claims.
+const filterSnapshots = "testdata/filter"
+
+// TestBuildFilterQuery covers what this schema can answer, one predicate at a time. The queries are
+// written with the Predicate builder a caller uses rather than as AST literals, so a case reads as
+// the query it stands for; the few cases that need a tree the builder does not produce say so.
+//
+// The lowered query is compared against a committed snapshot, which is the convention in this
+// package: the expected Elasticsearch JSON is large enough that inlining it hides the case.
 func TestBuildFilterQuery(t *testing.T) {
+	var p builder.Predicate
 	tests := []struct {
 		name   string
 		filter *expression.Call
-		want   string
 	}{
 		{
 			name:   "unqualified attribute searches the span and resource levels",
-			filter: call(expression.OpEq, unqualifiedAttr("http.status_code"), scalar("500")),
-			want: `{"bool":{"should":[
-				{"term":{"tag.http@status_code":"500"}},
-				{"term":{"process.tag.http@status_code":"500"}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"http.status_code"}},
-					{"term":{"tags.value":"500"}}]}}}},
-				{"nested":{"path":"process.tags","query":{"bool":{"must":[
-					{"term":{"process.tags.key":"http.status_code"}},
-					{"term":{"process.tags.value":"500"}}]}}}}]}}`,
+			filter: p.Attr("http.status_code").Eq("500"),
 		},
 		{
 			name:   "span level searches only the span's own attributes",
-			filter: call(expression.OpEq, spanAttr("component"), scalar("grpc")),
-			want: `{"bool":{"should":[
-				{"term":{"tag.component":"grpc"}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"component"}},
-					{"term":{"tags.value":"grpc"}}]}}}}]}}`,
+			filter: p.Span().Attr("component").Eq("grpc"),
 		},
 		{
 			name:   "resource level searches only the process attributes",
-			filter: call(expression.OpEq, resourceAttr("deployment.environment"), scalar("staging")),
-			want: `{"bool":{"should":[
-				{"term":{"process.tag.deployment@environment":"staging"}},
-				{"nested":{"path":"process.tags","query":{"bool":{"must":[
-					{"term":{"process.tags.key":"deployment.environment"}},
-					{"term":{"process.tags.value":"staging"}}]}}}}]}}`,
+			filter: p.Resource().Attr("deployment.environment").Eq("staging"),
 		},
 		{
 			name:   "event level has one location, so it needs no disjunction",
-			filter: call(expression.OpEq, eventAttr("exception.type"), scalar("IOError")),
-			want: `{"nested":{"path":"logs.fields","query":{"bool":{"must":[
-				{"term":{"logs.fields.key":"exception.type"}},
-				{"term":{"logs.fields.value":"IOError"}}]}}}}`,
+			filter: p.Event().Attr("exception.type").Eq("IOError"),
 		},
 		{
 			name:   "event.name reads the logs.fields entry the write path stores it in",
-			filter: call(expression.OpEq, &expression.FieldRef{Name: expression.EventFieldName, Level: expression.LevelEvent}, scalar("exception")),
-			want: `{"nested":{"path":"logs.fields","query":{"bool":{"must":[
-				{"term":{"logs.fields.key":"event"}},
-				{"term":{"logs.fields.value":"exception"}}]}}}}`,
+			filter: p.Event().Name.Eq("exception"),
 		},
 		{
 			name:   "span.name is the operation name",
-			filter: call(expression.OpEq, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("/api/v3/traces")),
-			want:   `{"term":{"operationName":"/api/v3/traces"}}`,
+			filter: p.Span().Name.Eq("/api/v3/traces"),
 		},
 		{
 			name:   "resource.service is the service name",
-			filter: call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart")),
-			want:   `{"term":{"process.serviceName":"cart"}}`,
+			filter: p.Resource().Service.Eq("cart"),
 		},
 		{
 			name:   "span.duration compares microseconds against a value carrying its unit",
-			filter: call(expression.OpGt, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("2s")),
-			want:   `{"range":{"duration":{"gt":2000000}}}`,
+			filter: p.Span().Duration.Gt("2s"),
 		},
 		{
 			name:   "gte on the duration",
-			filter: call(expression.OpGte, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("1500ms")),
-			want:   `{"range":{"duration":{"gte":1500000}}}`,
+			filter: p.Span().Duration.Gte("1500ms"),
 		},
 		{
 			name:   "lt on the duration",
-			filter: call(expression.OpLt, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("1m")),
-			want:   `{"range":{"duration":{"lt":60000000}}}`,
+			filter: p.Span().Duration.Lt("1m"),
 		},
 		{
 			name:   "lte on the duration",
-			filter: call(expression.OpLte, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("500us")),
-			want:   `{"range":{"duration":{"lte":500}}}`,
+			filter: p.Span().Duration.Lte("500us"),
 		},
 		{
 			name:   "eq on the duration",
-			filter: call(expression.OpEq, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("3s")),
-			want:   `{"term":{"duration":3000000}}`,
+			filter: p.Span().Duration.Eq("3s"),
 		},
 		{
-			name: "a string constant against the operation name, which is what finalizing produces",
-			filter: call(expression.OpEq,
-				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
-				&expression.StringValue{Value: "checkout"}),
-			want: `{"term":{"operationName":"checkout"}}`,
+			name:   "a string constant against the operation name, which is what finalizing produces",
+			filter: p.Span().Name.Eq(p.Text("checkout")),
 		},
 		{
-			name: "a string constant against the service name",
-			filter: call(expression.OpEq,
-				&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-				&expression.StringValue{Value: "cart"}),
-			want: `{"term":{"process.serviceName":"cart"}}`,
+			name:   "a string constant against the service name",
+			filter: p.Resource().Service.Eq(p.Text("cart")),
 		},
 		{
-			name: "a string constant against the event name",
-			filter: call(expression.OpEq,
-				&expression.FieldRef{Name: expression.EventFieldName, Level: expression.LevelEvent},
-				&expression.StringValue{Value: "exception"}),
-			want: `{"nested":{"path":"logs.fields","query":{"bool":{"must":[
-				{"term":{"logs.fields.key":"event"}},
-				{"term":{"logs.fields.value":"exception"}}]}}}}`,
+			name:   "a string constant against the event name",
+			filter: p.Event().Name.Eq(p.Text("exception")),
 		},
 		{
-			name: "a duration constant, which is what a finalized filter carries",
-			filter: call(expression.OpGt,
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.DurationValue{Value: 2 * time.Second}),
-			want: `{"range":{"duration":{"gt":2000000}}}`,
+			// A Go duration reaches the AST as the untyped constant "2s", so the typed constant
+			// resolving produces is written out here.
+			name:   "a duration constant, which is what a finalized filter carries",
+			filter: p.Span().Duration.Gt(&expression.DurationValue{Value: 2 * time.Second}),
 		},
 		{
 			name:   "regex matches anywhere in the value, which this engine needs told",
-			filter: call(expression.OpRegex, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("GET .*")),
-			want:   `{"regexp":{"operationName":{"value":".*(GET .*).*"}}}`,
+			filter: p.Span().Name.Matches("GET .*"),
 		},
 		{
 			name:   "regex on an attribute reaches every location the attribute lives in",
-			filter: call(expression.OpRegex, spanAttr("http.route"), scalar("/api/.*")),
-			want: `{"bool":{"should":[
-				{"regexp":{"tag.http@route":{"value":".*(/api/.*).*"}}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"http.route"}},
-					{"regexp":{"tags.value":{"value":".*(/api/.*).*"}}}]}}}}]}}`,
+			filter: p.Span().Attr("http.route").Matches("/api/.*"),
 		},
 		{
 			name:   "an escaped punctuation character, which both dialects read the same way",
-			filter: call(expression.OpRegex, spanAttr("http.route"), scalar(`/cart\.json`)),
-			want: `{"bool":{"should":[
-				{"regexp":{"tag.http@route":{"value":".*(/cart\\.json).*"}}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"http.route"}},
-					{"regexp":{"tags.value":{"value":".*(/cart\\.json).*"}}}]}}}}]}}`,
+			filter: p.Span().Attr("http.route").Matches(`/cart\.json`),
 		},
 		{
 			name:   "an escaped backslash, which does not escape what follows it",
-			filter: call(expression.OpRegex, spanAttr("http.route"), scalar(`a\\d`)),
-			want: `{"bool":{"should":[
-				{"regexp":{"tag.http@route":{"value":".*(a\\\\d).*"}}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"http.route"}},
-					{"regexp":{"tags.value":{"value":".*(a\\\\d).*"}}}]}}}}]}}`,
+			filter: p.Span().Attr("http.route").Matches(`a\\d`),
 		},
 		{
 			name:   "an alternation is grouped, so the wildcards apply to the whole pattern",
-			filter: call(expression.OpRegex, spanAttr("http.route"), scalar("cart|checkout")),
-			want: `{"bool":{"should":[
-				{"regexp":{"tag.http@route":{"value":".*(cart|checkout).*"}}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"http.route"}},
-					{"regexp":{"tags.value":{"value":".*(cart|checkout).*"}}}]}}}}]}}`,
+			filter: p.Span().Attr("http.route").Matches("cart|checkout"),
 		},
 		{
 			name:   "exists tests the key alone",
-			filter: call(expression.OpExists, eventAttr("exception.stacktrace")),
-			want: `{"nested":{"path":"logs.fields",
-				"query":{"term":{"logs.fields.key":"exception.stacktrace"}}}}`,
+			filter: p.Event().Attr("exception.stacktrace").Exists(),
 		},
 		{
 			name:   "exists on an attribute tests the key in every location it may live in",
-			filter: call(expression.OpExists, spanAttr("http.route")),
-			want: `{"bool":{"should":[
-				{"exists":{"field":"tag.http@route"}},
-				{"nested":{"path":"tags","query":{"term":{"tags.key":"http.route"}}}}]}}`,
+			filter: p.Span().Attr("http.route").Exists(),
 		},
 		{
 			name:   "exists on event.name tests the key the write path stores it under",
-			filter: call(expression.OpExists, &expression.FieldRef{Name: expression.EventFieldName, Level: expression.LevelEvent}),
-			want: `{"nested":{"path":"logs.fields",
-				"query":{"term":{"logs.fields.key":"event"}}}}`,
+			filter: p.Event().Name.Exists(),
 		},
 		{
 			name:   "exists on a built-in field tests its own field",
-			filter: call(expression.OpExists, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}),
-			want:   `{"exists":{"field":"duration"}}`,
+			filter: p.Span().Duration.Exists(),
 		},
 		{
 			name:   "exists on the operation name",
-			filter: call(expression.OpExists, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}),
-			want:   `{"exists":{"field":"operationName"}}`,
+			filter: p.Span().Name.Exists(),
 		},
 		{
 			name:   "exists on the service name",
-			filter: call(expression.OpExists, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}),
-			want:   `{"exists":{"field":"process.serviceName"}}`,
+			filter: p.Resource().Service.Exists(),
 		},
 		{
-			name: "and becomes the must clause",
-			filter: call(expression.OpAnd,
-				call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart")),
-				call(expression.OpGt, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("2s"))),
-			want: `{"bool":{"must":[
-				{"term":{"process.serviceName":"cart"}},
-				{"range":{"duration":{"gt":2000000}}}]}}`,
+			name:   "and becomes the must clause",
+			filter: p.And(p.Resource().Service.Eq("cart"), p.Span().Duration.Gt("2s")),
 		},
 		{
 			// A one-argument conjunction is not a filter a caller can send through the query
-			// service, which validates arity first, but it can arrive from a remote-storage
-			// client. It means the predicate it wraps, and lowers to it.
+			// service, which validates arity first, and the builder collapses it to the predicate
+			// it wraps, so it is written out here. It can still arrive from a remote-storage
+			// client, and it means that predicate.
 			name: "a conjunction of one predicate is that predicate",
-			filter: call(expression.OpAnd,
-				call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart"))),
-			want: `{"term":{"process.serviceName":"cart"}}`,
+			filter: &expression.Call{
+				Op:   expression.OpAnd,
+				Args: []expression.Expression{p.Resource().Service.Eq("cart")},
+			},
 		},
 		{
-			name: "or becomes the should clause",
-			filter: call(expression.OpOr,
-				call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart")),
-				call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("checkout"))),
-			want: `{"bool":{"should":[
-				{"term":{"process.serviceName":"cart"}},
-				{"term":{"process.serviceName":"checkout"}}]}}`,
+			name:   "or becomes the should clause",
+			filter: p.Or(p.Resource().Service.Eq("cart"), p.Resource().Service.Eq("checkout")),
 		},
 		{
-			name: "not becomes the must_not clause, which also matches a span missing the reference",
-			filter: call(expression.OpNot,
-				call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("healthcheck"))),
-			want: `{"bool":{"must_not":{"term":{"process.serviceName":"healthcheck"}}}}`,
+			name:   "not becomes the must_not clause, which also matches a span missing the reference",
+			filter: p.Not(p.Resource().Service.Eq("healthcheck")),
 		},
 		{
 			name: "nesting composes to nested bool queries",
-			filter: call(expression.OpAnd,
-				call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart")),
-				call(expression.OpOr,
-					call(expression.OpEq, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("a")),
-					call(expression.OpNot,
-						call(expression.OpEq, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("b"))))),
-			want: `{"bool":{"must":[
-				{"term":{"process.serviceName":"cart"}},
-				{"bool":{"should":[
-					{"term":{"operationName":"a"}},
-					{"bool":{"must_not":{"term":{"operationName":"b"}}}}]}}]}}`,
+			filter: p.And(
+				p.Resource().Service.Eq("cart"),
+				p.Or(
+					p.Span().Name.Eq("a"),
+					p.Not(p.Span().Name.Eq("b")),
+				),
+			),
 		},
 		{
 			name:   "ne requires the reference to be present, so an absent one does not match",
-			filter: call(expression.OpNe, eventAttr("exception.type"), scalar("IOError")),
-			want: `{"bool":{
-				"must":{"nested":{"path":"logs.fields",
-					"query":{"term":{"logs.fields.key":"exception.type"}}}},
-				"must_not":{"nested":{"path":"logs.fields","query":{"bool":{"must":[
-					{"term":{"logs.fields.key":"exception.type"}},
-					{"term":{"logs.fields.value":"IOError"}}]}}}}}}`,
+			filter: p.Event().Attr("exception.type").Ne("IOError"),
 		},
 		{
 			name:   "ne on a built-in field guards on the field's own presence",
-			filter: call(expression.OpNe, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart")),
-			want: `{"bool":{
-				"must":{"exists":{"field":"process.serviceName"}},
-				"must_not":{"term":{"process.serviceName":"cart"}}}}`,
+			filter: p.Resource().Service.Ne("cart"),
 		},
 		{
-			name: "in is the disjunction of equalities it stands for",
-			filter: call(expression.OpIn, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-				&expression.List{Values: []string{"cart", "checkout"}}),
-			want: `{"bool":{"should":[
-				{"term":{"process.serviceName":"cart"}},
-				{"term":{"process.serviceName":"checkout"}}]}}`,
+			name:   "in is the disjunction of equalities it stands for",
+			filter: p.Resource().Service.In("cart", "checkout"),
 		},
 		{
-			name: "a single-member list needs no disjunction",
-			filter: call(expression.OpIn, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-				&expression.List{Values: []string{"cart"}}),
-			want: `{"term":{"process.serviceName":"cart"}}`,
+			name:   "a single-member list needs no disjunction",
+			filter: p.Resource().Service.In("cart"),
 		},
 		{
-			name: "not_in requires the reference to be present, like ne",
-			filter: call(expression.OpNotIn, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-				&expression.List{Values: []string{"cart", "checkout"}}),
-			want: `{"bool":{
-				"must":{"exists":{"field":"process.serviceName"}},
-				"must_not":{"bool":{"should":[
-					{"term":{"process.serviceName":"cart"}},
-					{"term":{"process.serviceName":"checkout"}}]}}}}`,
+			name:   "not_in requires the reference to be present, like ne",
+			filter: p.Resource().Service.NotIn("cart", "checkout"),
 		},
 		{
 			name:   "error=true matches the tag the write path records",
-			filter: call(expression.OpEq, spanAttr("error"), scalar("true")),
-			want: `{"bool":{"should":[
-				{"term":{"tag.error":"true"}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"error"}},
-					{"term":{"tags.value":"true"}}]}}}}]}}`,
+			filter: p.Span().Attr("error").Eq("true"),
 		},
 		{
 			name:   "error=false excludes error=true, because a span that succeeded carries no tag",
-			filter: call(expression.OpEq, spanAttr("error"), scalar("false")),
-			want: `{"bool":{"must_not":{"bool":{"should":[
-				{"term":{"tag.error":"true"}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"error"}},
-					{"term":{"tags.value":"true"}}]}}}}]}}}}`,
+			filter: p.Span().Attr("error").Eq("false"),
 		},
 		{
 			name:   "an unqualified error=0 is read the same way as error=false",
-			filter: call(expression.OpEq, unqualifiedAttr("error"), scalar("0")),
-			want: `{"bool":{"must_not":{"bool":{"should":[
-				{"term":{"tag.error":"true"}},
-				{"term":{"process.tag.error":"true"}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"error"}},
-					{"term":{"tags.value":"true"}}]}}}},
-				{"nested":{"path":"process.tags","query":{"bool":{"must":[
-					{"term":{"process.tags.key":"error"}},
-					{"term":{"process.tags.value":"true"}}]}}}}]}}}}`,
+			filter: p.Attr("error").Eq("0"),
 		},
 		{
 			name:   "a non-boolean error value keeps its literal match",
-			filter: call(expression.OpEq, spanAttr("error"), scalar("oops")),
-			want: `{"bool":{"should":[
-				{"term":{"tag.error":"oops"}},
-				{"nested":{"path":"tags","query":{"bool":{"must":[
-					{"term":{"tags.key":"error"}},
-					{"term":{"tags.value":"oops"}}]}}}}]}}`,
+			filter: p.Span().Attr("error").Eq("oops"),
 		},
 		{
 			name:   "an error tag at the resource level is an ordinary attribute",
-			filter: call(expression.OpEq, resourceAttr("error"), scalar("false")),
-			want: `{"bool":{"should":[
-				{"term":{"process.tag.error":"false"}},
-				{"nested":{"path":"process.tags","query":{"bool":{"must":[
-					{"term":{"process.tags.key":"error"}},
-					{"term":{"process.tags.value":"false"}}]}}}}]}}`,
+			filter: p.Resource().Attr("error").Eq("false"),
 		},
 	}
+	claimed := make(map[string]bool, len(tests))
 	withSpanReader(t, func(r *spanReaderTest) {
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
@@ -406,19 +275,63 @@ func TestBuildFilterQuery(t *testing.T) {
 				require.NoError(t, err)
 				source, err := query.Source()
 				require.NoError(t, err)
-				got, err := json.Marshal(source)
+				got, err := json.MarshalIndent(source, "", "  ")
 				require.NoError(t, err)
-				assert.JSONEq(t, test.want, string(got))
+				snapshottest.Assert(t, filterSnapshots+"/"+snapshotName(test.name), string(got))
 			})
+			claimed[snapshotName(test.name)+".json"] = true
 		}
 	})
+	assertEverySnapshotIsClaimed(t, filterSnapshots, claimed)
+}
+
+// snapshotName turns a case name into the file name holding its lowered query.
+func snapshotName(testName string) string {
+	var name strings.Builder
+	for _, r := range strings.ToLower(testName) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			name.WriteRune(r)
+		case name.Len() > 0 && !strings.HasSuffix(name.String(), "_"):
+			name.WriteRune('_')
+		default:
+			// Leading and repeated punctuation contribute nothing.
+		}
+	}
+	return strings.TrimSuffix(name.String(), "_")
+}
+
+// assertEverySnapshotIsClaimed fails on a snapshot file no case asked for, which is what a renamed
+// or deleted case leaves behind. snapshottest's own orphan check cannot see these, because it looks
+// for other spellings of the one subject it was asked about rather than at the directory.
+// Regenerating removes them instead of reporting them.
+func assertEverySnapshotIsClaimed(t *testing.T, dir string, claimed map[string]bool) {
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err, "reading %s", dir)
+	for _, entry := range entries {
+		if claimed[entry.Name()] {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if snapshottest.Regenerate {
+			require.NoError(t, os.Remove(path))
+			continue
+		}
+		assert.Fail(t, "stale snapshot",
+			"%s belongs to no test case; run REGENERATE_SNAPSHOTS=true to remove it", path)
+	}
 }
 
 // TestBuildFilterQueryRefused covers what this schema cannot answer. Every case is refused
 // rather than approximated, and each refusal is one of the two sentinels the API layers turn
 // into a 400 — ErrFilterUnsupported for a predicate this backend cannot serve,
 // ErrFilterInvalid for one that is malformed however it is served.
+//
+// A predicate the builder can write is written with it. The rest are trees the builder will not
+// produce — a typed constant, a malformed one, or an operator given the wrong arguments — and are
+// written out term by term, which is also what a remote client can put on the wire.
 func TestBuildFilterQueryRefused(t *testing.T) {
+	var p builder.Predicate
 	tests := []struct {
 		name    string
 		filter  *expression.Call
@@ -426,185 +339,162 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 		wantMsg string
 	}{
 		{
-			name: "the scope level is folded into the span's own tags",
-			filter: call(expression.OpEq,
-				&expression.AttributeRef{Key: "otel.scope.name", Level: expression.LevelScope},
-				scalar("lib")),
+			name:    "the scope level is folded into the span's own tags",
+			filter:  p.Scope().Attr("otel.scope.name").Eq("lib"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `does not index the "scope" level`,
 		},
 		{
-			name: "link attributes are not indexed at all",
-			filter: call(expression.OpEq,
-				&expression.AttributeRef{Key: "k", Level: expression.LevelLink},
-				scalar("v")),
+			name:    "link attributes are not indexed at all",
+			filter:  p.Link().Attr("k").Eq("v"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `does not index the "link" level`,
 		},
 		{
-			name: "a built-in field this schema has no field for",
-			filter: call(expression.OpEq,
-				&expression.FieldRef{Name: "kind", Level: expression.LevelSpan},
-				scalar("server")),
+			name:    "a built-in field this schema has no field for",
+			filter:  p.Span().Kind.Eq("server"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `built-in field "kind" of the "span" level`,
 		},
 		{
-			name: "exists on a built-in field this schema has no field for",
-			filter: call(expression.OpExists,
-				&expression.FieldRef{Name: "traceID", Level: expression.LevelLink}),
+			name:    "exists on a built-in field this schema has no field for",
+			filter:  p.Link().TraceID.Exists(),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `built-in field "traceID" of the "link" level`,
 		},
 		{
 			name:    "ordering an attribute, which is indexed as a keyword",
-			filter:  call(expression.OpGt, spanAttr("http.response.size"), scalar("500")),
+			filter:  p.Span().Attr("http.response.size").Gt("500"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `indexes "http.response.size" as a keyword rather than a number`,
 		},
 		{
 			name:    "ordering the operation name",
-			filter:  call(expression.OpLte, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar("m")),
+			filter:  p.Span().Name.Lte("m"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `indexes "name" as a keyword rather than a number`,
 		},
 		{
 			name:    "a pattern over the duration, which is a number",
-			filter:  call(expression.OpRegex, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("2.*")),
+			filter:  p.Span().Duration.Matches("2.*"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `operator "regex" on a duration`,
 		},
 		{
-			name: "a constant that declares its type, which there is no typed storage to route to",
-			filter: call(expression.OpEq, spanAttr("http.status_code"),
-				&expression.IntValue{Value: 500}),
+			name:    "a constant that declares its type, which there is no typed storage to route to",
+			filter:  p.Span().Attr("http.status_code").Eq(&expression.IntValue{Value: 500}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "an integer constant declares a type",
 		},
 		{
-			name: "two references, which this engine would need a script to compare",
-			filter: call(expression.OpEq,
-				&expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan},
-				spanAttr("http.route")),
+			name:    "two references, which this engine would need a script to compare",
+			filter:  p.Span().Name.Eq(p.Span().Attr("http.route")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `it evaluates "eq" against a constant only`,
 		},
 		{
 			name:    "a pattern using a Perl shorthand, which this engine reads as a letter",
-			filter:  call(expression.OpRegex, spanAttr("http.status_code"), scalar(`\d+`)),
+			filter:  p.Span().Attr("http.status_code").Matches(`\d+`),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `it reads "\\d" as the literal character`,
 		},
 		{
 			name:    "a pattern using a word shorthand",
-			filter:  call(expression.OpRegex, &expression.FieldRef{Name: expression.SpanFieldName, Level: expression.LevelSpan}, scalar(`GET \w+`)),
+			filter:  p.Span().Name.Matches(`GET \w+`),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `it reads "\\w" as the literal character`,
 		},
 		{
-			name: "a string constant, whose declared type this schema cannot route to",
-			filter: call(expression.OpEq, spanAttr("http.route"),
-				&expression.StringValue{Value: "/cart"}),
+			name:    "a string constant, whose declared type this schema cannot route to",
+			filter:  p.Span().Attr("http.route").Eq(p.Text("/cart")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a string constant declares a type",
 		},
 		{
-			name: "a duration constant carrying nothing, which a finalized filter never holds",
-			filter: call(expression.OpGt,
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				(*expression.DurationValue)(nil)),
+			name:    "a duration constant carrying nothing, which a finalized filter never holds",
+			filter:  p.Span().Duration.Gt((*expression.DurationValue)(nil)),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a duration constant declares a type",
 		},
 		{
-			name: "an untyped constant carrying nothing",
-			filter: call(expression.OpGt,
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				(*expression.AnyValue)(nil)),
+			name:    "an untyped constant carrying nothing",
+			filter:  p.Span().Duration.Gt((*expression.AnyValue)(nil)),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "that operand declares a type",
 		},
 		{
-			name: "a list where a comparison takes one value",
-			filter: call(expression.OpEq, spanAttr("http.route"),
-				&expression.List{Values: []string{"/cart"}}),
+			name:    "a list where a comparison takes one value",
+			filter:  p.Span().Attr("http.route").Eq(&expression.List{Values: []string{"/cart"}}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "that operand declares a type",
 		},
 		{
-			name: "a list of doubles, refused for the reason a double constant is",
-			filter: call(expression.OpIn, spanAttr("ratio"),
-				&expression.List{Values: []string{"1.5"}, Type: expression.ValueTypeDouble}),
+			name:    "a list of doubles, refused for the reason a double constant is",
+			filter:  p.Span().Attr("ratio").In(p.List(expression.ValueTypeDouble, 1.5)),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a floating-point constant declares a type",
 		},
 		{
-			name: "a list of booleans, refused the same way",
-			filter: call(expression.OpIn, spanAttr("ok"),
-				&expression.List{Values: []string{"true"}, Type: expression.ValueTypeBool}),
+			name:    "a list of booleans, refused the same way",
+			filter:  p.Span().Attr("ok").In(p.List(expression.ValueTypeBool, true)),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a boolean constant declares a type",
 		},
 		{
-			name: "a list of strings, whose declared text this schema cannot tell from a number",
-			filter: call(expression.OpIn, spanAttr("http.route"),
-				&expression.List{Values: []string{"/cart"}, Type: expression.ValueTypeString}),
+			name:    "a list of strings, whose declared text this schema cannot tell from a number",
+			filter:  p.Span().Attr("http.route").In(p.List(expression.ValueTypeString, "/cart")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a string constant declares a type",
 		},
 		{
-			name: "a timestamp constant, which no field here holds",
-			filter: call(expression.OpGt,
-				&expression.FieldRef{Name: expression.SpanFieldStartTime, Level: expression.LevelSpan},
-				&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
+			name:    "a timestamp constant, which no field here holds",
+			filter:  p.Span().StartTime.Gt(&expression.TimestampValue{Value: time.Unix(0, 0).UTC()}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a timestamp constant declares a type",
 		},
 		{
-			name: "a boolean where the duration belongs",
-			filter: call(expression.OpGt,
-				&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.BoolValue{Value: true}),
+			name:    "a boolean where the duration belongs",
+			filter:  p.Span().Duration.Gt(&expression.BoolValue{Value: true}),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "a boolean constant declares a type",
 		},
 		{
-			name: "a typed list, whose type applies to every member",
-			filter: call(expression.OpIn, spanAttr("http.status_code"),
-				&expression.List{Values: []string{"500"}, Type: expression.ValueTypeInt}),
+			name:    "a typed list, whose type applies to every member",
+			filter:  p.Span().Attr("http.status_code").In(p.List(expression.ValueTypeInt, 500)),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: "an integer constant declares a type",
 		},
 		{
-			name: "the some quantifier, whose correlated matching is not implemented",
-			filter: call(expression.OpSome,
-				&expression.NestedRef{Level: expression.LevelEvent},
-				call(expression.OpEq, &expression.FieldRef{Name: expression.EventFieldName, Level: expression.LevelEvent}, scalar("exception"))),
+			name:    "the some quantifier, whose correlated matching is not implemented",
+			filter:  p.Some(p.Event(), p.Event().Name.Eq("exception")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `operator "some"`,
 		},
 		{
 			name:    "an operator this build does not know",
-			filter:  call("json_extract", spanAttr("input"), scalar("$.a")),
+			filter:  p.Compare("json_extract", p.Span().Attr("input"), "$.a"),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `operator "json_extract"`,
 		},
 		{
 			name:    "comparing two values read off the same span, which would need a script",
-			filter:  call(expression.OpNe, spanAttr("enduser.id"), resourceAttr("enduser.id")),
+			filter:  p.Span().Attr("enduser.id").Ne(p.Resource().Attr("enduser.id")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `evaluates "ne" against a constant only`,
 		},
 		{
+			// Compare routes membership through a list, so the builder cannot put a lone constant
+			// where in expects one.
 			name: "membership against something other than a list",
-			filter: call(expression.OpIn, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
+			filter: call(expression.OpIn,
+				&expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
 				scalar("cart")),
 			wantErr: tracestore.ErrFilterUnsupported,
 			wantMsg: `evaluates "in" against a constant only`,
 		},
 		{
 			name:    "a duration value with no unit",
-			filter:  call(expression.OpGt, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("2")),
+			filter:  p.Span().Duration.Gt("2"),
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `"2" is not a duration such as "2s"`,
 		},
@@ -612,14 +502,13 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			// ne builds the presence test before the comparison, so this reaches the second of
 			// the two and is refused by it.
 			name:    "a duration value with no unit, negated",
-			filter:  call(expression.OpNe, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan}, scalar("2")),
+			filter:  p.Span().Duration.Ne("2"),
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `"2" is not a duration such as "2s"`,
 		},
 		{
-			name: "a list member that is not a duration",
-			filter: call(expression.OpNotIn, &expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
-				&expression.List{Values: []string{"2s", "later"}}),
+			name:    "a list member that is not a duration",
+			filter:  p.Span().Duration.NotIn("2s", "later"),
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `invalid duration "later"`,
 		},
@@ -662,9 +551,8 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 			wantMsg: `"exists" cannot take 2 arguments`,
 		},
 		{
-			name: "membership against an empty list, which nothing can satisfy",
-			filter: call(expression.OpIn, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource},
-				&expression.List{}),
+			name:    "membership against an empty list, which nothing can satisfy",
+			filter:  p.Compare(expression.OpIn, p.Resource().Service, &expression.List{}),
 			wantErr: tracestore.ErrFilterInvalid,
 			wantMsg: `"in" compares against an empty list`,
 		},
@@ -692,13 +580,14 @@ func TestBuildFilterQueryRefused(t *testing.T) {
 // must clause beside the time range, which is the only other clause a filter query carries
 // because the query service keeps the legacy predicate fields out of it.
 func TestBuildFindTraceIDsQueryWithFilter(t *testing.T) {
+	var p builder.Predicate
 	withSpanReader(t, func(r *spanReaderTest) {
 		start := time.Time{}
 		end := time.Time{}.Add(time.Second)
 		query, err := r.reader.buildFindTraceIDsQuery(dbmodel.TraceQueryParameters{
 			StartTimeMin: start,
 			StartTimeMax: end,
-			Filter:       call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart")),
+			Filter:       p.Resource().Service.Eq("cart"),
 		})
 		require.NoError(t, err)
 		got, err := query.Source()
@@ -716,14 +605,13 @@ func TestBuildFindTraceIDsQueryWithFilter(t *testing.T) {
 // a search running without the predicate it could not lower, which would answer a different
 // question than the one asked.
 func TestFindTraceIDsRefusesUnservableFilter(t *testing.T) {
+	var p builder.Predicate
 	withSpanReader(t, func(r *spanReaderTest) {
 		now := time.Now()
 		_, err := r.reader.FindTraceIDs(context.Background(), dbmodel.TraceQueryParameters{
 			StartTimeMin: now,
 			StartTimeMax: now.Add(time.Hour),
-			Filter: call(expression.OpEq,
-				&expression.FieldRef{Name: "kind", Level: expression.LevelSpan},
-				scalar("server")),
+			Filter:       p.Span().Kind.Eq("server"),
 		})
 		require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
 	})
@@ -732,23 +620,18 @@ func TestFindTraceIDsRefusesUnservableFilter(t *testing.T) {
 // TestBuildFilterQueryRefusalFromWithin checks that a refusal deep in the tree is the
 // refusal the caller sees, rather than being lost as a partially built query.
 func TestBuildFilterQueryRefusalFromWithin(t *testing.T) {
-	unservable := call(expression.OpEq,
-		&expression.AttributeRef{Key: "k", Level: expression.LevelLink},
-		scalar("v"))
-	servable := call(expression.OpEq, &expression.FieldRef{Name: expression.ResourceFieldService, Level: expression.LevelResource}, scalar("cart"))
+	var p builder.Predicate
+	unservable := p.Link().Attr("k").Eq("v")
+	servable := p.Resource().Service.Eq("cart")
 	for _, filter := range []*expression.Call{
-		call(expression.OpAnd, servable, unservable),
-		call(expression.OpOr, servable, unservable),
-		call(expression.OpNot, unservable),
-		call(expression.OpAnd, servable, call(expression.OpOr, servable, unservable)),
+		p.And(servable, unservable),
+		p.Or(servable, unservable),
+		p.Not(unservable),
+		p.And(servable, p.Or(servable, unservable)),
 		// The negated leaves build the positive comparison and the presence test in turn, so
 		// either of them can be the one that refuses.
-		call(expression.OpNe,
-			&expression.AttributeRef{Key: "k", Level: expression.LevelLink},
-			scalar("v")),
-		call(expression.OpNotIn,
-			&expression.AttributeRef{Key: "k", Level: expression.LevelLink},
-			&expression.List{Values: []string{"v"}}),
+		p.Link().Attr("k").Ne("v"),
+		p.Link().Attr("k").NotIn("v"),
 	} {
 		withSpanReader(t, func(r *spanReaderTest) {
 			query, err := r.reader.buildFilterQuery(filter)
