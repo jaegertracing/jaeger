@@ -38,11 +38,15 @@ type RotationConfig struct {
 // a new index each time the date rolls over.
 type PeriodicRotation struct {
 	// DateLayout is the Go time format string for the date suffix.
-	// It controls index granularity: "2006-01-02" → daily, "2006-01-02-15" → hourly.
+	// It controls index granularity, e.g.:
+	//   "2006-01-02-15" → hourly
+	//   "2006-01-02"    → daily
+	//   "2006-01"       → monthly
+	//   "2006"          → yearly
 	// Defaults to "2006-01-02".
 	DateLayout string `mapstructure:"date_layout"`
 	// RolloverFrequency controls how many indices are scanned during reads.
-	// Must match DateLayout granularity: "hour" if layout includes hours, else "day".
+	// Must match DateLayout granularity: one of "hour", "day", "month", "year".
 	// Defaults to "day".
 	RolloverFrequency string `mapstructure:"rollover_frequency"`
 }
