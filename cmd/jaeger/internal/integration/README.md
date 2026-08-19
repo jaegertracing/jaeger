@@ -159,9 +159,9 @@ overrides ports, the following defaults apply:
 | Endpoint | Default port | Role |
 |----------|--------------|------|
 | OTLP gRPC receiver | `4317` | Span writes from the test process |
-| Query gRPC (`jaeger_query`) | see `ports` package / storage config | Span reads |
+| Query gRPC (`jaeger_query`) | `16685` (`ports.QueryGRPC`) | Span reads |
 | Metrics | `8888` (`MetricsPort`) | Collector metrics scrape |
-| Storage cleaner | HTTP `POST /purge` on the cleaner extension | Wipe storage between cases |
+| Storage cleaner | `9231` (`POST /purge`) | Wipe storage between cases |
 
 Storage-specific tests may run extra processes (for example Kafka, remote
 storage, or a second binary) and override `MetricsPort`, `HealthCheckPort`,
