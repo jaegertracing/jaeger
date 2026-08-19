@@ -7,10 +7,7 @@ const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
 	findTraceSummariesTest = "FindTraceSummaries"
-	// structuredFilterTest asserts exact result sets, so it runs only where the reader evaluates a
-	// filter itself; anywhere else the filter is widened to a superset and the battery is written to
-	// catch that. A backend drops this as it gains native filter support.
-	structuredFilterTest = "FindTracesWithFilter"
+	structuredFilterTest   = "FindTracesWithFilter"
 )
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
@@ -149,11 +146,8 @@ func Kafka() Capabilities {
 	}
 }
 
-// NoStructuredFilters excuses a suite from the RFC 0005 filter battery and nothing else, for a
-// backend that satisfies the rest of the suite but whose reader does not evaluate a structured
-// filter. It is what the e2e suites need, because a backend reached through jaeger-query can
-// satisfy tests its own reader cannot — computing trace summaries, for one — so those suites
-// cannot reuse the per-backend capabilities their direct counterparts declare.
+// NoStructuredFilters excuses a suite from the RFC 0005 filter battery and nothing else, which is
+// every e2e suite whose reader does not evaluate a filter.
 func NoStructuredFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{structuredFilterTest},
