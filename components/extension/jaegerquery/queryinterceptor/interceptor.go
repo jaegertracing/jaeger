@@ -22,32 +22,55 @@
 // traces before it is returned (to drop or redact them). The business logic —
 // authorization, redaction — lives entirely in the extension.
 //
-// The types here depend only on public packages (OTel pdata), so custom OCB
-// builds and third-party extensions implement this contract without importing
-// any jaeger-internal package. Query is a stable, purpose-built view: it is
-// deliberately decoupled from jaeger-query's internal query struct so the
-// internals can evolve without breaking this contract.
+// The types here depend only on public packages (OTel pdata, and the filter AST from
+// jaeger-idl), so custom OCB builds and third-party extensions implement this contract
+// without importing any jaeger-internal package. Query is a purpose-built view of a search
+// rather than jaeger-query's internal query struct, so most of what that struct changes is
+// invisible here. Filter is the exception: it is the same AST the internal query and the
+// storage protocol carry, so a change to the AST is a change to this contract — which is why
+// the AST lives in a public, versioned module.
 package queryinterceptor
 
 import (
 	"context"
 	"time"
 
-	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Query is the public view of a trace-search query passed to Interceptor.OnQuery.
+//
+// EXPERIMENTAL: this type and the Interceptor contract it belongs to may change or be removed
+// in any release, without a deprecation period. Filter in particular is an RFC 0005 filter AST,
+// which that RFC is still moving through its milestones, so an implementation should expect to
+// be updated alongside jaeger-query rather than to keep compiling against a stable shape.
+//
+// Every predicate is in Filter, including the ones a caller sent as the older scalar search
+// fields: jaeger-query expresses a service, an operation name, a tag and a duration bound as
+// filter predicates before an interceptor sees them, so an implementation reads and rewrites
+// one thing rather than a filter plus four fields that can say the same in two ways. The
+// remaining fields are the envelope, which no predicate lives in.
 type Query struct {
-	ServiceName   string
-	OperationName string
-	// Attributes holds the tag/attribute filters of the query. When building a
-	// Query, initialize it with pcommon.NewMap().
-	Attributes   pcommon.Map
+	// Filter is the query's predicates as a boolean-valued expression (RFC 0005 §6), or nil
+	// when the search asks for a time range and nothing else. Nil rather than an empty
+	// conjunction, because `and` takes two arguments or more, so there is no expression that
+	// says "match everything".
+	//
+	// Scoping a query means narrowing this — replacing it, or conjoining a predicate the caller
+	// is permitted — or refusing the query outright by returning an error. Returning nil is not
+	// a way to decline: it asks for every trace in the time range, and is refused as invalid if
+	// the query had predicates when OnQuery received it.
+	//
+	// jaeger-query decides how to send the search to storage only after the interceptors have
+	// finished with it, so a filter naming a level or an operator the storage backend cannot
+	// serve is refused on the same terms whether the caller wrote that predicate or an
+	// interceptor added it.
+	Filter *expression.Call
+
 	StartTimeMin time.Time
 	StartTimeMax time.Time
-	DurationMin  time.Duration
-	DurationMax  time.Duration
 	SearchDepth  int
 }
 

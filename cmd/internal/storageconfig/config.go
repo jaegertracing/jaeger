@@ -95,7 +95,8 @@ func (cfg *TraceBackend) Unmarshal(conf *confmap.Conf) error {
 		cfg.Opensearch = &v
 	}
 	if conf.IsSet("clickhouse") {
-		cfg.ClickHouse = &clickhouse.Configuration{}
+		v := clickhouse.DefaultConfiguration()
+		cfg.ClickHouse = &v
 	}
 	return conf.Unmarshal(cfg)
 }
@@ -150,7 +151,8 @@ func (cfg *MetricBackend) Unmarshal(conf *confmap.Conf) error {
 		cfg.Opensearch = &v
 	}
 	if conf.IsSet("clickhouse") {
-		cfg.ClickHouse = &clickhouse.Configuration{}
+		v := clickhouse.DefaultConfiguration()
+		cfg.ClickHouse = &v
 	}
 	return conf.Unmarshal(cfg)
 }

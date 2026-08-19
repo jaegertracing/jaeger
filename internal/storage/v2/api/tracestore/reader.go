@@ -10,6 +10,8 @@ import (
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
+
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 )
 
 // Reader finds and loads traces and other data from storage.
@@ -96,31 +98,6 @@ type Reader interface {
 	SearchCapabilities(ctx context.Context) (SearchCapabilities, error)
 }
 
-// SearchCapabilities describes how a Reader's search methods behave where backends
-// differ: which TraceQueryParams fields may be omitted, which are honored exactly
-// rather than approximated, and which combinations a backend cannot serve. Its zero
-// value is the least capable reader, so a field added here leaves every existing
-// implementation declaring the new capability unsupported.
-//
-// Fields to expect over time, each of which is a real divergence today:
-//
-//   - Whether SearchDepth is an exact limit or a hint. jaeger.api_v3's
-//     TraceQueryParameters warns of search_depth that "some implementations might not
-//     support precise limits", so a caller cannot tell whether a short result set means
-//     that there are no more matches or that the backend stopped early.
-//   - Which duration-query combinations hold. Cassandra reads DurationMin/DurationMax
-//     from a separate duration_index table, and it cannot combine that table with the
-//     tag index in one query, so it rejects a search that uses both
-//     (docs/adr/001-cassandra-find-traces-duration.md). The API layer stopped rejecting
-//     the combination in https://github.com/jaegertracing/jaeger/issues/1047, which did
-//     not remove the storage limitation.
-type SearchCapabilities struct {
-	// WithoutServiceName is true when FindTraces, FindTraceIDs and FindTraceSummaries
-	// accept a TraceQueryParams whose ServiceName is empty and read it as "any
-	// service", rather than as an error or an empty result.
-	WithoutServiceName bool
-}
-
 // GetTraceParams contains single-trace parameters for a GetTraces request.
 // Some storage backends (e.g. Tempo) perform GetTraces much more efficiently
 // if they know the approximate time range of the trace.
@@ -146,6 +123,14 @@ type TraceQueryParams struct {
 	DurationMin  time.Duration
 	DurationMax  time.Duration
 	SearchDepth  int
+	// Filter is the structured query filter (RFC 0005): a boolean-valued Call over
+	// level-qualified attributes and built-in fields. It is mutually exclusive with the
+	// predicate fields above — ServiceName, OperationName, Attributes and the duration
+	// bounds — so a reader sees one filtering model, not a mix of the two. A reader only
+	// receives a Filter whose levels and operators its SearchCapabilities declare; for any
+	// other reader the query service expresses the filter in the legacy fields instead, or
+	// refuses the query.
+	Filter *expression.Call
 }
 
 // FoundTraceID is a wrapper around trace ID returned from FindTraceIDs
