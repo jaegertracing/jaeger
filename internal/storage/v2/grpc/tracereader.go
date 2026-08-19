@@ -260,9 +260,16 @@ func toProtoQueryParameters(t tracestore.TraceQueryParams) *storage.TraceQueryPa
 func convertMapToKeyValueList(m pcommon.Map) []*storage.KeyValue {
 	keyValues := make([]*storage.KeyValue, 0, m.Len())
 	m.Range(func(k string, v pcommon.Value) bool {
+		av := convertValueToAnyValue(v)
+		if av == nil {
+			// Skip attributes with unsupported value types (e.g. ValueTypeEmpty)
+			// rather than emitting a KeyValue with a nil Value field that would be
+			// silently dropped by the server-side nil guard in convertKeyValueListToMap.
+			return true
+		}
 		keyValues = append(keyValues, &storage.KeyValue{
 			Key:   k,
-			Value: convertValueToAnyValue(v),
+			Value: av,
 		})
 		return true
 	})
