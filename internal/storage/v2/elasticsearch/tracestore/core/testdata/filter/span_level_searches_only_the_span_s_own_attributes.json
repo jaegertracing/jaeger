@@ -1,0 +1,32 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "tag.component": "grpc"
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "component"
+                  }
+                },
+                {
+                  "term": {
+                    "tags.value": "grpc"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

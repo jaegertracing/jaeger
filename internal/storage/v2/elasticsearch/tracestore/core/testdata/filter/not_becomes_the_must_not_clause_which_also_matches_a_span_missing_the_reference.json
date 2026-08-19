@@ -1,0 +1,9 @@
+{
+  "bool": {
+    "must_not": {
+      "term": {
+        "process.serviceName": "healthcheck"
+      }
+    }
+  }
+}
