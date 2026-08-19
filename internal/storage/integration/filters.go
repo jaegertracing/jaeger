@@ -5,6 +5,7 @@ package integration
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,21 +26,12 @@ import (
 // written at, whether a duration survived as a number, what the write path did with an event's
 // name.
 //
-// filterCorpus is the whole trace corpus every case searches, so each case has counterexamples the
-// backend must leave out rather than one trace it can hardly miss. It is small and deliberate: the
-// attribute key `zone` sits at the span level in one trace, the resource level in another and the
-// event level in a third, so a reader that ignores the level a predicate names fails here instead
-// of passing with a superset.
-var filterCorpus = []string{
-	// filter-cart, GET /cart, 1ms, span zone=us-east, span http.status_code=200
-	"filter_cart_get_trace",
-	// filter-cart, POST /cart/items, 2s, span http.status_code=500, event "exception"
-	"filter_cart_post_trace",
-	// filter-checkout, GET /checkout, 40ms, resource zone=us-east, span http.status_code=200
-	"filter_checkout_trace",
-	// filter-search, GET /search, 5ms, no span attributes, event "cache.miss" with zone=eu-west
-	"filter_search_trace",
-}
+// filterCorpusDir holds every trace the cases search, and all of it is loaded, so a fixture added
+// there is searched without being named anywhere else and none can be left orphaned. The corpus is
+// small and deliberate: the attribute key `zone` sits at the span level in one trace, the resource
+// level in another and the event level in a third, so a reader that ignores the level a predicate
+// names fails here instead of passing with a superset.
+const filterCorpusDir = "fixtures/traces/filter"
 
 // filterSearchDepth is larger than the corpus, so a case's result set is what the filter matched
 // rather than what the search depth cut it down to.
@@ -60,66 +52,66 @@ func filterTestCases(p builder.Predicate) []filterCase {
 		{
 			caption:  "a span-level attribute matches the span's own attributes only",
 			filter:   p.Span().Attr("zone").Eq("us-east"),
-			expected: []string{"filter_cart_get_trace"},
+			expected: []string{"cart_get"},
 		},
 		{
 			caption:  "a resource-level attribute matches the resource's attributes only",
 			filter:   p.Resource().Attr("zone").Eq("us-east"),
-			expected: []string{"filter_checkout_trace"},
+			expected: []string{"checkout"},
 		},
 		{
 			caption:  "an unqualified attribute matches either the span or the resource",
 			filter:   p.Attr("zone").Eq("us-east"),
-			expected: []string{"filter_cart_get_trace", "filter_checkout_trace"},
+			expected: []string{"cart_get", "checkout"},
 		},
 		{
 			caption:  "an event-level attribute matches an attribute of one of the span's events",
 			filter:   p.Event().Attr("zone").Eq("eu-west"),
-			expected: []string{"filter_search_trace"},
+			expected: []string{"search"},
 		},
 		{
 			// The span-or-resource default of RFC 0005 §5.1, asserted by what it leaves out: the
 			// search trace carries `zone` on an event and nowhere else.
 			caption:  "an unqualified attribute does not reach the event level",
 			filter:   p.Attr("zone").Exists(),
-			expected: []string{"filter_cart_get_trace", "filter_checkout_trace"},
+			expected: []string{"cart_get", "checkout"},
 		},
 		{
 			caption:  "the service name",
 			filter:   p.Resource().Service.Eq("filter-checkout"),
-			expected: []string{"filter_checkout_trace"},
+			expected: []string{"checkout"},
 		},
 		{
 			caption:  "the service name against a list of names",
 			filter:   p.Resource().Service.In("filter-checkout", "filter-search"),
-			expected: []string{"filter_checkout_trace", "filter_search_trace"},
+			expected: []string{"checkout", "search"},
 		},
 		{
 			caption:  "the operation name",
 			filter:   p.Span().Name.Eq("GET /cart"),
-			expected: []string{"filter_cart_get_trace"},
+			expected: []string{"cart_get"},
 		},
 		{
 			caption:  "a pattern on the operation name matches anywhere in it",
 			filter:   p.Span().Name.Matches("cart"),
-			expected: []string{"filter_cart_get_trace", "filter_cart_post_trace"},
+			expected: []string{"cart_get", "cart_post"},
 		},
 		{
 			// The write path stores an event's name as an attribute of the event, so this asserts
 			// that a filter naming the field finds what the write path recorded.
 			caption:  "the name of one of the span's events",
 			filter:   p.Event().Name.Eq("exception"),
-			expected: []string{"filter_cart_post_trace"},
+			expected: []string{"cart_post"},
 		},
 		{
 			caption:  "a duration greater than a bound",
 			filter:   p.Span().Duration.Gt(time.Second),
-			expected: []string{"filter_cart_post_trace"},
+			expected: []string{"cart_post"},
 		},
 		{
 			caption:  "a duration at most a bound",
 			filter:   p.Span().Duration.Lte(5 * time.Millisecond),
-			expected: []string{"filter_cart_get_trace", "filter_search_trace"},
+			expected: []string{"cart_get", "search"},
 		},
 		{
 			caption: "a duration between two bounds",
@@ -127,7 +119,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Span().Duration.Gte(5*time.Millisecond),
 				p.Span().Duration.Lte(40*time.Millisecond),
 			),
-			expected: []string{"filter_checkout_trace", "filter_search_trace"},
+			expected: []string{"checkout", "search"},
 		},
 		{
 			// An inequality asks for the spans that hold the attribute and hold something else
@@ -135,17 +127,17 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			// not among them.
 			caption:  "an attribute inequality leaves out a span that lacks the attribute",
 			filter:   p.Span().Attr("http.status_code").Ne("200"),
-			expected: []string{"filter_cart_post_trace"},
+			expected: []string{"cart_post"},
 		},
 		{
 			caption:  "an attribute exists",
 			filter:   p.Span().Attr("http.status_code").Exists(),
-			expected: []string{"filter_cart_get_trace", "filter_cart_post_trace", "filter_checkout_trace"},
+			expected: []string{"cart_get", "cart_post", "checkout"},
 		},
 		{
 			caption:  "a pattern on an attribute value",
 			filter:   p.Span().Attr("http.status_code").Matches("5.."),
-			expected: []string{"filter_cart_post_trace"},
+			expected: []string{"cart_post"},
 		},
 		{
 			caption: "a conjunction of a built-in field and a duration",
@@ -153,7 +145,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Resource().Service.Eq("filter-cart"),
 				p.Span().Duration.Gt(time.Second),
 			),
-			expected: []string{"filter_cart_post_trace"},
+			expected: []string{"cart_post"},
 		},
 		{
 			caption: "a disjunction",
@@ -161,7 +153,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Resource().Service.Eq("filter-search"),
 				p.Span().Name.Eq("GET /cart"),
 			),
-			expected: []string{"filter_cart_get_trace", "filter_search_trace"},
+			expected: []string{"cart_get", "search"},
 		},
 		{
 			caption: "a negation narrowing a conjunction",
@@ -169,7 +161,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 				p.Resource().Attr("deployment.environment").Eq("staging"),
 				p.Not(p.Resource().Service.Eq("filter-search")),
 			),
-			expected: []string{"filter_checkout_trace"},
+			expected: []string{"checkout"},
 		},
 		{
 			caption: "a disjunction nested inside a conjunction",
@@ -180,7 +172,7 @@ func filterTestCases(p builder.Predicate) []filterCase {
 					p.Span().Attr("zone").Eq("us-east"),
 				),
 			),
-			expected: []string{"filter_cart_get_trace", "filter_cart_post_trace"},
+			expected: []string{"cart_get", "cart_post"},
 		},
 	}
 }
@@ -206,10 +198,7 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	for _, testCase := range filterTestCases(p) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			s.skipIfNeeded(t)
-			expected := make([]ptrace.Traces, 0, len(testCase.expected))
-			for _, name := range testCase.expected {
-				expected = append(expected, corpus[name])
-			}
+			expected := filterCorpusTraces(t, corpus, testCase.expected)
 			actual := s.findTracesByQuery(t, filterQuery(testCase.filter, start, end), expected)
 			CompareTraceSlices(t, expected, actual)
 		})
@@ -287,7 +276,7 @@ func (s *StorageIntegration) RunFilterRewriteTest(t *testing.T) {
 			p.Attr("http.status_code").Eq("500"),
 		), start, end)
 
-		expected := []ptrace.Traces{corpus["filter_cart_post_trace"]}
+		expected := filterCorpusTraces(t, corpus, []string{"cart_post"})
 		viaLegacy := s.findTracesByQuery(t, legacy, expected)
 		viaFilter := s.findTracesByQuery(t, filter, expected)
 		require.NotEmpty(t, viaLegacy, "the legacy query must match a trace, or the two agreeing says nothing")
@@ -318,15 +307,31 @@ func (s *StorageIntegration) requireFilterIsServed(t *testing.T, query *tracesto
 	require.NoError(t, err, "this deployment refuses the filter itself, so no case below can pass")
 }
 
-// writeFilterCorpus writes every trace of the corpus and returns them by fixture name.
+// writeFilterCorpus writes every trace in filterCorpusDir and returns them by file name, without
+// the extension.
 func (s *StorageIntegration) writeFilterCorpus(t *testing.T) map[string]ptrace.Traces {
-	corpus := make(map[string]ptrace.Traces, len(filterCorpus))
-	for _, name := range filterCorpus {
-		trace := s.getTraceFixture(t, name)
+	entries, err := fixtures.ReadDir(filterCorpusDir)
+	require.NoError(t, err)
+	corpus := make(map[string]ptrace.Traces, len(entries))
+	for _, entry := range entries {
+		trace := loadOTLPTrace(t, filterCorpusDir+"/"+entry.Name())
 		s.writeTrace(t, trace)
-		corpus[name] = trace
+		corpus[strings.TrimSuffix(entry.Name(), ".json")] = trace
 	}
+	require.NotEmpty(t, corpus, "no trace fixtures in %s", filterCorpusDir)
 	return corpus
+}
+
+// filterCorpusTraces resolves the fixture names a case expects. A name no fixture carries is a
+// failure here rather than an empty trace that fails the comparison further along.
+func filterCorpusTraces(t *testing.T, corpus map[string]ptrace.Traces, names []string) []ptrace.Traces {
+	traces := make([]ptrace.Traces, 0, len(names))
+	for _, name := range names {
+		trace, ok := corpus[name]
+		require.True(t, ok, "no fixture named %q in %s", name, filterCorpusDir)
+		traces = append(traces, trace)
+	}
+	return traces
 }
 
 // filterCorpusTimeRange is a range around the whole corpus, so that every case is answered by its
