@@ -7,11 +7,9 @@ const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
 	FindTraceSummariesTest = "FindTraceSummaries"
-	// structuredFilterTest names the RFC 0005 filter battery, which asserts exact result sets and
-	// so runs only where the reader evaluates a filter itself. A reader that declares no filter
-	// capability is handed the filter rewritten into the legacy predicate fields instead, which
-	// drop the level a predicate named and answer with a superset (RFC 0005 §7) — and the battery
-	// is written to catch exactly that. Each backend drops this as it gains native filter support.
+	// structuredFilterTest asserts exact result sets, so it runs only where the reader evaluates a
+	// filter itself; anywhere else the filter is widened to a superset and the battery is written to
+	// catch that. A backend drops this as it gains native filter support.
 	structuredFilterTest = "FindTracesWithFilter"
 )
 
@@ -20,15 +18,9 @@ const (
 // tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
 // added later gets full coverage until someone deliberately excuses it from something.
 //
-// A suite that lists nothing is making the strongest opt-out claim, that it satisfies every test,
-// rather than waiting for someone to fill it in.
-//
-// An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies tests the
-// backend's own reader would fail: computing trace summaries, or rewriting a structured filter into
-// the legacy predicate fields. The two lists are not meant to converge.
-//
-// This is not ADR-013's storage capability declaration, which is its inverse: opt-in, and about what
-// a Reader supports rather than what a suite may ask. Whether a test runs is settled here alone.
+// A value is an opt-out claim, exactly the opposite of the opt-in storage capability mechanism of
+// ADR-013. An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies
+// tests the backend's own reader would fail.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
