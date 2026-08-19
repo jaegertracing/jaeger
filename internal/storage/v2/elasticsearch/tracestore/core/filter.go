@@ -447,6 +447,10 @@ func nestedField(path, field string) string {
 	return path + "." + field
 }
 
+// esRegexpFlags disables Lucene's optional syntax extensions (&, @, ~, <n-m>, #, <identifier>)
+// so that ordinary RE2 literals are not read as Lucene operators (RFC 0005 §5.3).
+const esRegexpFlags = "NONE"
+
 // attributeValueMatch chooses how a comparison tests an attribute value. Attribute values
 // are indexed as keywords, so equality and patterns work and ordering does not.
 func attributeValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
@@ -458,7 +462,7 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 		if err != nil {
 			return nil, err
 		}
-		return func(field string) esquery.Query { return esquery.NewRegexpQuery(field, pattern) }, nil
+		return func(field string) esquery.Query { return esquery.NewRegexpQuery(field, pattern).Flags(esRegexpFlags) }, nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
@@ -525,7 +529,7 @@ func buildTextComparison(
 		if err != nil {
 			return nil, err
 		}
-		return esquery.NewRegexpQuery(field, pattern), nil
+		return esquery.NewRegexpQuery(field, pattern).Flags(esRegexpFlags), nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}

@@ -5,10 +5,12 @@ package query
 
 // RegexpQuery matches a field against a regular expression. It renders to
 // {"regexp": {field: {"value": pattern}}}, matching what the storage layer
-// previously produced.
+// previously produced. When flags are specified, it renders to
+// {"regexp": {field: {"value": pattern, "flags": flags}}}.
 type RegexpQuery struct {
 	field string
 	value string
+	flags string
 }
 
 // NewRegexpQuery creates a RegexpQuery on the given field and pattern.
@@ -16,10 +18,20 @@ func NewRegexpQuery(field, value string) *RegexpQuery {
 	return &RegexpQuery{field: field, value: value}
 }
 
+// Flags sets the flags for this regexp query (e.g., "NONE", "ALL").
+func (q *RegexpQuery) Flags(flags string) *RegexpQuery {
+	q.flags = flags
+	return q
+}
+
 func (q *RegexpQuery) Source() (any, error) {
+	inner := map[string]any{"value": q.value}
+	if q.flags != "" {
+		inner["flags"] = q.flags
+	}
 	return map[string]any{
 		"regexp": map[string]any{
-			q.field: map[string]any{"value": q.value},
+			q.field: inner,
 		},
 	}, nil
 }
