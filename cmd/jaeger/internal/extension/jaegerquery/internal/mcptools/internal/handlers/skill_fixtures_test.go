@@ -178,6 +178,10 @@ func TestSkillFixtures_NPlusOneSeriality(t *testing.T) {
 	}{
 		{fixture: "n_plus_one_positive", serial: true, minCount: 10},
 		{fixture: "n_plus_one_near_miss", serial: false, minCount: 10},
+		// The untrimmed pair: whole traces, identical in every respect except the
+		// worker-pool size HotROD ran under, so only the timing separates them.
+		{fixture: "n_plus_one_full_serial", serial: true, minCount: 10},
+		{fixture: "n_plus_one_full_concurrent", serial: false, minCount: 10},
 	}
 
 	for _, tt := range tests {

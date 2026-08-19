@@ -15,6 +15,8 @@ bytes.
 | `n_plus_one_near_miss.json` | `detect-n-plus-one` | absent | 11 *overlapping* `HTTP GET` siblings — a fan-out, not an N+1 |
 | `error_timeout_masked.json` | `error-root-cause` | present | locus is `frontend/POST`, which carries no error status |
 | `sibling_errors.json` | `error-root-cause` | present | locus is `payment/Charge`, the earlier of two failed siblings |
+| `n_plus_one_full_concurrent.json` | `detect-n-plus-one` | absent | whole 40-span trace; the route group overlaps |
+| `n_plus_one_full_serial.json` | `detect-n-plus-one` | present | the same trace at `-W 1`; the route group is serial |
 
 ## How a fixture is built
 
@@ -36,6 +38,24 @@ failing span carries no error status, the other because two candidates tie.
 
 Manifests also carry `skill_rule_reaches_expected_answer`, which is `false` where the skill's
 own procedure is insufficient and the fixture exists to prove it.
+
+## Trimmed and untrimmed fixtures
+
+Four fixtures are trimmed to the span set that carries the pattern; two are whole traces.
+Both exist on purpose.
+
+Trimming is not only about keeping a diff readable. A whole HotROD trace contains *both*
+patterns at once — a genuine N+1 in the driver service and a concurrent fan-out in the
+frontend — so a whole-trace negative is only meaningful once it names the group it is about.
+The trimmed near-miss makes "not an N+1" true of the entire file.
+
+The untrimmed pair takes the other approach and scopes the claim with
+`expected.parent_span_id`. It is a matched pair captured from HotROD's `-W` flag, which sets
+the route-service worker pool: at `-W 3` the eleven route calls overlap, at `-W 1` the same
+eleven run one after another. Same services, same call graph, same span count — only the
+timing differs, so the ground truth is a property of the flag the capture ran under rather
+than a judgement about the trace. That makes them the fixtures for asking whether an agent
+can find the pattern amid unrelated spans, which the trimmed ones cannot test.
 
 ## What is scored, and what is not
 
@@ -65,7 +85,9 @@ between models on the same skill is a property of the model, not of the playbook
 
 ## Regenerating
 
-Fixtures are captured from HotROD, whose exact image digest each manifest records.
+Fixtures are captured from HotROD; each HotROD manifest records the exact image digest it
+was captured from. The OpenTelemetry Demo fixture records the demo commit and the feature
+flags instead, and the synthetic fixture records neither.
 
 ```bash
 # 1. bring up HotROD and Jaeger (Compose v1 syntax; use `docker compose` if you have v2)
@@ -92,11 +114,15 @@ future — passing exactly *now* returns `404 No traces found`.
 
 ## What these fixtures do and do not cover
 
-HotROD emits the same shape every time: 40 spans, maximum depth 3, six services, on every
-single request. That makes it an excellent source of *pattern* fixtures — the N+1 and the
-fan-out are textbook, and reproducible to the span — and a poor source of production
-variety. These fixtures test pattern recognition. They do not test behaviour on deep,
-noisy, or heterogeneous traces.
+HotROD emits the same *shape* on every dispatch: the same services, the same call graph,
+maximum depth 3. The span count varies a little, because failed Redis calls are retried and
+each retry adds a span — captures here ranged from 39 to 40 spans. That makes it a good
+source of *pattern* fixtures, since the N+1 and the fan-out are textbook and reproducible,
+and a poor source of production variety. These fixtures test pattern recognition. They do
+not test behaviour on deep, noisy, or heterogeneous traces.
 
-HotROD also fails one Redis call per dispatch and retries it, so two of the positive
-fixture's siblings carry `STATUS_CODE_ERROR`. They are kept: a real N+1 has retries in it.
+HotROD's Redis client fails on a fixed schedule rather than randomly or once per request:
+`errorSimulator.checkError` decrements a counter shared across the whole process and fails
+every fifth `GetDriver` call. With roughly thirteen calls per dispatch that is two or three
+failures per trace, which is why the positive fixture carries `STATUS_CODE_ERROR` on some of
+its siblings. They are kept: a real N+1 has retries in it.
