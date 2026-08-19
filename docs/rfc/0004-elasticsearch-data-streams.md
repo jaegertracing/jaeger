@@ -192,11 +192,11 @@ This overrides Jaeger's default policy without touching any Jaeger config or ris
 
 Data streams require a `@timestamp` field mapped as `date` or `date_nanos`.
 
-Recommendation: Add `@timestamp` as a field in the document at write time (in Go code), derived from the OTLP `StartTimestamp` at nanosecond precision. No ingest pipeline needed.
+Recommendation: Add `@timestamp` as a field in the document at write time (in Go code), derived from the span's start time. No ingest pipeline needed.
 
 Rationale:
-- OTLP defines timestamps in nanoseconds; truncating to milliseconds loses precision unnecessarily.
-- ES/OpenSearch `date_nanos` type stores nanosecond precision; `date` stores milliseconds.
+- Jaeger's span start times carry microsecond resolution, and a plain `date` field stores milliseconds, so it would truncate them.
+- ES/OpenSearch `date_nanos` stores nanosecond precision, which is the only built-in type that keeps sub-millisecond values.
 - Ingest pipelines add operational complexity and a failure point.
 - Avoids dependency on ES ingest nodes (relevant for cost in licensed ES/ECK deployments).
 
@@ -217,6 +217,8 @@ The value is written as an RFC 3339 string rather than a number. `date_nanos` de
 Both defaults accept an RFC 3339 string at full precision, so no explicit `format` restriction is needed and users can still index documents manually or query with human-readable timestamps in Kibana/Grafana.
 
 Note: The existing `startTime` (microseconds) and `startTimeMillis` fields remain for backward compatibility with queries. `@timestamp` is used exclusively by the data stream machinery for rollover and time-based partitioning.
+
+The value carries microsecond resolution rather than the nanoseconds OTLP defines, because `dbmodel.Span.StartTime` is epoch microseconds and the conversion into it truncates before the writer formats the string. That costs nothing for rollover, which works on the scale of hours. Whether to preserve the full OTLP precision is tracked in [#9374](https://github.com/jaegertracing/jaeger/issues/9374).
 
 ### 3.4 Write Path Changes
 
@@ -923,6 +925,7 @@ Deliverable: GetTrace performance improves from seconds (full-retention scan) to
 - Graduate from experimental to stable based on community feedback
 - Consider making `data_stream` the default rotation for spans in new installations
 - In-process index cleaner for services index (§2.1)
+- Preserve OTLP nanosecond precision in `@timestamp`, if it proves worthwhile ([#9374](https://github.com/jaegertracing/jaeger/issues/9374))
 - Deprecation of legacy strategies only after extended period and with clear migration tooling (if ever)
 
 ---
