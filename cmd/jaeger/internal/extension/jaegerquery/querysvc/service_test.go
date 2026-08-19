@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/internal/adjuster"
 	"github.com/jaegertracing/jaeger/internal/jiter"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/spanstore"
@@ -1086,4 +1087,157 @@ func TestFindTraces_ServiceNameCapabilityAskedEveryTime(t *testing.T) {
 	}
 	// Four expectations consumed: the reader was asked once per search, never cached here.
 	reader.AssertExpectations(t)
+}
+
+// forwardsOneTrace sets the reader up to answer a search with a single trace, recording the
+// query it was dispatched with.
+func forwardsOneTrace(reader *tracestoremocks.Reader, dispatched *tracestore.TraceQueryParams) *tracestoremocks.Reader {
+	reader.On("FindTraces", mock.Anything, mock.AnythingOfType("tracestore.TraceQueryParams")).
+		Run(func(args mock.Arguments) {
+			*dispatched = args.Get(1).(tracestore.TraceQueryParams)
+		}).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield([]ptrace.Traces{makeTestTrace()}, nil)
+		})).Once()
+	return reader
+}
+
+// TestFindTraces_FilterReachesStorageAsLegacyFields covers the end of the plumbing for the
+// backends that do not evaluate a filter yet: the reader receives the predicate fields it
+// already understands and no filter at all.
+func TestFindTraces_FilterReachesStorageAsLegacyFields(t *testing.T) {
+	enableStructuredFilters(t)
+	query := TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+			Filter: compare(expression.OpAnd,
+				compare(expression.OpEq,
+					&expression.FieldRef{Level: expression.LevelResource, Name: expression.ResourceFieldService},
+					&expression.AnyValue{Value: "cart"}),
+				tag(expression.OpEq, "http.status_code", "500")),
+		},
+	}
+
+	var dispatched tracestore.TraceQueryParams
+	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{}, nil).Maybe()
+
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+	got, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+	require.NoError(t, err)
+	assert.NotEmpty(t, got)
+
+	assert.Equal(t, "cart", dispatched.ServiceName)
+	assert.Nil(t, dispatched.Filter)
+	value, ok := dispatched.Attributes.Get("http.status_code")
+	require.True(t, ok)
+	assert.Equal(t, "500", value.Str())
+	reader.AssertExpectations(t)
+}
+
+// TestFindTraces_FilterReachesADeclaringReader covers the other branch: a reader that
+// declares filter support gets the filter itself.
+func TestFindTraces_FilterReachesADeclaringReader(t *testing.T) {
+	enableStructuredFilters(t)
+	filter := compare(expression.OpRegex,
+		&expression.AttributeRef{Key: "http.route", Level: expression.LevelSpan},
+		&expression.AnyValue{Value: "/cart/.*"})
+	query := TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+			Filter:     filter,
+		},
+	}
+
+	var dispatched tracestore.TraceQueryParams
+	reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
+	reader.On("SearchCapabilities", mock.Anything).Return(tracestore.SearchCapabilities{
+		WithoutServiceName: true,
+		Filter: &tracestore.FilterCapabilities{
+			Levels:    []expression.Level{expression.LevelSpan},
+			Operators: []expression.Operator{expression.OpRegex},
+		},
+	}, nil)
+
+	qs := NewQueryService(reader, nil, QueryServiceOptions{})
+	_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+	require.NoError(t, err)
+	assert.Equal(t, filter, dispatched.Filter)
+	reader.AssertExpectations(t)
+}
+
+// TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne pins the ordering: the
+// filter is rewritten before the service name is checked, so a backend that cannot search
+// every service is satisfied by a filter that names one — and still refuses a filter that
+// does not.
+func TestFindTraces_FilterCanNameTheServiceForABackendThatRequiresOne(t *testing.T) {
+	enableStructuredFilters(t)
+	filterOn := func(level expression.Level, name, value string) *expression.Call {
+		return compare(expression.OpEq,
+			&expression.FieldRef{Level: level, Name: name},
+			&expression.AnyValue{Value: value})
+	}
+	queryWith := func(filter *expression.Call) TraceQueryParams {
+		return TraceQueryParams{
+			TraceQueryParams: tracestore.TraceQueryParams{Attributes: pcommon.NewMap(), Filter: filter},
+		}
+	}
+
+	t.Run("the filter names the service", func(t *testing.T) {
+		var dispatched tracestore.TraceQueryParams
+		reader := forwardsOneTrace(new(tracestoremocks.Reader), &dispatched)
+		declaresSearchWithoutServiceName(reader, false)
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(),
+			queryWith(filterOn(expression.LevelResource, expression.ResourceFieldService, "cart"))))
+		require.NoError(t, err)
+		assert.Equal(t, "cart", dispatched.ServiceName)
+		reader.AssertExpectations(t)
+	})
+
+	// No expectation for FindTraces: a call to it would fail the test.
+	t.Run("the filter does not name the service", func(t *testing.T) {
+		reader := declaresSearchWithoutServiceName(new(tracestoremocks.Reader), false)
+		qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+		attrFilter := tag(expression.OpEq, "http.method", "GET")
+		_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), queryWith(attrFilter)))
+		require.ErrorIs(t, err, ErrServiceNameRequired)
+	})
+}
+
+// TestFindTraces_UnservableFilterIsRefusedBeforeStorage pins that a refused filter never
+// reaches the reader: FindTraces has no expectation, so a call to it would fail the test. A
+// reader that cannot report its capabilities reads as the least capable one, which is why an
+// unreachable backend refuses the same filter.
+func TestFindTraces_UnservableFilterIsRefusedBeforeStorage(t *testing.T) {
+	enableStructuredFilters(t)
+	query := TraceQueryParams{
+		TraceQueryParams: tracestore.TraceQueryParams{
+			Attributes: pcommon.NewMap(),
+			Filter: compare(expression.OpOr,
+				tag(expression.OpEq, "a", "1"),
+				tag(expression.OpEq, "b", "2")),
+		},
+	}
+	for name, answer := range map[string]struct {
+		caps tracestore.SearchCapabilities
+		err  error
+	}{
+		"the backend declares no filter support": {},
+		"the backend is unreachable":             {err: assert.AnError},
+	} {
+		t.Run(name, func(t *testing.T) {
+			reader := new(tracestoremocks.Reader)
+			reader.On("SearchCapabilities", mock.Anything).Return(answer.caps, answer.err)
+			qs := NewQueryService(reader, nil, QueryServiceOptions{})
+
+			_, err := jiter.FlattenWithErrors(qs.FindTraces(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+
+			_, err = jiter.FlattenWithErrors(qs.FindTraceSummaries(context.Background(), query))
+			require.ErrorIs(t, err, tracestore.ErrFilterUnsupported)
+		})
+	}
 }
