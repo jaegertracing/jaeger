@@ -115,6 +115,22 @@ def test_a_filter_cannot_be_mixed_with_a_legacy_predicate_field(legacy):
         legacy(a_query()).where(attr("error").eq(True))
 
 
+def test_a_zero_duration_bound_still_counts_as_a_legacy_field():
+    # to_dict() renders durationMin: "0s", so the exclusivity check has to see it;
+    # reading the bound for truthiness instead would let it travel beside a filter.
+    for bound in ({"minimum": 0}, {"maximum": 0}, {"minimum": dt.timedelta(0)}):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            a_query().where(attr("error").eq(True)).duration(**bound)
+    assert a_query().duration(minimum=0).to_dict()["durationMin"] == "0s"
+
+
+def test_an_empty_attributes_map_sets_nothing():
+    # Unlike a zero duration, an empty map renders nothing, so there is nothing to
+    # reject and no disagreement with to_dict().
+    query = a_query().where(attr("error").eq(True)).attributes({})
+    assert "attributes" not in query.to_dict()
+
+
 def test_the_envelope_fields_are_not_predicates_and_mix_freely():
     query = a_query().where(attr("error").eq(True)).limit(5).raw()
     assert query.to_dict()["searchDepth"] == 5

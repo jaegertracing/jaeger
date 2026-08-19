@@ -30,10 +30,21 @@ from .expression import Call, and_
 
 __all__ = ["Query"]
 
-# The predicate fields that predate the structured filter. RFC 0005 §7 makes
-# them mutually exclusive with it: a request is either legacy-style or
-# filter-style, and the server rejects a mix.
-_LEGACY_FIELDS = ("service_name", "operation_name", "attributes", "duration_min", "duration_max")
+# The predicate fields that predate the structured filter, and what counts as
+# having set each one. RFC 0005 §7 makes them mutually exclusive with the filter:
+# a request is either legacy-style or filter-style, and the server rejects a mix.
+#
+# "Set" has to mean exactly what to_dict() renders, or the two disagree and a
+# request goes out carrying both. A zero duration is the case that separates them:
+# `duration(minimum=0)` renders `durationMin: "0s"`, so it is set, while a plain
+# truthiness test reads 0 as absent and lets it travel beside a filter.
+_LEGACY_FIELDS = {
+    "service_name": bool,
+    "operation_name": bool,
+    "attributes": bool,
+    "duration_min": lambda v: v is not None,
+    "duration_max": lambda v: v is not None,
+}
 
 
 class Query:
@@ -196,7 +207,7 @@ class Query:
     def _reject_mixed_filter(self) -> Query:
         if self._filter is None:
             return self
-        set_legacy = [f for f in _LEGACY_FIELDS if getattr(self, f"_{f}")]
+        set_legacy = [f for f, is_set in _LEGACY_FIELDS.items() if is_set(getattr(self, f"_{f}"))]
         if set_legacy:
             raise ValueError(
                 f"the structured filter is mutually exclusive with the legacy predicate fields, "
