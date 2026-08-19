@@ -6,7 +6,7 @@ package capabilities
 const (
 	scopeAttributesTest    = "Scope_Attributes"
 	linkAttributesTest     = "Link_Attributes"
-	FindTraceSummariesTest = "FindTraceSummaries"
+	findTraceSummariesTest = "FindTraceSummaries"
 	// structuredFilterTest asserts exact result sets, so it runs only where the reader evaluates a
 	// filter itself; anywhere else the filter is widened to a superset and the battery is written to
 	// catch that. A backend drops this as it gains native filter support.
@@ -57,7 +57,7 @@ func (c Capabilities) SkipList() []string {
 // Memory returns the capabilities for the in-process memory storage backend.
 func Memory() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest, structuredFilterTest},
+		skipList: []string{findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -66,7 +66,7 @@ func Memory() Capabilities {
 // summaries natively; the test backend (memory) does not yet.
 func GRPC() Capabilities {
 	return Capabilities{
-		skipList: []string{FindTraceSummariesTest, structuredFilterTest},
+		skipList: []string{findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -84,7 +84,7 @@ func Cassandra() Capabilities {
 			"Multiple_Traces",
 			scopeAttributesTest,
 			linkAttributesTest,
-			FindTraceSummariesTest,
+			findTraceSummariesTest,
 			structuredFilterTest,
 		},
 	}
@@ -93,7 +93,7 @@ func Cassandra() Capabilities {
 // ClickHouse returns the capabilities for the ClickHouse storage backend.
 func ClickHouse() Capabilities {
 	return Capabilities{
-		skipList: []string{"GetThroughput", "GetLatestProbability", FindTraceSummariesTest, structuredFilterTest},
+		skipList: []string{"GetThroughput", "GetLatestProbability", findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -103,7 +103,7 @@ func Badger() Capabilities {
 		searchRequiresServiceName: true,
 		// TODO: remove this once Badger supports returning spanKind from GetOperations
 		getOperationsMissingSpanKind: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest, structuredFilterTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
@@ -145,7 +145,7 @@ func Kafka() Capabilities {
 	return Capabilities{
 		searchRequiresServiceName:    true,
 		getDependenciesMissingSource: true,
-		skipList:                     []string{scopeAttributesTest, linkAttributesTest, FindTraceSummariesTest, structuredFilterTest},
+		skipList:                     []string{scopeAttributesTest, linkAttributesTest, findTraceSummariesTest, structuredFilterTest},
 	}
 }
 
