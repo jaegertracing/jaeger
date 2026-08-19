@@ -32,7 +32,7 @@ A backend declares its own capabilities through a method on the storage reader i
 
 `tracestore.Reader` carries `SearchCapabilities(ctx) (SearchCapabilities, error)`. Four properties of that signature do the work:
 
-* **It is a required interface method, not an optional interface.** A wrapper that fails to forward it would silently report the wrapper's capabilities instead of the backend's. As a method, the compiler enumerates everything that must answer, including both reader decorators.
+* **It is a required interface method, not an optional interface.** A wrapper that fails to forward it would silently report the wrapper's capabilities instead of the backend's. As a method, the compiler enumerates everything that must answer, including every reader decorator.
 * **The zero value is the least capable reader.** A field added to `SearchCapabilities` therefore leaves every existing implementation declaring the new capability unsupported, rather than accidentally claiming it.
 * **It returns an error, because "declares nothing" and "cannot say" are different answers.** A reader whose backend sits behind an API that cannot be asked returns `errors.ErrUnsupported`; callers read that as the least capable backend but can tell it apart from a backend that answered.
 * **It takes a context, because the answer may arrive over the wire.** Only the remote-storage reader does I/O; every other reader returns a constant.
