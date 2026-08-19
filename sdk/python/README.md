@@ -84,9 +84,13 @@ The legacy predicate fields still work — `.service()`, `.operation()`, `.attri
 The same query renders as the `query.*` parameters of the HTTP GET binding, with the filter carried as a JSON string:
 
 ```python
+>>> from jaeger_query import Query, attr
 >>> Query().last(minutes=15).where(attr("http.status_code") == 500).to_url_params()["query.filter"]
-'{"op":"eq","args":[{"ref":{"name":"http.status_code"}},{"scalar":{"value":"500"}}]}'
+'{"op":"eq","args":[{"attr":{"key":"http.status_code"}},{"scalar":{"value":"500"}}]}'
+
 ```
+
+`make test` runs that example as a doctest, so it cannot drift away from what the builder emits.
 
 `Query.to_query_string()` percent-encodes the whole set for `GET /api/v3/traces`.
 
