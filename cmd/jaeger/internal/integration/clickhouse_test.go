@@ -16,7 +16,7 @@ func TestClickHouseStorage(t *testing.T) {
 		ConfigFile: "../../config-clickhouse.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.NoStructuredFilters(),
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
 		},
 	}
 	s.e2eInitialize(t, "clickhouse")

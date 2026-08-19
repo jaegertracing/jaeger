@@ -146,9 +146,9 @@ func Kafka() Capabilities {
 	}
 }
 
-// NoStructuredFilters excuses a suite from the RFC 0005 filter battery and nothing else, which is
-// every e2e suite whose reader does not evaluate a filter.
-func NoStructuredFilters() Capabilities {
+// E2EWithoutNativeFilters is for an e2e suite whose backend does not evaluate a structured filter
+// itself: the query service rewrites one for it, so the battery is all such a suite excuses.
+func E2EWithoutNativeFilters() Capabilities {
 	return Capabilities{
 		skipList: []string{structuredFilterTest},
 	}

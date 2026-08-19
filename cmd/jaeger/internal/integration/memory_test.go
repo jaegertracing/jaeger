@@ -17,7 +17,7 @@ func TestMemoryStorage(t *testing.T) {
 		ConfigFile: "../../config.yaml",
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
-			Capabilities: capabilities.NoStructuredFilters(),
+			Capabilities: capabilities.E2EWithoutNativeFilters(),
 		},
 	}
 	s.e2eInitialize(t, "memory")
