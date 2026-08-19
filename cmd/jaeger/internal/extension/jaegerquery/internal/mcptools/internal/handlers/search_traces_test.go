@@ -627,3 +627,84 @@ func TestSearchTracesHandler_Handle_LimitEnforced(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, output.Traces, 3)
 }
+
+// yieldSummaries returns a mock that yields n identical summaries in one batch.
+func yieldSummaries(n int) *mockQueryService {
+	batch := make([]tracestore.TraceSummary, n)
+	for i := range batch {
+		batch[i] = makeTraceSummary("svc", "/op", false)
+	}
+	return &mockQueryService{
+		findTraceSummariesFunc: func(_ context.Context, _ querysvc.TraceQueryParams) iter.Seq2[[]tracestore.TraceSummary, error] {
+			return func(yield func([]tracestore.TraceSummary, error) bool) {
+				yield(batch, nil)
+			}
+		},
+	}
+}
+
+func TestSearchTracesHandler_Handle_ReportsTruncation(t *testing.T) {
+	tests := []struct {
+		name           string
+		returned       int
+		requestedDepth int
+		maxResults     int
+		wantTraces     int
+		wantDepthUsed  int
+		wantTruncated  bool
+	}{
+		{
+			name:           "result fills the depth",
+			returned:       5,
+			requestedDepth: 5,
+			maxResults:     100,
+			wantTraces:     5,
+			wantDepthUsed:  5,
+			wantTruncated:  true,
+		},
+		{
+			name:           "result is short of the depth",
+			returned:       2,
+			requestedDepth: 5,
+			maxResults:     100,
+			wantTraces:     2,
+			wantDepthUsed:  5,
+			wantTruncated:  false,
+		},
+		{
+			name:           "requested depth is clamped to the server limit",
+			returned:       3,
+			requestedDepth: 500,
+			maxResults:     3,
+			wantTraces:     3,
+			wantDepthUsed:  3,
+			wantTruncated:  true,
+		},
+		{
+			name:           "unset depth reports the default",
+			returned:       1,
+			requestedDepth: 0,
+			maxResults:     100,
+			wantTraces:     1,
+			wantDepthUsed:  10,
+			wantTruncated:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := &searchTracesHandler{
+				queryService: yieldSummaries(tt.returned),
+				maxResults:   tt.maxResults,
+			}
+
+			input := types.SearchTracesInput{ServiceName: "svc", SearchDepth: tt.requestedDepth}
+			_, output, err := handler.handle(context.Background(), &mcp.CallToolRequest{}, input)
+
+			require.NoError(t, err)
+			assert.Len(t, output.Traces, tt.wantTraces)
+			assert.Equal(t, tt.wantDepthUsed, output.SearchDepthUsed)
+			assert.Equal(t, tt.wantTruncated, output.Truncated)
+		})
+	}
+}
