@@ -20,18 +20,15 @@ const (
 // tests or behaviors it cannot satisfy. New fields must keep that polarity, so a backend
 // added later gets full coverage until someone deliberately excuses it from something.
 //
-// A value here is a claim, so read a suite that passes none as making the strongest one — this
-// deployment satisfies every test — rather than as one nobody has filled in yet. It is a claim the
-// e2e suites can make where their direct counterparts cannot, because a backend reached through
-// jaeger-query satisfies tests its own reader would fail: the query service computes trace
-// summaries for a store that cannot, and rewrites a structured filter for a reader that does not
-// evaluate one. So the same backend legitimately declares fewer exclusions in its e2e suite than in
-// its direct one, and the two lists are not meant to converge.
+// A suite that lists nothing is making the strongest opt-out claim, that it satisfies every test,
+// rather than waiting for someone to fill it in.
 //
-// This is not the storage capability declaration of ADR-013, and the two are inverses: a Reader's
-// SearchCapabilities is opt-in and states what it supports, while this states what a suite must not
-// be asked. Whether a test runs is settled here alone — a test that also consults what the Reader
-// declared puts one decision in two places.
+// An e2e suite may claim more than its direct counterpart, because jaeger-query satisfies tests the
+// backend's own reader would fail: computing trace summaries, or rewriting a structured filter into
+// the legacy predicate fields. The two lists are not meant to converge.
+//
+// This is not ADR-013's storage capability declaration, which is its inverse: opt-in, and about what
+// a Reader supports rather than what a suite may ask. Whether a test runs is settled here alone.
 type Capabilities struct {
 	// TODO: remove this after all storage backends return spanKind from GetOperations
 	getOperationsMissingSpanKind bool
