@@ -27,14 +27,14 @@ Extend the existing `CI Summary Report` fan-in workflow to add coverage aggregat
    - **Absolute floor**: total coverage ≥ 95%, matching the Codecov project target.
    - **No regression**: total coverage must not drop compared to the `main` baseline.
 3. The merged profile must be filtered using the same exclusions as `.codecov.yml` (generated files, mocks, integration test infrastructure) so both tools report from a single source of truth.
-4. A `Coverage Gate` check-run must always be posted to the PR — even when no coverage data is available — so it can be used as a required status check in branch protection.
+4. A `Coverage Gate` check-run must always be posted to the PR — even when no coverage data is available — so every pull request carries a coverage verdict of its own.
 5. The workflow must run for `pull_request`, `merge_group`, and `push` (to `main`) events triggered through the CI Orchestrator, as well as via manual `workflow_dispatch`.
 6. On `main`-branch runs, the coverage baseline must be cached for future PR comparisons.
 
 ### Success Criteria
 
 - `Coverage Gate` and `Metrics Comparison` check-runs appear on every PR and merge-queue run.
-- Coverage regressions block PRs when `Coverage Gate` is added to required status checks.
+- Coverage regressions block pull requests: the fan-in job exits 1 and its check run is a required status check (see *Where the gating happens*).
 - Manual re-runs via `workflow_dispatch` allow re-posting checks from any branch.
 
 ## Implementation Overview
@@ -94,7 +94,7 @@ Gating on the fan-in job means it fails closed. An infrastructure failure inside
 - **Faster feedback**: coverage gate result appears as soon as the CI Orchestrator completes.
 - **Reliability**: eliminates Codecov rate-limit failures blocking PRs.
 - **Consolidated reporting**: performance metrics and coverage appear in a single sticky PR comment.
-- **Required status check safe**: `Coverage Gate` is always created, even when coverage is skipped.
+- **Always reported**: `Coverage Gate` is always created, even when coverage is skipped.
 
 ### Negative
 
