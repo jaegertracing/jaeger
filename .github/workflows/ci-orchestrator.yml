@@ -229,11 +229,18 @@ jobs:
   # ============================================================================
   # FINAL GATEKEEPER: Use this job for Branch Protection.
   # Validates whichever execution path was taken (sequential or parallel).
+  #
+  # It runs when a stage fails, which is the point of always(), but not when the run itself was
+  # cancelled: a cancelled run is one a newer run superseded, and every job it reports on was
+  # cancelled with it, so a verdict from it says nothing about the commit. Reporting failure there
+  # writes a red "All CI Checks Passed" onto a commit whose live run passed, and branch protection
+  # reads the red one. Skipping instead leaves the surviving run's verdict as the only one, and a
+  # skipped job counts as a pass.
   # ============================================================================
   ci-success:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && !cancelled()
     needs: [setup, ci-scripts, stage1-seq, stage2-seq, stage3-seq, stage1-fast, stage2-fast, stage3-fast]
     steps:
       - name: Check setup status
