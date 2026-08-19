@@ -1,7 +1,7 @@
 # Migrate Coverage Gating from Codecov to GitHub Actions
 
 * **Status**: Accepted (implemented)
-* **Date**: 2026-03-01, extended 2026-07-29 (binary coverage, upload-invariant check, Codecov follow-up resolved)
+* **Date**: 2026-03-01, extended 2026-07-29 (binary coverage, upload-invariant check, Codecov follow-up resolved), extended 2026-08-19 (the in-run summary check is the required context)
 
 ## Context
 
@@ -59,14 +59,15 @@ The single `summary-report` job:
 2. **Downloads all artifacts** — uses `gh run download` to fetch all artifacts from the source run.
 3. **Checks the upload invariant** — `scripts/e2e/check_coverage_uploads.py` verifies that `after_n_builds` in `.codecov.yml` equals the number of uploads carrying countable coverage, and fails the run when at least that many jobs uploaded yet fewer carry coverage. Codecov withholds *every* notification — including the required `codecov/patch` and `codecov/project` statuses — until the threshold is met, so drift in that number blocks all merges with no failing check to point at. The check verifies uploads *carry coverage* rather than counting upload call sites: when this last drifted, the number of call sites stayed at 27 and only the content of 15 of them changed.
 4. **Merges and gates coverage** — merges all `coverage-*/*.out` profiles with `gocovmerge`, filters excluded paths, and applies the two coverage gates.
-5. **Posts results** — creates `Metrics Comparison` and `Coverage Gate` check-runs on the PR. When no coverage data exists, `Coverage Gate` reports success with a "skipped" note to satisfy branch protection.
+5. **Fails the run on a blocking verdict** — exits 1 when the coverage gate failed or the metrics comparison hit an infrastructure error, which is what gates the merge (see *Where the gating happens* below). It also writes the two verdicts to a `ci-summary` artifact, from which `ci-summary-report-publish.yml` posts the sticky PR comment and the two advisory per-gate check runs.
 6. **Saves baseline on `main`** — caches the coverage percentage for future PR comparisons.
 
 ### Key Files
 
 | File | Role |
 |------|------|
-| `.github/workflows/ci-summary-report.yml` | Fan-in workflow |
+| `.github/workflows/ci-summary-report.yml` | Fan-in workflow, and the gating check |
+| `.github/workflows/ci-summary-report-publish.yml` | Sticky PR comment and the advisory per-gate check runs |
 | `.github/actions/upload-codecov/action.yml` | Coverage artifact upload |
 | `.github/workflows/ci-orchestrator.yml` | Triggers the fan-in |
 | `scripts/e2e/filter_coverage.py` | Applies `.codecov.yml` exclusions |
@@ -75,6 +76,16 @@ The single `summary-report` job:
 | `scripts/e2e/check_coverage_uploads.py` | Upload-invariant check |
 | `scripts/makefiles/IntegrationTests.mk` | Instrumented e2e binary build and coverage merge |
 | `cmd/jaeger/internal/integration/binary.go` | Graceful shutdown so coverage counters flush |
+
+### Where the gating happens
+
+The fan-in job is the gate. `ci-summary-report.yml` ends with a step that exits 1 when the coverage gate failed or the metrics comparison hit an infrastructure error, so the job fails inside the CI Orchestrator run that GitHub associates with the commit. Its check run renders as `CI Summary Report / Summary Report`, from app id 15368, and that is the context branch protection requires. The full required set on `main` is `codecov/patch`, `codecov/project`, `check-label`, `All CI Checks Passed`, and `CI Summary Report / Summary Report`.
+
+`Coverage Gate` and `Metrics Comparison` are advisory. `ci-summary-report-publish.yml` posts them so each gate has a check run of its own, carrying the coverage percentage and the metric change count in its summary, and branch protection deliberately requires neither.
+
+Requiring them is what breaks. Both are created out of band: `workflow_run` puts the publish workflow's own head on `main`'s commit, so it reaches over to the pull request's head SHA with `github.rest.checks.create({ head_sha, name, conclusion })`. A required context created that way can sit unsatisfied in the merge box while the Checks API reports it `completed/success` on that exact SHA, from the app the context is pinned to. Observed on [#9354](https://github.com/jaegertracing/jaeger/pull/9354): all six required contexts green, `mergeable_state: blocked`, and the box listing those two as "Expected — Waiting for status to be reported". Deleting the superseded orchestrator run did not clear it, and neither did re-posting both check runs through the publish workflow's `workflow_dispatch` path; only a new head commit did. `gh-readonly-queue/*` commits get the same stamping, which is how a merge-queue entry is dropped with every check green. A context produced by the commit's own run is not exposed to this, because GitHub Actions creates that check run as part of the run instead of addressing it to a SHA afterwards.
+
+Gating on the fan-in job means it fails closed. An infrastructure failure inside it — the artifact download, `check_coverage_uploads.py` — blocks merges, where the same failure previously only reddened a check that nothing required.
 
 ## Consequences
 
@@ -104,7 +115,6 @@ Recorded so they are not mistaken for oversights:
 
 1. **No diff-level gate here.** The 95% patch target that `AGENTS.md` documents is enforced solely by `codecov/patch`. Until this workflow computes coverage over the changed lines, Codecov cannot be retired as a required check, and a Codecov outage removes diff-level enforcement entirely.
 2. **jaeger-v2 is compiled twice per e2e cell** — once as the instrumented binary the harness spawns, once as the test binary.
-3. **Merge-queue entries are sometimes evicted with all required checks green.** Observed where the `merge_group` run succeeded but eviction preceded the checks being reported; `checkResponseTimeout` (1800s) does not account for it. Cause unidentified.
 
 ## References
 
