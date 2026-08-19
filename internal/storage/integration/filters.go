@@ -193,7 +193,6 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 	s.skipIfNeeded(t)
 	defer s.cleanUp(t)
 
-	s.requireReaderEvaluatesFilters(t)
 	corpus := s.writeFilterCorpus(t)
 	start, end := filterCorpusTimeRange(corpus)
 	var p builder.Predicate
@@ -308,23 +307,6 @@ func filterQuery(filter *expression.Call, start, end time.Time) *tracestore.Trac
 		StartTimeMax: end,
 		SearchDepth:  filterSearchDepth,
 	}
-}
-
-// requireReaderEvaluatesFilters fails the battery at once where the reader has not declared it can
-// evaluate a filter, rather than leaving each case to retry a wrong answer for a minute and a half.
-// Such a backend belongs in the capabilities skip list, and the failure says so.
-//
-// A reader that cannot report its capabilities is taken at its word and left to the cases: that is
-// what the api_v3 client the e2e suites read through answers, having no way to ask the query
-// service what is behind it.
-func (s *StorageIntegration) requireReaderEvaluatesFilters(t *testing.T) {
-	caps, err := s.TraceReader.SearchCapabilities(context.Background())
-	if err != nil {
-		return
-	}
-	require.False(t, caps.Filter.IsEmpty(),
-		"this reader declares no filter capabilities, so it cannot answer the filter battery; "+
-			"excuse the backend from it in internal/storage/integration/capabilities")
 }
 
 // requireFilterIsServed fails the whole battery, rather than each case in it, when the deployment
