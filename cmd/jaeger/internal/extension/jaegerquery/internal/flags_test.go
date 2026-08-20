@@ -77,6 +77,47 @@ func TestAIConfigValidateAcceptsSkillsDir(t *testing.T) {
 	require.NoError(t, cfg.Validate())
 }
 
+func TestMCPConfigValidateAcceptsToolLimits(t *testing.T) {
+	// Zero means "keep the built-in default", so an empty block stays valid.
+	require.NoError(t, (&MCPConfig{}).Validate())
+
+	require.NoError(t, (&MCPConfig{
+		MaxSpanDetailsPerRequest: 5,
+		MaxSearchResults:         50,
+		MaxReadFileSize:          1024,
+	}).Validate())
+}
+
+func TestMCPConfigValidateRejectsNegativeToolLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     MCPConfig
+		wantErr string
+	}{
+		{
+			name:    "negative span details",
+			cfg:     MCPConfig{MaxSpanDetailsPerRequest: -1},
+			wantErr: "ai.mcp.max_span_details_per_request must not be negative",
+		},
+		{
+			name:    "negative search results",
+			cfg:     MCPConfig{MaxSearchResults: -1},
+			wantErr: "ai.mcp.max_search_results must not be negative",
+		},
+		{
+			name:    "negative read file size",
+			cfg:     MCPConfig{MaxReadFileSize: -1},
+			wantErr: "ai.mcp.max_read_file_size must not be negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.EqualError(t, tt.cfg.Validate(), tt.wantErr)
+		})
+	}
+}
+
 func TestAIConfigValidateRejectsNonPositiveBodySize(t *testing.T) {
 	for _, size := range []int64{0, -1} {
 		cfg := validAIConfig()
