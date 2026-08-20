@@ -10,8 +10,34 @@ import (
 	"fmt"
 	"text/template"
 
+	"go.opentelemetry.io/collector/featuregate"
+
 	es "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
+)
+
+// TypedAttributeIndexingGate adds a numeric sub-field to each attribute value in
+// the span index template, beside the keyword the value is already indexed as.
+// That is what lets a query order on an attribute — `http.response.size > 500`
+// compares lexicographically against a keyword, which makes "9" greater than
+// "10" — and it is the mapping change RFC 0015 proposes. Documents are
+// unaffected: a mapping does not alter _source, so nothing about reading or
+// writing a span changes.
+//
+// Off by default because it is a spike. It costs mapped fields on the elevated
+// representation, two per key instead of one, which presses hardest on a
+// `tags_as_fields: all` deployment. It also only reaches indices created after
+// it is turned on, so a range query against an older index matches nothing.
+var TypedAttributeIndexingGate = featuregate.GlobalRegistry().MustRegister(
+	"jaeger.es.typedAttributeIndexing",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterFromVersion("v2.24.0"),
+	featuregate.WithRegisterDescription(
+		"Indexes span, resource, and event attribute values as numbers beside the "+
+			"keyword, so that ordered predicates (gt/lt/gte/lte) can be answered on an "+
+			"attribute. Applies only to indices created after it is enabled.",
+	),
+	featuregate.WithRegisterReferenceURL("https://github.com/jaegertracing/jaeger/blob/main/docs/rfc/0015-typed-attribute-indexing-elasticsearch.md"),
 )
 
 //go:embed index_templates/*.json
@@ -118,12 +144,13 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 // IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
 // resolved version, so it never crosses the API boundary.
 type innerParams struct {
-	IndexPrefix   string
-	Shards        int64
-	Replicas      int64
-	UseILM        bool
-	ILMPolicyName string
-	IsOpenSearch  bool
+	IndexPrefix     string
+	Shards          int64
+	Replicas        int64
+	UseILM          bool
+	ILMPolicyName   string
+	IsOpenSearch    bool
+	TypedAttributes bool
 }
 
 // RenderIndexTemplate renders the full index template body for a mapping type,
@@ -148,12 +175,13 @@ func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilm
 
 	var buf bytes.Buffer
 	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
-		IndexPrefix:   prefix,
-		Shards:        opts.Shards,
-		Replicas:      *opts.Replicas,
-		UseILM:        useILM,
-		ILMPolicyName: ilmPolicyName,
-		IsOpenSearch:  version.IsOpenSearch(),
+		IndexPrefix:     prefix,
+		Shards:          opts.Shards,
+		Replicas:        *opts.Replicas,
+		UseILM:          useILM,
+		ILMPolicyName:   ilmPolicyName,
+		IsOpenSearch:    version.IsOpenSearch(),
+		TypedAttributes: TypedAttributeIndexingGate.IsEnabled(),
 	}); err != nil {
 		return "", fmt.Errorf("failed to render %s index template: %w", m, err)
 	}
