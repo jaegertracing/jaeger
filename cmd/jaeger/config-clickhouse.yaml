@@ -42,6 +42,7 @@ extensions:
           addresses:
             - localhost:9000
           database: jaeger
+          attribute_metadata_cache_ttl: 5s
           auth:
             basic:
               username: default
