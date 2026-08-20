@@ -18,7 +18,10 @@ func NewRegexpQuery(field, value string) *RegexpQuery {
 	return &RegexpQuery{field: field, value: value}
 }
 
-// Flags sets the flags for this regexp query (e.g., "NONE", "ALL").
+// Flags picks which of Lucene's optional syntax extensions the pattern may use.
+// Leaving it unset is not the same as switching them off: Elasticsearch reads an
+// absent flags field as ALL, so &, @, ~, <n-m>, # and <identifier> stay live and a
+// pattern meant as text can be read as an operator. "NONE" is the way to turn them off.
 func (q *RegexpQuery) Flags(flags string) *RegexpQuery {
 	q.flags = flags
 	return q

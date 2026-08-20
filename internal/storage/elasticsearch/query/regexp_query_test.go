@@ -20,7 +20,7 @@ func TestRegexpQuerySource(t *testing.T) {
 	}, src)
 }
 
-func TestRegexpQuerySource_withFlags(t *testing.T) {
+func TestRegexpQueryWithFlagsSource(t *testing.T) {
 	src, err := NewRegexpQuery("tags.value", "200").Flags("NONE").Source()
 	require.NoError(t, err)
 	assert.Equal(t, map[string]any{

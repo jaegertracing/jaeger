@@ -447,10 +447,6 @@ func nestedField(path, field string) string {
 	return path + "." + field
 }
 
-// esRegexpFlags disables Lucene's optional syntax extensions (&, @, ~, <n-m>, #, <identifier>)
-// so that ordinary RE2 literals are not read as Lucene operators (RFC 0005 §5.3).
-const esRegexpFlags = "NONE"
-
 // attributeValueMatch chooses how a comparison tests an attribute value. Attribute values
 // are indexed as keywords, so equality and patterns work and ordering does not.
 func attributeValueMatch(op expression.Operator, ref reference, value string) (valueMatch, error) {
@@ -458,35 +454,38 @@ func attributeValueMatch(op expression.Operator, ref reference, value string) (v
 	case expression.OpEq:
 		return termMatch(value), nil
 	case expression.OpRegex:
-		pattern, err := forThisEngine(value)
-		if err != nil {
-			return nil, err
-		}
-		return func(field string) esquery.Query { return esquery.NewRegexpQuery(field, pattern).Flags(esRegexpFlags) }, nil
+		return forThisEngine(value)
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
 }
 
-// forThisEngine prepares a pattern for this engine's regexp query, or refuses one it would read
+// forThisEngine builds the match for this engine's regexp query, or refuses a pattern it would read
 // differently than the query boundary said it means (RFC 0005 §5.3).
 //
-// Two differences. The query matches a whole indexed term while a filter's pattern matches anywhere
+// Three differences. The query matches a whole indexed term while a filter's pattern matches anywhere
 // in the value, so the pattern is wrapped: soundly, because the boundary refuses a pattern that
 // anchors itself, and the group keeps a top-level alternation from swallowing the wildcards.
 //
-// And this dialect has no Perl shorthands. It reads `\d` as the letter d rather than as a digit, so a
+// This dialect also has no Perl shorthands. It reads `\d` as the letter d rather than as a digit, so a
 // pattern carrying one is refused rather than sent to match something else; the same pattern written
 // `[0-9]` is served. The refusal is lexical because it has to be: parsing turns `\d` and `[0-9]` into
 // one character class, and there is no telling them apart afterwards.
-func forThisEngine(pattern string) (string, error) {
+//
+// And it reads &, @, ~, <n-m>, # and <identifier> as operators unless the query opts out, so the flags
+// are pinned to NONE. Without that an address like `@example.com` is an operator rather than the text
+// the filter asked for, and the capability is lost instead of narrowed.
+func forThisEngine(pattern string) (valueMatch, error) {
 	if escape, ok := perlShorthand(pattern); ok {
-		return "", fmt.Errorf(
+		return nil, fmt.Errorf(
 			`%w: it reads %q as the literal character, so write the class out ("[0-9]" for "\d")`,
 			tracestore.ErrFilterUnsupported, escape,
 		)
 	}
-	return ".*(" + pattern + ").*", nil
+	wrapped := ".*(" + pattern + ").*"
+	return func(field string) esquery.Query {
+		return esquery.NewRegexpQuery(field, wrapped).Flags("NONE")
+	}, nil
 }
 
 // perlShorthand finds the first backslash escape of a letter or a digit, which is what a Perl
@@ -525,11 +524,11 @@ func buildTextComparison(
 	case expression.OpEq:
 		return esquery.NewTermQuery(field, value), nil
 	case expression.OpRegex:
-		pattern, err := forThisEngine(value)
+		match, err := forThisEngine(value)
 		if err != nil {
 			return nil, err
 		}
-		return esquery.NewRegexpQuery(field, pattern).Flags(esRegexpFlags), nil
+		return match(field), nil
 	default:
 		return nil, errUnorderedValue(op, ref)
 	}
