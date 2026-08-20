@@ -14,7 +14,8 @@ func TestElasticsearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageElasticsearch)
 
 	s := &E2EStorageIntegration{
-		ConfigFile: "../../config-elasticsearch.yaml",
+		ConfigFile:   "../../config-elasticsearch.yaml",
+		FeatureGates: structuredFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),
