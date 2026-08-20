@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -95,6 +97,50 @@ func TestNewServerDegradesWithoutMetrics(t *testing.T) {
 
 	srv := NewServer(telset, svc, DefaultConfig())
 	require.NotNil(t, srv)
+}
+
+// TestHandlerCloseReapsSessions pins the shared endpoint into the query server's
+// teardown (M7.1): NewHandler's server holds a session until it goes idle, so Close
+// must reap it or it outlives the server that served it.
+func TestHandlerCloseReapsSessions(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+
+	// Bind a session the way an MCP client on the HTTP transport does; nothing else
+	// owns it, so nothing else would ever reap it.
+	serverTransport, _ := mcp.NewInMemoryTransports()
+	_, err := h.server.Connect(context.Background(), serverTransport, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, slices.Collect(h.server.Sessions()), "precondition: a session is bound")
+
+	require.NoError(t, h.Close())
+	assert.Empty(t, slices.Collect(h.server.Sessions()), "Close must reap the shared endpoint's sessions")
+}
+
+// TestHandlerAddReceivingMiddleware covers the hook the AI gateway uses to layer its
+// per-turn UI tools onto a server it did not build. NewHandler captures the server by
+// pointer, so middleware registered after the handler exists must still run for every
+// later request — otherwise a gateway attaching to the shared endpoint would silently
+// serve telemetry tools only.
+func TestHandlerAddReceivingMiddleware(t *testing.T) {
+	svc := querysvc.NewQueryService(&tracestoremocks.Reader{}, &depstoremocks.Reader{}, querysvc.QueryServiceOptions{})
+	h := NewHandler(telemetry.NoopSettings(), svc, tenancy.NewManager(&tenancy.Options{}), DefaultConfig())
+	t.Cleanup(func() { require.NoError(t, h.Close()) })
+
+	var saw atomic.Bool
+	h.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			if method == "tools/list" {
+				saw.Store(true)
+			}
+			return next(ctx, method, req)
+		}
+	})
+
+	session := connectTestClient(t, h)
+	_, err := session.ListTools(context.Background(), &mcp.ListToolsParams{})
+	require.NoError(t, err)
+	assert.True(t, saw.Load(), "middleware added after the handler is built must run for later requests")
 }
 
 // TestRegisterTools verifies RegisterTools advertises the full tool set on a

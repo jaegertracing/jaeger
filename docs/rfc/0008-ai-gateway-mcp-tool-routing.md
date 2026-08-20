@@ -20,8 +20,8 @@ This RFC captures the "MCP movement": consolidating every AI tool call — telem
 | M4 | **Terminology cleanup** — apply §2 (remove the `session`/`stream` overload; one name for UI tools; rename endpoints/registry/ids) | ✅ Done — [#9017][pr-9017] |
 | M5 | Announce the turn-scoped endpoint to the sidecar over **HTTP** (`ai.mcp_base_url`) | ✅ Done — [#9009][pr-9009] |
 | M6 | Migrate the Gemini sidecar onto the gateway MCP URL; drop its bespoke `jaeger_mcp` bridge and the ext-method path | ⏳ Pending |
-| M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server` (two instances today; the turn-scoped middleware already degrades to telemetry-only when no turn is active, so one serves both) | ⏳ Proposed — cleanup |
-| M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.WrapHTTP` returns a bare `http.Handler`, so the shared mount at `/api/ai/mcp/` has no closer and its sessions outlive the query server; the turn-scoped mount got one in [#9009][pr-9009]. Let `mcptools` own the teardown, so every mount gets it from construction rather than from whoever remembers to reach for the server. | ⏳ Proposed — cleanup |
+| M7 | Consolidate the shared and turn-scoped mounts onto **one** `mcp.Server`. The query server builds it whenever `ai.mcp` is configured — independently of `ai.agent_url`, since external MCP clients use the shared mount with no sidecar — and the chat gateway, when enabled, layers its per-turn UI tools onto that same server and serves the turn-scoped route from it. One server, two mounts. | ✅ Done — [#9216][pr-9216] |
+| M7.1 | Reap the **shared** endpoint's MCP sessions. `mcptools.NewHandler` now returns a closeable `Handler` that owns the reaping, and the query server holds it in its closer set, so the sessions on both mounts are torn down with the server instead of being left to process exit. | ✅ Done — [#9216][pr-9216] |
 | M7.2 | Decouple **UI tools** from `ai.enable_mcp`. The turn-scoped endpoint is mounted only when `enable_mcp` is set, yet it also carries the per-turn UI tools. Today the ACP ext-method path still carries them too, so the gate is harmless — but M6 drops that path, at which point `enable_mcp: false` with chat enabled would leave the agent no UI tools at all. Needs a decision: mount the endpoint whenever chat is enabled (which exposes the telemetry tools `enable_mcp` is meant to gate) or register only the UI tools on it in that case. **Settle before M6.** | ⏳ Proposed |
 | M8 | Probe `ai.mcp_base_url` reachability at startup before announcing (analogous to the ACP agent health probe), so a wrong address surfaces at startup, not mid-turn | ⏳ Proposed |
 | — | Claude Code sidecar (parallel track; consumes the same URL) | ⏳ In progress — [#8631][pr-8631] |
@@ -276,5 +276,6 @@ Considered and deliberately deferred; each decision is stated in the section not
 [pr-8973]: https://github.com/jaegertracing/jaeger/pull/8973
 [pr-9009]: https://github.com/jaegertracing/jaeger/pull/9009
 [pr-9017]: https://github.com/jaegertracing/jaeger/pull/9017
+[pr-9216]: https://github.com/jaegertracing/jaeger/pull/9216
 [issue-8853]: https://github.com/jaegertracing/jaeger/issues/8853
 [issue-8890]: https://github.com/jaegertracing/jaeger/issues/8890
