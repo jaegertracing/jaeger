@@ -13,7 +13,7 @@ dependencies = [
     "opentelemetry-instrumentation-google-generativeai",
     "opentelemetry-sdk",
     "requests>=2.32.6",
-    "websockets>=15.0.1,<16.0.0",
+    "websockets>=16.0,<16.1.0",
 ]
 
 [dependency-groups]
