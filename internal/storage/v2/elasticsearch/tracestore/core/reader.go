@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger-idl/model/v1"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	esquery "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/query"
@@ -111,6 +112,7 @@ type SpanReader struct {
 	spanRotation            indices.Rotation
 	serviceRotation         indices.Rotation
 	maxDocCount             int
+	maxMsearchItems         int
 	logger                  *zap.Logger
 	tracer                  trace.Tracer
 	dotReplacer             dbmodel.DotReplacer
@@ -124,6 +126,7 @@ type SpanReaderParams struct {
 	MaxSpanAge        time.Duration
 	MaxTraceDuration  time.Duration
 	MaxDocCount       int
+	MaxMsearchItems   int
 	TagDotReplacement string
 	Logger            *zap.Logger
 	Tracer            trace.Tracer
@@ -133,6 +136,10 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
+	maxMsearchItems := p.MaxMsearchItems
+	if maxMsearchItems <= 0 {
+		maxMsearchItems = config.DefaultMaxMsearchItems
+	}
 	return &SpanReader{
 		searcher:                p.Searcher,
 		maxSpanAge:              p.MaxSpanAge,
@@ -141,6 +148,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanRotation:            p.SpanRotation,
 		serviceRotation:         p.ServiceRotation,
 		maxDocCount:             p.MaxDocCount,
+		maxMsearchItems:         maxMsearchItems,
 		logger:                  p.Logger,
 		tracer:                  p.Tracer,
 		dotReplacer:             dbmodel.NewDotReplacer(p.TagDotReplacement),
@@ -309,8 +317,17 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 	totalDocumentsFetched := make(map[dbmodel.TraceID]int)
 	tracesMap := make(map[dbmodel.TraceID]*dbmodel.Trace)
 	for len(traceIDs) != 0 {
-		searchRequests := make([]esclient.MultiSearchRequest, len(traceIDs))
-		for i, traceID := range traceIDs {
+		// Cap each _msearch at maxMsearchItems so a large FindTraces/GetTraces
+		// cannot pack every remaining ID into one HTTP body (issue #5825).
+		n := s.maxMsearchItems
+		if n > len(traceIDs) {
+			n = len(traceIDs)
+		}
+		chunk := traceIDs[:n]
+		rest := traceIDs[n:]
+
+		searchRequests := make([]esclient.MultiSearchRequest, len(chunk))
+		for i, traceID := range chunk {
 			traceQuery := buildTraceByIDQuery(traceID)
 			startTimeRangeQuery := s.buildStartTimeQuery(startTime.Add(-s.maxTraceDuration), endTime.Add(s.maxTraceDuration))
 			query := esquery.NewBoolQuery().
@@ -329,8 +346,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 				Search:  s.buildTraceReadRequest(query, cursor),
 			}
 		}
-		// set traceIDs to empty
-		traceIDs = nil
 		responses, err := s.searcher.MultiSearch(ctx, searchRequests)
 		if err != nil {
 			logErrorToSpan(childSpan, err)
@@ -341,6 +356,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 			break
 		}
 
+		var requeued []dbmodel.TraceID
 		for _, result := range responses {
 			// A failed _msearch item carries an error payload and no hits; skipping it
 			// like an empty result would silently drop the trace (or truncate it, when
@@ -371,13 +387,14 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []dbmodel.TraceID, 
 
 			totalDocumentsFetched[lastSpan.TraceID] += len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpan.TraceID] < result.Hits.Total.Value {
-				traceIDs = append(traceIDs, lastSpan.TraceID)
+				requeued = append(requeued, lastSpan.TraceID)
 				searchAfter[lastSpan.TraceID] = traceReadCursor{
 					startTime: lastSpan.StartTime,
 					spanID:    string(lastSpan.SpanID),
 				}
 			}
 		}
+		traceIDs = append(rest, requeued...)
 	}
 	return traces, nil
 }

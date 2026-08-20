@@ -28,6 +28,12 @@ const (
 	ServiceIndexName    = "jaeger-service"
 	DependencyIndexName = "jaeger-dependencies"
 	SamplingIndexName   = "jaeger-sampling"
+
+	// DefaultMaxMsearchItems is the default cap on sub-searches packed into one
+	// Elasticsearch/OpenSearch _msearch request. Chosen below the ~60-item
+	// threshold that triggered Envoy 502s in issue #5825. Raise toward 100 only
+	// when there is no size-limiting proxy and extra round-trips dominate latency.
+	DefaultMaxMsearchItems = 32
 )
 
 // WriteMode selects how the Elasticsearch/OpenSearch trace writer persists spans.
@@ -262,6 +268,12 @@ type Configuration struct {
 	// ---- jaeger-specific configs ----
 	// MaxDocCount Defines maximum number of results to fetch from storage per query.
 	MaxDocCount int `mapstructure:"max_doc_count"`
+	// MaxMsearchItems is the maximum number of sub-searches packed into one
+	// Elasticsearch/OpenSearch _msearch request when loading traces by ID.
+	// Requests larger than this are split into sequential chunks. 0 means use
+	// DefaultMaxMsearchItems (32). There is no hard maximum; keep this at or
+	// below ~100 unless the cluster is reached without a buffering proxy.
+	MaxMsearchItems int `mapstructure:"max_msearch_items"`
 	// MaxSpanAge configures the maximum lookback on span reads.
 	// For alias-based rotation (manual_rollover/auto_rollover), this should be set
 	// to match the ILM/ISM data retention policy so that GetTraces can find traces
@@ -423,6 +435,9 @@ func (c *Configuration) Validate() error {
 	// values so they don't silently become an Unknown version. 0 means auto-detect.
 	if c.Version != 0 && !es.IsSupportedVersion(c.Version) {
 		return fmt.Errorf("unsupported version %d: set 0 to auto-detect, or use 7/8/9 (Elasticsearch) or 101/102/103 (OpenSearch 1/2/3)", c.Version)
+	}
+	if c.MaxMsearchItems < 0 {
+		return errors.New("max_msearch_items must not be negative")
 	}
 
 	// Ensure at most one auth method is configured (they all set the Authorization header).

@@ -159,6 +159,15 @@ func TestValidate(t *testing.T) {
 			expectedError: "unsupported version 10",
 		},
 		{
+			name:          "negative max_msearch_items rejected",
+			config:        &Configuration{Servers: []string{"localhost:8000/dummyserver"}, MaxMsearchItems: -1},
+			expectedError: "max_msearch_items must not be negative",
+		},
+		{
+			name:   "zero max_msearch_items uses default at construction",
+			config: &Configuration{Servers: []string{"localhost:8000/dummyserver"}, MaxMsearchItems: 0},
+		},
+		{
 			name:          "no valid input are set",
 			config:        &Configuration{},
 			expectedError: "Servers: non zero value required",

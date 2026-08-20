@@ -823,11 +823,13 @@ func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {
 		},
 		MaxSpanAge:       72 * time.Hour,
 		MaxTraceDuration: 2 * time.Hour,
+		MaxMsearchItems:  16,
 	}
 	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
 	params := f.GetSpanReaderParams()
 	assert.Equal(t, 72*time.Hour, params.MaxSpanAge)
 	assert.Equal(t, 2*time.Hour, params.MaxTraceDuration)
+	assert.Equal(t, 16, params.MaxMsearchItems)
 }
 
 // mockHTTPAuthenticator implements extensionauth.HTTPClient for testing
