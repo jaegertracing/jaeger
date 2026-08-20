@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -25,50 +24,6 @@ import (
 
 var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC)
 
-func TestCodeFromAttr(t *testing.T) {
-	tests := []struct {
-		name string
-		attr pcommon.Value
-		code int64
-		err  error
-	}{
-		{
-			name: "ok-string",
-			attr: pcommon.NewValueStr("0"),
-			code: 0,
-		},
-		{
-			name: "ok-int",
-			attr: pcommon.NewValueInt(1),
-			code: 1,
-		},
-		{
-			name: "wrong-type",
-			attr: pcommon.NewValueBool(true),
-			code: 0,
-			err:  errType,
-		},
-		{
-			name: "invalid-string",
-			attr: pcommon.NewValueStr("inf"),
-			code: 0,
-			err:  strconv.ErrSyntax,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			code, err := codeFromAttr(test.attr)
-			if test.err != nil {
-				require.ErrorIs(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, test.code, code)
-		})
-	}
-}
-
 func TestZeroBatchLength(t *testing.T) {
 	trace, err := FromDBModel([]dbmodel.Span{})
 	require.NoError(t, err)
@@ -79,88 +34,6 @@ func TestEmptySpansAndProcess(t *testing.T) {
 	trace, err := FromDBModel([]dbmodel.Span{})
 	require.NoError(t, err)
 	assert.Equal(t, 0, trace.ResourceSpans().Len())
-}
-
-func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
-	tests := []struct {
-		name string
-		attr pcommon.Value
-		kind ptrace.SpanKind
-		code ptrace.StatusCode
-		err  string
-	}{
-		{
-			name: "string-unknown",
-			attr: pcommon.NewValueStr("10"),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "string-ok",
-			attr: pcommon.NewValueStr("101"),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeUnset,
-		},
-		{
-			name: "int-not-found",
-			attr: pcommon.NewValueInt(404),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "int-not-found-client-span",
-			attr: pcommon.NewValueInt(404),
-			kind: ptrace.SpanKindServer,
-			code: ptrace.StatusCodeUnset,
-		},
-		{
-			name: "int-invalid-arg",
-			attr: pcommon.NewValueInt(408),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "int-internal",
-			attr: pcommon.NewValueInt(500),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "wrong inputValue",
-			attr: pcommon.NewValueBool(true),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeUnset,
-			err:  "invalid type: Bool",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			code, err := getStatusCodeFromHTTPStatusAttr(test.attr, test.kind)
-			if test.err != "" {
-				require.ErrorContains(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, test.code, code)
-		})
-	}
-}
-
-func TestGetStatusCodeFromHTTPStatusAttr_DefaultSpanKind(t *testing.T) {
-	value := pcommon.NewValueInt(404)
-
-	statusCode, err := getStatusCodeFromHTTPStatusAttr(value, ptrace.SpanKindInternal)
-	require.NoError(t, err)
-	assert.Equal(t, ptrace.StatusCodeError, statusCode)
-
-	statusCode, err = getStatusCodeFromHTTPStatusAttr(value, ptrace.SpanKindProducer)
-	require.NoError(t, err)
-	assert.Equal(t, ptrace.StatusCodeError, statusCode)
-
-	statusCode, err = getStatusCodeFromHTTPStatusAttr(value, ptrace.SpanKindConsumer)
-	require.NoError(t, err)
-	assert.Equal(t, ptrace.StatusCodeError, statusCode)
 }
 
 func Test_SetSpanEventsFromDbSpanLogs(t *testing.T) {
@@ -673,10 +546,6 @@ func TestSetInternalSpanStatus(t *testing.T) {
 	errorStatusWithMessage := ptrace.NewStatus()
 	errorStatusWithMessage.SetCode(ptrace.StatusCodeError)
 	errorStatusWithMessage.SetMessage("Error: Invalid argument")
-	errorStatusWith404Message := ptrace.NewStatus()
-	errorStatusWith404Message.SetCode(ptrace.StatusCodeError)
-	errorStatusWith404Message.SetMessage("HTTP 404: Not Found")
-
 	tests := []struct {
 		name             string
 		attrs            map[string]any
@@ -702,49 +571,30 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 0,
 		},
 		{
-			name: "http.status_code tag is set as string",
+			name: "HTTP status code does not set span status",
 			attrs: map[string]any{
 				conventions.HTTPResponseStatusCodeKey: "404",
 			},
-			status:           errorStatus,
+			status:           ptrace.NewStatus(),
 			attrsModifiedLen: 1,
 		},
 		{
-			name: "http.status_code, http.status_message and error tags are set",
+			name: "HTTP status code and message remain attributes",
 			attrs: map[string]any{
 				conventions.HTTPResponseStatusCodeKey: 404,
-				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
+				"http.status_message":                 "HTTP 404: Not Found",
 			},
-			status:           errorStatusWith404Message,
+			status:           ptrace.NewStatus(),
 			attrsModifiedLen: 2,
 		},
 		{
-			name: "status.code has precedence over http.status_code.",
-			attrs: map[string]any{
-				conventions.OtelStatusCode:            statusOk,
-				conventions.HTTPResponseStatusCodeKey: 500,
-				tagHTTPStatusMsg:                      "Server Error",
-			},
-			status:           okStatus,
-			attrsModifiedLen: 2,
-		},
-		{
-			name: "status.error has precedence over http.status_error.",
+			name: "Explicit status is decoded while HTTP attributes remain",
 			attrs: map[string]any{
 				conventions.OtelStatusCode:            statusError,
 				conventions.HTTPResponseStatusCodeKey: 500,
-				tagHTTPStatusMsg:                      "Server Error",
+				"http.status_message":                 "Server Error",
 			},
 			status:           errorStatus,
-			attrsModifiedLen: 2,
-		},
-		{
-			name: "whether tagHttpStatusMsg is set as string",
-			attrs: map[string]any{
-				conventions.HTTPResponseStatusCodeKey: 404,
-				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
-			},
-			status:           errorStatusWith404Message,
 			attrsModifiedLen: 2,
 		},
 		{
@@ -757,12 +607,12 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 0,
 		},
 		{
-			name: "error tag set and http tag message present",
+			name: "Error status does not source message from HTTP attribute",
 			attrs: map[string]any{
-				tagError:         true,
-				tagHTTPStatusMsg: "HTTP 404: Not Found",
+				tagError:              true,
+				"http.status_message": "HTTP 404: Not Found",
 			},
-			status:           errorStatusWith404Message,
+			status:           errorStatus,
 			attrsModifiedLen: 1,
 		},
 	}
