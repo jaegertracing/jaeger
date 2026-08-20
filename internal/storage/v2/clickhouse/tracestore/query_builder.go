@@ -11,12 +11,39 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/xpdata"
 
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/clickhouse/sql"
 )
+
+// errorAttributeKey is the Jaeger convention for filtering traces by error
+// state: the query attribute error=true must match spans whose OTLP status is
+// Error, regardless of whether a literal "error" attribute was ever stored
+// (#8553). The semantics of this one key mirror the memory store's, including
+// error=false matching Unset-status spans (#9096). Other synthetic query keys
+// the memory store supports (span.status, span.kind, scope.*) are not yet
+// translated here.
+const errorAttributeKey = "error"
+
+// errorQueryValue interprets the value of the error query attribute, mirroring
+// the memory store: an unparseable value is invalid and must match nothing.
+func errorQueryValue(attr pcommon.Value) (value bool, valid bool) {
+	switch attr.Type() {
+	case pcommon.ValueTypeBool:
+		return attr.Bool(), true
+	case pcommon.ValueTypeStr:
+		val, err := strconv.ParseBool(attr.Str())
+		if err != nil {
+			return false, false
+		}
+		return val, true
+	default:
+		return false, false
+	}
+}
 
 // marshalValueForQuery is a simpler wrapper around xpdata.JSONMarshaler.
 // It can be overridden in tests to simulate marshaling errors.
@@ -161,12 +188,35 @@ func (r *Reader) buildFindTraceIDsQuery(
 		args = append(args, query.StartTimeMax)
 	}
 
-	attributeMetadata, err := r.getAttributeMetadata(ctx, query.Attributes)
+	// The error attribute is a status filter, not a stored attribute
+	// (see errorAttributeKey).
+	attributes := query.Attributes
+	if errAttr, ok := attributes.Get(errorAttributeKey); ok {
+		errorVal, valid := errorQueryValue(errAttr)
+		if valid {
+			if errorVal {
+				appendAnd(&inner, "s.status_code = ?")
+			} else {
+				// Not-error includes the default Unset status, not just Ok (#9096).
+				appendAnd(&inner, "s.status_code != ?")
+			}
+			args = append(args, ptrace.StatusCodeError.String())
+			attributes = pcommon.NewMap()
+			query.Attributes.CopyTo(attributes)
+			attributes.Remove(errorAttributeKey)
+		} else {
+			// An unparseable error value matches nothing, same as the memory store.
+			appendAnd(&inner, "1 = 0")
+			attributes = pcommon.NewMap()
+		}
+	}
+
+	attributeMetadata, err := r.getAttributeMetadata(ctx, attributes)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to get attribute metadata: %w", err)
 	}
 
-	args, err = buildAttributeConditions(&inner, args, query.Attributes, attributeMetadata)
+	args, err = buildAttributeConditions(&inner, args, attributes, attributeMetadata)
 	if err != nil {
 		return "", nil, err
 	}
