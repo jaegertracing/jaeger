@@ -143,6 +143,11 @@ func (f *Factory) initializeConnections(
 		streamInterceptors = append(streamInterceptors, headerforwarding.NewStreamClientInterceptor())
 	}
 
+	if f.config.Timeout > 0 {
+		unaryInterceptors = append(unaryInterceptors, newTimeoutUnaryClientInterceptor(f.config.Timeout))
+		streamInterceptors = append(streamInterceptors, newTimeoutStreamClientInterceptor(f.config.Timeout))
+	}
+
 	baseOpts := []grpc.DialOption{
 		grpc.WithChainUnaryInterceptor(unaryInterceptors...),
 		grpc.WithChainStreamInterceptor(streamInterceptors...),
