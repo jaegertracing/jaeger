@@ -29,8 +29,9 @@ const (
 )
 
 var (
-	errNonZero               = errors.New("CalculationInterval and AggregationBuckets must be greater than 0")
-	errBucketsForCalculation = errors.New("BucketsForCalculation cannot be less than 1")
+	errNonZero                = errors.New("CalculationInterval and AggregationBuckets must be greater than 0")
+	errBucketsForCalculation  = errors.New("BucketsForCalculation cannot be less than 1")
+	errTargetSamplesPerSecond = errors.New("TargetSamplesPerSecond must be greater than 0")
 )
 
 // nested map: service -> operation -> throughput.
@@ -100,11 +101,14 @@ func newPostAggregator(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (*PostAggregator, error) {
-	if opts.CalculationInterval == 0 || opts.AggregationBuckets == 0 {
+	if opts.CalculationInterval <= 0 || opts.AggregationBuckets <= 0 {
 		return nil, errNonZero
 	}
 	if opts.BucketsForCalculation < 1 {
 		return nil, errBucketsForCalculation
+	}
+	if opts.TargetSamplesPerSecond <= 0 {
+		return nil, errTargetSamplesPerSecond
 	}
 	metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "adaptive_sampling_processor"})
 	return &PostAggregator{
