@@ -467,44 +467,18 @@ And the correlated event query of §5.5 — an event named `exception` that fire
 
 ### 6.3 Programmatic construction — a fluent builder
 
-The verbose AST is comfortable for machines to *transport* but unpleasant to *assemble by hand*: a client SDK or automation that composes queries programmatically (as opposed to a human typing into a search box) should not be hand-building nested `call`/`args` dictionaries. The recommended ergonomics is a thin **fluent builder** in each client language that emits the §6.1 AST. It is the programmatic counterpart to the §7 prefix shorthand (the human on-ramp): a convenience layer over the same contract, not a second contract — a Go or TypeScript builder would compile to the identical AST. The builder is not a bespoke DSL: it follows the operator-overloading idiom well established across the Python ecosystem — SQLAlchemy, pandas, Django's `Q`, elasticsearch-dsl — so it reads as familiar to anyone who has composed queries in those libraries. A Python sketch:
+The verbose AST is comfortable for machines to *transport* but unpleasant to *assemble by hand*: a client SDK or automation that composes queries programmatically, as opposed to a human typing into a search box, should not be hand-building nested `call`/`args` dictionaries. Each language therefore gets a thin **fluent builder** that emits the §6.1 AST. It is the programmatic counterpart to the §7 prefix shorthand (the human on-ramp): a convenience layer over the same contract, not a second contract.
 
-```python
-from jaeger.query import span, resource, event, link, attr, Query
+The principles below are what makes two such builders recognisably the same tool, and they are language-neutral — the Go builder in `internal/expression` and the Python one in `sdk/python` both follow them. What each language does with them is an implementation matter, and the details belong with the implementation rather than here.
 
-# References — each level is callable for attributes and exposes its built-in
-# fields as members, so one object reaches both an attribute and a field of its level
-span("http.status_code")          # attribute reference at the span level
-span.duration                     # field reference on the span
-resource("deployment.environment")# attribute reference at the resource level
-resource.service                  # field reference on the resource
-event.name                        # field reference on an event
-attr("k8s.pod.name")              # unqualified attribute (span-or-resource)
+- **The AST is the contract; the builder is a spelling of it.** A builder adds no concept the AST lacks and hides none that it has. Anything a builder can express lowers to one §6.1 tree, and a caller who needs a shape the builder does not offer can always construct the nodes directly.
+- **A wrong filter should be unbuildable, not validated.** The server owns the validation rules (§7), and a copy of them in every SDK is a copy that drifts. So a builder invests in shape instead: it makes the invalid thing impossible to write, or at least impossible to write without the host language complaining. What is genuinely beyond a builder's reach — whether a backend indexes the level asked for — is left to the server, and no builder should pretend otherwise.
+- **The closed vocabularies are structure, not strings.** Built-in fields, levels, and the closed value sets for `kind` and `status` are published in the IDL. A builder exposes each level's fields as members of that level, so a misspelled field is a missing member; it does not take a field name as an arbitrary string and check it later.
+- **A distinction the AST draws in types, the builder draws in types.** The three reference kinds are separate messages, so they are separate builder types: an attribute reference is not interchangeable with a field reference, and the nested reference that `some` quantifies over is reachable only from the levels that have a collection. Where a language allows it, a value with no ordering carries no ordering operators.
+- **Types are declared only where the AST requires them.** A `type` on a constant is authoritative (§5.4), so a builder that guesses one narrows the match and can turn a working query into one that matches nothing. Constants therefore go untyped unless the caller says otherwise. A list is the exception: its element type has to come from somewhere, so a builder infers it when the list is compared against an attribute and omits it when the field opposite supplies it.
+- **Conjunction is flattened as it is built.** `and` and `or` are associative and a flat conjunction is the subset the weakest backends serve (§7), so a builder folds a same-operator argument into its parent rather than nesting, and returns a lone predicate unwrapped instead of wrapping it in a one-element `and`.
+- **Idiomatic in the host language, uniform in what it emits.** Where a language has operator overloading, comparison and boolean operators are the natural spelling, with named methods for the operators it cannot overload; where it does not, methods carry everything. Two builders need not read alike. They must emit alike.
 
-# Predicates — Python comparison operators build a `call`
-span.duration > "2s"                                  # gt
-span("http.status_code") == 500                       # eq
-span("http.method").matches("GET|POST")               # regex
-resource.service.one_of(["cart", "checkout"])         # in   (also .not_one_of / .exists)
-span("a") > span("b")                                 # attribute vs attribute
-
-# Composition — &, |, ~  (or and_(...), or_(...), not_(...))
-flt = (span.duration > "2s") & span("http.status_code").one_of([500, 503])
-flt = flt | ~resource.service.eq("healthcheck")
-
-# Terminal — multiple .where() calls are ANDed into one Expression
-q = (Query()
-     .where(span.duration > "2s")
-     .where(span("http.status_code").one_of([500, 503]))
-     .build())          # -> TraceQueryParameters.filter (an `and` of the two)
-```
-
-Each fragment lowers directly to the AST — `span.duration > "2s"` produces `{"call":{"op":"gt","args":[{"field":{"name":"duration","level":"span"}},{"scalar":{"value":"2s"}}]}}` (`span.x` emits a built-in-field `ref` — level set, no `attr` flag; `span(...)`/`resource(...)` emit level-qualified attribute `ref`s with `attr:true`; `attr(...)` emits an unqualified attribute). Two builder conveniences carry their weight:
-
-- **Type-hint inference.** The builder sets `type` only where a numeric interpretation is required (`attr("size") > 500` emits an `int` scalar) and leaves equality and membership untyped, matching whatever form is stored (§5.4).
-- **Operator mapping.** `== != > < >= <=` map to `eq/ne/gt/lt/gte/lte` and `& | ~` to `and/or/not`; the operators Python cannot overload take method forms (`.matches()`, `.exists()`, `.one_of()`/`.not_one_of()`), with `.eq()`/`.gt()` aliases for callers who prefer them.
-
-This is illustrative, not normative: the wire contract is the AST (§6.1), and each SDK is free to shape its builder idiomatically as long as it emits that AST.
 
 ---
 
@@ -701,6 +675,7 @@ PR-sized milestones with explicit exit bars, grouped into stages. The API is L2 
 - [api_v3 HTTP query parser](../../cmd/jaeger/internal/extension/jaegerquery/internal/apiv3/query_parser.go) — `query.attributes` parsing
 - [jaeger-idl#206](https://github.com/jaegertracing/jaeger-idl/pull/206) — proto foundation (M1)
 - [jaeger-idl#212](https://github.com/jaegertracing/jaeger-idl/pull/212) — the nesting bound and the vocabulary checks against the published schema (M1)
+- [Python SDK prototype](../../sdk/python) — a fluent builder per §6.3 plus a gRPC client that runs its output; [`internal/expression`](../../internal/expression) is the Go builder it mirrors
 - [ADR-013](../adr/013-storage-capability-declaration.md) — storage capability declaration (`SearchCapabilities`), the mechanism RFC 0005's filter capabilities plug into (§7)
 - [jaeger-idl#211](https://github.com/jaegertracing/jaeger-idl/pull/211) — the `jaeger.storage.v2.Capabilities` service (§7)
 - [#9067](https://github.com/jaegertracing/jaeger/pull/9067) — merged `FindTraceSummaries` into the main `tracestore.Reader`, removing the optional `SummaryReader` interface
