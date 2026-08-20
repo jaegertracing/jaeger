@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -25,53 +24,6 @@ import (
 
 // Use timestamp with microsecond granularity to work well with jaeger thrift translation
 var testSpanEventTime = time.Date(2020, 2, 11, 20, 26, 13, 123000, time.UTC).UnixMicro()
-
-func TestCodeFromAttr(t *testing.T) {
-	tests := []struct {
-		name string
-		attr pcommon.Value
-		code int64
-		err  error
-	}{
-		{
-			name: "ok-string",
-			attr: pcommon.NewValueStr("0"),
-			code: 0,
-		},
-
-		{
-			name: "ok-int",
-			attr: pcommon.NewValueInt(1),
-			code: 1,
-		},
-
-		{
-			name: "wrong-type",
-			attr: pcommon.NewValueBool(true),
-			code: 0,
-			err:  errType,
-		},
-
-		{
-			name: "invalid-string",
-			attr: pcommon.NewValueStr("inf"),
-			code: 0,
-			err:  strconv.ErrSyntax,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			code, err := codeFromAttr(test.attr)
-			if test.err != nil {
-				require.ErrorIs(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, test.code, code)
-		})
-	}
-}
 
 func TestZeroBatchLength(t *testing.T) {
 	trace := FromDBModel([]dbmodel.Span{})
@@ -125,74 +77,6 @@ func Test_dbSpansToSpans_EmptySpans(t *testing.T) {
 	rss := traceData.ResourceSpans()
 	dbSpansToSpans(spans, rss)
 	assert.Equal(t, 1, rss.Len())
-}
-
-func TestGetStatusCodeFromHTTPStatusAttr(t *testing.T) {
-	tests := []struct {
-		name string
-		attr pcommon.Value
-		kind ptrace.SpanKind
-		code ptrace.StatusCode
-		err  string
-	}{
-		{
-			name: "string-unknown",
-			attr: pcommon.NewValueStr("10"),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-
-		{
-			name: "string-ok",
-			attr: pcommon.NewValueStr("101"),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeUnset,
-		},
-
-		{
-			name: "int-not-found",
-			attr: pcommon.NewValueInt(404),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "int-not-found-client-span",
-			attr: pcommon.NewValueInt(404),
-			kind: ptrace.SpanKindServer,
-			code: ptrace.StatusCodeUnset,
-		},
-		{
-			name: "int-invalid-arg",
-			attr: pcommon.NewValueInt(408),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "int-internal",
-			attr: pcommon.NewValueInt(500),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeError,
-		},
-		{
-			name: "wrong value",
-			attr: pcommon.NewValueBool(true),
-			kind: ptrace.SpanKindClient,
-			code: ptrace.StatusCodeUnset,
-			err:  "invalid type: Bool",
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			code, err := getStatusCodeFromHTTPStatusAttr(test.attr, test.kind)
-			if test.err != "" {
-				require.ErrorContains(t, err, test.err)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, test.code, code)
-		})
-	}
 }
 
 func Test_dbLogsToSpanEvents(t *testing.T) {
@@ -310,6 +194,15 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 0,
 		},
 		{
+			name: "status.code and status.description are set without an error tag",
+			attrs: map[string]any{
+				otelsemconv.OtelStatusCode:        statusError,
+				otelsemconv.OtelStatusDescription: "Error: Invalid argument",
+			},
+			status:           errorStatusWithMessage,
+			attrsModifiedLen: 0,
+		},
+		{
 			name: "status.code, status.message and error tags are set",
 			attrs: map[string]any{
 				tagError:                          true,
@@ -320,21 +213,21 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 0,
 		},
 		{
-			name: "http.status_code tag is set as string",
+			name: "an HTTP status attribute alone leaves the status unset",
 			attrs: map[string]any{
 				otelsemconv.HTTPResponseStatusCodeKey: "404",
 			},
-			status:           errorStatus,
+			status:           emptyStatus,
 			attrsModifiedLen: 1,
 		},
 		{
-			name: "http.status_code, http.status_message and error tags are set",
+			name: "error tag set, the HTTP message is not adopted as the status message",
 			attrs: map[string]any{
 				tagError:                              true,
 				otelsemconv.HTTPResponseStatusCodeKey: 404,
-				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
+				"http.status_message":                 "HTTP 404: Not Found",
 			},
-			status:           errorStatusWith404Message,
+			status:           errorStatus,
 			attrsModifiedLen: 2,
 		},
 		{
@@ -342,7 +235,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrs: map[string]any{
 				otelsemconv.OtelStatusCode:            statusOk,
 				otelsemconv.HTTPResponseStatusCodeKey: 500,
-				tagHTTPStatusMsg:                      "Server Error",
+				"http.status_message":                 "Server Error",
 			},
 			status:           okStatus,
 			attrsModifiedLen: 2,
@@ -361,7 +254,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrs: map[string]any{
 				otelsemconv.OtelStatusCode:            statusError,
 				otelsemconv.HTTPResponseStatusCodeKey: 500,
-				tagHTTPStatusMsg:                      "Server Error",
+				"http.status_message":                 "Server Error",
 			},
 			status:           errorStatus,
 			attrsModifiedLen: 2,
@@ -377,12 +270,12 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			attrsModifiedLen: 2,
 		},
 		{
-			name: "whether tagHttpStatusMsg is set as string",
+			name: "an HTTP status attribute is left in place for the user to filter on",
 			attrs: map[string]any{
 				otelsemconv.HTTPResponseStatusCodeKey: 404,
-				tagHTTPStatusMsg:                      "HTTP 404: Not Found",
+				"http.status_message":                 "HTTP 404: Not Found",
 			},
-			status:           errorStatusWith404Message,
+			status:           emptyStatus,
 			attrsModifiedLen: 2,
 		},
 	}
