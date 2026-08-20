@@ -550,7 +550,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		name             string
 		attrs            map[string]any
 		status           ptrace.Status
-		kind             ptrace.SpanKind
+		expectedAttrs    map[string]any
 		attrsModifiedLen int // Length of attributes map after dropping converted fields
 	}{
 		{
@@ -573,9 +573,12 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "HTTP status code does not set span status",
 			attrs: map[string]any{
-				conventions.HTTPResponseStatusCodeKey: "404",
+				conventions.HTTPResponseStatusCodeKey: 500,
 			},
-			status:           ptrace.NewStatus(),
+			status: ptrace.NewStatus(),
+			expectedAttrs: map[string]any{
+				conventions.HTTPResponseStatusCodeKey: 500,
+			},
 			attrsModifiedLen: 1,
 		},
 		{
@@ -584,7 +587,11 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				conventions.HTTPResponseStatusCodeKey: 404,
 				"http.status_message":                 "HTTP 404: Not Found",
 			},
-			status:           ptrace.NewStatus(),
+			status: ptrace.NewStatus(),
+			expectedAttrs: map[string]any{
+				conventions.HTTPResponseStatusCodeKey: 404,
+				"http.status_message":                 "HTTP 404: Not Found",
+			},
 			attrsModifiedLen: 2,
 		},
 		{
@@ -594,7 +601,11 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				conventions.HTTPResponseStatusCodeKey: 500,
 				"http.status_message":                 "Server Error",
 			},
-			status:           errorStatus,
+			status: errorStatus,
+			expectedAttrs: map[string]any{
+				conventions.HTTPResponseStatusCodeKey: 500,
+				"http.status_message":                 "Server Error",
+			},
 			attrsModifiedLen: 2,
 		},
 		{
@@ -612,7 +623,10 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				tagError:              true,
 				"http.status_message": "HTTP 404: Not Found",
 			},
-			status:           errorStatus,
+			status: errorStatus,
+			expectedAttrs: map[string]any{
+				"http.status_message": "HTTP 404: Not Found",
+			},
 			attrsModifiedLen: 1,
 		},
 	}
@@ -620,13 +634,24 @@ func TestSetInternalSpanStatus(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			span := ptrace.NewSpan()
-			span.SetKind(test.kind)
 			status := span.Status()
 			attrs := pcommon.NewMap()
 			require.NoError(t, attrs.FromRaw(test.attrs))
 			setSpanStatus(attrs, span)
 			assert.Equal(t, test.status, status)
 			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
+			for key, expected := range test.expectedAttrs {
+				actual, ok := attrs.Get(key)
+				require.True(t, ok, "Expected attribute %s to exist", key)
+				switch expected := expected.(type) {
+				case int:
+					assert.Equal(t, int64(expected), actual.Int(), "Attribute %s value mismatch", key)
+				case string:
+					assert.Equal(t, expected, actual.Str(), "Attribute %s value mismatch", key)
+				default:
+					t.Fatalf("unsupported expected attribute type %T", expected)
+				}
+			}
 		})
 	}
 }

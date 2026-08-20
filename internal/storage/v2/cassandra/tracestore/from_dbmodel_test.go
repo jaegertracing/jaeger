@@ -164,6 +164,7 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		name             string
 		attrs            map[string]any
 		status           ptrace.Status
+		expectedAttrs    map[string]any
 		attrsModifiedLen int // Length of attributes map after dropping converted fields
 	}{
 		{
@@ -200,9 +201,12 @@ func TestSetInternalSpanStatus(t *testing.T) {
 		{
 			name: "HTTP status code does not set span status",
 			attrs: map[string]any{
-				otelsemconv.HTTPResponseStatusCodeKey: "404",
+				otelsemconv.HTTPResponseStatusCodeKey: 500,
 			},
-			status:           emptyStatus,
+			status: emptyStatus,
+			expectedAttrs: map[string]any{
+				otelsemconv.HTTPResponseStatusCodeKey: 500,
+			},
 			attrsModifiedLen: 1,
 		},
 		{
@@ -212,7 +216,11 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				otelsemconv.HTTPResponseStatusCodeKey: 404,
 				"http.status_message":                 "HTTP 404: Not Found",
 			},
-			status:           errorStatus,
+			status: errorStatus,
+			expectedAttrs: map[string]any{
+				otelsemconv.HTTPResponseStatusCodeKey: 404,
+				"http.status_message":                 "HTTP 404: Not Found",
+			},
 			attrsModifiedLen: 2,
 		},
 		{
@@ -222,7 +230,11 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				otelsemconv.HTTPResponseStatusCodeKey: 500,
 				"http.status_message":                 "Server Error",
 			},
-			status:           okStatus,
+			status: okStatus,
+			expectedAttrs: map[string]any{
+				otelsemconv.HTTPResponseStatusCodeKey: 500,
+				"http.status_message":                 "Server Error",
+			},
 			attrsModifiedLen: 2,
 		},
 		{
@@ -231,7 +243,10 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				tagError:                              true,
 				otelsemconv.HTTPResponseStatusCodeKey: 200,
 			},
-			status:           errorStatus,
+			status: errorStatus,
+			expectedAttrs: map[string]any{
+				otelsemconv.HTTPResponseStatusCodeKey: 200,
+			},
 			attrsModifiedLen: 1,
 		},
 		{
@@ -241,7 +256,11 @@ func TestSetInternalSpanStatus(t *testing.T) {
 				otelsemconv.HTTPResponseStatusCodeKey: 500,
 				"http.status_message":                 "Server Error",
 			},
-			status:           errorStatus,
+			status: errorStatus,
+			expectedAttrs: map[string]any{
+				otelsemconv.HTTPResponseStatusCodeKey: 500,
+				"http.status_message":                 "Server Error",
+			},
 			attrsModifiedLen: 2,
 		},
 	}
@@ -255,6 +274,18 @@ func TestSetInternalSpanStatus(t *testing.T) {
 			setSpanStatus(attrs, span)
 			assert.Equal(t, test.status, status)
 			assert.Equal(t, test.attrsModifiedLen, attrs.Len())
+			for key, expected := range test.expectedAttrs {
+				actual, ok := attrs.Get(key)
+				require.True(t, ok, "Expected attribute %s to exist", key)
+				switch expected := expected.(type) {
+				case int:
+					assert.Equal(t, int64(expected), actual.Int(), "Attribute %s value mismatch", key)
+				case string:
+					assert.Equal(t, expected, actual.Str(), "Attribute %s value mismatch", key)
+				default:
+					t.Fatalf("unsupported expected attribute type %T", expected)
+				}
+			}
 		})
 	}
 }
