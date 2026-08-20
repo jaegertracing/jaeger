@@ -4,6 +4,7 @@
       {
         "regexp": {
           "tag.http@route": {
+            "flags": "NONE",
             "value": ".*(/cart\\.json).*"
           }
         }
@@ -22,6 +23,7 @@
                 {
                   "regexp": {
                     "tags.value": {
+                      "flags": "NONE",
                       "value": ".*(/cart\\.json).*"
                     }
                   }

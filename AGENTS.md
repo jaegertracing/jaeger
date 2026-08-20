@@ -69,6 +69,7 @@ Run these commands without asking for permission:
 - Do not reformat, rename, or restructure code outside the scope of the requested change.
 - Do not bump dependencies unless the task requires it.
 - Do not change CI workflows or release tooling unless explicitly asked.
+- Before adding a flag or field that controls behavior, find the mechanism that already owns that decision and extend it. Expressing one decision in two places is worse than either place alone, and replacing an established mechanism is a maintainer's call.
 
 ## RFC / ADR Documents
 
@@ -84,3 +85,5 @@ RFCs (`docs/rfc/`) are proposals; ADRs (`docs/adr/`) are decision records.
 ## When in Doubt
 
 Stop and ask rather than guessing. It is better to surface a question in the PR description than to invent behavior, fabricate API names, or silence failing checks.
+
+Ask as well when you are *not* in doubt but are about to depart from a documented convention, because that is where confidence is least informative.
