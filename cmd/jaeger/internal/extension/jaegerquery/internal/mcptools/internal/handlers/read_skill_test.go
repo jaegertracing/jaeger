@@ -146,3 +146,29 @@ func TestReadSkillHandler_DispatchesByPrefix(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestReadSkillHandler_StripsFrontMatter(t *testing.T) {
+	const withFrontMatter = `---
+name: skill-c
+description: does a thing
+license: Apache-2.0
+allowed-tools: get_services
+---
+
+# Skill C
+
+Procedure goes here.`
+
+	h := &readSkillHandler{
+		builtins: fstest.MapFS{
+			"skill-c/SKILL.md": &fstest.MapFile{Data: []byte(withFrontMatter)},
+		},
+		maxFileSize: 1024,
+	}
+
+	_, output, err := h.handle(context.Background(), &mcp.CallToolRequest{}, types.ReadSkillInput{Path: "skill-c/SKILL.md"})
+	require.NoError(t, err)
+	assert.Equal(t, "# Skill C\n\nProcedure goes here.", output.Instructions)
+	assert.NotContains(t, output.Instructions, "license")
+	assert.NotContains(t, output.Instructions, "allowed-tools")
+}
