@@ -919,6 +919,26 @@ func TestStoreTraces_UpdatedTraceReleasesAllMetadataOnEviction(t *testing.T) {
 	assert.NotContains(t, tenant.operations, "svc")
 }
 
+func TestReleaseServiceMetadata_SkipsSpansWithoutOperationEntry(t *testing.T) {
+	td := ptrace.NewTraces()
+	resourceSpan := td.ResourceSpans().AppendEmpty()
+	resourceSpan.Resource().Attributes().PutStr(conventions.ServiceNameKey, "svc")
+	span := resourceSpan.ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	span.SetName("op")
+	span.SetKind(ptrace.SpanKindServer)
+
+	// A service with no recorded operations cannot arise from storeTraces, but
+	// releaseServiceMetadata must tolerate it and skip the spans instead of
+	// writing to a nil map.
+	tenant := newTenant(&Configuration{MaxTraces: 1})
+	tenant.services["svc"] = 1
+
+	tenant.releaseServiceMetadata(td)
+
+	assert.NotContains(t, tenant.services, "svc")
+	assert.NotContains(t, tenant.operations, "svc")
+}
+
 func TestNewStore_ReverseChronologicalOrder(t *testing.T) {
 	maxTraces := 8
 	store, err := NewStore(Configuration{
