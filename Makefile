@@ -210,9 +210,12 @@ lint-goleak:
 	@echo Verifying that all packages with tests have goleak in their TestMain
 	@scripts/lint/check-goleak-files.sh $(ALL_PKGS)
 
+# Each checkout gets its own cache because golangci-lint keys entries by file
+# content rather than by path, so worktrees sharing one cache report findings
+# against each other's paths.
 .PHONY: lint-go
 lint-go: $(LINT)
-	$(LINT) -v run
+	GOLANGCI_LINT_CACHE=$(TOOLS_BIN_DIR)/golangci-lint-cache $(LINT) -v run
 
 .PHONY: govulncheck
 govulncheck: $(GOVULNCHECK)

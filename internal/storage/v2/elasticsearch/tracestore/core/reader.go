@@ -456,7 +456,10 @@ func (s *SpanReader) findTraceIDsFromQuery(ctx context.Context, traceQuery dbmod
 	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.SearchDepth)
-	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+	boolQuery, err := s.buildFindTraceIDsQuery(traceQuery)
+	if err != nil {
+		return nil, err
+	}
 	jaegerIndices := s.spanRotation.ReadTargets(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchResult, err := s.searcher.Search(ctx, jaegerIndices, esclient.SearchRequest{
@@ -496,7 +499,7 @@ func (*SpanReader) buildTraceIDSubAggregation() esquery.Aggregation {
 	return esquery.NewMaxAggregation(startTimeField)
 }
 
-func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) esquery.Query {
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParameters) (esquery.Query, error) {
 	boolQuery := esquery.NewBoolQuery()
 
 	// add duration query
@@ -540,7 +543,18 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery dbmodel.TraceQueryParamet
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
-	return boolQuery
+
+	// The structured filter carries the same kinds of predicate as the fields above and the
+	// query service keeps the two mutually exclusive, so at most one of them contributes
+	// clauses to this query.
+	if traceQuery.Filter != nil {
+		filterQuery, err := s.buildFilterQuery(traceQuery.Filter)
+		if err != nil {
+			return nil, err
+		}
+		boolQuery.Must(filterQuery)
+	}
+	return boolQuery, nil
 }
 
 func (*SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) esquery.Query {

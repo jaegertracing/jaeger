@@ -76,8 +76,8 @@ func (h *HTTPGateway) tryHandleError(w http.ResponseWriter, err error, statusCod
 	if errors.Is(err, spanstore.ErrTraceNotFound) {
 		statusCode = http.StatusNotFound
 	}
-	if errors.Is(err, querysvc.ErrServiceNameRequired) {
-		// The request is well-formed; this deployment's storage just cannot serve it.
+	if querysvc.IsBadRequest(err) {
+		// Either the query needs changing, or this deployment's storage cannot serve it.
 		statusCode = http.StatusBadRequest
 	}
 	if statusCode == http.StatusInternalServerError {
