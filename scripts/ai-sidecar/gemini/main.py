@@ -5,7 +5,14 @@ import asyncio
 import argparse
 import logging
 import os
+import sys
 from functools import partial
+from pathlib import Path
+
+# scripts/ai-sidecar holds the `shared` package that every sidecar imports. This
+# project runs as a directory of scripts rather than an installed package, so the
+# parent directory has to be put on the path before `shared` resolves.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import websockets
 

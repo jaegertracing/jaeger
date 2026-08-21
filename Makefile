@@ -234,6 +234,11 @@ run-all-in-one: build-ui
 run-ai-gemini:
 	./scripts/ai-sidecar/gemini/run.sh
 
+.PHONY: run-ai-openrouter
+
+run-ai-openrouter:
+	./scripts/ai-sidecar/openrouter/run.sh
+
 .PHONY: changelog
 changelog:
 	@./scripts/release/notes.py --exclude-dependabot --verbose
