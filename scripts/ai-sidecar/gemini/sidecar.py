@@ -42,13 +42,10 @@ from acp.helpers import start_tool_call, tool_content, update_tool_call
 from acp.interfaces import Client
 from acp.schema import (
     AgentCapabilities,
-    CloseSessionResponse,
     Implementation,
     ListSessionsResponse,
     LoadSessionResponse,
     NewSessionResponse,
-    SessionCapabilities,
-    SessionCloseCapabilities,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,12 +68,21 @@ class JaegerSidecarAgent(Agent):
         self._mcp = JaegerMCPBridge(config.mcp_url, config.mcp_discovery_timeout_sec)
         self._next_session_id = 1
         self._next_tool_call_id = 1
-        # Per-session AG-UI tool snapshot pulled from NewSessionRequest._meta.
-        # Each entry is the raw tool definition dict the frontend supplied
-        # (shape: {name, description?, parameters?}). The agentic loop uses
-        # the names to decide whether a Gemini function_call dispatches via
-        # MCP (built-in) or via the ACP extension method (contextual).
-        self._contextual_tools: dict[str, list[dict[str, Any]]] = {}
+        # AG-UI tool snapshot pulled from NewSessionRequest._meta. Each entry
+        # is the raw tool definition dict the frontend supplied (shape:
+        # {name, description?, parameters?}). The agentic loop uses the names
+        # to decide whether a Gemini function_call dispatches via MCP
+        # (built-in) or via the ACP extension method (contextual).
+        #
+        # A single slot rather than a dict keyed by session_id: the gateway
+        # opens one WebSocket (and therefore one JaegerSidecarAgent instance,
+        # see handle_websocket/agent_factory) per chat request, so at most
+        # one session is ever active here. new_session overwrites this slot
+        # and prompt's finally clears it, which bounds memory to O(1) instead
+        # of leaking one entry per session that registers tools but never
+        # reaches prompt (e.g. client aborts between session/new and
+        # session/prompt).
+        self._contextual_tools: list[dict[str, Any]] | None = None
 
     def _new_tool_call_id(self, tool_name: str) -> str:
         call_id = f"{tool_name}-{self._next_tool_call_id}"
@@ -118,9 +124,7 @@ class JaegerSidecarAgent(Agent):
         logger.info("Agent initialized with protocol version %s", protocol_version)
         return InitializeResponse(
             protocol_version=PROTOCOL_VERSION,
-            agent_capabilities=AgentCapabilities(
-                session_capabilities=SessionCapabilities(close=SessionCloseCapabilities()),
-            ),
+            agent_capabilities=AgentCapabilities(),
             agent_info=Implementation(name="jaeger-gemini-sidecar", title="Jaeger AI", version="0.1.0"),
         )
 
@@ -137,17 +141,17 @@ class JaegerSidecarAgent(Agent):
         session id that the client will use for subsequent prompt calls.
 
         Reads the optional contextual tools snapshot the gateway attaches via
-        NewSessionRequest._meta and stashes it per-session so the agentic loop
-        can merge those tools into the Gemini chat config. The Python ACP
-        router spreads ``_meta``'s inner keys into this handler's ``**kwargs``,
-        so ``kwargs`` itself is the meta dict to look up the namespaced key in.
+        NewSessionRequest._meta and stashes it so the agentic loop can merge
+        those tools into the Gemini chat config. The Python ACP router
+        spreads ``_meta``'s inner keys into this handler's ``**kwargs``, so
+        ``kwargs`` itself is the meta dict to look up the namespaced key in.
         """
         session_id = f"sess-{self._next_session_id}"
         self._next_session_id += 1
 
         contextual = _extract_contextual_tools(kwargs)
+        self._contextual_tools = contextual or None
         if contextual:
-            self._contextual_tools[session_id] = contextual
             logger.info(
                 "Registered %d contextual tool(s) for session %s: %s",
                 len(contextual),
@@ -156,21 +160,6 @@ class JaegerSidecarAgent(Agent):
             )
 
         return NewSessionResponse(session_id=session_id)
-
-    async def close_session(self, session_id: str, **kwargs: Any) -> CloseSessionResponse:
-        """Handle ACP `session/close` RPC.
-
-        Invoked by the gateway when an HTTP chat request finishes (success,
-        failure, or client disconnect mid-stream). Drops any per-session
-        bookkeeping the agent holds. ``pop(..., None)`` is idempotent so
-        sessions that never registered contextual tools — or that were
-        already cleaned up by ``prompt``'s ``finally`` block — are safe to
-        close again. Capability is advertised in ``initialize`` via
-        ``SessionCapabilities.close``.
-        """
-        self._contextual_tools.pop(session_id, None)
-        logger.info("Closed session %s", session_id)
-        return CloseSessionResponse()
 
     async def load_session(
         self,
@@ -338,7 +327,7 @@ class JaegerSidecarAgent(Agent):
                 if tool.function_declarations:
                     mcp_tool_names.update(fd.name for fd in tool.function_declarations if fd.name)
 
-            contextual_tools = self._contextual_tools.get(session_id, [])
+            contextual_tools = self._contextual_tools or []
             contextual_tool_names = {t["name"] for t in contextual_tools if t.get("name")}
             contextual_gemini_tool = _build_gemini_contextual_tool(contextual_tools)
 
@@ -441,14 +430,9 @@ class JaegerSidecarAgent(Agent):
                     update_agent_message(text_block(f"\n[Error: {str(e)}]"))
                 )
             finally:
-                # Drop the per-session contextual tools snapshot now that
-                # the prompt has finished. The Jaeger AI gateway opens one
-                # ACP session per chat request and never reuses the
-                # session_id, so without this cleanup the dict would grow
-                # unbounded over the sidecar's lifetime. pop(..., None)
-                # is idempotent — safe even if no entry exists for this
-                # session (which is the common PR1 case).
-                self._contextual_tools.pop(session_id, None)
+                # Drop the contextual tools snapshot now that the prompt has
+                # finished — see __init__ for why a single slot is safe here.
+                self._contextual_tools = None
 
             return PromptResponse(stop_reason="end_turn")
 
