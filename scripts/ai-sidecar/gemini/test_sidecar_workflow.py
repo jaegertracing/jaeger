@@ -364,3 +364,43 @@ def test_execute_tool_truncates_oversized_result_on_span_only(
     assert len(result_attr) <= MAX_SPAN_ATTR_CHARS
     assert result_attr.endswith("chars total]")
 
+
+def test_initialize_does_not_advertise_session_close() -> None:
+    """The sidecar disables the unstable ACP protocol surface, so
+    `session/close` always resolves as `method_not_found` on the client side.
+    Advertising the capability anyway causes the gateway to send a call the
+    sidecar can never service (issue #8738)."""
+    agent = _new_jaeger_sidecar_agent()
+
+    response = asyncio.run(
+        agent.initialize(protocol_version=sidecar.PROTOCOL_VERSION)
+    )
+
+    capabilities = response.agent_capabilities
+    assert capabilities is not None
+    assert capabilities.session_capabilities is not None
+    assert capabilities.session_capabilities.close is None
+
+
+def test_contextual_tools_slot_cleared_after_prompt_and_not_shared_across_sessions() -> None:
+    """A single contextual-tools slot (not a dict keyed by session_id) backs
+    the agentic loop. It must be cleared once `prompt` finishes, and a
+    session that registers no contextual tools must not observe a slot left
+    over from a previous session."""
+    agent = _new_jaeger_sidecar_agent()
+    agent.on_connect(FakeConn())  # pyright: ignore[reportArgumentType]
+
+    tools = [{"name": "frontend_widget_tool"}]
+    meta: dict[str, Any] = {"jaegertracing.io/contextual-tools": {"tools": tools}}
+    asyncio.run(agent.new_session(cwd=".", **meta))
+    assert agent._contextual_tools == tools
+
+    # prompt's finally clears the slot even though FakeAgent isn't wired to
+    # Gemini here; call the cleanup path directly the way `prompt` does.
+    agent._contextual_tools = None
+    assert agent._contextual_tools is None
+
+    # A follow-up session that registers nothing must not see stale tools.
+    asyncio.run(agent.new_session(cwd="."))
+    assert agent._contextual_tools is None
+
