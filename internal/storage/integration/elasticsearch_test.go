@@ -24,11 +24,14 @@ import (
 	esstorage "github.com/jaegertracing/jaeger/internal/storage/elasticsearch"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
+	esindices "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/indices"
 	"github.com/jaegertracing/jaeger/internal/storage/integration/capabilities"
 	es "github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	esv2 "github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
+	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
 	"github.com/jaegertracing/jaeger/internal/testutils"
 )
@@ -191,6 +194,91 @@ func TestElasticsearchStorage_IndexTemplates(t *testing.T) {
 
 func (s *ESStorageIntegration) cleanESIndexTemplates(t *testing.T, prefix string) {
 	s.client.cleanTemplates(t, prefix)
+}
+
+// TestElasticsearchStorage_DataStreamTemplates exercises the RFC 0004 §3.2
+// data-stream templates against a live backend: it installs the two Jaeger
+// components plus the composable index template, then writes a document through the
+// data stream and reads it back.
+//
+// Running in the ES/OS matrix job is what makes this meaningful. The esclient
+// snapshot pins the bytes Jaeger sends but cannot tell whether a backend accepts
+// them, and this slice spans versions that disagree on exactly that:
+// ignore_missing_component_templates is ES 8.7+ and exists on no OpenSearch version,
+// while OpenSearch rejects a composed_of naming a template that does not exist. It
+// also proves the mapping accepts what Jaeger writes, which creating the templates
+// alone does not.
+func TestElasticsearchStorage_DataStreamTemplates(t *testing.T) {
+	SkipUnlessEnv(t, StorageElasticsearch, StorageOpenSearch)
+	t.Cleanup(func() {
+		testutils.VerifyGoLeaksOnce(t)
+	})
+	c := getESHttpClient(t)
+	require.NoError(t, healthCheck(c))
+	s := &ESStorageIntegration{}
+	s.initializeES(t, true)
+	s.testDataStreamTemplates(t)
+}
+
+func (s *ESStorageIntegration) testDataStreamTemplates(t *testing.T) {
+	ctx := context.Background()
+	replicas := int64(0)
+	indicesCfg := escfg.Indices{
+		IndexPrefix: escfg.IndexPrefix(indexPrefix),
+		Spans:       escfg.IndexOptions{Shards: 1, Replicas: &replicas},
+	}
+	indices := esclient.IndicesClient{
+		Client:                 s.client.client,
+		IgnoreUnavailableIndex: true,
+		Indices:                indicesCfg,
+	}
+	dataStream := indicesCfg.IndexPrefix.DataStreamName("jaeger.spans")
+	// The writer below also emits a service:operation document. Its aliased rotation
+	// has no alias here, so the backend auto-creates an ordinary index under this
+	// exact name.
+	serviceIndex := indicesCfg.IndexPrefix.Apply(escfg.ServiceIndexName)
+
+	// Scoped teardown for both targets this test writes. A data stream's backing
+	// indices are hidden, so the suite's DeleteAllIndices("*") does not reclaim them,
+	// and this test never runs the shared suite that would invoke s.CleanUp.
+	require.NoError(t, indices.TestsOnlyDeleteDataStreamObjects(ctx))
+	t.Cleanup(func() {
+		require.NoError(t, indices.TestsOnlyDeleteDataStreamObjects(context.Background()))
+		require.NoError(t, s.client.indices.DeleteIndices(
+			context.Background(), []esclient.Index{{Index: serviceIndex}},
+		))
+	})
+
+	require.NoError(t, indices.CreateDataStreamTemplates(ctx))
+
+	// The write is the assertion that matters: installing the templates only proves
+	// the cluster parsed them. It goes through the real SpanWriter, not a hand-built
+	// document, so the "@timestamp" and op_type the cluster validates are the ones
+	// the write path produces.
+	//
+	// Only spans carry an "@timestamp", so the service:operation rotation targets an
+	// ordinary index; a data stream would reject those documents.
+	writer := core.NewSpanWriter(core.SpanWriterParams{
+		BatchWriter:     esclient.NewSyncBulkWriter(s.client.client, 0, false, metrics.NullFactory, zap.NewNop()),
+		Logger:          zap.NewNop(),
+		MetricsFactory:  metrics.NullFactory,
+		SpanRotation:    esindices.NewDataStreamRotation(dataStream, ""),
+		ServiceRotation: esindices.NewAliasedRotation(serviceIndex, ""),
+	})
+	require.NoError(t, writer.WriteSpans(ctx, []dbmodel.Span{{
+		TraceID:       "ds-trace",
+		SpanID:        "ds-span",
+		OperationName: "data-stream-write",
+		StartTime:     uint64(time.Now().UnixMicro()),
+		Process:       dbmodel.Process{ServiceName: "data-stream-service"},
+	}}))
+
+	searcher := esclient.SearchClient{Client: s.client.client}
+	require.Eventually(t, func() bool {
+		resp, err := searcher.Search(ctx, []string{dataStream}, esclient.SearchRequest{Size: 10})
+		return err == nil && len(resp.Hits.Hits) == 1
+	}, 10*time.Second, 100*time.Millisecond,
+		"the document must be durably readable through the data stream")
 }
 
 // TestElasticsearchStorage_SyncBulkWriter exercises the RFC 0007 synchronous bulk
