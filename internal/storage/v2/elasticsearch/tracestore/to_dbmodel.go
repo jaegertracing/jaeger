@@ -24,7 +24,6 @@ const (
 	statusError      = "ERROR"
 	statusOk         = "OK"
 	tagW3CTraceState = "w3c.tracestate"
-	tagHTTPStatusMsg = "http.status_message"
 	tagError         = "error"
 )
 
