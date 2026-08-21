@@ -115,8 +115,8 @@ func (m MappingType) options(indices config.Indices) config.IndexOptions {
 }
 
 // innerParams are the version-independent values rendered into a neutral body.
-// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
-// resolved version, so it never crosses the API boundary.
+// renderNeutralBody fills Shards and Replicas from the mapping type's own options,
+// so a caller supplies only the lifecycle fields.
 type innerParams struct {
 	IndexPrefix   string
 	Shards        int64
@@ -124,6 +124,53 @@ type innerParams struct {
 	UseILM        bool
 	ILMPolicyName string
 	IsOpenSearch  bool
+}
+
+// lifecycleParams are the fields that differ between renderNeutralBody's callers.
+// Every template consumes IndexPrefix only inside a UseILM branch — the read alias
+// and the ISM/ILM rollover alias — so these four are the rotation path's lifecycle
+// wiring, and the data-stream path, which owns none of it, passes the zero value.
+// IsOpenSearch selects ISM vs ILM settings and is derived from the client's own
+// resolved version, so it never crosses the API boundary.
+type lifecycleParams struct {
+	IndexPrefix   string
+	UseILM        bool
+	ILMPolicyName string
+	IsOpenSearch  bool
+}
+
+// renderNeutralBody renders a mapping type's neutral body and decodes its
+// top-level fields (settings, mappings, and optional aliases). It is the step
+// RenderIndexTemplate and the span data-stream components share: the same replica
+// check, the same template execution and the same JSON decode, so both paths fail
+// identically on the same input.
+func renderNeutralBody(m MappingType, indices config.Indices, lifecycle lifecycleParams) (map[string]json.RawMessage, error) {
+	file := m.file()
+	if file == "" {
+		return nil, fmt.Errorf("unknown index template mapping type %d", m)
+	}
+	opts := m.options(indices)
+	if opts.Replicas == nil {
+		return nil, fmt.Errorf("index options for %s have no replica count configured", m)
+	}
+
+	var buf bytes.Buffer
+	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
+		IndexPrefix:   lifecycle.IndexPrefix,
+		Shards:        opts.Shards,
+		Replicas:      *opts.Replicas,
+		UseILM:        lifecycle.UseILM,
+		ILMPolicyName: lifecycle.ILMPolicyName,
+		IsOpenSearch:  lifecycle.IsOpenSearch,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to render %s index template: %w", m, err)
+	}
+
+	var inner map[string]json.RawMessage
+	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
+		return nil, fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	}
+	return inner, nil
 }
 
 // RenderIndexTemplate renders the full index template body for a mapping type,
@@ -136,36 +183,20 @@ type innerParams struct {
 // offline `esmapping-generator` CLI, which has no cluster to probe and renders a
 // template for an explicitly-requested version.
 func RenderIndexTemplate(m MappingType, indices config.Indices, useILM bool, ilmPolicyName string, version es.BackendVersion) (string, error) {
-	file := m.file()
-	if file == "" {
-		return "", fmt.Errorf("unknown index template mapping type %d", m)
-	}
-	opts := m.options(indices)
-	if opts.Replicas == nil {
-		return "", fmt.Errorf("index options for %s have no replica count configured", m)
-	}
 	prefix := indices.IndexPrefix.Apply("")
-
-	var buf bytes.Buffer
-	if err := indexTemplates.ExecuteTemplate(&buf, file, innerParams{
+	inner, err := renderNeutralBody(m, indices, lifecycleParams{
 		IndexPrefix:   prefix,
-		Shards:        opts.Shards,
-		Replicas:      *opts.Replicas,
 		UseILM:        useILM,
 		ILMPolicyName: ilmPolicyName,
 		IsOpenSearch:  version.IsOpenSearch(),
-	}); err != nil {
-		return "", fmt.Errorf("failed to render %s index template: %w", m, err)
-	}
-
-	var inner map[string]json.RawMessage
-	if err := json.Unmarshal(buf.Bytes(), &inner); err != nil {
-		return "", fmt.Errorf("rendered %s index template is not valid JSON: %w", m, err)
+	})
+	if err != nil {
+		return "", err
 	}
 
 	if version.UsesV8API() {
 		body, err := json.Marshal(map[string]any{
-			"priority":       opts.Priority,
+			"priority":       m.options(indices).Priority,
 			"index_patterns": prefix + m.indexBase() + "-*",
 			"template":       inner,
 		})
