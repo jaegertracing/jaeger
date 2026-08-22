@@ -715,6 +715,21 @@ func TestArchiveTrace(t *testing.T) {
 	}
 }
 
+func TestArchiveTrace_ArchiveOnlyTraceNotFound(t *testing.T) {
+	paramsTraceIDs := []tracestore.GetTraceParams{{TraceID: testTraceID}}
+	tqs := initializeTestService(withArchiveTraceReader(), withArchiveTraceWriter())
+	tqs.traceReader.On("GetTraces", mock.Anything, paramsTraceIDs).
+		Return(iter.Seq2[[]ptrace.Traces, error](func(yield func([]ptrace.Traces, error) bool) {
+			yield(nil, nil)
+		})).Once()
+
+	err := tqs.queryService.ArchiveTrace(t.Context(), paramsTraceIDs[0])
+
+	require.ErrorIs(t, err, spanstore.ErrTraceNotFound)
+	tqs.archiveTraceReader.AssertNotCalled(t, "GetTraces", mock.Anything, paramsTraceIDs)
+	tqs.archiveTraceWriter.AssertNotCalled(t, "WriteTraces", mock.Anything, mock.Anything)
+}
+
 func TestGetDependencies(t *testing.T) {
 	tqs := initializeTestService()
 	expected := []model.DependencyLink{
