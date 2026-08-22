@@ -33,11 +33,13 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 
 		event2 := span.Events().AppendEmpty()
 		event2.SetName("event2")
+		event2.SetTimeUnixNano(200)
 		event2.Attributes().PutStr("attributeU", "valE")
 		event2.Attributes().PutStr("attributeT", "valF")
 
 		event1 := span.Events().AppendEmpty()
 		event1.SetName("event1")
+		event1.SetTimeUnixNano(100)
 		event1.Attributes().PutStr("attributeR", "valE")
 		event1.Attributes().PutStr("attributeS", "valF")
 
@@ -72,11 +74,13 @@ func TestSortAttributesAndEventsAdjuster(t *testing.T) {
 
 		event1 := span.Events().AppendEmpty()
 		event1.SetName("event1")
+		event1.SetTimeUnixNano(100)
 		event1.Attributes().PutStr("attributeR", "valE")
 		event1.Attributes().PutStr("attributeS", "valF")
 
 		event2 := span.Events().AppendEmpty()
 		event2.SetName("event2")
+		event2.SetTimeUnixNano(200)
 		event2.Attributes().PutStr("attributeT", "valF")
 		event2.Attributes().PutStr("attributeU", "valE")
 

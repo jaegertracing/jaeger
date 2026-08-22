@@ -17,7 +17,10 @@ var _ Adjuster = (*SortAttributesAndEventsAdjuster)(nil)
 // - Resource attributes are sorted lexicographically by their keys.
 // - Scope attributes are sorted lexicographically by their keys.
 // - Span attributes are sorted lexicographically by their keys.
-// - Span events are sorted by timestamp.
+// - Span events are sorted by their timestamp (TimeUnixNano) in ascending order.
+//   Previously events were sorted lexicographically by name, but timestamp-based
+//   ordering is more useful for query results as it preserves the temporal sequence
+//   of events within a span.
 // - Attributes within each span event are sorted lexicographically by their keys.
 // - Attributes within each span link are sorted lexicographically by their keys.
 func SortCollections() SortAttributesAndEventsAdjuster {
