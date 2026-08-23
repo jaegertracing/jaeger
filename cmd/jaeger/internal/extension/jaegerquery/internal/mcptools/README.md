@@ -9,7 +9,24 @@ and following its links, so a skill is only read when it looks relevant.
 
 The `skills/` directory beside this file holds the skills compiled into the
 Jaeger binary. Operators can add their own without rebuilding, via
-`ai.skills_dir` — the rest of this file is for them.
+`ai.mcp.skills_dir` — the rest of this file is for them. For writing the skills
+themselves, see [AUTHORING.md](./AUTHORING.md).
+
+## Turning the MCP endpoint on
+
+Skills are served over MCP, so the `ai.mcp` block is what exposes them. Its
+presence is what enables the endpoint; an empty block is enough:
+
+```yaml
+extensions:
+  jaeger_query:
+    ai:
+      mcp: {}
+```
+
+That serves the built-in skills, and the rest of the telemetry tools, at
+`<basePath>/api/ai/mcp/` on the query port. Point an MCP client there, or leave
+it to an AI chat sidecar configured with `ai.agent_url`.
 
 ## Adding installation-specific skills
 
@@ -35,6 +52,9 @@ error-root-cause/SKILL.md      # built-in skill
 custom/SKILL.md                # your entry point, mounts <skills_dir>/SKILL.md
 custom/your-skill/SKILL.md     # your skill      , mounts <skills_dir>/your-skill/SKILL.md
 ```
+
+`custom/` is a prefix on the path an agent asks for, not a directory you create:
+inside `skills_dir`, your entry point is plain `SKILL.md`.
 
 `<skills_dir>/SKILL.md` is required: an agent reads it first, and without it
 nothing below is reachable. It is also your index. An agent chooses what to read
@@ -77,6 +97,63 @@ one, so a skill written for either stays readable here — but Jaeger reads no
 field of it, and a `description` there is no substitute for the line beside the
 link in your index.
 
+## Editing skills on a running server
+
+`skills_dir` is read live. Editing a skill's text, or adding a file the index
+links to, takes effect on the next `read_skill` call — no restart, no reload
+signal. The only check that runs solely at startup is the one below, so a
+`skills_dir` you break *after* startup surfaces at read time instead.
+
+Skills are static text, and Jaeger never executes them. What reads them is an
+agent, which then decides what to do.
+
+## What Jaeger checks, and what it limits
+
 A `skills_dir` that cannot be opened, or whose `SKILL.md` cannot be read, is
 broken configuration, and Jaeger refuses to start rather than quietly serving an
-incomplete skill set.
+incomplete skill set:
+
+| Startup error | Cause |
+| --- | --- |
+| `cannot open skills_dir "…"` | Path is missing, or is not a directory |
+| `cannot read SKILL.md in skills_dir "…"` | Directory opens, but has no readable entry point |
+
+At read time a bad path is reported back to the agent as
+`cannot read "<path>": …` — which is also what every `custom/…` path returns
+when no `skills_dir` is configured.
+
+Two limits apply to what is served:
+
+- **Path containment.** The directory is opened with `os.OpenRoot`, so `..`
+  traversal and symlinks pointing outside `skills_dir` are refused by the OS
+  rather than by a path check that could be tricked.
+- **File size.** A served file is capped at 512 KiB; beyond that the reply is cut
+  and ends with `file content truncated after 524288 bytes`. The cap is fixed, not
+  a config field — a skill anywhere near it is far too long to be useful to an
+  agent.
+
+## Who can write to skills_dir
+
+A skill is instructions an agent follows, with your telemetry tools already in
+hand. Anyone who can write to `skills_dir` can steer that agent's behaviour
+without touching Jaeger's binary or configuration. Treat the directory as part
+of the trusted configuration surface: own it by root or the Jaeger service
+account, keep it out of paths writable by application deployments, and review
+changes to it as you would a config change.
+
+## Checking it works
+
+With an MCP client attached to the endpoint, ask for your entry point directly:
+
+```
+read_skill(path="custom/SKILL.md")
+```
+
+Your text coming back means the directory is mounted and reachable.
+`cannot read "custom/SKILL.md"` means either no `skills_dir` is configured on
+this server, or the file is not there under that name.
+
+Note that Jaeger serving a skill and an agent choosing to read it are separate
+questions — see [AUTHORING.md](./AUTHORING.md), and
+[#9336](https://github.com/jaegertracing/jaeger/issues/9336) for what is known
+about the second.
