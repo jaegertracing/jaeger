@@ -146,6 +146,7 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		MaxSpanAge:        maxSpanAge,
 		MaxTraceDuration:  f.config.MaxTraceDuration,
 		TagDotReplacement: f.config.Tags.DotReplacement,
+		AllTagsAsFields:   f.config.Tags.AllAsFields,
 		Logger:            f.logger,
 		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
 		SpanRotation:      spanRotation,
