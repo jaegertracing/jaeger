@@ -61,9 +61,16 @@ func (h *readSkillHandler) handle(
 		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
 	}
 
+	// The attributes describe the skill for a caller choosing between skills.
+	// This caller has already chosen, so it gets the body only.
+	skill, err := types.ParseSkill(content)
+	if err != nil {
+		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
+	}
+
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: content}},
-	}, types.ReadSkillOutput{Instructions: content}, nil
+		Content: []mcp.Content{&mcp.TextContent{Text: skill.Content}},
+	}, types.ReadSkillOutput{Instructions: skill.Content}, nil
 }
 
 // open routes p to the custom tree when it names the custom/ prefix and to the
