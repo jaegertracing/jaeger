@@ -102,10 +102,11 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	searcher esclient.Searcher
-	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
-	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge              time.Duration
+	searcher   esclient.Searcher
+	maxSpanAge time.Duration
+	// servicesMaxLookback bounds GetServices/GetOperations independently from maxSpanAge,
+	// which may be widened to DawnOfTimeSpanAge for trace reads through an alias or data stream.
+	servicesMaxLookback     time.Duration
 	maxTraceDuration        time.Duration
 	serviceOperationStorage *ServiceOperationStorage
 	spanRotation            indices.Rotation
@@ -120,15 +121,17 @@ type SpanReader struct {
 type SpanReaderParams struct {
 	// Searcher is the esclient data-plane search client backing every read path:
 	// service/operation reads, trace-ID and trace lookups, and native summaries.
-	Searcher          esclient.Searcher
-	MaxSpanAge        time.Duration
-	MaxTraceDuration  time.Duration
-	MaxDocCount       int
-	TagDotReplacement string
-	Logger            *zap.Logger
-	Tracer            trace.Tracer
-	SpanRotation      indices.Rotation
-	ServiceRotation   indices.Rotation
+	Searcher   esclient.Searcher
+	MaxSpanAge time.Duration
+	// ServicesMaxLookback bounds GetServices/GetOperations.
+	ServicesMaxLookback time.Duration
+	MaxTraceDuration    time.Duration
+	MaxDocCount         int
+	TagDotReplacement   string
+	Logger              *zap.Logger
+	Tracer              trace.Tracer
+	SpanRotation        indices.Rotation
+	ServiceRotation     indices.Rotation
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -136,6 +139,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		searcher:                p.Searcher,
 		maxSpanAge:              p.MaxSpanAge,
+		servicesMaxLookback:     p.ServicesMaxLookback,
 		maxTraceDuration:        p.MaxTraceDuration,
 		serviceOperationStorage: NewServiceOperationStorage(p.Searcher, p.Logger, 0), // read-only; the decorator takes care of metrics
 		spanRotation:            p.SpanRotation,
@@ -224,7 +228,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	ctx, span := s.tracer.Start(ctx, "GetService")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.servicesMaxLookback), currentTime)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices, s.maxDocCount)
 }
 
@@ -236,7 +240,7 @@ func (s *SpanReader) GetOperations(
 	ctx, span := s.tracer.Start(ctx, "GetOperations")
 	defer span.End()
 	currentTime := time.Now()
-	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.serviceRotation.ReadTargets(currentTime.Add(-s.servicesMaxLookback), currentTime)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName, s.maxDocCount)
 	if err != nil {
 		return nil, err
