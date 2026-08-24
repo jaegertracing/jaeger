@@ -14,7 +14,7 @@ func TestOpenSearchStorage(t *testing.T) {
 	integration.SkipUnlessEnv(t, integration.StorageOpenSearch)
 	s := &E2EStorageIntegration{
 		ConfigFile:   "../../config-opensearch.yaml",
-		FeatureGates: structuredFilterGates,
+		FeatureGates: elasticsearchFilterGates,
 		StorageIntegration: integration.StorageIntegration{
 			CleanUp:      purge,
 			Fixtures:     integration.LoadAndParseQueryTestCases(t, "fixtures/queries_es.json"),

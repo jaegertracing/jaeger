@@ -167,16 +167,22 @@ type typedAttributeFixture struct {
 	searcher esclient.SearchClient
 }
 
-func newTypedAttributeFixture(t *testing.T, rep representation) *typedAttributeFixture {
-	// The gate has to be on before the factory installs the index template, since
-	// that is what puts the sub-fields in the mapping. The suite's setup then
-	// deletes the existing indices, so every span below lands in an index created
-	// from the new template.
+// setTypedAttributeIndexing turns the typed-attribute mapping on or off for the duration of a
+// test. It has to run before the factory that installs the index template, since the gate is what
+// decides whether the mapping carries the numeric sub-field — and, at query time, whether the
+// reader lowers an ordering predicate onto it or refuses it.
+func setTypedAttributeIndexing(t *testing.T, enabled bool) {
 	original := esclient.TypedAttributeIndexingGate.IsEnabled()
-	require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), true))
+	require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), enabled))
 	t.Cleanup(func() {
 		require.NoError(t, featuregate.GlobalRegistry().Set(esclient.TypedAttributeIndexingGate.ID(), original))
 	})
+}
+
+func newTypedAttributeFixture(t *testing.T, rep representation) *typedAttributeFixture {
+	// The suite's setup deletes the existing indices after the template is installed, so every
+	// span below lands in an index created from the gate-on template.
+	setTypedAttributeIndexing(t, true)
 
 	s := &ESStorageIntegration{}
 	s.initializeES(t, rep.allTagsAsFields)
