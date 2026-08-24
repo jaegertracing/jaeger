@@ -21,6 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/extension/jaegerquery/querysvc"
 	"github.com/jaegertracing/jaeger/cmd/jaeger/internal/integration/storagecleaner"
+	"github.com/jaegertracing/jaeger/internal/storage/elasticsearch/esclient"
 	"github.com/jaegertracing/jaeger/internal/storage/integration"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -78,6 +79,15 @@ func (s *E2EStorageIntegration) args(configFile string) []string {
 // suites whose searches carry one need it: the filter battery, where the backend evaluates a filter,
 // and the rewrite test, where it does not.
 var structuredFilterGates = []string{querysvc.StructuredFiltersGate.ID()}
+
+// elasticsearchFilterGates is what an Elasticsearch or OpenSearch deployment needs to serve the
+// whole battery. Typed attribute indexing (RFC 0015) is what puts a numeric sub-field beside the
+// keyword an attribute value is indexed as, which the ordering case ranges over; capabilities
+// declares that case skipped for every backend that does not have it.
+var elasticsearchFilterGates = []string{
+	querysvc.StructuredFiltersGate.ID(),
+	esclient.TypedAttributeIndexingGate.ID(),
+}
 
 // binaryEnv builds the environment for the spawned jaeger binary. The child gets
 // an explicit environment rather than inheriting the test process's, so anything

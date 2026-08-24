@@ -8,7 +8,7 @@ const (
 	linkAttributesTest     = "Link_Attributes"
 	findTraceSummariesTest = "FindTraceSummaries"
 	structuredFilterTest   = "FindTracesWithFilter"
-	attributeOrderingTest  = "ordering_compares_a_numeric_attribute_as_a_number"
+	attributeRefusedTest   = "ordering_an_attribute_is_refused_where_it_is_indexed_as_text"
 )
 
 // Capabilities records what a storage backend *cannot* do in the integration suite. Every
@@ -111,10 +111,10 @@ func Elasticsearch() Capabilities {
 		// TODO: remove this flag after ES supports returning spanKind
 		//  Issue https://github.com/jaegertracing/jaeger/issues/1923
 		getOperationsMissingSpanKind: true,
-		// This schema indexes every attribute as a keyword, so ordering one is refused rather than
-		// answered lexicographically, and the battery's paired refusal case is the one to run
-		// (RFC 0015 is what changes that).
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+		// The suite runs with typed attribute indexing enabled (RFC 0015), so an attribute value is
+		// indexed as a number beside the keyword and ordering one is answered rather than refused.
+		// That makes the battery's paired refusal case the one to skip.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
 	}
 }
 
@@ -137,8 +137,8 @@ func ElasticsearchSmokeTest() Capabilities {
 func OpenSearch() Capabilities {
 	return Capabilities{
 		getOperationsMissingSpanKind: true,
-		// Same keyword mapping as Elasticsearch; see the note there.
-		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeOrderingTest},
+		// Same mapping and same gate as Elasticsearch; see the note there.
+		skipList: []string{scopeAttributesTest, linkAttributesTest, attributeRefusedTest},
 	}
 }
 
