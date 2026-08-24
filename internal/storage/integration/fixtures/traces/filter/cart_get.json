@@ -39,6 +39,12 @@
                   "value": {
                     "stringValue": "us-east"
                   }
+                },
+                {
+                  "key": "retry.count",
+                  "value": {
+                    "intValue": "1"
+                  }
                 }
               ],
               "status": {}

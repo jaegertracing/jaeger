@@ -33,6 +33,12 @@
                   "value": {
                     "stringValue": "500"
                   }
+                },
+                {
+                  "key": "retry.count",
+                  "value": {
+                    "intValue": "5"
+                  }
                 }
               ],
               "events": [

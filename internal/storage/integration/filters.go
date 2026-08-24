@@ -130,6 +130,14 @@ func filterTestCases(p builder.Predicate) []filterCase {
 			expected: []string{"cart_post"},
 		},
 		{
+			// Ordering an attribute needs the value stored as a number. A backend that indexes
+			// attributes as text refuses this instead, and excuses itself from this case — see
+			// its twin among the refusals below.
+			caption:  "ordering compares a numeric attribute as a number",
+			filter:   p.Span().Attr("retry.count").Gt(3),
+			expected: []string{"cart_post"},
+		},
+		{
 			caption:  "an attribute exists",
 			filter:   p.Span().Attr("http.status_code").Exists(),
 			expected: []string{"cart_get", "cart_post", "checkout"},
@@ -222,6 +230,16 @@ func (s *StorageIntegration) testFindTracesWithFilter(t *testing.T) {
 			caption: "an operator the backend does not evaluate is refused",
 			filter:  p.Some(p.Event(), p.Event().Name.Eq("exception")),
 			names:   "some",
+		},
+		{
+			// The twin of "ordering compares a numeric attribute as a number" above: the same
+			// filter, for a backend whose schema indexes an attribute as text. This one refuses
+			// inside the reader rather than at the capability edge, because the operator and the
+			// level are both declared and only the pairing is unservable. A backend that orders
+			// attributes natively excuses itself from this case and runs the other.
+			caption: "ordering an attribute is refused where it is indexed as text",
+			filter:  p.Span().Attr("retry.count").Gt(3),
+			names:   "keyword rather than a number",
 		},
 	}
 	for _, refusal := range refusals {
