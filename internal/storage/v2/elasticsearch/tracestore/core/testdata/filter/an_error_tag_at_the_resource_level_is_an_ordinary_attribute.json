@@ -1,0 +1,32 @@
+{
+  "bool": {
+    "should": [
+      {
+        "term": {
+          "process.tag.error": "false"
+        }
+      },
+      {
+        "nested": {
+          "path": "process.tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "process.tags.key": "error"
+                  }
+                },
+                {
+                  "term": {
+                    "process.tags.value": "false"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

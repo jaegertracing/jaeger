@@ -18,19 +18,26 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.uber.org/zap"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/mocks"
 )
 
-// TestTraceReader_SearchCapabilities pins the declaration the UI reads: the search
-// query adds its process.serviceName clause only when the query carries a service
-// name, so Elasticsearch/OpenSearch answers a query that omits it (RFC 0013).
+// TestTraceReader_SearchCapabilities pins the declaration the query service reads before it
+// dispatches: the search query adds its process.serviceName clause only when the query
+// carries a service name, so Elasticsearch/OpenSearch answers a query that omits it (RFC
+// 0013), and it declares the part of the structured filter model it lowers (RFC 0005 §7).
 func TestTraceReader_SearchCapabilities(t *testing.T) {
 	caps, err := (&TraceReader{}).SearchCapabilities(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, tracestore.SearchCapabilities{WithoutServiceName: true}, caps)
+	filter := core.FilterCapabilities()
+	assert.Equal(t, tracestore.SearchCapabilities{
+		WithoutServiceName:  true,
+		SameSpanConjunction: true,
+		Filter:              &filter,
+	}, caps)
 }
 
 func TestTraceReader_GetServices(t *testing.T) {
@@ -252,6 +259,37 @@ func TestTraceReader_FindTraceIDs_Error(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTraceReader_FindTraceIDs_Filter checks that a structured filter reaches the core
+// reader as the expression tree it is. The query service keeps it mutually exclusive with
+// the legacy predicate fields, so those travel empty alongside it.
+func TestTraceReader_FindTraceIDs_Filter(t *testing.T) {
+	filter := &expression.Call{
+		Op: expression.OpGt,
+		Args: []expression.Expression{
+			&expression.FieldRef{Name: expression.SpanFieldDuration, Level: expression.LevelSpan},
+			&expression.AnyValue{Value: "2s"},
+		},
+	}
+	ts := time.Now()
+	coreReader := &mocks.Reader{}
+	coreReader.On("FindTraceIDs", mock.Anything, dbmodel.TraceQueryParameters{
+		Tags:         map[string]string{},
+		StartTimeMin: ts,
+		StartTimeMax: ts.Add(time.Hour),
+		Filter:       filter,
+	}).Return([]dbmodel.TraceID{}, nil)
+	reader := TraceReader{spanReader: coreReader}
+	for _, err := range reader.FindTraceIDs(context.Background(), tracestore.TraceQueryParams{
+		Attributes:   pcommon.NewMap(),
+		StartTimeMin: ts,
+		StartTimeMax: ts.Add(time.Hour),
+		Filter:       filter,
+	}) {
+		require.NoError(t, err)
+	}
+	coreReader.AssertExpectations(t)
 }
 
 func Test_NewTraceReader(t *testing.T) {
