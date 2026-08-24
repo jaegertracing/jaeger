@@ -57,13 +57,21 @@ func (h *readSkillHandler) handle(
 		return nil, types.ReadSkillOutput{}, fmt.Errorf("cannot read %q: %w", input.Path, err)
 	}
 	content := string(buf[:n])
-	if n > int(h.maxFileSize) {
+	truncated := n > int(h.maxFileSize)
+	if truncated {
 		content += fmt.Sprintf("\n\nfile content truncated after %d bytes\n", h.maxFileSize)
 	}
 
-	return &mcp.CallToolResult{
+	// The body belongs in the content block alone. The SDK copies the returned
+	// output into StructuredContent, so returning the body there too would send
+	// it twice — once as markdown, once JSON-escaped.
+	result := &mcp.CallToolResult{
 		Content: []mcp.Content{&mcp.TextContent{Text: content}},
-	}, types.ReadSkillOutput{Instructions: content}, nil
+	}
+	return result, types.ReadSkillOutput{
+		Path:      input.Path,
+		Truncated: truncated,
+	}, nil
 }
 
 // open routes p to the custom tree when it names the custom/ prefix and to the
