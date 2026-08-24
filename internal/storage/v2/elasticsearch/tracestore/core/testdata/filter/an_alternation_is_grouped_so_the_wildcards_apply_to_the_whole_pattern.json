@@ -1,0 +1,38 @@
+{
+  "bool": {
+    "should": [
+      {
+        "regexp": {
+          "tag.http@route": {
+            "flags": "NONE",
+            "value": ".*(cart|checkout).*"
+          }
+        }
+      },
+      {
+        "nested": {
+          "path": "tags",
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "term": {
+                    "tags.key": "http.route"
+                  }
+                },
+                {
+                  "regexp": {
+                    "tags.value": {
+                      "flags": "NONE",
+                      "value": ".*(cart|checkout).*"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

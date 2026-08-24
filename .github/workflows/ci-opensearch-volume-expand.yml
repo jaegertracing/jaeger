@@ -1,0 +1,51 @@
+# Copyright (c) 2026 The Jaeger Authors.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Expand OTel Demo OpenSearch Volume
+
+on:
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: jaeger-otel-demo-opensearch-recovery
+  cancel-in-progress: false
+
+jobs:
+  require-main:
+    name: Require protected main branch
+    runs-on: ubuntu-latest
+    steps:
+    - name: Reject non-main dispatches
+      env:
+        DISPATCH_REF: ${{ github.ref }}
+      run: test "$DISPATCH_REF" = 'refs/heads/main'
+
+  expand:
+    name: Expand the existing OpenSearch PVC to 100Gi
+    needs: require-main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      OCI_CLI_USER: ${{ secrets.OCI_CLI_USER }}
+      OCI_CLI_TENANCY: ${{ secrets.OCI_CLI_TENANCY }}
+      OCI_CLI_FINGERPRINT: ${{ secrets.OCI_CLI_FINGERPRINT }}
+      OCI_CLI_KEY_CONTENT: ${{ secrets.OCI_CLI_KEY_CONTENT }}
+      OCI_CLI_REGION: ${{ secrets.OCI_CLI_REGION }}
+
+    steps:
+    - name: Configure kubectl with OKE
+      uses: oracle-actions/configure-kubectl-oke@77a733d79446dabe7bf0e58eb56197d33ce4dc58 # v1.5.0
+      with:
+        cluster: ${{ secrets.OKE_CLUSTER_OCID }}
+        enablePrivateEndpoint: false
+
+    - name: Checkout Jaeger repository
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      with:
+        ref: ${{ github.sha }}
+
+    - name: Expand and verify the OpenSearch volume
+      run: bash examples/otel-demo/opensearch-expand-volume.sh

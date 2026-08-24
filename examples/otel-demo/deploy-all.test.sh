@@ -90,6 +90,58 @@ testInvalidModeIsRejected() {
   assertContains "$output" "Invalid mode 'invalid'"
 }
 
+testInvalidOpenSearchRecoveryPolicyIsRejected() {
+  output=$(bash -c '
+    source "$1"
+    MODE=upgrade
+    DEPLOY_SCOPE=opensearch
+    OPENSEARCH_RECOVERY=invalid
+    validate_options
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertEquals "invalid recovery policy should fail" 1 $rc
+  assertContains "$output" "Invalid OpenSearch recovery policy 'invalid'"
+}
+
+testOpenSearchRecoveryWaiverAcceptsOnlyManualMainIsolatedUpgrade() {
+  output=$(GITHUB_EVENT_NAME=workflow_dispatch \
+    GITHUB_REF=refs/heads/main \
+    JAEGER_DEMO_STACK=otel \
+    JAEGER_OTEL_DEMO_DEPLOY_SCOPE=opensearch \
+    JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=waive \
+    bash -c 'source "$1"; MODE=upgrade; DEPLOY_SCOPE=opensearch; validate_options' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertEquals "exact manual waiver route should pass" 0 $rc
+  assertEquals "" "$output"
+}
+
+testOpenSearchRecoveryWaiverRejectsOtherRoutes() {
+  local cases=(
+    "schedule|refs/heads/main|otel|upgrade|opensearch"
+    "workflow_dispatch|refs/heads/feature|otel|upgrade|opensearch"
+    "workflow_dispatch|refs/heads/main|oci|upgrade|opensearch"
+    "workflow_dispatch|refs/heads/main|otel|clean|opensearch"
+    "workflow_dispatch|refs/heads/main|otel|upgrade|all"
+  )
+  local values
+
+  for values in "${cases[@]}"; do
+    IFS='|' read -r event ref stack mode scope <<<"$values"
+    output=$(GITHUB_EVENT_NAME="$event" \
+      GITHUB_REF="$ref" \
+      JAEGER_DEMO_STACK="$stack" \
+      JAEGER_OTEL_DEMO_DEPLOY_SCOPE="$scope" \
+      JAEGER_OTEL_DEMO_OPENSEARCH_RECOVERY=waive \
+      bash -c 'source "$1"; MODE="$2"; validate_options' _ "$SCRIPT" "$mode" 2>&1)
+    rc=$?
+
+    assertEquals "$values should reject the waiver" 1 $rc
+    assertContains "$output" "OpenSearch recovery may be waived only"
+  done
+}
+
 testMainIsGuardedWhenSourced() {
   output=$(bash -c 'source "$1"; printf sourced-only' _ "$SCRIPT" 2>&1)
   rc=$?
@@ -167,19 +219,75 @@ testPinsCompatibleOpenSearchCharts() {
 testDeploysPinnedOpenSearchChartsInOrder() {
   output=$(bash -c '
     source "$1"
+    MODE=upgrade
     log() { :; }
+    bash() { printf "bash"; printf " %s" "$@"; printf "\n"; }
     helm() { printf "helm"; printf " %s" "$@"; printf "\n"; }
     wait_for_statefulset() { printf "wait-for-statefulset"; printf " %s" "$@"; printf "\n"; }
     wait_for_deployment() { printf "wait-for-deployment"; printf " %s" "$@"; printf "\n"; }
     deploy_opensearch_releases
   ' _ "$SCRIPT")
 
-  expected="helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 2.38.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
+  expected="bash $(dirname "$SCRIPT")/opensearch-recovery.sh verify
+helm upgrade --install opensearch opensearch/opensearch --namespace opensearch --create-namespace --version 2.38.0 -f $(dirname "$SCRIPT")/opensearch-values.yaml --wait --timeout 10m
 wait-for-statefulset opensearch opensearch-cluster-single 600s
 helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards --namespace opensearch --version 2.34.0 -f $(dirname "$SCRIPT")/opensearch-dashboard-values.yaml --wait --timeout 10m"
   expected="$expected
 wait-for-deployment opensearch opensearch-dashboards 600s"
   assertEquals "$expected" "$output"
+}
+
+testRecoveryGatePrecedesOpenSearchUpgrade() {
+  output=$(bash -c '
+    source "$1"
+    MODE=upgrade
+    log() { :; }
+    bash() { printf "recovery %s %s\n" "$1" "$2"; return 1; }
+    helm() { printf "unsafe helm call\n"; }
+    deploy_opensearch_releases
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertNotEquals "missing recovery point must stop deployment" 0 "$rc"
+  assertContains "$output" "recovery $(dirname "$SCRIPT")/opensearch-recovery.sh verify"
+  assertNotContains "$output" "unsafe helm call"
+}
+
+testRecoveryWaiverSkipsOnlyRecoveryGate() {
+  output=$(bash -c '
+    source "$1"
+    MODE=upgrade
+    OPENSEARCH_RECOVERY=waive
+    log() { printf "log %s\n" "$*"; }
+    bash() { printf "unsafe recovery call\n"; }
+    helm() { printf "helm"; printf " %s" "$@"; printf "\n"; }
+    wait_for_statefulset() { printf "wait-for-statefulset"; printf " %s" "$@"; printf "\n"; }
+    wait_for_deployment() { printf "wait-for-deployment"; printf " %s" "$@"; printf "\n"; }
+    deploy_opensearch_releases
+  ' _ "$SCRIPT")
+
+  assertContains "$output" "WARNING: OpenSearch recovery was explicitly waived"
+  assertNotContains "$output" "unsafe recovery call"
+  assertContains "$output" "helm upgrade --install opensearch opensearch/opensearch"
+  assertContains "$output" "wait-for-statefulset opensearch opensearch-cluster-single 600s"
+  assertContains "$output" "helm upgrade --install opensearch-dashboards opensearch/opensearch-dashboards"
+  assertContains "$output" "wait-for-deployment opensearch opensearch-dashboards 600s"
+}
+
+testInvalidRecoveryPolicyCannotCallHelm() {
+  output=$(bash -c '
+    source "$1"
+    MODE=upgrade
+    OPENSEARCH_RECOVERY=invalid
+    log() { :; }
+    helm() { printf "unsafe helm call\n"; }
+    deploy_opensearch_releases
+  ' _ "$SCRIPT" 2>&1)
+  rc=$?
+
+  assertNotEquals "invalid recovery policy must stop deployment" 0 "$rc"
+  assertContains "$output" "Invalid OpenSearch recovery policy 'invalid'"
+  assertNotContains "$output" "unsafe helm call"
 }
 
 # shellcheck disable=SC1091
