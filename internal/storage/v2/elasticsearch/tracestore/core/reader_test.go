@@ -175,6 +175,10 @@ func TestNewSpanReader(t *testing.T) {
 	reader := NewSpanReader(params)
 	require.NotNil(t, reader)
 	assert.Equal(t, time.Hour*72, reader.maxSpanAge)
+	assert.Equal(t, config.DefaultMaxMsearchItems, reader.maxMsearchItems)
+
+	custom := NewSpanReader(SpanReaderParams{MaxMsearchItems: 8, Logger: zaptest.NewLogger(t)})
+	assert.Equal(t, 8, custom.maxMsearchItems)
 }
 
 func TestSpanReaderRotations(t *testing.T) {
@@ -337,6 +341,54 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, string(expectedData), string(actualData))
 		}
+	})
+}
+
+func recordMsearchSizes(r *spanReaderTest) *[]int {
+	sizes := make([]int, 0, 4)
+	r.searcher.On("MultiSearch", mock.Anything, mock.Anything).Return(
+		func(_ context.Context, reqs []esclient.MultiSearchRequest) ([]esclient.SearchResponse, error) {
+			sizes = append(sizes, len(reqs))
+			return make([]esclient.SearchResponse, len(reqs)), nil
+		},
+	)
+	return &sizes
+}
+
+func traceIDs(n int) []dbmodel.TraceID {
+	ids := make([]dbmodel.TraceID, n)
+	for i := range ids {
+		ids[i] = dbmodel.TraceID(fmt.Sprintf("id-%02d", i))
+	}
+	return ids
+}
+
+func TestSpanReader_multiRead_chunksWhenOverCap(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		assert.Equal(t, config.DefaultMaxMsearchItems, r.reader.maxMsearchItems)
+		sizes := recordMsearchSizes(r)
+		_, err := r.reader.multiRead(context.Background(), traceIDs(70), time.Now(), time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, []int{32, 32, 6}, *sizes)
+	})
+}
+
+func TestSpanReader_multiRead_singleCallUnderCap(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		sizes := recordMsearchSizes(r)
+		_, err := r.reader.multiRead(context.Background(), traceIDs(20), time.Now(), time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, []int{20}, *sizes)
+	})
+}
+
+func TestSpanReader_multiRead_customCap(t *testing.T) {
+	withSpanReader(t, func(r *spanReaderTest) {
+		r.reader.maxMsearchItems = 10
+		sizes := recordMsearchSizes(r)
+		_, err := r.reader.multiRead(context.Background(), traceIDs(25), time.Now(), time.Now())
+		require.NoError(t, err)
+		assert.Equal(t, []int{10, 10, 5}, *sizes)
 	})
 }
 

@@ -64,6 +64,7 @@ func DefaultConfig() config.Configuration {
 		Servers:              []string{"http://127.0.0.1:9200"},
 		RemoteReadClusters:   []string{},
 		MaxDocCount:          10_000,
+		MaxMsearchItems:      config.DefaultMaxMsearchItems,
 		LogLevel:             "error",
 		CreateIndexTemplates: true,
 		HTTPCompression:      true,

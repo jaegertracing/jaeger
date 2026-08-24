@@ -697,6 +697,12 @@ func TestMaxDocCount(t *testing.T) {
 	}
 }
 
+func TestMaxMsearchItems(t *testing.T) {
+	assert.Equal(t, escfg.DefaultMaxMsearchItems, DefaultConfig().MaxMsearchItems)
+	assert.Equal(t, 32, DefaultConfig().MaxMsearchItems)
+	assert.Equal(t, 16, escfg.Configuration{MaxMsearchItems: 16}.MaxMsearchItems)
+}
+
 func TestIndexDateSeparator(t *testing.T) {
 	testCases := []struct {
 		name           string
