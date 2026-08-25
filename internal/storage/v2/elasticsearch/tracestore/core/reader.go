@@ -103,6 +103,8 @@ var (
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	searcher   esclient.Searcher
+	// maxSpanAge is how far back (in terms of timestamped indices)
+	// we look when loading trace by ID (a query without a time range).
 	maxSpanAge time.Duration
 	// servicesMaxLookback bounds GetServices/GetOperations independently from maxSpanAge,
 	// which may be widened to DawnOfTimeSpanAge for trace reads through an alias or data stream.
