@@ -313,6 +313,7 @@ func registerAIRoutes(
 		aiGateway := jaegerai.NewHandler(jaegerai.HandlerParams{
 			Logger:             telset.Logger,
 			AgentURL:           aiCfg.AgentURL,
+			AgentHeaders:       aiCfg.AgentHeaders,
 			BasePath:           queryOpts.BasePath,
 			MaxRequestBodySize: aiCfg.MaxRequestBodySize,
 			EnableMCP:          aiCfg.MCP.HasValue(),

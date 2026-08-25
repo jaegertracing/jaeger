@@ -1,6 +1,7 @@
 {
   "regexp": {
     "operationName": {
+      "flags": "NONE",
       "value": ".*(GET .*).*"
     }
   }
