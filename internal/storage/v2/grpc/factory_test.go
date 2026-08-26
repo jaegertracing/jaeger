@@ -211,8 +211,8 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 }
 
 // TestNewFactory_TracesReadsNotWrites checks that the reader connection is
-// instrumented with the TracerProvider it is given and that the writer connection
-// stays uninstrumented.
+// instrumented with the TracerProvider it is given, that the writer connection stays
+// uninstrumented, and that one RPC produces one client span parented to its caller.
 func TestNewFactory_TracesReadsNotWrites(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
@@ -260,21 +260,26 @@ func TestNewFactory_TracesReadsNotWrites(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	invoke := func(conn *grpc.ClientConn, method string) {
+	invoke := func(ctx context.Context, conn *grpc.ClientConn, method string) {
 		err := conn.Invoke(ctx, method, &emptypb.Empty{}, &emptypb.Empty{}, grpc.WaitForReady(true))
 		require.Equal(t, codes.Unimplemented, status.Code(err))
 	}
-	invoke(f.readerConn, readMethod)
-	invoke(f.writerConn, writeMethod)
+	callerCtx, caller := tp.Tracer("test").Start(ctx, "caller")
+	invoke(callerCtx, f.readerConn, readMethod)
+	caller.End()
+	invoke(ctx, f.writerConn, writeMethod)
 
 	mu.Lock()
 	defer mu.Unlock()
 	assert.NotEmpty(t, captured[readMethod].Get("traceparent"), "read RPC must propagate trace context")
 	assert.Empty(t, captured[writeMethod].Get("traceparent"), "write RPC must not be traced")
 
-	var spanNames []string
-	for _, span := range recorder.Ended() {
-		spanNames = append(spanNames, span.Name())
-	}
-	assert.Equal(t, []string{readMethod[1:]}, spanNames)
+	// The read RPC and the caller are the only spans: a traced write would add a third.
+	// The read span has to name the caller as its parent, because a connection carrying
+	// two otelgrpc stats handlers starts a second span inside the first and then ends
+	// only the inner one, leaving this span pointing at a parent that is never exported.
+	ended := recorder.Ended()
+	require.Len(t, ended, 2)
+	assert.Equal(t, readMethod[1:], ended[0].Name())
+	assert.Equal(t, caller.SpanContext().SpanID(), ended[0].Parent().SpanID())
 }
