@@ -247,7 +247,9 @@ func initRouter(
 
 	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
-	var handler http.Handler = r
+	// MUST wrap the mux directly: nothing may be inserted between the two, or the pattern
+	// the mux records becomes invisible again. The wrappers below go on top of this one.
+	handler := routeTagHandler(queryOpts.BasePath, r)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
 	}
@@ -411,21 +413,7 @@ func createHTTPServer(
 		xconfighttp.WithOtelHTTPOptions(
 			otelhttp.WithFilter(otelFilterFunc(queryOpts.BasePath)),
 			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
-				// Use just the route pattern without the HTTP method prefix or basePath
-				// r.Pattern includes the method like "GET /jaeger/api/v3/traces/{trace_id}"
-				// We want to return just "/api/v3/traces/{trace_id}" (without basePath)
-				pattern := r.Pattern
-				if pattern != "" {
-					// Remove the method prefix (e.g., "GET ", "POST ", etc.)
-					if idx := strings.Index(pattern, " "); idx > 0 {
-						pattern = pattern[idx+1:]
-					}
-					// Remove basePath prefix if present
-					if queryOpts.BasePath != "" && queryOpts.BasePath != "/" {
-						pattern = strings.TrimPrefix(pattern, queryOpts.BasePath)
-					}
-				}
-				return pattern
+				return spanNameForRoute(routeFromPattern(r.Pattern), queryOpts.BasePath)
 			}),
 		),
 	)
