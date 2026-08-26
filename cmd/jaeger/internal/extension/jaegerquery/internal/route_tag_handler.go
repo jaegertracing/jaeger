@@ -14,14 +14,16 @@ import (
 
 // routeTagHandler names the server span after the route the mux matched and records that
 // route as http.route, on the span and on the http.server.request.duration metric. It has
-// to wrap the mux directly: http.ServeMux writes the matched pattern onto the *http.Request
-// it was handed, and the middlewares above hand it a shallow copy, so this is the only
-// position where reading that pattern is guaranteed to work.
+// to wrap the mux directly, because http.ServeMux writes the matched pattern onto whichever
+// *http.Request it receives, and the middlewares between otelhttp and the mux pass the mux
+// a shallow copy instead of the request they were given — so this handler holds the only
+// request that the mux will have written a pattern onto.
 //
-// otelhttp derives the same name and route from the pattern, but off the request it passed
-// down, which is the original that those middlewares copied — it finds no pattern there and
-// leaves the span nameless. Setting these on the span and the metric labeler instead of the
-// request keeps them independent of what the middlewares above do with the request.
+// otelhttp derives the same name and route from that pattern, but reads it off its own
+// request, the one those middlewares copied from, where the pattern never appears. Finding
+// none, otelhttp leaves the span nameless. Setting the name and the route on the span and
+// the metric labeler, rather than back onto a request, keeps them independent of whatever
+// the middlewares above do with the request.
 //
 // Both are bound late, once the handler has returned, so anything that runs at span start
 // sees neither: a head sampler and a SpanProcessor's OnStart get the empty name the span
