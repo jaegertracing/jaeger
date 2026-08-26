@@ -110,7 +110,12 @@ func TestFactoryBase_Purge(t *testing.T) {
 			esClient, err := esclient.NewClient(context.Background(),
 				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
 			require.NoError(t, err)
-			f := &FactoryBase{esClient: esClient, logger: zap.NewNop(), config: &escfg.Configuration{}}
+			f := &FactoryBase{
+				esClient:          esClient,
+				logger:            zap.NewNop(),
+				config:            &escfg.Configuration{},
+				serviceOperations: core.NewServiceOperationStorage(nil, zap.NewNop(), 0),
+			}
 
 			err = f.Purge(context.Background())
 			mu.Lock()
@@ -129,6 +134,55 @@ func TestFactoryBase_Purge(t *testing.T) {
 			}
 		})
 	}
+}
+
+// countingBatchWriter records how many service documents the span writer sends,
+// which is what the dedup cache suppresses.
+type countingBatchWriter struct {
+	serviceDocs int
+}
+
+func (w *countingBatchWriter) WriteBatch(_ context.Context, items []esclient.BulkItem) error {
+	for _, item := range items {
+		if _, ok := item.Body.(dbmodel.Service); ok {
+			w.serviceDocs++
+		}
+	}
+	return nil
+}
+
+// TestFactoryBase_PurgeClearsServiceCache covers the regression behind the flaky
+// GetOperations integration test: after Purge deletes the indices, the next write
+// must re-send the service documents rather than assume they are still there.
+func TestFactoryBase_PurgeClearsServiceCache(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			w.Write([]byte("{}"))
+			return
+		}
+		w.Write(mockEsServerResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	f, err := NewFactoryBase(context.Background(), escfg.Configuration{Servers: []string{server.URL}},
+		metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+
+	batchWriter := &countingBatchWriter{}
+	params := f.GetSpanWriterParams()
+	params.BatchWriter = batchWriter
+	writer := core.NewSpanWriter(params)
+	span := dbmodel.Span{Process: dbmodel.Process{ServiceName: "foo"}, OperationName: "bar"}
+
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	assert.Equal(t, 1, batchWriter.serviceDocs, "the cached pair must not be re-sent")
+
+	require.NoError(t, f.Purge(context.Background()))
+
+	require.NoError(t, writer.WriteSpans(context.Background(), []dbmodel.Span{span}))
+	assert.Equal(t, 2, batchWriter.serviceDocs, "the pair must be re-sent after a purge")
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {

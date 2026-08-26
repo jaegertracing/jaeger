@@ -53,6 +53,11 @@ type FactoryBase struct {
 	// lifecycle and closes it in Close.
 	searcher        esclient.Searcher
 	asyncBulkWriter *esclient.BulkIndexer
+	// serviceOperations holds the service:operation dedup cache every span writer
+	// this factory creates shares. The factory owns it so that Purge can clear it:
+	// deleting the indices without clearing the cache would leave the writers
+	// suppressing the service documents that the emptied indices need back.
+	serviceOperations *esspanstore.ServiceOperationStorage
 
 	tags []string
 }
@@ -117,6 +122,8 @@ func NewFactoryBase(
 		return nil, fmt.Errorf("failed to create Elasticsearch bulk indexer: %w", err)
 	}
 	f.asyncBulkWriter = asyncBulkWriter
+	// Write-only: the span writer builds service documents but never reads them back.
+	f.serviceOperations = esspanstore.NewServiceOperationStorage(nil, logger, f.config.ServiceCacheTTL)
 
 	err = f.createTemplates(ctx)
 	if err != nil {
@@ -178,7 +185,7 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 		TagDotReplacement: f.config.Tags.DotReplacement,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
-		ServiceCacheTTL:   f.config.ServiceCacheTTL,
+		ServiceOperations: f.serviceOperations,
 		SpanRotation:      spanRotation,
 		ServiceRotation:   serviceRotation,
 	}
@@ -253,8 +260,14 @@ func (f *FactoryBase) Close() error {
 	return errors.Join(errs...)
 }
 
+// Purge resets the storage to empty: it deletes the indices and clears the span
+// writers' service:operation cache, which is part of that state. A cache entry left
+// behind suppresses the service document for the next write, so the emptied index
+// would not get it back until the entry expired (12 hours by default).
 func (f *FactoryBase) Purge(ctx context.Context) error {
-	return f.indicesClient().DeleteAllIndices(ctx)
+	err := f.indicesClient().DeleteAllIndices(ctx)
+	f.serviceOperations.ClearCache()
+	return err
 }
 
 // TODO: Support RemoteClusters for sampling via a feature flag.
