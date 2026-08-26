@@ -14,7 +14,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/metrics"
 	escfg "github.com/jaegertracing/jaeger/internal/storage/elasticsearch/config"
 	"github.com/jaegertracing/jaeger/internal/storage/v1/api/samplingstore"
-	"github.com/jaegertracing/jaeger/internal/storage/v1/elasticsearch"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore/tracestoremetrics"
@@ -33,7 +32,7 @@ var (
 )
 
 type Factory struct {
-	coreFactory    *elasticsearch.FactoryBase
+	coreFactory    *FactoryBase
 	config         escfg.Configuration
 	metricsFactory metrics.Factory
 }
@@ -42,7 +41,7 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 	// Ensure required fields are always included in tagsAsFields
 	cfg = ensureRequiredFields(cfg)
 
-	coreFactory, err := elasticsearch.NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, httpAuth)
+	coreFactory, err := NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, httpAuth)
 	if err != nil {
 		return nil, err
 	}
