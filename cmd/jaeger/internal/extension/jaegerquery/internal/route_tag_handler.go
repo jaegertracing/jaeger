@@ -22,6 +22,13 @@ import (
 // down, which is the original that those middlewares copied — it finds no pattern there and
 // leaves the span nameless. Setting these on the span and the metric labeler instead of the
 // request keeps them independent of what the middlewares above do with the request.
+//
+// Both are bound late, once the handler has returned, so anything that runs at span start
+// sees neither: a head sampler and a SpanProcessor's OnStart get the empty name the span
+// was created with, and only the exported span carries the route. That is inherent, since
+// the route is not knowable until the mux has matched. otelhttp has the same limitation now
+// that it reads r.Pattern; the WithRouteTag it replaced took the route as a literal at
+// registration time and could set it before the handler ran, but never set the name.
 func routeTagHandler(basePath string, mux http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux.ServeHTTP(w, r)
