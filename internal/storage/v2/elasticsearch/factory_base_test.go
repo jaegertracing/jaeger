@@ -34,15 +34,6 @@ import (
 	"github.com/jaegertracing/jaeger/internal/storage/v2/elasticsearch/tracestore/core/dbmodel"
 )
 
-var mockEsServerResponse = []byte(`
-{
-	"version": {
-		"number": "7.10.2"
-	},
-	"tagline": "You Know, for Search"
-}
-`)
-
 func TestElasticsearchFactoryBase(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write(mockEsServerResponse)
@@ -337,20 +328,6 @@ func TestCreateSamplingStoreTemplateError(t *testing.T) {
 	}
 	_, err = f.CreateSamplingStore(1)
 	require.ErrorContains(t, err, "failed to create template")
-}
-
-func TestESStorageFactoryWithConfig(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write(mockEsServerResponse)
-	}))
-	defer server.Close()
-	cfg := escfg.Configuration{
-		Servers:  []string{server.URL},
-		LogLevel: "error",
-	}
-	factory, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
-	require.NoError(t, err)
-	factory.Close()
 }
 
 func TestESStorageFactoryWithConfigError(t *testing.T) {
