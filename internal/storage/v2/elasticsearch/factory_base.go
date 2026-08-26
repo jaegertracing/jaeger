@@ -11,7 +11,6 @@ import (
 	"io"
 
 	"go.opentelemetry.io/collector/extension/extensionauth"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
@@ -68,6 +67,7 @@ func NewFactoryBase(
 	cfg config.Configuration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	tracerProvider trace.TracerProvider,
 	httpAuth extensionauth.HTTPClient,
 	opts ...factoryOption,
 ) (*FactoryBase, error) {
@@ -75,7 +75,7 @@ func NewFactoryBase(
 		config:           &cfg,
 		newESClientFn:    esclient.NewClient,
 		newBulkIndexerFn: esclient.NewBulkIndexer,
-		tracer:           otel.GetTracerProvider(),
+		tracer:           tracerProvider,
 	}
 	for _, opt := range opts {
 		opt(f)
