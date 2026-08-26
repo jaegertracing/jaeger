@@ -110,6 +110,7 @@ func TestFactoryBase_Purge(t *testing.T) {
 				&escfg.Configuration{Servers: []string{server.URL}, Version: uint(es.ElasticV7)}, zap.NewNop(), nil)
 			require.NoError(t, err)
 			f := &FactoryBase{esClient: esClient, logger: zap.NewNop(), config: &escfg.Configuration{}}
+			f.serviceOpStorage = core.NewServiceOperationStorage(nil, zap.NewNop(), time.Hour)
 
 			err = f.Purge(context.Background())
 			mu.Lock()

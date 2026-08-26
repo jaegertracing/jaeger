@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strconv"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -37,7 +38,9 @@ var errNoSearcher = errors.New("service/operation reads require a searcher, but 
 type ServiceOperationStorage struct {
 	searcher     esclient.Searcher
 	logger       *zap.Logger
+	mu           sync.RWMutex
 	serviceCache cache.Cache
+	cacheTTL     time.Duration
 }
 
 // NewServiceOperationStorage returns a new ServiceOperationStorage. searcher is
@@ -52,6 +55,7 @@ func NewServiceOperationStorage(
 	return &ServiceOperationStorage{
 		searcher: searcher,
 		logger:   logger,
+		cacheTTL: cacheTTL,
 		serviceCache: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -59,6 +63,20 @@ func NewServiceOperationStorage(
 			},
 		),
 	}
+}
+
+// ClearCache replaces the service cache with a fresh empty instance, preserving
+// the original TTL. Called by Purge to ensure the in-memory cache does not
+// suppress writes to a freshly emptied index.
+func (s *ServiceOperationStorage) ClearCache() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.serviceCache = cache.NewLRUWithOptions(
+		100000,
+		&cache.Options{
+			TTL: s.cacheTTL,
+		},
+	)
 }
 
 // toUpsertItem returns the service:operation document to upsert for a span and its
@@ -73,7 +91,12 @@ func (s *ServiceOperationStorage) toUpsertItem(indexName string, jsonSpan *dbmod
 		OperationName: jsonSpan.OperationName,
 	}
 	cacheKey := hashCode(service)
-	if s.serviceCache.Get(cacheKey) != nil {
+
+	s.mu.RLock()
+	inCache := s.serviceCache.Get(cacheKey) != nil
+	s.mu.RUnlock()
+
+	if inCache {
 		return esclient.BulkItem{}, "", false
 	}
 	return esclient.BulkItem{Index: indexName, ID: cacheKey, Body: service}, cacheKey, true
@@ -81,8 +104,10 @@ func (s *ServiceOperationStorage) toUpsertItem(indexName string, jsonSpan *dbmod
 
 // commitToCache records that a service:operation document is durably written, so it
 // is not re-sent until the cache entry expires. Called only after a successful flush.
-func (s *ServiceOperationStorage) commitToCache(cacheKey string) {
-	s.serviceCache.Put(cacheKey, cacheKey)
+func (s *ServiceOperationStorage) commitToCache(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.serviceCache.Put(key, key)
 }
 
 // serviceOperationBatch accumulates the new service:operation documents for one write

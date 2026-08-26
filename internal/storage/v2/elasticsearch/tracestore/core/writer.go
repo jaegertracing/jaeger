@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	serviceCacheTTLDefault = 12 * time.Hour
+	ServiceCacheTTLDefault = 12 * time.Hour
 	indexCacheTTLDefault   = 48 * time.Hour
 )
 
@@ -64,16 +64,25 @@ type SpanWriterParams struct {
 	AllTagsAsFields   bool
 	TagKeysAsFields   []string
 	TagDotReplacement string
-	ServiceCacheTTL   time.Duration
-	SpanRotation      indices.Rotation
-	ServiceRotation   indices.Rotation
+	// ServiceOpStorage is the shared service:operation cache. When non-nil the
+	// writer uses this instance (letting the factory clear it on Purge). When nil
+	// the writer creates its own from ServiceCacheTTL — backward-compatible for
+	// tests that don't need Purge semantics.
+	ServiceOpStorage *ServiceOperationStorage
+	ServiceCacheTTL  time.Duration
+	SpanRotation     indices.Rotation
+	ServiceRotation  indices.Rotation
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
-	serviceCacheTTL := p.ServiceCacheTTL
-	if p.ServiceCacheTTL == 0 {
-		serviceCacheTTL = serviceCacheTTLDefault
+	serviceOp := p.ServiceOpStorage
+	if serviceOp == nil {
+		serviceCacheTTL := p.ServiceCacheTTL
+		if serviceCacheTTL == 0 {
+			serviceCacheTTL = ServiceCacheTTLDefault
+		}
+		serviceOp = NewServiceOperationStorage(nil, p.Logger, serviceCacheTTL) // write-only: no searcher
 	}
 
 	tags := map[string]bool{}
@@ -83,7 +92,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 	return &SpanWriter{
 		batchWriter:       p.BatchWriter,
-		serviceOp:         NewServiceOperationStorage(nil, p.Logger, serviceCacheTTL), // write-only: no searcher
+		serviceOp:         serviceOp,
 		logger:            p.Logger,
 		writerMetrics:     spanstoremetrics.NewWriter(p.MetricsFactory, "spans"),
 		spanRotation:      p.SpanRotation,

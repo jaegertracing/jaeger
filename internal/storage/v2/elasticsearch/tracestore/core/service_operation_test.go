@@ -54,6 +54,31 @@ func TestToUpsertItem(t *testing.T) {
 	assert.False(t, ok, "must be cached after confirm")
 }
 
+func TestClearCache(t *testing.T) {
+	indexName := "jaeger-1995-04-21"
+	jsonSpan := &dbmodel.Span{
+		OperationName: "operation",
+		Process:       dbmodel.Process{ServiceName: "service"},
+	}
+	s := NewServiceOperationStorage(nil, zap.NewNop(), time.Hour)
+
+	// Write and commit to cache.
+	_, key, ok := s.toUpsertItem(indexName, jsonSpan)
+	require.True(t, ok)
+	s.commitToCache(key)
+
+	// Verify cached.
+	_, _, ok = s.toUpsertItem(indexName, jsonSpan)
+	assert.False(t, ok)
+
+	// Clear cache.
+	s.ClearCache()
+
+	// Verify cache is cleared and write is permitted again.
+	_, _, ok = s.toUpsertItem(indexName, jsonSpan)
+	assert.True(t, ok, "must be permitted after clearing cache")
+}
+
 // oneBucketResponse is a search response with a single terms-aggregation bucket
 // keyed "123", used to assert getServices/getOperations extract the bucket keys.
 func oneBucketResponse(aggName string) *esclient.SearchResponse {

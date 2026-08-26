@@ -55,6 +55,11 @@ type FactoryBase struct {
 	searcher        esclient.Searcher
 	asyncBulkWriter *esclient.BulkIndexer
 
+	// serviceOpStorage is the service:operation cache used by the span writer.
+	// The factory owns it so that Purge can clear it — without this, Purge
+	// deletes the ES indices but the stale cache suppresses the next writes.
+	serviceOpStorage *esspanstore.ServiceOperationStorage
+
 	tags []string
 }
 
@@ -171,6 +176,11 @@ func (f *FactoryBase) spanBatchWriter() esclient.BatchWriter {
 // GetSpanWriterParams returns the SpanWriterParams which can be used to initialize the v1 and v2 writers.
 func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 	spanRotation, serviceRotation := f.buildRotations()
+	serviceCacheTTL := f.config.ServiceCacheTTL
+	if serviceCacheTTL == 0 {
+		serviceCacheTTL = esspanstore.ServiceCacheTTLDefault
+	}
+	f.serviceOpStorage = esspanstore.NewServiceOperationStorage(nil, f.logger, serviceCacheTTL)
 	return esspanstore.SpanWriterParams{
 		BatchWriter:       f.spanBatchWriter(),
 		AllTagsAsFields:   f.config.Tags.AllAsFields,
@@ -178,7 +188,7 @@ func (f *FactoryBase) GetSpanWriterParams() esspanstore.SpanWriterParams {
 		TagDotReplacement: f.config.Tags.DotReplacement,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
-		ServiceCacheTTL:   f.config.ServiceCacheTTL,
+		ServiceOpStorage:  f.serviceOpStorage,
 		SpanRotation:      spanRotation,
 		ServiceRotation:   serviceRotation,
 	}
@@ -254,6 +264,9 @@ func (f *FactoryBase) Close() error {
 }
 
 func (f *FactoryBase) Purge(ctx context.Context) error {
+	if f.serviceOpStorage != nil {
+		f.serviceOpStorage.ClearCache()
+	}
 	return f.indicesClient().DeleteAllIndices(ctx)
 }
 
