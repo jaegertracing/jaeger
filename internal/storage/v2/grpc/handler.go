@@ -15,8 +15,10 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 
+	expression "github.com/jaegertracing/jaeger-idl/query/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/jptrace"
 	"github.com/jaegertracing/jaeger/internal/proto-gen/storage/v2"
+	expressionproto "github.com/jaegertracing/jaeger/internal/proto/expression/v1"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/depstore"
 	"github.com/jaegertracing/jaeger/internal/storage/v2/api/tracestore"
 )
@@ -121,7 +123,11 @@ func (h *Handler) FindTraces(
 	req *storage.FindTracesRequest,
 	srv storage.TraceReader_FindTracesServer,
 ) error {
-	for traces, err := range h.traceReader.FindTraces(srv.Context(), toTraceQueryParams(req.Query)) {
+	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
+	if err != nil {
+		return err
+	}
+	for traces, err := range h.traceReader.FindTraces(srv.Context(), query) {
 		if err != nil {
 			return err
 		}
@@ -140,7 +146,11 @@ func (h *Handler) FindTraceSummaries(
 	req *storage.FindTraceSummariesRequest,
 	srv storage.TraceReader_FindTraceSummariesServer,
 ) error {
-	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), toTraceQueryParams(req.Query)) {
+	query, err := h.toTraceQueryParams(srv.Context(), req.Query)
+	if err != nil {
+		return err
+	}
+	for summaries, err := range h.traceReader.FindTraceSummaries(srv.Context(), query) {
 		if err != nil {
 			// A backend that cannot compute summaries natively signals this with
 			// errors.ErrUnsupported; surface it as gRPC Unimplemented so the remote
@@ -185,7 +195,11 @@ func (h *Handler) FindTraceIDs(
 	req *storage.FindTraceIDsRequest,
 ) (*storage.FindTraceIDsResponse, error) {
 	foundTraceIDs := []*storage.FoundTraceID{}
-	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, toTraceQueryParams(req.Query)) {
+	query, err := h.toTraceQueryParams(ctx, req.Query)
+	if err != nil {
+		return nil, err
+	}
+	for traceIDs, err := range h.traceReader.FindTraceIDs(ctx, query) {
 		if err != nil {
 			return nil, err
 		}
@@ -267,13 +281,38 @@ func (h *Handler) GetCapabilities(
 	}
 	return &storage.GetCapabilitiesResponse{
 		Search: &storage.SearchCapabilities{
-			WithoutServiceName: caps.WithoutServiceName,
+			WithoutServiceName:  caps.WithoutServiceName,
+			SameSpanConjunction: caps.SameSpanConjunction,
+			Filter:              toProtoFilterCapabilities(caps.Filter),
 		},
 	}, nil
 }
 
-func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryParams {
-	return tracestore.TraceQueryParams{
+// toTraceQueryParams prepares a query a third party sent for the reader behind this handler. The
+// same three things happen to a query arriving on api_v3, and for the same reasons, so they happen
+// through the same checks (RFC 0005 §7):
+//
+//   - The filter is finalized, because decoding validates nothing: a reader is owed the same tree
+//     whether the query came from this process or over the wire.
+//   - A query carrying both a filter and the legacy fields it replaces is refused, rather than left
+//     for the reader to answer one of them without saying which.
+//   - The reader gets whichever filtering model it declared. A reader that evaluates no filter is
+//     given the legacy fields instead, which is what keeps a client's filter from reaching one that
+//     would ignore the field and answer with every trace in the range.
+//
+// A refusal is InvalidArgument, because each is something the caller has to change.
+func (h *Handler) toTraceQueryParams(
+	ctx context.Context,
+	t *storage.TraceQueryParameters,
+) (tracestore.TraceQueryParams, error) {
+	filter, err := expressionproto.FromProto(t.GetFilter())
+	if err == nil && filter != nil {
+		filter, err = expression.Finalize(filter)
+	}
+	if err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	query := tracestore.TraceQueryParams{
 		ServiceName:   t.ServiceName,
 		OperationName: t.OperationName,
 		Attributes:    convertKeyValueListToMap(t.Attributes),
@@ -282,7 +321,25 @@ func toTraceQueryParams(t *storage.TraceQueryParameters) tracestore.TraceQueryPa
 		DurationMin:   t.DurationMin,
 		DurationMax:   t.DurationMax,
 		SearchDepth:   int(t.SearchDepth),
+		Filter:        filter,
 	}
+	if err := query.EnsureFilterStandsAlone(); err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	if query.Filter == nil {
+		return query, nil
+	}
+	caps, err := h.traceReader.SearchCapabilities(ctx)
+	if err != nil {
+		// A reader that cannot report its capabilities reads as the least capable one, which serves
+		// only the legacy predicate fields.
+		caps = tracestore.SearchCapabilities{}
+	}
+	prepared, err := query.ForCapabilities(caps)
+	if err != nil {
+		return tracestore.TraceQueryParams{}, status.Error(codes.InvalidArgument, err.Error())
+	}
+	return prepared, nil
 }
 
 func convertKeyValueListToMap(kvList []*storage.KeyValue) pcommon.Map {
