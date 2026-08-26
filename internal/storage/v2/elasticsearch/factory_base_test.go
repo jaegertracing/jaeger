@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/extension/extensionauth"
 	"go.opentelemetry.io/otel"
+	nooptrace "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 
@@ -43,7 +44,7 @@ func TestElasticsearchFactoryBase(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "debug",
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 	require.NoError(t, err)
 	readerParams := f.GetSpanReaderParams()
 	assert.IsType(t, core.SpanReaderParams{}, readerParams)
@@ -68,7 +69,7 @@ func TestFactoryBase_SpanBatchWriterForWriteMode(t *testing.T) {
 	for _, mode := range []escfg.WriteMode{escfg.WriteModeAsync, escfg.WriteModeSync} {
 		t.Run(string(mode), func(t *testing.T) {
 			cfg := escfg.Configuration{Servers: []string{server.URL}, WriteMode: mode}
-			f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+			f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 			require.NoError(t, err)
 			t.Cleanup(func() { require.NoError(t, f.Close()) })
 			assert.NotNil(t, f.GetSpanWriterParams().BatchWriter)
@@ -142,7 +143,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 		},
 		LogLevel: "debug",
 	}
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 	require.ErrorContains(t, err, "open fixtures/file-does-not-exist.txt: no such file or directory")
 	assert.Nil(t, f)
 }
@@ -343,7 +344,7 @@ func TestESStorageFactoryWithConfigError(t *testing.T) {
 		Servers:  []string{server.URL},
 		LogLevel: "error",
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil)
 	require.ErrorContains(t, err, "failed to create Elasticsearch data client")
 }
 
@@ -368,7 +369,7 @@ func TestESStorageFactoryClosesOnTemplateError(t *testing.T) {
 			Services: escfg.IndexOptions{Shards: 1, Replicas: new(int64(0)), Priority: 10},
 		},
 	}
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil)
 	require.Error(t, err)
 }
 
@@ -386,7 +387,7 @@ func TestNewFactoryBaseDataClientError(t *testing.T) {
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
-		metrics.NullFactory, zap.NewNop(), nil,
+		metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil,
 		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
 			return nil, errors.New("data client boom")
 		}),
@@ -400,7 +401,7 @@ func TestNewFactoryBaseBulkIndexerError(t *testing.T) {
 	_, err := NewFactoryBase(
 		context.Background(),
 		escfg.Configuration{Servers: []string{"http://localhost:9200"}},
-		metrics.NullFactory, zap.NewNop(), nil,
+		metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil,
 		withESClientFn(func(context.Context, *escfg.Configuration, *zap.Logger, extensionauth.HTTPClient) (*esclient.Client, error) {
 			return &esclient.Client{}, nil
 		}),
@@ -461,7 +462,7 @@ func runPasswordFromFileTest(t *testing.T) {
 		},
 	}
 
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nil)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zap.NewNop(), nooptrace.NewTracerProvider(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, f.Close()) })
 
@@ -505,7 +506,7 @@ func TestFactoryBase_MissingPasswordFile(t *testing.T) {
 		},
 	}
 
-	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nil)
+	_, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to initialize basic authentication")
 	assert.Contains(t, err.Error(), "failed to get token from file")
@@ -527,7 +528,7 @@ func TestElasticsearchFactoryBaseWithAuthenticator(t *testing.T) {
 
 	mockAuth := &mockHTTPAuthenticator{}
 
-	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), mockAuth)
+	f, err := NewFactoryBase(context.Background(), cfg, metrics.NullFactory, zaptest.NewLogger(t), nooptrace.NewTracerProvider(), mockAuth)
 	require.NoError(t, err)
 	require.NotNil(t, f)
 	defer require.NoError(t, f.Close())

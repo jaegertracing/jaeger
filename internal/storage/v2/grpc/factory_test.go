@@ -7,6 +7,7 @@ import (
 	"context"
 	"math"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,8 +17,17 @@ import (
 	"go.opentelemetry.io/collector/config/configauth"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/jaegertracing/jaeger/internal/headerforwarding"
 	"github.com/jaegertracing/jaeger/internal/telemetry"
@@ -198,4 +208,73 @@ func TestInitializeConnections_ClientError(t *testing.T) {
 		newClientFn,
 	)
 	assert.ErrorContains(t, err, "error creating reader client connection")
+}
+
+// TestNewFactory_TracesReadsNotWrites checks that the reader connection is
+// instrumented with the TracerProvider it is given and that the writer connection
+// stays uninstrumented.
+func TestNewFactory_TracesReadsNotWrites(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { require.NoError(t, tp.Shutdown(context.Background())) })
+	// otelgrpc injects the outgoing trace context with the global propagator,
+	// which jtracer installs in production.
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	const (
+		readMethod  = "/jaeger.storage.v2.TraceReader/GetServices"
+		writeMethod = "/opentelemetry.proto.collector.trace.v1.TraceService/Export"
+	)
+
+	var mu sync.Mutex
+	captured := make(map[string]metadata.MD)
+	server := grpc.NewServer(grpc.UnknownServiceHandler(
+		func(_ any, stream grpc.ServerStream) error {
+			method, _ := grpc.MethodFromServerStream(stream)
+			md, _ := metadata.FromIncomingContext(stream.Context())
+			mu.Lock()
+			captured[method] = md
+			mu.Unlock()
+			return status.Error(codes.Unimplemented, "test server implements no services")
+		},
+	))
+	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+	go func() { server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		listener.Close()
+	})
+
+	cfg := Config{
+		ClientConfig: configgrpc.ClientConfig{
+			Endpoint: listener.Addr().String(),
+			TLS:      configtls.ClientConfig{Insecure: true},
+		},
+	}
+	telset := telemetry.NoopSettings()
+	telset.TracerProvider = tp
+	f, err := NewFactory(context.Background(), cfg, telset)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close()) })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	invoke := func(conn *grpc.ClientConn, method string) {
+		err := conn.Invoke(ctx, method, &emptypb.Empty{}, &emptypb.Empty{}, grpc.WaitForReady(true))
+		require.Equal(t, codes.Unimplemented, status.Code(err))
+	}
+	invoke(f.readerConn, readMethod)
+	invoke(f.writerConn, writeMethod)
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.NotEmpty(t, captured[readMethod].Get("traceparent"), "read RPC must propagate trace context")
+	assert.Empty(t, captured[writeMethod].Get("traceparent"), "write RPC must not be traced")
+
+	var spanNames []string
+	for _, span := range recorder.Ended() {
+		spanNames = append(spanNames, span.Name())
+	}
+	assert.Equal(t, []string{readMethod[1:]}, spanNames)
 }

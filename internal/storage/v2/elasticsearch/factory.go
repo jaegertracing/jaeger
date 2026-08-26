@@ -44,7 +44,7 @@ func NewFactory(ctx context.Context, cfg escfg.Configuration, telset telemetry.S
 	// Ensure required fields are always included in tagsAsFields
 	cfg = ensureRequiredFields(cfg)
 
-	base, err := NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, httpAuth)
+	base, err := NewFactoryBase(ctx, cfg, telset.Metrics, telset.Logger, telset.TracerProvider, httpAuth)
 	if err != nil {
 		return nil, err
 	}
