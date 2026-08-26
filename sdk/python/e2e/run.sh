@@ -20,14 +20,15 @@ JAEGER_PID=""
 # carrying one is refused until it is on.
 FEATURE_GATES="jaeger.query.structuredFilters"
 
-# Everything this test needs a port for. It refuses to start when one is taken rather
-# than testing whatever else is listening: a stale Jaeger on 16685 answers queries
-# happily, and one built before the filter existed drops it as an unknown proto field,
-# so every predicate silently stops filtering and the failures look like Jaeger's.
+# These are the ports the test needs. It refuses to start when one of them is already
+# taken, rather than testing whatever else is listening. A stale Jaeger on 16685 answers
+# queries quite happily, and one built before the filter existed drops the filter as an
+# unknown proto field, so every predicate silently stops filtering and the failures look
+# as though the server were at fault.
 REQUIRED_PORTS=(9200 4318 16685)
 
-# An explicit project name, because `include` leaves Compose to derive one from the
-# included file's directory, and `up` and `down` then disagree about what to tear down.
+# The project name is set explicitly. Compose otherwise derives one from the included
+# file's directory, and then `up` and `down` disagree about what to tear down.
 COMPOSE=(docker compose --project-name jaeger-sdk-e2e --file "$HERE/docker-compose.yml")
 
 log() { echo "🧪 [sdk-e2e] $*"; }
@@ -51,8 +52,8 @@ cleanup() {
 		log "stopping Jaeger"
 		kill "$JAEGER_PID" 2>/dev/null || true
 		wait "$JAEGER_PID" 2>/dev/null || true
-		# Belt and braces: if it is somehow still holding the query port, say so rather
-		# than leaving the next run to discover it.
+		# If it is somehow still holding the query port, say so here rather than leaving
+		# the next run to discover it.
 		if lsof -nP -iTCP:16685 -sTCP:LISTEN >/dev/null 2>&1; then
 			log "warning: something is still listening on 16685"
 		fi

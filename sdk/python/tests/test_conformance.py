@@ -9,9 +9,9 @@ AST changed shape in jaeger-idl, every one of those assertions still passed whil
 the server rejected every filter.
 
 So these tests parse each shape with the real ``jaeger.expression.v1`` messages in
-strict mode, where an unknown or misspelled field is an error. A term the AST no
-longer has, a field renamed, a level dropped from the enum — each shows up here as
-a failure rather than as a filter the server refuses at runtime.
+strict mode, where an unknown or misspelled field is an error. If the AST drops a
+term, renames a field, or narrows a level, that shows up here as a failure, rather
+than as a filter the server refuses at runtime.
 """
 
 import pytest

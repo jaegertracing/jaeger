@@ -3,17 +3,18 @@
 
 """Search a real Jaeger with a real backend, through the SDK.
 
-The rest of the suite stops at the wire: test_conformance.py proves the builder's
-JSON parses into the generated messages, and nothing more. Three things only a
-running Jaeger can answer — whether the server's validator accepts what the builder
-emits, whether the backend's declared capabilities admit it, and whether the filter
-matches the spans it should.
+The rest of the suite stops at the wire. test_conformance.py proves that the JSON the
+builder produces parses into the generated messages, and nothing more. Only a running
+Jaeger can answer three further questions. Does the server's validator accept what the
+builder emits? Do the backend's declared capabilities admit it? And does the filter
+match the spans it should?
 
-Skipped unless JAEGER_QUERY_ADDR names a query service, so `make test` stays
-hermetic. `make e2e` supplies one, along with the OpenSearch behind it: see
-e2e/run.sh. OpenSearch because Elasticsearch/OpenSearch is the only backend that
-declares filter capabilities today, so it is the only one that evaluates a filter
-rather than having it down-converted to the legacy predicate fields.
+These tests are skipped unless JAEGER_QUERY_ADDR names a query service, so that
+`make test` stays hermetic. `make e2e` supplies one, along with the OpenSearch behind
+it; see e2e/run.sh. It has to be OpenSearch, because Elasticsearch and OpenSearch are
+the only backends that declare filter capabilities today, which makes them the only
+ones that evaluate a filter rather than having it down-converted to the legacy
+predicate fields.
 """
 
 from __future__ import annotations
