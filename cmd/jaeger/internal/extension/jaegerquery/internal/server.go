@@ -247,6 +247,8 @@ func initRouter(
 
 	cs = append(cs, RegisterStaticHandler(r, telset.Logger, queryOpts, backendCaps))
 
+	// MUST wrap the mux directly: nothing may be inserted between the two, or the pattern
+	// the mux records becomes invisible again. The wrappers below go on top of this one.
 	handler := routeTagHandler(queryOpts.BasePath, r)
 	if queryOpts.BearerTokenPropagation {
 		handler = bearertoken.PropagationHandler(telset.Logger, handler)
