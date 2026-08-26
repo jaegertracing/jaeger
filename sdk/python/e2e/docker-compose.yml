@@ -1,17 +1,18 @@
 # Copyright (c) 2026 The Jaeger Authors.
 # SPDX-License-Identifier: Apache-2.0
 #
-# This test needs somewhere to store traces, so it reuses the OpenSearch service the
-# repository already defines for its own e2e runs. Including that file rather than
-# restating it keeps the image version and settings in one place.
+# This file provides the storage that the Python SDK's end-to-end test runs against
+# (../tests/test_e2e.py, driven by run.sh beside this file). It includes the OpenSearch
+# service the repository already defines for its own e2e runs, rather than restating it,
+# so the image version and its settings stay in one place.
 #
-# It has to be OpenSearch rather than memory storage, because Elasticsearch and
+# The backend has to be OpenSearch rather than memory storage, because Elasticsearch and
 # OpenSearch are the only backends that declare filter capabilities today. That makes
 # them the only ones that evaluate a structured filter, instead of having it
 # down-converted to the legacy predicate fields.
 #
-# Jaeger is deliberately absent here. run.sh starts it from source against
-# cmd/jaeger/config-opensearch.yaml, so that the test exercises the working tree
-# rather than a published image.
+# Jaeger itself is deliberately not defined here. run.sh starts it from source against
+# cmd/jaeger/config-opensearch.yaml, so that the test exercises the working tree rather
+# than a published image.
 include:
   - ../../../docker-compose/opensearch/v3/docker-compose.yml
