@@ -799,6 +799,7 @@ func TestGetSpanReaderParams_NonPeriodicMaxSpanAge(t *testing.T) {
 	f := &FactoryBase{config: &cfg, logger: zap.NewNop(), tracer: otel.GetTracerProvider()}
 	params := f.GetSpanReaderParams()
 	assert.Equal(t, core.DawnOfTimeSpanAge, params.MaxSpanAge)
+	assert.Equal(t, 72*time.Hour, params.ServicesMaxLookback)
 }
 
 func TestGetSpanReaderParams_MaxTraceDuration(t *testing.T) {

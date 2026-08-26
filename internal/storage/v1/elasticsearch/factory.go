@@ -141,15 +141,16 @@ func (f *FactoryBase) GetSpanReaderParams() esspanstore.SpanReaderParams {
 		maxSpanAge = esspanstore.DawnOfTimeSpanAge
 	}
 	return esspanstore.SpanReaderParams{
-		Searcher:          f.searcher,
-		MaxDocCount:       f.config.MaxDocCount,
-		MaxSpanAge:        maxSpanAge,
-		MaxTraceDuration:  f.config.MaxTraceDuration,
-		TagDotReplacement: f.config.Tags.DotReplacement,
-		Logger:            f.logger,
-		Tracer:            f.tracer.Tracer("esspanstore.SpanReader"),
-		SpanRotation:      spanRotation,
-		ServiceRotation:   serviceRotation,
+		Searcher:            f.searcher,
+		MaxDocCount:         f.config.MaxDocCount,
+		MaxSpanAge:          maxSpanAge,
+		ServicesMaxLookback: f.config.MaxSpanAge,
+		MaxTraceDuration:    f.config.MaxTraceDuration,
+		TagDotReplacement:   f.config.Tags.DotReplacement,
+		Logger:              f.logger,
+		Tracer:              f.tracer.Tracer("esspanstore.SpanReader"),
+		SpanRotation:        spanRotation,
+		ServiceRotation:     serviceRotation,
 	}
 }
 
