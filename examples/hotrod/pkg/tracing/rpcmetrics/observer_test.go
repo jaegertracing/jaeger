@@ -32,8 +32,7 @@ func withTestTracer(runTest func(tt *testTracer)) {
 
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(observer),
-		sdktrace.WithResource(resource.NewWithAttributes(
-			otelsemconv.SchemaURL,
+		sdktrace.WithResource(resource.NewSchemaless(
 			otelsemconv.ServiceNameAttribute("test"),
 		)),
 	)
