@@ -172,6 +172,8 @@ jobs:
     if: ${{ needs.setup.outputs.parallel == 'false' }}
     permissions:
       contents: read
+      # binary-size-check reads the PR's labels to see whether its size gate is waived.
+      pull-requests: read
     uses: ./.github/workflows/ci-orchestrator-stage1.yml
     secrets: inherit
 
@@ -204,6 +206,8 @@ jobs:
     if: ${{ needs.setup.outputs.parallel == 'true' }}
     permissions:
       contents: read
+      # binary-size-check reads the PR's labels to see whether its size gate is waived.
+      pull-requests: read
     uses: ./.github/workflows/ci-orchestrator-stage1.yml
     secrets: inherit
 
